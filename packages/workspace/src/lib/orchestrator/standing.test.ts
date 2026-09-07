@@ -72,7 +72,7 @@ describe("taskStanding", () => {
     const sessionId = await withSession(taskId);
     await Store.saveMessageWithParts(
       assistant(sessionId, (ids) => ({
-        input: {},
+        input: { reason: "So I can read your issues.", slug: "linear" },
         metadata: { createdAt: new Date(), id: StoreId.newPartId(), ...ids },
         state: "input-available",
         toolCallId: "call_1",

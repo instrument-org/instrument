@@ -113,7 +113,9 @@ async function runRead(taskId: TaskId, args: string[]) {
   }
   const tailIndex = args.indexOf("--tail");
   const tail =
-    tailIndex === -1 ? DEFAULT_TAIL : Number(args[tailIndex + 1] ?? DEFAULT_TAIL);
+    tailIndex === -1
+      ? DEFAULT_TAIL
+      : Number(args[tailIndex + 1] ?? DEFAULT_TAIL);
   const said = await lines(taskId, channel.id);
   const shown = said.slice(-(Number.isFinite(tail) ? tail : DEFAULT_TAIL));
   return {

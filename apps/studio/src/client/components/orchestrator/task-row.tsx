@@ -76,8 +76,8 @@ export function TaskRow({
       </span>
       {channel && (
         <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-          <ChannelMark name={channel} />
-          <span className="hidden @[22rem]/tasks:inline">#&nbsp;{channel}</span>
+          <ChannelMark />
+          <span className="hidden @[22rem]/tasks:inline">{channel}</span>
         </span>
       )}
       {madeSomething && (

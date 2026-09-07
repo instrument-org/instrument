@@ -160,6 +160,22 @@ function OrchestratorLayout() {
   const markSeen = useMutation(
     rpcClient.workspace.orchestrator.channels.seen.mutationOptions(),
   );
+  const afterChannelChange = { onSuccess: () => void channels.refetch() };
+  const renameChannel = useMutation(
+    rpcClient.workspace.orchestrator.channels.rename.mutationOptions(
+      afterChannelChange,
+    ),
+  );
+  const archiveChannel = useMutation(
+    rpcClient.workspace.orchestrator.channels.archive.mutationOptions(
+      afterChannelChange,
+    ),
+  );
+  const reorderChannels = useMutation(
+    rpcClient.workspace.orchestrator.channels.reorder.mutationOptions(
+      afterChannelChange,
+    ),
+  );
   // Which channels have a task running, for the dot on their tabs.
   const activity = useQuery(
     rpcClient.workspace.orchestrator.activity.queryOptions({
@@ -518,8 +534,34 @@ function OrchestratorLayout() {
                       unread: channel.id === sessionId ? 0 : channel.unread,
                       working: workingChannels.has(channel.id),
                     }))}
+                    {...(channelList[0] ? { firstId: channelList[0].id } : {})}
+                    onArchive={(id) => {
+                      if (id === sessionId) {
+                        setSelectedChannel(
+                          channelList.find((channel) => channel.id !== id)
+                            ?.id ?? null,
+                        );
+                      }
+                      archiveChannel.mutate({
+                        id: screens.taskId,
+                        sessionId: StoreId.SessionSchema.parse(id),
+                      });
+                    }}
                     onNew={(name) => {
                       createChannel.mutate({ id: screens.taskId, name });
+                    }}
+                    onRename={(id, name) => {
+                      renameChannel.mutate({
+                        id: screens.taskId,
+                        name,
+                        sessionId: StoreId.SessionSchema.parse(id),
+                      });
+                    }}
+                    onReorder={(ids) => {
+                      reorderChannels.mutate({
+                        id: screens.taskId,
+                        ids: ids.map((id) => StoreId.SessionSchema.parse(id)),
+                      });
                     }}
                     onSelect={setSelectedChannel}
                     selectedId={sessionId}

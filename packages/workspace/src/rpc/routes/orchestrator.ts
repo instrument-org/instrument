@@ -9,11 +9,14 @@ import {
   OrchestratorActivitySchema,
 } from "../../lib/orchestrator/activity";
 import {
+  archiveChannel,
   CHANNEL_NAME_MAX,
   channelName,
   channelStandings,
   createChannel,
   markChannelSeen,
+  renameChannel,
+  reorderChannels,
 } from "../../lib/orchestrator/channels";
 import { taskChannels } from "../../lib/orchestrator/attribution";
 import { listChildTasks } from "../../lib/orchestrator/children";
@@ -147,6 +150,35 @@ const createChannelRoute = base
   .output(ChannelSchema.omit({ unread: true, updatedAt: true }))
   .handler(({ input }) => createChannel(input.id, channelName(input.name)));
 
+/** Renames a channel, in place. */
+const renameChannelRoute = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      name: z
+        .string()
+        .min(1)
+        .max(CHANNEL_NAME_MAX * 2),
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .handler(async ({ input }) => {
+    await renameChannel(input.id, input.sessionId, input.name);
+  });
+
+/** Takes a channel out of the strip, keeping what was said in it. */
+const archiveChannelRoute = base
+  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .output(z.object({ archived: z.boolean(), reason: z.string().optional() }))
+  .handler(({ input }) => archiveChannel(input.id, input.sessionId));
+
+/** The order the user dragged the strip into. */
+const reorderChannelsRoute = base
+  .input(z.object({ id: TaskIdSchema, ids: StoreId.SessionSchema.array() }))
+  .handler(async ({ input }) => {
+    await reorderChannels(input.id, input.ids);
+  });
+
 /** What the user has seen in a channel, so its count can clear. */
 const seenChannelRoute = base
   .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
@@ -192,8 +224,11 @@ const open = base
 export const orchestrator = {
   activity,
   channels: {
+    archive: archiveChannelRoute,
     create: createChannelRoute,
     list: listChannelsRoute,
+    rename: renameChannelRoute,
+    reorder: reorderChannelsRoute,
     seen: seenChannelRoute,
   },
   children,

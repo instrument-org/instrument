@@ -12,6 +12,12 @@ import {
 
 /** A tab on the strip: what it is called and what stands for it. */
 export interface StripTab {
+  /**
+   * Something the tab carries after its name: a count of what arrived in it
+   * while the user was elsewhere. Kept when the row compresses, since a number
+   * is the one thing a narrow tab still has room to say.
+   */
+  badge?: ReactNode;
   icon: ReactNode;
   /** Drawn first and held there: not dragged, not closed. */
   isFixed?: boolean;
@@ -531,6 +537,7 @@ function Tab({
       >
         {tab.title}
       </span>
+      {tab.badge}
       {isClosable && density !== "icon" && (
         <button
           aria-label={`Close ${tab.title}`}

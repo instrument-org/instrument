@@ -6,6 +6,7 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { Store } from "../store";
 import {
+  archiveChannel,
   channelByName,
   channelName,
   channelStandings,
@@ -13,6 +14,8 @@ import {
   DEFAULT_CHANNEL_NAME,
   listChannels,
   markChannelSeen,
+  renameChannel,
+  reorderChannels,
 } from "./channels";
 
 vi.mock(import("../session-store-storage"));
@@ -27,9 +30,9 @@ const freshTask = () =>
 
 describe("channelName", () => {
   it.each([
-    ["#Reddit", "reddit"],
-    ["  Pelican News  ", "pelican-news"],
-    ["a name that runs past the limit", "a-name-that-runs"],
+    ["#Reddit", "Reddit"],
+    ["  Pelican News  ", "Pelican News"],
+    ["a name that runs past the limit", "a name that runs"],
   ])("makes %j into %j", (raw, expected) => {
     expect(channelName(raw)).toBe(expected);
   });
@@ -58,7 +61,11 @@ describe("listChannels", () => {
     const channels = await listChannels(taskId);
 
     expect(channels).toEqual([
-      { createdAt: expect.any(Number), id: existing, name: "general" },
+      {
+        createdAt: expect.any(Number),
+        id: existing,
+        name: DEFAULT_CHANNEL_NAME,
+      },
     ]);
   });
 });
@@ -72,12 +79,12 @@ describe("createChannel", () => {
 
     const channels = await listChannels(taskId);
     expect(channels.map((channel) => channel.name)).toEqual([
-      "general",
-      "reddit",
+      DEFAULT_CHANNEL_NAME,
+      "Reddit",
     ]);
     expect(await channelByName(taskId, "reddit")).toEqual(made);
     const session = await Store.getSession(made.id, taskId);
-    expect(session._unsafeUnwrap().title).toBe("reddit");
+    expect(session._unsafeUnwrap().title).toBe("Reddit");
   });
 });
 
@@ -125,3 +132,66 @@ describe("channelStandings", () => {
     expect(after[0]?.unread).toBe(0);
   });
 });
+
+describe("renameChannel", () => {
+  it("renames in place, keeping the order", async () => {
+    const taskId = freshTask();
+    await listChannels(taskId);
+    const made = await createChannel(taskId, "reddit");
+
+    await renameChannel(taskId, made.id, "# Cross Stitch");
+
+    expect((await listChannels(taskId)).map((channel) => channel.name)).toEqual(
+      [DEFAULT_CHANNEL_NAME, "Cross Stitch"],
+    );
+  });
+});
+
+describe("archiveChannel", () => {
+  it("takes a channel out of the strip and keeps its session", async () => {
+    const taskId = freshTask();
+    await listChannels(taskId);
+    const made = await createChannel(taskId, "reddit");
+
+    const result = await archiveChannel(taskId, made.id);
+
+    expect(result.archived).toBe(true);
+    expect((await listChannels(taskId)).map((channel) => channel.name)).toEqual(
+      [DEFAULT_CHANNEL_NAME],
+    );
+    expect((await Store.getSession(made.id, taskId)).isOk()).toBe(true);
+  });
+
+  it("refuses the first channel, since the conversation happens somewhere", async () => {
+    const taskId = freshTask();
+    const [first] = await listChannels(taskId);
+    await createChannel(taskId, "reddit");
+
+    const result = await archiveChannel(taskId, first?.id ?? made());
+
+    expect(result).toEqual({
+      archived: false,
+      reason: "The first channel stays.",
+    });
+  });
+});
+
+describe("reorderChannels", () => {
+  it("keeps the order the strip was dragged into", async () => {
+    const taskId = freshTask();
+    const [first] = await listChannels(taskId);
+    const second = await createChannel(taskId, "reddit");
+    const third = await createChannel(taskId, "notion");
+
+    await reorderChannels(taskId, [third.id, second.id, first?.id ?? made()]);
+
+    expect((await listChannels(taskId)).map((channel) => channel.name)).toEqual(
+      ["notion", "reddit", DEFAULT_CHANNEL_NAME],
+    );
+  });
+});
+
+/** A session id that is not a channel, for a branch that should never run. */
+function made() {
+  return StoreId.newSessionId();
+}

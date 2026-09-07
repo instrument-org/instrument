@@ -7,8 +7,13 @@ import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 
-/** The channel every orchestrator has, made on first use. */
-export const DEFAULT_CHANNEL_NAME = "general";
+/**
+ * The channel every orchestrator has, made on first use and never archived:
+ * the place the conversation happens when the user has not split anything off.
+ * Named for the app rather than for a category, since it is not one subject
+ * among others; it is where you talk.
+ */
+export const DEFAULT_CHANNEL_NAME = "Instrument";
 
 /** How long a channel's name may be. Short names keep the strip readable. */
 export const CHANNEL_NAME_MAX = 16;
@@ -31,20 +36,85 @@ export async function channelByName(
   taskId: TaskId,
   name: string,
 ): Promise<Channel | undefined> {
-  const wanted = channelName(name);
+  // Case-insensitive, since a name is written by the user and typed back by
+  // the agent, and neither should have to remember which.
+  const wanted = channelName(name).toLowerCase();
   const channels = await listChannels(taskId);
-  return channels.find((channel) => channel.name === wanted);
+  return channels.find((channel) => channel.name.toLowerCase() === wanted);
 }
 
-/** What a name becomes: no hash, no spaces, lowercase, bounded. */
+/** What a name becomes: no hash, one space between words, bounded. */
 export function channelName(raw: string): string {
   return raw
     .trim()
     .replace(/^#+/, "")
+    .replaceAll(/\s+/g, " ")
     .trim()
-    .toLowerCase()
-    .replaceAll(/\s+/g, "-")
     .slice(0, CHANNEL_NAME_MAX);
+}
+
+/**
+ * Renames a channel. The name is the user's, so nothing here judges it beyond
+ * the shape every name takes.
+ */
+export async function renameChannel(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+  name: string,
+): Promise<void> {
+  const state = await getTaskState(taskDir(taskId));
+  await setTaskState(taskDir(taskId), {
+    channels: (state.channels ?? []).map((channel) =>
+      channel.id === sessionId
+        ? { ...channel, name: channelName(name) }
+        : channel,
+    ),
+  });
+}
+
+/**
+ * Takes a channel out of the strip, keeping everything said in it.
+ *
+ * Archiving rather than deleting because a channel is a place a conversation
+ * happened: the messages are the record, and a strip that has grown long is
+ * not a reason to lose them. The first channel stays, since the conversation
+ * has to happen somewhere.
+ */
+export async function archiveChannel(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<{ archived: boolean; reason?: string }> {
+  const state = await getTaskState(taskDir(taskId));
+  const channels = state.channels ?? [];
+  const first = channels[0];
+  if (first?.id === sessionId) {
+    return { archived: false, reason: "The first channel stays." };
+  }
+  if (channels.filter((channel) => !channel.archived).length <= 1) {
+    return { archived: false, reason: "The last channel stays." };
+  }
+  await setTaskState(taskDir(taskId), {
+    channels: channels.map((channel) =>
+      channel.id === sessionId ? { ...channel, archived: true } : channel,
+    ),
+  });
+  return { archived: true };
+}
+
+/** The order the strip was left in, which is the order it opens in. */
+export async function reorderChannels(
+  taskId: TaskId,
+  ids: StoreId.Session[],
+): Promise<void> {
+  const state = await getTaskState(taskDir(taskId));
+  const channels = state.channels ?? [];
+  const byId = new Map(channels.map((channel) => [channel.id, channel]));
+  const moved = ids.flatMap((id) => {
+    const channel = byId.get(id);
+    return channel ? [channel] : [];
+  });
+  const rest = channels.filter((channel) => !ids.includes(channel.id));
+  await setTaskState(taskDir(taskId), { channels: [...moved, ...rest] });
 }
 
 /** The channel a session belongs to, or none when the session is not one. */
@@ -115,14 +185,26 @@ export async function createChannel(
  * first one when there is none.
  *
  * A conversation that predates channels has sessions but no list, so its
- * newest session becomes `general` rather than being stranded: the window
+ * newest session becomes the first channel rather than being stranded: the window
  * opens on what the user was last talking in.
  */
 export async function listChannels(taskId: TaskId): Promise<Channel[]> {
   const state = await getTaskState(taskDir(taskId));
-  const existing = state.channels ?? [];
+  const existing = (state.channels ?? []).filter(
+    (channel) => !channel.archived,
+  );
   if (existing.length > 0) {
     return existing;
+  }
+  if ((state.channels ?? []).length > 0) {
+    // Everything was archived, which the archive rule does not allow; the
+    // oldest comes back rather than leaving the window with no channel.
+    const [oldest, ...rest] = state.channels ?? [];
+    if (oldest) {
+      const restored = { ...oldest, archived: false };
+      await setTaskState(taskDir(taskId), { channels: [restored, ...rest] });
+      return [restored];
+    }
   }
   const adopted = await newestSessionId(taskId);
   const channel: Channel = {

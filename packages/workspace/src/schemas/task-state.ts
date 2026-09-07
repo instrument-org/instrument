@@ -44,6 +44,8 @@ export const StoredTaskStateSchema = z
     channels: z
       .array(
         z.object({
+          /** Out of the strip, with everything said in it kept. */
+          archived: z.boolean().optional(),
           createdAt: z.number(),
           id: StoreId.SessionSchema,
           name: z.string(),

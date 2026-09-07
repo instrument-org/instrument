@@ -516,7 +516,12 @@ export async function createBashEnv({
         ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       ];
   const specializedCommandNames = orchestrator
-    ? [TASK_COMMAND.name, CHAT_COMMAND.name, APP_COMMAND.name, OPEN_COMMAND.name]
+    ? [
+        TASK_COMMAND.name,
+        CHAT_COMMAND.name,
+        APP_COMMAND.name,
+        OPEN_COMMAND.name,
+      ]
     : [
         SHOW_COMMAND.name,
         APP_COMMAND.name,

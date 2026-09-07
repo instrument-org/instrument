@@ -514,6 +514,7 @@ export function TaskChat({
                   <ChatZeroState
                     id={id}
                     selectedSessionId={selectedSessionId}
+                    showOtherSessions={presentation !== "orchestrator"}
                   />
                 ) : (
                   <TranscriptStream
@@ -530,7 +531,11 @@ export function TaskChat({
                   />
                 )
               ) : (
-                <ChatZeroState id={id} selectedSessionId={selectedSessionId} />
+                <ChatZeroState
+                  id={id}
+                  selectedSessionId={selectedSessionId}
+                  showOtherSessions={presentation !== "orchestrator"}
+                />
               )}
               {transcriptTrailing}
             </MessageScrollerContent>

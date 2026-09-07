@@ -78,8 +78,8 @@ function TaskRoute() {
         </h2>
         {channel && (
           <span className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border">
-            <ChannelMark name={channel} />
-            #&nbsp;{channel}
+            <ChannelMark />
+            {channel}
           </span>
         )}
       </div>

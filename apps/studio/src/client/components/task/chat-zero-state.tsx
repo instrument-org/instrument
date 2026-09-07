@@ -9,20 +9,33 @@ interface ChatZeroStateProps {
   id: TaskId;
   message?: string;
   selectedSessionId?: string;
+  /**
+   * Whether to offer the task's other sessions. False where a session is not
+   * an old chat to return to: the conversation's channels are sessions of one
+   * task, and listing them here would offer the user their own channels, and
+   * the sessions behind them, as somewhere to go back to.
+   */
+  showOtherSessions?: boolean;
 }
 
-export function ChatZeroState({ id, selectedSessionId }: ChatZeroStateProps) {
+export function ChatZeroState({
+  id,
+  selectedSessionId,
+  showOtherSessions = true,
+}: ChatZeroStateProps) {
   const { data: allSessions = [] } = useQuery(
     rpcClient.workspace.session.live.list.experimental_liveOptions({
       input: { id },
     }),
   );
 
-  const recentOtherSessions = sort(
-    allSessions.filter((session) => session.id !== selectedSessionId),
-    (s) => (s.updatedAt ?? s.createdAt).getTime(),
-    true,
-  ).slice(0, 10);
+  const recentOtherSessions = !showOtherSessions
+    ? []
+    : sort(
+        allSessions.filter((session) => session.id !== selectedSessionId),
+        (s) => (s.updatedAt ?? s.createdAt).getTime(),
+        true,
+      ).slice(0, 10);
 
   return (
     <div className="mt-8 flex justify-center">

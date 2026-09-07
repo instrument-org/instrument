@@ -34,9 +34,9 @@ function drawFence(
   content: string,
   {
     isStreaming = false,
-    layout = "grid" as "grid" | "list",
+    layout = "grid",
     width = WIDE,
-  } = {},
+  }: { isStreaming?: boolean; layout?: "grid" | "list"; width?: number } = {},
 ) {
   return renderInBrowser(
     <div style={{ width }}>
@@ -113,20 +113,23 @@ test("names every file it draws, in the tree and not just on screen", async () =
   `);
 });
 
-test("says a file is no longer there, and keeps its line where the reply put it", async () => {
+test("says a file is missing, keeps its line where the reply put it, and offers nothing to press", async () => {
   // A transcript is a record of what a reply handed over; a file gone since
   // is drawn as gone rather than dropped. Asked of the origin once the card is
-  // near the viewport, which every card in a test's viewport is.
+  // near the viewport, which every card in a test's viewport is. A press could
+  // only end in an error, so the line stops being a control.
   originAnswering(404);
-  const { getByText } = await drawFence("output/notes.md\noutput/here.txt", {
-    layout: "list",
-  });
+  const { getByRole, getByText } = await drawFence(
+    "output/notes.md\noutput/here.txt",
+    { layout: "list" },
+  );
 
   await expect.element(getByText("here.txt")).toBeInTheDocument();
+  await expect.element(getByText("Missing").first()).toBeInTheDocument();
+  expect(getByText("Missing").all()).toHaveLength(2);
   await expect
-    .element(getByText("No longer there").first())
-    .toBeInTheDocument();
-  expect(getByText("No longer there").all()).toHaveLength(2);
+    .element(getByRole("button", { name: /here\.txt/ }))
+    .toBeDisabled();
 });
 
 test("names a file's kind beside it the way the row cards do", async () => {

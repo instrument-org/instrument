@@ -60,10 +60,11 @@ export function FilePreviewListItem({
                 "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
               isMissing && "opacity-60",
             )}
+            disabled={isMissing}
             onClick={onClick}
             ref={ref}
             type="button"
-            {...dragProps}
+            {...(isMissing ? {} : dragProps)}
           >
             <ImageWithFallback
               alt={filename}
@@ -89,6 +90,7 @@ export function FilePreviewListItem({
     ) : (
       <PreviewListItem
         className={cn(isMissing && "opacity-60")}
+        disabled={isMissing}
         dragProps={dragProps}
         icon={
           <FileIcon
@@ -112,7 +114,8 @@ export function FilePreviewListItem({
       />
     );
 
-  if (!hasFileActions) {
+  // Nothing to copy, save, or reveal once the file is gone.
+  if (!hasFileActions || isMissing) {
     return content;
   }
 

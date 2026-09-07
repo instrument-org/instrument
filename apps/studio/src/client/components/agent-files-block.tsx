@@ -154,12 +154,15 @@ function FileLine({
   onClick: () => void;
 }) {
   const { isMissing, ref } = useFilePresence<HTMLButtonElement>(file.url);
+  // A missing file opens nothing, so the line stops being a control: a press
+  // that could only end in an error is not offered.
   return (
     <button
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs hover:bg-accent/50",
-        isMissing && "opacity-60",
+        "flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs",
+        isMissing ? "opacity-60" : "hover:bg-accent/50",
       )}
+      disabled={isMissing}
       onClick={onClick}
       ref={ref}
       type="button"

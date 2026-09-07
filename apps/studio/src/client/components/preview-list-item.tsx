@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function PreviewListItem({
   className,
+  disabled = false,
   dragProps,
   icon,
   isSelected = false,
@@ -17,6 +18,8 @@ export function PreviewListItem({
   tooltipContent,
 }: {
   className?: string;
+  /** The row stands for something that opens nothing now, so it is not a control. */
+  disabled?: boolean;
   // Present only where the row stands for a file on disk, which is the only
   // thing there is to hand another app.
   dragProps?: FileDragProps;
@@ -42,13 +45,16 @@ export function PreviewListItem({
         "transition-[outline] outline-none focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
         // The brand tint a `FilePreviewCard` takes when the pane is showing its
         // file, so a chip and a full-width card read as the same state.
-        isSelected ? "bg-brand-600/8 dark:bg-brand-300/8" : "hover:bg-muted",
+        isSelected
+          ? "bg-brand-600/8 dark:bg-brand-300/8"
+          : !disabled && "hover:bg-muted",
         className,
       )}
+      disabled={disabled}
       onClick={onClick}
       ref={ref}
       type="button"
-      {...dragProps}
+      {...(disabled ? {} : dragProps)}
     >
       {icon}
       <span className="min-w-0 truncate text-xs/tight">{label}</span>

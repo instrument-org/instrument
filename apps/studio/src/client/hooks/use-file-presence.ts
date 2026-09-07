@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 
 import { useNearViewport } from "./use-near-viewport";
 
-/** What a card says of a file the origin no longer has. */
-export const FILE_MISSING_LABEL = "No longer there";
+/**
+ * What a card says of a file the origin no longer has. Moved or deleted, it
+ * cannot tell which, and "missing" is the word file surfaces use for that.
+ */
+export const FILE_MISSING_LABEL = "Missing";
 
 /**
  * Whether the file a card stands for is still where the card says.

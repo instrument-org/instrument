@@ -168,14 +168,17 @@ function FileRowCard({
         "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-3 py-3 select-none",
         isSelected
           ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
-          : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
-        isMissing && "opacity-60",
+          : isMissing
+            ? "bg-card opacity-60 shadow-xs dark:border dark:border-black/5"
+            : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
       )}
-      onClick={onClick}
+      onClick={isMissing ? undefined : onClick}
       onMouseEnter={() => {
-        prefetchOpenTarget(file);
+        if (!isMissing) {
+          prefetchOpenTarget(file);
+        }
       }}
-      {...dragProps}
+      {...(isMissing ? {} : dragProps)}
     >
       {/* The row is what opens the file, and a row is not a control: without
           this it could be clicked and nothing else -- no tab stop, no name, no
@@ -186,6 +189,7 @@ function FileRowCard({
       <button
         aria-label={`Open ${filename}`}
         className="absolute inset-0 z-0 size-full rounded-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        disabled={isMissing}
         type="button"
       />
       <FileThumbnail
@@ -208,7 +212,7 @@ function FileRowCard({
           {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
         </span>
       </div>
-      {!hideActionsMenu && hasFileActions && (
+      {!hideActionsMenu && hasFileActions && !isMissing && (
         <div
           className="relative z-10 flex shrink-0 items-center opacity-0 group-hover:opacity-100"
           onClick={(e) => {
@@ -221,7 +225,7 @@ function FileRowCard({
     </div>
   );
 
-  if (!hasFileActions) {
+  if (!hasFileActions || isMissing) {
     return row;
   }
 
@@ -291,6 +295,7 @@ function ImagePreviewCard({
       bottomBar={isMissing ? <MissingBadge /> : undefined}
       canCopy={!imageLoadError}
       className={cn(isMissing && "opacity-60")}
+      disabled={isMissing}
       file={file}
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
@@ -299,7 +304,7 @@ function ImagePreviewCard({
         setResolveOpenTarget(true);
       }}
       overlayActions={
-        hasActions ? (
+        hasActions && !isMissing ? (
           <>
             {showCopy && (
               <MediaOverlayButton
@@ -441,6 +446,7 @@ function VideoPreviewCard({
         )
       }
       className={cn(isMissing && "opacity-60")}
+      disabled={isMissing}
       file={file}
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
@@ -451,7 +457,7 @@ function VideoPreviewCard({
       }}
       onMouseLeave={handleMouseLeave}
       overlayActions={
-        hasActions ? (
+        hasActions && !isMissing ? (
           <>
             {fileActions.showDownload && (
               <MediaOverlayButton

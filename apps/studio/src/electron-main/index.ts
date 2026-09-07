@@ -9,10 +9,8 @@ import { createApplicationMenu } from "@/electron-main/menus";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
 import { isFeatureEnabled } from "@/electron-main/stores/features";
 import { checkRecentVersionBump } from "@/electron-main/stores/preferences";
-import {
-  ensureForegroundWindowVisible,
-  getForegroundWindow,
-} from "@/electron-main/windows/foreground";
+import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
+import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import {
   createMainWindow,
   updateMainWindowBackgroundColor,
@@ -28,6 +26,7 @@ import {
   openOrchestratorWindow,
   updateOrchestratorWindowBackgroundColor,
 } from "@/electron-main/windows/orchestrator";
+import { revealTask } from "@/electron-main/windows/reveal-task";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -206,7 +205,11 @@ async function bootstrapPrimaryInstance() {
     }),
   );
 
-  startAgentCompletionNotifications({ workspaceConfig, workspaceRef });
+  startAgentCompletionNotifications({
+    revealTask,
+    workspaceConfig,
+    workspaceRef,
+  });
 
   const updater = createStudioAppUpdater({
     confirmQuit: confirmQuitWithRunningAgents,

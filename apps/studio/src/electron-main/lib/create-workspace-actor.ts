@@ -7,10 +7,8 @@ import {
 import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
 import { isFeatureEnabled } from "@/electron-main/stores/features";
 import { diskModelCache } from "@/electron-main/stores/model-cache";
-import {
-  ensureForegroundWindowVisible,
-  getForegroundWindow,
-} from "@/electron-main/windows/foreground";
+import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
+import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";

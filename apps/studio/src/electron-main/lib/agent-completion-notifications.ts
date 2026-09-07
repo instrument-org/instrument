@@ -1,12 +1,9 @@
-import { sendAppCommand } from "@/electron-main/app-command";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { stripMarkdown } from "@/electron-main/lib/strip-markdown";
 import {
   type AgentCompletionNotificationMode,
   getPreferencesStore,
 } from "@/electron-main/stores/preferences";
-import { getForegroundWindow } from "@/electron-main/windows/foreground";
-import { focusMainContents } from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import {
   type StoreId,
@@ -65,9 +62,16 @@ export function showAgentCompletionTestNotification() {
 }
 
 export function startAgentCompletionNotifications({
+  revealTask,
   workspaceConfig,
   workspaceRef,
 }: {
+  /**
+   * What a click on a notification does. Supplied by the caller: which window
+   * a task is shown in is the app's business, and reaching the modules that
+   * answer that from here would pull every window's machinery in behind them.
+   */
+  revealTask: (task: { id: TaskId; sessionId: StoreId.Session }) => void;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }) {
@@ -120,7 +124,7 @@ export function startAgentCompletionNotifications({
     presentNotification({
       body,
       onClick: () => {
-        focusTask({ id, sessionId });
+        revealTask({ id, sessionId });
       },
       title: taskTitle,
     });
@@ -160,38 +164,6 @@ function canShowAgentCompletionNotification({
     mainWindowAvailable: Boolean(mainWindow && !mainWindow.isDestroyed()),
     mode: getPreferencesStore().get("agentCompletionNotifications"),
   });
-}
-
-function focusTask({
-  id,
-  sessionId,
-}: {
-  id: TaskId;
-  sessionId: StoreId.Session;
-}) {
-  const target = getForegroundWindow();
-  if (!target) {
-    return;
-  }
-
-  if (target.isMinimized()) {
-    target.restore();
-  }
-  target.show();
-  target.focus();
-  // The task opens in a tab, which only the classic window has. Raising the
-  // window is the whole of what a click can do anywhere else, and raising the
-  // right one matters more than the tab: the classic window is hidden under
-  // Instrument 2.0, so showing it put a window the user had never opened over
-  // the one they were working in.
-  if (target === getMainWindow()) {
-    focusMainContents();
-    sendAppCommand({
-      id,
-      sessionId,
-      type: "focusTask",
-    });
-  }
 }
 
 // Reduces the last assistant turn to a short plain-text body. Notifications

@@ -194,9 +194,9 @@ export function ChannelRail({
       aria-label="Channels"
       className="flex w-14 shrink-0 flex-col items-center border-r border-border bg-muted/60 py-2"
     >
-      {/* `overflow-y-auto` clips anything drawn outside a tile, so the
-        selected mark and the working ring are both drawn inside the tile's own
-        box rather than beside it. */}
+      {/* `overflow-y-auto` clips anything drawn outside a tile's row, so the
+        pill for the open channel and the working mark are both drawn inside
+        the row's own box rather than beside it. */}
       <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-x-clip overflow-y-auto">
         {channels.map((channel, index) => (
           <ChannelTile
@@ -288,21 +288,28 @@ function ChannelTile({
   return (
     <div
       className={cn(
-        "flex h-11 w-full shrink-0 items-center justify-center",
+        "group relative flex h-11 w-full shrink-0 items-center justify-center",
         drop === "before" && "shadow-[inset_0_2px_0_0_var(--primary)]",
         drop === "after" && "shadow-[inset_0_-2px_0_0_var(--primary)]",
       )}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
+      {/* Which channel is open is said at the rail's edge rather than on the
+        tile: a pill beside the mark, tall for the one open and a stub while
+        the pointer is over another. Every tile keeps its own colors at full
+        strength, since a dimmed mark reads as a channel that is off. */}
+      <span
+        aria-hidden
+        className={cn(
+          "absolute top-1/2 left-0 w-0.75 -translate-y-1/2 rounded-r-full bg-foreground transition-[height,opacity] duration-150",
+          isSelected ? "h-6" : "h-2 opacity-0 group-hover:opacity-60",
+        )}
+      />
       <button
         aria-current={isSelected ? "true" : undefined}
         aria-label={channel.name}
-        className={cn(
-          "relative transition",
-          isSelected ? "" : "opacity-55 hover:opacity-100",
-          isCarried && "opacity-30",
-        )}
+        className={cn("relative transition", isCarried && "opacity-30")}
         draggable={canDrag}
         onClick={onSelect}
         onContextMenu={(event) => {
@@ -324,17 +331,7 @@ function ChannelTile({
         }}
         type="button"
       >
-        <ChannelChip
-          channel={channel}
-          className={cn(
-            // A ring rather than an outline or an inset shadow. An outline is
-            // painted outside the border box and the rail clips what leaves a
-            // tile; an inset shadow sits half over the tint and softens at the
-            // corners. A ring is a box-shadow with no spread gap, so it takes
-            // the tile's radius exactly and stays inside what the rail clips.
-            isSelected && "ring-2 ring-foreground",
-          )}
-        />
+        <ChannelChip channel={channel} />
         {channel.working ? (
           // Working takes the corner the count would have had, because it is
           // the same question answered sooner: something happened in there.

@@ -55,9 +55,10 @@ export interface TaskCommandContext {
   orchestratorTaskId: TaskId;
   /**
    * The channel this command is running in, recorded on every task it makes so
-   * the outcome comes back where it was asked for.
+   * the outcome comes back where it was asked for. Absent where the command is
+   * built outside a turn, which leaves a task unattributed rather than wrong.
    */
-  sessionId: StoreId.Session;
+  sessionId?: StoreId.Session;
   /** What is left of the enclosing call's yield window, read when a wait starts. */
   remainingYieldMs: () => number;
 }
@@ -506,11 +507,13 @@ async function runNew(
   if (browserTargetId) {
     await setTaskState(taskDir(taskId), { browserTargetId });
   }
-  await recordTaskChannel({
-    orchestratorTaskId: context.orchestratorTaskId,
-    sessionId: context.sessionId,
-    taskId,
-  });
+  if (context.sessionId) {
+    await recordTaskChannel({
+      orchestratorTaskId: context.orchestratorTaskId,
+      sessionId: context.sessionId,
+      taskId,
+    });
+  }
   const session = await latestOrNewSessionId(taskId);
   if (session.isErr()) {
     throw session.error;

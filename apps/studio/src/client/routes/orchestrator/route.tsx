@@ -555,11 +555,13 @@ function OrchestratorLayout() {
   };
 
   useWindowCommands({
+    back: goBack,
     closeTab: () => {
       if (active) {
         requestClose(active.id);
       }
     },
+    forward: goForward,
     newTab: () => {
       windowTabs.openScreen(NEW_TAB_HREF);
     },
@@ -1084,7 +1086,10 @@ function useRecordRecents({
  * so they are answered here; elsewhere they arrive through the main process.
  */
 function useWindowCommands(handlers: {
+  /** The tab's own history, which is the only history a thumb or a menu reaches. */
+  back: () => void;
   closeTab: () => void;
+  forward: () => void;
   newTab: () => void;
   reopenTab: () => void;
   selectRelative: (direction: -1 | 1) => void;
@@ -1100,9 +1105,9 @@ function useWindowCommands(handlers: {
   useEffect(() => {
     const onMouseUp = (event: MouseEvent) => {
       if (event.button === 3) {
-        router.history.back();
+        latest.current.back();
       } else if (event.button === 4) {
-        router.history.forward();
+        latest.current.forward();
       }
     };
     if (isMacOS()) {
@@ -1122,7 +1127,7 @@ function useWindowCommands(handlers: {
           }
           switch (command) {
             case "back": {
-              router.history.back();
+              latest.current.back();
               break;
             }
             case "closeTab": {
@@ -1130,7 +1135,7 @@ function useWindowCommands(handlers: {
               break;
             }
             case "forward": {
-              router.history.forward();
+              latest.current.forward();
               break;
             }
             case "newTab": {

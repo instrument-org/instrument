@@ -24,6 +24,7 @@ import { PlanningDotIcon } from "./icons/planning-dot";
 import { MessageError } from "./message-error";
 import { GroupHeading } from "./message-part/group-heading";
 import { GroupStandIn } from "./message-part/group-stand-in";
+import { isAwaitingUser } from "./message-part/tool-call-utils";
 import {
   STEP_RUN,
   TRANSCRIPT_ROW,
@@ -284,11 +285,15 @@ export function ChatStream({
       ? {
           groups: new Map(),
           rows: new Map(),
-          // The card asking to connect an app still opens itself here: the
-          // answer comes from the card, and a shut row reads as a stall.
+          // A call waiting on the user still opens itself here, and so does
+          // the card asking to connect an app: the answer comes from the
+          // row, and a shut row reads as a stall.
           selfOpeningRowIds: regularMessages.flatMap((message) =>
             message.parts.flatMap((part) =>
-              part.type === "tool-connect_app" ? [part.metadata.id] : [],
+              isToolPart(part) &&
+              (isAwaitingUser(part) || part.type === "tool-connect_app")
+                ? [part.metadata.id]
+                : [],
             ),
           ),
         }

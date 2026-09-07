@@ -199,7 +199,7 @@ export async function markChannelSeen(
   taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<void> {
-  const newest = await newestMessageId(taskId, sessionId);
+  const newest = await newestSettledMessageId(taskId, sessionId);
   if (!newest) {
     return;
   }
@@ -275,16 +275,6 @@ async function makeSession(
   return id;
 }
 
-async function newestMessageId(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-): Promise<StoreId.Message | undefined> {
-  const ids = await Store.getMessageIds(sessionId, taskId);
-  if (ids.isErr()) {
-    return undefined;
-  }
-  return alphabetical(ids.value, (id) => id).at(-1);
-}
 
 async function newestSessionId(
   taskId: TaskId,
@@ -294,6 +284,35 @@ async function newestSessionId(
     return undefined;
   }
   return alphabetical(sessions.value, (session) => session.id).at(-1)?.id;
+}
+
+/**
+ * The newest message that is done: the user's own, or a reply that has
+ * finished. A reply still being written is not seen by being on screen when
+ * it starts, and marking it so would leave the channel silent about what it
+ * went on to say after the user left.
+ */
+async function newestSettledMessageId(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<StoreId.Message | undefined> {
+  const ids = await Store.getMessageIds(sessionId, taskId);
+  if (ids.isErr()) {
+    return undefined;
+  }
+  const messages = await Store.getMessages({
+    messageIds: ids.value,
+    sessionId,
+    taskId,
+  });
+  if (messages.isErr()) {
+    return undefined;
+  }
+  const settled = messages.value.filter(
+    (message) =>
+      message.role !== "assistant" || message.metadata.finishedAt !== undefined,
+  );
+  return alphabetical(settled, (message) => message.id).at(-1)?.id;
 }
 
 /**

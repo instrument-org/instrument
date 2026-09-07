@@ -7,6 +7,7 @@ import { getWorkspaceConfig } from "../workspace-config";
 
 export type ModelColumn =
   | "context"
+  | "effort"
   | "name"
   | "price"
   | "provider"
@@ -48,11 +49,13 @@ const ALL_MODEL_COLUMNS: ModelColumn[] = [
   "context",
   "price",
   "takes",
+  "effort",
   "tags",
 ];
 
 const HEADER: Record<ModelColumn, string> = {
   context: "context",
+  effort: "effort",
   name: "name",
   price: "$/M in/out",
   provider: "provider",
@@ -79,6 +82,21 @@ function cell(model: AIGatewayModel.Type, column: ModelColumn): string {
       return model.contextLength === undefined
         ? "?"
         : `${Math.round(model.contextLength / 1000)}K`;
+    }
+    // The rungs this model takes, so a brief can ask for one and a comparison
+    // can be run across them. A model that reasons without saying at what
+    // levels shows the ladder it will be asked in, since resolution steps down
+    // to whatever it actually supports.
+    case "effort": {
+      const reasoning = model.reasoning;
+      if (!reasoning) {
+        return "-";
+      }
+      const rungs =
+        reasoning.efforts.length > 0 ? reasoning.efforts.join("/") : "low/medium/high";
+      return reasoning.defaultEffort
+        ? `${rungs} (${reasoning.defaultEffort})`
+        : rungs;
     }
     case "name": {
       return model.name;

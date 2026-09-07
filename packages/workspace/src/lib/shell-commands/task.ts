@@ -1,8 +1,13 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import {
+  AIGatewayModelURI,
+  fetchModel,
+  REASONING_EFFORTS,
+} from "@instrument-org/ai-gateway";
 import { type ByteString, defineCommand } from "just-bash";
 import ms from "ms";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
@@ -77,7 +82,7 @@ const MAX_WAIT_MS = ms("10 minutes");
 
 const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
-  ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[/<folder>][:rw|:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'
+  ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'
   <prompt>
   EOF
       Create a task and start it. The prompt is its whole brief: it knows nothing
@@ -92,6 +97,9 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       connected app, by slug; it gets the \`app\` command for that app and no
       other. --tab hands the task one of the user's browser tabs, by the id the
       note on their message gives; its browser is then that tab, page and all.
+      --effort is how hard its model thinks, one of ${REASONING_EFFORTS.join(", ")};
+      \`${TASK_COMMAND.name} models\` says which levels each model takes and its default. The same
+      brief at two levels is two tasks, which is how a level is compared.
       Prints the task id. You are told when it finishes a turn; do not poll it.
   ${TASK_COMMAND.name} send <id> <<'EOF'
   <message>
@@ -186,7 +194,7 @@ export async function runNew(
   stdin: ByteString,
 ) {
   const { positional, values } = parseFlags(args, {
-    flags: ["app", "folder", "model", "name", "tab"],
+    flags: ["app", "effort", "folder", "model", "name", "tab"],
     repeatable: ["app", "folder"],
   });
   const prompt = promptFrom(positional.join(" "), stdin);
@@ -226,6 +234,12 @@ export async function runNew(
   const parentSettings = await getTaskSettings(
     taskDir(context.orchestratorTaskId),
   );
+  // A level named on the command wins over the conversation's own, which is how
+  // one brief is run at several levels to compare them.
+  const askedEffort = values.get("effort")?.[0]?.trim();
+  const effort = askedEffort
+    ? z.enum(REASONING_EFFORTS).parse(askedEffort)
+    : parentSettings?.reasoningEffort;
   const initialized = await initializeTask(
     {
       initialSettings: {
@@ -233,9 +247,7 @@ export async function runNew(
         kind: "task",
         name,
         parentTaskId: context.orchestratorTaskId,
-        ...(parentSettings?.reasoningEffort
-          ? { reasoningEffort: parentSettings.reasoningEffort }
-          : {}),
+        ...(effort ? { reasoningEffort: effort } : {}),
       },
       taskId,
       workspaceConfig,

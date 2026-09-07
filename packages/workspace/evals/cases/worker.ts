@@ -404,58 +404,6 @@ const wroteAWebPage: Assertion = {
 };
 
 /**
- * A file of the asked-for kind with enough in it to be worth looking at.
- *
- * Deliberately loose. These cases exist to be compared by eye, side by side,
- * and a threshold tight enough to rank them would be a threshold encoding one
- * person's taste into the suite. What it does catch is the failure that matters
- * -- nothing written, or a stub written and reported as finished.
- */
-function wroteSomethingToLookAt(
-  extension: string,
-  minBytes: number,
-): Assertion {
-  const text = `wrote a ${extension} worth opening`;
-  return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
-      const matches = written.filter(
-        (file) =>
-          file.toLowerCase().endsWith(extension) && !file.includes("templates"),
-      );
-      for (const file of matches) {
-        const body = await fs.readFile(file).catch(() => {});
-        if (body && body.length >= minBytes) {
-          return pass(
-            text,
-            `${path.basename(file)}, ${Math.round(body.length / 1024)}KB`,
-          );
-        }
-      }
-      return fail(
-        text,
-        matches.length === 0
-          ? `no ${extension} written`
-          : `${matches.length} written, all under ${minBytes} bytes`,
-      );
-    },
-    text,
-  };
-}
-
-/** The readable text of a Word document, tags stripped. */
-async function docxText(file: string): Promise<string> {
-  const archive = await fs.readFile(file).catch(() => {});
-  if (!archive) {
-    return "";
-  }
-  return zipMembers(archive, (name) => name === "word/document.xml")
-    .map((part) => part.toString("utf8"))
-    .join("")
-    .replaceAll(/<[^>]+>/g, " ");
-}
-
-/**
  * A figure only a real computation produces, in a document that has to be
  * unzipped to read. The same question `reportContains` asks of a Markdown
  * file, asked of the format a memo actually arrives in -- and the one where a
@@ -494,6 +442,58 @@ function documentContains(label: string, value: number): Assertion {
         docs.length === 0
           ? "no Word document written"
           : `${docs.length} written, none naming ${wanted.join(" / ")}`,
+      );
+    },
+    text,
+  };
+}
+
+/** The readable text of a Word document, tags stripped. */
+async function docxText(file: string): Promise<string> {
+  const archive = await fs.readFile(file).catch(() => {});
+  if (!archive) {
+    return "";
+  }
+  return zipMembers(archive, (name) => name === "word/document.xml")
+    .map((part) => part.toString("utf8"))
+    .join("")
+    .replaceAll(/<[^>]+>/g, " ");
+}
+
+/**
+ * A file of the asked-for kind with enough in it to be worth looking at.
+ *
+ * Deliberately loose. These cases exist to be compared by eye, side by side,
+ * and a threshold tight enough to rank them would be a threshold encoding one
+ * person's taste into the suite. What it does catch is the failure that matters
+ * -- nothing written, or a stub written and reported as finished.
+ */
+function wroteSomethingToLookAt(
+  extension: string,
+  minBytes: number,
+): Assertion {
+  const text = `wrote a ${extension} worth opening`;
+  return {
+    check: async ({ taskId }) => {
+      const written = await deliverables(taskId);
+      const matches = written.filter(
+        (file) =>
+          file.toLowerCase().endsWith(extension) && !file.includes("templates"),
+      );
+      for (const file of matches) {
+        const body = await fs.readFile(file).catch(() => {});
+        if (body && body.length >= minBytes) {
+          return pass(
+            text,
+            `${path.basename(file)}, ${Math.round(body.length / 1024)}KB`,
+          );
+        }
+      }
+      return fail(
+        text,
+        matches.length === 0
+          ? `no ${extension} written`
+          : `${matches.length} written, all under ${minBytes} bytes`,
       );
     },
     text,
@@ -575,21 +575,6 @@ function firstNamed(window: string, names: string[]): string | undefined {
 }
 
 /**
- * What a reader sees, which is not what the file contains.
- *
- * A styled single-file page is mostly CSS, and CSS is full of the vocabulary
- * these checks look for: a rule for `tr.recommended` put the word "recommend"
- * 4KB before the verdict and cost one model a passing run it had earned. Drop
- * the head, the style and the script blocks before reading anything as prose.
- */
-function visibleText(html: string): string {
-  return html
-    .replaceAll(/<(script|style|head)\b[^>]*>[\S\s]*?<\/\1>/gi, " ")
-    .replaceAll(/<[^>]+>/g, " ")
-    .replaceAll(/\s+/g, " ");
-}
-
-/**
  * The pick the supplied data actually supports.
  *
  * A shopping comparison is only worth anything if the recommendation survives
@@ -639,6 +624,21 @@ function recommended(allowed: string[], rejected: string[]): Assertion {
     },
     text,
   };
+}
+
+/**
+ * What a reader sees, which is not what the file contains.
+ *
+ * A styled single-file page is mostly CSS, and CSS is full of the vocabulary
+ * these checks look for: a rule for `tr.recommended` put the word "recommend"
+ * 4KB before the verdict and cost one model a passing run it had earned. Drop
+ * the head, the style and the script blocks before reading anything as prose.
+ */
+function visibleText(html: string): string {
+  return html
+    .replaceAll(/<(script|style|head)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replaceAll(/<[^>]+>/g, " ")
+    .replaceAll(/\s+/g, " ");
 }
 
 export const WORKER_EVALS = [

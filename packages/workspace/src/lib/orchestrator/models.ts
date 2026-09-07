@@ -93,7 +93,9 @@ function cell(model: AIGatewayModel.Type, column: ModelColumn): string {
         return "-";
       }
       const rungs =
-        reasoning.efforts.length > 0 ? reasoning.efforts.join("/") : "low/medium/high";
+        reasoning.efforts.length > 0
+          ? reasoning.efforts.join("/")
+          : "low/medium/high";
       return reasoning.defaultEffort
         ? `${rungs} (${reasoning.defaultEffort})`
         : rungs;

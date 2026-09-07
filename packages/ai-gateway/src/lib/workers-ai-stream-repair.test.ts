@@ -109,7 +109,11 @@ describe("repairRequestInit", () => {
           content: null,
           role: "assistant",
           tool_calls: [
-            { function: { arguments: args, name: "bash" }, id: "c1", type: "function" },
+            {
+              function: { arguments: args, name: "bash" },
+              id: "c1",
+              type: "function",
+            },
           ],
         },
       ],

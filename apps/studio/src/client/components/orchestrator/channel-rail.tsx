@@ -81,7 +81,7 @@ export function ChannelChip({
  * the mark for the channel the conversation started in, and otherwise the
  * first letter of its name: a channel made before there were emoji, or one
  * whose emoji the user never chose, still has to be told apart from its
- * neighbours at a glance.
+ * neighbors at a glance.
  */
 export function ChannelFace({
   channel,

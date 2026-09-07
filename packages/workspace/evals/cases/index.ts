@@ -11,6 +11,7 @@ import { SHOW_EVALS } from "./show";
 import { SOURCE_LINKS_EVALS } from "./source-links";
 import { UNREADABLE_MEDIA_EVALS } from "./unreadable-media";
 import { WEB_SEARCH_EVALS } from "./web-search";
+import { WORKER_EVALS } from "./worker";
 
 export const EVALS = [
   ...BACKGROUND_PROCESS_EVALS,
@@ -26,4 +27,5 @@ export const EVALS = [
   ...SOURCE_LINKS_EVALS,
   ...UNREADABLE_MEDIA_EVALS,
   ...WEB_SEARCH_EVALS,
+  ...WORKER_EVALS,
 ];

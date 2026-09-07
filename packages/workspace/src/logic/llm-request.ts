@@ -959,7 +959,9 @@ export const llmRequestLogic = fromPromise<
  * The catalog's word is a provider's, so a rung outside our ladder -- OpenAI's
  * `xhigh`, Google's `minimal` -- resolves to nothing rather than being coerced.
  */
-function catalogEffort(model: AIGatewayModel.Type): ReasoningEffort | undefined {
+function catalogEffort(
+  model: AIGatewayModel.Type,
+): ReasoningEffort | undefined {
   const reasoning = model.reasoning;
   if (!reasoning?.enabledByDefault || reasoning.defaultEffort === undefined) {
     return undefined;

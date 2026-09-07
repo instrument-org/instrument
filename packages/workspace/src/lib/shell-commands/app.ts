@@ -52,15 +52,28 @@ export interface AppCommandContext {
   taskId: TaskId;
 }
 
+/** How a service is reached: one decision, shared by the index and the detail. */
+type CatalogWayIn =
+  | { endpoint: string; kind: "api" }
+  | { endpoint: string; kind: "mcp"; open: boolean }
+  | { kind: "browser"; where: string }
+  | { kind: "local"; package: string; runtime: "node" | "python" };
+
 const REQUEST_TIMEOUT_MS = ms("2 minutes");
 const TEST_TIMEOUT_MS = ms("1 minute");
+
+// How many matches a query gets in full before the rest fall back to one line
+// each. A word like "data" matches dozens, and rendering those in full is the
+// same wall of text the bare listing used to be.
+const CATALOG_DETAIL_LIMIT = 10;
 
 const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
 
   ${APP_COMMAND.name} catalog [words]
       The directory: services it knows, each with its endpoints (an MCP server
       to prefer, an API base) and how each is reached (a sign-in, a key). Words
-      filter by name, domain, or category.
+      filter by name, domain, or category, the services they name first. With
+      no words, the whole directory one line each; add a word for the detail.
   ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package>) [--auth oauth|bearer|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--test <path>] [--force]
       Write ${MOUNT.apps}/<slug>/${APP_MANIFEST_FILE_NAME}, and a ${APP_GUIDE_FILE_NAME} to fill in when
       there is none. An MCP app defaults to oauth (a one-click sign-in, no key);
@@ -228,26 +241,6 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
     ...(entry.docsUrl ? [`  docs: ${entry.docsUrl}`] : []),
     `  set up: ${howTo}`,
   ].join("\n");
-}
-
-/**
- * One entry on one line, for a listing too long to render in full. The way in
- * is on it because it is what decides whether a service is worth reaching for
- * at all.
- */
-function summarizeCatalogEntry(entry: AppCatalogEntry): string {
-  const way = catalogWayIn(entry);
-  const label =
-    way.kind === "mcp"
-      ? way.open
-        ? "mcp:open"
-        : "mcp"
-      : way.kind === "local"
-        ? "mcp:local"
-        : way.kind === "api"
-          ? "api:key"
-          : "browser";
-  return `  ${entry.slug.padEnd(17)} ${label.padEnd(9)} ${entry.tagline}`;
 }
 
 function fail(message: string) {
@@ -491,13 +484,34 @@ async function runCall(
 }
 
 function runCatalog(args: string[]) {
-  const entries = searchAppCatalog(args.join(" "));
+  const query = args.join(" ").trim();
+  const entries = searchAppCatalog(query);
   if (entries.length === 0) {
     return ok(
-      `Nothing in the directory matches "${args.join(" ")}". Set it up by hand: research the service's API in a task if you do not know it, then \`${APP_COMMAND.name} new\` or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
+      `Nothing in the directory matches "${query}". Set it up by hand: research the service's API in a task if you do not know it, then \`${APP_COMMAND.name} new\` or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
     );
   }
-  return ok(`${entries.map(describeCatalogEntry).join("\n\n")}\n`);
+  // Every entry in full runs past what a command's output keeps, and what gets
+  // dropped is the middle: the directory went in whole and came back missing
+  // the alphabet from "consensus" to "slack". So a listing nobody narrowed is
+  // one line each, which fits, and a word brings back the detail.
+  if (query === "") {
+    return ok(
+      `${entries.length} services. \`${APP_COMMAND.name} catalog <words>\` for what one is, how it is reached, and the line that sets it up.\n\n${entries
+        .map(summarizeCatalogEntry)
+        .join("\n")}\n`,
+    );
+  }
+  const detailed = entries
+    .slice(0, CATALOG_DETAIL_LIMIT)
+    .map(describeCatalogEntry)
+    .join("\n\n");
+  const rest = entries.slice(CATALOG_DETAIL_LIMIT);
+  const more =
+    rest.length === 0
+      ? ""
+      : `\n\n${rest.length} more match "${query}":\n${rest.map(summarizeCatalogEntry).join("\n")}`;
+  return ok(`${detailed}${more}\n`);
 }
 
 async function runDisconnect(args: string[], context: AppCommandContext) {
@@ -815,6 +829,26 @@ async function runTools(
   return ok(
     `${result.value.length} tools on ${app.slug}. \`${APP_COMMAND.name} tool ${app.slug} <name>\` shows one with the JSON it takes; \`${APP_COMMAND.name} call ${app.slug} <name> '<json>'\` runs it.\n${lines.join("\n")}\n`,
   );
+}
+
+/**
+ * One entry on one line, for a listing too long to render in full. The way in
+ * is on it because it is what decides whether a service is worth reaching for
+ * at all.
+ */
+function summarizeCatalogEntry(entry: AppCatalogEntry): string {
+  const way = catalogWayIn(entry);
+  const label =
+    way.kind === "mcp"
+      ? way.open
+        ? "mcp:open"
+        : "mcp"
+      : way.kind === "local"
+        ? "mcp:local"
+        : way.kind === "api"
+          ? "api:key"
+          : "browser";
+  return `  ${entry.slug.padEnd(17)} ${label.padEnd(9)} ${entry.tagline}`;
 }
 
 /** The call's own signal, bounded by a timeout so a hung service cannot hold a turn. */

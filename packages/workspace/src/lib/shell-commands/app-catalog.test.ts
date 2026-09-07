@@ -2,6 +2,8 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
+import { getAppCatalog } from "../apps/catalog";
+import { truncateMiddle } from "../truncate-buffer";
 import { createAppCommand } from "./app";
 
 const taskId = TaskIdSchema.parse("app-catalog-task");
@@ -54,5 +56,40 @@ describe("app catalog", () => {
     expect(text).toContain("set up: not as an app from here");
     expect(text).toContain("Browser screen");
     expect(text).not.toContain("<base-url>");
+  });
+
+  // The listing reaches the model through a command's output, which is kept as
+  // a head and a tail with the middle dropped. Every entry in full ran to 43KB
+  // and came back missing everything from "consensus" to "slack", the agent's
+  // own note the only sign the directory it read was a fifth of the real one.
+  it("keeps every service in a listing nobody narrowed", async () => {
+    const text = await catalog();
+    expect(truncateMiddle(text).truncated).toBe(false);
+    const listed = new Set(
+      [...text.matchAll(/^ {2}(\S+) /gm)].map((match) => match[1]),
+    );
+    const missing = getAppCatalog()
+      .map((entry) => entry.slug)
+      .filter((slug) => !listed.has(slug));
+    expect(missing).toEqual([]);
+  });
+
+  // A query names a service, so an entry that is the thing asked for comes
+  // ahead of one that mentions it: "paper" also matches Consensus, whose
+  // tagline reads "read what the papers found", and used to answer with it.
+  it.each(["paper", "expo", "front", "box", "make"])(
+    "answers %s with the service of that name first",
+    async (query) => {
+      const text = await catalog(query);
+      expect(text.startsWith(`${query}  `)).toBe(true);
+    },
+  );
+
+  // A word like "data" matches dozens, and those in full are the same wall the
+  // bare listing was.
+  it("gives a broad query the detail on a few and a line for the rest", async () => {
+    const text = await catalog("data");
+    expect(truncateMiddle(text).truncated).toBe(false);
+    expect(text).toContain('more match "data":');
   });
 });

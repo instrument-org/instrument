@@ -21,6 +21,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -81,7 +82,7 @@ export function ComputerPage({
   quickLookOpen: boolean;
   root: string;
 }) {
-  const { taskId } = useOrchestrator();
+  const { focusComposer, taskId } = useOrchestrator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
@@ -129,6 +130,23 @@ export function ComputerPage({
     const folder = prefix.replace(/\/$/, "");
     return folder ? `${root}/${folder}` : root;
   };
+
+  // What the folder's own menu is open on, and where. A menu with no item is
+  // the one the folder's empty space gives: it can only make something.
+  const [menu, setMenu] = useState<{
+    hostPath?: string;
+    isFolder?: boolean;
+    x: number;
+    y: number;
+  }>();
+  // Renaming happens in a field where the menu was, since the browser draws
+  // its own rows and has no edit state of its own to put a caret in.
+  const [renaming, setRenaming] = useState<{
+    hostPath: string;
+    name: string;
+    x: number;
+    y: number;
+  }>();
 
   const listings = useQueries({
     combine: combineListings,
@@ -181,6 +199,57 @@ export function ComputerPage({
       };
     });
   });
+
+  // The listings are on a clock, but a folder the user just changed should
+  // not wait for it.
+  const reread = () =>
+    void queryClient.invalidateQueries({
+      queryKey: rpcClient.workspace.computer.list.key(),
+    });
+
+  // The Finder's own actions on the user's own files. Nothing here is the
+  // agent's: these run because the person browsing asked for them, from the
+  // folder they are looking at.
+  const newFolderIn = async (parent: string, at: { x: number; y: number }) => {
+    try {
+      const made = await rpcClient.files.newFolder.call({ parent });
+      reread();
+      // Made and named in one move, the way the Finder does it.
+      setRenaming({
+        hostPath: made.path,
+        name: made.path.split("/").at(-1) ?? "",
+        x: at.x,
+        y: at.y,
+      });
+    } catch (error) {
+      failed(error);
+    }
+  };
+  const rename = async (hostPath: string, name: string) => {
+    try {
+      await rpcClient.files.rename.call({ name, path: hostPath });
+      reread();
+    } catch (error) {
+      failed(error);
+    }
+  };
+  const duplicate = async (hostPath: string) => {
+    try {
+      await rpcClient.files.duplicate.call({ path: hostPath });
+      reread();
+    } catch (error) {
+      failed(error);
+    }
+  };
+  const trash = async (hostPath: string) => {
+    try {
+      await rpcClient.files.trash.call({ path: hostPath });
+      setSelectedPath(null);
+      reread();
+    } catch (error) {
+      failed(error);
+    }
+  };
 
   const listingOf = (prefix: string) => listings[loaded.indexOf(prefix)];
   // The folder on screen: in columns, a selected folder shows its contents in
@@ -435,7 +504,16 @@ export function ComputerPage({
         />
       </nav>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1" ref={browserRef}>
+        <div
+          className="min-h-0 flex-1"
+          onContextMenu={(event) => {
+            // Empty space: the only thing there is to do to a folder from
+            // inside it is make something in it.
+            event.preventDefault();
+            setMenu({ x: event.clientX, y: event.clientY });
+          }}
+          ref={browserRef}
+        >
           <FileSystem
             className="h-full rounded-none border-0"
             defaultPath={path}
@@ -457,6 +535,16 @@ export function ComputerPage({
             }}
             onFileOpen={(file) => {
               void openFile(file);
+            }}
+            onItemContextMenu={(item, event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setMenu({
+                hostPath: hostPathOf(item.path),
+                isFolder: item.kind === "folder",
+                x: event.clientX,
+                y: event.clientY,
+              });
             }}
             onPathChange={setCurrent}
             onSelectionChange={(item) => {
@@ -513,6 +601,21 @@ export function ComputerPage({
                 >
                   <CaretRightIcon className="size-4" />
                 </button>
+                <button
+                  aria-label="New folder"
+                  className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                  onClick={(event) => {
+                    const box = event.currentTarget.getBoundingClientRect();
+                    void newFolderIn(hostPathOf(current), {
+                      x: box.left,
+                      y: box.bottom + 4,
+                    });
+                  }}
+                  title="New folder"
+                  type="button"
+                >
+                  <FolderPlusIcon className="size-4" />
+                </button>
               </span>
             )}
             title={rootName}
@@ -524,6 +627,73 @@ export function ComputerPage({
           places={places.data}
         />
       </div>
+      {menu ? (
+        <FolderMenu
+          onAsk={
+            menu.hostPath
+              ? () => {
+                  focusComposer();
+                }
+              : undefined
+          }
+          onClose={() => {
+            setMenu(undefined);
+          }}
+          onDuplicate={
+            menu.hostPath
+              ? () => void duplicate(menu.hostPath ?? "")
+              : undefined
+          }
+          onNewFolder={() => {
+            void newFolderIn(
+              menu.hostPath && menu.isFolder
+                ? menu.hostPath
+                : hostPathOf(current),
+              { x: menu.x, y: menu.y },
+            );
+          }}
+          onRename={
+            menu.hostPath
+              ? () => {
+                  setRenaming({
+                    hostPath: menu.hostPath ?? "",
+                    name: menu.hostPath?.split("/").at(-1) ?? "",
+                    x: menu.x,
+                    y: menu.y,
+                  });
+                }
+              : undefined
+          }
+          onReveal={
+            menu.hostPath
+              ? () =>
+                  void rpcClient.utils.showFileInFolder
+                    .call({ filepath: menu.hostPath ?? "" })
+                    .catch(failed)
+              : undefined
+          }
+          onTrash={
+            menu.hostPath ? () => void trash(menu.hostPath ?? "") : undefined
+          }
+          x={menu.x}
+          y={menu.y}
+        />
+      ) : null}
+      {renaming ? (
+        <NameField
+          defaultValue={renaming.name}
+          onCancel={() => {
+            setRenaming(undefined);
+          }}
+          onCommit={(name) => {
+            const renamed = renaming.hostPath;
+            setRenaming(undefined);
+            void rename(renamed, name);
+          }}
+          x={renaming.x}
+          y={renaming.y}
+        />
+      ) : null}
     </div>
   );
 }
@@ -600,6 +770,11 @@ function combineListings(results: { data: ComputerListing | undefined }[]) {
   return results.map((result) => result.data);
 }
 
+/** What went wrong with a file action, said where the folder is. */
+function failed(error: unknown) {
+  toast(error instanceof Error ? error.message : "That did not work");
+}
+
 /**
  * The product's open control for a file the Finder view has selected: the
  * Mac's own app for it, with the other apps that take it a click away.
@@ -615,6 +790,132 @@ function FileOpenWith({ tab, taskId }: { tab: FileTab; taskId: TaskId }) {
       iconClassName="size-4"
       size="sm"
       variant="ghost"
+    />
+  );
+}
+
+/** What can be done to the thing under the pointer, or to the folder itself. */
+function FolderMenu({
+  onAsk,
+  onClose,
+  onDuplicate,
+  onNewFolder,
+  onRename,
+  onReveal,
+  onTrash,
+  x,
+  y,
+}: {
+  onAsk?: () => void;
+  onClose: () => void;
+  onDuplicate?: () => void;
+  onNewFolder: () => void;
+  onRename?: () => void;
+  onReveal?: () => void;
+  onTrash?: () => void;
+  x: number;
+  y: number;
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("pointerdown", onClose);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onClose);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+  const item = (label: string, run: (() => void) | undefined) =>
+    run ? (
+      <button
+        className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"
+        onClick={() => {
+          run();
+          onClose();
+        }}
+        role="menuitem"
+        type="button"
+      >
+        {label}
+      </button>
+    ) : null;
+  return (
+    <div
+      className="fixed z-50 min-w-44 rounded-md border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md"
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+      role="menu"
+      style={{ left: x, top: y }}
+    >
+      {item("Ask about this", onAsk)}
+      {onAsk ? <div className="my-1 h-px bg-border" /> : null}
+      {item("Show in Finder", onReveal)}
+      {item("New folder", onNewFolder)}
+      {item("Rename", onRename)}
+      {item("Duplicate", onDuplicate)}
+      {onTrash ? <div className="my-1 h-px bg-border" /> : null}
+      {item("Move to Trash", onTrash)}
+    </div>
+  );
+}
+
+/**
+ * The field a new or renamed thing is named in, where the menu was. The
+ * browser draws its own rows, so the name cannot yet turn into a field in
+ * place; this is the field it would be.
+ */
+function NameField({
+  defaultValue,
+  onCancel,
+  onCommit,
+  x,
+  y,
+}: {
+  defaultValue: string;
+  onCancel: () => void;
+  onCommit: (name: string) => void;
+  x: number;
+  y: number;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) {
+      return;
+    }
+    // The base name, the way the Finder selects it: the extension is left out
+    // of the selection so typing over it keeps the kind.
+    const dot = defaultValue.lastIndexOf(".");
+    input.focus();
+    input.setSelectionRange(0, dot > 0 ? dot : defaultValue.length);
+  }, [defaultValue]);
+  return (
+    <input
+      className="fixed z-50 w-56 rounded-md border border-border bg-popover px-2 py-1 text-sm shadow-md outline-hidden focus:border-ring"
+      defaultValue={defaultValue}
+      onBlur={onCancel}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          onCancel();
+          return;
+        }
+        if (event.key !== "Enter") {
+          return;
+        }
+        const name = event.currentTarget.value.trim();
+        if (name && name !== defaultValue) {
+          onCommit(name);
+        } else {
+          onCancel();
+        }
+      }}
+      ref={inputRef}
+      style={{ left: x, top: y }}
     />
   );
 }

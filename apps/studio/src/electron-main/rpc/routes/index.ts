@@ -6,6 +6,7 @@ import { auth } from "./auth";
 import { browser } from "./browser";
 import { debug } from "./debug";
 import { features } from "./features";
+import { files } from "./files";
 import { gateway } from "./gateway";
 import { onboarding } from "./onboarding";
 import { orchestrator } from "./orchestrator";
@@ -27,6 +28,7 @@ export const router = {
   browser,
   debug,
   features,
+  files,
   gateway,
   onboarding,
   orchestrator,

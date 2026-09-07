@@ -187,6 +187,8 @@ export type FileSystemProps = {
   renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
   /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
   renderHeaderLead?: () => React.ReactNode;
+  /** Right-click on an item, for a menu of what can be done to it. */
+  onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   /**
    * Lazily render a page thumbnail beyond the eagerly provided
    * `previewImageUrls` (the pager calls this as pages come into view).
@@ -1226,6 +1228,7 @@ export function FileSystem({
   renderFileStage,
   renderFileActions,
   renderHeaderLead,
+  onItemContextMenu,
 }: FileSystemProps) {
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
@@ -1796,6 +1799,7 @@ export function FileSystem({
     index: sortedIndex,
     loadPreviewImageUrl,
     loadingFolders,
+    onItemContextMenu,
     onOpen: openEntry,
     onSelect: selectAndPrefetchEntry,
     onSortColumnClick: toggleSortColumn,
@@ -2866,6 +2870,7 @@ type FileSystemViewProps = {
   onOpen: (entry: FileSystemEntry) => void;
   onSelect: (entry: FileSystemEntry | null) => void;
   onSortColumnClick: (key: FileSystemSortKey) => void;
+  onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   /** Pooled paths currently attached to the DOM (reveal instantly). */
   attachedStagePaths: string[];
   /** `"path#pageIndex"` → thumbnail URL, shared by every pager. */
@@ -3092,6 +3097,7 @@ const ICON_ROW_GAP = 12; // gap-y-3
 const ICON_ROW_STRIDE = ICON_TILE_HEIGHT + ICON_ROW_GAP;
 function FileSystemIconsView({
   entries,
+  onItemContextMenu,
   onOpen,
   onSelect,
   renderFilePreview,
@@ -3238,6 +3244,10 @@ function FileSystemIconsView({
                 type="button"
                 role="option"
                 aria-selected={isSelected}
+                onContextMenu={(event) => {
+                  onSelect(entry);
+                  onItemContextMenu?.(entry, event);
+                }}
                 tabIndex={entry.path === tabStopPath ? 0 : -1}
                 ref={(element) => {
                   if (element) {
@@ -3897,6 +3907,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     index,
     loadPreviewImageUrl,
     loadingFolders,
+    onItemContextMenu,
     onOpen,
     onSelect,
     pageUrlCache,
@@ -4048,6 +4059,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             entries={index.children.get(columnPath) ?? []}
             index={index}
             isLoading={loadingFolders.has(columnPath)}
+            onItemContextMenu={onItemContextMenu}
             onOpen={onOpen}
             onResize={setColumnWidth}
             onSelect={onSelect}
@@ -4136,6 +4148,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   entries,
   index,
   isLoading,
+  onItemContextMenu,
   onOpen,
   onResize,
   onSelect,
@@ -4148,6 +4161,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   entries: FileSystemEntry[];
   index: FileSystemIndex;
   isLoading: boolean;
+  onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onOpen: (entry: FileSystemEntry) => void;
   onResize: (width: number) => void;
   onSelect: (entry: FileSystemEntry | null) => void;
@@ -4215,6 +4229,10 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     type="button"
                     role="option"
                     aria-selected={isSelected}
+                    onContextMenu={(event) => {
+                      onSelect(entry);
+                      onItemContextMenu?.(entry, event);
+                    }}
                     // Selected rows sit on the primary surface — the opposite
                     // of the mode's background — so the file-type icon swaps
                     // to the opposite palette.
@@ -4444,6 +4462,7 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
     attachedStagePaths,
     entries,
     index,
+    onItemContextMenu,
     onOpen,
     onSelect,
     poolStagePath,
@@ -4571,6 +4590,10 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                   type="button"
                   role="option"
                   aria-selected={isActive}
+                  onContextMenu={(event) => {
+                    onSelect(entry);
+                    onItemContextMenu?.(entry, event);
+                  }}
                   tabIndex={isActive ? 0 : -1}
                   ref={(element) => {
                     if (element) {

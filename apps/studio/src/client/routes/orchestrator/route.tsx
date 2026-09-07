@@ -228,6 +228,7 @@ function OrchestratorLayout() {
   const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
   const [pinsHeight, setPinsHeight] = useAtom(orchestratorPinsHeightAtom);
   const setLinkedFiles = useSetAtom(linkedFilesAtom);
+  const conversationRef = useRef<HTMLDivElement>(null);
   // The files the conversation has handed over, newest first, for the sidebar.
   const linkedFiles = messages.data
     ?.toReversed()
@@ -444,6 +445,11 @@ function OrchestratorLayout() {
           });
         },
         browser,
+        // The composer is the sidebar's, so a screen that wants the caret in
+        // it reaches through the box the conversation is drawn in.
+        focusComposer: () => {
+          conversationRef.current?.querySelector("textarea")?.focus();
+        },
         openPage,
         openScreen,
         sessionId: sessionId ?? ids.sessionId,
@@ -566,7 +572,10 @@ function OrchestratorLayout() {
                   selectedId={sessionId}
                 >
                   {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
-                  <div className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
+                  <div
+                    className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]"
+                    ref={conversationRef}
+                  >
                     {/* Names the task and session for the links inside, so a page
                       a reply names offers both the window's browser and the
                       user's, the way a link in a task does. */}

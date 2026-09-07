@@ -9,6 +9,8 @@ export interface OrchestratorWindow {
   ask: (prompt: string) => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
+  /** Puts the caret in the conversation's composer, for a screen handing something over to be asked about. */
+  focusComposer: () => void;
   /** Shows the page at that address in a tab: the one already there, or a new one. A fresh new tab it was picked from becomes it. */
   openPage: (url: string) => void;
   /** Shows a screen at that address in a tab: the one already there, or a new one. A fresh new tab it was picked from becomes it. */

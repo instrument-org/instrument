@@ -235,10 +235,14 @@ export function Omnibar({
       .map((entry) => ({
         id: `catalog:${entry.slug}`,
         name: entry.name,
-        note: "Connect",
+        note: "Directory",
+        // Its page, the same as an app the workspace has: what it is and how
+        // it is reached, with connecting it the one thing to do there.
         run: () => {
-          ask(`Connect ${entry.name}`);
-          setQuery("");
+          void navigate({
+            params: { slug: entry.slug },
+            to: "/orchestrator/apps/$slug",
+          });
         },
         site: `https://${entry.domain}`,
       })),

@@ -157,6 +157,9 @@ function AppsRoute() {
               icon={<AppIcon site={`https://${entry.domain}`} />}
               key={entry.slug}
               line={entry.tagline}
+              onOpen={() => {
+                openApp(entry.slug);
+              }}
               title={entry.name}
             />
           ))}

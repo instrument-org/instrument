@@ -1,17 +1,16 @@
 import { pinsAtom, type WindowTab } from "@/client/atoms/orchestrator";
 import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
 import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
-import { rpcClient } from "@/client/rpc/client";
 import {
   type BrowserTargetId,
   encodeBrowserTargetId,
   StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { useOrchestrator } from "./context";
 import { screenPresentation } from "./screen-presentation";
@@ -57,13 +56,7 @@ export function WindowTabStrip({
   /** What sits at the end of the row, past the tabs: the window's top right. */
   trailing?: ReactNode;
 }) {
-  const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const appsBySlug = new Map(
-    (apps.data?.apps ?? []).map((app) => [
-      app.slug,
-      { name: app.name, site: app.site },
-    ]),
-  );
+  const appsBySlug = useAppsBySlug();
   const setPins = useSetAtom(pinsAtom);
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
 

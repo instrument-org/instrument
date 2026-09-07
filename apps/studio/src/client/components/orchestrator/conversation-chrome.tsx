@@ -13,6 +13,7 @@ import { useAtomValue } from "jotai";
 import ms from "ms";
 import { type ReactNode, useState } from "react";
 
+import { useAppsBySlug } from "./apps-by-slug";
 import { useOrchestrator } from "./context";
 import { screenPresentation } from "./screen-presentation";
 import { SiteIcon } from "./sidebar";
@@ -125,7 +126,7 @@ export function ViewChip() {
   const view = useAtomValue(screenViewAtom);
   const { activeId, tabs } = useAtomValue(windowTabsAtom);
   const { taskId } = useOrchestrator();
-  const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
+  const appsBySlug = useAppsBySlug();
   const children = useQuery(
     rpcClient.workspace.orchestrator.children.queryOptions({
       input: { id: taskId },
@@ -149,12 +150,7 @@ export function ViewChip() {
       return null;
     }
     chip = screenPresentation(active.href, {
-      appsBySlug: new Map(
-        (apps.data?.apps ?? []).map((app) => [
-          app.slug,
-          { name: app.name, site: app.site },
-        ]),
-      ),
+      appsBySlug,
       childTitles: new Map(
         children.data?.map((child) => [child.id, child.title]) ?? [],
       ),

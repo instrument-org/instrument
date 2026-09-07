@@ -6,6 +6,7 @@ import {
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
+import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
@@ -150,12 +151,7 @@ function HomeRoute() {
     channels.data?.[0]?.id !== undefined &&
     channels.data[0].id === selectedChannel;
   const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const appsBySlug = new Map(
-    (appList.data?.apps ?? []).map((app) => [
-      app.slug,
-      { name: app.name, site: app.site },
-    ]),
-  );
+  const appsBySlug = useAppsBySlug();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const recents = useQuery(
     rpcClient.workspace.computer.recents.queryOptions({

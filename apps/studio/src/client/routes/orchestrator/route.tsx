@@ -15,6 +15,7 @@ import {
 import { openSettings } from "@/client/atoms/settings-modal";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FilesLayoutContext } from "@/client/components/files-layout-context";
+import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import {
   BrowserTabs,
   type BrowserTabsHandle,
@@ -467,13 +468,7 @@ function OrchestratorLayout() {
   // What the conversation asks to open, as it asks: a page as a tab, a file
   // of the user's as a file tab. The openers are read at the moment of each
   // ask, since they close over the tabs as they are then.
-  const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const appsBySlug = new Map(
-    (appList.data?.apps ?? []).map((app) => [
-      app.slug,
-      { name: app.name, site: app.site },
-    ]),
-  );
+  const appsBySlug = useAppsBySlug();
   // The address says what kind of place this is; the screen itself says where
   // it is on the Mac, since only it has resolved a mount to a real path.
   const tabLocation: TabLocation = (() => {

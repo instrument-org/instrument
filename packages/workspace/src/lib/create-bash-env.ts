@@ -33,6 +33,7 @@ import {
   KILL_COMMAND,
   type SessionCommandContext,
 } from "./shell-commands/background-jobs";
+import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
   createFfprobeCommand,
@@ -66,7 +67,6 @@ import {
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createShowCommand, SHOW_COMMAND } from "./shell-commands/show";
-import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
 import { createTaskCommand, TASK_COMMAND } from "./shell-commands/task";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
 import {

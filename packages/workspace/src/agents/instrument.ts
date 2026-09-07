@@ -7,10 +7,10 @@ import {
 } from "../constants";
 import { buildAppsContextText } from "../lib/apps/context";
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
-import { channelsContextText } from "../lib/orchestrator/channels";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
+import { channelsContextText } from "../lib/orchestrator/channels";
 import { listRunnableModels, modelTable } from "../lib/orchestrator/models";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
@@ -27,6 +27,18 @@ import {
   getSystemInfoText,
   shouldContinueWithToolCalls,
 } from "./shared";
+
+/**
+ * Whether starting, steering and stopping a task is a tool of its own rather
+ * than three subcommands inside the shell.
+ *
+ * An experiment with a measurement behind it: over a five-case suite the free
+ * model spent two to four calls a run trying to call a tool literally named
+ * `task`, each one an error that ends the step, while the frontier control
+ * never did. Read from the environment so one suite can be scored both ways
+ * without two builds.
+ */
+export const TASK_TOOL_ENABLED = process.env.INSTRUMENT_TASK_TOOL === "1";
 
 /** How many of the newest models ride along in the context, so "the newest" needs no command. */
 const NEWEST_MODELS_IN_CONTEXT = 12;
@@ -61,12 +73,12 @@ async function newestModelsText(): Promise<string[]> {
  * files fence included.
  */
 export const instrumentAgent = setupAgent({
-  agentTools: pick(TOOLS, [
-    "BashTool",
-    "Choose",
-    "ConnectApp",
-    "RequestFolder",
-  ]),
+  agentTools: pick(
+    TOOLS,
+    TASK_TOOL_ENABLED
+      ? ["BashTool", "Choose", "ConnectApp", "RequestFolder", "Task"]
+      : ["BashTool", "Choose", "ConnectApp", "RequestFolder"],
+  ),
   name: "instrument",
 }).create(({ agentTools, name }) => ({
   getMessages: async ({ sessionId, taskId }) => {
@@ -92,7 +104,15 @@ export const instrumentAgent = setupAgent({
       - A task started in a channel reports back into that channel by itself, whichever one the user is looking at when it finishes.
 
       # Tasks
-      \`${TASK_COMMAND.name}\` is a command in your bash tool. \`${TASK_COMMAND.name} help\` prints everything. The ones you use most:
+      ${
+        TASK_TOOL_ENABLED
+          ? `\`${agentTools.Task.name}\` is a tool: \`action: "new"\` starts one (\`brief\`, \`name\`, and \`model\`, \`folders\`, \`apps\`, \`tab\` when they apply), \`action: "send"\` messages one, \`action: "stop"\` stops one. Reading about them stays in your bash tool, where it composes with a filter:\n  ${TASK_COMMAND.name} list [--running], ${TASK_COMMAND.name} show <id>, ${TASK_COMMAND.name} log <id> [--tail <lines>], ${TASK_COMMAND.name} models, ${TASK_COMMAND.name} rename <id> '<title>', ${TASK_COMMAND.name} archive <id>`
+          : `\`${TASK_COMMAND.name}\` is a command in your bash tool. \`${TASK_COMMAND.name} help\` prints everything. The ones you use most:`
+      }
+${
+  TASK_TOOL_ENABLED
+    ? ""
+    : `
         ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[:rw|:ro]]... [--app <slug>]... <<'EOF'
         <the brief, as many lines as it needs>
         EOF
@@ -103,9 +123,10 @@ export const instrumentAgent = setupAgent({
         ${TASK_COMMAND.name} list [--running]
         ${TASK_COMMAND.name} show <id>
         ${TASK_COMMAND.name} log <id> [--tail <lines>]
-        ${TASK_COMMAND.name} models
+        ${TASK_COMMAND.name} models`
+}
       - Brief a task the way you would brief a capable colleague who knows nothing about this conversation: the goal, what done looks like, which folders it has and what each holds, where deliverables go, and how much effort it deserves ("a search and one page is enough; do not go past a few minutes"). A task will take the hard road if the brief leaves it open. Carry over what the user said that matters, in their words. Give it a short title with --name.
-      - Always pass the brief and any message through the quoted heredoc, never as a double-quoted argument: the shell expands \`$\` inside double quotes, so "under $800" reaches the task as "under 00". Single-quote the title.
+      ${TASK_TOOL_ENABLED ? "" : `- Always pass the brief and any message through the quoted heredoc, never as a double-quoted argument: the shell expands \`$\` inside double quotes, so "under $800" reaches the task as "under 00". Single-quote the title.`}
       - Folders: the user's home folder is mounted for you, read and write, under \`${MOUNT.attachedFolders}/<name>\` (your context lists the mounts), and so is everything inside it: Desktop, Documents, Downloads, all of it. A task sees none of it unless you pass \`--folder\`: hand it the one folder the work needs, a folder inside a mount being fine (\`--folder ${MOUNT.attachedFolders}/<home>/Downloads\`), and it gets the access you have unless you narrow it with \`:ro\`; never the whole home unless the work spans it. ${process.platform === "darwin" ? `macOS may ask the user itself the first time Desktop, Documents, Downloads or a removable volume is touched; \`EPERM\` or "Operation not permitted" on one of those means they declined: tell them to allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders.` : `A folder that answers \`EACCES\` or "permission denied" is one the user's account cannot read; say so rather than trying again.`} \`${agentTools.RequestFolder.name}\` is for a folder outside your mounts, on another volume; never for one you can already reach, and never to get write access to one you have read and write.
       - Where results go: a note on the user's message says which folder they had open and what was selected; "this folder", "here", and "these" mean that. The folder view is their whole computer, and the note says how you reach what they are looking at, and whether a task can write there; when nothing you have covers it, ask with \`${agentTools.RequestFolder.name}\` before promising anything there. When their browser was showing, the note names the page instead, with what was selected on it or how it begins, its tab id, and the other tabs open; "this page" is it. A question the note already answers gets answered without a task. Work on the page, of any size, goes to a task with \`--tab <id>\`, which drives that same tab where the user can watch; never a task that opens the page in a browser of its own when the user has it open. Results the user pointed at a folder for go in that folder, passed writable. Results nobody placed go in \`${MOUNT.attachedFolders}/Instrument\`, the workspace folder, in a subfolder named for the job: every task has it, read and write, without being asked, so the brief names the subfolder and the task writes there itself. A task's own \`output/\` is its scratch, which you can read at \`${MOUNT.tasks}/<id>/output/\`: a deliverable left only there gets copied where it belongs by you, with \`cp\`, before you link it.
       - Put things on the user's screen with \`open <url or path>\`: a page opens as a tab of the window, a file of theirs (under \`${MOUNT.attachedFolders}\` or \`${MOUNT.tasks}/<id>\`) as a file tab, and the user sees it at once. Use it for what they should look at now: a result just made, a page worth seeing, the file a task just finished. It is not a substitute for the files fence, which is how a reply hands a file over for good. The note on each message lists the tabs already open, so a page that is already up is focused, not opened twice.
@@ -240,6 +261,11 @@ export async function shouldContinueAfterHandingOff({
         part.state === "output-available" &&
         /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(part.input.command) &&
         /^(?:Created|Sent to) /m.test(part.output.output)) ||
+      // The same hand-off made through the tool rather than the shell.
+      (part.type === "tool-task" &&
+        part.state === "output-available" &&
+        part.output.ok &&
+        part.input.action !== "stop") ||
       // A card asking the user to connect an app: the answer comes as a wake.
       (part.type === "tool-connect_app" &&
         part.state === "output-available" &&

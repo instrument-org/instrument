@@ -12,6 +12,7 @@ import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
 import { RequestFolder } from "./request-folder";
 import { StartActivity } from "./start-activity";
+import { Task } from "./task";
 import { Unavailable } from "./unavailable";
 import { WebFetch } from "./web-fetch";
 import { WebSearch } from "./web-search";
@@ -27,6 +28,7 @@ export const TOOLS = {
   ReadFile,
   RequestFolder,
   StartActivity,
+  Task,
   Unavailable,
   WebFetch,
   WebSearch,
@@ -45,6 +47,7 @@ export const TOOLS_BY_NAME = {
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,
   [TOOLS.RequestFolder.name]: TOOLS.RequestFolder,
   [TOOLS.StartActivity.name]: TOOLS.StartActivity,
+  [TOOLS.Task.name]: TOOLS.Task,
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,
   [TOOLS.WebFetch.name]: TOOLS.WebFetch,
   [TOOLS.WebSearch.name]: TOOLS.WebSearch,

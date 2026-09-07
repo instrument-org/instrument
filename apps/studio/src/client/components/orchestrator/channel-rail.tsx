@@ -1,5 +1,4 @@
 import { openSettings } from "@/client/atoms/settings-modal";
-import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 import { channelTint } from "@/client/components/orchestrator/channel-tint";
 import {
   Avatar,
@@ -195,8 +194,8 @@ export function ChannelRail({
       className="flex w-14 shrink-0 flex-col items-center border-r border-border bg-muted/60 py-2"
     >
       {/* `overflow-y-auto` clips anything drawn outside a tile's row, so the
-        pill for the open channel and the working mark are both drawn inside
-        the row's own box rather than beside it. */}
+        pill for the open channel and the badge in a tile's corner are both
+        drawn inside the row's own box rather than beside it. */}
       <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-x-clip overflow-y-auto">
         {channels.map((channel, index) => (
           <ChannelTile
@@ -331,13 +330,13 @@ function ChannelTile({
         }}
         type="button"
       >
-        <ChannelChip channel={channel} />
-        {channel.working ? (
-          // Working takes the corner the count would have had, because it is
-          // the same question answered sooner: something happened in there.
-          // A ring around the whole tile read as a second selection.
-          <PlanningDotIcon className="absolute -top-1 -right-1 size-4" />
-        ) : channel.needsYou ? (
+        {/* At work, the tile itself breathes; the corner stays for what the
+          channel is asking of the user. */}
+        <ChannelChip
+          channel={channel}
+          className={cn(channel.working && "channel-working")}
+        />
+        {channel.needsYou ? (
           // A question rather than a warning: it is asking the user something,
           // and it takes the corner from the count because a channel that has
           // stopped is the more urgent of the two. Inside the tile's own box,

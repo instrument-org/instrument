@@ -834,6 +834,32 @@ body {
   }
 }
 
+/* A channel at work: its tile breathes, a soft glow in the channel's own color
+ * rising and falling behind it. Nothing is added to the tile, so no mark
+ * competes with the badge in its corner or reads as a second selection, and
+ * the color is the tile's own rather than one laid over it. `channel-tint`
+ * publishes the glow color on the tile; the app's own tile, which wears no
+ * tint, glows brand. Kept within the rail's width, which clips past it. */
+@utility channel-working {
+  --channel-glow: var(--channel-tint-edge, var(--brand-500));
+  animation: channel-working-breathe 2.8s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    box-shadow: 0 0 8px 1px var(--channel-glow);
+  }
+}
+
+@keyframes channel-working-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 8px 2px var(--channel-glow);
+  }
+}
+
 /* Very subtle top-to-bottom sheen layered over a button's background color:
  * lightens the top edge and darkens the bottom edge a touch, giving a soft
  * physical depth. Works in both themes since it's a translucent overlay, and

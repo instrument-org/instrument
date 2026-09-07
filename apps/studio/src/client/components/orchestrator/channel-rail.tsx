@@ -339,19 +339,17 @@ function ChannelTile({
           // Working takes the corner the count would have had, because it is
           // the same question answered sooner: something happened in there.
           // A ring around the whole tile read as a second selection.
-          <span className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-card">
-            <PlanningDotIcon />
-          </span>
+          <PlanningDotIcon className="absolute -top-1 -right-1 size-4" />
         ) : channel.needsYou ? (
           // A question rather than a warning: it is asking the user something,
           // and it takes the corner from the count because a channel that has
           // stopped is the more urgent of the two. Inside the tile's own box,
           // which is what the rail's scrolling allows.
-          <span className="absolute top-0 right-0 grid size-4 place-items-center rounded-full bg-warning-500 text-[10px] font-bold text-white ring-2 ring-card">
+          <span className="absolute -top-0.5 -right-0.5 grid size-3.5 place-items-center rounded-full bg-warning-500 text-[9px] font-bold text-white">
             ?
           </span>
         ) : channel.unread > 0 ? (
-          <span className="absolute top-0 right-0 grid h-4 min-w-4 place-items-center rounded-full bg-foreground px-1 text-[10px] font-medium text-background ring-2 ring-card">
+          <span className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-foreground px-0.5 text-[9px] font-medium text-background">
             {channel.unread > 99 ? "99+" : channel.unread}
           </span>
         ) : null}

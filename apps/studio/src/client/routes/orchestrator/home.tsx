@@ -42,7 +42,7 @@ const PINS_SHOWN = 8;
 
 /** What names a row of things. As small as a label can be and still be read. */
 const SECTION_LABEL =
-  "mb-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase";
+  "mb-1 pl-5.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase";
 
 /**
  * How often the Finder in the box re-reads what it is showing. Slower than the
@@ -129,7 +129,7 @@ function HomeRoute() {
                 }
                 site={app.site}
               />
-              <span className="w-full truncate text-center text-xs">
+              <span className="line-clamp-2 w-full text-center text-xs leading-tight">
                 {app.name}
               </span>
             </button>
@@ -144,7 +144,7 @@ function HomeRoute() {
             <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-dashed border-border text-muted-foreground">
               <PlusIcon className="size-4" />
             </span>
-            <span className="w-full truncate text-center text-xs">
+            <span className="line-clamp-2 w-full text-center text-xs leading-tight">
               All apps
             </span>
           </button>
@@ -178,7 +178,7 @@ function HomeRoute() {
                   <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card shadow-sm">
                     <InstrumentGlyph className="size-5 text-brand-600" />
                   </span>
-                  <span className="w-full truncate text-center text-xs">
+                  <span className="line-clamp-2 w-full text-center text-xs leading-tight">
                     Tasks
                   </span>
                 </button>
@@ -203,7 +203,7 @@ function HomeRoute() {
                       <ScreenIcon appsBySlug={appsBySlug} href={pin.target} />
                     )}
                   </span>
-                  <span className="w-full truncate text-center text-xs">
+                  <span className="line-clamp-2 w-full text-center text-xs leading-tight">
                     {pin.title}
                   </span>
                 </button>

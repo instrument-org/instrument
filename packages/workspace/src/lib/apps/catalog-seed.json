@@ -53,28 +53,22 @@
       "slug": "github",
       "name": "GitHub",
       "tagline": "Repos, issues, PRs, and Actions in every format agents speak.",
-      "description": "GitHub exposes more agent-callable surface area than almost any service: an official remote MCP server, a fully-specified REST API, a GraphQL API, and the `gh` CLI. Pick the format that fits your agent — they all reach the same data.",
+      "description": "GitHub exposes more agent-callable surface area than almost any service: a fully-specified REST API, a GraphQL API, the `gh` CLI, and a remote MCP server. The MCP server is not reachable from here: it only accepts OAuth clients GitHub has issued in advance and refuses one registered on the spot, so the way in is the REST API with a fine-grained personal access token.",
       "domain": "github.com",
       "categories": ["developer-tools", "version-control"],
       "authMethods": [
         {
-          "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "The remote MCP server walks compatible clients through OAuth automatically."
-        },
-        {
           "type": "pat",
           "label": "Personal access token",
-          "note": "Fine-grained PATs let you scope access per-repo and per-permission."
+          "note": "Fine-grained PATs let you scope access per-repo and per-permission; sent as a Bearer header."
+        },
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Only for clients GitHub has issued in advance, which the sign-in card cannot be; not a way in from here."
         }
       ],
       "interfaces": [
-        {
-          "format": "mcp",
-          "name": "GitHub MCP Server",
-          "endpoint": "https://api.githubcopilot.com/mcp/",
-          "auth": "mixed"
-        },
         {
           "format": "openapi",
           "name": "GitHub REST API",
@@ -100,7 +94,7 @@
       "slug": "google-workspace",
       "name": "Google Workspace",
       "tagline": "Gmail, Calendar, Drive, Docs, and Sheets from one credential.",
-      "description": "Google Workspace exposes its services through per-product REST APIs built on the Google Discovery Service, a vendor-published CLI (`gws`), and a popular community CLI (`gog`). All of them authenticate through Google Cloud OAuth — the setup is the hard part, and it's shared across every interface.",
+      "description": "Google Workspace exposes its services through per-product REST APIs built on the Google Discovery Service, per-product remote MCP servers in developer preview (gmailmcp.googleapis.com and the like), a vendor-published CLI (`gws`), and a popular community CLI (`gog`). Every one of them, the MCP servers included, authenticates with an OAuth client from a Google Cloud project of the user's own, which the sign-in card cannot make: the MCP servers answer a stranger's tools/list and refuse the first call. Not reachable as an app from here; the user signs in on the Browser screen and a task works there.",
       "domain": "workspace.google.com",
       "categories": ["productivity", "email", "documents"],
       "authMethods": [

@@ -174,11 +174,23 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
     .join("; ");
   const mcp = catalogEntryMcpEndpoint(entry);
   const local = catalogEntryLocalServer(entry);
+  // An API a key opens is the third way in. A service with none of the three
+  // (every way in wants a sign-in client of the user's own, which the card
+  // cannot make) gets told so in the listing, rather than a set-up line of
+  // placeholders that no --auth the command takes can fill.
+  const keyed = entry.interfaces.find(
+    (surface) =>
+      surface.format !== "mcp" &&
+      surface.endpoint !== undefined &&
+      ["api_key", "pat", "token"].includes(surface.auth ?? ""),
+  );
   const howTo = mcp
     ? `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --mcp ${mcp}`
     : local
       ? `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --local ${local.package} --runtime ${local.runtime}`
-      : `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --api <base-url> --auth <kind> --test <path>`;
+      : keyed
+        ? `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --api ${keyed.endpoint} --auth bearer --test <a cheap GET, such as /me>`
+        : `not as an app from here: every way in needs a sign-in client of the user's own, which the sign-in card cannot make. The user can sign in on the Browser screen (${entry.home ?? `https://${entry.domain}`}), and a task handed that tab works there.`;
   return [
     `${entry.slug}  ${entry.name}  ${entry.domain}`,
     `  ${entry.tagline}`,

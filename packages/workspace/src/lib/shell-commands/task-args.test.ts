@@ -1,9 +1,18 @@
+import { mkdtempSync } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { parseFlags, parseFolderSpec, resolveFolders } from "./task-args";
+import {
+  parseFlags,
+  parseFolderSpec,
+  requireFoldersOnDisk,
+  resolveFolders,
+} from "./task-args";
 
 describe("parseFlags", () => {
   it("reads spaced and inline values, keeps the last of a flag given twice, and collects a repeatable one", () => {
@@ -124,5 +133,37 @@ describe("resolveFolders", () => {
     expect(() => resolveFolders(["Desktop"], attached)).toThrow(
       'no folder "Desktop" in this conversation. Yours: /mnt/Home, /mnt/Notes',
     );
+  });
+});
+
+describe("requireFoldersOnDisk", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "task-folders-"));
+
+  it("lets a folder that is there through", async () => {
+    const dir = path.join(root, "new folder");
+    await fs.mkdir(dir);
+    await expect(
+      requireFoldersOnDisk([{ path: dir }], ["Home/new folder:rw"]),
+    ).resolves.toBeUndefined();
+  });
+
+  // The case from a live session: the note named a folder the user had just
+  // renamed in the Finder, the task was started on the old name, and its
+  // first ls failed. The refusal names what was typed and how to look.
+  it("refuses a folder that is not there, by the spec that named it", async () => {
+    const gone = path.join(root, "untitled folder");
+    await expect(
+      requireFoldersOnDisk([{ path: gone }], ["Home/untitled folder:rw"]),
+    ).rejects.toThrow(
+      `no folder at "Home/untitled folder:rw": nothing is on disk at ${gone}`,
+    );
+  });
+
+  it("refuses a file where a folder was meant", async () => {
+    const file = path.join(root, "notes.txt");
+    await fs.writeFile(file, "notes");
+    await expect(
+      requireFoldersOnDisk([{ path: file }], ["Home/notes.txt"]),
+    ).rejects.toThrow('"Home/notes.txt" is a file, not a folder');
   });
 });

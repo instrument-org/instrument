@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 
 import { MOUNT } from "../../mount-points";
@@ -58,6 +59,37 @@ export function parseFolderSpec(spec: string): {
         ? undefined
         : ("read-only" as const);
   return { access, name, subpath: rest.filter(Boolean).join("/") };
+}
+
+/**
+ * Every folder a task is handed has to be on disk. The path the note named a
+ * moment ago can be gone by the time the command runs (a folder renamed in
+ * the Finder, a path with a space in it that lost its tail to the shell), and
+ * a task started on it fails at its first `ls` and wakes the conversation
+ * about it; refusing here hands the conversation the fix instead. The specs
+ * are the folders' own, in the same order, so the refusal names what was
+ * typed.
+ */
+export async function requireFoldersOnDisk(
+  folders: { path: string }[],
+  specs: string[],
+): Promise<void> {
+  for (const [index, folder] of folders.entries()) {
+    const spec = specs[index] ?? folder.path;
+    let stat;
+    try {
+      stat = await fs.stat(folder.path);
+    } catch {
+      throw new Error(
+        `no folder at "${spec}": nothing is on disk at ${folder.path}. A folder renamed or moved since it was named is under its new name; \`ls\` its parent to see what is there. A path with a space in it needs quotes: --folder '${MOUNT.attachedFolders}/<mount>/a folder:rw'.`,
+      );
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(
+        `"${spec}" is a file, not a folder. A task is handed the folder, and finds the file inside it.`,
+      );
+    }
+  }
 }
 
 /**

@@ -57,7 +57,7 @@ import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
-import { parseFlags, resolveFolders } from "./task-args";
+import { parseFlags, requireFoldersOnDisk, resolveFolders } from "./task-args";
 import { TASK_COMMAND } from "./task-command";
 import { subprocessStdin } from "./utils";
 
@@ -209,6 +209,15 @@ export async function runNew(
       `new: a brief is required, on stdin through a quoted heredoc.\n\n${USAGE}`,
     );
   }
+  // With the brief on stdin, a bare word on the command is a mistake, and
+  // the usual one is the tail of a path with a space in it: `--folder
+  // /mnt/x/a folder:rw` reaches here as the folder `a` and the word
+  // `folder:rw`, which would otherwise be dropped without a word.
+  if (positional.length > 0 && subprocessStdin(stdin)) {
+    throw new Error(
+      `new: unexpected ${positional.length === 1 ? "argument" : "arguments"} ${positional.map((argument) => `"${argument}"`).join(", ")} beside the brief on stdin. A path with a space in it needs quotes: --folder '${MOUNT.attachedFolders}/<mount>/a folder:rw'.`,
+    );
+  }
   const workspaceConfig = getWorkspaceConfig();
   const orchestratorState = await getTaskState(
     taskDir(context.orchestratorTaskId),
@@ -221,12 +230,13 @@ export async function runNew(
   }
   const { model, modelURI } = await resolveModel(rawURI);
   await requireOwnProvider(model, context);
-  const folders = withWorkspaceFolder(
-    resolveFolders(
-      values.get("folder") ?? [],
-      orchestratorState.attachedFolders ?? {},
-    ),
+  const askedFolders = values.get("folder") ?? [];
+  const resolvedFolders = resolveFolders(
+    askedFolders,
+    orchestratorState.attachedFolders ?? {},
   );
+  await requireFoldersOnDisk(resolvedFolders, askedFolders);
+  const folders = withWorkspaceFolder(resolvedFolders);
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const tab = values.get("tab")?.[0];
   const browserTargetId =

@@ -71,6 +71,7 @@ import {
 import { Toaster } from "@/client/components/ui/sonner";
 import { Spinner } from "@/client/components/ui/spinner";
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
+import { UpdatedToast } from "@/client/components/updated-toast";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -144,6 +145,9 @@ function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
       <div className="flex min-h-0 flex-1">{children}</div>
       <StudioModals />
       <Toaster position="top-center" />
+      {/* No action beside it: the release notes are a screen this window has
+        not got, and the version it is now on is the part worth saying. */}
+      <UpdatedToast />
     </div>
   );
 }

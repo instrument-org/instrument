@@ -10,6 +10,7 @@ import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { setSidebarOpen, useSidebarOpen } from "@/client/hooks/use-sidebar";
+import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, Suspense } from "react";
@@ -54,6 +55,7 @@ const Agentation = import.meta.env.DEV
  * the kept-mounted stack of per-tab content.
  */
 export function AppChrome({ children }: { children: ReactNode }) {
+  const { addTab } = useTabActions();
   const isDeveloperMode = useDeveloperMode();
   const activePanel = useAtomValue(devToolsPanelAtom);
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
@@ -113,7 +115,11 @@ export function AppChrome({ children }: { children: ReactNode }) {
           offset={{ top: TOOLBAR_HEIGHT + 16 }}
           position="top-center"
         />
-        <UpdatedToast />
+        <UpdatedToast
+          onWhatsNew={() => {
+            void addTab({ to: "/release-notes" });
+          }}
+        />
       </div>
     </ChromeInsetProvider>
   );

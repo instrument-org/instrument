@@ -1,4 +1,3 @@
-import { useTabActions } from "@/client/hooks/use-tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -10,8 +9,11 @@ import { toast } from "sonner";
 // to wait until there is somewhere to show it: the main window is created
 // hidden, and stays hidden behind the onboarding window until provider setup is
 // finished, which an update can land in the middle of.
-export function UpdatedToast() {
-  const { addTab } = useTabActions();
+//
+// `onWhatsNew` is what the toast's action does. A window with nowhere to put
+// the release notes passes nothing and gets a toast without one; the version it
+// is now on is the part worth saying either way.
+export function UpdatedToast({ onWhatsNew }: { onWhatsNew?: () => void }) {
   // The query result stays cached, so without this a later re-render would fire
   // the toast again from the same data.
   const hasShownRef = useRef(false);
@@ -28,14 +30,11 @@ export function UpdatedToast() {
     hasShownRef.current = true;
 
     toast.success(`${APP_NAME} updated to ${recentUpdate.to}`, {
-      action: {
-        label: "What's new",
-        onClick: () => {
-          void addTab({ to: "/release-notes" });
-        },
-      },
+      ...(onWhatsNew
+        ? { action: { label: "What's new", onClick: onWhatsNew } }
+        : {}),
     });
-  }, [recentUpdate, addTab]);
+  }, [recentUpdate, onWhatsNew]);
 
   return null;
 }

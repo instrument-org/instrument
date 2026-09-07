@@ -76,7 +76,7 @@ export function TaskRow({
       </span>
       {channel && (
         <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-          <ChannelFace channel={{ ...channel, id: "" }} className="text-[12px]" />
+          <ChannelFace channel={channel} className="text-[12px]" />
           <span className="hidden @[22rem]/tasks:inline">{channel.name}</span>
         </span>
       )}

@@ -36,6 +36,7 @@ export function ScreenIcon({
  */
 export function WindowTabStrip({
   childTitles,
+  groupKey,
   onClose,
   onNew,
   onReorder,
@@ -45,6 +46,8 @@ export function WindowTabStrip({
   trailing,
 }: {
   childTitles: Map<TaskId, string>;
+  /** The channel these tabs belong to, so a switch is not drawn as five tabs opening. */
+  groupKey?: string;
   onClose: (id: string) => void;
   onNew: () => void;
   onReorder: (ids: string[]) => void;
@@ -160,6 +163,7 @@ export function WindowTabStrip({
       ))}
       <TabStrip
         className="border-b border-border"
+        {...(groupKey === undefined ? {} : { groupKey })}
         onClose={onClose}
         onContextMenu={(key, event) => {
           event.preventDefault();

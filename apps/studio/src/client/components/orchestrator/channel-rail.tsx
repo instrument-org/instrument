@@ -1,7 +1,16 @@
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+
+/** What a channel is marked with, whatever the user has and has not chosen. */
+export interface ChannelMark {
+  color?: string;
+  emoji?: string;
+  /** The app's own channel, which wears the mark and takes no emoji. */
+  isHome?: boolean;
+  name?: string;
+}
 
 /** A channel as the rail draws it: what stands for it, and what it wants. */
 export interface RailChannel {
@@ -18,21 +27,88 @@ export interface RailChannel {
 }
 
 /**
- * What stands for a channel wherever one is named: its emoji, or the mark for
- * the channel the conversation started in, which has no emoji and does not
- * take one.
+ * The color a channel with no chosen one is drawn in, from its name, so it
+ * keeps the same one for as long as it is called that.
+ */
+const ASSIGNED = [
+  "#3b6ef6",
+  "#e0562f",
+  "#0f9d6e",
+  "#8b5cf6",
+  "#d4a017",
+  "#0891b2",
+  "#db2777",
+  "#65a30d",
+];
+/** The tile a channel's mark sits on, tinted by the color it carries. */
+export function ChannelChip({
+  channel,
+  className,
+}: {
+  channel: ChannelMark;
+  className?: string;
+}) {
+  const tint =
+    channel.color ??
+    (channel.isHome ? undefined : assignedColor(channel.name ?? ""));
+  return (
+    <span
+      className={cn(
+        "grid size-9 shrink-0 place-items-center rounded-xl text-[17px] ring-1 ring-inset",
+        className,
+      )}
+      // A tint rather than a fill: the emoji has to stay legible on it, and a
+      // column of solid squares would read as a toolbar. The ring takes the
+      // color too, which is what makes it visible at all on a dark ground.
+      style={
+        tint
+          ? ({
+              background: `${tint}2e`,
+              // Tailwind's ring color is a custom property, which React's
+              // style typing has no room for.
+              "--tw-ring-color": `${tint}59`,
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
+      <ChannelFace channel={channel} />
+    </span>
+  );
+}
+
+/**
+ * What stands for a channel wherever one is named. Its emoji if it has one,
+ * the mark for the channel the conversation started in, and otherwise the
+ * first letter of its name: a channel made before there were emoji, or one
+ * whose emoji the user never chose, still has to be told apart from its
+ * neighbours at a glance.
  */
 export function ChannelFace({
   channel,
   className,
 }: {
-  channel: { emoji?: string; id: string };
+  channel: ChannelMark;
   className?: string;
 }) {
-  return channel.emoji ? (
-    <span className={cn("leading-none", className)}>{channel.emoji}</span>
-  ) : (
-    <InstrumentGlyph className={cn("size-4 text-primary", className)} />
+  if (channel.emoji) {
+    return (
+      <span className={cn("leading-none", className)}>{channel.emoji}</span>
+    );
+  }
+  if (channel.isHome) {
+    return <InstrumentGlyph className={cn("size-4 text-primary", className)} />;
+  }
+  // By grapheme, so a name that starts with an emoji or an accented letter
+  // gives one character rather than half of one.
+  const [first] = new Intl.Segmenter().segment(channel.name ?? "?");
+  const letter = first?.segment ?? "?";
+  return (
+    <span
+      className={cn("font-semibold uppercase", className)}
+      style={{ color: channel.color ?? assignedColor(channel.name ?? "") }}
+    >
+      {letter}
+    </span>
   );
 }
 
@@ -60,10 +136,13 @@ export function ChannelRail({
       aria-label="Channels"
       className="flex w-14 shrink-0 flex-col items-center border-r border-border bg-muted/60 pt-10 pb-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
     >
-      <div className="flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto">
-        {channels.map((channel) => (
+      {/* `overflow-y-auto` clips anything drawn outside a tile, so the
+        selected mark and the working ring are both drawn inside the tile's own
+        box rather than beside it. */}
+      <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-x-clip overflow-y-auto">
+        {channels.map((channel, index) => (
           <ChannelTile
-            channel={channel}
+            channel={{ ...channel, isHome: index === 0 }}
             isSelected={channel.id === selectedId}
             key={channel.id}
             onSelect={() => {
@@ -87,60 +166,73 @@ export function ChannelRail({
   );
 }
 
+function assignedColor(name: string) {
+  let sum = 0;
+  for (const character of name) {
+    sum += character.codePointAt(0) ?? 0;
+  }
+  return ASSIGNED[sum % ASSIGNED.length];
+}
+
 /** One channel's mark, with what it is saying and the name it says on hover. */
 function ChannelTile({
   channel,
   isSelected,
   onSelect,
 }: {
-  channel: RailChannel;
+  channel: ChannelMark & RailChannel;
   isSelected: boolean;
   onSelect: () => void;
 }) {
-  const [isHovered, setHovered] = useState(false);
-  // A tile that leaves under the pointer (the rail reordered, the channel
-  // archived) would otherwise keep its flyout up with nothing under it.
-  useEffect(() => () => {
-    setHovered(false);
-  }, []);
+  // The rail scrolls, so anything drawn beside a tile is clipped by it. The
+  // name is placed against the window instead, off the button's own box.
+  const [flyoutAt, setFlyoutAt] = useState<{ left: number; top: number }>();
   return (
-    <div className="relative flex h-11 w-full shrink-0 items-center justify-center">
-      {isSelected && (
-        <span className="absolute top-1/2 left-0 h-7 w-0.5 -translate-y-1/2 rounded-r-full bg-foreground" />
-      )}
+    <div className="flex h-11 w-full shrink-0 items-center justify-center">
       <button
         aria-current={isSelected ? "true" : undefined}
         aria-label={channel.name}
         className={cn(
-          "relative grid size-9 place-items-center rounded-xl bg-card text-[17px] ring-1 ring-border transition",
-          isSelected ? "shadow-sm" : "opacity-60 hover:opacity-100",
-          channel.working && "ring-2 ring-primary ring-offset-2 ring-offset-muted",
+          "relative transition",
+          isSelected ? "" : "opacity-55 hover:opacity-100",
         )}
         onClick={onSelect}
-        onPointerEnter={() => {
-          setHovered(true);
+        onPointerEnter={(event) => {
+          const box = event.currentTarget.getBoundingClientRect();
+          setFlyoutAt({ left: box.right + 8, top: box.top + box.height / 2 });
         }}
         onPointerLeave={() => {
-          setHovered(false);
+          setFlyoutAt(undefined);
         }}
         type="button"
       >
-        <ChannelFace channel={channel} />
+        <ChannelChip
+          channel={channel}
+          className={cn(
+            !channel.color && !channel.isHome ? "" : "bg-card",
+            isSelected && "shadow-sm ring-2 ring-foreground/80",
+            channel.working && !isSelected && "ring-2 ring-primary",
+          )}
+        />
         {channel.needsYou ? (
           // A question rather than a warning: it is asking the user something,
           // and it takes the corner from the count because a channel that has
-          // stopped is the more urgent of the two.
-          <span className="absolute -top-1 -right-1 grid size-4 place-items-center rounded-full bg-warning-500 text-[10px] font-bold text-white ring-2 ring-muted">
+          // stopped is the more urgent of the two. Inside the tile's own box,
+          // which is what the rail's scrolling allows.
+          <span className="absolute top-0 right-0 grid size-4 place-items-center rounded-full bg-warning-500 text-[10px] font-bold text-white ring-2 ring-card">
             ?
           </span>
         ) : channel.unread > 0 ? (
-          <span className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-foreground px-1 text-[10px] font-medium text-background ring-2 ring-muted">
+          <span className="absolute top-0 right-0 grid h-4 min-w-4 place-items-center rounded-full bg-foreground px-1 text-[10px] font-medium text-background ring-2 ring-card">
             {channel.unread > 99 ? "99+" : channel.unread}
           </span>
         ) : null}
       </button>
-      {isHovered && (
-        <span className="pointer-events-none absolute top-1/2 left-12 z-50 -translate-y-1/2 rounded-md bg-popover px-2 py-1 text-xs whitespace-nowrap text-popover-foreground shadow-md ring-1 ring-border">
+      {flyoutAt && (
+        <span
+          className="pointer-events-none fixed z-50 -translate-y-1/2 rounded-md bg-popover px-2 py-1 text-xs whitespace-nowrap text-popover-foreground shadow-md ring-1 ring-border"
+          style={{ left: flyoutAt.left, top: flyoutAt.top }}
+        >
           {channel.name}
         </span>
       )}

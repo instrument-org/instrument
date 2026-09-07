@@ -91,6 +91,7 @@ type TabDensity = "compact" | "full" | "icon";
  */
 export function TabStrip({
   className,
+  groupKey,
   onClose,
   onContextMenu,
   onNew,
@@ -101,10 +102,12 @@ export function TabStrip({
   trailing,
 }: {
   className?: string;
+  /** Drawn as a plus at the end of the row when given. */
+  /** The set these tabs belong to; when it changes the strip adopts them silently. */
+  groupKey?: string;
   onClose: (key: string) => void;
   /** A right click on a tab, for a menu the caller draws. */
   onContextMenu?: (key: string, event: React.MouseEvent) => void;
-  /** Drawn as a plus at the end of the row when given. */
   onNew?: () => void;
   onReorder: (keys: string[]) => void;
   onSelect: (key: string) => void;
@@ -128,10 +131,19 @@ export function TabStrip({
   );
   const [arriving, setArriving] = useState<string[]>([]);
   const [seen, setSeen] = useState(movableKeys);
+  const [group, setGroup] = useState(groupKey);
   const [{ density, fixedIsNamed, selectedDensity, visibleCount }, setLayout] =
     useState(() => stripLayout(0, movableTabs.length, fixedTabs.length));
 
-  if (
+  if (group !== groupKey) {
+    // The whole strip was swapped for another set (a different channel), so
+    // none of these tabs are arriving: they were already open, somewhere the
+    // user was not looking, and animating them in makes a switch feel like
+    // five tabs opening at once.
+    setGroup(groupKey);
+    setSeen(movableKeys);
+    setArriving([]);
+  } else if (
     movableKeys.length !== seen.length ||
     movableKeys.some((key, index) => key !== seen[index])
   ) {

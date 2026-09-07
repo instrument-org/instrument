@@ -78,7 +78,7 @@ function TaskRoute() {
         </h2>
         {channel && (
           <span className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border">
-            <ChannelFace channel={{ ...channel, id: "" }} className="text-[12px]" />
+            <ChannelFace channel={channel} className="text-[12px]" />
             {channel.name}
           </span>
         )}

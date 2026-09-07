@@ -1,8 +1,21 @@
-import { ChannelFace, type RailChannel } from "@/client/components/orchestrator/channel-rail";
+import {
+  ChannelChip,
+  type ChannelMark,
+  type RailChannel,
+} from "@/client/components/orchestrator/channel-rail";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+
+import { ChannelMarkPicker } from "./channel-mark-picker";
 
 /** A task of this channel, as the line under the banner says it. */
 export interface BannerTask {
@@ -16,146 +29,157 @@ export interface BannerTask {
  * The channel's name at the top of its conversation, and under it what the
  * channel is working on.
  *
- * The name is the thing you click to rename, the way a task's title is in the
- * classic window; the caret beside it opens the rest. Nothing about a channel
- * is edited from the rail, which stays a place to aim at.
+ * The mark opens the picker, the name becomes the field that renames it, and
+ * the caret beside the name reaches both. Nothing about a channel is edited
+ * from the rail, which stays a place to aim at.
  */
 export function ChannelBanner({
+  canEdit,
   channel,
   onArchive,
+  onColor,
+  onEmoji,
   onRename,
   tasks,
 }: {
-  channel: RailChannel;
+  /**
+   * False for the channel the conversation started in: it keeps the mark and
+   * the name it has, since it is the app's own room rather than one the user
+   * made.
+   */
+  canEdit: boolean;
+  channel: ChannelMark & RailChannel;
   /** Absent for the channel that cannot go: the conversation has to happen somewhere. */
   onArchive?: () => void;
+  onColor: (color: string) => void;
+  onEmoji: (emoji: string) => void;
   onRename: (name: string) => void;
   tasks: BannerTask[];
 }) {
   const [isRenaming, setRenaming] = useState(false);
-  const [menuAt, setMenuAt] = useState<{ x: number; y: number }>();
+  const [isPicking, setPicking] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (isRenaming) {
-      inputRef.current?.select();
+  const commit = () => {
+    const name = inputRef.current?.value.trim();
+    setRenaming(false);
+    if (name && name !== channel.name) {
+      onRename(name);
     }
-  }, [isRenaming]);
+  };
 
-  useEffect(() => {
-    if (!menuAt) {
-      return;
-    }
-    const close = () => {
-      setMenuAt(undefined);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        close();
-      }
-    };
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("pointerdown", close);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [menuAt]);
+  const mark = (
+    <ChannelChip channel={channel} className="size-7 bg-card text-[15px]" />
+  );
 
   return (
     <>
       <div className="flex h-10 shrink-0 items-center gap-1 px-2">
-        {isRenaming ? (
-          <>
-            <ChannelFace channel={channel} className="shrink-0 text-[15px]" />
-            <input
-              className="h-7 min-w-0 flex-1 rounded-md bg-card px-1.5 text-[13px] font-medium ring-1 ring-border outline-hidden focus:ring-ring"
-              defaultValue={channel.name}
-              maxLength={16}
-              onBlur={() => {
-                setRenaming(false);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  setRenaming(false);
-                  return;
-                }
-                if (event.key !== "Enter") {
-                  return;
-                }
-                const name = event.currentTarget.value.trim();
-                setRenaming(false);
-                if (name && name !== channel.name) {
-                  onRename(name);
-                }
-              }}
-              ref={inputRef}
-            />
-          </>
-        ) : (
-          <>
+        {canEdit ? (
+          <ChannelMarkPicker
+            onColor={onColor}
+            onEmoji={onEmoji}
+            onOpenChange={setPicking}
+            open={isPicking}
+            {...(channel.color === undefined ? {} : { color: channel.color })}
+          >
             <button
-              className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left hover:bg-accent/60"
+              aria-label="Change this channel's mark"
+              className="shrink-0 rounded-lg hover:opacity-80"
+              type="button"
+            >
+              {mark}
+            </button>
+          </ChannelMarkPicker>
+        ) : (
+          mark
+        )}
+        {isRenaming ? (
+          <input
+            className="h-7 min-w-0 flex-1 rounded-md bg-card px-1.5 text-[13px] font-medium ring-1 ring-border outline-hidden focus:ring-ring"
+            defaultValue={channel.name}
+            maxLength={16}
+            onBlur={commit}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setRenaming(false);
+                return;
+              }
+              if (event.key === "Enter") {
+                // `commit` reads the field rather than a state the change
+                // handler kept, so Enter saves what is on screen.
+                event.preventDefault();
+                commit();
+              }
+            }}
+            ref={(element) => {
+              inputRef.current = element;
+              element?.select();
+            }}
+          />
+        ) : (
+          // Sized to the name rather than to the row, so the caret hugs it.
+          <div className="flex min-w-0 items-center">
+            <button
+              className={cn(
+                "min-w-0 truncate rounded-md px-1 py-0.5 text-left text-[13px] font-medium",
+                canEdit && "hover:bg-accent/60",
+              )}
+              disabled={!canEdit}
               onClick={() => {
                 setRenaming(true);
               }}
-              title="Rename this channel"
+              title={canEdit ? "Rename this channel" : channel.name}
               type="button"
             >
-              <ChannelFace channel={channel} className="shrink-0 text-[15px]" />
-              <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-                {channel.name}
-              </span>
+              {channel.name}
             </button>
-            <button
-              aria-label="Channel menu"
-              className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-              onClick={(event) => {
-                const box = event.currentTarget.getBoundingClientRect();
-                setMenuAt({ x: box.left, y: box.bottom + 4 });
-              }}
-              type="button"
-            >
-              <CaretDownIcon className="size-3.5" />
-            </button>
-          </>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  aria-label="Channel menu"
+                  className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                  type="button"
+                >
+                  <CaretDownIcon className="size-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-44">
+                <DropdownMenuItem
+                  disabled={!canEdit}
+                  onSelect={() => {
+                    setRenaming(true);
+                  }}
+                >
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!canEdit}
+                  onSelect={(event) => {
+                    // The picker is a popover of its own; letting the menu
+                    // close first would take the trigger with it.
+                    event.preventDefault();
+                    setPicking(true);
+                  }}
+                >
+                  Change mark and color
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={!onArchive}
+                  onSelect={() => {
+                    onArchive?.();
+                  }}
+                  variant="destructive"
+                >
+                  Archive
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
       </div>
       <BannerWork tasks={tasks} />
-      {menuAt && (
-        <div
-          className="fixed z-50 min-w-40 rounded-md border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md"
-          onPointerDown={(event) => {
-            event.stopPropagation();
-          }}
-          role="menu"
-          style={{ left: menuAt.x, top: menuAt.y }}
-        >
-          <button
-            className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"
-            onClick={() => {
-              setMenuAt(undefined);
-              setRenaming(true);
-            }}
-            role="menuitem"
-            type="button"
-          >
-            Rename
-          </button>
-          <button
-            className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent disabled:opacity-40"
-            disabled={!onArchive}
-            onClick={() => {
-              setMenuAt(undefined);
-              onArchive?.();
-            }}
-            role="menuitem"
-            type="button"
-          >
-            Archive
-          </button>
-        </div>
-      )}
     </>
   );
 }

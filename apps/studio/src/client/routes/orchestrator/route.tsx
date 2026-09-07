@@ -162,15 +162,20 @@ function OrchestratorLayout() {
   // still null while the list loads would file the first tabs opened under
   // nothing. Written the moment the list settles rather than left implied.
   useEffect(() => {
-    if (channelId && selectedChannel !== channelId) {
+    // Only when nothing is chosen. A channel just made is selected by its own
+    // mutation before the list has been re-read, and writing the fallback back
+    // over it here would drop the user on the first channel instead.
+    if (!selectedChannel && channelId) {
       setSelectedChannel(channelId);
     }
   }, [channelId, selectedChannel, setSelectedChannel]);
   const createChannel = useMutation(
     rpcClient.workspace.orchestrator.channels.create.mutationOptions({
-      onSuccess: (channel) => {
+      onSuccess: async (channel) => {
+        // Re-read first: the rail has to know the channel exists before the
+        // window is switched to it.
+        await channels.refetch();
         setSelectedChannel(channel.id);
-        void channels.refetch();
       },
     }),
   );
@@ -281,9 +286,9 @@ function OrchestratorLayout() {
   // opener while the list is empty; the effects below wait for it.
   useEffect(() => {
     if (tabs.length === 0) {
-      windowTabs.openScreen(
-        location.pathname === PAGE_ROUTE ? NEW_TAB_HREF : location.href,
-      );
+      // A channel with nothing open starts where a new tab starts, rather than
+      // inheriting whatever the channel before it was showing.
+      windowTabs.openScreen(NEW_TAB_HREF);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs.length]);
@@ -492,6 +497,7 @@ function OrchestratorLayout() {
     working: workingChannels.has(channel.id),
   }));
   const openChannel = railChannels.find((channel) => channel.id === sessionId);
+  const isHomeChannel = channelList[0]?.id === sessionId;
   // Only this channel's work, since the line belongs to the channel rather
   // than to the window.
   const channelTasks = running
@@ -566,7 +572,8 @@ function OrchestratorLayout() {
                 <div className="flex min-h-0 flex-1 flex-col pt-10">
                   {openChannel && (
                     <ChannelBanner
-                      channel={openChannel}
+                      canEdit={channelList[0]?.id !== openChannel.id}
+                      channel={{ ...openChannel, isHome: isHomeChannel }}
                       {...(channelList[0] &&
                       channelList[0].id !== openChannel.id
                         ? {
@@ -585,6 +592,24 @@ function OrchestratorLayout() {
                             },
                           }
                         : {})}
+                      onColor={(color) => {
+                        updateChannel.mutate({
+                          color,
+                          id: screens.taskId,
+                          sessionId: StoreId.SessionSchema.parse(
+                            openChannel.id,
+                          ),
+                        });
+                      }}
+                      onEmoji={(emoji) => {
+                        updateChannel.mutate({
+                          emoji,
+                          id: screens.taskId,
+                          sessionId: StoreId.SessionSchema.parse(
+                            openChannel.id,
+                          ),
+                        });
+                      }}
                       onRename={(name) => {
                         updateChannel.mutate({
                           id: screens.taskId,
@@ -673,6 +698,7 @@ function OrchestratorLayout() {
                   windowTabs.openScreen(NEW_TAB_HREF);
                 }}
                 onReorder={windowTabs.reorder}
+                {...(sessionId ? { groupKey: sessionId } : {})}
                 onSelect={windowTabs.select}
                 selectedId={active?.id}
                 tabs={tabs}

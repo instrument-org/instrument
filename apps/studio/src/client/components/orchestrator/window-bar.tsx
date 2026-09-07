@@ -1,4 +1,5 @@
 import { ChannelFace } from "@/client/components/orchestrator/channel-rail";
+import { channelTint } from "@/client/components/orchestrator/channel-tint";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { type ReactNode } from "react";
@@ -11,7 +12,7 @@ import { type ReactNode } from "react";
  * The channel sits to the left of its tabs, which is what lets the tabs live
  * up here at all: a strip above every channel would read as the window's, and
  * a strip to the right of a named channel reads as that channel's. The bar is
- * tinted with the channel's own colour, so which workspace you are in is
+ * tinted with the channel's own color, so which workspace you are in is
  * legible from the corner of the eye without any panel below having to say it.
  */
 export function WindowBar({
@@ -20,6 +21,7 @@ export function WindowBar({
   onOpenDetails,
   onToggleSidebar,
   tabs,
+  trailing,
 }: {
   channel?: { color?: string; emoji?: string; isHome?: boolean; name: string };
   isSidebarOpen: boolean;
@@ -27,15 +29,22 @@ export function WindowBar({
   onToggleSidebar: () => void;
   /** The channel's own tab strip, which fills what the chip leaves. */
   tabs: ReactNode;
+  /** What the window keeps at its right edge, past the tabs. */
+  trailing?: ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "flex h-10 shrink-0 items-center gap-1.5 border-b border-border pr-2 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
+        "flex h-10 shrink-0 items-center gap-1.5 border-b border-border pr-2 channel-tint [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
         // The lights are drawn by the system over the window's top left; on
         // the platforms that put controls elsewhere the row starts at the edge.
         isMacOS() ? "pl-20" : "pl-2",
       )}
+      style={{
+        background: "var(--channel-tint-surface, var(--background))",
+        borderColor: "var(--channel-tint-edge, var(--border))",
+        ...channelTint(channel?.color),
+      }}
     >
       <button
         aria-label={
@@ -65,6 +74,12 @@ export function WindowBar({
       {/* `min-w-0`: the strip measures its own width and never scrolls, so
         every wrapper between it and the bar has to be allowed to shrink. */}
       <div className="flex min-w-0 flex-1 items-center">{tabs}</div>
+      {/* Held against the window's right edge rather than against the last
+        tab, so it is chrome the window keeps and not something the strip
+        appears to have opened. */}
+      {trailing ? (
+        <div className="flex shrink-0 items-center">{trailing}</div>
+      ) : null}
     </div>
   );
 }

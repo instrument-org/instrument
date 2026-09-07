@@ -779,6 +779,57 @@ body {
   }
 }
 
+/* Window chrome tinted by the channel it belongs to: the top bar, a rail tile.
+ * Set `--channel-color` to the channel's palette hex (`channelTint()` writes
+ * that declaration) and paint with the two colors this publishes:
+ * `--channel-tint-surface` for the fill, `--channel-tint-edge` for the hairline
+ * or ring around it.
+ *
+ * Only the hue of the chosen color survives, because the palette's eight hexes
+ * are nowhere near perceptual equals: in OKLCH their lightness spans 0.583 to
+ * 0.735 and their chroma 0.111 to 0.219. Laid on at one strength, their ranking
+ * over the light ground is the reverse of their ranking over the dark one --
+ * gold is the faintest of the eight in light and the loudest in dark, over a
+ * spread of more than 1.6x -- so no pair of per-mode strengths can settle them,
+ * the defect being per color rather than per mode. Rebuilding each hue at a
+ * fixed lightness and chroma leaves all eight exactly as far from whichever
+ * ground they land on. C 0.11 is what all of them can hold at L 0.62, and cyan
+ * binds it twice over: it is the least saturated of the eight to begin with, at
+ * C 0.111, and the first to leave sRGB, at C 0.114.
+ *
+ * Both colors mix into `--background`, which is opaque in either theme. The
+ * white-alpha tokens (`--muted`, `--accent`, `--border`) are not: mixing into
+ * one of those under `.dark` gives back a translucent near-white, and the tint
+ * goes with it. Dark takes the larger share, since the same step away from a
+ * dark ground reads as a smaller one.
+ *
+ * Neither color resolves without a `--channel-color`, so a surface that is also
+ * drawn for a channel without one paints through a fallback:
+ * `var(--channel-tint-surface, var(--background))`. */
+@utility channel-tint {
+  /* Only the strengths are themed, so the mixes are written once here rather
+     than restated per theme. */
+  --channel-tint-surface-strength: 14%;
+  --channel-tint-edge-strength: 34%;
+
+  --channel-tint-base: oklch(from var(--channel-color) 0.62 0.11 h);
+  --channel-tint-surface: color-mix(
+    in oklab,
+    var(--channel-tint-base) var(--channel-tint-surface-strength),
+    var(--background)
+  );
+  --channel-tint-edge: color-mix(
+    in oklab,
+    var(--channel-tint-base) var(--channel-tint-edge-strength),
+    var(--background)
+  );
+
+  :is(.dark *) & {
+    --channel-tint-surface-strength: 18%;
+    --channel-tint-edge-strength: 45%;
+  }
+}
+
 /* Very subtle top-to-bottom sheen layered over a button's background color:
  * lightens the top edge and darkens the bottom edge a touch, giving a soft
  * physical depth. Works in both themes since it's a translucent overlay, and

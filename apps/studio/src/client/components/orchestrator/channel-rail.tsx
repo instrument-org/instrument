@@ -1,3 +1,4 @@
+import { channelTint } from "@/client/components/orchestrator/channel-tint";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -48,28 +49,32 @@ export function ChannelChip({
   channel: ChannelMark;
   className?: string;
 }) {
-  const tint =
-    channel.color ??
-    (channel.isHome ? undefined : assignedColor(channel.name ?? ""));
+  // The channel the conversation started in wears the app icon: the glyph in
+  // white on brand, so the app's own room is the app's own colors.
+  if (channel.isHome) {
+    return (
+      <span
+        className={cn(
+          "grid size-9 shrink-0 place-items-center rounded-xl bg-brand-600 text-white",
+          className,
+        )}
+      >
+        <ChannelFace channel={channel} />
+      </span>
+    );
+  }
   return (
     <span
       className={cn(
-        "grid size-9 shrink-0 place-items-center rounded-xl text-[17px] ring-1 ring-inset",
+        "grid size-9 shrink-0 place-items-center rounded-xl text-[17px] channel-tint",
         className,
       )}
-      // A tint rather than a fill: the emoji has to stay legible on it, and a
-      // column of solid squares would read as a toolbar. The ring takes the
-      // color too, which is what makes it visible at all on a dark ground.
-      style={
-        tint
-          ? ({
-              background: `${tint}2e`,
-              // Tailwind's ring color is a custom property, which React's
-              // style typing has no room for.
-              "--tw-ring-color": `${tint}59`,
-            } as React.CSSProperties)
-          : undefined
-      }
+      style={{
+        // A tint rather than a fill: the emoji has to stay legible on it, and a
+        // column of solid squares would read as a toolbar.
+        background: "var(--channel-tint-surface, var(--card))",
+        ...channelTint(channel.color ?? assignedColor(channel.name ?? "")),
+      }}
     >
       <ChannelFace channel={channel} />
     </span>
@@ -96,7 +101,7 @@ export function ChannelFace({
     );
   }
   if (channel.isHome) {
-    return <InstrumentGlyph className={cn("size-4 text-primary", className)} />;
+    return <InstrumentGlyph className={cn("size-4.5", className)} />;
   }
   // By grapheme, so a name that starts with an emoji or an accented letter
   // gives one character rather than half of one.

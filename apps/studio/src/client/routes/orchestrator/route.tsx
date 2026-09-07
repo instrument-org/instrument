@@ -597,14 +597,14 @@ function OrchestratorLayout() {
                     onSelect={windowTabs.select}
                     selectedId={active?.id}
                     tabs={tabs}
-                    trailing={
-                      isDeveloperMode ? (
-                        <Suspense fallback={null}>
-                          <DevPanel />
-                        </Suspense>
-                      ) : null
-                    }
                   />
+                }
+                trailing={
+                  isDeveloperMode ? (
+                    <Suspense fallback={null}>
+                      <DevPanel />
+                    </Suspense>
+                  ) : null
                 }
                 {...(openChannel
                   ? { channel: { ...openChannel, isHome: isHomeChannel } }
@@ -630,7 +630,16 @@ function OrchestratorLayout() {
                   ids: order.map((id) => StoreId.SessionSchema.parse(id)),
                 });
               }}
-              onSelect={setSelectedChannel}
+              onSelect={(id) => {
+                // The channel you are already in is the one whose conversation
+                // you are asking for, so clicking it again brings the sidebar
+                // back rather than doing nothing.
+                if (id === sessionId && !isSidebarOpen) {
+                  setSidebarOpen(true);
+                  return;
+                }
+                setSelectedChannel(id);
+              }}
               {...(sessionId ? { selectedId: sessionId } : {})}
             />
             <StudioSidebarRail

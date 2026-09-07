@@ -24,7 +24,7 @@ export interface ChannelEdits {
 }
 
 /**
- * Everything a channel is, in one dialog: its name, its mark, its colour, and
+ * Everything a channel is, in one dialog: its name, its mark, its color, and
  * the way to archive it.
  *
  * Archiving lives here rather than on a menu because it is the most

@@ -69,6 +69,7 @@ import {
 } from "@/client/components/ui/alert-dialog";
 import { Toaster } from "@/client/components/ui/sonner";
 import { Spinner } from "@/client/components/ui/spinner";
+import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -731,11 +732,17 @@ function OrchestratorLayout() {
                   />
                 }
                 trailing={
-                  isDeveloperMode ? (
-                    <Suspense fallback={null}>
-                      <DevPanel />
-                    </Suspense>
-                  ) : null
+                  <>
+                    {isDeveloperMode && (
+                      <Suspense fallback={null}>
+                        <DevPanel />
+                      </Suspense>
+                    )}
+                    {/* A build waiting to be installed is the window's news,
+                      not a channel's, so it sits in the same corner the
+                      classic window keeps it in. */}
+                    <UpdateStatusIndicator />
+                  </>
                 }
                 {...(openChannel
                   ? { channel: { ...openChannel, isHome: isHomeChannel } }

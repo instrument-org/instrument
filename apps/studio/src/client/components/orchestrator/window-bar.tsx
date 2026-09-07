@@ -90,7 +90,7 @@ export function WindowBar({
         tab, so it is chrome the window keeps and not something the strip
         appears to have opened. */}
       {trailing ? (
-        <div className="flex shrink-0 items-center">{trailing}</div>
+        <div className="flex shrink-0 items-center gap-2">{trailing}</div>
       ) : null}
     </div>
   );

@@ -15,12 +15,21 @@
  * writes a confident paragraph about the spreadsheet it made and leaves a
  * 0-byte file fails in a way no text assertion would catch.
  *
+ * Two things beyond "the file opens" are scored, because both are where the
+ * eligible models actually separate. A deck is checked for having been designed
+ * rather than left on the library's blank default -- measured, one model that
+ * passes every validity check ships five white slides of centered Times. And a
+ * deliverable is checked for having been looked at: the prompt already tells a
+ * task to open its result the way the user will see it before reporting done,
+ * and whether a model obeys that is the difference between a report and a guess.
+ *
  * What these cannot see: web search and the browser are stubbed in the harness,
  * so research and page-driving -- a third of the real corpus -- are not scored
  * here at all.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { inflateRawSync } from "node:zlib";
 
 import { taskDir } from "../../src/lib/task-dir-utils";
 import { type TaskId } from "../../src/schemas/task-id";
@@ -124,21 +133,175 @@ function wroteADocument(extension: string): Assertion {
   };
 }
 
+/**
+ * The named members of a zip, inflated.
+ *
+ * OOXML is a zip and the interesting part is the slide XML inside it, so a
+ * check that never opens the archive can only ever weigh the file. Written out
+ * rather than taken as a dependency because it is thirty lines and the eval
+ * suite has no other reason to carry an unzip: walk the local file headers,
+ * which is enough for archives written by the Python libraries these tasks use.
+ */
+function zipMembers(archive: Buffer, matches: (name: string) => boolean) {
+  const members: Buffer[] = [];
+  let at = 0;
+  while (at + 30 <= archive.length) {
+    if (archive.readUInt32LE(at) !== 0x04_03_4b_50) {
+      break;
+    }
+    const method = archive.readUInt16LE(at + 8);
+    const compressed = archive.readUInt32LE(at + 18);
+    const nameLength = archive.readUInt16LE(at + 26);
+    const extraLength = archive.readUInt16LE(at + 28);
+    const name = archive.toString("utf8", at + 30, at + 30 + nameLength);
+    const start = at + 30 + nameLength + extraLength;
+    // A streamed entry puts its sizes in a trailing descriptor, so the length
+    // is not knowable from the header; those are skipped rather than guessed.
+    if (compressed === 0 && method !== 0) {
+      break;
+    }
+    if (matches(name)) {
+      const body = archive.subarray(start, start + compressed);
+      try {
+        members.push(method === 0 ? body : inflateRawSync(body));
+      } catch {
+        // A member we cannot inflate is one this check cannot speak for.
+      }
+    }
+    at = start + compressed;
+  }
+  return members;
+}
+
+/**
+ * A deck somebody designed, rather than the library's blank default.
+ *
+ * The gate is deliberately low: a background fill on every slide, three
+ * explicit colors anywhere, and three shapes a slide. python-pptx's untouched
+ * template scores zero, zero and two -- a title and a subtitle on white -- and
+ * everything with any visual intent at all clears it comfortably. Measured
+ * across four models the split was total: 0/0/2.0 against 7/5/4.0 and better,
+ * with no model near the line.
+ */
+const deckWasDesigned: Assertion = {
+  check: async ({ taskId }) => {
+    const text =
+      "designed the deck rather than leaving it on the blank default";
+    const written = await deliverables(taskId);
+    const decks = written.filter(
+      (file) =>
+        file.toLowerCase().endsWith(".pptx") && !file.includes("templates"),
+    );
+    for (const deck of decks) {
+      const archive = await fs.readFile(deck).catch(() => {});
+      if (!archive) {
+        continue;
+      }
+      const slides = zipMembers(archive, (name) =>
+        /^ppt\/slides\/slide\d+\.xml$/.test(name),
+      ).map((slide) => slide.toString("utf8"));
+      if (slides.length === 0) {
+        continue;
+      }
+      const colors = new Set(
+        slides.flatMap((slide) =>
+          [...slide.matchAll(/srgbClr val="([\da-f]{6})"/gi)].map(
+            (match) => match[1]?.toLowerCase() ?? "",
+          ),
+        ),
+      );
+      const shapes = slides.reduce(
+        (total, slide) => total + [...slide.matchAll(/<p:(?:sp|pic)>/g)].length,
+        0,
+      );
+      const filled = slides.filter((slide) => slide.includes("<p:bg>")).length;
+      const perSlide = shapes / slides.length;
+      const evidence = `${slides.length} slides, ${perSlide.toFixed(1)} shapes each, ${colors.size} colors, ${filled} with a background`;
+      return filled === slides.length && colors.size >= 3 && perSlide >= 3
+        ? pass(text, evidence)
+        : fail(text, evidence);
+    }
+    return fail(text, "no deck to look at");
+  },
+  text: "designed the deck rather than leaving it on the blank default",
+};
+
+/**
+ * Did it look at what it made before saying it was done?
+ *
+ * The task prompt already asks for this in as many words -- open the result the
+ * way the user will see it and confirm it satisfies the request -- and it is
+ * the habit that separates a report from a guess. Scored as a read of a file
+ * the task itself produced, by any means: the file tool, or a shell command
+ * that opens it.
+ */
+const checkedItsOwnWork: Assertion = {
+  check: ({ sessions }) => {
+    const text = "opened its own deliverable before reporting it done";
+    const made = new Set<string>();
+    const verified: string[] = [];
+    for (const session of sessions) {
+      for (const message of session.messages) {
+        for (const part of message.parts) {
+          if (
+            part.type === "tool-write_file" ||
+            part.type === "tool-edit_file"
+          ) {
+            const wrote: unknown = part.input?.filePath;
+            if (typeof wrote === "string") {
+              made.add(path.basename(wrote));
+            }
+          }
+          const looked =
+            part.type === "tool-read_file"
+              ? String(part.input?.filePath ?? "")
+              : part.type === "tool-bash"
+                ? String(part.input?.command ?? "")
+                : "";
+          for (const name of made) {
+            if (looked.includes(name)) {
+              verified.push(name);
+            }
+          }
+          // A file made by a script rather than a file tool still counts as
+          // made, so a later read of it is still a check of its own work.
+          if (part.type === "tool-bash") {
+            for (const [, name] of String(part.input?.command ?? "").matchAll(
+              /([\w-]+\.(?:docx|xlsx|pptx|png|pdf|csv|md))/g,
+            )) {
+              if (name) {
+                made.add(name);
+              }
+            }
+          }
+        }
+      }
+    }
+    return verified.length > 0
+      ? pass(text, `read back: ${[...new Set(verified)].join(", ")}`)
+      : fail(
+          text,
+          `made ${[...made].join(", ") || "nothing"}, opened none of it`,
+        );
+  },
+  text: "opened its own deliverable before reporting it done",
+};
+
 export const WORKER_EVALS = [
   defineEval({
-    assertions: [wroteADocument(".docx")],
+    assertions: [wroteADocument(".docx"), checkedItsOwnWork],
     name: "worker-word-document",
     prompt:
       "Write a one-page company overview for Meridian Robotics, a made-up industrial robotics firm, as a Word document called overview.docx in your output folder. Invent plausible details: what they make, who buys it, roughly how big they are. Headings and a couple of short sections.",
   }),
   defineEval({
-    assertions: [wroteADocument(".xlsx")],
+    assertions: [wroteADocument(".xlsx"), checkedItsOwnWork],
     name: "worker-spreadsheet",
     prompt:
       "Build a simple 12-month budget for a made-up coffee shop as an Excel file called budget.xlsx in your output folder. Months down the side, a few expense categories across the top, plausible numbers, and a total row that actually sums the columns with a formula.",
   }),
   defineEval({
-    assertions: [wroteADocument(".pptx")],
+    assertions: [wroteADocument(".pptx"), deckWasDesigned, checkedItsOwnWork],
     name: "worker-deck",
     prompt:
       "Make a 5-slide PowerPoint called pitch.pptx in your output folder introducing a made-up meal-kit startup: title slide, the problem, the product, the market, and how they make money. A title and a few bullets per slide.",

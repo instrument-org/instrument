@@ -1,4 +1,4 @@
-import { ChannelMark } from "@/client/components/orchestrator/channel-strip";
+import { ChannelMark } from "@/client/components/orchestrator/channel-stack";
 import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";

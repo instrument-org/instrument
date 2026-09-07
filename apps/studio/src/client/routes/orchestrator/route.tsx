@@ -20,7 +20,7 @@ import {
   BrowserTabs,
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
-import { ChannelStrip } from "@/client/components/orchestrator/channel-strip";
+import { ChannelStack } from "@/client/components/orchestrator/channel-stack";
 import {
   OrchestratorContext,
   type OrchestratorWindow,
@@ -526,46 +526,45 @@ function OrchestratorLayout() {
                     );
                   }}
                 />
-                <div className="flex min-h-0 flex-1 flex-col">
-                  <ChannelStrip
-                    channels={channelList.map((channel) => ({
-                      id: channel.id,
-                      name: channel.name,
-                      unread: channel.id === sessionId ? 0 : channel.unread,
-                      working: workingChannels.has(channel.id),
-                    }))}
-                    {...(channelList[0] ? { firstId: channelList[0].id } : {})}
-                    onArchive={(id) => {
-                      if (id === sessionId) {
-                        setSelectedChannel(
-                          channelList.find((channel) => channel.id !== id)
-                            ?.id ?? null,
-                        );
-                      }
-                      archiveChannel.mutate({
-                        id: screens.taskId,
-                        sessionId: StoreId.SessionSchema.parse(id),
-                      });
-                    }}
-                    onNew={(name) => {
-                      createChannel.mutate({ id: screens.taskId, name });
-                    }}
-                    onRename={(id, name) => {
-                      renameChannel.mutate({
-                        id: screens.taskId,
-                        name,
-                        sessionId: StoreId.SessionSchema.parse(id),
-                      });
-                    }}
-                    onReorder={(ids) => {
-                      reorderChannels.mutate({
-                        id: screens.taskId,
-                        ids: ids.map((id) => StoreId.SessionSchema.parse(id)),
-                      });
-                    }}
-                    onSelect={setSelectedChannel}
-                    selectedId={sessionId}
-                  />
+                <ChannelStack
+                  channels={channelList.map((channel) => ({
+                    id: channel.id,
+                    name: channel.name,
+                    unread: channel.id === sessionId ? 0 : channel.unread,
+                    working: workingChannels.has(channel.id),
+                  }))}
+                  {...(channelList[0] ? { firstId: channelList[0].id } : {})}
+                  onArchive={(id) => {
+                    if (id === sessionId) {
+                      setSelectedChannel(
+                        channelList.find((channel) => channel.id !== id)?.id ??
+                          null,
+                      );
+                    }
+                    archiveChannel.mutate({
+                      id: screens.taskId,
+                      sessionId: StoreId.SessionSchema.parse(id),
+                    });
+                  }}
+                  onNew={(name) => {
+                    createChannel.mutate({ id: screens.taskId, name });
+                  }}
+                  onRename={(id, name) => {
+                    renameChannel.mutate({
+                      id: screens.taskId,
+                      name,
+                      sessionId: StoreId.SessionSchema.parse(id),
+                    });
+                  }}
+                  onReorder={(ids) => {
+                    reorderChannels.mutate({
+                      id: screens.taskId,
+                      ids: ids.map((id) => StoreId.SessionSchema.parse(id)),
+                    });
+                  }}
+                  onSelect={setSelectedChannel}
+                  selectedId={sessionId}
+                >
                   {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
                   <div className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
                     {/* Names the task and session for the links inside, so a page
@@ -624,7 +623,7 @@ function OrchestratorLayout() {
                       </FilesLayoutContext>
                     </TaskSessionProvider>
                   </div>
-                </div>
+                </ChannelStack>
               </div>
             </StudioSidebarRail>
             <main className="relative flex min-w-0 flex-1 flex-col">

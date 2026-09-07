@@ -1,4 +1,4 @@
-import { ChannelMark } from "@/client/components/orchestrator/channel-strip";
+import { ChannelMark } from "@/client/components/orchestrator/channel-stack";
 import { cn } from "@/client/lib/utils";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 

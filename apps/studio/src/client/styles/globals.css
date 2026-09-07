@@ -785,7 +785,8 @@ body {
  * `--channel-tint-surface` for the fill, `--channel-tint-edge` for the hairline
  * or ring around it.
  *
- * Only the hue of the chosen color survives, because the palette's eight hexes
+ * The hue of the chosen color survives, and the tier it was picked from; every
+ * other thing about it is rebuilt, because the palette's hexes
  * are nowhere near perceptual equals: in OKLCH their lightness spans 0.583 to
  * 0.735 and their chroma 0.111 to 0.219. Laid on at one strength, their ranking
  * over the light ground is the reverse of their ranking over the dark one --
@@ -809,10 +810,13 @@ body {
 @utility channel-tint {
   /* Only the strengths are themed, so the mixes are written once here rather
      than restated per theme. */
-  --channel-tint-surface-strength: 14%;
-  --channel-tint-edge-strength: 34%;
+  --channel-tint-surface-strength: 30%;
+  --channel-tint-edge-strength: 52%;
 
-  --channel-tint-base: oklch(from var(--channel-color) 0.62 0.11 h);
+  --channel-tint-base: oklch(
+    from var(--channel-color) var(--channel-lightness, 0.62)
+      var(--channel-chroma, 0.11) h
+  );
   --channel-tint-surface: color-mix(
     in oklab,
     var(--channel-tint-base) var(--channel-tint-surface-strength),
@@ -825,8 +829,8 @@ body {
   );
 
   :is(.dark *) & {
-    --channel-tint-surface-strength: 18%;
-    --channel-tint-edge-strength: 45%;
+    --channel-tint-surface-strength: 34%;
+    --channel-tint-edge-strength: 58%;
   }
 }
 

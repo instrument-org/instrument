@@ -1,4 +1,5 @@
 import { CHANNEL_COLORS } from "@/client/components/orchestrator/channel-colors";
+import { channelTint } from "@/client/components/orchestrator/channel-tint";
 import {
   Popover,
   PopoverContent,
@@ -16,16 +17,12 @@ import { EmojiGrid } from "./emoji-grid";
  */
 export function ChannelMarkPicker({
   children,
-  color,
-  onColor,
   onEmoji,
   onOpenChange,
   open,
 }: {
   /** The trigger: the mark as it stands. */
   children: ReactNode;
-  color?: string;
-  onColor: (color: string) => void;
   onEmoji: (emoji: string) => void;
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
@@ -33,28 +30,30 @@ export function ChannelMarkPicker({
   return (
     <Popover onOpenChange={onOpenChange} open={open}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent align="start" className="w-72 p-0">
+      <PopoverContent
+        align="start"
+        className="w-72 p-0"
+        side="bottom"
+        sideOffset={6}
+      >
         <EmojiGrid
           onPick={(picked) => {
             onEmoji(picked);
             onOpenChange?.(false);
           }}
         />
-        <div className="border-t border-border p-3">
-          <p className="pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            Color
-          </p>
-          <ColorRow
-            onPick={onColor}
-            {...(color === undefined ? {} : { value: color })}
-          />
-        </div>
       </PopoverContent>
     </Popover>
   );
 }
 
-/** A row of tints, one of them chosen. */
+/**
+ * The tints, one of them chosen: a pale one and a deep one of every hue, in
+ * that order, so the two rows read as two families rather than as sixteen
+ * neighbors. Each swatch is drawn in the rebuilt color rather than the raw hex,
+ * since only the hue of a palette entry survives the tint and two entries that
+ * look different here would otherwise come out the same on the bar.
+ */
 export function ColorRow({
   onPick,
   value,
@@ -63,12 +62,14 @@ export function ColorRow({
   value?: string;
 }) {
   return (
-    <div className="flex gap-2">
+    // Eight to a row, each swatch taking an equal share of the width, so the
+    // pale row sits square over the deep one and the two read as two families.
+    <div className="grid grid-cols-8 gap-2">
       {CHANNEL_COLORS.map((color) => (
         <button
           aria-label={`Color ${color}`}
           className={cn(
-            "size-6 rounded-full transition",
+            "aspect-square w-full rounded-full ring-1 ring-black/10 transition channel-tint ring-inset",
             color === value
               ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
               : "hover:scale-110",
@@ -77,7 +78,10 @@ export function ColorRow({
           onClick={() => {
             onPick(color);
           }}
-          style={{ background: color }}
+          style={{
+            background: "var(--channel-tint-base)",
+            ...channelTint(color),
+          }}
           type="button"
         />
       ))}

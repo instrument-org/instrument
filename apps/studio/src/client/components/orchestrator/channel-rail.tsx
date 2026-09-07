@@ -101,7 +101,9 @@ export function ChannelFace({
     );
   }
   if (channel.isHome) {
-    return <InstrumentGlyph className={cn("size-4.5", className)} />;
+    // Sized from the text around it rather than fixed, so the glyph and an
+    // emoji come out the same size wherever a face is drawn.
+    return <InstrumentGlyph className={cn("size-[1.15em]", className)} />;
   }
   // By grapheme, so a name that starts with an emoji or an accented letter
   // gives one character rather than half of one.
@@ -314,15 +316,16 @@ function ChannelTile({
         <ChannelChip
           channel={channel}
           className={cn(
-            !channel.color && !channel.isHome ? "" : "bg-card",
-            // An outline rather than a ring: the chip sets its ring color
-            // inline from the channel's tint, so a selected ring would come
-            // out the channel's color instead of the selection's.
-            isSelected &&
-              "shadow-sm outline-2 -outline-offset-2 outline-foreground/80",
+            // Drawn inside the tile's own box: an outline offset outwards
+            // leaves a hairline of the rail showing between it and the tile,
+            // which reads as a seam on a light ground.
+            // An inset shadow rather than an outline: an outline is painted
+            // outside the border box and the rail clips what leaves a tile,
+            // which took the left and right of the ring with it.
+            isSelected && "shadow-[inset_0_0_0_2px_var(--foreground)]",
             channel.working &&
               !isSelected &&
-              "outline-2 -outline-offset-2 outline-primary",
+              "shadow-[inset_0_0_0_2px_var(--primary)]",
           )}
         />
         {channel.needsYou ? (

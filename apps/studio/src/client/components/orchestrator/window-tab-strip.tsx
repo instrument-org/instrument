@@ -162,7 +162,10 @@ export function WindowTabStrip({
         />
       ))}
       <TabStrip
-        className="border-b border-border"
+        // `min-w-0 flex-1`: the strip measures its own width to decide how
+        // many tabs fit, so it has to be told to fill the bar rather than
+        // sizing to the tabs it currently holds.
+        className="min-w-0 flex-1"
         {...(groupKey === undefined ? {} : { groupKey })}
         onClose={onClose}
         onContextMenu={(key, event) => {

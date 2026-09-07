@@ -60,11 +60,14 @@ export function WindowBar({
       {channel && (
         <>
           <button
-            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium hover:brightness-95"
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium hover:bg-foreground/8"
             onClick={onOpenDetails}
             title={`${channel.name} — channel details`}
             type="button"
           >
+            {/* No tile behind it: the bar is already wearing this channel's
+              color, and a second patch of it around the mark reads as a
+              sticker on top of the thing it matches. */}
             <ChannelFace channel={channel} className="text-[13px]" />
             <span className="max-w-40 truncate">{channel.name}</span>
           </button>

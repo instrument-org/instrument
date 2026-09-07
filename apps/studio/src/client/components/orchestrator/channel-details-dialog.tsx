@@ -1,9 +1,11 @@
-import { ColorRow } from "@/client/components/orchestrator/channel-mark-picker";
+import {
+  ChannelMarkPicker,
+  ColorRow,
+} from "@/client/components/orchestrator/channel-mark-picker";
 import {
   ChannelChip,
   type ChannelMark,
 } from "@/client/components/orchestrator/channel-rail";
-import { EmojiGrid } from "@/client/components/orchestrator/emoji-grid";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -24,10 +26,10 @@ export interface ChannelEdits {
 }
 
 /**
- * Everything a channel is, in one dialog: its name, its mark, its color, and
- * the way to archive it.
+ * A channel as it stands, in the shape the dialog that made it used: the mark
+ * beside the name, the colors under them, and here also the way to archive it.
  *
- * Archiving lives here rather than on a menu because it is the most
+ * Archiving lives in the dialog rather than on a menu because it is the most
  * destructive thing a channel can be told, and it should cost a deliberate
  * trip rather than a slip of the pointer.
  */
@@ -80,6 +82,7 @@ function ChannelDetailsForm({
   onOpenChange: (open: boolean) => void;
 }) {
   const [name, setName] = useState(channel.name);
+  const [isPicking, setPicking] = useState(false);
 
   const commitName = () => {
     const next = name.trim();
@@ -88,25 +91,38 @@ function ChannelDetailsForm({
     }
   };
 
+  const mark = (
+    <ChannelChip channel={channel} className="size-11 text-[22px]" />
+  );
+
   return (
     <>
       <DialogHeader>
-        <div className="flex items-center gap-3">
-          <ChannelChip channel={channel} className="size-11 text-[22px]" />
-          <div className="min-w-0 flex-1 text-left">
-            <DialogTitle className="truncate">{channel.name}</DialogTitle>
-            <DialogDescription>
-              Its own conversation, its own tabs, its own files.
-            </DialogDescription>
-          </div>
-        </div>
+        <DialogTitle>Channel details</DialogTitle>
+        <DialogDescription>
+          Its own conversation, its own tabs, its own files.
+        </DialogDescription>
       </DialogHeader>
-      <div>
-        <p className="pb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-          Name
-        </p>
-        {/* Not autofocused: the emoji search below claims focus on mount, and
-          two claims in one dialog is a field the caret leaves as you look at it. */}
+      <div className="flex items-center gap-3">
+        {canEdit ? (
+          <ChannelMarkPicker
+            onEmoji={(emoji) => {
+              onChange({ emoji });
+            }}
+            onOpenChange={setPicking}
+            open={isPicking}
+          >
+            <button
+              aria-label="Choose a mark"
+              className="shrink-0 rounded-xl hover:opacity-80"
+              type="button"
+            >
+              {mark}
+            </button>
+          </ChannelMarkPicker>
+        ) : (
+          mark
+        )}
         <Input
           disabled={!canEdit}
           maxLength={16}
@@ -119,45 +135,31 @@ function ChannelDetailsForm({
               commitName();
             }
           }}
+          placeholder="Name it"
           value={name}
         />
       </div>
       {canEdit && (
-        <>
-          <div>
-            <p className="pb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-              Mark
-            </p>
-            <div className="overflow-hidden rounded-lg ring-1 ring-border">
-              <EmojiGrid
-                onPick={(emoji) => {
-                  onChange({ emoji });
-                }}
-              />
-            </div>
-          </div>
-          <div>
-            <p className="pb-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-              Color
-            </p>
-            <ColorRow
-              onPick={(color) => {
-                onChange({ color });
-              }}
-              {...(channel.color === undefined ? {} : { value: channel.color })}
-            />
-          </div>
-        </>
+        <div>
+          <p className="pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+            Color
+          </p>
+          <ColorRow
+            onPick={(color) => {
+              onChange({ color });
+            }}
+            {...(channel.color === undefined ? {} : { value: channel.color })}
+          />
+        </div>
       )}
       <DialogFooter className="sm:justify-between">
         {onArchive ? (
           <Button
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={() => {
               onArchive();
               onOpenChange(false);
             }}
-            variant="ghost"
+            variant="ghost-destructive"
           >
             Archive channel
           </Button>

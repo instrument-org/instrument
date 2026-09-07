@@ -19,6 +19,7 @@ import {
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
 import { BannerWork } from "@/client/components/orchestrator/channel-banner";
+import { HOME_CHANNEL_COLOR } from "@/client/components/orchestrator/channel-colors";
 import { ChannelDetailsDialog } from "@/client/components/orchestrator/channel-details-dialog";
 import {
   ChannelMenu,
@@ -522,8 +523,10 @@ function OrchestratorLayout() {
 
   // The channels as the rail draws them, and the one it has open. A channel
   // on screen has nothing unread by definition, since the user is reading it.
-  const railChannels = channelList.map((channel) => ({
-    ...(channel.color ? { color: channel.color } : {}),
+  const railChannels = channelList.map((channel, index) => ({
+    // The app's own room is drawn in the app's own color, which is what the
+    // bar above it is tinted with; the rest carry whatever the user picked.
+    color: index === 0 ? HOME_CHANNEL_COLOR : channel.color,
     ...(channel.emoji ? { emoji: channel.emoji } : {}),
     id: channel.id,
     name: channel.name,
@@ -798,6 +801,9 @@ function OrchestratorLayout() {
                 }}
                 onOpenChange={setNewChannelOpen}
                 open={isNewChannelOpen}
+                taken={channelList.flatMap((channel) =>
+                  channel.emoji ? [channel.emoji] : [],
+                )}
               />
               <AlertDialog
                 onOpenChange={(open) => {

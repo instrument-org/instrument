@@ -1,4 +1,7 @@
-import { CHANNEL_COLORS } from "@/client/components/orchestrator/channel-colors";
+import {
+  CHANNEL_COLORS,
+  starterEmoji,
+} from "@/client/components/orchestrator/channel-colors";
 import {
   ChannelMarkPicker,
   ColorRow,
@@ -25,17 +28,24 @@ export function NewChannelDialog({
   onCreate,
   onOpenChange,
   open,
+  taken = [],
 }: {
   onCreate: (channel: { color: string; emoji: string; name: string }) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  /** The marks already on the rail, so a new channel does not repeat one. */
+  taken?: readonly string[];
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="sm:max-w-md">
         {/* Inside the content, which the dialog unmounts on close, so the
           fields are empty again next time without an effect to clear them. */}
-        <NewChannelForm onCreate={onCreate} onOpenChange={onOpenChange} />
+        <NewChannelForm
+          onCreate={onCreate}
+          onOpenChange={onOpenChange}
+          taken={taken}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -44,13 +54,19 @@ export function NewChannelDialog({
 function NewChannelForm({
   onCreate,
   onOpenChange,
+  taken,
 }: {
   onCreate: (channel: { color: string; emoji: string; name: string }) => void;
   onOpenChange: (open: boolean) => void;
+  taken: readonly string[];
 }) {
   const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState("🗂️");
-  const [color, setColor] = useState(CHANNEL_COLORS[0] ?? "#3b6ef6");
+  // Seeded from how many channels there already are, so opening the dialog
+  // twice in a row offers two different marks without the render being random.
+  const [emoji, setEmoji] = useState(() => starterEmoji(taken, taken.length));
+  const [color, setColor] = useState(
+    () => CHANNEL_COLORS[taken.length % CHANNEL_COLORS.length] ?? "#3b6ef6",
+  );
   const [isPicking, setPicking] = useState(false);
 
   const create = () => {
@@ -72,8 +88,6 @@ function NewChannelForm({
       </DialogHeader>
       <div className="flex items-center gap-3">
         <ChannelMarkPicker
-          color={color}
-          onColor={setColor}
           onEmoji={setEmoji}
           onOpenChange={setPicking}
           open={isPicking}

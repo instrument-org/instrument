@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
@@ -85,34 +86,40 @@ describe("channelStandings", () => {
     const taskId = freshTask();
     const [channel] = await listChannels(taskId);
     const sessionId = channel?.id ?? StoreId.newSessionId();
-    const say = async (role: "assistant" | "user") => {
-      const id = StoreId.newMessageId();
+    const sayUser = async () => {
       const saved = await Store.saveMessage(
-        role === "assistant"
-          ? {
-              id,
-              metadata: {
-                createdAt: new Date(),
-                modelId: "glm-5.3-flash",
-                providerId: "openai-compatible",
-                sessionId,
-              },
-              role,
-            }
-          : { id, metadata: { createdAt: new Date(), sessionId }, role },
+        {
+          id: StoreId.newMessageId(),
+          metadata: { createdAt: new Date(), sessionId },
+          role: "user",
+        },
         taskId,
       );
       expect(saved.isOk()).toBe(true);
-      return id;
     };
-    await say("user");
-    await say("assistant");
+    const sayAgent = async () => {
+      const message: SessionMessage.Assistant = {
+        id: StoreId.newMessageId(),
+        metadata: {
+          createdAt: new Date(),
+          finishReason: "stop",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId,
+        },
+        role: "assistant",
+      };
+      const saved = await Store.saveMessage(message, taskId);
+      expect(saved.isOk()).toBe(true);
+    };
+    await sayUser();
+    await sayAgent();
 
     const before = await channelStandings(taskId);
     expect(before[0]?.unread).toBe(1);
 
     await markChannelSeen(taskId, sessionId);
-    await say("user");
+    await sayUser();
 
     const after = await channelStandings(taskId);
     expect(after[0]?.unread).toBe(0);

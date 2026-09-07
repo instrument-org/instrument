@@ -1,8 +1,8 @@
 import { alphabetical } from "radashi";
 
 import { StoreId } from "../../schemas/store-id";
-import { type TaskState } from "../../schemas/task-state";
 import { type TaskId } from "../../schemas/task-id";
+import { type TaskState } from "../../schemas/task-state";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
@@ -26,28 +26,58 @@ export interface ChannelStanding {
   updatedAt: number;
 }
 
+/** A channel by name, however the caller cased or hashed it. */
+export async function channelByName(
+  taskId: TaskId,
+  name: string,
+): Promise<Channel | undefined> {
+  const wanted = channelName(name);
+  const channels = await listChannels(taskId);
+  return channels.find((channel) => channel.name === wanted);
+}
+
+/** What a name becomes: no hash, no spaces, lowercase, bounded. */
+export function channelName(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^#+/, "")
+    .trim()
+    .toLowerCase()
+    .replaceAll(/\s+/g, "-")
+    .slice(0, CHANNEL_NAME_MAX);
+}
+
+/** The channel a session belongs to, or none when the session is not one. */
+export async function channelOfSession(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<Channel | undefined> {
+  const channels = await listChannels(taskId);
+  return channels.find((channel) => channel.id === sessionId);
+}
+
 /**
- * The channels of a conversation, in the order they were made, creating the
- * first one when there is none.
- *
- * A conversation that predates channels has sessions but no list, so its
- * newest session becomes `general` rather than being stranded: the window
- * opens on what the user was last talking in.
+ * What the conversation is told about its channels: which one this message
+ * came from, and what the others are called, so a reply about "the reddit
+ * channel" means something and `chat read` has names to use.
  */
-export async function listChannels(taskId: TaskId): Promise<Channel[]> {
-  const state = await getTaskState(taskDir(taskId));
-  const existing = state.channels ?? [];
-  if (existing.length > 0) {
-    return existing;
+export async function channelsContextText(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<string> {
+  const channels = await listChannels(taskId);
+  const here = channels.find((channel) => channel.id === sessionId);
+  if (!here && channels.length <= 1) {
+    return "";
   }
-  const adopted = await newestSessionId(taskId);
-  const channel: Channel = {
-    createdAt: Date.now(),
-    id: adopted ?? (await makeSession(taskId, DEFAULT_CHANNEL_NAME)),
-    name: DEFAULT_CHANNEL_NAME,
-  };
-  await setTaskState(taskDir(taskId), { channels: [channel] });
-  return [channel];
+  const others = channels.filter((channel) => channel.id !== sessionId);
+  const lines = [
+    `This message was sent in the channel #${here?.name ?? DEFAULT_CHANNEL_NAME}.`,
+    others.length > 0
+      ? `The user's other channels: ${others.map((channel) => `#${channel.name}`).join(", ")}. They are the same conversation with you, kept apart by subject; you are in all of them and remember all of them.`
+      : "It is the only channel so far.",
+  ];
+  return lines.join(" ");
 }
 
 /** The channels with their unread counts and last activity, for the strip. */
@@ -80,6 +110,30 @@ export async function createChannel(
   return channel;
 }
 
+/**
+ * The channels of a conversation, in the order they were made, creating the
+ * first one when there is none.
+ *
+ * A conversation that predates channels has sessions but no list, so its
+ * newest session becomes `general` rather than being stranded: the window
+ * opens on what the user was last talking in.
+ */
+export async function listChannels(taskId: TaskId): Promise<Channel[]> {
+  const state = await getTaskState(taskDir(taskId));
+  const existing = state.channels ?? [];
+  if (existing.length > 0) {
+    return existing;
+  }
+  const adopted = await newestSessionId(taskId);
+  const channel: Channel = {
+    createdAt: Date.now(),
+    id: adopted ?? (await makeSession(taskId, DEFAULT_CHANNEL_NAME)),
+    name: DEFAULT_CHANNEL_NAME,
+  };
+  await setTaskState(taskDir(taskId), { channels: [channel] });
+  return [channel];
+}
+
 /** Records what the user has seen in a channel, so its count can clear. */
 export async function markChannelSeen(
   taskId: TaskId,
@@ -94,36 +148,6 @@ export async function markChannelSeen(
         : channel,
     ),
   });
-}
-
-/** The channel a session belongs to, or none when the session is not one. */
-export async function channelOfSession(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-): Promise<Channel | undefined> {
-  const channels = await listChannels(taskId);
-  return channels.find((channel) => channel.id === sessionId);
-}
-
-/** A channel by name, however the caller cased or hashed it. */
-export async function channelByName(
-  taskId: TaskId,
-  name: string,
-): Promise<Channel | undefined> {
-  const wanted = channelName(name);
-  const channels = await listChannels(taskId);
-  return channels.find((channel) => channel.name === wanted);
-}
-
-/** What a name becomes: no hash, no spaces, lowercase, bounded. */
-export function channelName(raw: string): string {
-  return raw
-    .trim()
-    .replace(/^#+/, "")
-    .trim()
-    .toLowerCase()
-    .replaceAll(/\s+/g, "-")
-    .slice(0, CHANNEL_NAME_MAX);
 }
 
 async function lastActivity(
@@ -195,28 +219,4 @@ async function unreadCount(taskId: TaskId, channel: Channel): Promise<number> {
   }
   return messages.value.filter((message) => message.role === "assistant")
     .length;
-}
-
-/**
- * What the conversation is told about its channels: which one this message
- * came from, and what the others are called, so a reply about "the reddit
- * channel" means something and `chat read` has names to use.
- */
-export async function channelsContextText(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-): Promise<string> {
-  const channels = await listChannels(taskId);
-  const here = channels.find((channel) => channel.id === sessionId);
-  if (!here && channels.length <= 1) {
-    return "";
-  }
-  const others = channels.filter((channel) => channel.id !== sessionId);
-  const lines = [
-    `This message was sent in the channel #${here?.name ?? DEFAULT_CHANNEL_NAME}.`,
-    others.length > 0
-      ? `The user's other channels: ${others.map((channel) => `#${channel.name}`).join(", ")}. They are the same conversation with you, kept apart by subject; you are in all of them and remember all of them.`
-      : "It is the only channel so far.",
-  ];
-  return lines.join(" ");
 }

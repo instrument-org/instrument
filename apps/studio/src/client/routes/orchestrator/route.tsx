@@ -15,12 +15,12 @@ import {
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { ChannelStrip } from "@/client/components/orchestrator/channel-strip";
 import { FilesLayoutContext } from "@/client/components/files-layout-context";
 import {
   BrowserTabs,
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
+import { ChannelStrip } from "@/client/components/orchestrator/channel-strip";
 import {
   OrchestratorContext,
   type OrchestratorWindow,

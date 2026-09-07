@@ -6,10 +6,10 @@ import { useState } from "react";
 export interface ChannelTab {
   id: string;
   name: string;
-  /** A task filed from this channel is working. */
-  working?: boolean;
   /** Agent messages since the user last had it on screen. */
   unread: number;
+  /** A task filed from this channel is working. */
+  working?: boolean;
 }
 
 /**
@@ -30,21 +30,6 @@ const TINTS = [
   "bg-rose-100 text-rose-700",
   "bg-emerald-100 text-emerald-700",
 ];
-
-function tintOf(name: string) {
-  let sum = 0;
-  for (const character of name) {
-    sum += character.codePointAt(0) ?? 0;
-  }
-  return TINTS[sum % TINTS.length] ?? TINTS[0];
-}
-
-function densityFor(count: number): Density {
-  if (count <= 3) {
-    return "full";
-  }
-  return count <= 5 ? "short" : "mark";
-}
 
 /**
  * The channels, as the first row of the conversation.
@@ -160,4 +145,19 @@ export function ChannelStrip({
       )}
     </div>
   );
+}
+
+function densityFor(count: number): Density {
+  if (count <= 3) {
+    return "full";
+  }
+  return count <= 5 ? "short" : "mark";
+}
+
+function tintOf(name: string) {
+  let sum = 0;
+  for (const character of name) {
+    sum += character.codePointAt(0) ?? 0;
+  }
+  return TINTS[sum % TINTS.length] ?? TINTS[0];
 }

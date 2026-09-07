@@ -66,6 +66,7 @@ import {
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createShowCommand, SHOW_COMMAND } from "./shell-commands/show";
+import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
 import { createTaskCommand, TASK_COMMAND } from "./shell-commands/task";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
 import {
@@ -505,6 +506,7 @@ export async function createBashEnv({
           remainingYieldMs,
           sessionId,
         }),
+        createChatCommand({ orchestratorTaskId: taskId }),
         createAppCommand({ taskId }),
         createOpenCommand({ taskId }),
       ]
@@ -514,7 +516,7 @@ export async function createBashEnv({
         ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
       ];
   const specializedCommandNames = orchestrator
-    ? [TASK_COMMAND.name, APP_COMMAND.name, OPEN_COMMAND.name]
+    ? [TASK_COMMAND.name, CHAT_COMMAND.name, APP_COMMAND.name, OPEN_COMMAND.name]
     : [
         SHOW_COMMAND.name,
         APP_COMMAND.name,

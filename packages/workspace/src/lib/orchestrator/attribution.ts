@@ -3,6 +3,18 @@ import { type TaskId } from "../../schemas/task-id";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 
+/** The channel a task was filed from, or none for a task made before channels. */
+export async function channelOfTask({
+  orchestratorTaskId,
+  taskId,
+}: {
+  orchestratorTaskId: TaskId;
+  taskId: TaskId;
+}): Promise<StoreId.Session | undefined> {
+  const state = await getTaskState(taskDir(orchestratorTaskId));
+  return state.taskChannels?.[taskId];
+}
+
 /**
  * Which channel a task was filed from.
  *
@@ -26,18 +38,6 @@ export async function recordTaskChannel({
   await setTaskState(dir, {
     taskChannels: { ...state.taskChannels, [taskId]: sessionId },
   });
-}
-
-/** The channel a task was filed from, or none for a task made before channels. */
-export async function channelOfTask({
-  orchestratorTaskId,
-  taskId,
-}: {
-  orchestratorTaskId: TaskId;
-  taskId: TaskId;
-}): Promise<StoreId.Session | undefined> {
-  const state = await getTaskState(taskDir(orchestratorTaskId));
-  return state.taskChannels?.[taskId];
 }
 
 /** Every task the conversation has filed, by the channel it came from. */

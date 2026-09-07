@@ -147,10 +147,28 @@ function providerConfigId(type: AIGatewayProviderConfig.Type["type"]): string {
   return `${type}-config-id`;
 }
 
+/**
+ * Workers AI is an `openai-compatible` provider whose base URL names the
+ * Cloudflare account: that is the type whose model listing knows the
+ * models/search API, and the base URL is what the gateway matches on to apply
+ * the stream repair. Its own config id keeps it apart from any other
+ * OpenAI-compatible endpoint configured at the same time.
+ */
+const WORKERS_AI_CONFIG_ID = "workers-ai-config-id";
+
+function workersAiBaseURL(accountId: string): string {
+  return `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`;
+}
+
 export const modelURI = {
   openRouter: (model: string) =>
     AIGatewayModelURI.Schema.parse(
       `${model}?provider=openrouter&providerConfigId=${providerConfigId("openrouter")}`,
+    ),
+  /** `model` is a Workers AI id with the `@cf/` prefix already stripped. */
+  workersAi: (model: string) =>
+    AIGatewayModelURI.Schema.parse(
+      `${model}?provider=openai-compatible&providerConfigId=${WORKERS_AI_CONFIG_ID}`,
     ),
 };
 
@@ -215,6 +233,17 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
         type,
       });
     }
+  }
+
+  if (env.CLOUDFLARE_WORKERS_AI_API_KEY && env.CLOUDFLARE_ACCOUNT_ID) {
+    configs.push({
+      apiKey: env.CLOUDFLARE_WORKERS_AI_API_KEY,
+      baseURL: workersAiBaseURL(env.CLOUDFLARE_ACCOUNT_ID),
+      cacheIdentifier,
+      displayName: "Workers AI",
+      id: AIProviderConfigIdSchema.parse(WORKERS_AI_CONFIG_ID),
+      type: "openai-compatible",
+    });
   }
 
   return configs;

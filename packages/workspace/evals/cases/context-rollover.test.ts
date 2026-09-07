@@ -26,6 +26,7 @@ function sessionsWithAnswers(...answers: string[]) {
 
 const check = (...answers: string[]) =>
   keepsItsFormat?.check({
+    childSessions: () => Promise.resolve([]),
     sessions: sessionsWithAnswers(...answers),
     taskId: "task" as TaskId,
   });

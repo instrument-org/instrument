@@ -3,6 +3,7 @@ import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { IMAGE_REGION_EVALS } from "./image-region";
+import { ORCHESTRATOR_EVALS } from "./orchestrator";
 import { PDF_SKILL_EVALS } from "./pdf-skill";
 import { PROJECT_FOLDER_DISCIPLINE_EVALS } from "./project-folder-discipline";
 import { PROJECT_INSTRUCTIONS_EVALS } from "./project-instructions";
@@ -17,6 +18,7 @@ export const EVALS = [
   ...CONTEXT_ROLLOVER_EVALS,
   ...FILES_FENCE_EVALS,
   ...IMAGE_REGION_EVALS,
+  ...ORCHESTRATOR_EVALS,
   ...PDF_SKILL_EVALS,
   ...PROJECT_FOLDER_DISCIPLINE_EVALS,
   ...PROJECT_INSTRUCTIONS_EVALS,

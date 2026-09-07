@@ -37,9 +37,10 @@ pnpm eval run --yes --prompt "..."  # one ad-hoc case
 pnpm eval report <workspace-dir>    # re-report a past run, at no cost
 ```
 
-Flags: `--model` (repeatable; bare slug means OpenRouter, full model URI pins any
-configured provider), `--name`, `--repeat`, `--concurrency`, `--dry-run`,
-`--include-context`, `--json`.
+Flags: `--model` (repeatable; bare slug means OpenRouter, `cf:<id>` means
+Workers AI, full model URI pins any configured provider), `--effort`
+(`none|low|medium|high|max`, recorded on every task the run creates), `--name`,
+`--repeat`, `--concurrency`, `--dry-run`, `--include-context`, `--json`.
 
 `run` and `report` exit non-zero when an assertion failed or a model request was
 refused, so a failed suite is visible without reading the output. `--json` prints
@@ -50,7 +51,18 @@ so a piped run needs no escape-stripping.
 
 A run stops itself at `--max-run-tokens` (1M) or `--max-run-seconds` (1800), both
 of which take `0` to disable. Neither is a failure and both are reported apart
-from one: a stopped run is `Stopped`, only a refused request is `Failed`.
+from one: a stopped run is `Stopped`, only a refused request is `Failed`. The
+seconds cap is one deadline for the whole run rather than one per wait, so a
+case with follow-ups cannot quietly take three times the number you set.
+
+Every run gets a home directory of its own under `$TMPDIR`, or wherever
+`INSTRUMENT_EVAL_HOME` points (`evals/lib/sandbox-home.ts`). This is not
+optional tidiness: an orchestrator attaches the user's real home and their real
+`~/Documents/Instrument` to its conversation and hands that workspace folder to
+every task it starts, so an unsandboxed suite is several agents at once holding
+read-write on your actual files. Both folders derive from one `$HOME` for the
+whole process, so orchestrator cases want `--concurrency 1` and a separate
+process per model when two runs must not see each other's output.
 
 With no `--model`, a case runs against `MODELS` in `harness.ts`: the current
 frontier model from each closed provider plus the strongest open-weights one, so
@@ -85,6 +97,28 @@ until the OS reaps it or the storage format moves past it. What lasts is
 
 For choosing whether an eval is the right check at all, see the
 `validate-changes` skill.
+
+## Orchestrator evals
+
+`kind: "orchestrator"` (or `--orchestrator` with `--prompt`) runs a case through
+the agent the user talks to, which delegates to tasks of its own. Three things
+differ from an ordinary case:
+
+- The run is not over when the conversation's turn ends. That is the moment it
+  hands work off; the tasks are still running and the wake that carries their
+  results back is 1.5s behind them. The harness waits for the whole tree to go
+  quiet, so `usage` is the conversation alone and `treeUsage` is what the run
+  actually cost.
+- The conversation is created with the two folders `orchestrator.ensure` gives
+  it in the app. Without them it cannot read back what its own tasks wrote:
+  measured, that is ten tool calls and 240K tokens hunting a file, against two
+  and 96K when it can see it.
+- Assertions get `childSessions()` alongside `sessions`, because the work being
+  scored happened in the tasks rather than in the conversation.
+
+`scripts/orchestrator-handoff-report.ts <workspace-dir>` prints what each task
+handed back and whether the 400-character wake summary cut it off, which is the
+number to watch: everything past that cut was composed, paid for, and dropped.
 
 ## Seeded workspaces
 

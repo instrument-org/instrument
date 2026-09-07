@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { getTasks } from "../src/lib/get-tasks";
+import { listChildTasks } from "../src/lib/orchestrator/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { taskDir } from "../src/lib/task-dir-utils";
@@ -322,9 +323,23 @@ export async function generateReport({
 
     let assertionResults: AssertionResult[] = [];
     if (evalCase?.assertions && evalCase.assertions.length > 0) {
+      // A conversation that delegates does most of what it is being scored on
+      // inside its tasks, and those are separate tasks rather than sessions of
+      // this one, so `sessions` alone cannot see the work. Read lazily: only an
+      // orchestrator case has children, and only some of its assertions ask.
+      const childSessions = async () => {
+        const children = await listChildTasks(taskId);
+        return Promise.all(
+          children.map(async (child) => ({
+            sessions: await sessionsFor(child.id),
+            taskId: child.id,
+            title: child.title,
+          })),
+        );
+      };
       assertionResults = await Promise.all(
         evalCase.assertions.map((a) =>
-          Promise.resolve(a.check({ sessions, taskId })),
+          Promise.resolve(a.check({ childSessions, sessions, taskId })),
         ),
       );
       const passed = assertionResults.filter((r) => r.passed).length;

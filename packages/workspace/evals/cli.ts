@@ -1,9 +1,12 @@
+import "./lib/sandbox-home";
 import "../scripts/lib/test-node-env";
 import "../scripts/lib/define-globals-apply";
 
+import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
+import { z } from "zod";
 
 import { EVALS } from "./cases";
 import {
@@ -35,6 +38,7 @@ const { positionals, values } = parseArgs({
   options: {
     concurrency: { default: "8", type: "string" },
     "dry-run": { default: false, type: "boolean" },
+    effort: { type: "string" },
     "include-context": { default: false, type: "boolean" },
     json: { default: false, type: "boolean" },
     "max-run-seconds": { type: "string" },
@@ -100,14 +104,29 @@ const matchesPattern = (name: string) =>
 const patternLabel = namePatterns.join(", ");
 
 /**
- * A bare model name is the common case, so it is read as an OpenRouter slug;
- * pass a full model URI when you need a specific provider or provider config.
+ * How hard every task in the run is asked to think. Recorded on each task the
+ * run creates, so the conversation and the tasks it starts all take it.
+ */
+const reasoningEffort = values.effort
+  ? z.enum(REASONING_EFFORTS).parse(values.effort)
+  : undefined;
+
+/**
+ * A bare model name is the common case, so it is read as an OpenRouter slug; a
+ * `cf:` prefix reads it as a Workers AI id (with or without its `@cf/`); pass a
+ * full model URI when you need a specific provider or provider config.
  */
 const models =
   values.model && values.model.length > 0
-    ? values.model.map((model) =>
-        model.includes("?") ? model : modelURI.openRouter(model),
-      )
+    ? values.model.map((model) => {
+        if (model.includes("?")) {
+          return model;
+        }
+        if (model.startsWith("cf:")) {
+          return modelURI.workersAi(model.slice(3).replace(/^@cf\//, ""));
+        }
+        return modelURI.openRouter(model);
+      })
     : MODELS;
 
 /**
@@ -140,6 +159,9 @@ if (subcommand !== "run" && subcommand !== "report" && subcommand !== "list") {
     "                   --repeat <n> runs every case n times per model\n",
   );
   process.stderr.write(
+    `                   --effort <${REASONING_EFFORTS.join("|")}> asks every task to think that hard\n`,
+  );
+  process.stderr.write(
     "                   --json prints the report as one line on stdout (see summary.json)\n",
   );
   process.stderr.write(
@@ -149,7 +171,10 @@ if (subcommand !== "run" && subcommand !== "report" && subcommand !== "list") {
   throw new Error(`Unknown subcommand: "${subcommand ?? "(none)"}"`);
 }
 
-const timestamp = new Date().toISOString().replaceAll(/[:.]/gu, "-");
+// Timestamped, and then stamped with the pid: comparing two conditions means
+// starting two runs at once, and several started inside the same millisecond
+// resolved to one directory and quietly overwrote each other's results.
+const timestamp = `${new Date().toISOString().replaceAll(/[:.]/gu, "-")}-${process.pid}`;
 const outputDir = path.resolve(
   import.meta.dirname,
   "..",
@@ -400,6 +425,7 @@ if (subcommand === "list") {
     maxRunSeconds,
     maxRunTokens,
     models,
+    reasoningEffort,
     repeat,
   });
 

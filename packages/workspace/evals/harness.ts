@@ -3,6 +3,7 @@ import {
   aiGatewayApp,
   AIGatewayModelURI,
   noopModelCache,
+  type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
@@ -19,8 +20,12 @@ import type { Session } from "../src/schemas/session";
 import { attachOrchestrator, workspaceMachine } from "../src/electron";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { isToolPart } from "../src/lib/is-tool-part";
+import { isWorking } from "../src/lib/orchestrator/activity";
+import { listChildTasks } from "../src/lib/orchestrator/children";
+import { outputFolderPath } from "../src/lib/orchestrator/output-folder";
 import { createProject } from "../src/lib/project";
 import { Store } from "../src/lib/store";
+import { updateTaskSettings } from "../src/lib/task-settings";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
@@ -81,6 +86,8 @@ export const MODELS = [
 ];
 
 export interface CompletedRun {
+  /** Every task this run's task started, however deep. Empty unless it delegated. */
+  childTaskIds: TaskId[];
   /** Approximate USD, when the model's price is known. See `formatCost`. */
   costUSD?: number;
   label: string;
@@ -99,8 +106,11 @@ export interface CompletedRun {
   /** Absent when the agent ended the turn itself. */
   stoppedBy?: RunStop;
   taskId: TaskId;
+  /** This task plus every task it started. Equal to `usage` when it delegated nothing. */
+  treeUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
   /** 1-based, and only meaningful when `repeat` asked for more than one. */
   trial: number;
+  /** This task alone, which for an orchestrator is the conversation only. */
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
 
@@ -148,6 +158,29 @@ const ENFORCEMENT_INTERVAL_MS = 15_000;
 /** After a stop is issued, how long to wait for the session to actually end. */
 const STOP_GRACE_MS = 60_000;
 
+/**
+ * How long every task in an orchestrator's tree has to sit idle before the run
+ * is called finished.
+ *
+ * An orchestrator's own turn ends the moment it hands work off, which is the
+ * middle of the run rather than the end of it: the children are still working,
+ * and the wake carrying their results back into the conversation is on a 1.5s
+ * debounce behind them. A run that stopped at the first `session.done` would
+ * score the hand-off and never see the report, which is the half that matters.
+ * This has to stay comfortably above that debounce, since the gap between a
+ * child finishing and its wake starting a turn reads as quiet.
+ */
+const TREE_QUIET_MS = 6000;
+
+/** How often the tree is sampled while waiting for it to go quiet. */
+const TREE_POLL_MS = 500;
+
+export interface ChildTaskSessions {
+  sessions: Session.WithMessagesAndParts[];
+  taskId: TaskId;
+  title: string;
+}
+
 export interface EvalCase {
   assertions?: Assertion[];
   files?: FileUpload.Type[];
@@ -180,6 +213,13 @@ export interface EvalCase {
 }
 
 interface AssertionContext {
+  /**
+   * Every task this one started, with its sessions: what an orchestrator case
+   * needs, since the work it is scored on happened in those rather than in the
+   * conversation. A function because reading them costs a directory scan per
+   * task and most assertions never ask.
+   */
+  childSessions: () => Promise<ChildTaskSessions[]>;
   sessions: Session.WithMessagesAndParts[];
   taskId: TaskId;
 }
@@ -206,6 +246,7 @@ export async function runEvals(
     maxRunSeconds = DEFAULT_MAX_RUN_SECONDS,
     maxRunTokens = DEFAULT_MAX_RUN_TOKENS,
     models = MODELS,
+    reasoningEffort,
     repeat = 1,
   }: {
     concurrency?: number;
@@ -213,6 +254,8 @@ export async function runEvals(
     maxRunSeconds?: number;
     maxRunTokens?: number;
     models?: string[];
+    /** Asked of every task this run creates, the conversation's own included. */
+    reasoningEffort?: ReasoningEffort;
     repeat?: number;
   } = {},
 ): Promise<{ runs: CompletedRun[]; workspaceRootDir: string }> {
@@ -332,11 +375,15 @@ export async function runEvals(
           }
           projectId = project.value.id;
         }
+        const folders = [
+          ...(privateFoldersFor(evalCase, index) ?? []),
+          ...(evalCase.kind === "orchestrator" ? orchestratorFolders() : []),
+        ];
         return call(
           taskRoute.create,
           {
             files: evalCase.files,
-            folders: privateFoldersFor(evalCase, index),
+            folders: folders.length > 0 ? folders : undefined,
             kind: evalCase.kind,
             modelURI: uri,
             name: evalCase.name,
@@ -350,6 +397,13 @@ export async function runEvals(
       // every run behind it.
       creating = created.then(_.noop, _.noop);
       const { id, sessionId } = await created;
+
+      // Written straight onto the task rather than passed through `create`,
+      // which has no input for it: every turn of this run then reads it, the
+      // conversation's and each of its tasks'.
+      if (reasoningEffort) {
+        await updateTaskSettings(id, { reasoningEffort });
+      }
 
       write(
         `${evalPrefix(label)}${c.green}Task created${c.reset}${c.dim} (id: ${id})${c.reset}\n`,
@@ -445,10 +499,22 @@ export async function runEvals(
 
       // A stop that never takes effect would otherwise hold the whole suite
       // behind this one run for as long as the process lives.
-      const doneTimeoutMs =
-        maxRunSeconds > 0 ? maxRunSeconds * 1000 + STOP_GRACE_MS : undefined;
+      //
+      // One deadline for the whole run rather than one per wait. A case with a
+      // follow-up waits three times -- first turn, follow-up turn, then the
+      // tree going quiet -- and a per-wait cap let a run take three times the
+      // number the operator set, which is how `--max-run-seconds 900` produced
+      // a run still going three quarters of an hour later.
+      const runDeadline =
+        maxRunSeconds > 0
+          ? startedAt + maxRunSeconds * 1000 + STOP_GRACE_MS
+          : undefined;
+      const remainingMs = () =>
+        runDeadline === undefined
+          ? undefined
+          : Math.max(0, runDeadline - Date.now());
       let outcome = await waitForSessionDone(sessionId, id, {
-        timeoutMs: doneTimeoutMs,
+        timeoutMs: remainingMs(),
       });
 
       // Follow-ups run before the teardown below, so the caps timer and the
@@ -470,8 +536,22 @@ export async function runEvals(
           { context },
         );
         outcome = await waitForSessionDone(sessionId, id, {
-          timeoutMs: doneTimeoutMs,
+          timeoutMs: remainingMs(),
         });
+      }
+
+      // The children and the wake they trigger are the rest of an orchestrator
+      // run. Everything above this line has only watched the conversation.
+      if (evalCase.kind === "orchestrator" && !stoppedBy) {
+        const settled = await waitForTreeQuiet(id, {
+          timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+        });
+        if (settled === "timeout") {
+          stoppedBy = "timeout";
+          process.stderr.write(
+            `${evalPrefix(label)}${c.red}Tree never settled${c.reset}${c.dim}: a task in this run was still working when time ran out.${c.reset}\n`,
+          );
+        }
       }
 
       clearInterval(enforcementTimer);
@@ -485,18 +565,32 @@ export async function runEvals(
       }
 
       const usage = await getTaskUsageSummary(id);
+      // What a delegating run actually spent is the conversation plus every
+      // task it started; the conversation's own total is a fraction of it, and
+      // reporting only that would make delegation look free.
+      const childTaskIds = await treeTaskIds(id);
+      const childUsages = await Promise.all(
+        childTaskIds.map((childId) => getTaskUsageSummary(childId)),
+      );
+      const treeUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+      for (const one of [usage, ...childUsages]) {
+        treeUsage.inputTokens += one.inputTokens;
+        treeUsage.outputTokens += one.outputTokens;
+        treeUsage.totalTokens += one.totalTokens;
+      }
       const price = catalog.priceFor(uri.split("?")[0] ?? uri);
       const costUSD = price
-        ? usage.inputTokens * price.prompt +
-          usage.outputTokens * price.completion
+        ? treeUsage.inputTokens * price.prompt +
+          treeUsage.outputTokens * price.completion
         : undefined;
 
       finishedRuns += 1;
       write(
-        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(usage.totalTokens)} tokens${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
+        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childTaskIds.length > 0 ? ` across ${childTaskIds.length + 1} tasks` : ""}${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
       );
 
       return {
+        childTaskIds,
         costUSD,
         label,
         modelLabel,
@@ -506,6 +600,7 @@ export async function runEvals(
         resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
         stoppedBy,
         taskId: id,
+        treeUsage,
         trial,
         usage: {
           inputTokens: usage.inputTokens,
@@ -560,6 +655,36 @@ export async function sessionsFor(
 }
 
 /**
+ * The two folders `orchestrator.ensure` attaches to the conversation in the
+ * app: the user's home, and the workspace folder inside it that results go to
+ * when nobody said where.
+ *
+ * They ride on the first message rather than being attached after the task is
+ * created, because the session's context baseline is written the first time the
+ * session needs model input and then reused byte for byte. A folder attached a
+ * moment too late is a folder the agent is never told about, and an
+ * orchestrator that believes it has no mounts cannot read back what its own
+ * children wrote: measured, it spends ten tool calls and 240K tokens hunting a
+ * file it was told to have them write, against two and 96K when it can see it.
+ *
+ * Unlike a case's own folders these are not copied per run, because `task new`
+ * hands every child the workspace folder from the same `$HOME`-derived global:
+ * a private copy for the conversation would put the children somewhere else.
+ * They are sandboxed away from the developer's real files by
+ * `evals/lib/sandbox-home`, but still shared across runs in one process, so run
+ * orchestrator cases at low concurrency and give a separate process its own
+ * `INSTRUMENT_EVAL_HOME` when two runs must not see each other's output.
+ */
+function orchestratorFolders(): { access: "read-write"; path: string }[] {
+  const workspaceFolder = outputFolderPath();
+  fs.mkdirSync(workspaceFolder, { recursive: true });
+  return [
+    { access: "read-write", path: os.homedir() },
+    { access: "read-write", path: workspaceFolder },
+  ];
+}
+
+/**
  * A run's own copy of each folder the case attaches.
  *
  * One case runs against every model at once, and they would otherwise share a
@@ -586,6 +711,23 @@ function privateFoldersFor(evalCase: EvalCase, index: number) {
 
 function sanitizeCanonicalId(canonicalId: string): string {
   return canonicalId.replaceAll(/[^a-z0-9-]/gi, "-");
+}
+
+/** Every task descended from this one, however deep. */
+async function treeTaskIds(rootTaskId: TaskId): Promise<TaskId[]> {
+  const found: TaskId[] = [];
+  const frontier = [rootTaskId];
+  while (frontier.length > 0) {
+    const next = frontier.pop();
+    if (next === undefined) {
+      break;
+    }
+    for (const child of await listChildTasks(next)) {
+      found.push(child.id);
+      frontier.push(child.id);
+    }
+  }
+  return found;
 }
 
 async function waitForSessionDone(
@@ -624,4 +766,36 @@ async function waitForSessionDone(
       }
     })();
   });
+}
+
+/**
+ * Waits until no task in this run's tree has been working for a continuous
+ * stretch, so a lull between a child finishing and its wake reaching the
+ * orchestrator is not mistaken for the end.
+ *
+ * Scoped to the tree rather than the workspace because one workspace holds
+ * every concurrent run of a suite, and waiting on all of them would make each
+ * run as long as the slowest.
+ */
+async function waitForTreeQuiet(
+  rootTaskId: TaskId,
+  { timeoutMs }: { timeoutMs: number },
+): Promise<"quiet" | "timeout"> {
+  const deadline = Date.now() + timeoutMs;
+  let quietSince: number | undefined;
+  while (Date.now() < deadline) {
+    const working = [rootTaskId, ...(await treeTaskIds(rootTaskId))].some(
+      (taskId) => isWorking(taskId),
+    );
+    if (working) {
+      quietSince = undefined;
+    } else {
+      quietSince ??= Date.now();
+      if (Date.now() - quietSince >= TREE_QUIET_MS) {
+        return "quiet";
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS));
+  }
+  return "timeout";
 }

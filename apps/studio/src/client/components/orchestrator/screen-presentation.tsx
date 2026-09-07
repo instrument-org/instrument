@@ -38,7 +38,7 @@ export function screenLocation(
     };
   }
   if (pathname === "/orchestrator/apps") {
-    return { kind: "app", name: "Apps" };
+    return { kind: "apps" };
   }
   // Every other screen is the work, which is the one place a tab can be that
   // is neither a file nor an app nor a site.

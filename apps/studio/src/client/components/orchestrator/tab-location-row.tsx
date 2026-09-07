@@ -5,6 +5,7 @@ import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
@@ -14,6 +15,7 @@ import { type ReactNode } from "react";
 /** What the tab on screen is showing, in the terms that page has for itself. */
 export type TabLocation =
   | { kind: "app"; name: string; site?: string }
+  | { kind: "apps" }
   | { kind: "file"; name: string; path: string }
   | { kind: "folder"; path: string }
   | { kind: "newTab" }
@@ -197,6 +199,16 @@ function Field({ location }: { location: TabLocation }) {
       </>
     );
   }
+  if (location.kind === "apps") {
+    // The directory itself: the one page under Apps that is not an app, so
+    // it is named once rather than as a page of its own kind.
+    return (
+      <>
+        <AppWindowIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate">Apps</span>
+      </>
+    );
+  }
   return (
     <>
       <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600" />
@@ -210,6 +222,9 @@ function locationText(location: TabLocation) {
   switch (location.kind) {
     case "app": {
       return location.name;
+    }
+    case "apps": {
+      return "Apps";
     }
     case "file":
     case "folder": {

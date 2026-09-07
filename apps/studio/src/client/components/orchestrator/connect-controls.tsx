@@ -161,7 +161,9 @@ export function ConnectControls({
 
   if (kind === "sign-in") {
     return (
-      <div className="flex flex-wrap items-center gap-2">
+      // In a column too narrow for three buttons in a row they stack, each
+      // the column's width, rather than wrapping into a ragged pair.
+      <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
         <Button
           disabled={busy || waiting}
           onClick={() => {

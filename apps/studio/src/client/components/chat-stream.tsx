@@ -281,7 +281,17 @@ export function ChatStream({
   // headed by a copy of a hidden call would have no head line to shut it with.
   const layout: TranscriptLayout =
     presentation === "orchestrator"
-      ? { groups: new Map(), rows: new Map(), selfOpeningRowIds: [] }
+      ? {
+          groups: new Map(),
+          rows: new Map(),
+          // The card asking to connect an app still opens itself here: the
+          // answer comes from the card, and a shut row reads as a stall.
+          selfOpeningRowIds: regularMessages.flatMap((message) =>
+            message.parts.flatMap((part) =>
+              part.type === "tool-connect_app" ? [part.metadata.id] : [],
+            ),
+          ),
+        }
       : buildTranscriptLayout({
           isAgentRunning,
           isDeveloperMode,

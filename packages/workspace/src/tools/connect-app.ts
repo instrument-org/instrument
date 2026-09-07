@@ -7,6 +7,7 @@ import { recordConnection } from "../lib/apps/connection";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { appSiteFor } from "../lib/apps/site";
 import { loadApp } from "../lib/apps/store";
+import { recordAppChannel } from "../lib/orchestrator/attribution";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";
@@ -56,7 +57,7 @@ export const ConnectApp = setupTool({
   description: dedent`
     Ask the user to connect an app whose folder you have written under ${MOUNT.apps}/<slug>/. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key, and for an app whose server runs on this machine, what would run and a button to allow it. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
-  execute: async ({ input }) => {
+  execute: async ({ input, sessionId, taskId }) => {
     const config = getWorkspaceConfig();
     const loaded = await loadApp(config.appsDir, input.slug);
     if (loaded.isErr()) {
@@ -91,6 +92,9 @@ export const ConnectApp = setupTool({
               ? "needs-approval"
               : "needs-sign-in",
       });
+      // What the user does on the card comes back as an app event with no
+      // channel of its own; this is what tells it which one asked.
+      await recordAppChannel({ orchestratorTaskId: taskId, sessionId, slug });
     }
     return ok({
       kind,

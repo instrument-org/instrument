@@ -214,6 +214,15 @@ const startOAuth = base
         error: result.error.message,
         status: "failed",
       });
+      // A sign-in that cannot start is as much news as one that finished:
+      // the conversation asked for it, and is the one to say what now.
+      workspacePublisher.publish("app.updated", null);
+      workspacePublisher.publish("app.event", {
+        detail: result.error.message,
+        event: "failed",
+        name: await appName(context.workspaceConfig.appsDir, input.slug),
+        slug: input.slug,
+      });
       throw errors.API_ERROR({ message: result.error.message });
     }
     if (result.value.alreadyConnected) {

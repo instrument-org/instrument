@@ -1,5 +1,6 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
+import { channelOfApp } from "../orchestrator/attribution";
 import { wakeOrchestrators } from "../orchestrator/wake";
 import { getWorkspaceConfig } from "../workspace-config";
 
@@ -10,6 +11,10 @@ import { getWorkspaceConfig } from "../workspace-config";
  * event; here it becomes a `data-appEvent` part on a text-less user message,
  * the same way a finishing task reaches the orchestrator, so the agent learns
  * without anyone typing and answers on a turn of its own.
+ *
+ * The event lands in the channel the app was asked for in, which `connect_app`
+ * recorded; an app nobody asked for (removed from the Apps screen, say) has
+ * no channel and reaches the newest one.
  */
 export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
   void (async () => {
@@ -18,6 +23,8 @@ export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
         await wakeOrchestrators(
           { data: { events: [event] }, type: "data-appEvent" },
           workspaceRef,
+          (orchestratorTaskId) =>
+            channelOfApp({ orchestratorTaskId, slug: event.slug }),
         );
       } catch (error) {
         getWorkspaceConfig().captureException(error);

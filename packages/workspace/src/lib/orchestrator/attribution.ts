@@ -40,6 +40,43 @@ export async function recordTaskChannel({
   });
 }
 
+/** The channel an app was last asked for in, or none for an app nobody asked for. */
+export async function channelOfApp({
+  orchestratorTaskId,
+  slug,
+}: {
+  orchestratorTaskId: TaskId;
+  slug: string;
+}): Promise<StoreId.Session | undefined> {
+  const state = await getTaskState(taskDir(orchestratorTaskId));
+  return state.appChannels?.[slug];
+}
+
+/**
+ * Which channel an app was asked for in.
+ *
+ * A sign-in finishes in the browser and a key is saved on a card, neither of
+ * which knows a channel, so the ask records where it was made and the event
+ * that answers it is delivered there rather than to whichever channel is
+ * newest. Recorded on each ask, so an app asked for again from another
+ * channel reports into that one.
+ */
+export async function recordAppChannel({
+  orchestratorTaskId,
+  sessionId,
+  slug,
+}: {
+  orchestratorTaskId: TaskId;
+  sessionId: StoreId.Session;
+  slug: string;
+}): Promise<void> {
+  const dir = taskDir(orchestratorTaskId);
+  const state = await getTaskState(dir);
+  await setTaskState(dir, {
+    appChannels: { ...state.appChannels, [slug]: sessionId },
+  });
+}
+
 /** Every task the conversation has filed, by the channel it came from. */
 export async function taskChannels(
   orchestratorTaskId: TaskId,

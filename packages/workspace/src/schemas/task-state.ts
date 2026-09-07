@@ -83,6 +83,11 @@ export const StoredTaskStateSchema = z
      * one is on screen when it finishes.
      */
     taskChannels: z.record(z.string(), StoreId.SessionSchema).optional(),
+    /**
+     * The channel each app was asked for in, by slug: what sends the news of
+     * a sign-in, a key, or a decline back to the channel that asked for it.
+     */
+    appChannels: z.record(z.string(), StoreId.SessionSchema).optional(),
   })
   .default(() => ({}));
 

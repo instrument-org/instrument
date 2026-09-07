@@ -87,22 +87,97 @@ export function getAppCatalog(): AppCatalogEntry[] {
   return cached;
 }
 
-/** Entries whose slug, name, domain, or category carries every word given. */
+/**
+ * Entries whose slug, name, domain, tagline, or category carries every word
+ * given, the ones the query names before the ones that merely mention it.
+ */
 export function searchAppCatalog(query: string): AppCatalogEntry[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const needle = query.trim().toLowerCase();
+  const words = needle.split(/\s+/).filter(Boolean);
   if (words.length === 0) {
     return getAppCatalog();
   }
-  return getAppCatalog().filter((entry) => {
-    const haystack = [
-      entry.slug,
-      entry.name,
-      entry.domain,
-      entry.tagline,
-      ...entry.categories,
-    ]
-      .join(" ")
-      .toLowerCase();
-    return words.every((word) => haystack.includes(word));
-  });
+  return getAppCatalog()
+    .filter((entry) => {
+      const haystack = [
+        entry.slug,
+        entry.name,
+        entry.domain,
+        entry.tagline,
+        ...entry.categories,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return words.every((word) => haystack.includes(word));
+    })
+    .map((entry) => ({ entry, tier: matchTier(entry, needle) }))
+    .sort((a, b) => a.tier - b.tier || a.entry.slug.localeCompare(b.entry.slug))
+    .map(({ entry }) => entry);
+}
+
+/** True when the needle sits in the text on both its boundaries. */
+function containsWord(text: string, needle: string): boolean {
+  for (
+    let at = text.indexOf(needle);
+    at !== -1;
+    at = text.indexOf(needle, at + 1)
+  ) {
+    const before = text[at - 1];
+    const after = text[at + needle.length];
+    if (
+      (before === undefined || !/[a-z0-9]/.test(before)) &&
+      (after === undefined || !/[a-z0-9]/.test(after))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * How closely an entry's own identity answers the query, best tier first.
+ *
+ * The agent searches by a service's name, so an entry that *is* the thing asked
+ * for has to come back ahead of one that only mentions it in passing: "paper"
+ * matches Consensus, whose tagline reads "read what the papers found", and
+ * matched it ahead of Paper while the order was the catalog's own.
+ */
+function matchTier(entry: AppCatalogEntry, needle: string): number {
+  const slug = entry.slug.toLowerCase();
+  const name = entry.name.toLowerCase();
+  const domain = entry.domain.toLowerCase();
+  // The domain's own label -- "paper" out of paper.design -- so a service the
+  // query names reaches its entry whether or not the slug spells it that way.
+  // The suffix stays out of the tiers below it: matching that, "ai" would rank
+  // every .ai company and "app" every .app one, on nothing but a TLD.
+  const label = domain.split(".")[0] ?? "";
+
+  if (slug === needle || name === needle || label === needle) {
+    return 0;
+  }
+  // A domain typed whole is still the service named outright.
+  if (domain === needle) {
+    return 0;
+  }
+  if (
+    slug.startsWith(needle) ||
+    name.startsWith(needle) ||
+    label.startsWith(needle)
+  ) {
+    return 1;
+  }
+  if (
+    containsWord(name, needle) ||
+    containsWord(slug.replaceAll("-", " "), needle)
+  ) {
+    return 2;
+  }
+  if (
+    slug.includes(needle) ||
+    name.includes(needle) ||
+    label.includes(needle)
+  ) {
+    return 3;
+  }
+  return 4;
 }

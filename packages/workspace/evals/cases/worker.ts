@@ -32,6 +32,24 @@ const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
 /** Below this a document exists but holds nothing worth opening. */
 const MIN_DOCUMENT_BYTES = 4000;
 
+/**
+ * Every file this task could have written: its own folder, and the workspace
+ * folder, since a brief naming one is answered in the other about as often.
+ */
+async function deliverables(taskId: TaskId): Promise<string[]> {
+  const home = process.env.HOME ?? "";
+  return [
+    ...(await filesUnder(taskDir(taskId))),
+    ...(home
+      ? await filesUnder(path.join(home, "Documents", "Instrument"))
+      : []),
+  ];
+}
+
+function fail(text: string, evidence: string): AssertionResult {
+  return { evidence, passed: false, text };
+}
+
 async function filesUnder(dir: string): Promise<string[]> {
   const found: string[] = [];
   const walk = async (at: string, depth: number) => {
@@ -60,26 +78,8 @@ async function filesUnder(dir: string): Promise<string[]> {
   return found;
 }
 
-/**
- * Every file this task could have written: its own folder, and the workspace
- * folder, since a brief naming one is answered in the other about as often.
- */
-async function deliverables(taskId: TaskId): Promise<string[]> {
-  const home = process.env.HOME ?? "";
-  return [
-    ...(await filesUnder(taskDir(taskId))),
-    ...(home
-      ? await filesUnder(path.join(home, "Documents", "Instrument"))
-      : []),
-  ];
-}
-
 function pass(text: string, evidence: string): AssertionResult {
   return { evidence, passed: true, text };
-}
-
-function fail(text: string, evidence: string): AssertionResult {
-  return { evidence, passed: false, text };
 }
 
 /**
@@ -92,14 +92,15 @@ function wroteADocument(extension: string): Assertion {
   const text = `wrote a ${extension} that is a real document`;
   return {
     check: async ({ taskId }) => {
-      const candidates = (await deliverables(taskId)).filter((file) =>
+      const written = await deliverables(taskId);
+      const candidates = written.filter((file) =>
         file.toLowerCase().endsWith(extension),
       );
       if (candidates.length === 0) {
         return fail(text, `no ${extension} anywhere the task could write`);
       }
       for (const candidate of candidates) {
-        const body = await fs.readFile(candidate).catch(() => undefined);
+        const body = await fs.readFile(candidate).catch(() => {});
         if (!body || body.length < MIN_DOCUMENT_BYTES) {
           continue;
         }
@@ -113,7 +114,7 @@ function wroteADocument(extension: string): Assertion {
       }
       const sizes = await Promise.all(
         candidates.map(async (file) => {
-          const stat = await fs.stat(file).catch(() => undefined);
+          const stat = await fs.stat(file).catch(() => {});
           return `${path.basename(file)} ${stat?.size ?? "?"}B`;
         }),
       );

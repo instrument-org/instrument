@@ -298,7 +298,10 @@ function settingUpLine(app: App): string {
       return "Not connected";
     }
     case "failed": {
-      return app.connection?.error ?? "Could not connect";
+      // The service's own words are three lines of SDK talk and belong on the
+      // app's page, where there is room to read them and something to press.
+      // A row says which app is the problem; that is the whole of its job.
+      return "Could not connect";
     }
     case "needs-approval": {
       return "Runs on this Mac; needs your go-ahead";

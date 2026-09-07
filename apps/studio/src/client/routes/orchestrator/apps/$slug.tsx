@@ -1,3 +1,5 @@
+import { blockToolbarButtonClassName } from "@/client/components/code-block";
+import { CopyButton } from "@/client/components/copy-button";
 import { InternalLink } from "@/client/components/internal-link";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { ConnectControls } from "@/client/components/orchestrator/connect-controls";
@@ -253,7 +255,7 @@ function AppRoute() {
                         ? "Waiting for a key"
                         : app.standing === "declined"
                           ? "Not connected"
-                          : `Could not connect${app.connection.error ? `: ${app.connection.error}` : ""}`}
+                          : "Could not connect"}
               {app.connection.connectedAt ? (
                 <>
                   {" "}
@@ -262,6 +264,33 @@ function AppRoute() {
                 </>
               ) : null}
             </Line>
+            {app.standing === "failed" && app.connection.error ? (
+              // What the service, the SDK, or the server said, kept whole and
+              // kept out of the line above: it is machine text, and the use
+              // for it is to copy it somewhere rather than to read it as
+              // English. This is the screen that carries it, since a directory
+              // row has no room and the test that tries again is up in the
+              // menu.
+              <div className="group/detail relative px-3 py-2">
+                <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
+                  {app.connection.error}
+                </pre>
+                {/* `focus-within` as well as hover: the button stays in the
+                    tab order while it is transparent. */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover/detail:opacity-100 focus-within:opacity-100">
+                  <CopyButton
+                    className={blockToolbarButtonClassName}
+                    iconSize={12}
+                    onCopy={async () => {
+                      await navigator.clipboard.writeText(
+                        app.connection?.error ?? "",
+                      );
+                    }}
+                    tooltip="Copy"
+                  />
+                </div>
+              </div>
+            ) : null}
           </Block>
         ) : null}
 

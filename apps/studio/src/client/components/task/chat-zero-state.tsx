@@ -29,13 +29,13 @@ export function ChatZeroState({
     }),
   );
 
-  const recentOtherSessions = !showOtherSessions
-    ? []
-    : sort(
+  const recentOtherSessions = showOtherSessions
+    ? sort(
         allSessions.filter((session) => session.id !== selectedSessionId),
         (s) => (s.updatedAt ?? s.createdAt).getTime(),
         true,
-      ).slice(0, 10);
+      ).slice(0, 10)
+    : [];
 
   return (
     <div className="mt-8 flex justify-center">

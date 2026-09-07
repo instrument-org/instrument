@@ -40,54 +40,6 @@ const DROP_ABOVE = "shadow-[inset_0_2px_0_0_var(--primary)]";
 const DROP_BELOW = "shadow-[inset_0_-2px_0_0_var(--primary)]";
 
 /**
- * The field a channel is named in: the row it will live on, in edit. Focused
- * and selected on mount, so renaming starts on the old name and a new channel
- * starts empty.
- */
-function NameField({
-  defaultValue,
-  onCancel,
-  onCommit,
-}: {
-  defaultValue: string;
-  onCancel: () => void;
-  onCommit: (name: string) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    inputRef.current?.select();
-  }, []);
-  return (
-    <div className={ROW}>
-      <ChannelMark className="text-muted-foreground/70" />
-      <input
-        className="h-6 min-w-0 flex-1 rounded-md bg-card px-1.5 text-[13px] text-foreground ring-1 ring-border outline-hidden focus:ring-ring"
-        defaultValue={defaultValue}
-        maxLength={16}
-        onBlur={onCancel}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            onCancel();
-            return;
-          }
-          if (event.key !== "Enter") {
-            return;
-          }
-          const name = event.currentTarget.value.trim();
-          if (name) {
-            onCommit(name);
-          } else {
-            onCancel();
-          }
-        }}
-        placeholder="Name it"
-        ref={inputRef}
-      />
-    </div>
-  );
-}
-
-/**
  * The channels, as a stack the conversation opens inside.
  *
  * Every channel is a row carrying its whole name, and the one you are in
@@ -325,6 +277,54 @@ export function ChannelStack({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The field a channel is named in: the row it will live on, in edit. Focused
+ * and selected on mount, so renaming starts on the old name and a new channel
+ * starts empty.
+ */
+function NameField({
+  defaultValue,
+  onCancel,
+  onCommit,
+}: {
+  defaultValue: string;
+  onCancel: () => void;
+  onCommit: (name: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.select();
+  }, []);
+  return (
+    <div className={ROW}>
+      <ChannelMark className="text-muted-foreground/70" />
+      <input
+        className="h-6 min-w-0 flex-1 rounded-md bg-card px-1.5 text-[13px] text-foreground ring-1 ring-border outline-hidden focus:ring-ring"
+        defaultValue={defaultValue}
+        maxLength={16}
+        onBlur={onCancel}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            onCancel();
+            return;
+          }
+          if (event.key !== "Enter") {
+            return;
+          }
+          const name = event.currentTarget.value.trim();
+          if (name) {
+            onCommit(name);
+          } else {
+            onCancel();
+          }
+        }}
+        placeholder="Name it"
+        ref={inputRef}
+      />
     </div>
   );
 }

@@ -127,6 +127,15 @@ export function leadingWords(
  * the agent never becomes busy doing what a task exists for.
  */
 export function orchestratorRefusal(script: string): string | undefined {
+  // Checked before the command names, because this is the hole they leave: the
+  // list is a list of things safe to *read* with, and every one of them writes
+  // a file the moment its output is redirected. Measured, a model finds it on
+  // its own -- gpt-oss-120b answered a "put a summary in my folder" ask with
+  // `cat > /mnt/Instrument/summary.md <<'EOF'` and wrote the deliverable from
+  // the conversation, which is the one thing this shell exists to prevent.
+  if (redirectsOutput(script)) {
+    return `Redirecting output to a file is not yours to do: this shell reads files and never writes one. Work that writes a file's contents is a task's: start one with \`task new\`.`;
+  }
   const outside = leadingWords(script).find(
     ({ piped, word }) =>
       !ORCHESTRATOR_COMMANDS.has(word) &&
@@ -437,3 +446,49 @@ export const BashTool = setupTool({
     };
   },
 });
+
+/**
+ * Whether the script sends output to a file anywhere the shell would act on it.
+ *
+ * Walks the characters rather than matching a pattern, because the two places a
+ * `>` means nothing are exactly the places a pattern gets wrong: inside quotes
+ * (`rg '>' notes.md`, `task new --name 'a > b'`) and inside a heredoc body,
+ * which is a brief rather than a command. A `>` followed by `&` is duplicating
+ * a file descriptor (`2>&1`, `>&2`) and writes no file, so it stays allowed.
+ */
+function redirectsOutput(script: string): boolean {
+  let quote: string | undefined;
+  let terminator: string | undefined;
+  for (const line of script.split("\n")) {
+    if (terminator !== undefined) {
+      if (line.trim() === terminator) {
+        terminator = undefined;
+      }
+      continue;
+    }
+    quote = undefined;
+    // Indexed rather than iterated: every character that matters to a shell is
+    // ASCII, and the surrounding text is only ever skipped over.
+    for (let index = 0; index < line.length; index += 1) {
+      const character = line[index];
+      if (quote) {
+        if (character === quote) {
+          quote = undefined;
+        }
+        continue;
+      }
+      if (character === "'" || character === '"') {
+        quote = character;
+        continue;
+      }
+      if (character === ">" && line[index + 1] !== "&") {
+        return true;
+      }
+    }
+    const heredoc = /<<-?\s*['"]?(\w+)['"]?/.exec(line);
+    if (heredoc) {
+      terminator = heredoc[1];
+    }
+  }
+  return false;
+}

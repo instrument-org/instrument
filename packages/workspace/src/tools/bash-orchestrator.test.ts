@@ -67,3 +67,32 @@ describe("orchestratorRefusal", () => {
     ).toBeUndefined();
   });
 });
+
+describe("orchestratorRefusal: writing a file", () => {
+  it.each([
+    [
+      "cat > '/mnt/Instrument/summary.md' <<'EOF'\nhello\nEOF",
+      "cat redirected",
+    ],
+    ["ls /mnt/Instrument > listing.txt", "ls redirected"],
+    ["task list >> /mnt/log.txt", "append"],
+    ["find /mnt -name '*.md' &> out.txt", "both streams"],
+  ])("refuses %j (%s)", (script) => {
+    expect(orchestratorRefusal(script)).toMatch(/Redirecting output/);
+  });
+
+  it.each([
+    ["task list", "a plain command"],
+    ["app tools notion 2>&1 | head -20", "stderr duplicated onto stdout"],
+    [
+      "cat /mnt/Instrument/notes.md | rg '>' | head -3",
+      "a quoted angle bracket",
+    ],
+    [
+      "task new --name 'Before > After' <<'EOF'\ncat > /tmp/x <<'INNER'\nINNER\nEOF",
+      "a brief that talks about redirects",
+    ],
+  ])("allows %j (%s)", (script) => {
+    expect(orchestratorRefusal(script)).toBeUndefined();
+  });
+});

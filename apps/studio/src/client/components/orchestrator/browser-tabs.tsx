@@ -56,7 +56,7 @@ export interface BrowserTabsHandle {
    * tab to replace, the page takes that tab's place in the strip: a new tab
    * becoming the page that was typed into it.
    */
-  open: (url?: string, options?: { replacing?: WindowTab }) => void;
+  open: (url?: string, options?: { replacing?: WindowTab }) => StoreId.Session;
   /**
    * Shows the page tab already at that address, or opens one there. Given a
    * tab to replace, a page opened takes that tab's place in the strip rather
@@ -514,6 +514,7 @@ export function BrowserTabs({
       sessionId: StoreId.SessionSchema.parse(id),
       ...(url ? { url } : {}),
     });
+    return id;
   };
 
   useImperativeHandle(
@@ -533,9 +534,7 @@ export function BrowserTabs({
           void webview.loadURL(url);
         }
       },
-      open: (url, options) => {
-        openTab(url, options?.replacing);
-      },
+      open: (url, options) => openTab(url, options?.replacing),
       openOrFocus: (url, options) => {
         // A tab still on that site, by where it is now: a tab that was opened
         // there and has since wandered off is not the site.

@@ -250,7 +250,11 @@ const open = base
   .output(
     eventIterator(
       z.union([
-        z.object({ kind: z.literal("page"), url: z.string() }),
+        z.object({
+          kind: z.literal("page"),
+          requestId: z.string(),
+          url: z.string(),
+        }),
         z.object({ kind: z.literal("file"), mount: z.string() }),
       ]),
     ),
@@ -263,6 +267,19 @@ const open = base
         yield event.target;
       }
     }
+  });
+
+/** The window's answer to an `open`: the tab it made for the page, by the id a task takes. */
+const opened = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      requestId: z.string(),
+      tabId: StoreId.SessionSchema,
+    }),
+  )
+  .handler(({ input }) => {
+    publisher.publish("orchestrator.opened", input);
   });
 
 export const orchestrator = {
@@ -279,5 +296,6 @@ export const orchestrator = {
   childStatus,
   ensure,
   events: { open },
+  opened,
   setActiveTab,
 };

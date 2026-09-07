@@ -395,7 +395,10 @@ function OrchestratorLayout() {
     // already open, that one is shown and the new tab goes.
     // Always a tab of its own: a site already open elsewhere is not this
     // request, and showing it instead left the strip pointing at nothing.
-    browser?.open(url, isFreshNewTab ? { replacing: active } : undefined);
+    return browser?.open(
+      url,
+      isFreshNewTab ? { replacing: active } : undefined,
+    );
   };
   const openScreen = (href: string) => {
     if (isFreshNewTab) {
@@ -505,7 +508,17 @@ function OrchestratorLayout() {
         );
         for await (const target of asks) {
           if (target.kind === "page") {
-            openers.current.openPage(target.url);
+            const tabId = openers.current.openPage(target.url);
+            // The tab's id goes back to the command that asked, so the
+            // conversation can hand the tab to a task without waiting for
+            // the next message's note to name it.
+            if (tabId) {
+              void rpcClient.workspace.orchestrator.opened.call({
+                id: ids.taskId,
+                requestId: target.requestId,
+                tabId,
+              });
+            }
           } else {
             openers.current.openScreen(fileHref(target.mount));
           }

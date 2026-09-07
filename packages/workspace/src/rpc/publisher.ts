@@ -55,11 +55,24 @@ export const publisher = new EventPublisher<{
   };
   /**
    * The conversation asking its window to put something on screen: a page as
-   * a browser tab, or a file of the user's as a file tab.
+   * a browser tab, or a file of the user's as a file tab. A page carries a
+   * request id, which the tab the window makes for it is announced under.
    */
   "orchestrator.open": {
     id: TaskId;
-    target: { kind: "file"; mount: string } | { kind: "page"; url: string };
+    target:
+      | { kind: "file"; mount: string }
+      | { kind: "page"; requestId: string; url: string };
+  };
+  /**
+   * The window answering: the tab it opened for a page, by the id a task can
+   * be handed. What lets `open` print the tab rather than leave the
+   * conversation to wait for the next message's note to name it.
+   */
+  "orchestrator.opened": {
+    id: TaskId;
+    requestId: string;
+    tabId: StoreId.Session;
   };
   "part.updated": {
     id: TaskId;

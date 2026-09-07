@@ -2136,22 +2136,6 @@ export function FileSystem({
           <FileSystemGalleryView {...viewProps} />
         )}
       </div>
-      <div
-        aria-live="polite"
-        className="flex h-7 shrink-0 items-center justify-center gap-1 border-t bg-muted/40 px-3 text-xs text-muted-foreground"
-      >
-        <span>
-          {currentEntries.length}{" "}
-          {isSearching
-            ? currentEntries.length === 1
-              ? "result"
-              : "results"
-            : currentEntries.length === 1
-              ? "item"
-              : "items"}
-        </span>
-        {selectedEntry ? <span>· “{selectedEntry.name}” selected</span> : null}
-      </div>
       <Dialog
         onOpenChange={(open) => {
           if (!open) setOpenedFile(null);

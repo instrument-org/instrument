@@ -146,8 +146,14 @@ function screenNote(data: ViewContext) {
       return fileNote(data);
     }
     case "home": {
+      // The new tab carries a folder view, so what is in it is in view.
+      if (data.folder) {
+        return systemNote`
+          When the user sent this, the window showed a new tab, with a folder view on it showing ${folderShown(data)}. "This folder", "here", "in here" and "these" refer to that. ${folderReach(data)}
+        `;
+      }
       return systemNote`
-        When the user sent this, the window showed Home: the box that opens any screen or asks you. Nothing in particular is in view.
+        When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
       `;
     }
     case "task": {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { repairLine, repairWorkersAiStream } from "./workers-ai-stream-repair";
+import {
+  repairLine,
+  repairRequestInit,
+  repairWorkersAiStream,
+} from "./workers-ai-stream-repair";
 
 const state = () => ({ ids: new Map<number, string>(), made: 0 });
 
@@ -93,5 +97,63 @@ describe("repairWorkersAiStream", () => {
     );
     const untouched = await plain("https://example.test");
     expect(await untouched.text()).toBe('{"ok":true}');
+  });
+});
+
+describe("repairRequestInit", () => {
+  const call = (args: string) =>
+    JSON.stringify({
+      messages: [
+        { content: "hi", role: "user" },
+        {
+          content: null,
+          role: "assistant",
+          tool_calls: [
+            { function: { arguments: args, name: "bash" }, id: "c1", type: "function" },
+          ],
+        },
+      ],
+    });
+
+  const argumentsOf = (init: RequestInit | undefined): unknown => {
+    const body = init?.body;
+    const parsed: unknown = JSON.parse(typeof body === "string" ? body : "{}");
+    const messages =
+      isRecord(parsed) && Array.isArray(parsed.messages) ? parsed.messages : [];
+    const assistant: unknown = messages[1];
+    const calls =
+      isRecord(assistant) && Array.isArray(assistant.tool_calls)
+        ? assistant.tool_calls
+        : [];
+    const first: unknown = calls[0];
+    return isRecord(first) && isRecord(first.function)
+      ? first.function.arguments
+      : undefined;
+  };
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+  }
+
+  it("empties arguments the endpoint would answer 400 to, so the task can take another turn", () => {
+    // What GLM stored: the command in the name, and a fragment for arguments.
+    expect(argumentsOf(repairRequestInit({ body: call("</arg_value>") }))).toBe(
+      "{}",
+    );
+    expect(argumentsOf(repairRequestInit({ body: call("[1,2]") }))).toBe("{}");
+    expect(argumentsOf(repairRequestInit({ body: call('"a string"') }))).toBe(
+      "{}",
+    );
+  });
+
+  it("leaves a well-formed call alone, including one whose object is merely large", () => {
+    const good = JSON.stringify({ command: "ls -la /mnt" });
+    expect(argumentsOf(repairRequestInit({ body: call(good) }))).toBe(good);
+  });
+
+  it("passes through a body it cannot read rather than guessing at it", () => {
+    const opaque = { body: "not json" };
+    expect(repairRequestInit(opaque)).toBe(opaque);
+    expect(repairRequestInit(undefined)).toBeUndefined();
   });
 });

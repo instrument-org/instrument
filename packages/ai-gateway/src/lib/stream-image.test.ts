@@ -14,6 +14,7 @@ async function collect() {
     count: 1,
     modelId: "instrument/auto-image-2",
     prompt: "a cat",
+    sessionId: "ses_1",
     signal: new AbortController().signal,
     workspaceServerURL: "http://localhost" as WorkspaceServerURL,
   })) {

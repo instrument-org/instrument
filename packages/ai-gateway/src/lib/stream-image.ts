@@ -2,6 +2,7 @@ import { type WorkspaceServerURL } from "@instrument-org/shared";
 import { parseJsonEventStream } from "ai";
 import { z } from "zod";
 
+import { CLIENT_SESSION_ID_HEADER } from "../constants";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { internalURL } from "./internal-url";
 import { internalAPIKey } from "./key-for-provider";
@@ -70,6 +71,7 @@ export async function* streamOpenRouterImage({
   modelId,
   parameters,
   prompt,
+  sessionId,
   signal,
   workspaceServerURL,
 }: {
@@ -78,6 +80,8 @@ export async function* streamOpenRouterImage({
   modelId: string;
   parameters?: Record<string, boolean | number | string>;
   prompt: string;
+  /** The conversation this image belongs to, which groups it into that trace. */
+  sessionId: string;
   signal: AbortSignal;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<OpenRouterImageStreamEvent> {
@@ -95,6 +99,7 @@ export async function* streamOpenRouterImage({
       }),
       headers: {
         Authorization: `Bearer ${internalAPIKey()}`,
+        [CLIENT_SESSION_ID_HEADER]: sessionId,
         "Content-Type": "application/json",
       },
       method: "POST",

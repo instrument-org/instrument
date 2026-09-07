@@ -145,7 +145,7 @@ export const GenerateImage = setupTool({
       configs: getWorkspaceConfig().getAIProviderConfigs(),
     })}
   `,
-  async *execute({ input, model, signal, taskId, taskState }) {
+  async *execute({ input, model, sessionId, signal, taskId, taskState }) {
     const layout = buildWorkspaceFsLayout({
       attachedFolders: taskState.attachedFolders,
       projectFolderName: await resolveTaskProjectFolder(taskId),
@@ -290,6 +290,7 @@ export const GenerateImage = setupTool({
       count: 1,
       parameters: input.parameters,
       prompt: input.prompt,
+      sessionId,
       signal,
       sourceImages: sourceImageBuffers,
       workspaceConfig: getWorkspaceConfig(),

@@ -2,6 +2,7 @@ import {
   type AIGatewayModel,
   type AIGatewayProviderConfig,
   type AISDKImageModelResult,
+  CLIENT_SESSION_ID_HEADER,
   getImageModel,
   type ImageGenerationProviderType,
   imageModelSupportsStreaming,
@@ -19,6 +20,7 @@ import {
 } from "ai";
 import { err, ok, ResultAsync } from "neverthrow";
 
+import { type StoreId } from "../schemas/store-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 
@@ -89,6 +91,7 @@ export async function generateBufferedImage({
   parameters,
   prompt,
   resolved,
+  sessionId,
   signal,
   sourceImages,
   workspaceConfig,
@@ -97,6 +100,7 @@ export async function generateBufferedImage({
   parameters?: ImageGenerationParameters;
   prompt: string;
   resolved: ResolvedImageModel;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
   sourceImages?: Buffer[];
   workspaceConfig: WorkspaceConfig;
@@ -117,6 +121,10 @@ export async function generateBufferedImage({
     }
   }
 
+  // An image is made inside a turn, so every request here groups with the turn
+  // that asked for it.
+  const headers = { [CLIENT_SESSION_ID_HEADER]: sessionId };
+
   return ResultAsync.fromPromise(
     (async () => {
       if (type === "language") {
@@ -124,6 +132,7 @@ export async function generateBufferedImage({
           sourceImages && sourceImages.length > 0
             ? await generateText({
                 abortSignal: signal,
+                headers,
                 messages: [
                   {
                     content: [
@@ -138,7 +147,12 @@ export async function generateBufferedImage({
                 ],
                 model,
               })
-            : await generateText({ abortSignal: signal, model, prompt });
+            : await generateText({
+                abortSignal: signal,
+                headers,
+                model,
+                prompt,
+              });
 
         return {
           appliedParameters: {},
@@ -170,6 +184,7 @@ export async function generateBufferedImage({
       const imageResult = await generateImage({
         abortSignal: signal,
         aspectRatio,
+        headers,
         model,
         n: count,
         prompt:
@@ -220,6 +235,7 @@ export async function* generateImageStream(args: {
   count: number;
   parameters?: ImageGenerationParameters;
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
   sourceImages?: Buffer[];
   workspaceConfig: WorkspaceConfig;
@@ -254,6 +270,7 @@ export async function* generateImageStream(args: {
     parameters: args.parameters,
     prompt: args.prompt,
     resolved,
+    sessionId: args.sessionId,
     signal: args.signal,
     sourceImages: args.sourceImages,
     workspaceConfig: args.workspaceConfig,
@@ -286,6 +303,7 @@ async function* streamViaOpenRouter(args: {
   count: number;
   parameters?: ImageGenerationParameters;
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
@@ -314,6 +332,7 @@ async function* streamViaOpenRouter(args: {
       modelId,
       parameters: providerParams,
       prompt: args.prompt,
+      sessionId: args.sessionId,
       signal: args.signal,
       workspaceServerURL: args.workspaceServerURL,
     })) {

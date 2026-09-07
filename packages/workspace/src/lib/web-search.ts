@@ -2,6 +2,7 @@ import { type LanguageModelV3Source } from "@ai-sdk/provider";
 import {
   type AIGatewayModel,
   type AIGatewayProviderConfig,
+  CLIENT_SESSION_ID_HEADER,
   getWebSearchModel,
   namesSameModel,
 } from "@instrument-org/ai-gateway";
@@ -11,6 +12,7 @@ import { err, ok, type Result } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
+import { type StoreId } from "../schemas/store-id";
 import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
@@ -87,6 +89,7 @@ export async function* webSearch({
   callingModel,
   configs,
   prompt,
+  sessionId,
   signal,
   workspaceConfig,
   workspaceServerURL,
@@ -94,6 +97,7 @@ export async function* webSearch({
   callingModel: AIGatewayModel.Type;
   configs: AIGatewayProviderConfig.Type[];
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
@@ -125,6 +129,7 @@ export async function* webSearch({
     callingModel,
     configs,
     prompt,
+    sessionId,
     signal,
     workspaceConfig,
     workspaceServerURL,
@@ -253,6 +258,7 @@ async function* searchWithProviderModel({
   callingModel,
   configs,
   prompt,
+  sessionId,
   signal,
   workspaceConfig,
   workspaceServerURL,
@@ -260,6 +266,7 @@ async function* searchWithProviderModel({
   callingModel: AIGatewayModel.Type;
   configs: AIGatewayProviderConfig.Type[];
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
@@ -306,6 +313,8 @@ async function* searchWithProviderModel({
   try {
     const textResult = streamText({
       abortSignal: signal,
+      // A search runs inside a turn, so it groups with the turn that asked for it.
+      headers: { [CLIENT_SESSION_ID_HEADER]: sessionId },
       model,
       prompt,
       providerOptions,

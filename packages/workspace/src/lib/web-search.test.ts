@@ -5,6 +5,7 @@ import { MockLanguageModelV3 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
+import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { type WebSearchClient } from "../schemas/web-search";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -56,6 +57,7 @@ async function collect(callingModel: AIGatewayModel.Type) {
     callingModel,
     configs: workspaceConfig.getAIProviderConfigs(),
     prompt: "what changed recently",
+    sessionId: StoreId.newSessionId(),
     signal: new AbortController().signal,
     workspaceConfig,
     workspaceServerURL: getWorkspaceServerURL(),

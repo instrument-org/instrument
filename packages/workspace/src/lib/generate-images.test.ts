@@ -7,6 +7,7 @@ import { OUR_MODELS } from "@instrument-org/shared";
 import { generateImage } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { StoreId } from "../schemas/store-id";
 import { type WorkspaceConfig } from "../types";
 import { generateBufferedImage, generateImageStream } from "./generate-images";
 
@@ -24,6 +25,8 @@ vi.mock("ai", async (importOriginal) => ({
 const workspaceConfig = {
   captureException: vi.fn(),
 } as unknown as WorkspaceConfig;
+
+const SESSION_ID = StoreId.newSessionId();
 
 function callBuffered(
   configType: string,
@@ -44,6 +47,7 @@ function callBuffered(
       model: { modelId: "test-model" },
       type: "image",
     } as unknown as Parameters<typeof generateBufferedImage>[0]["resolved"],
+    sessionId: SESSION_ID,
     signal: new AbortController().signal,
     workspaceConfig,
   });
@@ -144,6 +148,7 @@ async function collectStream() {
     configs: [] as never,
     count: 1,
     prompt: "a cat",
+    sessionId: SESSION_ID,
     signal: new AbortController().signal,
     workspaceConfig,
     workspaceServerURL: "http://localhost" as never,

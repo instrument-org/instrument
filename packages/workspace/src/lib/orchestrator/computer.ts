@@ -15,6 +15,7 @@ import { outputFolderPath } from "./output-folder";
 const MAX_ENTRIES = 2000;
 
 export const ComputerEntrySchema = z.object({
+  createdAt: z.number().optional(),
   kind: z.enum(["file", "folder"]),
   mimeType: z.string().optional(),
   modifiedAt: z.number().optional(),
@@ -166,9 +167,16 @@ export async function listComputerFolder({
         return { kind: "file", name: entry.name, path: entryPath };
       }
       if (stats.isDirectory()) {
-        return { kind: "folder", name: entry.name, path: entryPath };
+        return {
+          createdAt: stats.birthtimeMs,
+          kind: "folder",
+          modifiedAt: stats.mtimeMs,
+          name: entry.name,
+          path: entryPath,
+        };
       }
       return {
+        createdAt: stats.birthtimeMs,
         kind: "file",
         mimeType: getMimeType(entry.name),
         modifiedAt: stats.mtimeMs,

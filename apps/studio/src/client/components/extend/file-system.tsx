@@ -107,6 +107,7 @@ export type FileSystemFolderItem = {
   hasChildren?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  metadata?: Record<string, string>;
 };
 export type FileSystemFileItem = {
   kind: "file";
@@ -183,12 +184,30 @@ export type FileSystemProps = {
   renderTrailing?: (folderPath: string) => React.ReactNode;
   /** What the columns view shows in its preview pane for a selected file, when something other than its icon. */
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
-  /** Controls drawn under a selected file's name in the columns view's preview pane. */
+  /**
+   * Controls drawn in the footer the columns view's preview pane stands on,
+   * below the file's information. The footer keeps its height whether or not
+   * anything is drawn in it, so a control that arrives late moves nothing.
+   */
   renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
   /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
   renderHeaderLead?: () => React.ReactNode;
   /** Right-click on an item, for a menu of what can be done to it. */
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
+  /** The item whose name is being typed over in its own row, by path. */
+  renamingPath?: string | null;
+  /** Return on a focused item, which is how the Finder starts a rename. */
+  onRenameStart?: (item: FileSystemItem) => void;
+  /** The name typed in the row, accepted. */
+  onRenameCommit?: (item: FileSystemItem, name: string) => void;
+  /** The row's name field, left without a new name. */
+  onRenameCancel?: () => void;
+  /**
+   * Whether the selection takes the keyboard with it as it moves. False while
+   * something outside holds focus and walks the selection from there, so the
+   * rows never pull focus out of it.
+   */
+  moveFocusWithSelection?: boolean;
   /**
    * Lazily render a page thumbnail beyond the eagerly provided
    * `previewImageUrls` (the pager calls this as pages come into view).
@@ -1229,6 +1248,11 @@ export function FileSystem({
   renderFileActions,
   renderHeaderLead,
   onItemContextMenu,
+  renamingPath,
+  onRenameStart,
+  onRenameCommit,
+  onRenameCancel,
+  moveFocusWithSelection = true,
 }: FileSystemProps) {
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
@@ -1810,6 +1834,11 @@ export function FileSystem({
     renderTrailing,
     renderFileStage,
     renderFileActions,
+    renamingPath,
+    onRenameStart,
+    onRenameCommit,
+    onRenameCancel,
+    moveFocusWithSelection,
     searchQuery,
     selectedEntry,
     selectedPath,
@@ -1843,7 +1872,41 @@ export function FileSystem({
           event.preventDefault();
           setIsSearchExpanded(true);
           searchInputRef.current?.focus();
+          return;
         }
+        // An arrow that reached the component without a row under it: the
+        // keyboard is on the browser itself (empty space clicked, the toolbar
+        // left behind), where the Finder still walks the folder. The row the
+        // rows' single tab stop names takes the keyboard and is handed the
+        // press, which its own view answers as it would any other. The synthetic
+        // press is untrusted, which is what keeps it from arriving back here.
+        if (!event.isTrusted || !ARROW_KEYS.has(event.key)) {
+          return;
+        }
+        const target =
+          event.target instanceof HTMLElement ? event.target : null;
+        if (
+          !target ||
+          isEditableTarget(target) ||
+          target.closest('[role="option"]')
+        ) {
+          return;
+        }
+        const row = rootRef.current?.querySelector<HTMLElement>(
+          '[role="option"][tabindex="0"]',
+        );
+        if (!row) {
+          return;
+        }
+        event.preventDefault();
+        row.focus();
+        row.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            bubbles: true,
+            cancelable: true,
+            key: event.key,
+          }),
+        );
       }}
       className={cn(
         "flex h-[480px] min-h-0 flex-col overflow-hidden rounded-xl border bg-background text-foreground outline-none",
@@ -2883,6 +2946,11 @@ type FileSystemViewProps = {
   renderTrailing?: (folderPath: string) => React.ReactNode;
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
+  renamingPath?: string | null;
+  onRenameStart?: (item: FileSystemItem) => void;
+  onRenameCommit?: (item: FileSystemItem, name: string) => void;
+  onRenameCancel?: () => void;
+  moveFocusWithSelection: boolean;
   searchQuery: string;
   selectedEntry: FileSystemEntry | null;
   selectedPath: string | null;
@@ -2969,6 +3037,15 @@ function FileSystemEmptyState({
   );
 }
 const ARROW_KEYS = new Set(["ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUp"]);
+// Somewhere a keypress belongs to whoever is typing there.
+function isEditableTarget(target: HTMLElement) {
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
 // Type-ahead buffers reset after this idle period, like Finder.
 const TYPE_AHEAD_RESET_MS = 700;
 // Letters and digits only — the same key test the tree uses — so shortcuts
@@ -3036,18 +3113,130 @@ function useEntryTypeAhead() {
     [],
   );
 }
+/**
+ * A name typed over where it sits, the way the Finder edits one: the field
+ * opens with the base name selected so typing keeps the extension, Return
+ * accepts it, Escape and an unchanged name abandon it, and clicking away
+ * accepts it. Every press stays in the field, so the letters and arrows a
+ * name is typed with are never read as walking the folder.
+ */
+function FileSystemNameField({
+  className,
+  name,
+  onCancel,
+  onCommit,
+}: {
+  className?: string;
+  name: string;
+  onCancel: () => void;
+  onCommit: (name: string) => void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  // Accepting unmounts the field, which blurs it; the second answer would
+  // rename what the first one already renamed.
+  const settledRef = React.useRef(false);
+  const settle = (next: string) => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    const trimmed = next.trim();
+    if (trimmed && trimmed !== name) {
+      onCommit(trimmed);
+    } else {
+      onCancel();
+    }
+  };
+  React.useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const dot = input.value.lastIndexOf(".");
+    input.focus();
+    input.setSelectionRange(0, dot > 0 ? dot : input.value.length);
+  }, []);
+  return (
+    <input
+      aria-label="Name"
+      className={cn(
+        "min-w-0 flex-1 rounded-sm border border-ring bg-background px-1 py-0 text-sm text-foreground outline-none",
+        className,
+      )}
+      defaultValue={name}
+      onBlur={(event) => {
+        settle(event.currentTarget.value);
+      }}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+      }}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === "Enter") {
+          event.preventDefault();
+          settle(event.currentTarget.value);
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          settledRef.current = true;
+          onCancel();
+        }
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+      ref={inputRef}
+      type="text"
+    />
+  );
+}
+/**
+ * What Return does to the item holding the keyboard: renames it where it sits,
+ * the way the Finder does, with ⌘O and ⌘↓ left to open it. Without a rename to
+ * start, Return opens, which is what it did before one existed.
+ */
+function handleEntryReturn({
+  entry,
+  event,
+  onOpen,
+  onRenameStart,
+}: {
+  entry: FileSystemEntry;
+  event: React.KeyboardEvent;
+  onOpen: (entry: FileSystemEntry) => void;
+  onRenameStart?: (item: FileSystemItem) => void;
+}) {
+  const isOpenKey =
+    (event.metaKey || event.ctrlKey) &&
+    (event.key === "o" || event.key === "ArrowDown");
+  if (isOpenKey) {
+    event.preventDefault();
+    // ⌘↓ is an arrow, and the view around the row walks the folder on those.
+    event.stopPropagation();
+    onOpen(entry);
+    return;
+  }
+  if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.altKey) {
+    return;
+  }
+  // Return on a `<button>` would otherwise be a click as well.
+  event.preventDefault();
+  if (onRenameStart) {
+    onRenameStart(entry);
+  } else {
+    onOpen(entry);
+  }
+}
 // Selects (and focuses) the entry reached by an arrow key. Up/down use row
 // geometry so navigation follows the rendered auto-fill grid.
 function moveGridSelection({
   entries,
   itemRefs,
   key,
+  moveFocus,
   onSelect,
   selectedPath,
 }: {
   entries: FileSystemEntry[];
   itemRefs: Map<string, HTMLButtonElement>;
   key: string;
+  /** Whether the tile the selection lands on takes the keyboard with it. */
+  moveFocus: boolean;
   onSelect: (entry: FileSystemEntry | null) => void;
   selectedPath: string | null;
 }) {
@@ -3083,7 +3272,7 @@ function moveGridSelection({
   }
   if (!nextEntry) return false;
   onSelect(nextEntry);
-  itemRefs.get(nextEntry.path)?.focus();
+  if (moveFocus) itemRefs.get(nextEntry.path)?.focus();
   return true;
 }
 // Icon grid geometry (px at the default 16px root font size). Tiles have a
@@ -3097,9 +3286,14 @@ const ICON_ROW_GAP = 12; // gap-y-3
 const ICON_ROW_STRIDE = ICON_TILE_HEIGHT + ICON_ROW_GAP;
 function FileSystemIconsView({
   entries,
+  moveFocusWithSelection,
   onItemContextMenu,
   onOpen,
+  onRenameCancel,
+  onRenameCommit,
+  onRenameStart,
   onSelect,
+  renamingPath,
   renderFilePreview,
   selectedPath,
 }: FileSystemViewProps) {
@@ -3217,9 +3411,11 @@ function FileSystemIconsView({
                 // The matched tile may be outside the virtual window; the
                 // selection effect scrolls it in, and focus follows once it
                 // has mounted.
-                requestAnimationFrame(() =>
-                  itemRefs.current.get(match.path)?.focus(),
-                );
+                if (moveFocusWithSelection) {
+                  requestAnimationFrame(() =>
+                    itemRefs.current.get(match.path)?.focus(),
+                  );
+                }
               }
               return;
             }
@@ -3228,6 +3424,7 @@ function FileSystemIconsView({
                 entries,
                 itemRefs: itemRefs.current,
                 key: event.key,
+                moveFocus: moveFocusWithSelection,
                 onSelect,
                 selectedPath,
               })
@@ -3238,6 +3435,49 @@ function FileSystemIconsView({
         >
           {visibleEntries.map((entry) => {
             const isSelected = entry.path === selectedPath;
+            const tileClassName =
+              "group flex h-[6.375rem] flex-col items-center gap-1.5 outline-none";
+            const glyph = (
+              <span
+                className={cn(
+                  "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring",
+                  isSelected && "bg-accent",
+                )}
+              >
+                {entry.kind === "folder" ? (
+                  <FileSystemFolderGlyph className="h-13 w-auto drop-shadow-sm" />
+                ) : (
+                  <FileVisual
+                    file={entry}
+                    className={cn(
+                      "rounded-sm shadow-xs",
+                      // Landscape thumbnails get extra width so they fill
+                      // the tile instead of rendering as a short sliver.
+                      (entry.previewAspectRatio ?? 0.78) > 1.2
+                        ? "w-[4.75rem]"
+                        : "w-12",
+                    )}
+                    previewAspectRatio={0.78}
+                    renderFilePreview={renderFilePreview}
+                  />
+                )}
+              </span>
+            );
+            if (entry.path === renamingPath) {
+              // The tile keeps its place in the grid while its name is typed
+              // over, so nothing around it moves.
+              return (
+                <div className={tileClassName} key={entry.path}>
+                  {glyph}
+                  <FileSystemNameField
+                    className="w-full text-center"
+                    name={entry.name}
+                    onCancel={() => onRenameCancel?.()}
+                    onCommit={(name) => onRenameCommit?.(entry, name)}
+                  />
+                </div>
+              );
+            }
             return (
               <button
                 key={entry.path}
@@ -3259,34 +3499,16 @@ function FileSystemIconsView({
                 onClick={() => onSelect(entry)}
                 onDoubleClick={() => onOpen(entry)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") onOpen(entry);
+                  handleEntryReturn({
+                    entry,
+                    event,
+                    onOpen,
+                    ...(onRenameStart ? { onRenameStart } : {}),
+                  });
                 }}
-                className="group flex h-[6.375rem] flex-col items-center gap-1.5 outline-none"
+                className={tileClassName}
               >
-                <span
-                  className={cn(
-                    "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring",
-                    isSelected && "bg-accent",
-                  )}
-                >
-                  {entry.kind === "folder" ? (
-                    <FileSystemFolderGlyph className="h-13 w-auto drop-shadow-sm" />
-                  ) : (
-                    <FileVisual
-                      file={entry}
-                      className={cn(
-                        "rounded-sm shadow-xs",
-                        // Landscape thumbnails get extra width so they fill
-                        // the tile instead of rendering as a short sliver.
-                        (entry.previewAspectRatio ?? 0.78) > 1.2
-                          ? "w-[4.75rem]"
-                          : "w-12",
-                      )}
-                      previewAspectRatio={0.78}
-                      renderFilePreview={renderFilePreview}
-                    />
-                  )}
-                </span>
+                {glyph}
                 <span
                   className={cn(
                     "max-w-full rounded-sm px-1.5 py-px text-center text-xs leading-tight break-words",
@@ -3907,10 +4129,15 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     index,
     loadPreviewImageUrl,
     loadingFolders,
+    moveFocusWithSelection,
     onItemContextMenu,
     onOpen,
+    onRenameCancel,
+    onRenameCommit,
+    onRenameStart,
     onSelect,
     pageUrlCache,
+    renamingPath,
     renderFilePreview,
     renderTrailing,
     renderFileStage,
@@ -3927,6 +4154,23 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   const deferredSelectedPath = React.useDeferredValue(selectedPath);
   const pendingFocusPathRef = React.useRef<string | null>(null);
   const typeAhead = useEntryTypeAhead();
+  // The keyboard follows the selection, except while something outside holds
+  // it and walks the folder from there: taking it back into a row would take
+  // it away from whatever has it. A row in a column that has not mounted yet
+  // is focused by the effect below, once it exists.
+  const focusRow = (path: string) => {
+    if (!moveFocusWithSelection) {
+      pendingFocusPathRef.current = null;
+      return;
+    }
+    const row = rowRefs.current.get(path);
+    if (row) {
+      pendingFocusPathRef.current = null;
+      row.focus();
+    } else {
+      pendingFocusPathRef.current = path;
+    }
+  };
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (!ARROW_KEYS.has(event.key)) {
       // Type-ahead moves within the active column's rows, like Finder.
@@ -3941,12 +4185,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
       );
       if (match) {
         onSelect(match);
-        const row = rowRefs.current.get(match.path);
-        if (row) {
-          row.focus();
-        } else {
-          pendingFocusPathRef.current = match.path;
-        }
+        focusRow(match.path);
       }
       return;
     }
@@ -3968,15 +4207,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     }
     if (!nextEntry) return;
     onSelect(nextEntry);
-    const row = rowRefs.current.get(nextEntry.path);
-    if (row) {
-      pendingFocusPathRef.current = null;
-      row.focus();
-    } else {
-      // The target row lives in a deferred column that hasn't mounted yet;
-      // focus it from the effect below once it exists.
-      pendingFocusPathRef.current = nextEntry.path;
-    }
+    focusRow(nextEntry.path);
     event.preventDefault();
   };
   React.useEffect(() => {
@@ -4061,6 +4292,9 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             isLoading={loadingFolders.has(columnPath)}
             onItemContextMenu={onItemContextMenu}
             onOpen={onOpen}
+            onRenameCancel={onRenameCancel}
+            onRenameCommit={onRenameCommit}
+            onRenameStart={onRenameStart}
             onResize={setColumnWidth}
             onSelect={onSelect}
             rowRefs={rowRefs}
@@ -4068,6 +4302,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             // Scalar per-column props so the memoized column only
             // re-renders when its own rows change — a selection deeper in
             // the trail leaves ancestor columns untouched.
+            renamingChildPath={
+              renamingPath && pathParent(renamingPath) === columnPath
+                ? renamingPath
+                : null
+            }
             selectedChildPath={
               selectedPath && pathParent(selectedPath) === columnPath
                 ? selectedPath
@@ -4082,49 +4321,56 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
           />
         ))}
         {selectedFile ? (
-          <InlineScrollArea2
-            orientation="vertical"
-            className="min-w-60 flex-1 contain-inline-size"
-            viewportClassName="flex justify-center p-4"
-          >
-            <div className="flex w-full max-w-lg flex-col items-stretch gap-3">
-              {/* Width derives from the aspect ratio so the thumbnail grows
+          <div className="flex min-w-60 flex-1 flex-col contain-inline-size">
+            <InlineScrollArea2
+              orientation="vertical"
+              className="min-h-0 flex-1"
+              viewportClassName="flex justify-center p-4"
+            >
+              <div className="flex w-full max-w-lg flex-col items-stretch gap-3">
+                {/* Width derives from the aspect ratio so the thumbnail grows
                 with the pane up to a 20rem height cap. */}
-              <div
-                className="mx-auto w-full shrink-0"
-                style={{
-                  maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? 0.78) * 20}rem)`,
-                }}
-              >
-                {selectedFileStage ?? (
-                  <FileVisual
-                    file={selectedFile}
-                    className="w-full"
-                    loadPreviewImageUrl={loadPreviewImageUrl}
-                    pageable
-                    pageUrlCache={pageUrlCache}
-                    previewAspectRatio={0.78}
-                    renderFilePreview={renderFilePreview}
-                  />
-                )}
+                <div
+                  className="mx-auto w-full shrink-0"
+                  style={{
+                    maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? 0.78) * 20}rem)`,
+                  }}
+                >
+                  {selectedFileStage ?? (
+                    <FileVisual
+                      file={selectedFile}
+                      className="w-full"
+                      loadPreviewImageUrl={loadPreviewImageUrl}
+                      pageable
+                      pageUrlCache={pageUrlCache}
+                      previewAspectRatio={0.78}
+                      renderFilePreview={renderFilePreview}
+                    />
+                  )}
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-semibold break-words">
+                    {selectedFile.name}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {fileKindLabel(selectedFile)}
+                    {selectedFileSize ? ` - ${selectedFileSize}` : null}
+                  </div>
+                </div>
+                <FileSystemInformation entry={selectedFile} index={index} />
               </div>
-              <div className="text-center">
-                <div className="text-sm font-semibold break-words">
-                  {selectedFile.name}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {fileKindLabel(selectedFile)}
-                  {selectedFileSize ? ` - ${selectedFileSize}` : null}
-                </div>
+            </InlineScrollArea2>
+            {/* What can be done with the file stands at the foot of the pane,
+                where the Mac keeps a preview's own controls, and holds its
+                height whether or not anything has arrived to fill it: a
+                control that resolves a moment late lands in a place already
+                left for it rather than moving the file above it. */}
+            {renderFileActions ? (
+              <div className="flex h-13 shrink-0 items-center justify-center border-t px-4">
+                {renderFileActions(selectedFile)}
               </div>
-              {renderFileActions ? (
-                <div className="flex justify-center">
-                  {renderFileActions(selectedFile)}
-                </div>
-              ) : null}
-              <FileSystemInformation entry={selectedFile} index={index} />
-            </div>
-          </InlineScrollArea2>
+            ) : null}
+          </div>
         ) : renderTrailing ? (
           <div className="min-w-52 flex-1 contain-inline-size">
             {renderTrailing(columnPaths[columnPaths.length - 1] ?? "")}
@@ -4150,8 +4396,12 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   isLoading,
   onItemContextMenu,
   onOpen,
+  onRenameCancel,
+  onRenameCommit,
+  onRenameStart,
   onResize,
   onSelect,
+  renamingChildPath,
   rowRefs,
   selectedChildPath,
   tabStopChildPath,
@@ -4163,8 +4413,12 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   isLoading: boolean;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onOpen: (entry: FileSystemEntry) => void;
+  onRenameCancel?: () => void;
+  onRenameCommit?: (item: FileSystemItem, name: string) => void;
+  onRenameStart?: (item: FileSystemItem) => void;
   onResize: (width: number) => void;
   onSelect: (entry: FileSystemEntry | null) => void;
+  renamingChildPath: string | null;
   rowRefs: React.RefObject<Map<string, HTMLButtonElement>>;
   selectedChildPath: string | null;
   tabStopChildPath: string | null;
@@ -4223,6 +4477,42 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                   entry.kind === "folder" && entry.path === trailChildPath;
                 const coverUrl =
                   entry.kind === "file" ? filePreviewUrls(entry)[0] : undefined;
+                const glyph =
+                  entry.kind === "folder" ? (
+                    <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />
+                  ) : coverUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
+                    <img
+                      src={coverUrl}
+                      alt=""
+                      draggable={false}
+                      className="size-4 shrink-0 rounded-[3px] bg-white object-cover"
+                    />
+                  ) : (
+                    <FileTypeIcon
+                      fileName={entry.name}
+                      className="size-4 shrink-0"
+                    />
+                  );
+                const rowClassName =
+                  "flex h-7 shrink-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none";
+                if (entry.path === renamingChildPath) {
+                  // The row keeps its place while its name is typed over, so
+                  // nothing above or below it moves.
+                  return (
+                    <div
+                      className={cn(rowClassName, "bg-accent")}
+                      key={entry.path}
+                    >
+                      {glyph}
+                      <FileSystemNameField
+                        name={entry.name}
+                        onCancel={() => onRenameCancel?.()}
+                        onCommit={(name) => onRenameCommit?.(entry, name)}
+                      />
+                    </div>
+                  );
+                }
                 return (
                   <button
                     key={entry.path}
@@ -4257,10 +4547,16 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     onClick={() => onSelect(entry)}
                     onDoubleClick={() => onOpen(entry)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") onOpen(entry);
+                      handleEntryReturn({
+                        entry,
+                        event,
+                        onOpen,
+                        ...(onRenameStart ? { onRenameStart } : {}),
+                      });
                     }}
                     className={cn(
-                      "flex h-7 shrink-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      rowClassName,
+                      "focus-visible:ring-2 focus-visible:ring-ring",
                       isSelected
                         ? "bg-primary text-primary-foreground"
                         : isOnTrail
@@ -4268,22 +4564,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                           : "hover:bg-accent/50",
                     )}
                   >
-                    {entry.kind === "folder" ? (
-                      <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />
-                    ) : coverUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
-                      <img
-                        src={coverUrl}
-                        alt=""
-                        draggable={false}
-                        className="size-4 shrink-0 rounded-[3px] bg-white object-cover"
-                      />
-                    ) : (
-                      <FileTypeIcon
-                        fileName={entry.name}
-                        className="size-4 shrink-0"
-                      />
-                    )}
+                    {glyph}
                     <span className="min-w-0 flex-1 truncate">
                       {entry.name}
                     </span>
@@ -4349,10 +4630,8 @@ function FileSystemInformation({
   const updated = formatTimestamp(entry.updatedAt);
   if (created) rows.push(["Created", created]);
   if (updated) rows.push(["Modified", updated]);
-  if (entry.kind === "file") {
-    const size = formatByteSize(entry.size);
-    if (size) rows.push(["Size", size]);
-  } else {
+  // A file's size is already beside its kind, under its name.
+  if (entry.kind === "folder") {
     const childCount = index.children.get(entry.path)?.length;
     if (childCount !== undefined) {
       rows.push(["Items", `${childCount}`]);

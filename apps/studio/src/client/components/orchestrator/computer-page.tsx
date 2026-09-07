@@ -6,14 +6,27 @@ import {
   type FileSystemItem,
 } from "@/client/components/extend/file-system";
 import { FileViewer } from "@/client/components/file-viewer";
+import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenTaskFileButton } from "@/client/components/open-task-file-button";
+import { OpenWithMenu } from "@/client/components/open-with-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { useOpenTaskFile } from "@/client/hooks/use-open-task-file";
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
+import { useTaskFileOpenTarget } from "@/client/hooks/use-task-file-open-target";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { cn } from "@/client/lib/utils";
+import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type ComputerListing,
@@ -21,8 +34,11 @@ import {
 } from "@instrument-org/workspace/client";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import ms from "ms";
@@ -82,7 +98,7 @@ export function ComputerPage({
   quickLookOpen: boolean;
   root: string;
 }) {
-  const { focusComposer, taskId } = useOrchestrator();
+  const { taskId } = useOrchestrator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
@@ -131,22 +147,12 @@ export function ComputerPage({
     return folder ? `${root}/${folder}` : root;
   };
 
-  // What the folder's own menu is open on, and where. A menu with no item is
-  // the one the folder's empty space gives: it can only make something.
-  const [menu, setMenu] = useState<{
-    hostPath?: string;
-    isFolder?: boolean;
-    x: number;
-    y: number;
-  }>();
-  // Renaming happens in a field where the menu was, since the browser draws
-  // its own rows and has no edit state of its own to put a caret in.
-  const [renaming, setRenaming] = useState<{
-    hostPath: string;
-    name: string;
-    x: number;
-    y: number;
-  }>();
+  // What the folder's own menu is open on. Nothing means the menu came up on
+  // the folder's empty space, where the only thing to do is make something.
+  const [menuItem, setMenuItem] = useState<FileSystemItem>();
+  // The item whose name is being typed over, by the path the browser knows it
+  // by; the row itself holds the field.
+  const [renamingPath, setRenamingPath] = useState<null | string>(null);
 
   const listings = useQueries({
     combine: combineListings,
@@ -164,10 +170,20 @@ export function ComputerPage({
       return [];
     }
     return data.entries.map((entry): FileSystemItem => {
+      const stamps = {
+        ...(entry.createdAt === undefined
+          ? {}
+          : { createdAt: new Date(entry.createdAt).toISOString() }),
+        ...(entry.modifiedAt === undefined
+          ? {}
+          : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
+      };
       if (entry.kind === "folder") {
         return {
+          ...stamps,
           hasChildren: true,
           kind: "folder",
+          metadata: { hostPath: entry.path },
           path: `${prefix}${entry.name}/`,
         };
       }
@@ -183,13 +199,11 @@ export function ComputerPage({
               version: entry.modifiedAt,
             });
       return {
+        ...stamps,
         contentType: entry.mimeType,
         kind: "file",
         metadata: { hostPath: entry.path, ...(mount ? { mount } : {}) },
         path: `${prefix}${entry.name}`,
-        ...(entry.modifiedAt === undefined
-          ? {}
-          : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
         ...(url && entry.mimeType?.startsWith("image/")
           ? { previewImageUrl: url, url }
           : url
@@ -210,17 +224,15 @@ export function ComputerPage({
   // The Finder's own actions on the user's own files. Nothing here is the
   // agent's: these run because the person browsing asked for them, from the
   // folder they are looking at.
-  const newFolderIn = async (parent: string, at: { x: number; y: number }) => {
+  const newFolderIn = async (parent: { hostPath: string; prefix: string }) => {
     try {
-      const made = await rpcClient.files.newFolder.call({ parent });
-      reread();
-      // Made and named in one move, the way the Finder does it.
-      setRenaming({
-        hostPath: made.path,
-        name: made.path.split("/").at(-1) ?? "",
-        x: at.x,
-        y: at.y,
+      const made = await rpcClient.files.newFolder.call({
+        parent: parent.hostPath,
       });
+      reread();
+      // Made and named in one move, the way the Finder does it: the field
+      // opens on the row as soon as the re-read puts the folder there.
+      setRenamingPath(`${parent.prefix}${made.path.split("/").at(-1) ?? ""}/`);
     } catch (error) {
       failed(error);
     }
@@ -287,6 +299,24 @@ export function ComputerPage({
     row?.focus({ preventScroll: true });
     // Once per opening, when its rows are first there.
   }, [openings, hasRows]);
+
+  // A name field closing leaves the keyboard on nothing, since the row it was
+  // in is being rebuilt under a new name. The browser itself takes it instead,
+  // which is where an arrow goes on to find the folder again.
+  const wasRenaming = useRef(false);
+  useEffect(() => {
+    if (renamingPath !== null) {
+      wasRenaming.current = true;
+      return;
+    }
+    if (!wasRenaming.current) {
+      return;
+    }
+    wasRenaming.current = false;
+    browserRef.current
+      ?.querySelector<HTMLElement>('[data-slot="file-system"]')
+      ?.focus({ preventScroll: true });
+  }, [renamingPath]);
 
   // The folders this tab has shown, in order, for back and forward the way
   // the Finder's are: a step back is a folder, never a screen the window was
@@ -504,196 +534,155 @@ export function ComputerPage({
         />
       </nav>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div
-          className="min-h-0 flex-1"
-          onContextMenu={(event) => {
-            // Empty space: the only thing there is to do to a folder from
-            // inside it is make something in it.
-            event.preventDefault();
-            setMenu({ x: event.clientX, y: event.clientY });
-          }}
-          ref={browserRef}
-        >
-          <FileSystem
-            className="h-full rounded-none border-0"
-            defaultPath={path}
-            defaultView="columns"
-            items={items}
-            key={`${root}#${openings}`}
-            loadChildren={async ({ path: prefix }) => {
-              setLoaded((previous) =>
-                previous.includes(prefix) ? previous : [...previous, prefix],
-              );
-              await queryClient.fetchQuery(
-                rpcClient.workspace.computer.list.queryOptions({
-                  input: { id: taskId, path: hostPathOf(prefix) },
-                }),
-              );
-              // The entries arrive through `items`, re-read on the clock
-              // above, so the browser is handed none of its own to hold.
-              return { items: [] };
-            }}
-            onFileOpen={(file) => {
-              void openFile(file);
-            }}
-            onItemContextMenu={(item, event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              setMenu({
-                hostPath: hostPathOf(item.path),
-                isFolder: item.kind === "folder",
-                x: event.clientX,
-                y: event.clientY,
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div
+              className="min-h-0 flex-1"
+              onContextMenu={(event) => {
+                // The row under the pointer has already said it is the one;
+                // anywhere else is the folder's empty space, where the only
+                // thing there is to do is make something in it.
+                if (
+                  !(event.target instanceof HTMLElement) ||
+                  !event.target.closest('[role="option"]')
+                ) {
+                  setMenuItem(undefined);
+                }
+              }}
+              ref={browserRef}
+            >
+              <FileSystem
+                className="h-full rounded-none border-0"
+                defaultPath={path}
+                defaultView="columns"
+                items={items}
+                key={`${root}#${openings}`}
+                loadChildren={async ({ path: prefix }) => {
+                  setLoaded((previous) =>
+                    previous.includes(prefix)
+                      ? previous
+                      : [...previous, prefix],
+                  );
+                  await queryClient.fetchQuery(
+                    rpcClient.workspace.computer.list.queryOptions({
+                      input: { id: taskId, path: hostPathOf(prefix) },
+                    }),
+                  );
+                  // The entries arrive through `items`, re-read on the clock
+                  // above, so the browser is handed none of its own to hold.
+                  return { items: [] };
+                }}
+                // The selection walks the folder under Quick Look, which holds
+                // the keyboard itself: a row taking it back would be taking it
+                // out of the panel the user is looking at.
+                moveFocusWithSelection={!quickLookOpen}
+                onFileOpen={(file) => {
+                  void openFile(file);
+                }}
+                onItemContextMenu={(item) => {
+                  setMenuItem(item);
+                }}
+                onPathChange={setCurrent}
+                onRenameCancel={() => {
+                  setRenamingPath(null);
+                }}
+                onRenameCommit={(item, name) => {
+                  setRenamingPath(null);
+                  void rename(hostPathOfItem(item), name);
+                }}
+                onRenameStart={(item) => {
+                  setRenamingPath(item.path);
+                }}
+                onSelectionChange={(item) => {
+                  setSelectedPath(item?.path ?? null);
+                }}
+                renamingPath={renamingPath}
+                renderFileActions={(file) => {
+                  const tab = fileTabOf(file);
+                  return tab ? (
+                    <FileOpenWith tab={tab} taskId={taskId} />
+                  ) : null;
+                }}
+                renderFileStage={(file) => {
+                  // Text reads as a thumbnail of the document, the way an image
+                  // does; the viewers the browser has of its own cover the rest.
+                  const tab = fileTabOf(file);
+                  if (!tab || !isTextLike(file)) {
+                    return null;
+                  }
+                  return (
+                    <DocumentThumbnail key={tab.mount}>
+                      <FileViewer
+                        className="h-full"
+                        file={{
+                          filename: tab.name,
+                          filePath: tab.mount,
+                          taskId,
+                          url: getAssetUrl({ assetBase, filePath: tab.mount }),
+                        }}
+                      />
+                    </DocumentThumbnail>
+                  );
+                }}
+                renderHeaderLead={() => (
+                  <span className="flex items-center gap-0.5 pr-1">
+                    <button
+                      aria-label="Back"
+                      className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                      disabled={trail.current.at === 0}
+                      onClick={() => {
+                        walk(-1);
+                      }}
+                      type="button"
+                    >
+                      <CaretLeftIcon className="size-4" />
+                    </button>
+                    <button
+                      aria-label="Forward"
+                      className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                      disabled={
+                        trail.current.at >= trail.current.folders.length - 1
+                      }
+                      onClick={() => {
+                        walk(1);
+                      }}
+                      type="button"
+                    >
+                      <CaretRightIcon className="size-4" />
+                    </button>
+                  </span>
+                )}
+                title={rootName}
+              />
+            </div>
+          </ContextMenuTrigger>
+          <FolderMenu
+            item={menuItem}
+            onDuplicate={() => void duplicate(hostPathOfItem(menuItem))}
+            onNewFolder={() => {
+              void newFolderIn({
+                hostPath: currentListing?.path ?? hostPathOf(onScreen),
+                prefix: onScreen,
               });
             }}
-            onPathChange={setCurrent}
-            onSelectionChange={(item) => {
-              setSelectedPath(item?.path ?? null);
+            onRename={() => {
+              setRenamingPath(menuItem?.path ?? null);
             }}
-            renderFileActions={(file) => {
-              const tab = fileTabOf(file);
-              return tab ? <FileOpenWith tab={tab} taskId={taskId} /> : null;
-            }}
-            renderFileStage={(file) => {
-              // Text reads as a thumbnail of the document, the way an image
-              // does; the viewers the browser has of its own cover the rest.
-              const tab = fileTabOf(file);
-              if (!tab || !isTextLike(file)) {
-                return null;
-              }
-              return (
-                <DocumentThumbnail key={tab.mount}>
-                  <FileViewer
-                    className="h-full"
-                    file={{
-                      filename: tab.name,
-                      filePath: tab.mount,
-                      taskId,
-                      url: getAssetUrl({ assetBase, filePath: tab.mount }),
-                    }}
-                  />
-                </DocumentThumbnail>
-              );
-            }}
-            renderHeaderLead={() => (
-              <span className="flex items-center gap-0.5 pr-1">
-                <button
-                  aria-label="Back"
-                  className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
-                  disabled={trail.current.at === 0}
-                  onClick={() => {
-                    walk(-1);
-                  }}
-                  type="button"
-                >
-                  <CaretLeftIcon className="size-4" />
-                </button>
-                <button
-                  aria-label="Forward"
-                  className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
-                  disabled={
-                    trail.current.at >= trail.current.folders.length - 1
-                  }
-                  onClick={() => {
-                    walk(1);
-                  }}
-                  type="button"
-                >
-                  <CaretRightIcon className="size-4" />
-                </button>
-                <button
-                  aria-label="New folder"
-                  className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                  onClick={(event) => {
-                    const box = event.currentTarget.getBoundingClientRect();
-                    void newFolderIn(hostPathOf(current), {
-                      x: box.left,
-                      y: box.bottom + 4,
-                    });
-                  }}
-                  title="New folder"
-                  type="button"
-                >
-                  <FolderPlusIcon className="size-4" />
-                </button>
-              </span>
-            )}
-            title={rootName}
+            onReveal={() =>
+              void rpcClient.utils.showFileInFolder
+                .call({ filepath: hostPathOfItem(menuItem) })
+                .catch(failed)
+            }
+            onTrash={() => void trash(hostPathOfItem(menuItem))}
+            taskId={taskId}
           />
-        </div>
+        </ContextMenu>
         <PathBar
           hostPath={currentListing?.path ?? rootHostPath ?? root}
           onOpen={rootTo}
           places={places.data}
         />
       </div>
-      {menu ? (
-        <FolderMenu
-          onAsk={
-            menu.hostPath
-              ? () => {
-                  focusComposer();
-                }
-              : undefined
-          }
-          onClose={() => {
-            setMenu(undefined);
-          }}
-          onDuplicate={
-            menu.hostPath
-              ? () => void duplicate(menu.hostPath ?? "")
-              : undefined
-          }
-          onNewFolder={() => {
-            void newFolderIn(
-              menu.hostPath && menu.isFolder
-                ? menu.hostPath
-                : hostPathOf(current),
-              { x: menu.x, y: menu.y },
-            );
-          }}
-          onRename={
-            menu.hostPath
-              ? () => {
-                  setRenaming({
-                    hostPath: menu.hostPath ?? "",
-                    name: menu.hostPath?.split("/").at(-1) ?? "",
-                    x: menu.x,
-                    y: menu.y,
-                  });
-                }
-              : undefined
-          }
-          onReveal={
-            menu.hostPath
-              ? () =>
-                  void rpcClient.utils.showFileInFolder
-                    .call({ filepath: menu.hostPath ?? "" })
-                    .catch(failed)
-              : undefined
-          }
-          onTrash={
-            menu.hostPath ? () => void trash(menu.hostPath ?? "") : undefined
-          }
-          x={menu.x}
-          y={menu.y}
-        />
-      ) : null}
-      {renaming ? (
-        <NameField
-          defaultValue={renaming.name}
-          onCancel={() => {
-            setRenaming(undefined);
-          }}
-          onCommit={(name) => {
-            const renamed = renaming.hostPath;
-            setRenaming(undefined);
-            void rename(renamed, name);
-          }}
-          x={renaming.x}
-          y={renaming.y}
-        />
-      ) : null}
     </div>
   );
 }
@@ -794,130 +783,86 @@ function FileOpenWith({ tab, taskId }: { tab: FileTab; taskId: TaskId }) {
   );
 }
 
-/** What can be done to the thing under the pointer, or to the folder itself. */
+/**
+ * What can be done to the thing under the pointer, or to the folder itself
+ * where there is nothing under it. A file the agent's folders cover opens the
+ * way one opens anywhere else in the app: the Mac's own app for it, with the
+ * others a submenu away.
+ */
 function FolderMenu({
-  onAsk,
-  onClose,
+  item,
   onDuplicate,
   onNewFolder,
   onRename,
   onReveal,
   onTrash,
-  x,
-  y,
+  taskId,
 }: {
-  onAsk?: () => void;
-  onClose: () => void;
-  onDuplicate?: () => void;
+  item: FileSystemItem | undefined;
+  onDuplicate: () => void;
   onNewFolder: () => void;
-  onRename?: () => void;
-  onReveal?: () => void;
-  onTrash?: () => void;
-  x: number;
-  y: number;
+  onRename: () => void;
+  onReveal: () => void;
+  onTrash: () => void;
+  taskId: TaskId;
 }) {
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("pointerdown", onClose);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("pointerdown", onClose);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
-  const item = (label: string, run: (() => void) | undefined) =>
-    run ? (
-      <button
-        className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"
-        onClick={() => {
-          run();
-          onClose();
-        }}
-        role="menuitem"
-        type="button"
-      >
-        {label}
-      </button>
-    ) : null;
+  const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
+  const file = tab ? { filePath: tab.mount, taskId } : undefined;
+  const openTaskFile = useOpenTaskFile();
+  const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
   return (
-    <div
-      className="fixed z-50 min-w-44 rounded-md border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md"
-      onPointerDown={(event) => {
-        event.stopPropagation();
-      }}
-      role="menu"
-      style={{ left: x, top: y }}
-    >
-      {item("Ask about this", onAsk)}
-      {onAsk ? <div className="my-1 h-px bg-border" /> : null}
-      {item("Show in Finder", onReveal)}
-      {item("New folder", onNewFolder)}
-      {item("Rename", onRename)}
-      {item("Duplicate", onDuplicate)}
-      {onTrash ? <div className="my-1 h-px bg-border" /> : null}
-      {item("Move to Trash", onTrash)}
-    </div>
+    <ContextMenuContent className="min-w-48">
+      {file && showOpen ? (
+        <>
+          <ContextMenuItem
+            onClick={() => {
+              openTaskFile(file);
+            }}
+          >
+            <OpenTargetIcon className="size-4" file={file} />
+            <span>{openLabel}</span>
+          </ContextMenuItem>
+          {showOpenWith ? (
+            <OpenWithMenu file={file} menuComponents={contextMenuComponents} />
+          ) : null}
+          <ContextMenuSeparator />
+        </>
+      ) : null}
+      {item ? (
+        <ContextMenuItem onClick={onReveal}>
+          <RevealInFolderIcon className="size-4" />
+          <span>{getRevealInFolderLabel()}</span>
+        </ContextMenuItem>
+      ) : null}
+      <ContextMenuItem onClick={onNewFolder}>
+        <FolderPlusIcon className="size-4" />
+        <span>New folder</span>
+      </ContextMenuItem>
+      {item ? (
+        <>
+          <ContextMenuItem onClick={onRename}>
+            <PencilSimpleIcon className="size-4" />
+            <span>Rename</span>
+          </ContextMenuItem>
+          <ContextMenuItem onClick={onDuplicate}>
+            <CopyIcon className="size-4" />
+            <span>Duplicate</span>
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={onTrash} variant="destructive">
+            <TrashIcon className="size-4" />
+            <span>Move to Trash</span>
+          </ContextMenuItem>
+        </>
+      ) : null}
+    </ContextMenuContent>
   );
 }
 
-/**
- * The field a new or renamed thing is named in, where the menu was. The
- * browser draws its own rows, so the name cannot yet turn into a field in
- * place; this is the field it would be.
- */
-function NameField({
-  defaultValue,
-  onCancel,
-  onCommit,
-  x,
-  y,
-}: {
-  defaultValue: string;
-  onCancel: () => void;
-  onCommit: (name: string) => void;
-  x: number;
-  y: number;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const input = inputRef.current;
-    if (!input) {
-      return;
-    }
-    // The base name, the way the Finder selects it: the extension is left out
-    // of the selection so typing over it keeps the kind.
-    const dot = defaultValue.lastIndexOf(".");
-    input.focus();
-    input.setSelectionRange(0, dot > 0 ? dot : defaultValue.length);
-  }, [defaultValue]);
-  return (
-    <input
-      className="fixed z-50 w-56 rounded-md border border-border bg-popover px-2 py-1 text-sm shadow-md outline-hidden focus:border-ring"
-      defaultValue={defaultValue}
-      onBlur={onCancel}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          onCancel();
-          return;
-        }
-        if (event.key !== "Enter") {
-          return;
-        }
-        const name = event.currentTarget.value.trim();
-        if (name && name !== defaultValue) {
-          onCommit(name);
-        } else {
-          onCancel();
-        }
-      }}
-      ref={inputRef}
-      style={{ left: x, top: y }}
-    />
-  );
+/** Where an item the browser is showing sits on the Mac. */
+function hostPathOfItem(item: FileSystemItem | undefined) {
+  const hostPath = item?.metadata?.hostPath;
+  return typeof hostPath === "string" ? hostPath : "";
 }
 
 /** A folder prefix and every folder above it, root first: `a/b/` is `""`, `a/`, `a/b/`. */

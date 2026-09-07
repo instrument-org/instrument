@@ -132,13 +132,30 @@ export async function runAppTest({
       ),
     });
   } else if (app.manifest.auth.kind === "oauth") {
-    // OAuth tokens live in the OAuth store, not the credential store; the
-    // connect check is what proves whether the user has signed in.
-    checks.push({
-      detail: "OAuth app: the sign-in is verified by the connect check.",
-      name: "credential",
-      status: "skip",
-    });
+    // OAuth tokens live in the OAuth store, not the credential store. The
+    // connect check cannot stand in for this: a server that answers a
+    // stranger's tools/list passes it with no sign-in behind it.
+    if (apps.oauth === undefined) {
+      checks.push({
+        detail: "OAuth app: no sign-in is possible in this context.",
+        name: "credential",
+        status: "skip",
+      });
+    } else if ((await apps.oauth.store.getTokens(slug)) === undefined) {
+      missing = "sign-in";
+      checks.push({
+        name: "credential",
+        ...failure(
+          "No sign-in is stored for this app. Ask the user to sign in with connect_app; the app connects on its own when they do.",
+        ),
+      });
+    } else {
+      checks.push({
+        detail: "A sign-in is stored for this app.",
+        name: "credential",
+        status: "pass",
+      });
+    }
   } else if (credential === null) {
     missing = "key";
     checks.push({

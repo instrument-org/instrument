@@ -1,4 +1,5 @@
 import { APP_NAME } from "@instrument-org/shared";
+import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { err, ok, type Result } from "neverthrow";
@@ -108,53 +109,76 @@ export async function beginMcpOAuth({
   });
   const client = new Client({ name: APP_NAME, version: "1.0.0" });
 
+  // A token from an earlier sign-in is the only thing that makes a connection
+  // a sign-in. Some servers answer initialize and tools/list to a stranger and
+  // refuse the first call (Google's Workspace servers do), so a connection
+  // with no token behind it is discovery, not a session, and the app is not
+  // connected on the strength of it.
+  const signedIn = (await store.getTokens(slug)) !== undefined;
+
+  let failure: unknown;
   try {
-    // A valid token from an earlier sign-in connects outright.
     await client.connect(transport);
-    const tools = await client.listTools();
+    if (signedIn) {
+      // A valid token from an earlier sign-in connects outright.
+      const tools = await client.listTools();
+      await client.close().catch(noop);
+      await recordConnection(slug, {
+        connectedAt: now,
+        manifestHash,
+        status: "connected",
+        toolCount: tools.tools.length,
+      });
+      return ok({ alreadyConnected: true });
+    }
+    // The server let the client in without asking, so the 401 that would
+    // have started the authorization is never coming: ask for it outright.
     await client.close().catch(noop);
-    await recordConnection(slug, {
-      connectedAt: now,
-      manifestHash,
-      status: "connected",
-      toolCount: tools.tools.length,
+    await auth(provider, {
+      scope: manifest.auth.scope,
+      serverUrl: new URL(manifest.url),
     });
-    return ok({ alreadyConnected: true });
   } catch (error) {
     await client.close().catch(noop);
-    if (opened.url === undefined) {
-      // Something other than the need to authorize (a network error, a
-      // refresh that failed without falling through to re-auth): no browser
-      // is wanted and there is no flow to park.
-      await transport.close().catch(noop);
-      return err({
-        message: `Could not start sign-in for "${slug}": ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        reason: "connect",
-      });
-    }
-    const state = await store.getState(slug);
-    if (state === undefined) {
-      await transport.close().catch(noop);
-      return err({
-        message:
-          "The sign-in produced no state parameter; the MCP server may not support authorization.",
-        reason: "unauthorized",
-      });
-    }
-    pendingFlows.set(state, {
-      appsDir,
-      expiresAt: now + PENDING_FLOW_TTL_MS,
-      opensIn,
-      provider,
-      slug,
-      store,
-      transport,
-      url: manifest.url,
-    });
-    return ok({ alreadyConnected: false, authorizationUrl: opened.url, state });
+    failure = error;
   }
+  if (opened.url === undefined) {
+    // Something other than the need to authorize (a network error, a
+    // refresh that failed without falling through to re-auth, a server whose
+    // authorization cannot be started): no browser is wanted and there is no
+    // flow to park.
+    await transport.close().catch(noop);
+    return err({
+      message: `Could not start sign-in for "${slug}": ${
+        failure instanceof Error
+          ? failure.message
+          : failure === undefined
+            ? "the server asked for no authorization"
+            : String(failure)
+      }`,
+      reason: "connect",
+    });
+  }
+  const state = await store.getState(slug);
+  if (state === undefined) {
+    await transport.close().catch(noop);
+    return err({
+      message:
+        "The sign-in produced no state parameter; the MCP server may not support authorization.",
+      reason: "unauthorized",
+    });
+  }
+  pendingFlows.set(state, {
+    appsDir,
+    expiresAt: now + PENDING_FLOW_TTL_MS,
+    opensIn,
+    provider,
+    slug,
+    store,
+    transport,
+    url: manifest.url,
+  });
+  return ok({ alreadyConnected: false, authorizationUrl: opened.url, state });
 }
 
 /**

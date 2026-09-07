@@ -90,7 +90,17 @@ export const workspaceServerLogic = fromCallback<
   void listenWithPortFallback({
     basePort: DEFAULT_APPS_SERVER_PORT,
     listen: (port) =>
-      serve({ fetch: app.fetch, hostname: LOOPBACK_HOST, port }),
+      serve({
+        fetch: app.fetch,
+        hostname: LOOPBACK_HOST,
+        // The server would otherwise put its own lightweight Response on the
+        // global, which is not what fetch returns: from then on every
+        // `instanceof Response` in the process is false, and a library that
+        // reads an error body that way (the MCP SDK's OAuth client) reports
+        // "[object Response]" instead of what the service said.
+        overrideGlobalObjects: false,
+        port,
+      }),
   })
     .then(({ port, server: startedServer }) => {
       server = startedServer;

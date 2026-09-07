@@ -149,13 +149,7 @@ export async function beginMcpOAuth({
     // flow to park.
     await transport.close().catch(noop);
     return err({
-      message: `Could not start sign-in for "${slug}": ${
-        failure instanceof Error
-          ? failure.message
-          : failure === undefined
-            ? "the server asked for no authorization"
-            : String(failure)
-      }`,
+      message: `Could not start sign-in for "${slug}": ${describeSignInFailure(failure)}`,
       reason: "connect",
     });
   }
@@ -267,6 +261,23 @@ export async function completeMcpOAuth({
 /** The slug a parked flow belongs to, for the callback to name it. */
 export function pendingMcpOAuthSlug(state: string): string | undefined {
   return pendingFlows.get(state)?.slug;
+}
+
+/**
+ * Why a sign-in could not begin, in words the conversation can pass on. A
+ * server that answers the client registration with 403 is not misconfigured:
+ * it only takes clients it has approved in advance (Figma's MCP server does
+ * this), so the card cannot be one and asking again changes nothing.
+ */
+function describeSignInFailure(failure: unknown): string {
+  if (failure === undefined) {
+    return "the server asked for no authorization";
+  }
+  const message = failure instanceof Error ? failure.message : String(failure);
+  if (/^HTTP 403\b/.test(message)) {
+    return "the server refuses to register a client from here (HTTP 403). It only accepts clients it has approved in advance, so this sign-in cannot be one; a sign-in on the Browser screen, or a server the service ships for this machine, is the way in.";
+  }
+  return message;
 }
 
 function dropPendingFlowsForSlug(slug: string): void {

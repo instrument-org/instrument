@@ -100,6 +100,13 @@ export type FileSystemFileItem = {
    * loads the remaining pages on demand via `loadPreviewImageUrl`.
    */
   previewPageCount?: number;
+  /**
+   * When this file was put in front of the user, for a list that is a log of
+   * what they were shown rather than a folder. Sortable, and nothing else: a
+   * file's own dates say when it was made and changed, which is a different
+   * question and often a different answer.
+   */
+  shownAt?: string;
   size?: number;
   updatedAt?: string;
   /** Optional if already public/presigned. Otherwise resolved via `getFileUrl`. */
@@ -464,6 +471,9 @@ export type FileSystemSortKey =
   | "createdAt"
   | "kind"
   | "name"
+  // Not in SORT_OPTIONS, so it never appears in the toolbar: only a list whose
+  // items carry `shownAt` can be in this order, and it opens in it.
+  | "shownAt"
   | "size"
   | "updatedAt";
 export type FileSystemSortState = {
@@ -632,9 +642,15 @@ function defaultSortDirection(key: FileSystemSortKey) {
 }
 function entrySortTimestamp(
   entry: FileSystemEntry,
-  key: "createdAt" | "updatedAt",
+  key: "createdAt" | "shownAt" | "updatedAt",
 ) {
-  const value = entry[key];
+  // A folder is never shown to anyone, so it has no `shownAt` to read.
+  const value =
+    key === "shownAt"
+      ? entry.kind === "file"
+        ? entry.shownAt
+        : undefined
+      : entry[key];
   const time = value ? Date.parse(value) : Number.NaN;
   return Number.isNaN(time) ? 0 : time;
 }

@@ -28,8 +28,8 @@ const places = base
   .handler(() => computerPlaces());
 
 /**
- * The files changed most recently in those folders, newest first, each with
- * whether the orchestrator `id` can reach it.
+ * The files the orchestrator `id` has shown the user, newest first, each with
+ * whether it can still reach it.
  */
 const recents = base
   .input(z.object({ id: TaskIdSchema }))

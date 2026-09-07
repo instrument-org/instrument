@@ -52,15 +52,15 @@ const REFRESH_MS = ms("4 seconds");
 
 /**
  * The soonest the recents are read again. Their own clock, slower than a
- * folder's: the scan reads every place the computer is entered from and the
- * folders under those, which is not a thing to do every few seconds.
+ * folder's: the answer is read out of what every channel has said, and it can
+ * only change when the conversation says something new.
  */
-const RECENTS_REFRESH_MS = ms("20 seconds");
+const RECENTS_REFRESH_MS = ms("15 seconds");
 
 /**
- * The place that is not a folder: the files changed most recently, wherever
- * they are. Stands where a root folder stands, so the browser opens on it the
- * way it opens on Home.
+ * The place that is not a folder: the files the conversation has shown the
+ * user, wherever they live. Stands where a root folder stands, so the browser
+ * opens on it the way it opens on Home.
  */
 export const RECENTS_ROOT = "recents:";
 
@@ -236,7 +236,7 @@ export function ComputerPage({
   }, [goneFolder]);
   const assetBase = getAssetBaseUrl(taskId);
   // The recents as a folder's worth of files: named where they live, and flat,
-  // since a list of what changed is not a tree.
+  // since a list of what was shown is not a tree.
   const recentEntries = recents.data ?? [];
   const recentKeys = recentPaths(recentEntries);
   const recentItems = recentEntries.map((entry, index): FileSystemItem => {
@@ -266,6 +266,7 @@ export function ComputerPage({
         : url
           ? { url }
           : {}),
+      shownAt: new Date(entry.shownAt).toISOString(),
       size: entry.size,
       ...(entry.modifiedAt === undefined
         ? {}
@@ -737,7 +738,7 @@ export function ComputerPage({
           enterListing();
         }}
       >
-        {/* What was touched last, before the places it was touched in. */}
+        {/* What the conversation showed, before the places a person keeps things. */}
         <PlaceList
           onOpen={(folder) => {
             rootTo(folder);
@@ -791,13 +792,15 @@ export function ComputerPage({
               <FileSystem
                 className="h-full rounded-none border-0"
                 defaultPath={path}
-                // A list of recent files opens newest first; anywhere else the
-                // browser's own name order is what a folder is expected to be in.
+                // The recents open in the order they were handed over, most
+                // recently shown first, which is the order the user met them
+                // in; anywhere else the browser's own name order is what a
+                // folder is expected to be in.
                 {...(isRecents
                   ? {
                       defaultSort: {
                         direction: "desc" as const,
-                        key: "updatedAt" as const,
+                        key: "shownAt" as const,
                       },
                     }
                   : {})}

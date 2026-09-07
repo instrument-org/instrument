@@ -1,29 +1,27 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { sort, unique } from "radashi";
 import { z } from "zod";
 
 import { type TaskId } from "../../schemas/task-id";
-import { assignAttachedMounts } from "../attached-folder-mounts";
 import { getMimeType } from "../get-mime-type";
+import { resolveExistingFilePath } from "../resolve-agent-path";
 import { taskDir } from "../task-dir-utils";
+import { resolveTaskProjectFolder } from "../task-project-folder";
 import { getTaskState } from "../task-record";
-import { effectiveFolderAccess } from "../workspace-fs-layout";
+import {
+  buildWorkspaceFsLayout,
+  type WorkspaceFsLayout,
+} from "../workspace-fs-layout";
+import { childTaskMounts } from "./children";
+import { linkedFiles } from "./linked-files";
 import { outputFolderPath } from "./output-folder";
 
 /** How many entries one listing carries. A folder past this shows the first. */
 const MAX_ENTRIES = 2000;
 
-/** How many recently changed files the recents list carries. */
+/** How many of the files the conversation showed the recents list carries. */
 const RECENTS_MAX = 20;
-
-/**
- * How many subfolders the recents scan looks inside, the ones changed most
- * recently first. A bound rather than a walk: the list is a glance at what
- * was touched today, not a search of the disk.
- */
-const RECENTS_FOLDERS = 30;
 
 export const ComputerEntrySchema = z.object({
   createdAt: z.number().optional(),
@@ -52,12 +50,18 @@ export const ComputerAccessSchema = z.object({
 export type ComputerAccess = z.output<typeof ComputerAccessSchema>;
 
 /**
- * A recently changed file, with whether the agent can reach it. A listing
- * answers that once for the folder it lists; these files come from all over,
- * so each carries its own answer.
+ * A file the conversation showed, with whether the agent can reach it. A
+ * listing answers that once for the folder it lists; these files come from all
+ * over, so each carries its own answer.
  */
 export const ComputerRecentSchema = ComputerEntrySchema.extend({
   access: ComputerAccessSchema.optional(),
+  /**
+   * When the conversation put this file in front of the user, which is what
+   * orders the list. Not the file's own dates: a file found last week and
+   * edited by hand this morning was still shown last week.
+   */
+  shownAt: z.number(),
 });
 export type ComputerRecent = z.output<typeof ComputerRecentSchema>;
 
@@ -97,7 +101,7 @@ export async function computerAccess(
   taskId: TaskId,
   hostPath: string,
 ): Promise<ComputerAccess | undefined> {
-  return accessIn(await attachedRoots(taskId), hostPath);
+  return accessIn(reachableRoots(await orchestratorLayout(taskId)), hostPath);
 }
 
 /**
@@ -193,49 +197,50 @@ export async function listComputerFolder({
 }
 
 /**
- * The files changed most recently across the folders the computer is entered
- * from, newest first.
+ * The files the conversation has shown the user, newest shown first.
  *
- * A glance rather than a search: each favorite is read, then the subfolders
- * that changed most recently are read once each, and nothing below that. A
- * file the user saved this morning is two clicks deep at worst, and the scan
- * costs one pass over folders that are already warm.
+ * A log of what the agent handed over rather than a report on the computer.
+ * The scan this replaces read every place a person keeps things and the
+ * folders under those, which on a Mac is a permission prompt per protected
+ * folder and answers with a list mostly of files the user made themselves,
+ * none of which this app has anything to say about. What the agent decided to
+ * put on screen is the thing worth listing, and it already said so in the
+ * reply, so nothing has to be kept up to date for this to be true.
+ *
+ * A file that has since been moved or thrown away drops off, since a row that
+ * opens nothing is worse than a shorter list.
  */
 export async function recentComputerFiles({
   taskId,
 }: {
   taskId: TaskId;
 }): Promise<ComputerRecent[]> {
-  const [{ favorites }, roots] = await Promise.all([
-    computerPlaces(),
-    attachedRoots(taskId),
+  const [shown, layout] = await Promise.all([
+    linkedFiles(taskId),
+    orchestratorLayout(taskId),
   ]);
-  const scanned = await Promise.all(
-    favorites.map((place) => readVisibleEntries(place.path)),
+  const roots = reachableRoots(layout);
+  const described = await Promise.all(
+    shown.map(async (file) => {
+      const resolved = resolveExistingFilePath({
+        inputPath: file.path,
+        layout,
+      });
+      const entry = resolved.isErr()
+        ? undefined
+        : await describeShownFile(resolved.value.absolutePath);
+      return entry && { ...entry, shownAt: file.at };
+    }),
   );
-  const top = scanned.flat();
-  const folders = sort(
-    top.filter((entry) => entry.kind === "folder"),
-    (entry) => entry.modifiedAt ?? 0,
-    true,
-  ).slice(0, RECENTS_FOLDERS);
-  const descended = await Promise.all(
-    folders.map((folder) => readVisibleEntries(folder.path)),
-  );
-  const inside = descended.flat();
-  // One favorite can sit inside another, so the same file arrives twice.
-  const files = unique(
-    [...top, ...inside].filter((entry) => entry.kind === "file"),
-    (file) => file.path,
-  );
-  const newest = sort(files, (file) => file.modifiedAt ?? 0, true).slice(
-    0,
-    RECENTS_MAX,
-  );
-  return newest.map((file) => {
-    const access = accessIn(roots, file.path);
-    return { ...file, ...(access === undefined ? {} : { access }) };
-  });
+  // Cut to length after the missing ones have gone, so a run of files that
+  // have since been thrown away does not empty the list.
+  return described
+    .filter((entry) => entry !== undefined)
+    .slice(0, RECENTS_MAX)
+    .map((file) => {
+      const access = accessIn(roots, file.path);
+      return { ...file, ...(access === undefined ? {} : { access }) };
+    });
 }
 
 /**
@@ -258,18 +263,6 @@ function accessIn(
     }
   }
   return best;
-}
-
-/** The folders granted to an orchestrator, each resolved to a host root. */
-async function attachedRoots(taskId: TaskId): Promise<AttachedRoot[]> {
-  const state = await getTaskState(taskDir(taskId));
-  return assignAttachedMounts(state.attachedFolders ?? {}).map(
-    ({ folder, mountPoint }) => ({
-      access: effectiveFolderAccess(folder),
-      mountPoint,
-      root: path.resolve(folder.path),
-    }),
-  );
 }
 
 /**
@@ -307,6 +300,35 @@ async function describeEntry(
   };
 }
 
+/**
+ * One shown file as the browser shows it. Nothing when it is no longer there,
+ * or is no longer a file: the list says what the user was handed, and they are
+ * free to move, replace or throw away anything on it afterwards.
+ */
+async function describeShownFile(
+  hostPath: string,
+): Promise<ComputerEntry | undefined> {
+  let stats;
+  try {
+    stats = await fs.stat(hostPath);
+  } catch {
+    return undefined;
+  }
+  if (!stats.isFile()) {
+    return undefined;
+  }
+  const name = path.basename(hostPath);
+  return {
+    createdAt: stats.birthtimeMs,
+    kind: "file",
+    mimeType: getMimeType(name),
+    modifiedAt: stats.mtimeMs,
+    name,
+    path: hostPath,
+    size: stats.size,
+  };
+}
+
 /** A host path the way a person writes it: the home folder as `~`. */
 function displayHostPath(hostPath: string): string {
   const home = os.homedir();
@@ -339,18 +361,32 @@ async function isDirectory(folder: string) {
   }
 }
 
-/** What a folder holds, hidden entries left out; nothing when it cannot be read. */
-async function readVisibleEntries(folder: string): Promise<ComputerEntry[]> {
-  let names: string[];
-  try {
-    names = await fs.readdir(folder);
-  } catch {
-    return [];
-  }
-  return Promise.all(
-    names
-      .filter((name) => !name.startsWith("."))
-      .slice(0, MAX_ENTRIES)
-      .map((name) => describeEntry(folder, name)),
-  );
+/**
+ * The orchestrator's own view of the filesystem: the folders the user attached
+ * and a read-only mount per task it created, which is where a file its work
+ * made actually sits.
+ */
+async function orchestratorLayout(taskId: TaskId) {
+  const taskHostRoot = taskDir(taskId);
+  const state = await getTaskState(taskHostRoot);
+  return buildWorkspaceFsLayout({
+    attachedFolders: state.attachedFolders,
+    extraMounts: await childTaskMounts(taskId),
+    projectFolderName: await resolveTaskProjectFolder(taskId),
+    taskHostRoot,
+  });
+}
+
+/**
+ * What an orchestrator can reach outside its own folder, each resolved to a
+ * host root: the folders the user granted it, and the tasks it created, which
+ * it reads and never writes. A file one of its tasks made lives in the second
+ * kind, so leaving those out would show the user a file with no way to open it.
+ */
+function reachableRoots(layout: WorkspaceFsLayout): AttachedRoot[] {
+  return layout.attached.map((mount) => ({
+    access: mount.readOnly ? "read-only" : "read-write",
+    mountPoint: mount.mountPoint,
+    root: path.resolve(mount.hostRoot),
+  }));
 }

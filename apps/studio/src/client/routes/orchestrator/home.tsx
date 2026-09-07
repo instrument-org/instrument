@@ -60,8 +60,8 @@ function HomeRoute() {
   const pins = useAtomValue(pinsAtom);
   // The folder the Finder in the box has open. Held here rather than in the
   // address, so walking the folders leaves this tab a new tab. It opens on
-  // what was touched last, which is what a tab opened to find something is
-  // most often opened to find.
+  // what the conversation showed, which is what a tab opened to find something
+  // is most often opened to find.
   const [finderAt, setFinderAt] = useState({ path: "", root: RECENTS_ROOT });
   // What the box is showing, for the conversation: a new tab with a folder
   // view on it has that folder in view, and what is selected in it.

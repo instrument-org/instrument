@@ -8,6 +8,13 @@ import {
   orchestratorActivity,
   OrchestratorActivitySchema,
 } from "../../lib/orchestrator/activity";
+import {
+  CHANNEL_NAME_MAX,
+  channelName,
+  channelStandings,
+  createChannel,
+  markChannelSeen,
+} from "../../lib/orchestrator/channels";
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
 import {
@@ -88,6 +95,41 @@ const ensure = base
     return result.value;
   });
 
+const ChannelSchema = z.object({
+  createdAt: z.number(),
+  id: StoreId.SessionSchema,
+  name: z.string(),
+  unread: z.number(),
+  updatedAt: z.number(),
+});
+
+/** The conversation's channels, in the order they were made. */
+const listChannelsRoute = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(ChannelSchema.array())
+  .handler(({ input }) => channelStandings(input.id));
+
+/** Makes a channel: a session of the same conversation under a name. */
+const createChannelRoute = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      name: z
+        .string()
+        .min(1)
+        .max(CHANNEL_NAME_MAX * 2),
+    }),
+  )
+  .output(ChannelSchema.omit({ unread: true, updatedAt: true }))
+  .handler(({ input }) => createChannel(input.id, channelName(input.name)));
+
+/** What the user has seen in a channel, so its count can clear. */
+const seenChannelRoute = base
+  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .handler(async ({ input }) => {
+    await markChannelSeen(input.id, input.sessionId);
+  });
+
 /**
  * The tab the window's browser has in front, which is the tab the
  * orchestrator's own `agent-browser` drives; null once no tab is open.
@@ -125,6 +167,11 @@ const open = base
 
 export const orchestrator = {
   activity,
+  channels: {
+    create: createChannelRoute,
+    list: listChannelsRoute,
+    seen: seenChannelRoute,
+  },
   children,
   childStatus,
   ensure,

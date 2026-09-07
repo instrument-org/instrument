@@ -7,6 +7,7 @@ import {
 } from "../constants";
 import { buildAppsContextText } from "../lib/apps/context";
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
+import { channelsContextText } from "../lib/orchestrator/channels";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
@@ -166,11 +167,18 @@ export const instrumentAgent = setupAgent({
 
     const modelsText = await newestModelsText();
     const appsText = await buildAppsContextText();
+    const channelsText = await channelsContextText(taskId, sessionId);
     const userMessage = createContextMessage({
       agentName: name,
       now,
       sessionId,
-      textParts: [getSystemInfoText(), foldersText, appsText, ...modelsText],
+      textParts: [
+        getSystemInfoText(),
+        ...(channelsText ? [channelsText] : []),
+        foldersText,
+        appsText,
+        ...modelsText,
+      ],
     });
 
     return [systemMessage, userMessage];

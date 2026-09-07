@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { BrowserTargetIdSchema } from "../types";
 import { FolderAttachment } from "./folder-attachment";
+import { StoreId } from "./store-id";
 import { TaskPane } from "./task-pane";
 
 // Where the user left off in a task: the draft they were typing, what the pane
@@ -30,6 +31,26 @@ export const StoredTaskStateSchema = z
     appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     browserTargetId: BrowserTargetIdSchema.optional(),
+    /**
+     * The orchestrator's channels, in the order they were made: each a session
+     * of the one conversation under a name the user chose, with the last
+     * message they have seen in it.
+     *
+     * Here rather than on the session record because the order and the name
+     * belong to the window that draws the strip, and because a session the
+     * list does not name is not a channel: the conversations a task's own
+     * `task send` opens, and anything older than channels, stay out of view.
+     */
+    channels: z
+      .array(
+        z.object({
+          createdAt: z.number(),
+          id: StoreId.SessionSchema,
+          name: z.string(),
+          seenMessageId: StoreId.MessageSchema.optional(),
+        }),
+      )
+      .optional(),
     // A pane this build cannot read costs the pane, not the folder list beside
     // it, which the record's silent catch would otherwise write away.
     // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
@@ -50,6 +71,12 @@ export const StoredTaskStateSchema = z
     promptDraft: z.string().optional(),
     selectedModelURI: z.string().optional(),
     showTutorial: z.boolean().optional(),
+    /**
+     * The channel each task was filed from, by task id: what sends a task's
+     * outcome back to the channel that asked for it rather than to whichever
+     * one is on screen when it finishes.
+     */
+    taskChannels: z.record(z.string(), StoreId.SessionSchema).optional(),
   })
   .default(() => ({}));
 

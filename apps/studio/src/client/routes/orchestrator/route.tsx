@@ -9,11 +9,13 @@ import {
   PINS_HEIGHT_MIN,
   RECENTS_MAX,
   screenViewAtom,
+  selectedChannelAtom,
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
+import { ChannelStrip } from "@/client/components/orchestrator/channel-strip";
 import { FilesLayoutContext } from "@/client/components/files-layout-context";
 import {
   BrowserTabs,
@@ -130,6 +132,46 @@ function OrchestratorLayout() {
     }),
   );
   const ids = ensure.data;
+  // The channels of the one conversation, and which of them is on screen. A
+  // channel is a session, so everything below that took a session id takes the
+  // selected channel's instead.
+  const channels = useQuery(
+    rpcClient.workspace.orchestrator.channels.list.queryOptions({
+      input: ids ? { id: ids.taskId } : skipToken,
+      refetchInterval: REFRESH_MS,
+    }),
+  );
+  const [selectedChannel, setSelectedChannel] = useAtom(selectedChannelAtom);
+  const channelList = channels.data ?? [];
+  const channelId =
+    channelList.find((channel) => channel.id === selectedChannel)?.id ??
+    channelList[0]?.id;
+  const sessionId = channelId
+    ? StoreId.SessionSchema.parse(channelId)
+    : ids?.sessionId;
+  const createChannel = useMutation(
+    rpcClient.workspace.orchestrator.channels.create.mutationOptions({
+      onSuccess: (channel) => {
+        setSelectedChannel(channel.id);
+        void channels.refetch();
+      },
+    }),
+  );
+  const markSeen = useMutation(
+    rpcClient.workspace.orchestrator.channels.seen.mutationOptions(),
+  );
+  // Which channels have a task running, for the dot on their tabs.
+  const activity = useQuery(
+    rpcClient.workspace.orchestrator.activity.queryOptions({
+      input: ids ? { id: ids.taskId } : skipToken,
+      refetchInterval: REFRESH_MS,
+    }),
+  );
+  const workingChannels = new Set(
+    (activity.data?.running ?? []).flatMap((task) =>
+      task.channel ? [task.channel] : [],
+    ),
+  );
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: ids ? { id: ids.taskId } : skipToken,
@@ -151,9 +193,20 @@ function OrchestratorLayout() {
   );
   const messages = useQuery(
     rpcClient.workspace.message.live.list.experimental_liveOptions({
-      input: ids ? { id: ids.taskId, sessionId: ids.sessionId } : skipToken,
+      input: ids && sessionId ? { id: ids.taskId, sessionId } : skipToken,
     }),
   );
+  // What the user has seen in the channel they are looking at, so its count
+  // clears while they read rather than only when they leave.
+  const newestMessageId = messages.data?.at(-1)?.id;
+  useEffect(() => {
+    if (!ids || !sessionId) {
+      return;
+    }
+    markSeen.mutate({ id: ids.taskId, sessionId });
+    // The mutation is stable; re-running on its identity would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+  }, [ids?.taskId, sessionId, newestMessageId]);
   const [defaultModelURI] = useDefaultModelURI();
   const screenView = useAtomValue(screenViewAtom);
   const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
@@ -371,13 +424,13 @@ function OrchestratorLayout() {
             id: ids.taskId,
             modelURI,
             prompt,
-            sessionId: ids.sessionId,
+            sessionId: sessionId ?? ids.sessionId,
           });
         },
         browser,
         openPage,
         openScreen,
-        sessionId: ids.sessionId,
+        sessionId: sessionId ?? ids.sessionId,
         taskId: ids.taskId,
       }
     : null;
@@ -458,10 +511,19 @@ function OrchestratorLayout() {
                   }}
                 />
                 <div className="flex min-h-0 flex-1 flex-col">
-                  <header className="flex h-8 shrink-0 items-center gap-2 px-3 text-sm font-medium">
-                    <InstrumentGlyph className="size-4" />
-                    <span>{APP_NAME}</span>
-                  </header>
+                  <ChannelStrip
+                    channels={channelList.map((channel) => ({
+                      id: channel.id,
+                      name: channel.name,
+                      unread: channel.id === sessionId ? 0 : channel.unread,
+                      working: workingChannels.has(channel.id),
+                    }))}
+                    onNew={(name) => {
+                      createChannel.mutate({ id: screens.taskId, name });
+                    }}
+                    onSelect={setSelectedChannel}
+                    selectedId={sessionId}
+                  />
                   {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
                   <div className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
                     {/* Names the task and session for the links inside, so a page

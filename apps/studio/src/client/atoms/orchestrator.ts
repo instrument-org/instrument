@@ -194,3 +194,18 @@ export const pinsAtom = atomWithStorage<Pin[]>(
   undefined,
   { getOnInit: true },
 );
+
+/**
+ * The channel the conversation is showing, by its session id.
+ *
+ * Kept here rather than in the route so the strip and the composer agree
+ * without threading it through the screens, and remembered across launches so
+ * the window opens where the user left off. An id that no longer names a
+ * channel falls back to the first one.
+ */
+export const selectedChannelAtom = atomWithStorage<null | string>(
+  "orchestrator.channel.v1",
+  null,
+  undefined,
+  { getOnInit: true },
+);

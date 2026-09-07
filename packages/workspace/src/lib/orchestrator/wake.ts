@@ -15,6 +15,7 @@ import { getTaskSettings, recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, turnStartedAt } from "./activity";
+import { channelOfTask } from "./attribution";
 import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
 
 /** What a wake carries: the part that starts the orchestrator's turn. */
@@ -154,11 +155,28 @@ async function deliver(
   events: TaskEvent[],
   workspaceRef: WorkspaceActorRef,
 ) {
-  await wakeWith(
-    orchestratorId,
-    { data: { events }, type: "data-taskEvent" },
-    workspaceRef,
-  );
+  // A task reports into the channel it was filed from, so a batch that spans
+  // channels becomes one wake each rather than one message in whichever
+  // channel happens to be newest.
+  const byChannel = new Map<string, TaskEvent[]>();
+  const sessions = new Map<string, StoreId.Session | undefined>();
+  for (const event of events) {
+    const sessionId = await channelOfTask({
+      orchestratorTaskId: orchestratorId,
+      taskId: event.taskId,
+    });
+    const key = sessionId ?? "";
+    sessions.set(key, sessionId);
+    byChannel.set(key, [...(byChannel.get(key) ?? []), event]);
+  }
+  for (const [key, channelEvents] of byChannel) {
+    await wakeWith(
+      orchestratorId,
+      { data: { events: channelEvents }, type: "data-taskEvent" },
+      workspaceRef,
+      sessions.get(key),
+    );
+  }
 }
 
 async function onSessionDone(
@@ -236,6 +254,8 @@ async function wakeWith(
   orchestratorId: TaskId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
+  /** The channel to wake in; the newest one when a caller has no channel. */
+  channelId?: StoreId.Session,
 ) {
   const workspaceConfig = getWorkspaceConfig();
   const state = await getTaskState(taskDir(orchestratorId));
@@ -258,7 +278,7 @@ async function wakeWith(
   if (session.isErr()) {
     throw session.error;
   }
-  const sessionId = session.value;
+  const sessionId = channelId ?? session.value;
 
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();

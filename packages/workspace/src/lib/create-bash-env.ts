@@ -500,7 +500,11 @@ export async function createBashEnv({
   // guards, so the orchestrator's shell stays network-free.
   const specializedCommands = orchestrator
     ? [
-        createTaskCommand({ orchestratorTaskId: taskId, remainingYieldMs }),
+        createTaskCommand({
+          orchestratorTaskId: taskId,
+          remainingYieldMs,
+          sessionId,
+        }),
         createAppCommand({ taskId }),
         createOpenCommand({ taskId }),
       ]

@@ -5,10 +5,13 @@ import { getTaskAgentStatus } from "../get-task-agent-status";
 import { isToolPart } from "../is-tool-part";
 import { Store } from "../store";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
+import { taskChannels } from "./attribution";
 import { listChildTasks } from "./children";
 import { latestSessionId } from "./latest-session";
 
 const RunningTaskSchema = z.object({
+  /** The channel it was filed from, absent for a task made before channels. */
+  channel: z.string().optional(),
   /** What the task is doing this moment, in its agent's own label, when it gave one. */
   step: z.string().optional(),
   taskId: z.string(),
@@ -85,10 +88,12 @@ export async function orchestratorActivity(
   orchestratorTaskId: TaskId,
 ): Promise<OrchestratorActivity> {
   const children = await listChildTasks(orchestratorTaskId);
+  const channels = await taskChannels(orchestratorTaskId);
   const running = await Promise.all(
     children
       .filter((child) => isWorking(child.id))
       .map(async (child) => ({
+        ...(channels[child.id] ? { channel: channels[child.id] } : {}),
         step: await latestStep(child.id),
         taskId: child.id,
         title: child.title,

@@ -1,0 +1,222 @@
+import { alphabetical } from "radashi";
+
+import { StoreId } from "../../schemas/store-id";
+import { type TaskState } from "../../schemas/task-state";
+import { type TaskId } from "../../schemas/task-id";
+import { Store } from "../store";
+import { taskDir } from "../task-dir-utils";
+import { getTaskState, setTaskState } from "../task-record";
+
+/** The channel every orchestrator has, made on first use. */
+export const DEFAULT_CHANNEL_NAME = "general";
+
+/** How long a channel's name may be. Short names keep the strip readable. */
+export const CHANNEL_NAME_MAX = 16;
+
+export type Channel = NonNullable<TaskState["channels"]>[number];
+
+/** A channel and what the user has not seen in it. */
+export interface ChannelStanding {
+  createdAt: number;
+  id: StoreId.Session;
+  name: string;
+  /** Assistant messages since the user last had this channel on screen. */
+  unread: number;
+  /** When anything last landed in it, for ordering and for the agent's context. */
+  updatedAt: number;
+}
+
+/**
+ * The channels of a conversation, in the order they were made, creating the
+ * first one when there is none.
+ *
+ * A conversation that predates channels has sessions but no list, so its
+ * newest session becomes `general` rather than being stranded: the window
+ * opens on what the user was last talking in.
+ */
+export async function listChannels(taskId: TaskId): Promise<Channel[]> {
+  const state = await getTaskState(taskDir(taskId));
+  const existing = state.channels ?? [];
+  if (existing.length > 0) {
+    return existing;
+  }
+  const adopted = await newestSessionId(taskId);
+  const channel: Channel = {
+    createdAt: Date.now(),
+    id: adopted ?? (await makeSession(taskId, DEFAULT_CHANNEL_NAME)),
+    name: DEFAULT_CHANNEL_NAME,
+  };
+  await setTaskState(taskDir(taskId), { channels: [channel] });
+  return [channel];
+}
+
+/** The channels with their unread counts and last activity, for the strip. */
+export async function channelStandings(
+  taskId: TaskId,
+): Promise<ChannelStanding[]> {
+  const channels = await listChannels(taskId);
+  const standings = await Promise.all(
+    channels.map(async (channel) => ({
+      ...channel,
+      unread: await unreadCount(taskId, channel),
+      updatedAt: await lastActivity(taskId, channel.id),
+    })),
+  );
+  return standings;
+}
+
+/** Makes a channel with a session of its own, and returns it. */
+export async function createChannel(
+  taskId: TaskId,
+  name: string,
+): Promise<Channel> {
+  const channels = await listChannels(taskId);
+  const channel: Channel = {
+    createdAt: Date.now(),
+    id: await makeSession(taskId, name),
+    name: channelName(name),
+  };
+  await setTaskState(taskDir(taskId), { channels: [...channels, channel] });
+  return channel;
+}
+
+/** Records what the user has seen in a channel, so its count can clear. */
+export async function markChannelSeen(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<void> {
+  const channels = await listChannels(taskId);
+  const newest = await newestMessageId(taskId, sessionId);
+  await setTaskState(taskDir(taskId), {
+    channels: channels.map((channel) =>
+      channel.id === sessionId
+        ? { ...channel, ...(newest ? { seenMessageId: newest } : {}) }
+        : channel,
+    ),
+  });
+}
+
+/** The channel a session belongs to, or none when the session is not one. */
+export async function channelOfSession(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<Channel | undefined> {
+  const channels = await listChannels(taskId);
+  return channels.find((channel) => channel.id === sessionId);
+}
+
+/** A channel by name, however the caller cased or hashed it. */
+export async function channelByName(
+  taskId: TaskId,
+  name: string,
+): Promise<Channel | undefined> {
+  const wanted = channelName(name);
+  const channels = await listChannels(taskId);
+  return channels.find((channel) => channel.name === wanted);
+}
+
+/** What a name becomes: no hash, no spaces, lowercase, bounded. */
+export function channelName(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^#+/, "")
+    .trim()
+    .toLowerCase()
+    .replaceAll(/\s+/g, "-")
+    .slice(0, CHANNEL_NAME_MAX);
+}
+
+async function lastActivity(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<number> {
+  const session = await Store.getSession(sessionId, taskId);
+  return session.isOk() ? (session.value.updatedAt?.getTime() ?? 0) : 0;
+}
+
+async function makeSession(
+  taskId: TaskId,
+  name: string,
+): Promise<StoreId.Session> {
+  const id = StoreId.newSessionId();
+  const now = new Date();
+  await Store.saveSession(
+    { createdAt: now, id, title: channelName(name), updatedAt: now },
+    taskId,
+  );
+  return id;
+}
+
+async function newestMessageId(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<StoreId.Message | undefined> {
+  const ids = await Store.getMessageIds(sessionId, taskId);
+  if (ids.isErr()) {
+    return undefined;
+  }
+  return alphabetical(ids.value, (id) => id).at(-1);
+}
+
+async function newestSessionId(
+  taskId: TaskId,
+): Promise<StoreId.Session | undefined> {
+  const sessions = await Store.getSessions(taskId);
+  if (sessions.isErr()) {
+    return undefined;
+  }
+  return alphabetical(sessions.value, (session) => session.id).at(-1)?.id;
+}
+
+/**
+ * What arrived in a channel while the user was elsewhere: its assistant
+ * messages after the last one they saw. Their own messages are seen by the
+ * act of typing them, so they never count.
+ */
+async function unreadCount(taskId: TaskId, channel: Channel): Promise<number> {
+  const ids = await Store.getMessageIds(channel.id, taskId);
+  if (ids.isErr()) {
+    return 0;
+  }
+  const seen = channel.seenMessageId;
+  const after = alphabetical(ids.value, (id) => id).filter((id) =>
+    seen ? id > seen : true,
+  );
+  if (after.length === 0) {
+    return 0;
+  }
+  const messages = await Store.getMessages({
+    messageIds: after,
+    sessionId: channel.id,
+    taskId,
+  });
+  if (messages.isErr()) {
+    return 0;
+  }
+  return messages.value.filter((message) => message.role === "assistant")
+    .length;
+}
+
+/**
+ * What the conversation is told about its channels: which one this message
+ * came from, and what the others are called, so a reply about "the reddit
+ * channel" means something and `chat read` has names to use.
+ */
+export async function channelsContextText(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<string> {
+  const channels = await listChannels(taskId);
+  const here = channels.find((channel) => channel.id === sessionId);
+  if (!here && channels.length <= 1) {
+    return "";
+  }
+  const others = channels.filter((channel) => channel.id !== sessionId);
+  const lines = [
+    `This message was sent in the channel #${here?.name ?? DEFAULT_CHANNEL_NAME}.`,
+    others.length > 0
+      ? `The user's other channels: ${others.map((channel) => `#${channel.name}`).join(", ")}. They are the same conversation with you, kept apart by subject; you are in all of them and remember all of them.`
+      : "It is the only channel so far.",
+  ];
+  return lines.join(" ");
+}

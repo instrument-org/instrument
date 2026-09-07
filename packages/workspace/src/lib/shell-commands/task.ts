@@ -24,6 +24,7 @@ import { initializeTask } from "../initialize-task";
 import { newMessage } from "../new-message";
 import { newTaskId } from "../new-task-id";
 import { isWorking } from "../orchestrator/activity";
+import { recordTaskChannel } from "../orchestrator/attribution";
 import { listChildTasks } from "../orchestrator/children";
 import {
   lastAssistantText,
@@ -52,6 +53,11 @@ export { TASK_COMMAND } from "./task-command";
 export interface TaskCommandContext {
   /** The orchestrator whose tasks these are. Every subcommand is scoped to it. */
   orchestratorTaskId: TaskId;
+  /**
+   * The channel this command is running in, recorded on every task it makes so
+   * the outcome comes back where it was asked for.
+   */
+  sessionId: StoreId.Session;
   /** What is left of the enclosing call's yield window, read when a wait starts. */
   remainingYieldMs: () => number;
 }
@@ -500,6 +506,11 @@ async function runNew(
   if (browserTargetId) {
     await setTaskState(taskDir(taskId), { browserTargetId });
   }
+  await recordTaskChannel({
+    orchestratorTaskId: context.orchestratorTaskId,
+    sessionId: context.sessionId,
+    taskId,
+  });
   const session = await latestOrNewSessionId(taskId);
   if (session.isErr()) {
     throw session.error;

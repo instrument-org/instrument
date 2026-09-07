@@ -10,6 +10,7 @@ import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -267,7 +268,6 @@ function HomeRoute() {
           <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground" />
           <input
             aria-label="Search or ask"
-            autoFocus
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             onChange={(event) => {
               setQuery(event.target.value);
@@ -302,6 +302,15 @@ function HomeRoute() {
               }
             }}
             placeholder="Search, open, or ask Instrument"
+            ref={(element) => {
+              // A new tab the user opened should be ready to type in, but this
+              // page also appears when a channel with no tabs is switched to,
+              // and there the caret belongs in that channel's composer. So it
+              // takes focus only when nothing is holding it.
+              if (element && !isTypingTarget(document.activeElement)) {
+                element.focus();
+              }
+            }}
             spellCheck={false}
             type="text"
             value={query}

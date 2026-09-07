@@ -1,21 +1,7 @@
-import {
-  ChannelChip,
-  type ChannelMark,
-  type RailChannel,
-} from "@/client/components/orchestrator/channel-rail";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useRef, useState } from "react";
-
-import { ChannelMarkPicker } from "./channel-mark-picker";
 
 /** A task of this channel, as the line under the banner says it. */
 export interface BannerTask {
@@ -29,35 +15,29 @@ export interface BannerTask {
  * The channel's name at the top of its conversation, and under it what the
  * channel is working on.
  *
- * The mark opens the picker, the name becomes the field that renames it, and
- * the caret beside the name reaches both. Nothing about a channel is edited
- * from the rail, which stays a place to aim at.
+ * No mark here: the rail is two inches away carrying the same one, and drawn
+ * twice that close it reads as a mistake. Which channel you are in is the
+ * rail's lit tile; this is its name, and clicking it renames it.
  */
 export function ChannelBanner({
   canEdit,
   channel,
-  onArchive,
-  onColor,
-  onEmoji,
+  onMenu,
   onRename,
   tasks,
 }: {
   /**
-   * False for the channel the conversation started in: it keeps the mark and
-   * the name it has, since it is the app's own room rather than one the user
-   * made.
+   * False for the channel the conversation started in: it keeps the name it
+   * has, since it is the app's own room rather than one the user made.
    */
   canEdit: boolean;
-  channel: ChannelMark & RailChannel;
-  /** Absent for the channel that cannot go: the conversation has to happen somewhere. */
-  onArchive?: () => void;
-  onColor: (color: string) => void;
-  onEmoji: (emoji: string) => void;
+  channel: { name: string };
+  /** The caret: the same menu the rail opens on right click. */
+  onMenu: (at: { x: number; y: number }) => void;
   onRename: (name: string) => void;
   tasks: BannerTask[];
 }) {
   const [isRenaming, setRenaming] = useState(false);
-  const [isPicking, setPicking] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const commit = () => {
@@ -68,32 +48,9 @@ export function ChannelBanner({
     }
   };
 
-  const mark = (
-    <ChannelChip channel={channel} className="size-7 bg-card text-[15px]" />
-  );
-
   return (
     <>
-      <div className="flex h-10 shrink-0 items-center gap-1 px-2">
-        {canEdit ? (
-          <ChannelMarkPicker
-            onColor={onColor}
-            onEmoji={onEmoji}
-            onOpenChange={setPicking}
-            open={isPicking}
-            {...(channel.color === undefined ? {} : { color: channel.color })}
-          >
-            <button
-              aria-label="Change this channel's mark"
-              className="shrink-0 rounded-lg hover:opacity-80"
-              type="button"
-            >
-              {mark}
-            </button>
-          </ChannelMarkPicker>
-        ) : (
-          mark
-        )}
+      <div className="flex h-10 shrink-0 items-center px-3">
         {isRenaming ? (
           <input
             className="h-7 min-w-0 flex-1 rounded-md bg-card px-1.5 text-[13px] font-medium ring-1 ring-border outline-hidden focus:ring-ring"
@@ -129,53 +86,26 @@ export function ChannelBanner({
               onClick={() => {
                 setRenaming(true);
               }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onMenu({ x: event.clientX, y: event.clientY });
+              }}
               title={canEdit ? "Rename this channel" : channel.name}
               type="button"
             >
               {channel.name}
             </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  aria-label="Channel menu"
-                  className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-                  type="button"
-                >
-                  <CaretDownIcon className="size-3" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-44">
-                <DropdownMenuItem
-                  disabled={!canEdit}
-                  onSelect={() => {
-                    setRenaming(true);
-                  }}
-                >
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={!canEdit}
-                  onSelect={(event) => {
-                    // The picker is a popover of its own; letting the menu
-                    // close first would take the trigger with it.
-                    event.preventDefault();
-                    setPicking(true);
-                  }}
-                >
-                  Change mark and color
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  disabled={!onArchive}
-                  onSelect={() => {
-                    onArchive?.();
-                  }}
-                  variant="destructive"
-                >
-                  Archive
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              aria-label="Channel menu"
+              className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+              onClick={(event) => {
+                const box = event.currentTarget.getBoundingClientRect();
+                onMenu({ x: box.left, y: box.bottom + 4 });
+              }}
+              type="button"
+            >
+              <CaretDownIcon className="size-3" />
+            </button>
           </div>
         )}
       </div>

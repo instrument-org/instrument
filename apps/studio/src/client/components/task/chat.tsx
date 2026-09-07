@@ -72,6 +72,7 @@ export function TaskChat({
   alwaysSubmittable = false,
   beforeComposer,
   composerLead,
+  composerPlaceholder,
   isReplayActive = false,
   navigateOnSend = true,
   onCancelReplay,
@@ -95,6 +96,8 @@ export function TaskChat({
   beforeComposer?: ReactNode;
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
+  /** What the empty composer says, when the window knows better than the app's name does. */
+  composerPlaceholder?: string;
   isReplayActive?: boolean;
   /**
    * Whether a successful send moves the route to the task page with the
@@ -430,7 +433,7 @@ export function TaskChat({
       placeholder={
         !alwaysSubmittable && isQueueEnabled && isAgentAlive
           ? "Queue a follow-up…"
-          : `Talk to ${APP_NAME}`
+          : (composerPlaceholder ?? `Talk to ${APP_NAME}`)
       }
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}

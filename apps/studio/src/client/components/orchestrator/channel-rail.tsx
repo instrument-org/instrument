@@ -122,11 +122,14 @@ export function ChannelFace({
  */
 export function ChannelRail({
   channels,
+  onMenu,
   onNew,
   onSelect,
   selectedId,
 }: {
   channels: RailChannel[];
+  /** Right-clicked: the channel and where, for the menu the banner also opens. */
+  onMenu: (id: string, at: { x: number; y: number }) => void;
   onNew: () => void;
   onSelect: (id: string) => void;
   selectedId?: string;
@@ -145,6 +148,9 @@ export function ChannelRail({
             channel={{ ...channel, isHome: index === 0 }}
             isSelected={channel.id === selectedId}
             key={channel.id}
+            onMenu={(at) => {
+              onMenu(channel.id, at);
+            }}
             onSelect={() => {
               onSelect(channel.id);
             }}
@@ -178,10 +184,12 @@ function assignedColor(name: string) {
 function ChannelTile({
   channel,
   isSelected,
+  onMenu,
   onSelect,
 }: {
   channel: ChannelMark & RailChannel;
   isSelected: boolean;
+  onMenu: (at: { x: number; y: number }) => void;
   onSelect: () => void;
 }) {
   // The rail scrolls, so anything drawn beside a tile is clipped by it. The
@@ -197,6 +205,11 @@ function ChannelTile({
           isSelected ? "" : "opacity-55 hover:opacity-100",
         )}
         onClick={onSelect}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setFlyoutAt(undefined);
+          onMenu({ x: event.clientX, y: event.clientY });
+        }}
         onPointerEnter={(event) => {
           const box = event.currentTarget.getBoundingClientRect();
           setFlyoutAt({ left: box.right + 8, top: box.top + box.height / 2 });
@@ -210,8 +223,14 @@ function ChannelTile({
           channel={channel}
           className={cn(
             !channel.color && !channel.isHome ? "" : "bg-card",
-            isSelected && "shadow-sm ring-2 ring-foreground/80",
-            channel.working && !isSelected && "ring-2 ring-primary",
+            // An outline rather than a ring: the chip sets its ring color
+            // inline from the channel's tint, so a selected ring would come
+            // out the channel's color instead of the selection's.
+            isSelected &&
+              "shadow-sm outline-2 -outline-offset-2 outline-foreground/80",
+            channel.working &&
+              !isSelected &&
+              "outline-2 -outline-offset-2 outline-primary",
           )}
         />
         {channel.needsYou ? (

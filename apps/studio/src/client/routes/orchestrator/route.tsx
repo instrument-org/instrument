@@ -19,6 +19,10 @@ import {
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
 import { ChannelBanner } from "@/client/components/orchestrator/channel-banner";
+import {
+  ChannelMenu,
+  type MenuAt,
+} from "@/client/components/orchestrator/channel-menu";
 import { ChannelRail } from "@/client/components/orchestrator/channel-rail";
 import {
   OrchestratorContext,
@@ -78,6 +82,7 @@ import {
   type ReactNode,
   Suspense,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -206,6 +211,9 @@ function OrchestratorLayout() {
     running.flatMap((task) => (task.channel ? [task.channel] : [])),
   );
   const [isNewChannelOpen, setNewChannelOpen] = useState(false);
+  // Which channel a menu was asked for and where, so the rail's right click
+  // and the banner's caret open the same one.
+  const [menu, setMenu] = useState<{ at: MenuAt; id: string }>();
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: ids ? { id: ids.taskId } : skipToken,
@@ -466,7 +474,9 @@ function OrchestratorLayout() {
         // The composer is the sidebar's, so a screen that wants the caret in
         // it reaches through the box the conversation is drawn in.
         focusComposer: () => {
-          conversationRef.current?.querySelector("textarea")?.focus();
+          conversationRef.current
+            ?.querySelector<HTMLElement>('[contenteditable="true"], textarea')
+            ?.focus();
         },
         openPage,
         openScreen,
@@ -474,6 +484,19 @@ function OrchestratorLayout() {
         taskId: ids.taskId,
       }
     : null;
+
+  // Opening a channel is the user saying they want to talk in it, so the caret
+  // goes to its composer. A layout effect, which runs after the newly mounted
+  // screen has taken focus for itself, so the channel's own composer wins over
+  // a new tab page's search box.
+  useLayoutEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+    conversationRef.current
+      ?.querySelector<HTMLElement>('[contenteditable="true"], textarea')
+      ?.focus();
+  }, [sessionId]);
 
   if (ensure.error) {
     return (
@@ -498,6 +521,7 @@ function OrchestratorLayout() {
   }));
   const openChannel = railChannels.find((channel) => channel.id === sessionId);
   const isHomeChannel = channelList[0]?.id === sessionId;
+  const menuChannel = railChannels.find((channel) => channel.id === menu?.id);
   // Only this channel's work, since the line belongs to the channel rather
   // than to the window.
   const channelTasks = running
@@ -534,6 +558,9 @@ function OrchestratorLayout() {
               it switches. */}
             <ChannelRail
               channels={railChannels}
+              onMenu={(id, at) => {
+                setMenu({ at, id });
+              }}
               onNew={() => {
                 setNewChannelOpen(true);
               }}
@@ -572,43 +599,10 @@ function OrchestratorLayout() {
                 <div className="flex min-h-0 flex-1 flex-col pt-10">
                   {openChannel && (
                     <ChannelBanner
-                      canEdit={channelList[0]?.id !== openChannel.id}
-                      channel={{ ...openChannel, isHome: isHomeChannel }}
-                      {...(channelList[0] &&
-                      channelList[0].id !== openChannel.id
-                        ? {
-                            onArchive: () => {
-                              setSelectedChannel(
-                                channelList.find(
-                                  (channel) => channel.id !== openChannel.id,
-                                )?.id ?? null,
-                              );
-                              archiveChannel.mutate({
-                                id: screens.taskId,
-                                sessionId: StoreId.SessionSchema.parse(
-                                  openChannel.id,
-                                ),
-                              });
-                            },
-                          }
-                        : {})}
-                      onColor={(color) => {
-                        updateChannel.mutate({
-                          color,
-                          id: screens.taskId,
-                          sessionId: StoreId.SessionSchema.parse(
-                            openChannel.id,
-                          ),
-                        });
-                      }}
-                      onEmoji={(emoji) => {
-                        updateChannel.mutate({
-                          emoji,
-                          id: screens.taskId,
-                          sessionId: StoreId.SessionSchema.parse(
-                            openChannel.id,
-                          ),
-                        });
+                      canEdit={!isHomeChannel}
+                      channel={openChannel}
+                      onMenu={(at) => {
+                        setMenu({ at, id: openChannel.id });
                       }}
                       onRename={(name) => {
                         updateChannel.mutate({
@@ -638,6 +632,11 @@ function OrchestratorLayout() {
                         <TaskChat
                           alwaysSubmittable
                           composerLead={<ViewChip />}
+                          {...(openChannel
+                            ? {
+                                composerPlaceholder: `Message ${openChannel.name}`,
+                              }
+                            : {})}
                           navigateOnSend={false}
                           presentation="orchestrator"
                           promptDraft={state.data.promptDraft ?? ""}
@@ -725,6 +724,43 @@ function OrchestratorLayout() {
                   </ActiveTabProvider>
                 </div>
               </div>
+              {menuChannel && (
+                <ChannelMenu
+                  at={menu?.at}
+                  canEdit={channelList[0]?.id !== menuChannel.id}
+                  channel={menuChannel}
+                  onChange={(edits) => {
+                    updateChannel.mutate({
+                      ...edits,
+                      id: screens.taskId,
+                      sessionId: StoreId.SessionSchema.parse(menuChannel.id),
+                    });
+                  }}
+                  onClose={() => {
+                    setMenu(undefined);
+                  }}
+                  {...(channelList[0]?.id === menuChannel.id
+                    ? {}
+                    : {
+                        onArchive: () => {
+                          if (menuChannel.id === sessionId) {
+                            setSelectedChannel(
+                              channelList.find(
+                                (channel) => channel.id !== menuChannel.id,
+                              )?.id ?? null,
+                            );
+                          }
+                          archiveChannel.mutate({
+                            id: screens.taskId,
+                            sessionId: StoreId.SessionSchema.parse(
+                              menuChannel.id,
+                            ),
+                          });
+                          setMenu(undefined);
+                        },
+                      })}
+                />
+              )}
               <NewChannelDialog
                 onCreate={(channel) => {
                   createChannel.mutate({ ...channel, id: screens.taskId });

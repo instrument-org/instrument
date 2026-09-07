@@ -3,10 +3,14 @@ import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { loadWindowURL } from "@/electron-main/lib/load-window-url";
 import { openExternal } from "@/electron-main/lib/open-external";
+import {
+  isQuitApproved,
+  requestQuitApproval,
+} from "@/electron-main/lib/quit-guard";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { BrowserWindow } from "electron";
+import { app, BrowserWindow } from "electron";
 import path from "node:path";
 
 const ORCHESTRATOR_WIDTH = 1240;
@@ -57,9 +61,29 @@ export function openOrchestratorWindow(): BrowserWindow {
     orchestratorWindow?.show();
   });
 
+  // Closing the last window the user can see quits the app, so the
+  // running-agent warning has to happen here, while the window still exists.
+  // Asking after the fact would destroy the window first and leave a canceled
+  // quit with a running process the user can't get back to.
+  orchestratorWindow.on("close", (event) => {
+    if (isQuitApproved() || hasVisibleWindowOtherThan(orchestratorWindow)) {
+      return;
+    }
+    event.preventDefault();
+    void requestQuitApproval().then((approved) => {
+      if (approved && orchestratorWindow && !orchestratorWindow.isDestroyed()) {
+        orchestratorWindow.close();
+      }
+    });
+  });
+
   orchestratorWindow.on("closed", () => {
     orchestratorWindow = null;
     publisher.publish("window.focus-changed", null);
+    // The window is already out of the list by now, so nothing to exclude.
+    if (!hasVisibleWindowOtherThan(null)) {
+      app.quit();
+    }
   });
 
   orchestratorWindow.on("focus", () => {
@@ -111,4 +135,18 @@ export function updateOrchestratorWindowBackgroundColor() {
   if (orchestratorWindow && !orchestratorWindow.isDestroyed()) {
     orchestratorWindow.setBackgroundColor(getBackgroundColor());
   }
+}
+
+/**
+ * Whether the user can still see a window other than this one. The classic
+ * window is open under Instrument 2.0 only to hold the tasks' machinery and is
+ * kept hidden, so it is not a window to be left with: `window-all-closed`
+ * counts it and would never fire, leaving a running process with nothing on
+ * screen and, outside macOS, no dock or tray to bring one back from.
+ */
+function hasVisibleWindowOtherThan(exclude: BrowserWindow | null) {
+  return BrowserWindow.getAllWindows().some(
+    (window) =>
+      window !== exclude && !window.isDestroyed() && window.isVisible(),
+  );
 }

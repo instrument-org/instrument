@@ -3874,7 +3874,13 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   return (
     <InlineScrollArea2
       orientation="horizontal"
-      viewportClassName="overscroll-x-contain"
+      // The viewport's own content wrapper is `display: table` inline, and a
+      // percentage height inside a table box is a minimum rather than a
+      // bound: each column grew to its rows and the outer viewport, which
+      // only scrolls sideways, clipped them, so nothing answered the wheel.
+      // A block wrapper holds the columns to the viewport's height, and the
+      // trail still overflows it sideways for the horizontal scroll.
+      viewportClassName="overscroll-x-contain [&>div]:block!"
       viewportRef={scrollContainerRef}
     >
       {/* The Content part's ResizeObserver tells the scroll area when the

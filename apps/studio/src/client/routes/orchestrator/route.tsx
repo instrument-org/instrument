@@ -18,10 +18,8 @@ import {
   BrowserTabs,
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
-import {
-  BannerWork,
-  ChannelBanner,
-} from "@/client/components/orchestrator/channel-banner";
+import { BannerWork } from "@/client/components/orchestrator/channel-banner";
+import { ChannelDetailsDialog } from "@/client/components/orchestrator/channel-details-dialog";
 import {
   ChannelMenu,
   type MenuAt,
@@ -35,6 +33,7 @@ import { ViewChip } from "@/client/components/orchestrator/conversation-chrome";
 import { fileHref } from "@/client/components/orchestrator/file-tabs";
 import { NewChannelDialog } from "@/client/components/orchestrator/new-channel-dialog";
 import { screenPresentation } from "@/client/components/orchestrator/screen-presentation";
+import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
   PAGE_ROUTE,
@@ -60,7 +59,6 @@ import {
 } from "@/client/components/ui/alert-dialog";
 import { Toaster } from "@/client/components/ui/sonner";
 import { Spinner } from "@/client/components/ui/spinner";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -70,7 +68,6 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { StoreId, type TaskId } from "@instrument-org/workspace/client";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -121,11 +118,15 @@ export const Route = createFileRoute("/orchestrator")({
  * The window's chrome: no title bar, so it drags by its top-left corner,
  * which is the sidebar's top, past the traffic lights.
  */
-function Frame({ children }: { children: ReactNode }) {
+function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
   return (
-    <div className="relative flex h-screen bg-background">
-      <div className="absolute top-0 left-0 z-10 h-10 w-60 [-webkit-app-region:drag]" />
-      {children}
+    <div className="relative flex h-screen flex-col bg-background">
+      {/* The bar is the window's own row and reserves the band the traffic
+        lights are drawn in, so no column below has to leave a gap for them. */}
+      {bar ?? (
+        <div className="h-10 shrink-0 border-b border-border [-webkit-app-region:drag]" />
+      )}
+      <div className="flex min-h-0 flex-1">{children}</div>
       <Toaster position="top-center" />
     </div>
   );
@@ -201,6 +202,11 @@ function OrchestratorLayout() {
       afterChannelChange,
     ),
   );
+  const reorderChannels = useMutation(
+    rpcClient.workspace.orchestrator.channels.reorder.mutationOptions(
+      afterChannelChange,
+    ),
+  );
   // Which channels have a task running, for the ring on their marks and for
   // the line under the banner of the one on screen.
   const activity = useQuery(
@@ -217,6 +223,9 @@ function OrchestratorLayout() {
   // Which channel a menu was asked for and where, so the rail's right click
   // and the banner's caret open the same one.
   const [menu, setMenu] = useState<{ at: MenuAt; id: string }>();
+  // The channel whose details are open, by id, so a re-read of the list does
+  // not close the dialog under the user.
+  const [detailsFor, setDetailsFor] = useState<string>();
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: ids ? { id: ids.taskId } : skipToken,
@@ -525,6 +534,9 @@ function OrchestratorLayout() {
   const openChannel = railChannels.find((channel) => channel.id === sessionId);
   const isHomeChannel = channelList[0]?.id === sessionId;
   const menuChannel = railChannels.find((channel) => channel.id === menu?.id);
+  const detailsChannel = railChannels.find(
+    (channel) => channel.id === detailsFor,
+  );
   // Only this channel's work, since the line belongs to the channel rather
   // than to the window.
   const channelTasks = running
@@ -554,7 +566,52 @@ function OrchestratorLayout() {
         }}
       >
         <PageOpenContext value={openPage}>
-          <Frame>
+          <Frame
+            bar={
+              <WindowBar
+                isSidebarOpen={isSidebarOpen}
+                onOpenDetails={() => {
+                  if (openChannel) {
+                    setDetailsFor(openChannel.id);
+                  }
+                }}
+                onToggleSidebar={() => {
+                  setSidebarOpen(!isSidebarOpen);
+                }}
+                tabs={
+                  <WindowTabStrip
+                    childTitles={
+                      new Map(
+                        children.data?.map((child) => [
+                          child.id,
+                          child.title,
+                        ]) ?? [],
+                      )
+                    }
+                    onClose={requestClose}
+                    onNew={() => {
+                      windowTabs.openScreen(NEW_TAB_HREF);
+                    }}
+                    onReorder={windowTabs.reorder}
+                    {...(sessionId ? { groupKey: sessionId } : {})}
+                    onSelect={windowTabs.select}
+                    selectedId={active?.id}
+                    tabs={tabs}
+                    trailing={
+                      isDeveloperMode ? (
+                        <Suspense fallback={null}>
+                          <DevPanel />
+                        </Suspense>
+                      ) : null
+                    }
+                  />
+                }
+                {...(openChannel
+                  ? { channel: { ...openChannel, isHome: isHomeChannel } }
+                  : {})}
+              />
+            }
+          >
             {/* The window's own rail, outside the sidebar: a channel owns the
               conversation, the tabs and the pages in them, so what switches
               them sits against the traffic lights rather than inside the panel
@@ -567,16 +624,15 @@ function OrchestratorLayout() {
               onNew={() => {
                 setNewChannelOpen(true);
               }}
+              onReorder={(order) => {
+                reorderChannels.mutate({
+                  id: screens.taskId,
+                  ids: order.map((id) => StoreId.SessionSchema.parse(id)),
+                });
+              }}
               onSelect={setSelectedChannel}
               {...(sessionId ? { selectedId: sessionId } : {})}
             />
-            {isSidebarOpen ? null : (
-              <Rail
-                onOpen={() => {
-                  setSidebarOpen(true);
-                }}
-              />
-            )}
             <StudioSidebarRail
               bounds={SIDEBAR_BOUNDS}
               isOpen={isSidebarOpen}
@@ -589,35 +645,7 @@ function OrchestratorLayout() {
             >
               <div className="relative flex min-h-0 w-full flex-1 flex-col">
                 {/* Beside the traffic lights, where the rail's twin sits. */}
-                <button
-                  aria-label="Hide sidebar"
-                  className="absolute top-2 right-2 z-10 rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                  onClick={() => {
-                    setSidebarOpen(false);
-                  }}
-                  type="button"
-                >
-                  <SidebarSimpleIcon className="size-4" />
-                </button>
-                <div className="flex min-h-0 flex-1 flex-col pt-10">
-                  {openChannel && (
-                    <ChannelBanner
-                      canEdit={!isHomeChannel}
-                      channel={openChannel}
-                      onMenu={(at) => {
-                        setMenu({ at, id: openChannel.id });
-                      }}
-                      onRename={(name) => {
-                        updateChannel.mutate({
-                          id: screens.taskId,
-                          name,
-                          sessionId: StoreId.SessionSchema.parse(
-                            openChannel.id,
-                          ),
-                        });
-                      }}
-                    />
-                  )}
+                <div className="flex min-h-0 flex-1 flex-col">
                   {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
                   <div
                     className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]"
@@ -688,30 +716,6 @@ function OrchestratorLayout() {
               </div>
             </StudioSidebarRail>
             <main className="relative flex min-w-0 flex-1 flex-col">
-              <WindowTabStrip
-                childTitles={
-                  new Map(
-                    children.data?.map((child) => [child.id, child.title]) ??
-                      [],
-                  )
-                }
-                onClose={requestClose}
-                onNew={() => {
-                  windowTabs.openScreen(NEW_TAB_HREF);
-                }}
-                onReorder={windowTabs.reorder}
-                {...(sessionId ? { groupKey: sessionId } : {})}
-                onSelect={windowTabs.select}
-                selectedId={active?.id}
-                tabs={tabs}
-                trailing={
-                  isDeveloperMode ? (
-                    <Suspense fallback={null}>
-                      <DevPanel />
-                    </Suspense>
-                  ) : null
-                }
-              />
               <div className="relative min-h-0 flex-1">
                 <Outlet />
                 {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
@@ -730,36 +734,51 @@ function OrchestratorLayout() {
               {menuChannel && (
                 <ChannelMenu
                   at={menu?.at}
-                  canEdit={channelList[0]?.id !== menuChannel.id}
-                  channel={menuChannel}
+                  onClose={() => {
+                    setMenu(undefined);
+                  }}
+                  onOpenDetails={() => {
+                    setDetailsFor(menuChannel.id);
+                  }}
+                />
+              )}
+              {detailsChannel && (
+                <ChannelDetailsDialog
+                  canEdit={channelList[0]?.id !== detailsChannel.id}
+                  channel={{
+                    ...detailsChannel,
+                    isHome: channelList[0]?.id === detailsChannel.id,
+                  }}
                   onChange={(edits) => {
                     updateChannel.mutate({
                       ...edits,
                       id: screens.taskId,
-                      sessionId: StoreId.SessionSchema.parse(menuChannel.id),
+                      sessionId: StoreId.SessionSchema.parse(detailsChannel.id),
                     });
                   }}
-                  onClose={() => {
-                    setMenu(undefined);
+                  onOpenChange={(next) => {
+                    if (!next) {
+                      setDetailsFor(undefined);
+                    }
                   }}
-                  {...(channelList[0]?.id === menuChannel.id
+                  open
+                  {...(channelList[0]?.id === detailsChannel.id
                     ? {}
                     : {
                         onArchive: () => {
-                          if (menuChannel.id === sessionId) {
+                          if (detailsChannel.id === sessionId) {
                             setSelectedChannel(
                               channelList.find(
-                                (channel) => channel.id !== menuChannel.id,
+                                (channel) => channel.id !== detailsChannel.id,
                               )?.id ?? null,
                             );
                           }
                           archiveChannel.mutate({
                             id: screens.taskId,
                             sessionId: StoreId.SessionSchema.parse(
-                              menuChannel.id,
+                              detailsChannel.id,
                             ),
                           });
-                          setMenu(undefined);
                         },
                       })}
                 />
@@ -815,35 +834,6 @@ function OrchestratorLayout() {
         </PageOpenContext>
       </FileOpenContext>
     </OrchestratorContext>
-  );
-}
-
-/**
- * The sidebar shrunk to a rail: wide enough for the traffic lights to sit
- * clear of the tabs, with the mark at its foot to bring the conversation
- * back. Never gone.
- */
-function Rail({ onOpen }: { onOpen: () => void }) {
-  return (
-    <aside className="relative flex w-20 shrink-0 flex-col items-center border-r border-border bg-background pt-10 pb-3">
-      <button
-        aria-label="Show sidebar"
-        className="rounded-md p-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-        onClick={onOpen}
-        type="button"
-      >
-        <SidebarSimpleIcon className="size-4" />
-      </button>
-      <span className="flex-1" />
-      <button
-        aria-label="Show Instrument"
-        className="rounded-md p-1.5 text-brand-600 hover:bg-foreground/5 dark:text-brand-400"
-        onClick={onOpen}
-        type="button"
-      >
-        <InstrumentGlyph className="size-6" />
-      </button>
-    </aside>
   );
 }
 

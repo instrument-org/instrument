@@ -124,20 +124,58 @@ export function ChannelRail({
   channels,
   onMenu,
   onNew,
+  onReorder,
   onSelect,
   selectedId,
 }: {
   channels: RailChannel[];
-  /** Right-clicked: the channel and where, for the menu the banner also opens. */
+  /** Right-clicked: the channel and where, for the menu the chip also opens. */
   onMenu: (id: string, at: { x: number; y: number }) => void;
   onNew: () => void;
+  /** The order the user dragged the rail into, first channel included. */
+  onReorder: (ids: string[]) => void;
   onSelect: (id: string) => void;
   selectedId?: string;
 }) {
+  // The channel a tile is being carried over, and which half of it, so the
+  // line lands where the drop will.
+  const [drag, setDrag] = useState<{
+    after: boolean;
+    id: string;
+    over: string;
+  }>();
+
+  const dragOver = (id: string) => (event: React.DragEvent) => {
+    if (!drag || drag.id === id) {
+      return;
+    }
+    event.preventDefault();
+    const box = event.currentTarget.getBoundingClientRect();
+    const after = event.clientY > box.top + box.height / 2;
+    if (drag.over !== id || drag.after !== after) {
+      setDrag({ after, id: drag.id, over: id });
+    }
+  };
+  const drop = (event: React.DragEvent) => {
+    event.preventDefault();
+    if (drag && drag.id !== drag.over) {
+      const ids = channels
+        .map((channel) => channel.id)
+        .filter((id) => id !== drag.id);
+      const at = ids.indexOf(drag.over) + (drag.after ? 1 : 0);
+      ids.splice(at, 0, drag.id);
+      // Sent with the first channel still at the head: the server treats the
+      // order it is given as the whole order, so dropping it here would move
+      // the app's own room out of first place.
+      onReorder(ids);
+    }
+    setDrag(undefined);
+  };
+
   return (
     <nav
       aria-label="Channels"
-      className="flex w-14 shrink-0 flex-col items-center border-r border-border bg-muted/60 pt-10 pb-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
+      className="flex w-14 shrink-0 flex-col items-center border-r border-border bg-muted/60 py-2"
     >
       {/* `overflow-y-auto` clips anything drawn outside a tile, so the
         selected mark and the working ring are both drawn inside the tile's own
@@ -145,9 +183,28 @@ export function ChannelRail({
       <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-x-clip overflow-y-auto">
         {channels.map((channel, index) => (
           <ChannelTile
+            // The channel the conversation started in cannot be archived, and
+            // for the same reason it does not move.
+            canDrag={index > 0}
             channel={{ ...channel, isHome: index === 0 }}
+            drop={
+              drag?.over === channel.id
+                ? drag.after
+                  ? "after"
+                  : "before"
+                : undefined
+            }
+            isCarried={drag?.id === channel.id}
             isSelected={channel.id === selectedId}
             key={channel.id}
+            onDragEnd={() => {
+              setDrag(undefined);
+            }}
+            onDragOver={dragOver(channel.id)}
+            onDragStart={() => {
+              setDrag({ after: false, id: channel.id, over: channel.id });
+            }}
+            onDrop={drop}
             onMenu={(at) => {
               onMenu(channel.id, at);
             }}
@@ -182,13 +239,28 @@ function assignedColor(name: string) {
 
 /** One channel's mark, with what it is saying and the name it says on hover. */
 function ChannelTile({
+  canDrag,
   channel,
+  drop,
+  isCarried,
   isSelected,
+  onDragEnd,
+  onDragOver,
+  onDragStart,
+  onDrop,
   onMenu,
   onSelect,
 }: {
+  canDrag: boolean;
   channel: ChannelMark & RailChannel;
+  /** Where the carried channel would land against this one. */
+  drop?: "after" | "before";
+  isCarried: boolean;
   isSelected: boolean;
+  onDragEnd: () => void;
+  onDragOver: (event: React.DragEvent) => void;
+  onDragStart: () => void;
+  onDrop: (event: React.DragEvent) => void;
   onMenu: (at: { x: number; y: number }) => void;
   onSelect: () => void;
 }) {
@@ -196,19 +268,34 @@ function ChannelTile({
   // name is placed against the window instead, off the button's own box.
   const [flyoutAt, setFlyoutAt] = useState<{ left: number; top: number }>();
   return (
-    <div className="flex h-11 w-full shrink-0 items-center justify-center">
+    <div
+      className={cn(
+        "flex h-11 w-full shrink-0 items-center justify-center",
+        drop === "before" && "shadow-[inset_0_2px_0_0_var(--primary)]",
+        drop === "after" && "shadow-[inset_0_-2px_0_0_var(--primary)]",
+      )}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       <button
         aria-current={isSelected ? "true" : undefined}
         aria-label={channel.name}
         className={cn(
           "relative transition",
           isSelected ? "" : "opacity-55 hover:opacity-100",
+          isCarried && "opacity-30",
         )}
+        draggable={canDrag}
         onClick={onSelect}
         onContextMenu={(event) => {
           event.preventDefault();
           setFlyoutAt(undefined);
           onMenu({ x: event.clientX, y: event.clientY });
+        }}
+        onDragEnd={onDragEnd}
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = "move";
+          onDragStart();
         }}
         onPointerEnter={(event) => {
           const box = event.currentTarget.getBoundingClientRect();

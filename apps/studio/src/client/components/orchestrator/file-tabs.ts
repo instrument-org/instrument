@@ -35,6 +35,32 @@ export function hostPathOfMount(
 }
 
 /**
+ * The virtual path the agent reaches a path on the Mac by, when a granted
+ * folder covers it: through the deepest such folder. The other way round from
+ * {@link hostPathOfMount}, for a path the user typed rather than one a reply
+ * named.
+ */
+export function mountOfHostPath(
+  hostPath: string,
+  attachedFolders: Record<string, { mountName: string; path: string }>,
+): string | undefined {
+  let best: undefined | { mountName: string; path: string };
+  for (const folder of Object.values(attachedFolders)) {
+    const inside =
+      hostPath === folder.path || hostPath.startsWith(`${folder.path}/`);
+    if (
+      inside &&
+      (best === undefined || folder.path.length > best.path.length)
+    ) {
+      best = folder;
+    }
+  }
+  return best
+    ? `${MOUNT.attachedFolders}/${best.mountName}${hostPath.slice(best.path.length)}`
+    : undefined;
+}
+
+/**
  * Opens a file in a tab of the window and shows it. A tab already open for
  * the file is shown rather than doubled.
  */

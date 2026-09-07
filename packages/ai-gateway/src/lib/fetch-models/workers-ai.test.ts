@@ -208,6 +208,67 @@ describe("fetchAndParseWorkersAiModels", () => {
     expect(result.value[0]?.features).toContain("tools");
   });
 
+  it("carries a reasoning capability when Cloudflare says the model reasons, with the rungs measured to be accepted", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          modelsSearchResponse([
+            openRouterModel({
+              id: "@cf/zai-org/glm-5.3-flash",
+              name: "Zai Org: Glm 5.3 Flash",
+              supported_features: ["tools", "reasoning"],
+            }),
+            openRouterModel({
+              id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+              name: "Meta: Llama 3.3 70B",
+              supported_features: ["tools"],
+            }),
+          ]),
+        ),
+        { status: 200 },
+      ),
+    );
+    const result = await fetchAndParseWorkersAiModels(workersAiConfig);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.value[0]?.reasoning).toEqual({
+      defaultEffort: "high",
+      efforts: ["low", "medium", "high"],
+      enabledByDefault: true,
+      mandatory: false,
+    });
+    // A model Cloudflare does not call a reasoner is left alone, so nothing
+    // asks it for a level it would answer 400 to.
+    expect(result.value[1]?.reasoning).toBeUndefined();
+  });
+
+  it("drops a rung from the model measured to refuse it, rather than letting the request 400", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          modelsSearchResponse([
+            openRouterModel({
+              id: "@cf/qwen/qwen3.8-27b",
+              name: "Qwen: Qwen3.8 27B",
+              supported_features: ["tools", "reasoning"],
+            }),
+          ]),
+        ),
+        { status: 200 },
+      ),
+    );
+    const result = await fetchAndParseWorkersAiModels(workersAiConfig);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.value[0]?.reasoning?.efforts).toEqual(["low", "medium"]);
+  });
+
   it("paginates until a page returns fewer than per_page results", async () => {
     const pageOneModels = Array.from({ length: 100 }, (_, index) =>
       openRouterModel({

@@ -56,6 +56,16 @@ const PROVIDERS: Record<string, ProviderReasoning> = {
     },
     options: (effort) => ({ openai: { reasoningEffort: effort } }),
   },
+  // Every provider type without an SDK of its own, Workers AI among them, is
+  // reached through `@ai-sdk/openai-compatible`, whose family key is the
+  // config's own type. It reads the level from a `openaiCompatible` namespace
+  // rather than one named for the family, and refuses `xhigh`, which is
+  // OpenAI's word and not a value the endpoints behind this share -- so `max`
+  // asks for `high` here rather than for a word that would be rejected.
+  "openai-compatible": {
+    levels: { high: "high", low: "low", max: "high", medium: "medium" },
+    options: (effort) => ({ openaiCompatible: { reasoningEffort: effort } }),
+  },
   openrouter: {
     levels: {
       high: "high",

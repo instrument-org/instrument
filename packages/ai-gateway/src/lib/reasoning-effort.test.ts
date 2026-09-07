@@ -110,6 +110,34 @@ describe("reasoningProviderOptions", () => {
       capability(),
       undefined,
     ],
+    [
+      "asks an OpenAI-compatible endpoint in the namespace that SDK reads, which is not the one named for the family",
+      "openai-compatible.chat",
+      "low",
+      capability({ efforts: ["low", "medium"] }),
+      { openaiCompatible: { reasoningEffort: "low" } },
+    ],
+    [
+      "steps an OpenAI-compatible model down to the highest rung it lists, rather than sending a word it would answer 400 to",
+      "openai-compatible.chat",
+      "max",
+      capability({ efforts: ["low", "medium"] }),
+      { openaiCompatible: { reasoningEffort: "medium" } },
+    ],
+    [
+      "never asks an OpenAI-compatible endpoint for xhigh, which is OpenAI's word and not shared by the endpoints behind this type",
+      "openai-compatible.chat",
+      "max",
+      capability(),
+      { openaiCompatible: { reasoningEffort: "high" } },
+    ],
+    [
+      "still says nothing to an OpenAI-compatible model whose catalog entry does not claim reasoning at all",
+      "openai-compatible.chat",
+      "low",
+      undefined,
+      undefined,
+    ],
   ])("%s", (_name, providerId, effort, reasoning, expected) => {
     expect(reasoningProviderOptions({ effort, providerId, reasoning })).toEqual(
       expected,

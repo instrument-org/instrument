@@ -64,6 +64,12 @@ export async function aiSDKForProviderConfig(
       return createOpenAICompatible({
         apiKey,
         baseURL,
+        // Workers AI is reached as an OpenAI-compatible provider, because that
+        // is the only type whose model listing knows its models/search API.
+        // Its stream needs the same repair here as on the `openai` path.
+        ...(isWorkersAiProviderConfig(config)
+          ? { fetch: repairWorkersAiStream() }
+          : {}),
         name: config.type,
       });
     }

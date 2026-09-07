@@ -233,7 +233,12 @@ function splitUrl(url: string) {
     const parsed = new URL(url);
     return {
       host: parsed.host,
-      rest: `${parsed.pathname === "/" ? "" : parsed.pathname}${parsed.search}`,
+      // The bare root is left off, the way a browser leaves it off, unless a
+      // query follows it and would otherwise hang off the host.
+      rest:
+        parsed.pathname === "/" && !parsed.search
+          ? ""
+          : `${parsed.pathname}${parsed.search}`,
     };
   } catch {
     return { host: url, rest: "" };

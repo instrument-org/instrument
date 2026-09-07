@@ -611,9 +611,11 @@ export function BrowserTabs({
         };
       },
     }),
-    // The handle reads the strip through `latest` at call time.
+    // The handle reads the strip through `latest` at call time; the guest on
+    // screen and what its history allows are read here, so the handle is
+    // remade, and the row above told, whenever either changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [taskId],
+    [taskId, activeTarget, canStep],
   );
 
   const taskIdsWithTabs = [

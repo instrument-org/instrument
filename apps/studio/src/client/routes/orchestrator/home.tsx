@@ -1,5 +1,6 @@
 import {
   orchestratorRecentsAtom,
+  pinsAtom,
   visitedPagesAtom,
 } from "@/client/atoms/orchestrator";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
@@ -7,6 +8,7 @@ import { computerName } from "@/client/components/orchestrator/computer-name";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
+import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
@@ -76,11 +78,12 @@ interface OmniRow {
 }
 
 function HomeRoute() {
-  const { ask, openPage, taskId } = useOrchestrator();
+  const { ask, openPage, openScreen, taskId } = useOrchestrator();
   useOnScreen({ screen: "home" });
   const navigate = useNavigate();
   const router = useRouter();
   const recents = useAtomValue(orchestratorRecentsAtom);
+  const pins = useAtomValue(pinsAtom);
   const visited = useAtomValue(visitedPagesAtom);
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const [query, setQuery] = useState("");
@@ -94,6 +97,12 @@ function HomeRoute() {
   );
   const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
+  const appsBySlug = new Map(
+    (appList.data?.apps ?? []).map((app) => [
+      app.slug,
+      { name: app.name, site: app.site },
+    ]),
+  );
   // The matcher the model picker uses: typed letters in order, close
   // together, so "lsbn" finds lisbon.md and "pel news" the pelican task.
   const matches = (name: string) =>
@@ -388,6 +397,39 @@ function HomeRoute() {
           </span>
         </button>
       </div>
+
+      {pins.length > 0 ? (
+        <div className="mt-8 w-full max-w-3xl">
+          <p className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
+            Pinned
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {pins.map((pin) => (
+              <button
+                className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm shadow-sm hover:bg-accent/30"
+                key={pin.id}
+                onClick={() => {
+                  if (pin.kind === "page") {
+                    openPage(pin.target);
+                  } else {
+                    openScreen(pin.target);
+                  }
+                }}
+                type="button"
+              >
+                <span className="flex size-4 shrink-0 items-center justify-center">
+                  {pin.kind === "page" ? (
+                    <SiteIcon favicon={pin.favicon} url={pin.target} />
+                  ) : (
+                    <ScreenIcon appsBySlug={appsBySlug} href={pin.target} />
+                  )}
+                </span>
+                <span className="max-w-48 truncate">{pin.title}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {(appList.data?.apps ?? []).length > 0 ? (
         <div className="mt-8 w-full max-w-3xl">

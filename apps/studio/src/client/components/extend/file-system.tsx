@@ -1,16 +1,4 @@
-import * as React from "react";
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
-import {
-  createFileTreeIconResolver,
-  getBuiltInSpriteSheet,
-  prepareFileTreeInput,
-  type FileTreeSortComparator,
-  type FileTreeSortEntry,
-} from "@pierre/trees";
-import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
-import { createPortal } from "react-dom";
-
-import { cn } from "@/client/lib/utils";
+import { FileThumbnail } from "@/client/components/extend/file-thumbnail";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -55,26 +43,182 @@ import {
   SelectValue,
 } from "@/client/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
-import { FileThumbnail } from "@/client/components/extend/file-thumbnail";
+import { cn } from "@/client/lib/utils";
 import {
+  createFileTreeIconResolver,
+  type FileTreeSortComparator,
+  type FileTreeSortEntry,
+  getBuiltInSpriteSheet,
+  prepareFileTreeInput,
+} from "@pierre/trees";
+import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
+import {
+  ArrowRight,
+  ArrowUpDown,
+  Calendar,
+  Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Calendar,
-  FileArchiveIcon,
-  LayoutGrid,
   Columns3,
   Columns3Icon,
-  ChevronLeft,
-  ArrowRight,
-  X,
-  Search,
-  ArrowUpDown,
-  Check,
+  FileArchiveIcon,
   Filter,
+  LayoutGrid,
   LoaderCircle,
+  Search,
+  X,
 } from "lucide-react";
+import * as React from "react";
+import { createPortal } from "react-dom";
 
+export type FileSystemFileItem = {
+  contentType?: string;
+  createdAt?: string;
+  etag?: string;
+  /** Original object key (S3/R2). Defaults to `path`. */
+  key?: string;
+  kind: "file";
+  metadata?: Record<string, string>;
+  name?: string;
+  parentPath?: string;
+  /** Display/canonical path, e.g. `"invoices/2026/jan.pdf"`. */
+  path: string;
+  /** Thumbnail aspect ratio (width / height). Defaults to a portrait page. */
+  previewAspectRatio?: number;
+  /** Externally generated thumbnail. The component never renders documents itself. */
+  previewImageUrl?: null | string;
+  /**
+   * Externally generated page thumbnails (first entry is the cover). When a
+   * file has more than one page, large thumbnails show a hover pager.
+   */
+  previewImageUrls?: null | string[];
+  /**
+   * Total page count when it exceeds `previewImageUrls.length`; the pager
+   * loads the remaining pages on demand via `loadPreviewImageUrl`.
+   */
+  previewPageCount?: number;
+  size?: number;
+  updatedAt?: string;
+  /** Optional if already public/presigned. Otherwise resolved via `getFileUrl`. */
+  url?: string;
+};
+export type FileSystemFolderItem = {
+  createdAt?: string;
+  /** Set when children exist but are not in `items` yet; enables `loadChildren`. */
+  hasChildren?: boolean;
+  kind: "folder";
+  metadata?: Record<string, string>;
+  name?: string;
+  parentPath?: string;
+  /** Folder prefix, e.g. `"invoices/2026/"`. A trailing slash is added when missing. */
+  path: string;
+  updatedAt?: string;
+};
+export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
+export type FileSystemLoadChildrenArgs = {
+  cursor: null | string;
+  path: string;
+};
+export type FileSystemLoadChildrenResult = {
+  items: FileSystemItem[];
+  nextCursor?: null | string;
+};
+export type FileSystemProps = {
+  className?: string;
+  /** Folder prefix to open initially, e.g. `"invoices/"`. */
+  defaultPath?: string;
+  defaultView?: FileSystemView;
+  /** Resolve a URL (e.g. presigned) for a file without one. */
+  getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
+  /** Flat manifest. Folders are optional; missing prefixes are inferred from file paths. */
+  items: FileSystemItem[];
+  /** Lazily fetch children for folders with `hasChildren` and no loaded entries. */
+  loadChildren?: (
+    args: FileSystemLoadChildrenArgs,
+  ) => Promise<FileSystemLoadChildrenResult>;
+  /**
+   * Lazily render a page thumbnail beyond the eagerly provided
+   * `previewImageUrls` (the pager calls this as pages come into view).
+   */
+  loadPreviewImageUrl?: (
+    file: FileSystemFileItem,
+    pageIndex: number,
+  ) => Promise<null | string>;
+  /**
+   * Whether the selection takes the keyboard with it as it moves. False while
+   * something outside holds focus and walks the selection from there, so the
+   * rows never pull focus out of it.
+   */
+  moveFocusWithSelection?: boolean;
+  /**
+   * Called on file open (double-click), replacing the built-in behavior. By
+   * default PDF, DOCX, PPTX, XLSX, and image files open in a viewer dialog and
+   * other files open their resolved URL in a new tab.
+   */
+  onFileOpen?: (file: FileSystemFileItem, url: null | string) => void;
+  /**
+   * Right-click, for a menu of what can be done to what it landed on. `null`
+   * is the folder's own empty space, which every view reports the same way so
+   * one menu can serve them all.
+   */
+  onItemContextMenu?: (
+    item: FileSystemItem | null,
+    event: React.MouseEvent,
+  ) => void;
+  /** Called with the folder prefix on screen whenever it changes. */
+  onPathChange?: (path: string) => void;
+  /** The row's name field, left without a new name. */
+  onRenameCancel?: () => void;
+  /** The name typed in the row, accepted. */
+  onRenameCommit?: (item: FileSystemItem, name: string) => void;
+  /** Return on a focused item, which is how the Finder starts a rename. */
+  onRenameStart?: (item: FileSystemItem) => void;
+  onSelectionChange?: (item: FileSystemItem | null) => void;
+  onViewChange?: (view: FileSystemView) => void;
+  /** The item whose name is being typed over in its own row, by path. */
+  renamingPath?: null | string;
+  /**
+   * The selected item's path, when the caller holds it. Left out, the browser
+   * keeps its own; given, the caller can put the selection on something it
+   * just made or renamed, the way the Finder leaves the new thing selected.
+   */
+  selectedPath?: null | string;
+  /** Controls drawn under a selected file's name in the columns view's preview pane. */
+  renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
+  /** Custom preview node for files without `previewImageUrl`. */
+  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
+  /** What the columns view shows in its preview pane for a selected file, when something other than its icon. */
+  renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
+  /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
+  renderHeaderLead?: () => React.ReactNode;
+  /**
+   * What the columns view shows past the last column while no file is
+   * selected, given the folder that column lists.
+   */
+  renderTrailing?: (folderPath: string) => React.ReactNode;
+  /** Label for the root folder. */
+  title?: string;
+  view?: FileSystemView;
+};
+export type FileSystemView = "columns" | "gallery" | "icons" | "list";
+type FileEntry = FileSystemFileItem & {
+  key: string;
+  name: string;
+  parentPath: string;
+};
+type FileSystemEntry = FileEntry | FolderEntry;
+type FileSystemIndex = {
+  children: Map<string, FileSystemEntry[]>;
+  files: Map<string, FileEntry>;
+  folders: Map<string, FolderEntry>;
+};
+type FolderEntry = FileSystemFolderItem & {
+  name: string;
+  parentPath: string;
+};
 function ArrowDown01Glyph(props: InlineRegistryIconProps) {
   return <ChevronDown {...props} />;
 }
@@ -87,6 +231,10 @@ function Calendar03Glyph(props: InlineRegistryIconProps) {
 function File01Glyph(props: InlineRegistryIconProps) {
   return <FileArchiveIcon {...props} />;
 }
+function fileExtension(name: string) {
+  const dotIndex = name.lastIndexOf(".");
+  return dotIndex === -1 ? "" : name.slice(dotIndex + 1).toLowerCase();
+}
 function GridViewGlyph(props: InlineRegistryIconProps) {
   return <LayoutGrid {...props} />;
 }
@@ -96,142 +244,6 @@ function LayoutThreeColumnGlyph(props: InlineRegistryIconProps) {
 function LeftToRightListBulletGlyph(props: InlineRegistryIconProps) {
   return <Columns3Icon {...props} />;
 }
-export type FileSystemView = "icons" | "list" | "columns" | "gallery";
-export type FileSystemFolderItem = {
-  kind: "folder";
-  /** Folder prefix, e.g. `"invoices/2026/"`. A trailing slash is added when missing. */
-  path: string;
-  name?: string;
-  parentPath?: string;
-  /** Set when children exist but are not in `items` yet; enables `loadChildren`. */
-  hasChildren?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-  metadata?: Record<string, string>;
-};
-export type FileSystemFileItem = {
-  kind: "file";
-  /** Display/canonical path, e.g. `"invoices/2026/jan.pdf"`. */
-  path: string;
-  /** Original object key (S3/R2). Defaults to `path`. */
-  key?: string;
-  name?: string;
-  parentPath?: string;
-  contentType?: string;
-  size?: number;
-  createdAt?: string;
-  updatedAt?: string;
-  etag?: string;
-  /** Optional if already public/presigned. Otherwise resolved via `getFileUrl`. */
-  url?: string;
-  /** Externally generated thumbnail. The component never renders documents itself. */
-  previewImageUrl?: string | null;
-  /**
-   * Externally generated page thumbnails (first entry is the cover). When a
-   * file has more than one page, large thumbnails show a hover pager.
-   */
-  previewImageUrls?: string[] | null;
-  /**
-   * Total page count when it exceeds `previewImageUrls.length`; the pager
-   * loads the remaining pages on demand via `loadPreviewImageUrl`.
-   */
-  previewPageCount?: number;
-  /** Thumbnail aspect ratio (width / height). Defaults to a portrait page. */
-  previewAspectRatio?: number;
-  metadata?: Record<string, string>;
-};
-export type FileSystemItem = FileSystemFolderItem | FileSystemFileItem;
-export type FileSystemLoadChildrenArgs = {
-  path: string;
-  cursor: string | null;
-};
-export type FileSystemLoadChildrenResult = {
-  items: FileSystemItem[];
-  nextCursor?: string | null;
-};
-export type FileSystemProps = {
-  /** Flat manifest. Folders are optional; missing prefixes are inferred from file paths. */
-  items: FileSystemItem[];
-  className?: string;
-  /** Label for the root folder. */
-  title?: string;
-  defaultView?: FileSystemView;
-  view?: FileSystemView;
-  onViewChange?: (view: FileSystemView) => void;
-  /** Folder prefix to open initially, e.g. `"invoices/"`. */
-  defaultPath?: string;
-  /** Called with the folder prefix on screen whenever it changes. */
-  onPathChange?: (path: string) => void;
-  onSelectionChange?: (item: FileSystemItem | null) => void;
-  /**
-   * Called on file open (double-click), replacing the built-in behavior. By
-   * default PDF, DOCX, PPTX, XLSX, and image files open in a viewer dialog and
-   * other files open their resolved URL in a new tab.
-   */
-  onFileOpen?: (file: FileSystemFileItem, url: string | null) => void;
-  /** Resolve a URL (e.g. presigned) for a file without one. */
-  getFileUrl?: (file: FileSystemFileItem) => string | Promise<string>;
-  /** Lazily fetch children for folders with `hasChildren` and no loaded entries. */
-  loadChildren?: (
-    args: FileSystemLoadChildrenArgs,
-  ) => Promise<FileSystemLoadChildrenResult>;
-  /** Custom preview node for files without `previewImageUrl`. */
-  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
-  /**
-   * What the columns view shows past the last column while no file is
-   * selected, given the folder that column lists.
-   */
-  renderTrailing?: (folderPath: string) => React.ReactNode;
-  /** What the columns view shows in its preview pane for a selected file, when something other than its icon. */
-  renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
-  /**
-   * Controls drawn in the footer the columns view's preview pane stands on,
-   * below the file's information. The footer keeps its height whether or not
-   * anything is drawn in it, so a control that arrives late moves nothing.
-   */
-  renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
-  /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
-  renderHeaderLead?: () => React.ReactNode;
-  /** Right-click on an item, for a menu of what can be done to it. */
-  onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
-  /** The item whose name is being typed over in its own row, by path. */
-  renamingPath?: string | null;
-  /** Return on a focused item, which is how the Finder starts a rename. */
-  onRenameStart?: (item: FileSystemItem) => void;
-  /** The name typed in the row, accepted. */
-  onRenameCommit?: (item: FileSystemItem, name: string) => void;
-  /** The row's name field, left without a new name. */
-  onRenameCancel?: () => void;
-  /**
-   * Whether the selection takes the keyboard with it as it moves. False while
-   * something outside holds focus and walks the selection from there, so the
-   * rows never pull focus out of it.
-   */
-  moveFocusWithSelection?: boolean;
-  /**
-   * Lazily render a page thumbnail beyond the eagerly provided
-   * `previewImageUrls` (the pager calls this as pages come into view).
-   */
-  loadPreviewImageUrl?: (
-    file: FileSystemFileItem,
-    pageIndex: number,
-  ) => Promise<string | null>;
-};
-type FolderEntry = FileSystemFolderItem & {
-  name: string;
-  parentPath: string;
-};
-type FileEntry = FileSystemFileItem & {
-  key: string;
-  name: string;
-  parentPath: string;
-};
-type FileSystemEntry = FolderEntry | FileEntry;
-type FileSystemIndex = {
-  children: Map<string, FileSystemEntry[]>;
-  files: Map<string, FileEntry>;
-  folders: Map<string, FolderEntry>;
-};
 function normalizeFolderPath(path: string) {
   if (!path || path === "/") return "";
   return path.endsWith("/") ? path : `${path}/`;
@@ -245,10 +257,6 @@ function pathParent(path: string) {
   const trimmed = path.endsWith("/") ? path.slice(0, -1) : path;
   const separatorIndex = trimmed.lastIndexOf("/");
   return separatorIndex === -1 ? "" : trimmed.slice(0, separatorIndex + 1);
-}
-function fileExtension(name: string) {
-  const dotIndex = name.lastIndexOf(".");
-  return dotIndex === -1 ? "" : name.slice(dotIndex + 1).toLowerCase();
 }
 const FILE_KIND_LABELS: Record<string, string> = {
   css: "CSS Stylesheet",
@@ -284,16 +292,16 @@ const FILE_KIND_LABELS: Record<string, string> = {
   yml: "YAML Document",
   zip: "ZIP Archive",
 };
+// Folders sort under the "Folder" kind alphabetically among the file kinds,
+// like Finder's Kind sort.
+function entryKindLabel(entry: FileSystemEntry) {
+  return entry.kind === "folder" ? "Folder" : fileKindLabel(entry);
+}
 function fileKindLabel(file: FileEntry) {
   const byExtension = FILE_KIND_LABELS[fileExtension(file.name)];
   if (byExtension) return byExtension;
   if (file.contentType?.startsWith("image/")) return "Image";
   return file.contentType ?? "Document";
-}
-// Folders sort under the "Folder" kind alphabetically among the file kinds,
-// like Finder's Kind sort.
-function entryKindLabel(entry: FileSystemEntry) {
-  return entry.kind === "folder" ? "Folder" : fileKindLabel(entry);
 }
 // MIME types inferred from the extension when a file carries no
 // `contentType`, so the file-type filter can classify every manifest entry.
@@ -334,7 +342,6 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
 const FALLBACK_MIME_TYPE = "application/octet-stream";
 const IPAD_MIN_WIDTH = 768;
 const MIME_TYPE_LABELS: Record<string, string> = {
-  [FALLBACK_MIME_TYPE]: "Binary",
   "application/json": "JSON",
   "application/msword": "Word document (legacy)",
   "application/pdf": "PDF",
@@ -349,6 +356,7 @@ const MIME_TYPE_LABELS: Record<string, string> = {
     "Word document",
   "application/x-sh": "Shell script",
   "application/zip": "ZIP archive",
+  [FALLBACK_MIME_TYPE]: "Binary",
   "image/gif": "GIF image",
   "image/jpeg": "JPEG image",
   "image/png": "PNG image",
@@ -368,13 +376,7 @@ const MIME_TYPE_LABELS: Record<string, string> = {
   "text/x-typescript": "TypeScript",
   "text/yaml": "YAML",
 };
-function mimeTypeForFile(file: FileEntry) {
-  return (
-    file.contentType ??
-    EXTENSION_MIME_TYPES[fileExtension(file.name)] ??
-    FALLBACK_MIME_TYPE
-  );
-}
+export type FileSystemViewerKind = "docx" | "image" | "pdf" | "pptx" | "xlsx";
 function fileTypeFilterGroup(mime: string): FileTypeFilterGroup {
   if (
     mime === "application/pdf" ||
@@ -421,7 +423,13 @@ function fileTypeFilterGroup(mime: string): FileTypeFilterGroup {
   }
   return "Archives & binary";
 }
-export type FileSystemViewerKind = "docx" | "image" | "pdf" | "pptx" | "xlsx";
+function mimeTypeForFile(file: FileEntry) {
+  return (
+    file.contentType ??
+    EXTENSION_MIME_TYPES[fileExtension(file.name)] ??
+    FALLBACK_MIME_TYPE
+  );
+}
 function viewerKindForFile(
   file: FileSystemFileItem,
 ): FileSystemViewerKind | null {
@@ -450,6 +458,41 @@ const VIEWER_DIALOG_CLASSNAMES: Record<FileSystemViewerKind, string> = {
   pptx: "h-[88vh] w-[min(96vw,84rem)] max-w-none",
   xlsx: "h-[85vh] w-[min(96vw,100rem)] max-w-none",
 };
+export type FileSystemSortKey =
+  | "createdAt"
+  | "kind"
+  | "name"
+  | "size"
+  | "updatedAt";
+type FileSystemSortState = {
+  direction: "asc" | "desc";
+  key: FileSystemSortKey;
+};
+function compareEntryNames(
+  left: {
+    name: string;
+  },
+  right: {
+    name: string;
+  },
+) {
+  return left.name.localeCompare(right.name, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+// Every directory prefix appearing in the given relative file paths.
+function directoryPathsOf(paths: readonly string[]) {
+  const directoryPaths = new Set<string>();
+  for (const relativePath of paths) {
+    let slashIndex = relativePath.indexOf("/");
+    while (slashIndex !== -1) {
+      directoryPaths.add(relativePath.slice(0, slashIndex));
+      slashIndex = relativePath.indexOf("/", slashIndex + 1);
+    }
+  }
+  return directoryPaths;
+}
 function formatByteSize(size: number | undefined) {
   if (size === undefined) return null;
   if (size < 1000) return `${size} bytes`;
@@ -478,41 +521,6 @@ function formatTimestamp(value: string | undefined) {
   });
   return `${day} at ${time}`;
 }
-// Every directory prefix appearing in the given relative file paths.
-function directoryPathsOf(paths: readonly string[]) {
-  const directoryPaths = new Set<string>();
-  for (const relativePath of paths) {
-    let slashIndex = relativePath.indexOf("/");
-    while (slashIndex !== -1) {
-      directoryPaths.add(relativePath.slice(0, slashIndex));
-      slashIndex = relativePath.indexOf("/", slashIndex + 1);
-    }
-  }
-  return directoryPaths;
-}
-function compareEntryNames(
-  left: {
-    name: string;
-  },
-  right: {
-    name: string;
-  },
-) {
-  return left.name.localeCompare(right.name, undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
-}
-export type FileSystemSortKey =
-  | "createdAt"
-  | "kind"
-  | "name"
-  | "size"
-  | "updatedAt";
-type FileSystemSortState = {
-  direction: "asc" | "desc";
-  key: FileSystemSortKey;
-};
 const SORT_OPTIONS: Array<{
   defaultDirection: "asc" | "desc";
   key: FileSystemSortKey;
@@ -542,6 +550,79 @@ const SORT_OPTIONS: Array<{
   },
 ];
 const DEFAULT_SORT: FileSystemSortState = { direction: "asc", key: "name" };
+export type FileSystemFilterType = "dateCreated" | "dateModified" | "fileType";
+type FileSystemDateFilterType = Exclude<FileSystemFilterType, "fileType">;
+type FileSystemFilter = {
+  id: string;
+  operator: FileSystemFilterOperator;
+  type: FileSystemFilterType;
+  value: string[];
+};
+type FileSystemFilterOperator =
+  | "after"
+  | "before"
+  | "in-range"
+  | "is"
+  | "is-any-of"
+  | "is-not"
+  | "not-in-range";
+type FileTypeFilterGroup =
+  | "Archives & binary"
+  | "Code"
+  | "Documents"
+  | "Images"
+  | "Spreadsheets"
+  | "Text";
+type FileTypeFilterOption = {
+  group: FileTypeFilterGroup;
+  /** Sample file name so the option icon reuses the file-type sprite. */
+  iconFileName: string;
+  label: string;
+  mime: string;
+};
+// Primary key per the active sort; ties (and missing metadata) fall back to
+// the name order so results stay stable. The name tiebreak ignores the
+// direction, like Finder.
+function compareEntriesBySort(
+  left: FileSystemEntry,
+  right: FileSystemEntry,
+  sort: FileSystemSortState,
+) {
+  let result = 0;
+  switch (sort.key) {
+    case "kind": {
+      result = entryKindLabel(left).localeCompare(
+        entryKindLabel(right),
+        undefined,
+        {
+          sensitivity: "base",
+        },
+      );
+
+      break;
+    }
+    case "name": {
+      result = compareEntryNames(left, right);
+
+      break;
+    }
+    case "size": {
+      // Folders have no byte size; group them at the small end.
+      const leftSize = left.kind === "file" ? (left.size ?? 0) : -1;
+      const rightSize = right.kind === "file" ? (right.size ?? 0) : -1;
+      result = leftSize - rightSize;
+
+      break;
+    }
+    default: {
+      result =
+        entrySortTimestamp(left, sort.key) -
+        entrySortTimestamp(right, sort.key);
+    }
+  }
+  if (result === 0) return compareEntryNames(left, right);
+  return sort.direction === "asc" ? (result < 0 ? -1 : 1) : result < 0 ? 1 : -1;
+}
 function defaultSortDirection(key: FileSystemSortKey) {
   return (
     SORT_OPTIONS.find((option) => option.key === key)?.defaultDirection ?? "asc"
@@ -555,67 +636,6 @@ function entrySortTimestamp(
   const time = value ? Date.parse(value) : Number.NaN;
   return Number.isNaN(time) ? 0 : time;
 }
-// Primary key per the active sort; ties (and missing metadata) fall back to
-// the name order so results stay stable. The name tiebreak ignores the
-// direction, like Finder.
-function compareEntriesBySort(
-  left: FileSystemEntry,
-  right: FileSystemEntry,
-  sort: FileSystemSortState,
-) {
-  let result = 0;
-  if (sort.key === "name") {
-    result = compareEntryNames(left, right);
-  } else if (sort.key === "kind") {
-    result = entryKindLabel(left).localeCompare(
-      entryKindLabel(right),
-      undefined,
-      {
-        sensitivity: "base",
-      },
-    );
-  } else if (sort.key === "size") {
-    // Folders have no byte size; group them at the small end.
-    const leftSize = left.kind === "file" ? (left.size ?? 0) : -1;
-    const rightSize = right.kind === "file" ? (right.size ?? 0) : -1;
-    result = leftSize - rightSize;
-  } else {
-    result =
-      entrySortTimestamp(left, sort.key) - entrySortTimestamp(right, sort.key);
-  }
-  if (result === 0) return compareEntryNames(left, right);
-  return sort.direction === "asc" ? (result < 0 ? -1 : 1) : result < 0 ? 1 : -1;
-}
-export type FileSystemFilterType = "dateCreated" | "dateModified" | "fileType";
-type FileSystemDateFilterType = Exclude<FileSystemFilterType, "fileType">;
-type FileSystemFilterOperator =
-  | "after"
-  | "before"
-  | "in-range"
-  | "is"
-  | "is-any-of"
-  | "is-not"
-  | "not-in-range";
-type FileSystemFilter = {
-  id: string;
-  operator: FileSystemFilterOperator;
-  type: FileSystemFilterType;
-  value: string[];
-};
-type FileTypeFilterGroup =
-  | "Documents"
-  | "Spreadsheets"
-  | "Images"
-  | "Code"
-  | "Text"
-  | "Archives & binary";
-type FileTypeFilterOption = {
-  group: FileTypeFilterGroup;
-  /** Sample file name so the option icon reuses the file-type sprite. */
-  iconFileName: string;
-  label: string;
-  mime: string;
-};
 const FILE_TYPE_FILTER_GROUPS: FileTypeFilterGroup[] = [
   "Documents",
   "Spreadsheets",
@@ -648,76 +668,6 @@ const DATE_FILTER_PRESETS = [
   "6 months ago",
   "1 year ago",
 ];
-function dateFilterPresetCutoff(preset: string) {
-  const date = new Date();
-  switch (preset) {
-    case "1 day ago":
-      date.setDate(date.getDate() - 1);
-      break;
-    case "3 days ago":
-      date.setDate(date.getDate() - 3);
-      break;
-    case "1 week ago":
-      date.setDate(date.getDate() - 7);
-      break;
-    case "1 month ago":
-      date.setMonth(date.getMonth() - 1);
-      break;
-    case "3 months ago":
-      date.setMonth(date.getMonth() - 3);
-      break;
-    case "6 months ago":
-      date.setMonth(date.getMonth() - 6);
-      break;
-    case "1 year ago":
-      date.setFullYear(date.getFullYear() - 1);
-      break;
-    default: {
-      const parsed = Date.parse(preset);
-      if (!Number.isNaN(parsed)) return new Date(parsed);
-    }
-  }
-  return date;
-}
-// Custom ranges store two ISO timestamps instead of a relative preset.
-function isCustomDateRangeValue(value: string[]) {
-  return (
-    value.length === 2 &&
-    value.every(
-      (entry) =>
-        !DATE_FILTER_PRESETS.includes(entry) &&
-        !Number.isNaN(Date.parse(entry)),
-    )
-  );
-}
-function filterOperatorChoices(
-  filter: FileSystemFilter,
-): FileSystemFilterOperator[] {
-  if (filter.type === "fileType") {
-    return filter.value.length > 1 ? ["is-any-of", "is-not"] : ["is", "is-not"];
-  }
-  if (isCustomDateRangeValue(filter.value)) return ["in-range", "not-in-range"];
-  return ["before", "after"];
-}
-function fileMatchesFilter(file: FileEntry, filter: FileSystemFilter) {
-  if (filter.value.length === 0) return true;
-  if (filter.type === "fileType") {
-    const matches = filter.value.includes(mimeTypeForFile(file));
-    return filter.operator === "is-not" ? !matches : matches;
-  }
-  const timestamp =
-    filter.type === "dateCreated" ? file.createdAt : file.updatedAt;
-  const time = timestamp ? Date.parse(timestamp) : Number.NaN;
-  if (Number.isNaN(time)) return false;
-  if (filter.operator === "in-range" || filter.operator === "not-in-range") {
-    const from = Date.parse(filter.value[0] ?? "");
-    const to = Date.parse(filter.value[1] ?? filter.value[0] ?? "");
-    const isInRange = time >= from && time <= to;
-    return filter.operator === "not-in-range" ? !isInRange : isInRange;
-  }
-  const cutoff = dateFilterPresetCutoff(filter.value[0] ?? "").getTime();
-  return filter.operator === "before" ? time <= cutoff : time >= cutoff;
-}
 function buildFileSystemIndex(items: FileSystemItem[]): FileSystemIndex {
   const folders = new Map<string, FolderEntry>();
   const files = new Map<string, FileEntry>();
@@ -794,10 +744,87 @@ function buildFileSystemIndex(items: FileSystemItem[]): FileSystemIndex {
   }
   return { children, files, folders };
 }
+function dateFilterPresetCutoff(preset: string) {
+  const date = new Date();
+  switch (preset) {
+    case "1 day ago": {
+      date.setDate(date.getDate() - 1);
+      break;
+    }
+    case "1 month ago": {
+      date.setMonth(date.getMonth() - 1);
+      break;
+    }
+    case "1 week ago": {
+      date.setDate(date.getDate() - 7);
+      break;
+    }
+    case "1 year ago": {
+      date.setFullYear(date.getFullYear() - 1);
+      break;
+    }
+    case "3 days ago": {
+      date.setDate(date.getDate() - 3);
+      break;
+    }
+    case "3 months ago": {
+      date.setMonth(date.getMonth() - 3);
+      break;
+    }
+    case "6 months ago": {
+      date.setMonth(date.getMonth() - 6);
+      break;
+    }
+    default: {
+      const parsed = Date.parse(preset);
+      if (!Number.isNaN(parsed)) return new Date(parsed);
+    }
+  }
+  return date;
+}
+function fileMatchesFilter(file: FileEntry, filter: FileSystemFilter) {
+  if (filter.value.length === 0) return true;
+  if (filter.type === "fileType") {
+    const matches = filter.value.includes(mimeTypeForFile(file));
+    return filter.operator === "is-not" ? !matches : matches;
+  }
+  const timestamp =
+    filter.type === "dateCreated" ? file.createdAt : file.updatedAt;
+  const time = timestamp ? Date.parse(timestamp) : Number.NaN;
+  if (Number.isNaN(time)) return false;
+  if (filter.operator === "in-range" || filter.operator === "not-in-range") {
+    const from = Date.parse(filter.value[0] ?? "");
+    const to = Date.parse(filter.value[1] ?? filter.value[0] ?? "");
+    const isInRange = time >= from && time <= to;
+    return filter.operator === "not-in-range" ? !isInRange : isInRange;
+  }
+  const cutoff = dateFilterPresetCutoff(filter.value[0] ?? "").getTime();
+  return filter.operator === "before" ? time <= cutoff : time >= cutoff;
+}
+function filterOperatorChoices(
+  filter: FileSystemFilter,
+): FileSystemFilterOperator[] {
+  if (filter.type === "fileType") {
+    return filter.value.length > 1 ? ["is-any-of", "is-not"] : ["is", "is-not"];
+  }
+  if (isCustomDateRangeValue(filter.value)) return ["in-range", "not-in-range"];
+  return ["before", "after"];
+}
 function folderHasChildren(index: FileSystemIndex, folder: FolderEntry) {
   return (
     (index.children.get(folder.path)?.length ?? 0) > 0 ||
     folder.hasChildren === true
+  );
+}
+// Custom ranges store two ISO timestamps instead of a relative preset.
+function isCustomDateRangeValue(value: string[]) {
+  return (
+    value.length === 2 &&
+    value.every(
+      (entry) =>
+        !DATE_FILTER_PRESETS.includes(entry) &&
+        !Number.isNaN(Date.parse(entry)),
+    )
   );
 }
 // A single SVG source so the same glyph renders as a React element, inside the
@@ -808,11 +835,11 @@ export function FileSystemFolderGlyph({ className }: { className?: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- The folder glyph is an inline SVG data URL shared with the tree sprite.
     <img
-      src={FOLDER_GLYPH_DATA_URL}
       alt=""
       aria-hidden="true"
-      draggable={false}
       className={className}
+      draggable={false}
+      src={FOLDER_GLYPH_DATA_URL}
     />
   );
 }
@@ -909,6 +936,26 @@ const FILE_ICON_COLOR_CSS = `
 [data-file-system-on-primary] { ${fileIconColorVariables(1)} }
 .dark [data-file-system-on-primary] { ${fileIconColorVariables(0)} }
 `;
+function FileGenericPreview({ file }: { file: FileEntry }) {
+  const extension = fileExtension(file.name);
+  return (
+    <div
+      className="flex size-full flex-col items-center justify-center gap-1.5 bg-white text-neutral-400 dark:bg-neutral-100"
+      data-file-system-on-light=""
+    >
+      <FileTypeIcon className="size-1/3 min-h-4 min-w-4" fileName={file.name} />
+      {extension ? (
+        <span className="text-[min(0.625rem,18cqw)] font-semibold tracking-wide uppercase">
+          {extension}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+function filePreviewUrls(file: FileSystemFileItem) {
+  if (file.previewImageUrls?.length) return file.previewImageUrls;
+  return file.previewImageUrl ? [file.previewImageUrl] : [];
+}
 function FileSystemIconSpriteSheet() {
   return (
     <>
@@ -922,17 +969,16 @@ function FileSystemIconSpriteSheet() {
   );
 }
 function FileTypeIcon({
-  fileName,
   className,
+  fileName,
 }: {
-  fileName: string;
   className?: string;
+  fileName: string;
 }) {
   const icon = resolveFileIcon("file-tree-icon-file", fileName);
   return (
     <svg
       aria-hidden="true"
-      viewBox={icon.viewBox ?? "0 0 16 16"}
       className={cn("shrink-0 text-muted-foreground", className)}
       style={
         icon.token
@@ -941,145 +987,15 @@ function FileTypeIcon({
             }
           : undefined
       }
+      viewBox={icon.viewBox ?? "0 0 16 16"}
     >
       <use href={`#${icon.name}`} />
     </svg>
   );
 }
-function FileGenericPreview({ file }: { file: FileEntry }) {
-  const extension = fileExtension(file.name);
-  return (
-    <div
-      data-file-system-on-light=""
-      className="flex size-full flex-col items-center justify-center gap-1.5 bg-white text-neutral-400 dark:bg-neutral-100"
-    >
-      <FileTypeIcon fileName={file.name} className="size-1/3 min-h-4 min-w-4" />
-      {extension ? (
-        <span className="text-[min(0.625rem,18cqw)] font-semibold tracking-wide uppercase">
-          {extension}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-function filePreviewUrls(file: FileSystemFileItem) {
-  if (file.previewImageUrls?.length) return file.previewImageUrls;
-  return file.previewImageUrl ? [file.previewImageUrl] : [];
-}
-// Mirrors @pierre/trees' query normalization so the toolbar search filters
-// the icon, column, and gallery views exactly like the list view tree:
-// trimmed, backslashes to slashes, lowercased, substring match on the path.
-function normalizeSearchQuery(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  return trimmed.replaceAll("\\", "/").toLowerCase();
-}
-// Windowed rendering, the approach @pierre/trees uses for the list view:
-// with a fixed item stride only the items intersecting the viewport — plus
-// `overscan` on each side — are mounted, so views stay flat-cost at
-// thousands of entries. The window keeps a one-item margin before
-// recomputing (scrolling doesn't re-render per item) and that margin also
-// guarantees single-step keyboard moves land on a mounted neighbor.
-function useVirtualWindow({
-  count,
-  horizontal = false,
-  itemStride,
-  leadingPx = 0,
-  overscan = 8,
-  viewportRef,
-}: {
-  count: number;
-  horizontal?: boolean;
-  itemStride: number;
-  leadingPx?: number;
-  overscan?: number;
-  viewportRef: React.RefObject<HTMLDivElement | null>;
-}) {
-  const [window_, setWindow] = React.useState(() => ({
-    end: Math.min(count, overscan * 2),
-    start: 0,
-  }));
-  React.useLayoutEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport || itemStride <= 0) return;
-    const update = () => {
-      const scrollStart =
-        (horizontal ? viewport.scrollLeft : viewport.scrollTop) - leadingPx;
-      const viewportSize = horizontal
-        ? viewport.clientWidth
-        : viewport.clientHeight;
-      const firstVisible = Math.max(0, Math.floor(scrollStart / itemStride));
-      const lastVisible = Math.min(
-        count,
-        Math.ceil((scrollStart + viewportSize) / itemStride),
-      );
-      setWindow((previous) => {
-        if (
-          previous.end <= count &&
-          previous.start <= Math.max(0, firstVisible - 1) &&
-          previous.end >= Math.min(count, lastVisible + 1)
-        ) {
-          return previous;
-        }
-        return {
-          end: Math.min(count, lastVisible + overscan),
-          start: Math.max(0, firstVisible - overscan),
-        };
-      });
-    };
-    update();
-    viewport.addEventListener("scroll", update, { passive: true });
-    const observer =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
-    observer?.observe(viewport);
-    return () => {
-      viewport.removeEventListener("scroll", update);
-      observer?.disconnect();
-    };
-  }, [count, horizontal, itemStride, leadingPx, overscan, viewportRef]);
-  return window_;
-}
-// Scrolls the item at `index` into the viewport when it sits outside it —
-// virtualized views need this because off-window items have no DOM node to
-// call scrollIntoView on.
-function scrollIndexIntoView({
-  horizontal = false,
-  index,
-  itemSize,
-  itemStride,
-  leadingPx = 0,
-  viewport,
-}: {
-  horizontal?: boolean;
-  index: number;
-  itemSize: number;
-  itemStride: number;
-  leadingPx?: number;
-  viewport: HTMLDivElement | null;
-}) {
-  if (!viewport || index < 0) return;
-  const start = leadingPx + index * itemStride;
-  const end = start + itemSize;
-  const scrollStart = horizontal ? viewport.scrollLeft : viewport.scrollTop;
-  const viewportSize = horizontal
-    ? viewport.clientWidth
-    : viewport.clientHeight;
-  let nextScrollStart: number | null = null;
-  if (start < scrollStart) {
-    nextScrollStart = start;
-  } else if (end > scrollStart + viewportSize) {
-    nextScrollStart = end - viewportSize;
-  }
-  if (nextScrollStart === null) return;
-  if (horizontal) {
-    viewport.scrollLeft = nextScrollStart;
-  } else {
-    viewport.scrollTop = nextScrollStart;
-  }
-}
 function FileVisual({
-  file,
   className,
+  file,
   loadPreviewImageUrl,
   pageable = false,
   pageUrlCache,
@@ -1087,12 +1003,12 @@ function FileVisual({
   previewClassName,
   renderFilePreview,
 }: {
-  file: FileEntry;
   className?: string;
+  file: FileEntry;
   loadPreviewImageUrl?: (
     file: FileSystemFileItem,
     pageIndex: number,
-  ) => Promise<string | null>;
+  ) => Promise<null | string>;
   /** Show a hover pager over multi-page thumbnails. */
   pageable?: boolean;
   /**
@@ -1166,17 +1082,17 @@ function FileVisual({
   const showPager = pageable && totalPages > 1;
   const thumbnail = (
     <FileThumbnail
-      file={{ name: file.name, type: file.contentType ?? "" }}
       className={cn("@container", !showPager && className)}
+      file={{ name: file.name, type: file.contentType ?? "" }}
+      isLoading={isLazyPagePending}
       previewAspectRatio={resolvedAspectRatio}
       previewClassName={cn("bg-white dark:bg-neutral-100", previewClassName)}
-      previewImageUrl={previewUrl ?? undefined}
-      isLoading={isLazyPagePending}
       previewContent={
         previewUrl || isLazyPagePending
           ? undefined
           : (customPreview ?? <FileGenericPreview file={file} />)
       }
+      previewImageUrl={previewUrl ?? undefined}
     />
   );
   if (!showPager) return thumbnail;
@@ -1185,16 +1101,16 @@ function FileVisual({
       {thumbnail}
       <div className="absolute inset-x-0 bottom-1.5 flex items-center justify-center gap-1 opacity-0 transition-opacity group-focus-within/pager:opacity-100 group-hover/pager:opacity-100">
         <button
-          type="button"
           aria-label="Previous page"
-          tabIndex={-1}
+          className="flex size-6 items-center justify-center rounded-md bg-background/80 text-foreground shadow-xs backdrop-blur-sm transition-colors outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
           disabled={clampedPageIndex === 0}
           onClick={(event) => {
             event.stopPropagation();
             setPageIndex((previous) => Math.max(0, previous - 1));
           }}
           onDoubleClick={(event) => event.stopPropagation()}
-          className="flex size-6 items-center justify-center rounded-md bg-background/80 text-foreground shadow-xs backdrop-blur-sm transition-colors outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+          tabIndex={-1}
+          type="button"
         >
           <ChevronLeft className="size-3.5" />
         </button>
@@ -1202,22 +1118,133 @@ function FileVisual({
           {clampedPageIndex + 1}/{totalPages}
         </span>
         <button
-          type="button"
           aria-label="Next page"
-          tabIndex={-1}
+          className="flex size-6 items-center justify-center rounded-md bg-background/80 text-foreground shadow-xs backdrop-blur-sm transition-colors outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
           disabled={clampedPageIndex >= totalPages - 1}
           onClick={(event) => {
             event.stopPropagation();
             setPageIndex((previous) => Math.min(totalPages - 1, previous + 1));
           }}
           onDoubleClick={(event) => event.stopPropagation()}
-          className="flex size-6 items-center justify-center rounded-md bg-background/80 text-foreground shadow-xs backdrop-blur-sm transition-colors outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+          tabIndex={-1}
+          type="button"
         >
           <ArrowRight className="size-3.5" />
         </button>
       </div>
     </div>
   );
+}
+// Mirrors @pierre/trees' query normalization so the toolbar search filters
+// the icon, column, and gallery views exactly like the list view tree:
+// trimmed, backslashes to slashes, lowercased, substring match on the path.
+function normalizeSearchQuery(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.replaceAll("\\", "/").toLowerCase();
+}
+// Scrolls the item at `index` into the viewport when it sits outside it —
+// virtualized views need this because off-window items have no DOM node to
+// call scrollIntoView on.
+function scrollIndexIntoView({
+  horizontal = false,
+  index,
+  itemSize,
+  itemStride,
+  leadingPx = 0,
+  viewport,
+}: {
+  horizontal?: boolean;
+  index: number;
+  itemSize: number;
+  itemStride: number;
+  leadingPx?: number;
+  viewport: HTMLDivElement | null;
+}) {
+  if (!viewport || index < 0) return;
+  const start = leadingPx + index * itemStride;
+  const end = start + itemSize;
+  const scrollStart = horizontal ? viewport.scrollLeft : viewport.scrollTop;
+  const viewportSize = horizontal
+    ? viewport.clientWidth
+    : viewport.clientHeight;
+  let nextScrollStart: null | number = null;
+  if (start < scrollStart) {
+    nextScrollStart = start;
+  } else if (end > scrollStart + viewportSize) {
+    nextScrollStart = end - viewportSize;
+  }
+  if (nextScrollStart === null) return;
+  if (horizontal) {
+    viewport.scrollLeft = nextScrollStart;
+  } else {
+    viewport.scrollTop = nextScrollStart;
+  }
+}
+// Windowed rendering, the approach @pierre/trees uses for the list view:
+// with a fixed item stride only the items intersecting the viewport — plus
+// `overscan` on each side — are mounted, so views stay flat-cost at
+// thousands of entries. The window keeps a one-item margin before
+// recomputing (scrolling doesn't re-render per item) and that margin also
+// guarantees single-step keyboard moves land on a mounted neighbor.
+function useVirtualWindow({
+  count,
+  horizontal = false,
+  itemStride,
+  leadingPx = 0,
+  overscan = 8,
+  viewportRef,
+}: {
+  count: number;
+  horizontal?: boolean;
+  itemStride: number;
+  leadingPx?: number;
+  overscan?: number;
+  viewportRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const [window_, setWindow] = React.useState(() => ({
+    end: Math.min(count, overscan * 2),
+    start: 0,
+  }));
+  React.useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || itemStride <= 0) return;
+    const update = () => {
+      const scrollStart =
+        (horizontal ? viewport.scrollLeft : viewport.scrollTop) - leadingPx;
+      const viewportSize = horizontal
+        ? viewport.clientWidth
+        : viewport.clientHeight;
+      const firstVisible = Math.max(0, Math.floor(scrollStart / itemStride));
+      const lastVisible = Math.min(
+        count,
+        Math.ceil((scrollStart + viewportSize) / itemStride),
+      );
+      setWindow((previous) => {
+        if (
+          previous.end <= count &&
+          previous.start <= Math.max(0, firstVisible - 1) &&
+          previous.end >= Math.min(count, lastVisible + 1)
+        ) {
+          return previous;
+        }
+        return {
+          end: Math.min(count, lastVisible + overscan),
+          start: Math.max(0, firstVisible - overscan),
+        };
+      });
+    };
+    update();
+    viewport.addEventListener("scroll", update, { passive: true });
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(viewport);
+    return () => {
+      viewport.removeEventListener("scroll", update);
+      observer?.disconnect();
+    };
+  }, [count, horizontal, itemStride, leadingPx, overscan, viewportRef]);
+  return window_;
 }
 const VIEW_OPTIONS: Array<{
   icon: React.ComponentType<InlineRegistryIconProps>;
@@ -1229,30 +1256,31 @@ const VIEW_OPTIONS: Array<{
   { icon: LayoutThreeColumnGlyph, label: "Columns", value: "columns" },
 ];
 export function FileSystem({
-  items,
   className,
-  title = "Files",
-  defaultView = "icons",
-  view: viewProp,
-  onViewChange,
   defaultPath = "",
-  onPathChange,
-  onSelectionChange,
-  onFileOpen,
+  defaultView = "icons",
   getFileUrl,
+  items,
   loadChildren,
   loadPreviewImageUrl,
-  renderFilePreview,
-  renderTrailing,
-  renderFileStage,
-  renderFileActions,
-  renderHeaderLead,
-  onItemContextMenu,
-  renamingPath,
-  onRenameStart,
-  onRenameCommit,
-  onRenameCancel,
   moveFocusWithSelection = true,
+  onFileOpen,
+  onItemContextMenu,
+  onPathChange,
+  onRenameCancel,
+  onRenameCommit,
+  onRenameStart,
+  onSelectionChange,
+  onViewChange,
+  renamingPath,
+  selectedPath: selectedPathProp,
+  renderFileActions,
+  renderFilePreview,
+  renderFileStage,
+  renderHeaderLead,
+  renderTrailing,
+  title = "Files",
+  view: viewProp,
 }: FileSystemProps) {
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
@@ -1265,7 +1293,7 @@ export function FileSystem({
   );
   const [loadedItems, setLoadedItems] = React.useState<FileSystemItem[]>([]);
   const allItems = React.useMemo(
-    () => (loadedItems.length ? [...items, ...loadedItems] : items),
+    () => (loadedItems.length > 0 ? [...items, ...loadedItems] : items),
     [items, loadedItems],
   );
   const index = React.useMemo(() => buildFileSystemIndex(allItems), [allItems]);
@@ -1277,7 +1305,11 @@ export function FileSystem({
   React.useEffect(() => {
     onPathChange?.(currentPath);
   }, [currentPath, onPathChange]);
-  const [selectedPath, setSelectedPath] = React.useState<string | null>(null);
+  const [ownSelectedPath, setSelectedPath] = React.useState<null | string>(
+    null,
+  );
+  const selectedPath =
+    selectedPathProp === undefined ? ownSelectedPath : selectedPathProp;
   const selectedEntry = React.useMemo(() => {
     if (selectedPath === null) return null;
     return (
@@ -1340,7 +1372,7 @@ export function FileSystem({
       const visibleChildren = parentChildren.filter((entry) =>
         visiblePaths.has(entry.path),
       );
-      if (visibleChildren.length) children.set(parentPath, visibleChildren);
+      if (visibleChildren.length > 0) children.set(parentPath, visibleChildren);
     }
     return { ...index, children };
   }, [index, visiblePaths]);
@@ -1367,7 +1399,24 @@ export function FileSystem({
   // The ref mirrors the state so re-selecting the same entry (e.g. the
   // pointerdown + click pair the columns view emits per press) stays a
   // no-op without widening the callback's dependencies.
-  const selectedPathRef = React.useRef<string | null>(null);
+  // Which right-click a row has already answered for. The component's own
+  // handler runs after it, and reports the empty space only for a press no
+  // row claimed — the one test that works in every view, including the tree's,
+  // whose rows are in a shadow root and arrive here as the host element.
+  const claimedContextMenu = React.useRef<Event | null>(null);
+  const claimContextMenu = React.useCallback(
+    (item: FileSystemItem, event: React.MouseEvent) => {
+      claimedContextMenu.current = event.nativeEvent;
+      onItemContextMenu?.(item, event);
+    },
+    [onItemContextMenu],
+  );
+  const selectedPathRef = React.useRef<null | string>(null);
+  // A caller holding the selection can move it without going through the
+  // callback, and a row the mirror still calls selected would answer no click.
+  React.useEffect(() => {
+    selectedPathRef.current = selectedPath;
+  }, [selectedPath]);
   const selectEntry = React.useCallback(
     (entry: FileSystemEntry | null) => {
       const path = entry?.path ?? null;
@@ -1428,13 +1477,13 @@ export function FileSystem({
     );
   }, [index]);
   const filterIdRef = React.useRef(0);
-  const [dateRangeDialog, setDateRangeDialog] = React.useState<{
+  const [dateRangeDialog, setDateRangeDialog] = React.useState<null | {
     initialRange?: {
       from: Date;
       to: Date;
     };
     type: FileSystemDateFilterType;
-  } | null>(null);
+  }>(null);
   const toggleFileTypeFilterValue = React.useCallback(
     (mime: string, checked: boolean) => {
       const id = `filter-${++filterIdRef.current}`;
@@ -1453,7 +1502,7 @@ export function FileSystem({
           ];
         }
         const value = checked
-          ? [...new Set([...existing.value, mime])]
+          ? [...new Set([mime, ...existing.value])]
           : existing.value.filter((entry) => entry !== mime);
         if (value.length === 0) {
           return previous.filter((filter) => filter !== existing);
@@ -1525,7 +1574,7 @@ export function FileSystem({
   // popover, and below 360px the folder name is dropped too.
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const [headerLayout, setHeaderLayout] = React.useState<
-    "full" | "compact" | "minimal"
+    "compact" | "full" | "minimal"
   >("full");
   const [isBelowIpadWidth, setIsBelowIpadWidth] = React.useState(false);
   React.useEffect(() => {
@@ -1562,10 +1611,10 @@ export function FileSystem({
       setLoadingFolders((previous) => new Set(previous).add(folderPath));
       void (async () => {
         try {
-          let cursor: string | null = null;
+          let cursor: null | string = null;
           do {
             const result = await loadChildren({ cursor, path: folderPath });
-            if (result.items.length) {
+            if (result.items.length > 0) {
               setLoadedItems((previous) => [...previous, ...result.items]);
             }
             cursor = result.nextCursor ?? null;
@@ -1614,11 +1663,11 @@ export function FileSystem({
       root.focus({ preventScroll: true });
     }
   }, [currentPath]);
-  const [openedFile, setOpenedFile] = React.useState<{
+  const [openedFile, setOpenedFile] = React.useState<null | {
     file: FileEntry;
     kind: FileSystemViewerKind;
     url: string;
-  } | null>(null);
+  }>(null);
   // Component-lifetime caches shared by every view and the open dialog:
   // resolved (e.g. presigned) URLs keyed by path, and lazily loaded page
   // thumbnails keyed by `"path#pageIndex"`. Each resolution happens once no
@@ -1745,7 +1794,7 @@ export function FileSystem({
       if (dialogStagePath === path) {
         // Leave the container in place until the dialog host mounts.
         if (dialogStageHost && container.parentElement !== dialogStageHost) {
-          dialogStageHost.appendChild(container);
+          dialogStageHost.append(container);
         }
         continue;
       }
@@ -1755,7 +1804,7 @@ export function FileSystem({
       if (!target) {
         if (container.parentElement) container.remove();
       } else if (container.parentElement !== target) {
-        target.appendChild(container);
+        target.append(container);
       }
     }
   });
@@ -1821,24 +1870,24 @@ export function FileSystem({
     fileFilter,
     getFileUrl,
     index: sortedIndex,
-    loadPreviewImageUrl,
     loadingFolders,
-    onItemContextMenu,
+    loadPreviewImageUrl,
+    moveFocusWithSelection,
+    onItemContextMenu: onItemContextMenu ? claimContextMenu : undefined,
     onOpen: openEntry,
+    onRenameCancel,
+    onRenameCommit,
+    onRenameStart,
     onSelect: selectAndPrefetchEntry,
     onSortColumnClick: toggleSortColumn,
     pageUrlCache,
     poolStagePath,
     registerStageHost,
-    renderFilePreview,
-    renderTrailing,
-    renderFileStage,
-    renderFileActions,
     renamingPath,
-    onRenameStart,
-    onRenameCommit,
-    onRenameCancel,
-    moveFocusWithSelection,
+    renderFileActions,
+    renderFilePreview,
+    renderFileStage,
+    renderTrailing,
     searchQuery,
     selectedEntry,
     selectedPath,
@@ -1852,10 +1901,10 @@ export function FileSystem({
   const viewerCloseToolbarAction = (
     <DialogClose asChild>
       <Button
+        aria-label="Close preview"
+        size="icon-sm"
         type="button"
         variant="ghost"
-        size="icon-sm"
-        aria-label="Close preview"
       >
         <X className="size-4" />
       </Button>
@@ -1863,9 +1912,17 @@ export function FileSystem({
   );
   return (
     <div
-      ref={rootRef}
-      tabIndex={-1}
+      className={cn(
+        "flex h-[480px] min-h-0 flex-col overflow-hidden rounded-xl border bg-background text-foreground outline-none",
+        className,
+      )}
       data-slot="file-system"
+      onContextMenu={(event) => {
+        if (claimedContextMenu.current === event.nativeEvent) {
+          return;
+        }
+        onItemContextMenu?.(null, event);
+      }}
       onKeyDown={(event) => {
         // ⌘F focuses the toolbar search while focus is inside the component.
         if ((event.metaKey || event.ctrlKey) && event.key === "f") {
@@ -1908,32 +1965,30 @@ export function FileSystem({
           }),
         );
       }}
-      className={cn(
-        "flex h-[480px] min-h-0 flex-col overflow-hidden rounded-xl border bg-background text-foreground outline-none",
-        className,
-      )}
+      ref={rootRef}
+      tabIndex={-1}
     >
       <FileSystemIconSpriteSheet />
       <div className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-muted/40 px-2">
         <div className="flex min-w-0 flex-1 items-center gap-0.5">
           {renderHeaderLead ? renderHeaderLead() : null}
-          {headerLayout !== "minimal" ? (
+          {headerLayout === "minimal" ? null : (
             <span className="ml-1.5 truncate text-sm font-semibold">
               {currentFolderName}
             </span>
-          ) : null}
+          )}
         </div>
         {headerLayout !== "full" || isBelowIpadWidth ? (
           <Select
-            value={view}
             onValueChange={(value) => setView(value as FileSystemView)}
+            value={view}
           >
             <SelectTrigger
-              size="sm"
               aria-label="View"
               // Icon-only like the sort select: sheds the base min-width to
               // hug icon + chevron at the filter button's 28px height.
               className="h-7 min-h-7 w-auto min-w-0 [&_svg]:size-4"
+              size="sm"
             >
               <SelectValue>
                 {activeViewOption ? (
@@ -1954,18 +2009,18 @@ export function FileSystem({
           </Select>
         ) : (
           <Tabs
-            value={view}
-            onValueChange={(value) => setView(value as FileSystemView)}
             className="gap-0"
+            onValueChange={(value) => setView(value as FileSystemView)}
+            value={view}
           >
             <TabsList className="h-8 p-0.5">
               {VIEW_OPTIONS.map((option) => (
                 <TabsTrigger
-                  key={option.value}
-                  value={option.value}
                   aria-label={`${option.label} view`}
-                  title={option.label}
                   className="h-7 grow-0 px-2.5 sm:h-7"
+                  key={option.value}
+                  title={option.label}
+                  value={option.value}
                 >
                   <option.icon className="size-4" />
                 </TabsTrigger>
@@ -2004,9 +2059,9 @@ export function FileSystem({
               filter.type === "fileType" ? null : filter.type;
             return (
               <FileSystemFilterPill
-                key={filter.id}
                 fileTypeOptions={fileTypeOptions}
                 filter={filter}
+                key={filter.id}
                 onOpenCustomRange={
                   dateFilterType
                     ? () => openDateRangeDialog(dateFilterType)
@@ -2046,9 +2101,9 @@ export function FileSystem({
             );
           })}
           <button
-            type="button"
-            onClick={() => setFilters([])}
             className="rounded-md px-1.5 py-0.5 transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => setFilters([])}
+            type="button"
           >
             Clear
           </button>
@@ -2056,7 +2111,7 @@ export function FileSystem({
       ) : null}
       <div className="relative min-h-0 flex-1">
         {isLoadingCurrentFolder && currentEntries.length === 0 ? (
-          <FileSystemEmptyState label="Loading…" isLoading />
+          <FileSystemEmptyState isLoading label="Loading…" />
         ) : currentEntries.length === 0 &&
           (view !== "columns" || isSearching || hasActiveFilters) ? (
           <FileSystemEmptyState
@@ -2095,10 +2150,10 @@ export function FileSystem({
         {selectedEntry ? <span>· “{selectedEntry.name}” selected</span> : null}
       </div>
       <Dialog
-        open={openedFile !== null}
         onOpenChange={(open) => {
           if (!open) setOpenedFile(null);
         }}
+        open={openedFile !== null}
       >
         {openedFile ? (
           <DialogContent
@@ -2112,9 +2167,9 @@ export function FileSystem({
             {openedFile.kind === "image" ? (
               // eslint-disable-next-line @next/next/no-img-element -- File previews render caller-provided URLs that may be object or presigned URLs.
               <img
-                src={openedFile.url}
                 alt={openedFileName}
                 className="max-h-[88vh] w-auto max-w-full rounded-2xl object-contain"
+                src={openedFile.url}
               />
             ) : (
               // The pooled preview reparents into this host (see the layout
@@ -2122,8 +2177,8 @@ export function FileSystem({
               // carries over live instead of remounting behind a loading
               // state.
               <div
-                ref={dialogStageHostRef}
                 className="flex h-full min-h-0 flex-1 flex-col"
+                ref={dialogStageHostRef}
               />
             )}
           </DialogContent>
@@ -2173,142 +2228,6 @@ export function FileSystem({
 // Shared style for the ghost icon buttons in the toolbar.
 const TOOLBAR_ICON_BUTTON_CLASSNAME =
   "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring";
-// macOS Finder-style toolbar search. At the full layout it sits inline in
-// the header's right column; at compact widths it collapses into a ghost
-// icon button that opens the input in a popover (a dot marks the button
-// while a query keeps filtering the views).
-function FileSystemSearchField({
-  inputRef,
-  isExpanded,
-  layout,
-  onExpandedChange,
-  onValueChange,
-  value,
-}: {
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  isExpanded: boolean;
-  layout: "full" | "compact" | "minimal";
-  onExpandedChange: (isExpanded: boolean) => void;
-  onValueChange: (value: string) => void;
-  value: string;
-}) {
-  const isInline = layout === "full";
-  React.useEffect(() => {
-    if (!isInline && isExpanded) inputRef.current?.focus();
-  }, [inputRef, isExpanded, isInline]);
-  const input = (
-    <div
-      className={cn(
-        "relative flex h-7 min-w-0 flex-1 items-center rounded-lg border border-input bg-popover text-sm text-foreground shadow-xs/5 transition-shadow outline-none not-dark:bg-clip-padding before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] not-focus-within:before:shadow-[0_1px_--theme(--color-black/4%)] focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background dark:bg-input/32 dark:not-focus-within:before:shadow-[0_-1px_--theme(--color-white/6%)]",
-        isInline && "max-w-56",
-      )}
-    >
-      <Search className="pointer-events-none absolute left-2 size-3.5 text-muted-foreground" />
-      <input
-        ref={inputRef}
-        type="text"
-        role="searchbox"
-        aria-label="Search files"
-        placeholder="Search"
-        value={value}
-        onChange={(event) => onValueChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key !== "Escape") return;
-          event.preventDefault();
-          event.stopPropagation();
-          if (value) {
-            onValueChange("");
-          } else {
-            onExpandedChange(false);
-            event.currentTarget.blur();
-          }
-        }}
-        className="h-full w-full min-w-0 rounded-[inherit] bg-transparent pr-6 pl-7 outline-none placeholder:text-muted-foreground"
-      />
-      {value ? (
-        <button
-          type="button"
-          aria-label="Clear search"
-          onClick={() => {
-            onValueChange("");
-            inputRef.current?.focus();
-          }}
-          className="absolute right-1 flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X className="size-3" />
-        </button>
-      ) : null}
-    </div>
-  );
-  if (isInline) {
-    // A fixed basis (not flex-1) keeps the whole toolbar cluster packed
-    // against the header's right edge; the input shrinks first when the
-    // header tightens.
-    return <div className="flex w-56 min-w-32 items-center">{input}</div>;
-  }
-  return (
-    <Popover open={isExpanded} onOpenChange={onExpandedChange}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label="Search"
-          title="Search"
-          className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative")}
-        >
-          <Search className="size-4" />
-          {value ? (
-            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
-          ) : null}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={6} className="w-64 p-1">
-        {input}
-      </PopoverContent>
-    </Popover>
-  );
-}
-// Toolbar "sort by" select. The full layout shows the active key's label; at
-// compact widths the trigger collapses to the sort glyph + chevron.
-function FileSystemSortSelect({
-  layout,
-  onKeyChange,
-  showLabel,
-  sort,
-}: {
-  layout: "full" | "compact" | "minimal";
-  onKeyChange: (key: FileSystemSortKey) => void;
-  showLabel: boolean;
-  sort: FileSystemSortState;
-}) {
-  const activeOption = SORT_OPTIONS.find((option) => option.key === sort.key);
-  return (
-    <Select
-      value={sort.key}
-      onValueChange={(value) => onKeyChange(value as FileSystemSortKey)}
-    >
-      <SelectTrigger
-        size="sm"
-        aria-label="Sort by"
-        title="Sort by"
-        className="h-7 min-h-7 w-auto min-w-0 shrink-0 [&_svg]:size-4"
-      >
-        <SelectValue>
-          <span className="flex items-center gap-1.5">
-            <ArrowUpDown className="size-4" />
-            {layout === "full" && showLabel ? activeOption?.triggerLabel : null}
-          </span>
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent align="end">
-        {SORT_OPTIONS.map((option) => (
-          <SelectItem key={option.key} value={option.key}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 // Searchable file-type list (cmdk) rendered inside a menu popup, so the
 // long MIME list can be filtered by typing. Selection toggles stay open for
 // multi-select; ArrowUp/Down and Enter come from cmdk's combobox semantics.
@@ -2342,28 +2261,28 @@ function FileSystemFileTypeCommand({
       }}
     >
       <CommandInput
-        ref={inputRef}
-        placeholder="Search file types…"
         className="h-9"
+        placeholder="Search file types…"
+        ref={inputRef}
       />
       <CommandList className="max-h-none">
         <CommandEmpty>No file types found.</CommandEmpty>
-        <InlineScrollArea2 orientation="vertical" className="h-auto max-h-64">
+        <InlineScrollArea2 className="h-auto max-h-64" orientation="vertical">
           {FILE_TYPE_FILTER_GROUPS.map((group) => {
             const groupOptions = options.filter(
               (option) => option.group === group,
             );
             if (groupOptions.length === 0) return null;
             return (
-              <CommandGroup key={group} heading={group}>
+              <CommandGroup heading={group} key={group}>
                 {groupOptions.map((option) => {
                   const isChecked = checkedMimes.includes(option.mime);
                   return (
                     <CommandItem
                       key={option.mime}
-                      value={option.label}
                       keywords={[option.mime]}
                       onSelect={() => onToggle(option.mime, !isChecked)}
+                      value={option.label}
                     >
                       <Check
                         className={cn(
@@ -2372,8 +2291,8 @@ function FileSystemFileTypeCommand({
                         )}
                       />
                       <FileTypeIcon
-                        fileName={option.iconFileName}
                         className="size-4"
+                        fileName={option.iconFileName}
                       />
                       {option.label}
                     </CommandItem>
@@ -2408,12 +2327,12 @@ function FileSystemFilterMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
+          aria-label="Filter"
+          className="relative size-7 sm:size-7"
+          size="icon-sm"
+          title="Filter"
           type="button"
           variant="outline"
-          size="icon-sm"
-          aria-label="Filter"
-          title="Filter"
-          className="relative size-7 sm:size-7"
         >
           <Filter className="size-4" />
           {filters.length > 0 ? (
@@ -2443,8 +2362,8 @@ function FileSystemFilterMenu({
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <InlineScrollArea2
-                orientation="vertical"
                 className="h-auto max-h-72"
+                orientation="vertical"
               >
                 {DATE_FILTER_PRESETS.map((preset) => (
                   <DropdownMenuItem
@@ -2463,6 +2382,142 @@ function FileSystemFilterMenu({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+// macOS Finder-style toolbar search. At the full layout it sits inline in
+// the header's right column; at compact widths it collapses into a ghost
+// icon button that opens the input in a popover (a dot marks the button
+// while a query keeps filtering the views).
+function FileSystemSearchField({
+  inputRef,
+  isExpanded,
+  layout,
+  onExpandedChange,
+  onValueChange,
+  value,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  isExpanded: boolean;
+  layout: "compact" | "full" | "minimal";
+  onExpandedChange: (isExpanded: boolean) => void;
+  onValueChange: (value: string) => void;
+  value: string;
+}) {
+  const isInline = layout === "full";
+  React.useEffect(() => {
+    if (!isInline && isExpanded) inputRef.current?.focus();
+  }, [inputRef, isExpanded, isInline]);
+  const input = (
+    <div
+      className={cn(
+        "relative flex h-7 min-w-0 flex-1 items-center rounded-lg border border-input bg-popover text-sm text-foreground shadow-xs/5 transition-shadow outline-none not-dark:bg-clip-padding before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] not-focus-within:before:shadow-[0_1px_--theme(--color-black/4%)] focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background dark:bg-input/32 dark:not-focus-within:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+        isInline && "max-w-56",
+      )}
+    >
+      <Search className="pointer-events-none absolute left-2 size-3.5 text-muted-foreground" />
+      <input
+        aria-label="Search files"
+        className="h-full w-full min-w-0 rounded-[inherit] bg-transparent pr-6 pl-7 outline-none placeholder:text-muted-foreground"
+        onChange={(event) => onValueChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (value) {
+            onValueChange("");
+          } else {
+            onExpandedChange(false);
+            event.currentTarget.blur();
+          }
+        }}
+        placeholder="Search"
+        ref={inputRef}
+        role="searchbox"
+        type="text"
+        value={value}
+      />
+      {value ? (
+        <button
+          aria-label="Clear search"
+          className="absolute right-1 flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => {
+            onValueChange("");
+            inputRef.current?.focus();
+          }}
+          type="button"
+        >
+          <X className="size-3" />
+        </button>
+      ) : null}
+    </div>
+  );
+  if (isInline) {
+    // A fixed basis (not flex-1) keeps the whole toolbar cluster packed
+    // against the header's right edge; the input shrinks first when the
+    // header tightens.
+    return <div className="flex w-56 min-w-32 items-center">{input}</div>;
+  }
+  return (
+    <Popover onOpenChange={onExpandedChange} open={isExpanded}>
+      <PopoverTrigger asChild>
+        <button
+          aria-label="Search"
+          className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative")}
+          title="Search"
+          type="button"
+        >
+          <Search className="size-4" />
+          {value ? (
+            <span className="absolute top-1 right-1 size-1.5 rounded-full bg-primary" />
+          ) : null}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-1" sideOffset={6}>
+        {input}
+      </PopoverContent>
+    </Popover>
+  );
+}
+// Toolbar "sort by" select. The full layout shows the active key's label; at
+// compact widths the trigger collapses to the sort glyph + chevron.
+function FileSystemSortSelect({
+  layout,
+  onKeyChange,
+  showLabel,
+  sort,
+}: {
+  layout: "compact" | "full" | "minimal";
+  onKeyChange: (key: FileSystemSortKey) => void;
+  showLabel: boolean;
+  sort: FileSystemSortState;
+}) {
+  const activeOption = SORT_OPTIONS.find((option) => option.key === sort.key);
+  return (
+    <Select
+      onValueChange={(value) => onKeyChange(value as FileSystemSortKey)}
+      value={sort.key}
+    >
+      <SelectTrigger
+        aria-label="Sort by"
+        className="h-7 min-h-7 w-auto min-w-0 shrink-0 [&_svg]:size-4"
+        size="sm"
+        title="Sort by"
+      >
+        <SelectValue>
+          <span className="flex items-center gap-1.5">
+            <ArrowUpDown className="size-4" />
+            {layout === "full" && showLabel ? activeOption?.triggerLabel : null}
+          </span>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent align="end">
+        {SORT_OPTIONS.map((option) => (
+          <SelectItem key={option.key} value={option.key}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 const FILTER_PILL_SEGMENT_CLASSNAME =
@@ -2519,8 +2574,8 @@ function FileSystemFilterPill({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            type="button"
             className={cn(FILTER_PILL_BUTTON_CLASSNAME, "text-primary")}
+            type="button"
           >
             {FILTER_OPERATOR_LABELS[filter.operator]}
           </button>
@@ -2540,9 +2595,9 @@ function FileSystemFilterPill({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              type="button"
-              title={selectedTypeLabels.join(", ")}
               className={FILTER_PILL_BUTTON_CLASSNAME}
+              title={selectedTypeLabels.join(", ")}
+              type="button"
             >
               {filter.value.length === 1
                 ? selectedTypeLabels[0]
@@ -2559,9 +2614,9 @@ function FileSystemFilterPill({
         </DropdownMenu>
       ) : isCustomRange ? (
         <button
-          type="button"
-          onClick={onOpenCustomRange}
           className={FILTER_PILL_BUTTON_CLASSNAME}
+          onClick={onOpenCustomRange}
+          type="button"
         >
           {filter.value
             .map((value) => new Date(value).toLocaleDateString("en-US"))
@@ -2570,14 +2625,14 @@ function FileSystemFilterPill({
       ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" className={FILTER_PILL_BUTTON_CLASSNAME}>
+            <button className={FILTER_PILL_BUTTON_CLASSNAME} type="button">
               {filter.value[0]}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             <InlineScrollArea2
-              orientation="vertical"
               className="h-auto max-h-72"
+              orientation="vertical"
             >
               {DATE_FILTER_PRESETS.map((preset) => (
                 <DropdownMenuItem
@@ -2595,13 +2650,13 @@ function FileSystemFilterPill({
         </DropdownMenu>
       )}
       <button
-        type="button"
         aria-label={`Remove ${FILTER_TYPE_LABELS[filter.type]} filter`}
-        onClick={onRemove}
         className={cn(
           FILTER_PILL_BUTTON_CLASSNAME,
           "rounded-r-md px-1 text-muted-foreground hover:text-foreground",
         )}
+        onClick={onRemove}
+        type="button"
       >
         <X className="size-3" />
       </button>
@@ -2615,7 +2670,7 @@ function formatDateInputValue(date: Date | undefined) {
 }
 function parseDateInputValue(value: string) {
   const trimmed = value.trim();
-  if (!trimmed) return undefined;
+  if (!trimmed) return;
   const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
   if (isoMatch) {
     const date = new Date(
@@ -2642,169 +2697,75 @@ function dateRangePresetRange(preset: string) {
   from.setHours(0, 0, 0, 0);
   to.setHours(23, 59, 59, 999);
   switch (preset) {
-    case "Last 7 days":
-      from.setDate(from.getDate() - 6);
-      break;
-    case "This month":
-      from.setDate(1);
-      break;
-    case "Last 1 month":
+    case "Last 1 month": {
       from.setMonth(from.getMonth() - 1);
       break;
-    case "Last 3 months":
+    }
+    case "Last 3 months": {
       from.setMonth(from.getMonth() - 3);
       break;
-    case "This year":
-      from.setMonth(0, 1);
+    }
+    case "Last 7 days": {
+      from.setDate(from.getDate() - 6);
       break;
-    case "Last 12 months":
+    }
+    case "Last 12 months": {
       from.setFullYear(from.getFullYear() - 1);
       break;
+    }
+    case "This month": {
+      from.setDate(1);
+      break;
+    }
+    case "This year": {
+      from.setMonth(0, 1);
+      break;
+    }
   }
   return { from, to };
 }
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+type FileSystemViewProps = {
+  /** Pooled paths currently attached to the DOM (reveal instantly). */
+  attachedStagePaths: string[];
+  currentPath: string;
+  entries: FileSystemEntry[];
+  fileFilter: ((file: FileEntry) => boolean) | null;
+  getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
+  index: FileSystemIndex;
+  loadingFolders: Set<string>;
+  loadPreviewImageUrl?: (
+    file: FileSystemFileItem,
+    pageIndex: number,
+  ) => Promise<null | string>;
+  moveFocusWithSelection: boolean;
+  onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
+  onOpen: (entry: FileSystemEntry) => void;
+  onRenameCancel?: () => void;
+  onRenameCommit?: (item: FileSystemItem, name: string) => void;
+  onRenameStart?: (item: FileSystemItem) => void;
+  onSelect: (entry: FileSystemEntry | null) => void;
+  onSortColumnClick: (key: FileSystemSortKey) => void;
+  /** `"path#pageIndex"` → thumbnail URL, shared by every pager. */
+  pageUrlCache: Map<string, string>;
+  /** Admits a file into the root-owned keep-alive preview pool. */
+  poolStagePath: (path: string) => void;
+  /** Mounts/unmounts the gallery host element for a pooled path. */
+  registerStageHost: (path: string, element: HTMLElement | null) => void;
+  renamingPath?: null | string;
+  renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
+  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
+  renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
+  renderTrailing?: (folderPath: string) => React.ReactNode;
+  searchQuery: string;
+  selectedEntry: FileSystemEntry | null;
+  selectedPath: null | string;
+  sort: FileSystemSortState;
+  /** Expanded tree folders per folder path, surviving view switches. */
+  treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
+};
 function calendarDayKey(date: Date) {
-  return date.getFullYear() * 10000 + date.getMonth() * 100 + date.getDate();
-}
-// Two-month range calendar for the custom date range dialog (one month at
-// phone widths). Clicking sets the start, then the end; clicking before the
-// start swaps the ends, and a third click restarts the range.
-function FileSystemRangeCalendar({
-  onSelect,
-  range,
-}: {
-  onSelect: (range: { from?: Date; to?: Date }) => void;
-  range: {
-    from?: Date;
-    to?: Date;
-  };
-}) {
-  const [viewMonth, setViewMonth] = React.useState(() => {
-    const base = range.from ?? new Date();
-    return new Date(base.getFullYear(), base.getMonth(), 1);
-  });
-  const months = [
-    viewMonth,
-    new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1),
-  ];
-  const fromKey = range.from ? calendarDayKey(range.from) : null;
-  const toKey = range.to ? calendarDayKey(range.to) : null;
-  const todayKey = calendarDayKey(new Date());
-  const handleDayClick = (day: Date) => {
-    if (!range.from || range.to) {
-      onSelect({ from: day });
-    } else if (calendarDayKey(day) < calendarDayKey(range.from)) {
-      onSelect({ from: day, to: range.from });
-    } else {
-      onSelect({ from: range.from, to: day });
-    }
-  };
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-label="Previous month"
-        onClick={() =>
-          setViewMonth(
-            (previous) =>
-              new Date(previous.getFullYear(), previous.getMonth() - 1, 1),
-          )
-        }
-        className="absolute top-0 left-0 flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ChevronLeft className="size-4" />
-      </button>
-      <button
-        type="button"
-        aria-label="Next month"
-        onClick={() =>
-          setViewMonth(
-            (previous) =>
-              new Date(previous.getFullYear(), previous.getMonth() + 1, 1),
-          )
-        }
-        className="absolute top-0 right-0 flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ArrowRight className="size-4" />
-      </button>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {months.map((month, monthIndex) => {
-          const firstWeekday = month.getDay();
-          const dayCount = new Date(
-            month.getFullYear(),
-            month.getMonth() + 1,
-            0,
-          ).getDate();
-          const cells = [
-            ...Array.from({ length: firstWeekday }, () => null),
-            ...Array.from(
-              { length: dayCount },
-              (_, index) =>
-                new Date(month.getFullYear(), month.getMonth(), index + 1),
-            ),
-          ];
-          return (
-            <div
-              key={`${month.getFullYear()}-${month.getMonth()}`}
-              className={cn(monthIndex === 1 && "max-sm:hidden")}
-            >
-              <div className="text-center text-sm leading-6 font-medium">
-                {month.toLocaleDateString("en-US", {
-                  month: "long",
-                  year: "numeric",
-                })}
-              </div>
-              <div className="mt-1 grid grid-cols-7 text-center text-xs text-muted-foreground">
-                {WEEKDAY_LABELS.map((weekday) => (
-                  <span key={weekday} className="h-6 leading-6">
-                    {weekday}
-                  </span>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-y-px">
-                {cells.map((day, cellIndex) => {
-                  if (!day) return <span key={cellIndex} />;
-                  const dayKey = calendarDayKey(day);
-                  const isFrom = dayKey === fromKey;
-                  const isTo = dayKey === toKey;
-                  const isWithinRange =
-                    fromKey !== null &&
-                    toKey !== null &&
-                    dayKey > fromKey &&
-                    dayKey < toKey;
-                  return (
-                    <button
-                      key={cellIndex}
-                      type="button"
-                      onClick={() => handleDayClick(day)}
-                      className={cn(
-                        "flex h-7 items-center justify-center rounded-md text-xs tabular-nums transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
-                        isWithinRange && "rounded-none bg-accent",
-                        (isFrom || isTo) &&
-                          "bg-primary text-primary-foreground hover:bg-primary",
-                        isFrom &&
-                          toKey !== null &&
-                          fromKey !== toKey &&
-                          "rounded-r-none",
-                        isTo && fromKey !== toKey && "rounded-l-none",
-                        dayKey === todayKey &&
-                          !isFrom &&
-                          !isTo &&
-                          "font-semibold text-primary",
-                      )}
-                    >
-                      {day.getDate()}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return date.getFullYear() * 10_000 + date.getMonth() * 100 + date.getDate();
 }
 // Custom date range dialog mirroring Extend's table filters: From/To inputs,
 // a two-month range calendar, and quick presets. Applied ranges span from
@@ -2846,22 +2807,22 @@ function FileSystemDateRangeDialog({
       <div className="relative flex items-center">
         <Calendar className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground" />
         <Input
+          aria-label={`${label} date`}
+          className="h-8 pl-8 sm:h-8"
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="YYYY-MM-DD"
           type="text"
           value={value}
-          placeholder="YYYY-MM-DD"
-          aria-label={`${label} date`}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-8 pl-8 sm:h-8"
         />
       </div>
     </div>
   );
   return (
     <Dialog
-      open
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
+      open
     >
       <DialogContent className="w-[30rem] max-w-[calc(100vw-2rem)]">
         <DialogHeader>
@@ -2881,15 +2842,15 @@ function FileSystemDateRangeDialog({
               if (parsed) setRange((previous) => ({ ...previous, to: parsed }));
             })}
           </div>
-          <FileSystemRangeCalendar range={range} onSelect={selectRange} />
+          <FileSystemRangeCalendar onSelect={selectRange} range={range} />
           <div className="grid grid-cols-3 gap-2">
             {DATE_RANGE_DIALOG_PRESETS.map((preset) => (
               <Button
                 key={preset}
+                onClick={() => selectRange(dateRangePresetRange(preset))}
+                size="sm"
                 type="button"
                 variant="outline"
-                size="sm"
-                onClick={() => selectRange(dateRangePresetRange(preset))}
               >
                 {preset}
               </Button>
@@ -2897,11 +2858,10 @@ function FileSystemDateRangeDialog({
           </div>
         </InlineDialogPanel>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button onClick={onClose} type="button" variant="outline">
             Cancel
           </Button>
           <Button
-            type="button"
             disabled={!range.from || !range.to}
             onClick={() => {
               if (!range.from || !range.to) return;
@@ -2911,6 +2871,7 @@ function FileSystemDateRangeDialog({
               to.setHours(23, 59, 59, 999);
               onApply(from, to);
             }}
+            type="button"
           >
             Apply
           </Button>
@@ -2919,45 +2880,163 @@ function FileSystemDateRangeDialog({
     </Dialog>
   );
 }
-type FileSystemViewProps = {
-  currentPath: string;
-  entries: FileSystemEntry[];
-  fileFilter: ((file: FileEntry) => boolean) | null;
-  getFileUrl?: (file: FileSystemFileItem) => string | Promise<string>;
-  index: FileSystemIndex;
-  loadPreviewImageUrl?: (
-    file: FileSystemFileItem,
-    pageIndex: number,
-  ) => Promise<string | null>;
-  loadingFolders: Set<string>;
-  onOpen: (entry: FileSystemEntry) => void;
-  onSelect: (entry: FileSystemEntry | null) => void;
-  onSortColumnClick: (key: FileSystemSortKey) => void;
-  onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
-  /** Pooled paths currently attached to the DOM (reveal instantly). */
-  attachedStagePaths: string[];
-  /** `"path#pageIndex"` → thumbnail URL, shared by every pager. */
-  pageUrlCache: Map<string, string>;
-  /** Admits a file into the root-owned keep-alive preview pool. */
-  poolStagePath: (path: string) => void;
-  /** Mounts/unmounts the gallery host element for a pooled path. */
-  registerStageHost: (path: string, element: HTMLElement | null) => void;
-  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
-  renderTrailing?: (folderPath: string) => React.ReactNode;
-  renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
-  renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
-  renamingPath?: string | null;
-  onRenameStart?: (item: FileSystemItem) => void;
-  onRenameCommit?: (item: FileSystemItem, name: string) => void;
-  onRenameCancel?: () => void;
-  moveFocusWithSelection: boolean;
-  searchQuery: string;
-  selectedEntry: FileSystemEntry | null;
-  selectedPath: string | null;
-  sort: FileSystemSortState;
-  /** Expanded tree folders per folder path, surviving view switches. */
-  treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
-};
+function FileSystemEmptyState({
+  isLoading = false,
+  label,
+}: {
+  isLoading?: boolean;
+  label: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex size-full items-center justify-center text-sm text-muted-foreground",
+        isLoading && "animate-pulse motion-reduce:animate-none",
+      )}
+    >
+      {label}
+    </div>
+  );
+}
+// Two-month range calendar for the custom date range dialog (one month at
+// phone widths). Clicking sets the start, then the end; clicking before the
+// start swaps the ends, and a third click restarts the range.
+function FileSystemRangeCalendar({
+  onSelect,
+  range,
+}: {
+  onSelect: (range: { from?: Date; to?: Date }) => void;
+  range: {
+    from?: Date;
+    to?: Date;
+  };
+}) {
+  const [viewMonth, setViewMonth] = React.useState(() => {
+    const base = range.from ?? new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+  const months = [
+    viewMonth,
+    new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1),
+  ];
+  const fromKey = range.from ? calendarDayKey(range.from) : null;
+  const toKey = range.to ? calendarDayKey(range.to) : null;
+  const todayKey = calendarDayKey(new Date());
+  const handleDayClick = (day: Date) => {
+    if (!range.from || range.to) {
+      onSelect({ from: day });
+    } else if (calendarDayKey(day) < calendarDayKey(range.from)) {
+      onSelect({ from: day, to: range.from });
+    } else {
+      onSelect({ from: range.from, to: day });
+    }
+  };
+  return (
+    <div className="relative">
+      <button
+        aria-label="Previous month"
+        className="absolute top-0 left-0 flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() =>
+          setViewMonth(
+            (previous) =>
+              new Date(previous.getFullYear(), previous.getMonth() - 1, 1),
+          )
+        }
+        type="button"
+      >
+        <ChevronLeft className="size-4" />
+      </button>
+      <button
+        aria-label="Next month"
+        className="absolute top-0 right-0 flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() =>
+          setViewMonth(
+            (previous) =>
+              new Date(previous.getFullYear(), previous.getMonth() + 1, 1),
+          )
+        }
+        type="button"
+      >
+        <ArrowRight className="size-4" />
+      </button>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {months.map((month, monthIndex) => {
+          const firstWeekday = month.getDay();
+          const dayCount = new Date(
+            month.getFullYear(),
+            month.getMonth() + 1,
+            0,
+          ).getDate();
+          const cells = [
+            ...Array.from({ length: firstWeekday }, () => null),
+            ...Array.from(
+              { length: dayCount },
+              (_, index) =>
+                new Date(month.getFullYear(), month.getMonth(), index + 1),
+            ),
+          ];
+          return (
+            <div
+              className={cn(monthIndex === 1 && "max-sm:hidden")}
+              key={`${month.getFullYear()}-${month.getMonth()}`}
+            >
+              <div className="text-center text-sm leading-6 font-medium">
+                {month.toLocaleDateString("en-US", {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </div>
+              <div className="mt-1 grid grid-cols-7 text-center text-xs text-muted-foreground">
+                {WEEKDAY_LABELS.map((weekday) => (
+                  <span className="h-6 leading-6" key={weekday}>
+                    {weekday}
+                  </span>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-y-px">
+                {cells.map((day, cellIndex) => {
+                  if (!day) return <span key={cellIndex} />;
+                  const dayKey = calendarDayKey(day);
+                  const isFrom = dayKey === fromKey;
+                  const isTo = dayKey === toKey;
+                  const isWithinRange =
+                    fromKey !== null &&
+                    toKey !== null &&
+                    dayKey > fromKey &&
+                    dayKey < toKey;
+                  return (
+                    <button
+                      className={cn(
+                        "flex h-7 items-center justify-center rounded-md text-xs tabular-nums transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
+                        isWithinRange && "rounded-none bg-accent",
+                        (isFrom || isTo) &&
+                          "bg-primary text-primary-foreground hover:bg-primary",
+                        isFrom &&
+                          toKey !== null &&
+                          fromKey !== toKey &&
+                          "rounded-r-none",
+                        isTo && fromKey !== toKey && "rounded-l-none",
+                        dayKey === todayKey &&
+                          !isFrom &&
+                          !isTo &&
+                          "font-semibold text-primary",
+                      )}
+                      key={cellIndex}
+                      onClick={() => handleDayClick(day)}
+                      type="button"
+                    >
+                      {day.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 // Resolves a display URL for a file: its own `url`, else via `getFileUrl`.
 // Keyed by path/url (not object identity) so manifest churn — e.g. thumbnails
 // streaming in — doesn't re-trigger presign calls for the same file. An
@@ -2966,12 +3045,12 @@ type FileSystemViewProps = {
 // keeps the browser's HTTP cache valid for already-fetched content.
 function useResolvedFileUrl(
   file: FileEntry | null,
-  getFileUrl?: (file: FileSystemFileItem) => string | Promise<string>,
+  getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string,
   cache?: Map<string, string>,
 ) {
   const [state, setState] = React.useState<{
     isResolving: boolean;
-    url: string | null;
+    url: null | string;
   }>(() => ({
     isResolving: false,
     url: file ? (file.url ?? cache?.get(file.path) ?? null) : null,
@@ -3018,24 +3097,6 @@ function useSettledValue<T>(value: T, delay: number): T {
   }, [delay, settled, value]);
   return settled;
 }
-function FileSystemEmptyState({
-  label,
-  isLoading = false,
-}: {
-  label: string;
-  isLoading?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex size-full items-center justify-center text-sm text-muted-foreground",
-        isLoading && "animate-pulse motion-reduce:animate-none",
-      )}
-    >
-      {label}
-    </div>
-  );
-}
 const ARROW_KEYS = new Set(["ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUp"]);
 // Somewhere a keypress belongs to whoever is typing there.
 function isEditableTarget(target: HTMLElement) {
@@ -3048,71 +3109,6 @@ function isEditableTarget(target: HTMLElement) {
 }
 // Type-ahead buffers reset after this idle period, like Finder.
 const TYPE_AHEAD_RESET_MS = 700;
-// Letters and digits only — the same key test the tree uses — so shortcuts
-// and whitespace scrolling stay untouched.
-function isTypeAheadKey(event: React.KeyboardEvent) {
-  return (
-    event.key.length === 1 &&
-    /^[\p{L}\p{N}]$/u.test(event.key) &&
-    !event.altKey &&
-    !event.ctrlKey &&
-    !event.metaKey
-  );
-}
-// Shared Finder-style type-ahead used by every view: printable keys
-// accumulate a buffer that jumps to the next entry whose name starts with
-// it, and repeating a single letter cycles through entries with that
-// prefix. Each view passes its own display-ordered candidate list, so the
-// same keystrokes land on the same file everywhere.
-function useEntryTypeAhead() {
-  const stateRef = React.useRef({ buffer: "", timeout: 0 });
-  React.useEffect(() => {
-    const state = stateRef.current;
-    return () => window.clearTimeout(state.timeout);
-  }, []);
-  return React.useCallback(
-    (
-      event: React.KeyboardEvent,
-      entries: readonly FileSystemEntry[],
-      currentIndex: number,
-    ) => {
-      if (!isTypeAheadKey(event) || entries.length === 0) return null;
-      // Embedded viewers (and any future inputs) keep their keystrokes.
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT")
-      ) {
-        return null;
-      }
-      const state = stateRef.current;
-      window.clearTimeout(state.timeout);
-      state.timeout = window.setTimeout(() => {
-        state.buffer = "";
-      }, TYPE_AHEAD_RESET_MS);
-      state.buffer += event.key.toLowerCase();
-      // A repeated single letter advances past the current entry; a longer
-      // buffer refines the match in place.
-      const startIndex =
-        currentIndex < 0
-          ? 0
-          : currentIndex + (state.buffer.length === 1 ? 1 : 0);
-      for (let step = 0; step < entries.length; step += 1) {
-        const entry = entries[(startIndex + step) % entries.length];
-        if (entry?.name.toLowerCase().startsWith(state.buffer)) {
-          event.preventDefault();
-          return entry;
-        }
-      }
-      event.preventDefault();
-      return null;
-    },
-    [],
-  );
-}
 /**
  * A name typed over where it sits, the way the Finder edits one: the field
  * opens with the base name selected so typing keeps the extension, Return
@@ -3222,6 +3218,17 @@ function handleEntryReturn({
     onOpen(entry);
   }
 }
+// Letters and digits only — the same key test the tree uses — so shortcuts
+// and whitespace scrolling stay untouched.
+function isTypeAheadKey(event: React.KeyboardEvent) {
+  return (
+    event.key.length === 1 &&
+    /^[\p{L}\p{N}]$/u.test(event.key) &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  );
+}
 // Selects (and focuses) the entry reached by an arrow key. Up/down use row
 // geometry so navigation follows the rendered auto-fill grid.
 function moveGridSelection({
@@ -3238,7 +3245,7 @@ function moveGridSelection({
   /** Whether the tile the selection lands on takes the keyboard with it. */
   moveFocus: boolean;
   onSelect: (entry: FileSystemEntry | null) => void;
-  selectedPath: string | null;
+  selectedPath: null | string;
 }) {
   if (entries.length === 0) return false;
   const currentIndex = entries.findIndex(
@@ -3275,6 +3282,60 @@ function moveGridSelection({
   if (moveFocus) itemRefs.get(nextEntry.path)?.focus();
   return true;
 }
+// Shared Finder-style type-ahead used by every view: printable keys
+// accumulate a buffer that jumps to the next entry whose name starts with
+// it, and repeating a single letter cycles through entries with that
+// prefix. Each view passes its own display-ordered candidate list, so the
+// same keystrokes land on the same file everywhere.
+function useEntryTypeAhead() {
+  const stateRef = React.useRef({ buffer: "", timeout: 0 });
+  React.useEffect(() => {
+    const state = stateRef.current;
+    return () => window.clearTimeout(state.timeout);
+  }, []);
+  return React.useCallback(
+    (
+      event: React.KeyboardEvent,
+      entries: readonly FileSystemEntry[],
+      currentIndex: number,
+    ) => {
+      if (!isTypeAheadKey(event) || entries.length === 0) return null;
+      // Embedded viewers (and any future inputs) keep their keystrokes.
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT")
+      ) {
+        return null;
+      }
+      const state = stateRef.current;
+      window.clearTimeout(state.timeout);
+      state.timeout = window.setTimeout(() => {
+        state.buffer = "";
+      }, TYPE_AHEAD_RESET_MS);
+      state.buffer += event.key.toLowerCase();
+      // A repeated single letter advances past the current entry; a longer
+      // buffer refines the match in place.
+      const startIndex =
+        currentIndex < 0
+          ? 0
+          : currentIndex + (state.buffer.length === 1 ? 1 : 0);
+      for (let step = 0; step < entries.length; step += 1) {
+        const entry = entries[(startIndex + step) % entries.length];
+        if (entry?.name.toLowerCase().startsWith(state.buffer)) {
+          event.preventDefault();
+          return entry;
+        }
+      }
+      event.preventDefault();
+      return null;
+    },
+    [],
+  );
+}
 // Icon grid geometry (px at the default 16px root font size). Tiles have a
 // fixed height — a 4rem glyph box plus a reserved two-line label — so rows
 // share one stride and the grid can window cleanly.
@@ -3304,7 +3365,7 @@ function FileSystemIconsView({
   // produces (the CSS owns the actual layout) so item indices map to grid
   // rows — the windowing below depends on that mapping. It stays null until
   // the first client measure; server markup must not guess.
-  const [columnCount, setColumnCount] = React.useState<number | null>(null);
+  const [columnCount, setColumnCount] = React.useState<null | number>(null);
   React.useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport || typeof ResizeObserver === "undefined") return;
@@ -3365,13 +3426,13 @@ function FileSystemIconsView({
   return (
     <InlineScrollArea2
       orientation="vertical"
-      viewportRef={viewportRef}
       viewportClassName="p-3"
       viewportProps={{
         onClick: (event) => {
           if (event.target === event.currentTarget) onSelect(null);
         },
       }}
+      viewportRef={viewportRef}
     >
       <div
         className="relative"
@@ -3387,18 +3448,8 @@ function FileSystemIconsView({
         }}
       >
         <div
-          role="listbox"
           aria-label="Files"
           className="absolute inset-x-0 grid gap-x-1 gap-y-3"
-          // The auto-fill expression produces the same column count the
-          // ResizeObserver measures (the measurement exists only for the
-          // windowing math), so the server-rendered first paint is already
-          // a grid instead of flashing a single stacked column until the
-          // first client measure.
-          style={{
-            gridTemplateColumns: "repeat(auto-fill, minmax(6.5rem, 1fr))",
-            top: start * ICON_ROW_STRIDE,
-          }}
           onKeyDown={(event) => {
             if (!ARROW_KEYS.has(event.key)) {
               const match = typeAhead(
@@ -3432,6 +3483,16 @@ function FileSystemIconsView({
               event.preventDefault();
             }
           }}
+          role="listbox"
+          // The auto-fill expression produces the same column count the
+          // ResizeObserver measures (the measurement exists only for the
+          // windowing math), so the server-rendered first paint is already
+          // a grid instead of flashing a single stacked column until the
+          // first client measure.
+          style={{
+            gridTemplateColumns: "repeat(auto-fill, minmax(6.5rem, 1fr))",
+            top: start * ICON_ROW_STRIDE,
+          }}
         >
           {visibleEntries.map((entry) => {
             const isSelected = entry.path === selectedPath;
@@ -3448,7 +3509,6 @@ function FileSystemIconsView({
                   <FileSystemFolderGlyph className="h-13 w-auto drop-shadow-sm" />
                 ) : (
                   <FileVisual
-                    file={entry}
                     className={cn(
                       "rounded-sm shadow-xs",
                       // Landscape thumbnails get extra width so they fill
@@ -3457,6 +3517,7 @@ function FileSystemIconsView({
                         ? "w-[4.75rem]"
                         : "w-12",
                     )}
+                    file={entry}
                     previewAspectRatio={0.78}
                     renderFilePreview={renderFilePreview}
                   />
@@ -3480,23 +3541,14 @@ function FileSystemIconsView({
             }
             return (
               <button
-                key={entry.path}
-                type="button"
-                role="option"
                 aria-selected={isSelected}
+                className={tileClassName}
+                key={entry.path}
+                onClick={() => onSelect(entry)}
                 onContextMenu={(event) => {
                   onSelect(entry);
                   onItemContextMenu?.(entry, event);
                 }}
-                tabIndex={entry.path === tabStopPath ? 0 : -1}
-                ref={(element) => {
-                  if (element) {
-                    itemRefs.current.set(entry.path, element);
-                  } else {
-                    itemRefs.current.delete(entry.path);
-                  }
-                }}
-                onClick={() => onSelect(entry)}
                 onDoubleClick={() => onOpen(entry)}
                 onKeyDown={(event) => {
                   handleEntryReturn({
@@ -3506,7 +3558,16 @@ function FileSystemIconsView({
                     ...(onRenameStart ? { onRenameStart } : {}),
                   });
                 }}
-                className={tileClassName}
+                ref={(element) => {
+                  if (element) {
+                    itemRefs.current.set(entry.path, element);
+                  } else {
+                    itemRefs.current.delete(entry.path);
+                  }
+                }}
+                role="option"
+                tabIndex={entry.path === tabStopPath ? 0 : -1}
+                type="button"
               >
                 {glyph}
                 <span
@@ -3545,13 +3606,13 @@ function FileSystemListColumnHeader({
   const isActive = sort.key === sortKey;
   return (
     <button
-      type="button"
-      onClick={() => onClick(sortKey)}
       className={cn(
         "flex items-center gap-0.5 rounded-sm py-0.5 transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
         isActive && "text-foreground",
         className,
       )}
+      onClick={() => onClick(sortKey)}
+      type="button"
     >
       {label}
       {isActive ? (
@@ -3568,9 +3629,13 @@ function FileSystemListView({
   currentPath,
   fileFilter,
   index,
+  onItemContextMenu,
   onOpen,
+  onRenameCommit,
+  onRenameStart,
   onSelect,
   onSortColumnClick,
+  renamingPath,
   searchQuery,
   selectedPath,
   sort,
@@ -3647,7 +3712,6 @@ function FileSystemListView({
             sort, and manifest changes update the mounted model in place so
             folder disclosure state survives them. */}
       <FileSystemPierreTree
-        key={currentPath}
         currentPath={currentPath}
         hasActiveFilters={fileFilter !== null}
         index={index}
@@ -3656,9 +3720,14 @@ function FileSystemListView({
             ? selectedPath.slice(currentPath.length).replace(/\/$/, "")
             : null
         }
+        key={currentPath}
+        onItemContextMenu={onItemContextMenu}
         onOpen={onOpen}
+        onRenameCommit={onRenameCommit}
+        onRenameStart={onRenameStart}
         onSelect={onSelect}
         relativePaths={relativePaths}
+        renamingPath={renamingPath}
         searchQuery={searchQuery}
         sort={sort}
         treeExpansionRef={treeExpansionRef}
@@ -3670,14 +3739,268 @@ function FileSystemListView({
 // DOM (data-URL covers can run hundreds of KB each); past this many the
 // remaining files fall back to the built-in file-type icons alone.
 const TREE_THUMBNAIL_SPRITE_LIMIT = 400;
+function FileSystemColumnsView(props: FileSystemViewProps) {
+  const {
+    currentPath,
+    index,
+    loadingFolders,
+    loadPreviewImageUrl,
+    moveFocusWithSelection,
+    onItemContextMenu,
+    onOpen,
+    onRenameCancel,
+    onRenameCommit,
+    onRenameStart,
+    onSelect,
+    pageUrlCache,
+    renamingPath,
+    renderFileActions,
+    renderFilePreview,
+    renderFileStage,
+    renderTrailing,
+    selectedEntry,
+    selectedPath,
+  } = props;
+  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const rowRefs = React.useRef(new Map<string, HTMLButtonElement>());
+  // The selection highlight tracks every keypress; mounting the trailing
+  // child column and the preview pane is deferred so holding an arrow key
+  // doesn't pay that DOM churn per step.
+  const deferredSelectedEntry = React.useDeferredValue(selectedEntry);
+  const deferredSelectedPath = React.useDeferredValue(selectedPath);
+  const pendingFocusPathRef = React.useRef<null | string>(null);
+  const typeAhead = useEntryTypeAhead();
+  // The keyboard follows the selection, except while something outside holds
+  // it and walks the folder from there: taking it back into a row would take
+  // it away from whatever has it. A row in a column that has not mounted yet
+  // is focused by the effect below, once it exists.
+  const focusRow = (path: string) => {
+    if (!moveFocusWithSelection) {
+      pendingFocusPathRef.current = null;
+      return;
+    }
+    const row = rowRefs.current.get(path);
+    if (row) {
+      pendingFocusPathRef.current = null;
+      row.focus();
+    } else {
+      pendingFocusPathRef.current = path;
+    }
+  };
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (!ARROW_KEYS.has(event.key)) {
+      // Type-ahead moves within the active column's rows, like Finder.
+      const siblings =
+        selectedEntry && selectedPath?.startsWith(currentPath)
+          ? (index.children.get(selectedEntry.parentPath) ?? [])
+          : (index.children.get(currentPath) ?? []);
+      const match = typeAhead(
+        event,
+        siblings,
+        siblings.findIndex((sibling) => sibling.path === selectedPath),
+      );
+      if (match) {
+        onSelect(match);
+        focusRow(match.path);
+      }
+      return;
+    }
+    let nextEntry: FileSystemEntry | null | undefined;
+    if (!selectedEntry || !selectedPath?.startsWith(currentPath)) {
+      nextEntry = index.children.get(currentPath)?.[0];
+    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      const siblings = index.children.get(selectedEntry.parentPath) ?? [];
+      const currentIndex = siblings.findIndex(
+        (sibling) => sibling.path === selectedEntry.path,
+      );
+      nextEntry = siblings[currentIndex + (event.key === "ArrowUp" ? -1 : 1)];
+    } else if (event.key === "ArrowLeft") {
+      if (selectedEntry.parentPath !== currentPath) {
+        nextEntry = index.folders.get(selectedEntry.parentPath);
+      }
+    } else if (selectedEntry.kind === "folder") {
+      nextEntry = index.children.get(selectedEntry.path)?.[0];
+    }
+    if (!nextEntry) return;
+    onSelect(nextEntry);
+    focusRow(nextEntry.path);
+    event.preventDefault();
+  };
+  React.useEffect(() => {
+    const path = pendingFocusPathRef.current;
+    if (!path) return;
+    const row = rowRefs.current.get(path);
+    if (row) {
+      pendingFocusPathRef.current = null;
+      row.focus();
+    }
+  });
+  const columnPaths = React.useMemo(() => {
+    const paths = [currentPath];
+    if (!deferredSelectedPath?.startsWith(currentPath)) return paths;
+    const targetFolder =
+      deferredSelectedEntry?.kind === "folder"
+        ? deferredSelectedEntry.path
+        : (deferredSelectedEntry?.parentPath ?? currentPath);
+    const relativePath = targetFolder.slice(currentPath.length);
+    let walkedPath = currentPath;
+    for (const segment of relativePath.split("/")) {
+      if (!segment) continue;
+      walkedPath = `${walkedPath}${segment}/`;
+      paths.push(walkedPath);
+    }
+    return paths;
+  }, [currentPath, deferredSelectedEntry, deferredSelectedPath]);
+  // Roving tabindex: all columns together form a single tab stop (the
+  // selected row when its column is mounted, else the first row), so
+  // Shift+Tab returns to the toolbar like in the list view.
+  const tabStopPath = React.useMemo(() => {
+    if (selectedPath) {
+      for (const columnPath of columnPaths) {
+        if (
+          index.children
+            .get(columnPath)
+            ?.some((entry) => entry.path === selectedPath)
+        ) {
+          return selectedPath;
+        }
+      }
+    }
+    return index.children.get(columnPaths[0] ?? "")?.[0]?.path ?? null;
+  }, [columnPaths, index, selectedPath]);
+  const selectedFile =
+    deferredSelectedEntry?.kind === "file"
+      ? (deferredSelectedEntry as FileEntry)
+      : null;
+  const selectedFileSize = selectedFile
+    ? formatByteSize(selectedFile.size)
+    : null;
+  const selectedFileStage =
+    selectedFile && renderFileStage ? renderFileStage(selectedFile) : null;
+  // One width for every column, dragged at any column's right edge, the way
+  // the Finder's option-drag sets them all.
+  const [columnWidth, setColumnWidth] = React.useState(COLUMN_WIDTH_DEFAULT);
+  React.useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container) container.scrollLeft = container.scrollWidth;
+  }, [columnPaths.length, deferredSelectedPath]);
+  return (
+    <InlineScrollArea2
+      orientation="horizontal"
+      viewportClassName="overscroll-x-contain"
+      viewportRef={scrollContainerRef}
+    >
+      {/* The Content part's ResizeObserver tells the scroll area when the
+            trail shrinks (deselect, shallower selection) so the horizontal
+            scrollbar hides; the viewport alone only observes its own box. Its
+            built-in inline min-width (fit-content) would beat a min-w-full
+            class, so the full-width floor is inline too. */}
+      <InlineScrollAreaContent
+        className="flex h-full w-max"
+        onKeyDown={handleKeyDown}
+        style={{ minWidth: "100%" }}
+      >
+        {columnPaths.map((columnPath, columnIndex) => (
+          <FileSystemColumn
+            entries={index.children.get(columnPath) ?? []}
+            index={index}
+            isLoading={loadingFolders.has(columnPath)}
+            key={columnPath || "(root)"}
+            onItemContextMenu={onItemContextMenu}
+            onOpen={onOpen}
+            onRenameCancel={onRenameCancel}
+            onRenameCommit={onRenameCommit}
+            onRenameStart={onRenameStart}
+            onResize={setColumnWidth}
+            onSelect={onSelect}
+            // Scalar per-column props so the memoized column only
+            // re-renders when its own rows change — a selection deeper in
+            // the trail leaves ancestor columns untouched.
+            renamingChildPath={
+              renamingPath && pathParent(renamingPath) === columnPath
+                ? renamingPath
+                : null
+            }
+            rowRefs={rowRefs}
+            selectedChildPath={
+              selectedPath && pathParent(selectedPath) === columnPath
+                ? selectedPath
+                : null
+            }
+            tabStopChildPath={
+              tabStopPath && pathParent(tabStopPath) === columnPath
+                ? tabStopPath
+                : null
+            }
+            trailChildPath={columnPaths[columnIndex + 1] ?? null}
+            width={columnWidth}
+          />
+        ))}
+        {selectedFile ? (
+          <InlineScrollArea2
+            className="min-w-60 flex-1 contain-inline-size"
+            orientation="vertical"
+            viewportClassName="flex justify-center p-4"
+          >
+            <div className="flex w-full max-w-lg flex-col items-stretch gap-3">
+              {/* Width derives from the aspect ratio so the thumbnail grows
+                with the pane up to a 20rem height cap. */}
+              <div
+                className="mx-auto w-full shrink-0"
+                style={{
+                  maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? 0.78) * 20}rem)`,
+                }}
+              >
+                {selectedFileStage ?? (
+                  <FileVisual
+                    className="w-full"
+                    file={selectedFile}
+                    loadPreviewImageUrl={loadPreviewImageUrl}
+                    pageable
+                    pageUrlCache={pageUrlCache}
+                    previewAspectRatio={0.78}
+                    renderFilePreview={renderFilePreview}
+                  />
+                )}
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-semibold break-words">
+                  {selectedFile.name}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {fileKindLabel(selectedFile)}
+                  {selectedFileSize ? ` - ${selectedFileSize}` : null}
+                </div>
+              </div>
+              {renderFileActions ? (
+                <div className="flex justify-center">
+                  {renderFileActions(selectedFile)}
+                </div>
+              ) : null}
+              <FileSystemInformation entry={selectedFile} index={index} />
+            </div>
+          </InlineScrollArea2>
+        ) : renderTrailing ? (
+          <div className="min-w-52 flex-1 contain-inline-size">
+            {renderTrailing(columnPaths.at(-1) ?? "")}
+          </div>
+        ) : null}
+      </InlineScrollAreaContent>
+    </InlineScrollArea2>
+  );
+}
 function FileSystemPierreTree({
   currentPath,
   hasActiveFilters,
   index,
   initialSelectedPath,
+  onItemContextMenu,
   onOpen,
+  onRenameCommit,
+  onRenameStart,
   onSelect,
   relativePaths,
+  renamingPath,
   searchQuery,
   sort,
   treeExpansionRef,
@@ -3685,10 +4008,14 @@ function FileSystemPierreTree({
   currentPath: string;
   hasActiveFilters: boolean;
   index: FileSystemIndex;
-  initialSelectedPath: string | null;
+  initialSelectedPath: null | string;
+  onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onOpen: (entry: FileSystemEntry) => void;
+  onRenameCommit?: (item: FileSystemItem, name: string) => void;
+  onRenameStart?: (item: FileSystemItem) => void;
   onSelect: (entry: FileSystemEntry | null) => void;
   relativePaths: string[];
+  renamingPath?: null | string;
   searchQuery: string;
   sort: FileSystemSortState;
   treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
@@ -3799,8 +4126,35 @@ function FileSystemPierreTree({
     initialSearchQuery: searchQuery || null,
     initialSelectedPaths: initialSelectedPath ? [initialSelectedPath] : [],
     itemHeight: 28,
+    onSelectionChange: (selectedPaths) => {
+      const relativePath = selectedPaths[0];
+      if (!relativePath) {
+        onSelect(null);
+        return;
+      }
+      const absolutePath = `${currentPath}${relativePath}`;
+      const entry =
+        index.files.get(absolutePath) ??
+        index.folders.get(normalizeFolderPath(absolutePath)) ??
+        null;
+      onSelect(entry);
+    },
     overscan: 12,
     preparedInput,
+    renaming: {
+      // The tree moves its own row to the new name; what the name means on
+      // disk is the caller's to carry out, the same as in the other views.
+      onRename: ({ destinationPath, sourcePath }) => {
+        const absolutePath = `${currentPath}${sourcePath}`;
+        const entry =
+          index.files.get(absolutePath) ??
+          index.folders.get(normalizeFolderPath(absolutePath));
+        const name = pathName(destinationPath);
+        if (entry && name) {
+          onRenameCommit?.(entry, name);
+        }
+      },
+    },
     renderRowDecoration: ({ row }) => {
       const entry =
         row.kind === "file"
@@ -3867,25 +4221,29 @@ function FileSystemPierreTree({
         background: url("${FOLDER_GLYPH_DATA_URL}") center / contain no-repeat;
       }
     `,
-    onSelectionChange: (selectedPaths) => {
-      const relativePath = selectedPaths[0];
-      if (!relativePath) {
-        onSelect(null);
-        return;
-      }
-      const absolutePath = `${currentPath}${relativePath}`;
-      const entry =
-        index.files.get(absolutePath) ??
-        index.folders.get(normalizeFolderPath(absolutePath)) ??
-        null;
-      onSelect(entry);
-    },
   });
   // Thumbnails can resolve after mount (e.g. generated client-side); push
   // sprite updates into the existing model instead of remounting the tree.
   React.useEffect(() => {
     model.setIcons(icons);
   }, [icons, model]);
+  // Renaming here is the tree's own field, since its rows are its own to
+  // draw; the ask arrives as the same state the other views put a field in,
+  // and the name comes back the same way theirs do. Started once per ask, so
+  // a field the user abandoned is not reopened under them.
+  const startedRenameRef = React.useRef<null | string>(null);
+  React.useEffect(() => {
+    if (
+      renamingPath === null ||
+      renamingPath === undefined ||
+      !renamingPath.startsWith(currentPath) ||
+      startedRenameRef.current === renamingPath
+    ) {
+      return;
+    }
+    startedRenameRef.current = renamingPath;
+    model.startRenaming(renamingPath.slice(currentPath.length));
+  }, [currentPath, model, renamingPath]);
   // The folders currently expanded in the mounted model, derived from the
   // given path list (the model knows the rows; the paths name the
   // directories to ask about).
@@ -3927,7 +4285,7 @@ function FileSystemPierreTree({
   // disclosure to restore once the filters clear.
   const hasActiveFiltersRef = React.useRef(hasActiveFilters);
   const filteredAtLastResetRef = React.useRef(hasActiveFilters);
-  const preFilterExpansionRef = React.useRef<readonly string[] | null>(null);
+  const preFilterExpansionRef = React.useRef<null | readonly string[]>(null);
   React.useEffect(() => {
     hasActiveFiltersRef.current = hasActiveFilters;
   });
@@ -4070,8 +4428,8 @@ function FileSystemPierreTree({
   const typeAhead = useEntryTypeAhead();
   return (
     <PierreFileTree
-      model={model}
       className="block min-h-0 flex-1"
+      model={model}
       // Finder semantics: double-clicking a folder navigates into it and
       // double-clicking a file opens it; a single click still only toggles
       // the folder's disclosure.
@@ -4079,15 +4437,29 @@ function FileSystemPierreTree({
         const entry = entryFromEvent(event);
         if (entry) onOpen(entry);
       }}
-      // Enter mirrors the other views: navigate into the focused folder or
-      // open the focused file. Printable keys run the shared type-ahead
-      // over the visible rows.
+      // The same menu the other views raise, on the row the press landed on:
+      // the tree draws its rows in a shadow root, so the row is found along
+      // the event's composed path rather than as its target. Right-clicking
+      // selects what it acts on, the way the Finder does.
+      onContextMenu={(event) => {
+        const entry = entryFromEvent(event);
+        if (!entry) return;
+        resolveTreeItem(entry.path.slice(currentPath.length))?.select();
+        onItemContextMenu?.(entry, event);
+      }}
+      // Enter mirrors the other views: rename the focused item where it
+      // stands, with ⌘O and ⌘↓ left to open it. Printable keys run the
+      // shared type-ahead over the visible rows.
       onKeyDown={(event) => {
-        if (event.key === "Enter") {
+        if (event.key === "Enter" || event.metaKey || event.ctrlKey) {
           const entry = entryFromEvent(event);
           if (entry) {
-            event.preventDefault();
-            onOpen(entry);
+            handleEntryReturn({
+              entry,
+              event,
+              onOpen,
+              ...(onRenameStart ? { onRenameStart } : {}),
+            });
           }
           return;
         }
@@ -4121,263 +4493,6 @@ function FileSystemPierreTree({
         } as React.CSSProperties
       }
     />
-  );
-}
-function FileSystemColumnsView(props: FileSystemViewProps) {
-  const {
-    currentPath,
-    index,
-    loadPreviewImageUrl,
-    loadingFolders,
-    moveFocusWithSelection,
-    onItemContextMenu,
-    onOpen,
-    onRenameCancel,
-    onRenameCommit,
-    onRenameStart,
-    onSelect,
-    pageUrlCache,
-    renamingPath,
-    renderFilePreview,
-    renderTrailing,
-    renderFileStage,
-    renderFileActions,
-    selectedEntry,
-    selectedPath,
-  } = props;
-  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const rowRefs = React.useRef(new Map<string, HTMLButtonElement>());
-  // The selection highlight tracks every keypress; mounting the trailing
-  // child column and the preview pane is deferred so holding an arrow key
-  // doesn't pay that DOM churn per step.
-  const deferredSelectedEntry = React.useDeferredValue(selectedEntry);
-  const deferredSelectedPath = React.useDeferredValue(selectedPath);
-  const pendingFocusPathRef = React.useRef<string | null>(null);
-  const typeAhead = useEntryTypeAhead();
-  // The keyboard follows the selection, except while something outside holds
-  // it and walks the folder from there: taking it back into a row would take
-  // it away from whatever has it. A row in a column that has not mounted yet
-  // is focused by the effect below, once it exists.
-  const focusRow = (path: string) => {
-    if (!moveFocusWithSelection) {
-      pendingFocusPathRef.current = null;
-      return;
-    }
-    const row = rowRefs.current.get(path);
-    if (row) {
-      pendingFocusPathRef.current = null;
-      row.focus();
-    } else {
-      pendingFocusPathRef.current = path;
-    }
-  };
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (!ARROW_KEYS.has(event.key)) {
-      // Type-ahead moves within the active column's rows, like Finder.
-      const siblings =
-        selectedEntry && selectedPath?.startsWith(currentPath)
-          ? (index.children.get(selectedEntry.parentPath) ?? [])
-          : (index.children.get(currentPath) ?? []);
-      const match = typeAhead(
-        event,
-        siblings,
-        siblings.findIndex((sibling) => sibling.path === selectedPath),
-      );
-      if (match) {
-        onSelect(match);
-        focusRow(match.path);
-      }
-      return;
-    }
-    let nextEntry: FileSystemEntry | null | undefined;
-    if (!selectedEntry || !selectedPath?.startsWith(currentPath)) {
-      nextEntry = index.children.get(currentPath)?.[0];
-    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      const siblings = index.children.get(selectedEntry.parentPath) ?? [];
-      const currentIndex = siblings.findIndex(
-        (sibling) => sibling.path === selectedEntry.path,
-      );
-      nextEntry = siblings[currentIndex + (event.key === "ArrowUp" ? -1 : 1)];
-    } else if (event.key === "ArrowLeft") {
-      if (selectedEntry.parentPath !== currentPath) {
-        nextEntry = index.folders.get(selectedEntry.parentPath);
-      }
-    } else if (selectedEntry.kind === "folder") {
-      nextEntry = index.children.get(selectedEntry.path)?.[0];
-    }
-    if (!nextEntry) return;
-    onSelect(nextEntry);
-    focusRow(nextEntry.path);
-    event.preventDefault();
-  };
-  React.useEffect(() => {
-    const path = pendingFocusPathRef.current;
-    if (!path) return;
-    const row = rowRefs.current.get(path);
-    if (row) {
-      pendingFocusPathRef.current = null;
-      row.focus();
-    }
-  });
-  const columnPaths = React.useMemo(() => {
-    const paths = [currentPath];
-    if (!deferredSelectedPath?.startsWith(currentPath)) return paths;
-    const targetFolder =
-      deferredSelectedEntry?.kind === "folder"
-        ? deferredSelectedEntry.path
-        : (deferredSelectedEntry?.parentPath ?? currentPath);
-    const relativePath = targetFolder.slice(currentPath.length);
-    let walkedPath = currentPath;
-    for (const segment of relativePath.split("/")) {
-      if (!segment) continue;
-      walkedPath = `${walkedPath}${segment}/`;
-      paths.push(walkedPath);
-    }
-    return paths;
-  }, [currentPath, deferredSelectedEntry, deferredSelectedPath]);
-  // Roving tabindex: all columns together form a single tab stop (the
-  // selected row when its column is mounted, else the first row), so
-  // Shift+Tab returns to the toolbar like in the list view.
-  const tabStopPath = React.useMemo(() => {
-    if (selectedPath) {
-      for (const columnPath of columnPaths) {
-        if (
-          index.children
-            .get(columnPath)
-            ?.some((entry) => entry.path === selectedPath)
-        ) {
-          return selectedPath;
-        }
-      }
-    }
-    return index.children.get(columnPaths[0] ?? "")?.[0]?.path ?? null;
-  }, [columnPaths, index, selectedPath]);
-  const selectedFile =
-    deferredSelectedEntry?.kind === "file"
-      ? (deferredSelectedEntry as FileEntry)
-      : null;
-  const selectedFileSize = selectedFile
-    ? formatByteSize(selectedFile.size)
-    : null;
-  const selectedFileStage =
-    selectedFile && renderFileStage ? renderFileStage(selectedFile) : null;
-  // One width for every column, dragged at any column's right edge, the way
-  // the Finder's option-drag sets them all.
-  const [columnWidth, setColumnWidth] = React.useState(COLUMN_WIDTH_DEFAULT);
-  React.useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (container) container.scrollLeft = container.scrollWidth;
-  }, [columnPaths.length, deferredSelectedPath]);
-  return (
-    <InlineScrollArea2
-      orientation="horizontal"
-      viewportRef={scrollContainerRef}
-      viewportClassName="overscroll-x-contain"
-    >
-      {/* The Content part's ResizeObserver tells the scroll area when the
-            trail shrinks (deselect, shallower selection) so the horizontal
-            scrollbar hides; the viewport alone only observes its own box. Its
-            built-in inline min-width (fit-content) would beat a min-w-full
-            class, so the full-width floor is inline too. */}
-      <InlineScrollAreaContent
-        className="flex h-full w-max"
-        style={{ minWidth: "100%" }}
-        onKeyDown={handleKeyDown}
-      >
-        {columnPaths.map((columnPath, columnIndex) => (
-          <FileSystemColumn
-            key={columnPath || "(root)"}
-            entries={index.children.get(columnPath) ?? []}
-            index={index}
-            isLoading={loadingFolders.has(columnPath)}
-            onItemContextMenu={onItemContextMenu}
-            onOpen={onOpen}
-            onRenameCancel={onRenameCancel}
-            onRenameCommit={onRenameCommit}
-            onRenameStart={onRenameStart}
-            onResize={setColumnWidth}
-            onSelect={onSelect}
-            rowRefs={rowRefs}
-            width={columnWidth}
-            // Scalar per-column props so the memoized column only
-            // re-renders when its own rows change — a selection deeper in
-            // the trail leaves ancestor columns untouched.
-            renamingChildPath={
-              renamingPath && pathParent(renamingPath) === columnPath
-                ? renamingPath
-                : null
-            }
-            selectedChildPath={
-              selectedPath && pathParent(selectedPath) === columnPath
-                ? selectedPath
-                : null
-            }
-            tabStopChildPath={
-              tabStopPath && pathParent(tabStopPath) === columnPath
-                ? tabStopPath
-                : null
-            }
-            trailChildPath={columnPaths[columnIndex + 1] ?? null}
-          />
-        ))}
-        {selectedFile ? (
-          <div className="flex min-w-60 flex-1 flex-col contain-inline-size">
-            <InlineScrollArea2
-              orientation="vertical"
-              className="min-h-0 flex-1"
-              viewportClassName="flex justify-center p-4"
-            >
-              <div className="flex w-full max-w-lg flex-col items-stretch gap-3">
-                {/* Width derives from the aspect ratio so the thumbnail grows
-                with the pane up to a 20rem height cap. */}
-                <div
-                  className="mx-auto w-full shrink-0"
-                  style={{
-                    maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? 0.78) * 20}rem)`,
-                  }}
-                >
-                  {selectedFileStage ?? (
-                    <FileVisual
-                      file={selectedFile}
-                      className="w-full"
-                      loadPreviewImageUrl={loadPreviewImageUrl}
-                      pageable
-                      pageUrlCache={pageUrlCache}
-                      previewAspectRatio={0.78}
-                      renderFilePreview={renderFilePreview}
-                    />
-                  )}
-                </div>
-                <div className="text-center">
-                  <div className="text-sm font-semibold break-words">
-                    {selectedFile.name}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {fileKindLabel(selectedFile)}
-                    {selectedFileSize ? ` - ${selectedFileSize}` : null}
-                  </div>
-                </div>
-                <FileSystemInformation entry={selectedFile} index={index} />
-              </div>
-            </InlineScrollArea2>
-            {/* What can be done with the file stands at the foot of the pane,
-                where the Mac keeps a preview's own controls, and holds its
-                height whether or not anything has arrived to fill it: a
-                control that resolves a moment late lands in a place already
-                left for it rather than moving the file above it. */}
-            {renderFileActions ? (
-              <div className="flex h-13 shrink-0 items-center justify-center border-t px-4">
-                {renderFileActions(selectedFile)}
-              </div>
-            ) : null}
-          </div>
-        ) : renderTrailing ? (
-          <div className="min-w-52 flex-1 contain-inline-size">
-            {renderTrailing(columnPaths[columnPaths.length - 1] ?? "")}
-          </div>
-        ) : null}
-      </InlineScrollAreaContent>
-    </InlineScrollArea2>
   );
 }
 // Column row geometry (px at the default 16px root font size).
@@ -4418,11 +4533,11 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   onRenameStart?: (item: FileSystemItem) => void;
   onResize: (width: number) => void;
   onSelect: (entry: FileSystemEntry | null) => void;
-  renamingChildPath: string | null;
+  renamingChildPath: null | string;
   rowRefs: React.RefObject<Map<string, HTMLButtonElement>>;
-  selectedChildPath: string | null;
-  tabStopChildPath: string | null;
-  trailChildPath: string | null;
+  selectedChildPath: null | string;
+  tabStopChildPath: null | string;
+  trailChildPath: null | string;
   width: number;
 }) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
@@ -4448,11 +4563,11 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   return (
     <div className="relative shrink-0 border-r" style={{ width }}>
       <InlineScrollArea2
-        orientation="vertical"
         className="h-full w-full"
-        viewportRef={viewportRef}
+        orientation="vertical"
         viewportClassName="p-1.5"
         viewportProps={{ "aria-label": "Files", role: "listbox" }}
+        viewportRef={viewportRef}
       >
         {isLoading && entries.length === 0 ? (
           <div className="animate-pulse px-2 py-1.5 text-xs text-muted-foreground motion-reduce:animate-none">
@@ -4462,9 +4577,10 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
           <div
             className="relative"
             style={{
-              height: entries.length
-                ? entries.length * COLUMN_ROW_STRIDE - COLUMN_ROW_GAP
-                : undefined,
+              height:
+                entries.length > 0
+                  ? entries.length * COLUMN_ROW_STRIDE - COLUMN_ROW_GAP
+                  : undefined,
             }}
           >
             <div
@@ -4483,15 +4599,15 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                   ) : coverUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
                     <img
-                      src={coverUrl}
                       alt=""
-                      draggable={false}
                       className="size-4 shrink-0 rounded-[3px] bg-white object-cover"
+                      draggable={false}
+                      src={coverUrl}
                     />
                   ) : (
                     <FileTypeIcon
-                      fileName={entry.name}
                       className="size-4 shrink-0"
+                      fileName={entry.name}
                     />
                   );
                 const rowClassName =
@@ -4515,25 +4631,34 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                 }
                 return (
                   <button
-                    key={entry.path}
-                    type="button"
-                    role="option"
                     aria-selected={isSelected}
-                    onContextMenu={(event) => {
-                      onSelect(entry);
-                      onItemContextMenu?.(entry, event);
-                    }}
+                    className={cn(
+                      rowClassName,
+                      "focus-visible:ring-2 focus-visible:ring-ring",
+                      isSelected
+                        ? "bg-primary text-primary-foreground"
+                        : isOnTrail
+                          ? "bg-accent"
+                          : "hover:bg-accent/50",
+                    )}
                     // Selected rows sit on the primary surface — the opposite
                     // of the mode's background — so the file-type icon swaps
                     // to the opposite palette.
                     data-file-system-on-primary={isSelected ? "" : undefined}
-                    tabIndex={entry.path === tabStopChildPath ? 0 : -1}
-                    ref={(element) => {
-                      if (element) {
-                        rowRefs.current.set(entry.path, element);
-                      } else {
-                        rowRefs.current.delete(entry.path);
-                      }
+                    key={entry.path}
+                    onClick={() => onSelect(entry)}
+                    onContextMenu={(event) => {
+                      onSelect(entry);
+                      onItemContextMenu?.(entry, event);
+                    }}
+                    onDoubleClick={() => onOpen(entry)}
+                    onKeyDown={(event) => {
+                      handleEntryReturn({
+                        entry,
+                        event,
+                        onOpen,
+                        ...(onRenameStart ? { onRenameStart } : {}),
+                      });
                     }}
                     // Selecting on press (mouse only) starts mounting the
                     // child column a beat before mouseup — the immediacy
@@ -4544,25 +4669,16 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                         onSelect(entry);
                       }
                     }}
-                    onClick={() => onSelect(entry)}
-                    onDoubleClick={() => onOpen(entry)}
-                    onKeyDown={(event) => {
-                      handleEntryReturn({
-                        entry,
-                        event,
-                        onOpen,
-                        ...(onRenameStart ? { onRenameStart } : {}),
-                      });
+                    ref={(element) => {
+                      if (element) {
+                        rowRefs.current.set(entry.path, element);
+                      } else {
+                        rowRefs.current.delete(entry.path);
+                      }
                     }}
-                    className={cn(
-                      rowClassName,
-                      "focus-visible:ring-2 focus-visible:ring-ring",
-                      isSelected
-                        ? "bg-primary text-primary-foreground"
-                        : isOnTrail
-                          ? "bg-accent"
-                          : "hover:bg-accent/50",
-                    )}
+                    role="option"
+                    tabIndex={entry.path === tabStopChildPath ? 0 : -1}
+                    type="button"
                   >
                     {glyph}
                     <span className="min-w-0 flex-1 truncate">
@@ -4644,8 +4760,8 @@ function FileSystemInformation({
       <dl className="space-y-1">
         {rows.map(([label, value]) => (
           <div
-            key={label}
             className="flex items-baseline justify-between gap-3 text-xs"
+            key={label}
           >
             <dt className="shrink-0 text-muted-foreground">{label}</dt>
             <dd className="text-right" suppressHydrationWarning>
@@ -4672,6 +4788,21 @@ const GALLERY_STAGE_POOL_SIZE = 4;
 // they return — their page canvases remount on the way back, so returning
 // to a detached stage briefly rebuilds the page content.
 const GALLERY_STAGE_ATTACHED_COUNT = 3;
+type InlineRegistryIconProps = Omit<
+  React.ComponentProps<"svg">,
+  "children" | "strokeWidth"
+> & { strokeWidth?: number };
+type InlineScrollAreaProps = React.ComponentProps<
+  typeof ScrollAreaPrimitive.Root
+> & {
+  orientation?: "both" | "horizontal" | "vertical";
+  scrollbarGutter?: boolean;
+  scrollbarOverflowOnly?: boolean;
+  scrollFade?: boolean;
+  viewportClassName?: string;
+  viewportProps?: React.ComponentProps<typeof ScrollAreaPrimitive.Viewport>;
+  viewportRef?: React.Ref<HTMLDivElement>;
+};
 // The preview for one pooled file. Each stage owns its URL resolution and
 // viewer state, so a mounted stage is self-contained: the root keeps
 // recently shown stages alive (reparented between hosts rather than
@@ -4690,11 +4821,11 @@ function FileSystemGalleryStage({
   urlCache,
 }: {
   file: FileEntry;
-  getFileUrl?: (file: FileSystemFileItem) => string | Promise<string>;
+  getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
   loadPreviewImageUrl?: (
     file: FileSystemFileItem,
     pageIndex: number,
-  ) => Promise<string | null>;
+  ) => Promise<null | string>;
   pageUrlCache?: Map<string, string>;
   renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
   /** Rendered in the viewer toolbar in the `"dialog"` variant. */
@@ -4718,16 +4849,16 @@ function FileSystemGalleryStage({
     return (
       // eslint-disable-next-line @next/next/no-img-element -- Image file previews render caller-provided URLs that may be object or presigned URLs.
       <img
-        src={url}
         alt={file.name}
         className="max-h-full max-w-full rounded-lg object-contain"
+        src={url}
       />
     );
   }
   return (
     <FileVisual
-      file={file}
       className="w-56 max-w-full"
+      file={file}
       loadPreviewImageUrl={loadPreviewImageUrl}
       pageable
       pageUrlCache={pageUrlCache}
@@ -4841,23 +4972,24 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
             so the filmstrip is the view's single tab stop: Shift+Tab exits to
             the toolbar instead of landing inside the embedded viewers. */}
       <InlineScrollArea2
-        orientation="horizontal"
         className="order-last h-auto w-full shrink-0 border-t"
-        viewportRef={stripViewportRef}
+        orientation="horizontal"
         viewportClassName="p-2"
+        viewportRef={stripViewportRef}
       >
         <div
           className="relative h-14 min-w-full"
           style={{
-            width: entries.length
-              ? entries.length * GALLERY_TILE_STRIDE - GALLERY_TILE_GAP
-              : undefined,
+            width:
+              entries.length > 0
+                ? entries.length * GALLERY_TILE_STRIDE - GALLERY_TILE_GAP
+                : undefined,
           }}
         >
           <div
-            role="listbox"
             aria-label="Files"
             className="absolute inset-y-0 flex items-center gap-1.5"
+            role="listbox"
             style={{ left: stripStart * GALLERY_TILE_STRIDE }}
           >
             {entries.slice(stripStart, stripEnd).map((entry) => {
@@ -4865,15 +4997,21 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                 entry.path === (activeEntry?.path ?? selectedPath);
               return (
                 <button
-                  key={entry.path}
-                  type="button"
-                  role="option"
                   aria-selected={isActive}
+                  className={cn(
+                    "flex size-14 shrink-0 items-center justify-center rounded-md border border-transparent p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    isActive && "border-ring/40 bg-accent",
+                  )}
+                  key={entry.path}
+                  onClick={() => onSelect(entry)}
                   onContextMenu={(event) => {
                     onSelect(entry);
                     onItemContextMenu?.(entry, event);
                   }}
-                  tabIndex={isActive ? 0 : -1}
+                  onDoubleClick={() => onOpen(entry)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") onOpen(entry);
+                  }}
                   ref={(element) => {
                     if (element) {
                       stripRefs.current.set(entry.path, element);
@@ -4881,23 +5019,17 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                       stripRefs.current.delete(entry.path);
                     }
                   }}
-                  onClick={() => onSelect(entry)}
-                  onDoubleClick={() => onOpen(entry)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") onOpen(entry);
-                  }}
+                  role="option"
+                  tabIndex={isActive ? 0 : -1}
                   title={entry.name}
-                  className={cn(
-                    "flex size-14 shrink-0 items-center justify-center rounded-md border border-transparent p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isActive && "border-ring/40 bg-accent",
-                  )}
+                  type="button"
                 >
                   {entry.kind === "folder" ? (
                     <FileSystemFolderGlyph className="h-9 w-auto" />
                   ) : (
                     <FileVisual
-                      file={entry}
                       className="w-9 rounded-sm"
+                      file={entry}
                       previewAspectRatio={0.78}
                       renderFilePreview={renderFilePreview}
                     />
@@ -4932,33 +5064,33 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
             const isActiveStage = path === activeFile?.path;
             return (
               <div
-                key={path}
-                ref={stageHostRefs.get(path)}
-                inert={!isActiveStage || undefined}
                 className={cn(
                   "absolute inset-0 flex items-center justify-center p-3",
                   !isActiveStage && "invisible opacity-0",
                 )}
+                inert={!isActiveStage || undefined}
+                key={path}
+                ref={stageHostRefs.get(path)}
               />
             );
           })}
         </div>
         {activeEntry ? (
           <InlineScrollArea2
-            orientation="vertical"
             className="hidden w-64 shrink-0 border-l sm:block"
+            orientation="vertical"
             viewportClassName="flex flex-col gap-3 p-4"
           >
             <div className="flex items-center gap-3">
               {activeFile ? (
                 <FileVisual
-                  file={activeFile}
                   className={cn(
                     "shrink-0 rounded-sm",
                     (activeFile.previewAspectRatio ?? 0.78) > 1.2
                       ? "w-16"
                       : "w-9",
                   )}
+                  file={activeFile}
                   previewAspectRatio={0.78}
                   renderFilePreview={renderFilePreview}
                 />
@@ -4982,16 +5114,25 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
     </div>
   );
 }
+function InlineComposeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
+  return (node: null | T) => {
+    for (const ref of refs) {
+      if (!ref) continue;
+      if (typeof ref === "function") ref(node);
+      else ref.current = node;
+    }
+  };
+}
 function InlineDialogPanel({
-  className,
   children,
+  className,
   ...props
 }: React.ComponentProps<"div">) {
   return (
     <InlineScrollArea className="min-h-0">
       <div
-        data-slot="dialog-panel"
         className={cn("min-h-0", className)}
+        data-slot="dialog-panel"
         {...props}
       >
         {children}
@@ -4999,17 +5140,13 @@ function InlineDialogPanel({
     </InlineScrollArea>
   );
 }
-type InlineRegistryIconProps = Omit<
-  React.ComponentProps<"svg">,
-  "children" | "strokeWidth"
-> & { strokeWidth?: number };
 function InlineScrollArea2({
-  className,
   children,
+  className,
   orientation = "both",
-  scrollFade = false,
   scrollbarGutter = false,
   scrollbarOverflowOnly = false,
+  scrollFade = false,
   viewportClassName,
   viewportProps,
   viewportRef,
@@ -5044,9 +5181,9 @@ function InlineScrollArea2({
         )}
       >
         {children}
-        {orientation !== "vertical" ? (
+        {orientation === "vertical" ? null : (
           <ScrollBar orientation="horizontal" />
-        ) : null}
+        )}
       </InlineScrollArea>
     );
   }
@@ -5063,7 +5200,6 @@ function InlineScrollArea2({
     >
       <ScrollAreaPrimitive.Viewport
         {...resolvedViewportProps}
-        ref={composedViewportRef}
         className={cn(
           "h-full rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring [&>div]:h-full",
           scrollFade &&
@@ -5074,49 +5210,30 @@ function InlineScrollArea2({
           viewportClassName,
         )}
         data-slot="scroll-area-viewport"
+        ref={composedViewportRef}
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
-      {orientation !== "horizontal" ? (
+      {orientation === "horizontal" ? null : (
         <ScrollBar orientation="vertical" />
-      ) : null}
-      {orientation !== "vertical" ? (
+      )}
+      {orientation === "vertical" ? null : (
         <ScrollBar orientation="horizontal" />
-      ) : null}
+      )}
       {orientation === "both" ? <ScrollAreaPrimitive.Corner /> : null}
     </ScrollAreaPrimitive.Root>
   );
 }
-type InlineScrollAreaProps = React.ComponentProps<
-  typeof ScrollAreaPrimitive.Root
-> & {
-  orientation?: "vertical" | "horizontal" | "both";
-  scrollFade?: boolean;
-  scrollbarGutter?: boolean;
-  scrollbarOverflowOnly?: boolean;
-  viewportClassName?: string;
-  viewportProps?: React.ComponentProps<typeof ScrollAreaPrimitive.Viewport>;
-  viewportRef?: React.Ref<HTMLDivElement>;
-};
-function InlineComposeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
-  return (node: T | null) => {
-    for (const ref of refs) {
-      if (!ref) continue;
-      if (typeof ref === "function") ref(node);
-      else ref.current = node;
-    }
-  };
+function InlineScrollAreaContent(props: React.ComponentProps<"div">) {
+  return <div {...props} />;
 }
 function InlineSpinner({ className, ...props }: InlineRegistryIconProps) {
   return (
     <LoaderCircle
-      role="status"
       aria-label="Loading"
       className={cn("size-4 animate-spin", className)}
+      role="status"
       {...props}
     />
   );
-}
-function InlineScrollAreaContent(props: React.ComponentProps<"div">) {
-  return <div {...props} />;
 }

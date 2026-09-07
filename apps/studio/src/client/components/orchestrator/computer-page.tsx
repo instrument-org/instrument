@@ -8,7 +8,6 @@ import {
 import { FileViewer } from "@/client/components/file-viewer";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
-import { OpenTaskFileButton } from "@/client/components/open-task-file-button";
 import { OpenWithMenu } from "@/client/components/open-with-menu";
 import {
   ContextMenu,
@@ -21,7 +20,6 @@ import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { useOpenTaskFile } from "@/client/hooks/use-open-task-file";
-import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { useTaskFileOpenTarget } from "@/client/hooks/use-task-file-open-target";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
@@ -104,10 +102,15 @@ export function ComputerPage({
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   // Folder prefixes under the root whose listings are held, root first. The
   // browser asks for a folder's children only once the folder is in its
-  // index, so the folder it opens on needs every folder above it listed.
-  const [loaded, setLoaded] = useState<readonly string[]>(() =>
-    prefixesOf(path),
-  );
+  // index, so the folder it opens on needs every folder above it listed. The
+  // root they are under is held with them: a prefix means nothing without it,
+  // and reading the two apart asked the other computer for `~/Downloads`'s
+  // folders under `~/Documents` for the render before the effect caught up.
+  const [loaded, setLoaded] = useState<{
+    prefixes: readonly string[];
+    root: string;
+  }>(() => ({ prefixes: prefixesOf(path), root }));
+  const prefixes = loaded.root === root ? loaded.prefixes : prefixesOf(path);
   // The folder the browser has open, as it last said; the address follows it.
   const [current, setCurrent] = useState(path);
   // The path rather than the item: the items are rebuilt on every re-read,
@@ -133,11 +136,12 @@ export function ComputerPage({
     written.current = here;
     setCurrent(path);
     setSelectedPath(null);
-    setLoaded((previous) =>
-      rootChanged
+    setLoaded((previous) => ({
+      prefixes: rootChanged
         ? prefixesOf(path)
-        : unique([...previous, ...prefixesOf(path)]),
-    );
+        : unique([...previous.prefixes, ...prefixesOf(path)]),
+      root,
+    }));
     setOpenings((count) => count + 1);
   }, [path, root]);
 
@@ -158,16 +162,34 @@ export function ComputerPage({
 
   const listings = useQueries({
     combine: combineListings,
-    queries: loaded.map((prefix) =>
+    queries: prefixes.map((prefix) =>
       rpcClient.workspace.computer.list.queryOptions({
         input: { id: taskId, path: hostPathOf(prefix) },
         refetchInterval: REFRESH_MS,
+        retry: false,
       }),
     ),
   });
+  // A folder that has gone (thrown away here, moved in the Finder) is asked
+  // for on the clock until it is let go of, which is a failing read every few
+  // seconds for as long as the screen is up. Opening it again brings it back.
+  const goneFolder = prefixes.find(
+    (prefix, index) => prefix !== "" && listings[index]?.isError,
+  );
+  useEffect(() => {
+    if (goneFolder === undefined) {
+      return;
+    }
+    setLoaded((previous) => ({
+      ...previous,
+      prefixes: previous.prefixes.filter(
+        (prefix) => !prefix.startsWith(goneFolder),
+      ),
+    }));
+  }, [goneFolder]);
   const assetBase = getAssetBaseUrl(taskId);
-  const items = listings.flatMap((data, index) => {
-    const prefix = loaded[index] ?? "";
+  const items = listings.flatMap(({ data }, index) => {
+    const prefix = prefixes[index] ?? "";
     if (!data) {
       return [];
     }
@@ -223,6 +245,15 @@ export function ComputerPage({
       queryKey: rpcClient.workspace.computer.list.key(),
     });
 
+  const browserRef = useRef<HTMLDivElement>(null);
+  // Where the keyboard goes when an action is over and the row it acted on is
+  // being rebuilt: the browser itself, which the arrows walk the folder from.
+  const focusBrowser = () => {
+    browserRef.current
+      ?.querySelector<HTMLElement>('[data-slot="file-system"]')
+      ?.focus({ preventScroll: true });
+  };
+
   // The Finder's own actions on the user's own files. Nothing here is the
   // agent's: these run because the person browsing asked for them, from the
   // folder they are looking at.
@@ -239,33 +270,56 @@ export function ComputerPage({
       failed(error);
     }
   };
-  const rename = async (hostPath: string, name: string) => {
+  const rename = async (item: FileSystemItem, name: string) => {
+    const hostPath = hostPathOfItem(item);
+    if (!hostPath) {
+      return;
+    }
     try {
       await rpcClient.files.rename.call({ name, path: hostPath });
+      // The thing renamed is the thing still selected, so the column it sits
+      // in stays open rather than closing under a selection that has gone.
+      setSelectedPath(siblingPath(item.path, name));
       reread();
     } catch (error) {
       failed(error);
     }
   };
-  const duplicate = async (hostPath: string) => {
+  const duplicate = async (item: FileSystemItem | undefined) => {
+    const hostPath = hostPathOfItem(item);
+    if (!item || !hostPath) {
+      return;
+    }
     try {
-      await rpcClient.files.duplicate.call({ path: hostPath });
+      const copy = await rpcClient.files.duplicate.call({ path: hostPath });
+      // The copy is what the Finder leaves selected, and where the keyboard
+      // carries on from.
+      setSelectedPath(
+        siblingPath(item.path, copy.path.split("/").at(-1) ?? ""),
+      );
+      focusBrowser();
       reread();
     } catch (error) {
       failed(error);
     }
   };
-  const trash = async (hostPath: string) => {
+  const trash = async (item: FileSystemItem | undefined) => {
+    const hostPath = hostPathOfItem(item);
+    if (!hostPath) {
+      return;
+    }
     try {
       await rpcClient.files.trash.call({ path: hostPath });
       setSelectedPath(null);
+      focusBrowser();
       reread();
     } catch (error) {
       failed(error);
     }
   };
 
-  const listingOf = (prefix: string) => listings[loaded.indexOf(prefix)];
+  const listingOf = (prefix: string) =>
+    listings[prefixes.indexOf(prefix)]?.data;
   // The folder on screen: in columns, a selected folder shows its contents in
   // the next column, so it is the one the user is looking at; a selected file
   // is in the folder that lists it; nothing selected leaves the browser's own.
@@ -276,8 +330,14 @@ export function ComputerPage({
         ? selectedPath
         : selectedPath.slice(0, selectedPath.lastIndexOf("/") + 1);
   const currentListing = listingOf(onScreen);
+  // Whether the folder the page is holding belongs to the root it was handed.
+  // A new root arrives a render ahead of the reset that clears the folder
+  // under it, and writing the address in between paired the root being opened
+  // with the folder being left: an address to a folder that is not there,
+  // written to history for the back button to return to.
+  const settled = loaded.root === root;
   useEffect(() => {
-    if (onScreen !== path) {
+    if (settled && onScreen !== path) {
       written.current = `${root}#${onScreen}`;
       void navigate({
         replace: true,
@@ -285,11 +345,10 @@ export function ComputerPage({
         to: "/orchestrator/computer",
       });
     }
-  }, [navigate, onScreen, path, root]);
+  }, [navigate, onScreen, path, root, settled]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
-  const browserRef = useRef<HTMLDivElement>(null);
   const hasRows = items.length > 0;
   useEffect(() => {
     if (!hasRows || isTypingTarget(document.activeElement)) {
@@ -315,9 +374,30 @@ export function ComputerPage({
       return;
     }
     wasRenaming.current = false;
-    browserRef.current
-      ?.querySelector<HTMLElement>('[data-slot="file-system"]')
-      ?.focus({ preventScroll: true });
+    focusBrowser();
+  }, [renamingPath]);
+
+  // Anywhere else pressed is the end of the naming, the way it is in the
+  // Finder: the field is unmounted, which blurs it, and a blurred field keeps
+  // whatever was typed in it.
+  useEffect(() => {
+    if (renamingPath === null) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest('input[aria-label="Name"]')
+      ) {
+        return;
+      }
+      setRenamingPath(null);
+    };
+    window.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown, true);
+    };
   }, [renamingPath]);
 
   // The folders this tab has shown, in order, for back and forward the way
@@ -329,6 +409,9 @@ export function ComputerPage({
   });
   const walking = useRef(false);
   useEffect(() => {
+    if (!settled) {
+      return;
+    }
     const here = `${root}#${onScreen}`;
     const { at, folders } = trail.current;
     if (folders[at] === here) {
@@ -342,7 +425,7 @@ export function ComputerPage({
       at: at + 1,
       folders: [...folders.slice(0, at + 1), here],
     };
-  }, [onScreen, root]);
+  }, [onScreen, root, settled]);
 
   // What the conversation is told "this folder" means.
   const display = currentListing?.display;
@@ -538,21 +621,7 @@ export function ComputerPage({
       <div className="flex min-w-0 flex-1 flex-col">
         <ContextMenu>
           <ContextMenuTrigger asChild>
-            <div
-              className="min-h-0 flex-1"
-              onContextMenu={(event) => {
-                // The row under the pointer has already said it is the one;
-                // anywhere else is the folder's empty space, where the only
-                // thing there is to do is make something in it.
-                if (
-                  !(event.target instanceof HTMLElement) ||
-                  !event.target.closest('[role="option"]')
-                ) {
-                  setMenuItem(undefined);
-                }
-              }}
-              ref={browserRef}
-            >
+            <div className="min-h-0 flex-1" ref={browserRef}>
               <FileSystem
                 className="h-full rounded-none border-0"
                 defaultPath={path}
@@ -561,9 +630,15 @@ export function ComputerPage({
                 key={`${root}#${openings}`}
                 loadChildren={async ({ path: prefix }) => {
                   setLoaded((previous) =>
-                    previous.includes(prefix)
+                    previous.root === root && previous.prefixes.includes(prefix)
                       ? previous
-                      : [...previous, prefix],
+                      : {
+                          prefixes:
+                            previous.root === root
+                              ? [...previous.prefixes, prefix]
+                              : [...prefixesOf(path), prefix],
+                          root,
+                        },
                   );
                   await queryClient.fetchQuery(
                     rpcClient.workspace.computer.list.queryOptions({
@@ -582,7 +657,7 @@ export function ComputerPage({
                   void openFile(file);
                 }}
                 onItemContextMenu={(item) => {
-                  setMenuItem(item);
+                  setMenuItem(item ?? undefined);
                 }}
                 onPathChange={setCurrent}
                 onRenameCancel={() => {
@@ -590,7 +665,7 @@ export function ComputerPage({
                 }}
                 onRenameCommit={(item, name) => {
                   setRenamingPath(null);
-                  void rename(hostPathOfItem(item), name);
+                  void rename(item, name);
                 }}
                 onRenameStart={(item) => {
                   setRenamingPath(item.path);
@@ -599,12 +674,6 @@ export function ComputerPage({
                   setSelectedPath(item?.path ?? null);
                 }}
                 renamingPath={renamingPath}
-                renderFileActions={(file) => {
-                  const tab = fileTabOf(file);
-                  return tab ? (
-                    <FileOpenWith tab={tab} taskId={taskId} />
-                  ) : null;
-                }}
                 renderFileStage={(file) => {
                   // Text reads as a thumbnail of the document, the way an image
                   // does; the viewers the browser has of its own cover the rest.
@@ -654,13 +723,14 @@ export function ComputerPage({
                     </button>
                   </span>
                 )}
+                selectedPath={selectedPath}
                 title={rootName}
               />
             </div>
           </ContextMenuTrigger>
           <FolderMenu
             item={menuItem}
-            onDuplicate={() => void duplicate(hostPathOfItem(menuItem))}
+            onDuplicate={() => void duplicate(menuItem)}
             onNewFolder={() => {
               void newFolderIn({
                 // The listing knows the folder's own path; until it has
@@ -679,7 +749,7 @@ export function ComputerPage({
                 .call({ filepath: hostPathOfItem(menuItem) })
                 .catch(failed)
             }
-            onTrash={() => void trash(hostPathOfItem(menuItem))}
+            onTrash={() => void trash(menuItem)}
             taskId={taskId}
           />
         </ContextMenu>
@@ -759,34 +829,22 @@ function breadcrumbs(
 
 /**
  * Stable while nothing changed: what each query holds, and only that, so a
- * re-render that fetched nothing new hands the browser the same items.
+ * re-render that fetched nothing new hands the browser the same items. A
+ * folder that could not be read travels with them, since the one asking is
+ * the only one that can stop asking.
  */
-function combineListings(results: { data: ComputerListing | undefined }[]) {
-  return results.map((result) => result.data);
+function combineListings(
+  results: { data: ComputerListing | undefined; isError: boolean }[],
+) {
+  return results.map((result) => ({
+    data: result.data,
+    isError: result.isError,
+  }));
 }
 
 /** What went wrong with a file action, said where the folder is. */
 function failed(error: unknown) {
   toast(error instanceof Error ? error.message : "That did not work");
-}
-
-/**
- * The product's open control for a file the Finder view has selected: the
- * Mac's own app for it, with the other apps that take it a click away.
- */
-function FileOpenWith({ tab, taskId }: { tab: FileTab; taskId: TaskId }) {
-  const file = { filePath: tab.mount, taskId };
-  const control = useTaskFileOpenControl(file);
-  return (
-    <OpenTaskFileButton
-      className="text-muted-foreground"
-      control={control}
-      file={file}
-      iconClassName="size-4"
-      size="sm"
-      variant="ghost"
-    />
-  );
 }
 
 /**
@@ -817,7 +875,16 @@ function FolderMenu({
   const openTaskFile = useOpenTaskFile();
   const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
   return (
-    <ContextMenuContent className="min-w-48">
+    <ContextMenuContent
+      className="min-w-48"
+      // Closing hands the keyboard back to what the menu came up over, which
+      // lands after a chosen action has already put it somewhere of its own:
+      // in the name field a rename just opened, or on the browser. Every item
+      // here says where the keyboard goes, so the menu says nothing.
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+      }}
+    >
       {file && showOpen ? (
         <>
           <ContextMenuItem
@@ -880,6 +947,18 @@ function prefixesOf(folder: string): string[] {
     prefixes.push(at);
   }
   return prefixes;
+}
+
+/**
+ * The path a thing beside this one would have: the same folder, a name of its
+ * own, and a folder stays a folder. What a rename or a duplicate leaves the
+ * selection on, said in the paths the browser knows things by.
+ */
+function siblingPath(path: string, name: string) {
+  const isFolder = path.endsWith("/");
+  const trimmed = isFolder ? path.slice(0, -1) : path;
+  const at = trimmed.lastIndexOf("/");
+  return `${at === -1 ? "" : trimmed.slice(0, at + 1)}${name}${isFolder ? "/" : ""}`;
 }
 
 /** How much smaller than life a document is drawn in its thumbnail. */

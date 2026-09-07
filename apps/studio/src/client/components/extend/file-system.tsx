@@ -137,9 +137,9 @@ export type FileSystemProps = {
   className?: string;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
   defaultPath?: string;
-  defaultView?: FileSystemView;
   /** The order the browser opens in, when name ascending is the wrong one. */
   defaultSort?: FileSystemSortState;
+  defaultView?: FileSystemView;
   /** Resolve a URL (e.g. presigned) for a file without one. */
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
   /** Flat manifest. Folders are optional; missing prefixes are inferred from file paths. */
@@ -189,12 +189,6 @@ export type FileSystemProps = {
   onViewChange?: (view: FileSystemView) => void;
   /** The item whose name is being typed over in its own row, by path. */
   renamingPath?: null | string;
-  /**
-   * The selected item's path, when the caller holds it. Left out, the browser
-   * keeps its own; given, the caller can put the selection on something it
-   * just made or renamed, the way the Finder leaves the new thing selected.
-   */
-  selectedPath?: null | string;
   /** Controls drawn under a selected file's name in the columns view's preview pane. */
   renderFileActions?: (file: FileSystemFileItem) => React.ReactNode;
   /** Custom preview node for files without `previewImageUrl`. */
@@ -208,6 +202,12 @@ export type FileSystemProps = {
    * selected, given the folder that column lists.
    */
   renderTrailing?: (folderPath: string) => React.ReactNode;
+  /**
+   * The selected item's path, when the caller holds it. Left out, the browser
+   * keeps its own; given, the caller can put the selection on something it
+   * just made or renamed, the way the Finder leaves the new thing selected.
+   */
+  selectedPath?: null | string;
   /** Label for the root folder. */
   title?: string;
   view?: FileSystemView;
@@ -1292,12 +1292,12 @@ export function FileSystem({
   onSelectionChange,
   onViewChange,
   renamingPath,
-  selectedPath: selectedPathProp,
   renderFileActions,
   renderFilePreview,
   renderFileStage,
   renderHeaderLead,
   renderTrailing,
+  selectedPath: selectedPathProp,
   title = "Files",
   view: viewProp,
 }: FileSystemProps) {
@@ -4439,13 +4439,6 @@ function FileSystemPierreTree({
     <PierreFileTree
       className="block min-h-0 flex-1"
       model={model}
-      // Finder semantics: double-clicking a folder navigates into it and
-      // double-clicking a file opens it; a single click still only toggles
-      // the folder's disclosure.
-      onDoubleClick={(event) => {
-        const entry = entryFromEvent(event);
-        if (entry) onOpen(entry);
-      }}
       // The same menu the other views raise, on the row the press landed on:
       // the tree draws its rows in a shadow root, so the row is found along
       // the event's composed path rather than as its target. Right-clicking
@@ -4455,6 +4448,13 @@ function FileSystemPierreTree({
         if (!entry) return;
         resolveTreeItem(entry.path.slice(currentPath.length))?.select();
         onItemContextMenu?.(entry, event);
+      }}
+      // Finder semantics: double-clicking a folder navigates into it and
+      // double-clicking a file opens it; a single click still only toggles
+      // the folder's disclosure.
+      onDoubleClick={(event) => {
+        const entry = entryFromEvent(event);
+        if (entry) onOpen(entry);
       }}
       // Enter mirrors the other views: rename the focused item where it
       // stands, with ⌘O and ⌘↓ left to open it. Printable keys run the

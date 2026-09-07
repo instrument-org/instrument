@@ -173,11 +173,42 @@ A **replay** is not an agent turn and none of this sees it: it runs its own loop
 
 ## Page model
 
-Studio is one window and one web contents: `AppChrome` and every open tab mount in the same page. Agent-browser tabs are renderer `<webview>` guests inside it, not separate DevTools targets. The app root carries `data-testid="app-page"`.
+The classic window is one web contents: `AppChrome` and every open tab mount in the same page. Agent-browser tabs are renderer `<webview>` guests inside it, not separate DevTools targets. The app root carries `data-testid="app-page"`.
 
 The renderer keeps the current route out of the window URL, and the main window restores its persisted tab session on load. So `location.hash` is not the route, and navigating the web contents to a route URL does not open it — the restored tabs paint over it. Use `state` to read where you are and `goto` to move.
 
 In `state`, `path` is authoritative; `tabs[].pathname` mirrors it a moment later.
+
+### The 2.0 window
+
+Instrument 2.0 is a **second** window with its own web contents, serving the same renderer bundle under the `#/orchestrator` route. It opens at launch behind the `instrument_2` feature flag, which also keeps the classic window loaded but hidden — the tasks' machinery and a task page's browser host live in it. There is no route that opens it on demand, so setting the flag is not enough on its own:
+
+```
+studio-drive.mjs rpc features.setEnabled '{"feature":"instrument_2","enabled":true}'
+studio-drive.mjs stop && studio-drive.mjs boot --purpose "2.0"
+```
+
+The dev panel's **Start in Instrument 2.0** checkbox sets the same flag, and the 2.0 window's File menu has "Switch to Classic Instrument" to turn it off.
+
+With the flag on, one instance serves both windows on one debug port, and both are pages under `/renderer/` — the 2.0 one is often listed *first*. So every command takes `--window`:
+
+```
+studio-drive.mjs state --window orchestrator
+studio-drive.mjs click "This Mac" --window orchestrator
+studio-drive.mjs shot two-oh.png --window orchestrator
+```
+
+It defaults to `main`, and it belongs on every command meant for the 2.0 window — a missing flag drives whichever window the debug endpoint listed first, and answers confidently about the wrong one.
+
+`window.__studioDrive` does not exist in this window: the renderer entry gates it on `isMainWindow`, because tabs and app-wide modals are classic-window things. Three consequences:
+
+- `goto` sets `location.hash`, which is how this window routes. `state` reports `path` and `dialog` but **no tab list** — its tabs are a channel-keyed model of its own, and reproducing that storage key out here would rot. Read them with `snapshot` or `eval`.
+- `modal` / `openModal` / `closeModal` refuse, rather than reporting the absent handle as a broken dev build. Click the control that opens one, or `press Escape` to close it.
+- **Reload detection is off here.** The load id every step compares against is the handle's, so a run against this window is not told when the renderer reloaded under it. Re-read `state` after anything that might have triggered HMR.
+
+Everything else — `click`, `type`, `press`, `wait`, `rpc`, `shot`, `snapshot`, `wait --idle` — behaves identically, because it works on the DOM and the RPC bridge rather than on the classic window's atoms.
+
+A task spawned by the orchestrator opens its browser as a page tab **inside this window**, so its guests are `<webview>`s here rather than in the classic window.
 
 ## States a dev build otherwise cannot reach
 

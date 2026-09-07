@@ -72,6 +72,30 @@
 //
 //   node studio-drive.mjs boot --purpose "document viewer" --workspace documents
 //   node studio-drive.mjs shot task.png --workspace documents
+//
+// `--window orchestrator` drives the 2.0 window instead of the classic one.
+// Both are served by one instance on one debug port, so this is per command
+// rather than per instance, and it belongs on every command meant for that
+// window. Without it a command takes whichever window the debug endpoint lists
+// first, which is not a choice anyone made.
+//
+//   node studio-drive.mjs state --window orchestrator
+//   node studio-drive.mjs goto /orchestrator/home --window orchestrator
+//   node studio-drive.mjs shot two-oh.png --window orchestrator
+//
+// That window opens at launch behind the `instrument_2` feature flag, and no
+// route opens it on demand, so the flag alone does not produce one:
+//
+//   node studio-drive.mjs rpc features.setEnabled '{"feature":"instrument_2","enabled":true}'
+//   node studio-drive.mjs stop && node studio-drive.mjs boot --purpose "2.0"
+//
+// It routes through the URL hash and keeps its own tab model, so `goto` there
+// sets the hash and `state` reports a route and a dialog but no tabs. It has no
+// `window.__studioDrive` at all -- the renderer entry gates that on the main
+// window -- so `modal` refuses instead of reporting the absent handle as a
+// broken build, and reload detection is off. Everything else -- click, type,
+// press, wait, rpc, shot, snapshot -- works the same in both, because it works
+// on the DOM rather than on the classic window's atoms.
 
 // The repo does not lint `.agents`, so these only ever fire when a changed-file
 // pass runs without ignores. None is worth reshaping this file for:
@@ -161,6 +185,11 @@ const WORK_ARTIFACT_NAMES = new Set([".venv", "node_modules"]);
 // Read off the raw argv rather than the parsed tail: which instance a command
 // talks to has to be settled before anything reads a session record.
 const WORKSPACE = flag(process.argv, "--workspace");
+
+// Which of the app's windows to drive. One instance can be showing both, and
+// they answer to the same debug port, so this is not a property of the instance
+// the way the workspace is -- it is per command.
+const WINDOW = flag(process.argv, "--window") ?? "main";
 
 // --- seeded workspaces -------------------------------------------------
 
@@ -503,6 +532,7 @@ async function cmdRun(file, rawArgs) {
   const app = await connect({
     allowReload: process.argv.includes("--allow-reload"),
     port: flag(process.argv, "--port"),
+    window: WINDOW,
     workspace: WORKSPACE,
   });
 
@@ -717,6 +747,7 @@ async function runAgainstInstance() {
   const app = await connect({
     allowReload: true,
     port: flag(argv, "--port"),
+    window: WINDOW,
     workspace: WORKSPACE,
   });
   try {
@@ -791,6 +822,14 @@ async function dispatch(app) {
 async function cmdModal(app, name) {
   if (name === "--close") {
     return app.closeModal();
+  }
+  // Ahead of the handle wait below, which in the 2.0 window would otherwise
+  // report the absent handle as a broken dev build rather than as a verb that
+  // window does not have.
+  if (app.window === "orchestrator") {
+    fail(
+      "`modal` is a classic-window verb. The 2.0 window has no modal registry; click the control that opens it, or `press Escape` to close one.",
+    );
   }
   // Checked against the openers the renderer actually has, rather than a copy
   // kept here that would go stale the first time one is added. An unchecked

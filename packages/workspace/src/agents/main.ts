@@ -19,6 +19,7 @@ import { getEffectiveProjectContext } from "../lib/effective-project-context";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
+import { buildBriefContextText } from "../lib/orchestrator/brief-context";
 import { pathExists } from "../lib/path-exists";
 import { normalizeProjectInstructions } from "../lib/project-instructions";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
@@ -345,6 +346,7 @@ export const mainAgent = setupAgent({
         await buildAvailableSkillsContext(),
         await buildTaskAppsText(taskId),
         taskLayout,
+        await buildBriefContextText(taskId),
       ],
     });
 

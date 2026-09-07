@@ -34,7 +34,11 @@ export function taskEventModelNote(
         ? ` Its latest step: "${event.summary}"`
         : ` It last said: "${event.summary}"`
       : " It said nothing.";
-    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${summary}`;
+    const files =
+      event.files && event.files.length > 0
+        ? `\n  It wrote: ${event.files.join(", ")}`
+        : "";
+    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${summary}${files}`;
   });
 
   const overdue = data.events.every((event) => event.status === "overdue");

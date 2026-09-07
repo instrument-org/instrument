@@ -357,6 +357,12 @@ export namespace SessionMessageDataPart {
           /** How long the child's agent has been at work in total. */
           activeMs: z.number().nonnegative().optional(),
           /**
+           * What the task wrote, in the paths the orchestrator can open. Read
+           * from its transcript rather than from what it said, so a file it
+           * made and forgot to mention still reaches the conversation.
+           */
+          files: z.array(z.string()).optional(),
+          /**
            * Done and error end a turn; overdue is a task still at work past
            * the point the orchestrator should look, and says so once.
            */

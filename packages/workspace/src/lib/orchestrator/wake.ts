@@ -16,6 +16,7 @@ import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, turnStartedAt } from "./activity";
 import { channelOfTask } from "./attribution";
+import { filesWrittenBy } from "./files-written";
 import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
 
 /** What a wake carries: the part that starts the orchestrator's turn. */
@@ -214,6 +215,7 @@ async function onSessionDone(
     orchestratorId,
     {
       activeMs: usage.activeMs,
+      files: await filesWrittenBy({ sessionId, taskId: id }),
       status: "done",
       summary: await lastAssistantText({
         maxLength: SUMMARY_MAX_LENGTH,

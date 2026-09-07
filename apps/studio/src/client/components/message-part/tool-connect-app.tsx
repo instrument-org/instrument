@@ -61,12 +61,17 @@ function ConnectCard({
     removed ||
     standing === "connected" ||
     standing === "declined" ||
-    standing === "failed" ||
     standing === "stale";
+  const failed = standing === "failed";
+  // What the service, the SDK, or the server said, kept whole and kept out of
+  // the card's own sentences: it is machine text, usually one long line of it,
+  // and the reader's use for it is to copy it somewhere rather than to read it
+  // as prose.
+  const detail = failed ? app?.connection?.error : undefined;
 
   return (
     <ToolCard>
-      <ToolCardSection collapsedHeight={320}>
+      <ToolCardSection borderBottom={Boolean(detail)} collapsedHeight={320}>
         <div className="flex items-center gap-3">
           <AppIcon site={site} />
           <div className="min-w-0 flex-1">
@@ -91,10 +96,29 @@ function ConnectCard({
                 ? `Connected${app?.connection?.account ? ` as ${app.connection.account}` : ""}.`
                 : standing === "declined"
                   ? "Not now."
-                  : standing === "stale"
-                    ? "Connected, then changed; Instrument will test it again."
-                    : `Could not connect${app?.connection?.error ? `: ${app.connection.error}` : "."}`}
+                  : "Connected, then changed; Instrument will test it again."}
           </p>
+        ) : failed ? (
+          // A failure the user can act on where they read about it: the same
+          // controls the card opened with, since nothing about the app changed
+          // and the next thing to do is the thing that did not work.
+          <>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Could not connect to {name}.
+            </p>
+            {kind === "none" ? null : (
+              <div className="mt-3">
+                <ConnectControls
+                  dismissible
+                  kind={kind}
+                  label="Try again"
+                  name={name}
+                  runs={runs}
+                  slug={slug}
+                />
+              </div>
+            )}
+          </>
         ) : kind === "none" ? (
           <p className="mt-3 text-xs text-muted-foreground">
             Nothing to sign in to; Instrument is testing it.
@@ -111,6 +135,20 @@ function ConnectCard({
           </div>
         )}
       </ToolCardSection>
+
+      {detail ? (
+        // Drawn as the transcript draws every other block of machine text: its
+        // own region under the card's words, monospace, clamped to a few lines
+        // with the rest a click away, and carrying the copy and wrap controls a
+        // command's output carries. Wrapped by default so a single 300-
+        // character line is readable in place; unwrapped for the reader
+        // comparing indented lines.
+        <ToolCardSection collapsedHeight={112} copyText={detail} wrappable>
+          <pre className="font-mono text-xs leading-5 text-foreground/80">
+            {detail}
+          </pre>
+        </ToolCardSection>
+      ) : null}
     </ToolCard>
   );
 }

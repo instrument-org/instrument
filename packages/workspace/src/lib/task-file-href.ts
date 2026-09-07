@@ -1,4 +1,4 @@
-import { normalizeTaskFilePath } from "@instrument-org/workspace/client";
+import { normalizeTaskFilePath } from "./normalize-task-file-path";
 
 // A schemeless, non-anchor href is a candidate task-file reference (e.g. the
 // agent's `[Download](output/report.xml)`). Real URLs carry a scheme

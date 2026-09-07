@@ -6,6 +6,8 @@ import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import {
   AGENT_FILES_LANGUAGE,
   isAddressableTaskFilePath,
+  isTaskFileHref,
+  taskFilePathFromHref,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -50,7 +52,6 @@ import {
 } from "../lib/mermaid";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
-import { isTaskFileHref, taskFilePathFromHref } from "../lib/task-file-href";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";

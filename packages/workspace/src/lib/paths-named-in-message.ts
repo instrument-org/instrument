@@ -1,8 +1,5 @@
-import {
-  AGENT_FILES_LANGUAGE,
-  type SessionMessage,
-} from "@instrument-org/workspace/client";
-
+import { AGENT_FILES_LANGUAGE } from "../constants";
+import { type SessionMessage } from "../schemas/session/message";
 import { parseFilesBlock } from "./parse-files-block";
 import { isTaskFileHref, taskFilePathFromHref } from "./task-file-href";
 

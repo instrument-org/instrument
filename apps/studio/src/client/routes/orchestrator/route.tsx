@@ -73,11 +73,14 @@ import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
-import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { StoreId, type TaskId } from "@instrument-org/workspace/client";
+import {
+  pathsNamedInMessage,
+  StoreId,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,

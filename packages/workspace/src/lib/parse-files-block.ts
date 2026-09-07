@@ -1,4 +1,4 @@
-import { normalizeTaskFilePath } from "@instrument-org/workspace/client";
+import { normalizeTaskFilePath } from "./normalize-task-file-path";
 
 // Bullets and numbers an agent adds when it reads the block as a list.
 const LIST_MARKER = /^(?:[*+-]|\d+[.)])\s+/;

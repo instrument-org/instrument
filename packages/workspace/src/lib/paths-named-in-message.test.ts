@@ -1,6 +1,7 @@
-import { type SessionMessage, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
+import { type SessionMessage } from "../schemas/session/message";
+import { StoreId } from "../schemas/store-id";
 import { pathsNamedInMessage } from "./paths-named-in-message";
 
 const sessionId = StoreId.newSessionId();

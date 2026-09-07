@@ -19,9 +19,12 @@ export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export type { ComputerListing } from "./lib/orchestrator/computer";
 export { paneTabsModelNote } from "./lib/pane-tabs-model-text";
+export { parseFilesBlock } from "./lib/parse-files-block";
+export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
+export { isTaskFileHref, taskFilePathFromHref } from "./lib/task-file-href";
 export { isAddressableTaskFilePath } from "./lib/task-file-path";
 export {
   getUsageSummaryFromMessages,

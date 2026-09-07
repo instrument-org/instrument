@@ -1,6 +1,6 @@
-import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
 import {
   isToolPart,
+  pathsNamedInMessage,
   type SessionMessage,
   type SessionMessagePart,
   type Task,

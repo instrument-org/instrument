@@ -1,8 +1,10 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { isMediaFile } from "@/client/lib/get-file-type";
-import { parseFilesBlock } from "@/client/lib/parse-files-block";
-import { isAddressableTaskFilePath } from "@instrument-org/workspace/client";
+import {
+  isAddressableTaskFilePath,
+  parseFilesBlock,
+} from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { useContext } from "react";
 

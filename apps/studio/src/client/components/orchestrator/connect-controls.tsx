@@ -3,9 +3,9 @@ import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 /** Where the sign-in page opens: the window's own browser, or the user's. */
@@ -47,6 +47,18 @@ export function ConnectControls({
   const openExternalLink = useOpenExternalLink();
   const [value, setValue] = useState("");
   const [waiting, setWaiting] = useState(false);
+  // The sign-in lands where the site sends it, which is the site. The app's
+  // page here is where the user was doing this, so that is where they land.
+  const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
+  const standing = apps.data?.apps.find((app) => app.slug === slug)?.standing;
+  useEffect(() => {
+    if (waiting && standing === "connected") {
+      setWaiting(false);
+      orchestrator?.openScreen(`/orchestrator/apps/${slug}`);
+    }
+    // Once, as the standing lands; the opener is read then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waiting, standing, slug]);
 
   const openAuthorization = (url: string, where: SignInDestination) => {
     if (where === "app" && orchestrator?.browser) {

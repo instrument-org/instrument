@@ -3,7 +3,7 @@ import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /** One task as the list needs it. */
 export interface TaskListItem {
@@ -59,7 +59,10 @@ export function TaskList({
       (item.channel ?? "").toLowerCase().includes(words)
     );
   });
-  const groups = groupByDay(shown);
+  // One clock for the whole render, so every row's "20m" is measured from the
+  // same moment and the list is re-read on the tick rather than per row.
+  const now = useNow();
+  const groups = groupByDay(shown, now);
   const runningCount = items.filter(
     (item) => item.standing === "running",
   ).length;
@@ -113,7 +116,7 @@ export function TaskList({
         ) : (
           groups.map(([label, group]) => (
             <div key={label}>
-              <p className="px-2 pt-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+              <p className="sticky top-0 z-10 bg-background/95 px-2 pt-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase backdrop-blur-xs">
                 {label}
               </p>
               {group.map((item) => (
@@ -126,7 +129,7 @@ export function TaskList({
                     onOpen(item.id);
                   }}
                   standing={item.standing}
-                  time={timeOf(item.updatedAt)}
+                  time={timeOf(item.updatedAt, now)}
                   title={item.title}
                 />
               ))}
@@ -160,8 +163,10 @@ function dayLabel(date: Date, now: Date): string {
   });
 }
 
-function groupByDay(items: TaskListItem[]): [string, TaskListItem[]][] {
-  const now = new Date();
+function groupByDay(
+  items: TaskListItem[],
+  now: Date,
+): [string, TaskListItem[]][] {
   const groups: [string, TaskListItem[]][] = [];
   for (const item of [...items].sort(
     (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
@@ -178,21 +183,41 @@ function groupByDay(items: TaskListItem[]): [string, TaskListItem[]][] {
 }
 
 /**
- * The time on a row: the clock for what the day's heading already dates, the
- * weekday for this week, the date for anything older.
+ * The time on a row: how long ago while that still means something, then the
+ * date. Today and yesterday are read in the terms a person thinks in ("20m",
+ * "3h"); past that a clock time is no help and the date is what they are
+ * looking for.
  */
-function timeOf(date: Date): string {
-  const now = new Date();
+function timeOf(date: Date, now: Date): string {
   const startOfToday = new Date(now).setHours(0, 0, 0, 0);
   const days = Math.floor((startOfToday - date.getTime()) / DAY_MS);
   if (days < 1) {
-    return date.toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  }
-  if (days < 7) {
-    return date.toLocaleDateString(undefined, { weekday: "short" });
+    const minutes = Math.max(
+      0,
+      Math.round((now.getTime() - date.getTime()) / 60_000),
+    );
+    if (minutes < 1) {
+      return "now";
+    }
+    if (minutes < 60) {
+      return `${minutes}m`;
+    }
+    const hours = Math.round(minutes / 60);
+    return `${hours}h`;
   }
   return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+/** The clock the list reads its "how long ago" from, ticking once a minute. */
+function useNow(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 60_000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, []);
+  return now;
 }

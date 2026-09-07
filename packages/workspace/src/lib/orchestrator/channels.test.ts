@@ -195,3 +195,21 @@ describe("reorderChannels", () => {
 function made() {
   return StoreId.newSessionId();
 }
+
+describe("concurrent writes", () => {
+  it("keeps an archive that lands while the window is recording what was seen", async () => {
+    const taskId = freshTask();
+    const [first] = await listChannels(taskId);
+    const made = await createChannel(taskId, "reddit");
+
+    await Promise.all([
+      archiveChannel(taskId, made.id),
+      markChannelSeen(taskId, first?.id ?? made.id),
+      markChannelSeen(taskId, made.id),
+    ]);
+
+    expect((await listChannels(taskId)).map((channel) => channel.name)).toEqual(
+      [DEFAULT_CHANNEL_NAME],
+    );
+  });
+});

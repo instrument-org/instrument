@@ -5,7 +5,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { type TaskState } from "../../schemas/task-state";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
-import { getTaskState, setTaskState } from "../task-record";
+import { getTaskState, updateTaskChannels } from "../task-record";
 
 /**
  * The channel every orchestrator has, made on first use and never archived:
@@ -62,14 +62,13 @@ export async function renameChannel(
   sessionId: StoreId.Session,
   name: string,
 ): Promise<void> {
-  const state = await getTaskState(taskDir(taskId));
-  await setTaskState(taskDir(taskId), {
-    channels: (state.channels ?? []).map((channel) =>
+  await updateTaskChannels(taskDir(taskId), (channels) =>
+    channels.map((channel) =>
       channel.id === sessionId
         ? { ...channel, name: channelName(name) }
         : channel,
     ),
-  });
+  );
 }
 
 /**
@@ -84,21 +83,21 @@ export async function archiveChannel(
   taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<{ archived: boolean; reason?: string }> {
-  const state = await getTaskState(taskDir(taskId));
-  const channels = state.channels ?? [];
-  const first = channels[0];
-  if (first?.id === sessionId) {
-    return { archived: false, reason: "The first channel stays." };
-  }
-  if (channels.filter((channel) => !channel.archived).length <= 1) {
-    return { archived: false, reason: "The last channel stays." };
-  }
-  await setTaskState(taskDir(taskId), {
-    channels: channels.map((channel) =>
+  let refused: string | undefined;
+  await updateTaskChannels(taskDir(taskId), (channels) => {
+    if (channels[0]?.id === sessionId) {
+      refused = "The first channel stays.";
+      return channels;
+    }
+    if (channels.filter((channel) => !channel.archived).length <= 1) {
+      refused = "The last channel stays.";
+      return channels;
+    }
+    return channels.map((channel) =>
       channel.id === sessionId ? { ...channel, archived: true } : channel,
-    ),
+    );
   });
-  return { archived: true };
+  return refused ? { archived: false, reason: refused } : { archived: true };
 }
 
 /** The order the strip was left in, which is the order it opens in. */
@@ -106,15 +105,15 @@ export async function reorderChannels(
   taskId: TaskId,
   ids: StoreId.Session[],
 ): Promise<void> {
-  const state = await getTaskState(taskDir(taskId));
-  const channels = state.channels ?? [];
-  const byId = new Map(channels.map((channel) => [channel.id, channel]));
-  const moved = ids.flatMap((id) => {
-    const channel = byId.get(id);
-    return channel ? [channel] : [];
+  await updateTaskChannels(taskDir(taskId), (channels) => {
+    const byId = new Map(channels.map((channel) => [channel.id, channel]));
+    const moved = ids.flatMap((id) => {
+      const channel = byId.get(id);
+      return channel ? [channel] : [];
+    });
+    const rest = channels.filter((channel) => !ids.includes(channel.id));
+    return [...moved, ...rest];
   });
-  const rest = channels.filter((channel) => !ids.includes(channel.id));
-  await setTaskState(taskDir(taskId), { channels: [...moved, ...rest] });
 }
 
 /** The channel a session belongs to, or none when the session is not one. */
@@ -170,13 +169,16 @@ export async function createChannel(
   taskId: TaskId,
   name: string,
 ): Promise<Channel> {
-  const channels = await listChannels(taskId);
+  await listChannels(taskId);
   const channel: Channel = {
     createdAt: Date.now(),
     id: await makeSession(taskId, name),
     name: channelName(name),
   };
-  await setTaskState(taskDir(taskId), { channels: [...channels, channel] });
+  await updateTaskChannels(taskDir(taskId), (channels) => [
+    ...channels,
+    channel,
+  ]);
   return channel;
 }
 
@@ -190,21 +192,20 @@ export async function createChannel(
  */
 export async function listChannels(taskId: TaskId): Promise<Channel[]> {
   const state = await getTaskState(taskDir(taskId));
-  const existing = (state.channels ?? []).filter(
-    (channel) => !channel.archived,
-  );
-  if (existing.length > 0) {
-    return existing;
+  const known = state.channels ?? [];
+  const visible = known.filter((channel) => !channel.archived);
+  if (visible.length > 0) {
+    return visible;
   }
-  if ((state.channels ?? []).length > 0) {
-    // Everything was archived, which the archive rule does not allow; the
+  if (known.length > 0) {
+    // Everything is archived, which the archive rule does not allow; the
     // oldest comes back rather than leaving the window with no channel.
-    const [oldest, ...rest] = state.channels ?? [];
-    if (oldest) {
-      const restored = { ...oldest, archived: false };
-      await setTaskState(taskDir(taskId), { channels: [restored, ...rest] });
-      return [restored];
-    }
+    const written = await updateTaskChannels(taskDir(taskId), (channels) =>
+      channels.map((channel, index) =>
+        index === 0 ? { ...channel, archived: false } : channel,
+      ),
+    );
+    return written.filter((channel) => !channel.archived);
   }
   const adopted = await newestSessionId(taskId);
   const channel: Channel = {
@@ -212,8 +213,10 @@ export async function listChannels(taskId: TaskId): Promise<Channel[]> {
     id: adopted ?? (await makeSession(taskId, DEFAULT_CHANNEL_NAME)),
     name: DEFAULT_CHANNEL_NAME,
   };
-  await setTaskState(taskDir(taskId), { channels: [channel] });
-  return [channel];
+  const written = await updateTaskChannels(taskDir(taskId), (channels) =>
+    channels.length > 0 ? channels : [channel],
+  );
+  return written.filter((entry) => !entry.archived);
 }
 
 /** Records what the user has seen in a channel, so its count can clear. */
@@ -221,15 +224,17 @@ export async function markChannelSeen(
   taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<void> {
-  const channels = await listChannels(taskId);
   const newest = await newestMessageId(taskId, sessionId);
-  await setTaskState(taskDir(taskId), {
-    channels: channels.map((channel) =>
+  if (!newest) {
+    return;
+  }
+  await updateTaskChannels(taskDir(taskId), (channels) =>
+    channels.map((channel) =>
       channel.id === sessionId
-        ? { ...channel, ...(newest ? { seenMessageId: newest } : {}) }
+        ? { ...channel, seenMessageId: newest }
         : channel,
     ),
-  });
+  );
 }
 
 async function lastActivity(

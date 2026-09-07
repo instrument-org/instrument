@@ -306,13 +306,17 @@ export function TaskChat({
   const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
   const draftKey = { scope: "task", taskId: id } as const;
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
+  // The conversation never takes the caret on its own: it shares a window with
+  // the page the user is reading, and switching channel is looking around
+  // rather than starting to type.
+  const takesFocus = presentation !== "orchestrator";
   useLayoutEffect(() => {
-    if (!isActiveTab) {
+    if (!isActiveTab || !takesFocus) {
       return;
     }
     promptEditor?.focus();
     promptEditor?.moveCaretToEnd();
-  }, [isActiveTab, focusSignal, selectedSessionId, promptEditor]);
+  }, [isActiveTab, focusSignal, selectedSessionId, promptEditor, takesFocus]);
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
   const [composerFolderCount, setComposerFolderCount] = useState(0);
@@ -335,7 +339,7 @@ export function TaskChat({
 
   const promptInput = (
     <PromptInput
-      autoFocus
+      autoFocus={takesFocus}
       className="relative z-10"
       draftKey={draftKey}
       folderTrayPlacement="above"

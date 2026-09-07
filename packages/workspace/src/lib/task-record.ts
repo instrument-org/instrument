@@ -138,6 +138,27 @@ export async function updateTaskPane(
 }
 
 /**
+ * Applies a change to the channels, reading them inside the write queue.
+ *
+ * Every channel write is read-modify-write on one array, and several run at
+ * once: the window records what has been seen while the user archives or
+ * renames. Reading before the queue means the slower writer restores the list
+ * the faster one had just changed, which reads as an archived channel coming
+ * back.
+ */
+export async function updateTaskChannels(
+  dir: TaskDir,
+  update: (
+    channels: NonNullable<TaskState["channels"]>,
+  ) => NonNullable<TaskState["channels"]>,
+): Promise<NonNullable<TaskState["channels"]>> {
+  const written = await updateTaskRecord(dir, (record) =>
+    recordWithState(record, { channels: update(record.state.channels ?? []) }),
+  );
+  return written.state.channels ?? [];
+}
+
+/**
  * Applies a change to the whole file, reading it inside the write queue.
  *
  * The callback receives what is currently on disk and returns what should

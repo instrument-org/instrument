@@ -475,9 +475,9 @@ function HomeRoute() {
       </section>
 
       {/* The places the user kept, which is what a bookmark is: their own
-          choice, before anything the app has to offer. What the row is comes
-          after the row itself, small and under it, since the names the user
-          chose are the thing and the word for them is only a caption. */}
+          choice, before anything the app has to offer. Drawn as the apps above
+          are, since they are the same gesture and reading as two kinds of
+          thing would be the only difference between them. */}
       <section className="mt-3 w-full max-w-3xl">
         {pins.length === 0 ? (
           <p className="text-center text-xs text-muted-foreground">
@@ -485,10 +485,10 @@ function HomeRoute() {
           </p>
         ) : (
           <>
-            <div className="flex flex-nowrap justify-center gap-1.5">
+            <div className="flex flex-nowrap justify-center gap-1">
               {pins.slice(0, PINS_SHOWN).map((pin) => (
                 <button
-                  className="flex min-w-0 shrink items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1 text-left shadow-sm hover:bg-accent/30"
+                  className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
                   key={pin.id}
                   onClick={() => {
                     if (pin.kind === "page") {
@@ -499,22 +499,19 @@ function HomeRoute() {
                   }}
                   type="button"
                 >
-                  <span className="flex size-4 shrink-0 items-center justify-center">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card shadow-sm [&_img]:size-5 [&_svg]:size-5">
                     {pin.kind === "page" ? (
                       <SiteIcon favicon={pin.favicon} url={pin.target} />
                     ) : (
                       <ScreenIcon appsBySlug={appsBySlug} href={pin.target} />
                     )}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-xs">
+                  <span className="w-full truncate text-center text-xs">
                     {pin.title}
                   </span>
                 </button>
               ))}
             </div>
-            <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-              Bookmarks
-            </p>
           </>
         )}
       </section>

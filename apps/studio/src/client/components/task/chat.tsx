@@ -342,6 +342,9 @@ export function TaskChat({
 
   const promptInput = (
     <PromptInput
+      // Beside the work, the row stays open: a tab switch moves the caret, and
+      // a row that folded and unfolded with it would animate on every switch.
+      alwaysOpen={presentation === "orchestrator"}
       autoFocus={takesFocus}
       className="relative z-10"
       draftKey={draftKey}

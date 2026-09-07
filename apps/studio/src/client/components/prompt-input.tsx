@@ -119,6 +119,12 @@ interface PromptInputProps {
   // beside it. Off where the project is not the composer's to decide -- a task's
   // is fixed when it is created.
   allowWorkInProject?: boolean;
+  /**
+   * Keep the row open whether or not the caret is in it. For a composer that
+   * sits beside the work rather than under it: switching to another tab would
+   * otherwise fold the row shut and unfold it again on the focus that follows.
+   */
+  alwaysOpen?: boolean;
   autoFocus?: boolean;
   autoResizeMaxHeight?: number;
   // Extra action rendered in the button row beside the plus button (e.g. the
@@ -168,6 +174,7 @@ interface PromptInputProps {
 export const PromptInput = ({
   allowOpenInNewTab = false,
   allowWorkInProject = false,
+  alwaysOpen,
   autoFocus = false,
   autoResizeMaxHeight = 400,
   className,
@@ -588,7 +595,8 @@ export const PromptInput = ({
   // that folded away mid-draft would take them with it.
   const pillOpen =
     variant === "pill" &&
-    (pillFocused ||
+    (alwaysOpen ||
+      pillFocused ||
       pickerOpen ||
       menuView !== null ||
       value.trim().length > 0 ||

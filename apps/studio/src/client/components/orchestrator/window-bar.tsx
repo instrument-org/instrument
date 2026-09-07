@@ -67,8 +67,17 @@ export function WindowBar({
           >
             {/* No tile behind it: the bar is already wearing this channel's
               color, and a second patch of it around the mark reads as a
-              sticker on top of the thing it matches. */}
-            <ChannelFace channel={channel} className="text-[13px]" />
+              sticker on top of the thing it matches. The glyph is drawn in
+              that same color rather than in ink, so on a light ground it reads
+              as part of the bar; dark mode already has the contrast for ink. */}
+            <ChannelFace
+              channel={channel}
+              className={cn(
+                "text-[13px]",
+                channel.isHome &&
+                  "text-[var(--channel-tint-base)] dark:text-current",
+              )}
+            />
             <span className="max-w-40 truncate">{channel.name}</span>
           </button>
           <span aria-hidden className="h-5 w-px shrink-0 bg-border" />

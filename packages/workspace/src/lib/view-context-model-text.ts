@@ -95,7 +95,7 @@ function pageNote(data: ViewContext) {
   const { page } = data;
   if (!page) {
     return systemNote`
-      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet; your own agent-browser has no tab to drive until one is opened.
+      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`open <url>\` opens one.
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
@@ -112,7 +112,7 @@ function pageNote(data: ViewContext) {
       ? `Other tabs open but not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id})`).join("; ")}.`
       : "No other tabs are open.";
   return systemNote`
-    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. Your own agent-browser drives this tab, for one-step things on it; a task that should work in it gets it with --tab and its id, and then drives it in the user's sight. Answer from what is quoted here when that is enough. ${words}${focus}
+    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. You have no browser of your own: work on the page, of any size, goes to a task with --tab and its id, which drives this same tab in the user's sight. Answer from what is quoted here when that is enough. ${words}${focus}
     ${tabs}
   `;
 }

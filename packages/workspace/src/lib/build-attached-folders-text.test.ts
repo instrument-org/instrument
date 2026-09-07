@@ -115,6 +115,37 @@ describe("buildAttachedFoldersText", () => {
     expect(text).not.toContain(path.basename(os.homedir()));
   });
 
+  // The orchestrator has no file tools and a shell that refuses to write, so
+  // its copy names the task as the writer rather than tools it has not got.
+  it("names a task as the writer for a reader without file tools", () => {
+    const folders = [
+      {
+        access: "read-write" as const,
+        mountPoint: "/mnt/Instrument",
+        path: "/Users/sam/Documents/Instrument",
+      },
+      {
+        access: "read-only" as const,
+        mountPoint: "/mnt/sam",
+        path: "/Users/sam",
+      },
+    ];
+    const here = buildAttachedFoldersText({ folders, intro: INTRO });
+    const throughTasks = buildAttachedFoldersText({
+      folders,
+      intro: INTRO,
+      writes: "through-tasks",
+    });
+
+    expect(here).toContain("write_file");
+    expect(throughTasks).not.toContain("write_file");
+    expect(throughTasks).not.toContain("edit_file");
+    expect(throughTasks).not.toContain("read_file");
+    expect(throughTasks).toContain("--folder");
+    expect(throughTasks).toContain("Writing into a read-only folder fails");
+    expect(listOf(throughTasks)).toEqual(listOf(here));
+  });
+
   it("marks a folder that is no longer on disk", () => {
     const text = buildAttachedFoldersText({
       folders: [

@@ -20,6 +20,7 @@ import { folderParentLabel } from "./folder-parent-label";
 export function buildAttachedFoldersText({
   folders,
   intro,
+  writes = "here",
 }: {
   folders: {
     access: FolderAttachment.Access;
@@ -29,6 +30,13 @@ export function buildAttachedFoldersText({
     path: string;
   }[];
   intro: string;
+  /**
+   * Who writes a file's contents into a folder: the reader of this text, with
+   * its file tools, or a task the reader hands the folder to. The orchestrator
+   * has no file tools and a shell that refuses to write, so telling it about
+   * `write_file` sends it looking for a tool it has not got.
+   */
+  writes?: "here" | "through-tasks";
 }) {
   const displayNames = folders.map((folder) => folderNameFromPath(folder.path));
   const nameCounts = new Map<string, number>();
@@ -57,18 +65,31 @@ export function buildAttachedFoldersText({
 
   // Lines, not a `- ` list: the folder list above already is one, and a second
   // list under it reads as more folders.
-  const guidance = [
-    `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
-    `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory.`,
-    writable
-      ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
-      : null,
-    readOnly
-      ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
-      : null,
-    `A real subprocess (python, node, ffmpeg, pnpm, git) cannot see a mount at all. Copy into the task first and work on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
-    `That includes \`git\`: copy the whole repository (\`cp -R '<mount path>' work/\`), not just \`.git\`, which without a working tree beside it reports every file as deleted.`,
-  ]
+  const guidance = (
+    writes === "through-tasks"
+      ? [
+          `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
+          `Look inside by mount path with bash (\`ls\`, \`cat\`, \`head\`, \`find\`), like any other directory.`,
+          writable
+            ? `Writing a file's contents into a read-and-write folder is a task's: hand it the folder with --folder (:rw when it should write). A finished file you put where it belongs yourself, with \`cp\` and \`mv\`. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
+            : null,
+          readOnly
+            ? `Writing into a read-only folder fails, for you and for a task. It mirrors the user's real files and is not yours to change.`
+            : null,
+        ]
+      : [
+          `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
+          `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory.`,
+          writable
+            ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
+            : null,
+          readOnly
+            ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
+            : null,
+          `A real subprocess (python, node, ffmpeg, pnpm, git) cannot see a mount at all. Copy into the task first and work on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
+          `That includes \`git\`: copy the whole repository (\`cp -R '<mount path>' work/\`), not just \`.git\`, which without a working tree beside it reports every file as deleted.`,
+        ]
+  )
     .filter((line) => line !== null)
     .join("\n");
 

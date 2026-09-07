@@ -198,6 +198,7 @@ ${
             })),
             intro:
               "The user has attached these folders to this conversation. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder:",
+            writes: "through-tasks",
           })
         : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;
 

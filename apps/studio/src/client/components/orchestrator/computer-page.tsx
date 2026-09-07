@@ -1125,12 +1125,12 @@ function FolderMenu({
 }
 
 /** The folder a path on the Mac sits in. */
-function folderOf(hostPath: string) {
+export function folderOf(hostPath: string) {
   return hostPath.slice(0, hostPath.lastIndexOf("/")) || "/";
 }
 
 /** A folder on the Mac the way a person writes it, the home folder as `~`. */
-function homeRelative(hostPath: string, home: string | undefined) {
+export function homeRelative(hostPath: string, home: string | undefined) {
   if (home === undefined) {
     return hostPath;
   }

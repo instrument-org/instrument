@@ -1,9 +1,15 @@
-import { pinsAtom, selectedChannelAtom } from "@/client/atoms/orchestrator";
+import {
+  type FileTab,
+  pinsAtom,
+  selectedChannelAtom,
+} from "@/client/atoms/orchestrator";
+import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
+import { FileIcon } from "@/client/components/file-icon";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import {
-  ComputerPage,
-  type FolderOnScreen,
+  folderOf,
+  homeRelative,
   RECENTS_ROOT,
 } from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
@@ -12,44 +18,62 @@ import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
+import { RelativeTime } from "@/client/components/relative-time";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { rpcClient } from "@/client/rpc/client";
+import { cn } from "@/client/lib/utils";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import ms from "ms";
-import { useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 /**
- * A new tab: the apps this workspace reaches, then one box that reaches every
- * screen, every app and any site and, failing those, asks Instrument; under it
- * the places the user kept and the computer in a box. Whatever is picked, this
- * tab becomes it.
+ * A new tab: the apps this workspace reaches, the places the user kept, the
+ * computer and the folders a person keeps things in, each a door, and under
+ * them the files the conversation has shown, as a list to open one from.
+ * Whatever is picked, this tab becomes it.
  */
 export const Route = createFileRoute("/orchestrator/home")({
   component: HomeRoute,
 });
 
+type RecentFile = RPCOutput["workspace"]["computer"]["recents"][number];
+
 /**
  * How many apps and how many bookmarks the page shows before the rest are
  * behind the tile at the end of the row. Both rows are one line and never two:
- * the computer below them should stay in view in a small window, and a row
- * that wraps is the one thing on this page that can grow without being asked.
+ * the rows under them should stay in view in a small window, and a row that
+ * wraps is the one thing on this page that can grow without being asked.
  */
 const APPS_SHOWN = 8;
 const PINS_SHOWN = 8;
+
+/**
+ * How many of the files the conversation showed the list carries before the
+ * rest are behind a row at its foot. Enough to find the one from this morning,
+ * few enough that the page is a page and not the Recents place itself.
+ */
+const RECENTS_SHOWN = 8;
 
 /** What names a row of things. As small as a label can be and still be read. */
 const SECTION_LABEL =
   "mb-1 pl-5.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase";
 
+/** A mark drawn on a card, for a door whose thing has no icon of its own. */
+const MARK_CARD =
+  "grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card shadow-sm";
+
 /**
- * How often the Finder in the box re-reads what it is showing. Slower than the
- * screen's own clock: this page can sit open all day beside the work, and what
- * it shows is a glance rather than a folder being worked in.
+ * How often the list of shown files is re-read. Slower than a folder's clock:
+ * it can only change when the conversation says something new, and this page
+ * can sit open all day beside the work.
  */
-const FINDER_REFRESH_MS = ms("30 seconds");
+const RECENTS_REFRESH_MS = ms("30 seconds");
 
 function HomeRoute() {
   const { openPage, openScreen, taskId } = useOrchestrator();
@@ -58,27 +82,7 @@ function HomeRoute() {
   const quickLook = useQuickLook({ openFile: openFileTab });
   const selectedChannel = useAtomValue(selectedChannelAtom);
   const pins = useAtomValue(pinsAtom);
-  // The folder the Finder in the box has open. Held here rather than in the
-  // address, so walking the folders leaves this tab a new tab. It opens on
-  // what the conversation showed, which is what a tab opened to find something
-  // is most often opened to find.
-  const [finderAt, setFinderAt] = useState({ path: "", root: RECENTS_ROOT });
-  // What the box is showing, for the conversation: a new tab with a folder
-  // view on it has that folder in view, and what is selected in it.
-  const [folder, setFolder] = useState<FolderOnScreen | null>(null);
-  useOnScreen({
-    ...(folder
-      ? {
-          folder: {
-            ...(folder.access === undefined ? {} : { access: folder.access }),
-            display: folder.display,
-            ...(folder.mount === undefined ? {} : { mount: folder.mount }),
-            selected: folder.selected,
-          },
-        }
-      : {}),
-    screen: "home",
-  });
+  useOnScreen({ screen: "home" });
 
   const channels = useQuery(
     rpcClient.workspace.orchestrator.channels.list.queryOptions({
@@ -98,56 +102,72 @@ function HomeRoute() {
       { name: app.name, site: app.site },
     ]),
   );
+  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
+  const recents = useQuery(
+    rpcClient.workspace.computer.recents.queryOptions({
+      input: { id: taskId },
+      refetchInterval: RECENTS_REFRESH_MS,
+    }),
+  );
+  const homePath = places.data?.favorites.find(
+    (place) => place.name === "Home",
+  )?.path;
+  // The home folder is where the computer itself opens, so it is not a door
+  // of its own beside the one that is the computer.
+  const folders = (places.data?.favorites ?? []).filter(
+    (place) => place.path !== homePath,
+  );
+
+  /** This tab becomes the computer, opened on a folder. */
+  const openFolder = (root: string) => {
+    void navigate({
+      search: { path: "", root },
+      to: "/orchestrator/computer",
+    });
+  };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-8 pt-5 pb-5">
-      {/* The services the workspace reaches, under the box: marks with names,
-          small enough that the row reads as a strip of faces rather than as
-          cards. One line and never two, since a page that grows a row per
-          handful of apps pushes the computer under the fold; the rest are
-          behind the tile at the end, which is also where a new one is added.
-          An app still being connected is drawn faint, since it is not yet a
-          way in to anything. */}
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-5 pb-8">
+      {/* The services the workspace reaches: marks with names, small enough
+          that the row reads as a strip of faces rather than as cards. One line
+          and never two, since a page that grows a row per handful of apps
+          pushes everything under the fold; the rest are behind the tile at the
+          end, which is also where a new one is added. An app still being
+          connected is drawn faint, since it is not yet a way in to anything. */}
       <section className="mx-auto mt-5 w-full max-w-5xl">
         <p className={SECTION_LABEL}>Apps</p>
         <div className="flex flex-nowrap gap-1 overflow-hidden">
           {(appList.data?.apps ?? []).slice(0, APPS_SHOWN).map((app) => (
-            <button
-              className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
+            <Door
+              icon={
+                <AppIcon
+                  className={
+                    app.standing === "connected" ? undefined : "opacity-50"
+                  }
+                  site={app.site}
+                />
+              }
               key={app.slug}
-              onClick={() => {
+              name={app.name}
+              onOpen={() => {
                 void navigate({
                   params: { slug: app.slug },
                   to: "/orchestrator/apps/$slug",
                 });
               }}
-              type="button"
-            >
-              <AppIcon
-                className={
-                  app.standing === "connected" ? undefined : "opacity-50"
-                }
-                site={app.site}
-              />
-              <span className="line-clamp-2 w-full text-center text-xs leading-tight">
-                {app.name}
-              </span>
-            </button>
+            />
           ))}
-          <button
-            className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
-            onClick={() => {
+          <Door
+            icon={
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-dashed border-border text-muted-foreground">
+                <PlusIcon className="size-4" />
+              </span>
+            }
+            name="All apps"
+            onOpen={() => {
               void navigate({ to: "/orchestrator/apps" });
             }}
-            type="button"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-dashed border-border text-muted-foreground">
-              <PlusIcon className="size-4" />
-            </span>
-            <span className="line-clamp-2 w-full text-center text-xs leading-tight">
-              All apps
-            </span>
-          </button>
+          />
         </div>
       </section>
 
@@ -162,84 +182,345 @@ function HomeRoute() {
             Right-click a tab to pin it here.
           </p>
         ) : (
-          <>
-            <div className="flex flex-nowrap gap-1 overflow-hidden">
-              {/* The app's own room keeps one bookmark it did not have to be
+          <div className="flex flex-nowrap gap-1 overflow-hidden">
+            {/* The app's own room keeps one bookmark it did not have to be
                 given: the work, which spans every channel and so belongs to
                 the channel that is about the app rather than to a tab. */}
-              {isHomeChannel && (
-                <button
-                  className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
-                  onClick={() => {
-                    void navigate({ to: "/orchestrator/tasks" });
-                  }}
-                  type="button"
-                >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card shadow-sm">
+            {isHomeChannel && (
+              <Door
+                icon={
+                  <span className={MARK_CARD}>
                     <InstrumentGlyph className="size-5 text-brand-600" />
                   </span>
-                  <span className="line-clamp-2 w-full text-center text-xs leading-tight">
-                    Tasks
-                  </span>
-                </button>
-              )}
-              {pins.slice(0, PINS_SHOWN).map((pin) => (
-                <button
-                  className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
-                  key={pin.id}
-                  onClick={() => {
-                    if (pin.kind === "page") {
-                      openPage(pin.target);
-                    } else {
-                      openScreen(pin.target);
-                    }
-                  }}
-                  type="button"
-                >
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card shadow-sm [&_img]:size-5 [&_svg]:size-5">
+                }
+                name="Tasks"
+                onOpen={() => {
+                  void navigate({ to: "/orchestrator/tasks" });
+                }}
+              />
+            )}
+            {pins.slice(0, PINS_SHOWN).map((pin) => (
+              <Door
+                icon={
+                  <span
+                    className={cn(MARK_CARD, "[&_img]:size-5 [&_svg]:size-5")}
+                  >
                     {pin.kind === "page" ? (
                       <SiteIcon favicon={pin.favicon} url={pin.target} />
                     ) : (
                       <ScreenIcon appsBySlug={appsBySlug} href={pin.target} />
                     )}
                   </span>
-                  <span className="line-clamp-2 w-full text-center text-xs leading-tight">
-                    {pin.title}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
+                }
+                key={pin.id}
+                name={pin.title}
+                onOpen={() => {
+                  if (pin.kind === "page") {
+                    openPage(pin.target);
+                  } else {
+                    openScreen(pin.target);
+                  }
+                }}
+              />
+            ))}
+          </div>
         )}
       </section>
 
-      {/* The computer itself, in a window on the page: the Finder whole, with
-          its places, its columns and its keyboard, opening folders without
-          taking the tab anywhere. One size, which is as much of the tab as is
-          left: a control that only ever changed its height was answering a
-          question the full-width box no longer asks. */}
-      <section className="mx-auto mt-5 flex min-h-0 w-full max-w-5xl flex-1 flex-col">
-        <p className={SECTION_LABEL}>{computerName()}</p>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-md">
-          <ComputerPage
-            onFolderChange={(next) => {
-              setFolder((current) =>
-                JSON.stringify(current) === JSON.stringify(next)
-                  ? current
-                  : next,
-              );
+      {/* The computer, and the folders a person keeps things in. The computer
+          is the door that opens on everything, the Finder whole in this tab;
+          the folders beside it are the same door already stood in the right
+          place, since a folder is where most trips into the computer end. */}
+      <section className="mx-auto mt-3 w-full max-w-5xl">
+        <p className={SECTION_LABEL}>Places</p>
+        <div className="flex flex-nowrap gap-1 overflow-hidden">
+          <Door
+            icon={
+              <span className={MARK_CARD}>
+                <LaptopIcon className="size-5" />
+              </span>
+            }
+            name={computerName()}
+            onOpen={() => {
+              openFolder("~");
             }}
-            onLocationChange={setFinderAt}
-            onOpenFile={openFileTab}
-            path={finderAt.path}
-            refreshInterval={FINDER_REFRESH_MS}
-            root={finderAt.root}
+          />
+          {folders.map((place) => (
+            <Door
+              icon={
+                <span className="grid size-9 shrink-0 place-items-center">
+                  <FileSystemFolderGlyph className="h-7 w-auto" />
+                </span>
+              }
+              key={place.path}
+              name={place.name}
+              onOpen={() => {
+                openFolder(place.path);
+              }}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* The files the conversation has put in front of the user, newest
+          first: the quickest way back to one, without opening the computer
+          to find it. The same list the Recents place in the computer shows,
+          which is where the rest of it is. */}
+      <section className="mx-auto mt-5 w-full max-w-5xl">
+        <p className={SECTION_LABEL}>Recent files</p>
+        {recents.data === undefined ? null : recents.data.length === 0 ? (
+          <p className="pl-5.5 text-xs text-muted-foreground">
+            Files Instrument shows you in the conversation will appear here.
+          </p>
+        ) : (
+          <RecentFiles
+            files={recents.data.slice(0, RECENTS_SHOWN)}
+            homePath={homePath}
+            onOpen={(file) => {
+              const tab = fileTabOf(file);
+              if (tab) {
+                openFileTab(tab);
+                return;
+              }
+              // Out of the agent's reach, so the viewer cannot show it; the
+              // Mac's own app for it can.
+              rpcClient.utils.openPath
+                .call({ filepath: file.path })
+                .catch((error: unknown) => {
+                  toast.error("Could not open the file", {
+                    description:
+                      error instanceof Error ? error.message : String(error),
+                  });
+                });
+            }}
+            {...(recents.data.length > RECENTS_SHOWN
+              ? {
+                  onOpenAll: () => {
+                    openFolder(RECENTS_ROOT);
+                  },
+                  total: recents.data.length,
+                }
+              : {})}
             {...quickLook.props}
           />
-        </div>
+        )}
       </section>
 
       {quickLook.dialog}
     </div>
   );
+}
+
+/** One tile of a row: a mark above a name, the same gesture whatever it opens. */
+function Door({
+  icon,
+  name,
+  onOpen,
+}: {
+  icon: ReactNode;
+  name: string;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
+      onClick={onOpen}
+      type="button"
+    >
+      {icon}
+      <span className="line-clamp-2 w-full text-center text-xs leading-tight">
+        {name}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * The shown files as a column: each its type's mark, its name, the folder it
+ * lives in and when it was shown. A row opens the file; the arrows walk the
+ * rows and Space shows the one they are on over the whole window, the way the
+ * Finder's Quick Look does, following the arrows while it is up.
+ */
+function RecentFiles({
+  files,
+  homePath,
+  onOpen,
+  onOpenAll,
+  onQuickLook,
+  onQuickLookFollow,
+  quickLookOpen,
+  total,
+}: {
+  files: RecentFile[];
+  homePath: string | undefined;
+  onOpen: (file: RecentFile) => void;
+  /** The way to the whole list, when this shows only the start of it. */
+  onOpenAll?: () => void;
+  onQuickLook: (tab: FileTab) => void;
+  onQuickLookFollow: (tab: FileTab) => void;
+  quickLookOpen: boolean;
+  total?: number;
+}) {
+  // The row the keyboard is on, by place; nothing until a row takes it.
+  const [selected, setSelected] = useState<null | number>(null);
+  // Where the keyboard lands when the panel hands it back: the row the arrows
+  // reached while it was up, rather than the row it opened from, which is
+  // where the panel puts it on its own. Read by whichever row gets it.
+  const landOn = useRef<null | number>(null);
+  const wasOpen = useRef(quickLookOpen);
+  useEffect(() => {
+    if (wasOpen.current && !quickLookOpen) {
+      landOn.current = selected;
+    }
+    wasOpen.current = quickLookOpen;
+  }, [quickLookOpen, selected]);
+  const focusRow = (list: HTMLElement, index: number) => {
+    list
+      .querySelector<HTMLElement>(`[data-index="${index}"]`)
+      ?.focus({ preventScroll: true });
+  };
+  const step = (direction: -1 | 1) =>
+    Math.max(0, Math.min(files.length - 1, (selected ?? -1) + direction));
+
+  // Quick Look holds the keyboard while it is up, so the arrows are caught on
+  // the way down and moved along the rows here; the panel follows.
+  useEffect(() => {
+    if (!quickLookOpen) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const next = step(event.key === "ArrowDown" ? 1 : -1);
+      setSelected(next);
+      const file = files[next];
+      const tab = file && fileTabOf(file);
+      if (tab) {
+        onQuickLookFollow(tab);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+    // `step` and `files` are read afresh each time the selection moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickLookOpen, selected, files, onQuickLookFollow]);
+
+  return (
+    <ul
+      aria-label="Recent files"
+      className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card"
+      onBlur={(event) => {
+        // The keyboard leaving the list takes the highlight with it, unless it
+        // left for the panel, which is still showing the row it is on.
+        if (
+          !quickLookOpen &&
+          !event.currentTarget.contains(event.relatedTarget)
+        ) {
+          setSelected(null);
+        }
+      }}
+      onKeyDown={(event) => {
+        switch (event.key) {
+          case " ": {
+            const file = selected === null ? undefined : files[selected];
+            const tab = file && fileTabOf(file);
+            if (tab) {
+              event.preventDefault();
+              onQuickLook(tab);
+            }
+            break;
+          }
+          case "ArrowDown":
+          case "ArrowUp": {
+            event.preventDefault();
+            focusRow(
+              event.currentTarget,
+              step(event.key === "ArrowDown" ? 1 : -1),
+            );
+            break;
+          }
+          // No default
+        }
+      }}
+      // A press on a row is the row chosen, whatever the panel left pending.
+      onPointerDownCapture={() => {
+        landOn.current = null;
+      }}
+      role="listbox"
+    >
+      {files.map((file, index) => (
+        <li aria-selected={index === selected} key={file.path} role="option">
+          <button
+            className={cn(
+              "flex w-full items-center gap-3 px-3 py-2 text-left text-sm outline-none hover:bg-accent/40",
+              index === selected && "bg-accent/60",
+            )}
+            data-index={index}
+            onClick={() => {
+              onOpen(file);
+            }}
+            onFocus={(event) => {
+              const target = landOn.current;
+              landOn.current = null;
+              if (target !== null && target !== index) {
+                const list = event.currentTarget.closest("ul");
+                if (list) {
+                  focusRow(list, target);
+                  return;
+                }
+              }
+              setSelected(index);
+            }}
+            // One stop for the whole list: Tab lands on the row the keyboard
+            // was on, or the first, and the arrows do the rest.
+            tabIndex={(selected ?? 0) === index ? 0 : -1}
+            type="button"
+          >
+            <FileIcon
+              className="size-5 shrink-0"
+              filename={file.name}
+              mimeType={file.mimeType}
+            />
+            <span className="min-w-0 flex-1 truncate">{file.name}</span>
+            {/* Where it lives, the home folder as `~`: the one thing about a
+                file its name does not say. */}
+            <span className="min-w-0 max-w-2/5 truncate text-xs text-muted-foreground">
+              {homeRelative(folderOf(file.path), homePath)}
+            </span>
+            <RelativeTime
+              className="w-14 shrink-0 text-right text-xs text-muted-foreground"
+              compact
+              date={new Date(file.shownAt)}
+              tooltip={false}
+            />
+          </button>
+        </li>
+      ))}
+      {onOpenAll ? (
+        <li>
+          <button
+            className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+            onClick={onOpenAll}
+            type="button"
+          >
+            <span className="size-5 shrink-0" />
+            <span className="min-w-0 flex-1">All {total} recent files</span>
+            <CaretRightIcon className="size-3.5 shrink-0" />
+          </button>
+        </li>
+      ) : null}
+    </ul>
+  );
+}
+
+/** The tab a shown file opens in, when a granted folder covers it. */
+function fileTabOf(file: RecentFile): FileTab | undefined {
+  return file.access
+    ? { hostPath: file.path, mount: file.access.mountPath, name: file.name }
+    : undefined;
 }

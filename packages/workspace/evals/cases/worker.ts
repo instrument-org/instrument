@@ -38,6 +38,9 @@ import { type Assertion, type AssertionResult, defineEval } from "../harness";
 /** The four bytes every OOXML file starts with, being a zip. */
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
 
+/** A year of sales by region and month, whose totals the case knows exactly. */
+const DATA_FIXTURE = path.resolve(import.meta.dirname, "../fixtures/Data");
+
 /** Below this a document exists but holds nothing worth opening. */
 const MIN_DOCUMENT_BYTES = 4000;
 
@@ -287,7 +290,132 @@ const checkedItsOwnWork: Assertion = {
   text: "opened its own deliverable before reporting it done",
 };
 
+/** A PNG, by its magic bytes, and big enough to be a real plot. */
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+/**
+ * A rendered image the model made, rather than a placeholder or a broken write.
+ * The floor is low but not zero: matplotlib's smallest real chart is tens of
+ * kilobytes, and a truncated write is a few hundred bytes.
+ */
+const MIN_IMAGE_BYTES = 8000;
+
+/**
+ * A figure only a real computation produces, in whatever the model wrote.
+ *
+ * Written with and without thousands separators, because which one a model
+ * reaches for says nothing about whether it did the arithmetic.
+ */
+function reportContains(label: string, value: number): Assertion {
+  const text = `got ${label} right`;
+  return {
+    check: async ({ taskId }) => {
+      const written = await deliverables(taskId);
+      const readable = written.filter((file) =>
+        /\.(?:md|txt|csv|html)$/i.test(file),
+      );
+      const rounded = Math.round(value);
+      const wanted = [
+        rounded.toLocaleString("en-US"),
+        String(rounded),
+        value.toFixed(2),
+        Math.round(value / 1000).toLocaleString("en-US"),
+      ];
+      for (const file of readable) {
+        const body = await fs.readFile(file, "utf8").catch(() => "");
+        const flat = body.replaceAll(",", "").replaceAll("$", "");
+        for (const candidate of wanted) {
+          if (
+            body.includes(candidate) ||
+            flat.includes(candidate.replaceAll(",", ""))
+          ) {
+            return pass(text, `${path.basename(file)} names ${candidate}`);
+          }
+        }
+      }
+      return fail(
+        text,
+        readable.length === 0
+          ? "no readable report written"
+          : `${readable.map((file) => path.basename(file)).join(", ")} name none of ${wanted.join(" / ")}`,
+      );
+    },
+    text,
+  };
+}
+
+function wroteAnImage(): Assertion {
+  const text = "wrote a PNG that is a real rendered image";
+  return {
+    check: async ({ taskId }) => {
+      const written = await deliverables(taskId);
+      const images = written.filter((file) => file.toLowerCase().endsWith(".png"));
+      for (const image of images) {
+        const body = await fs.readFile(image).catch(() => {});
+        if (
+          body &&
+          body.length >= MIN_IMAGE_BYTES &&
+          body.subarray(0, 4).equals(PNG_MAGIC)
+        ) {
+          return pass(
+            text,
+            `${path.basename(image)}, ${Math.round(body.length / 1024)}KB`,
+          );
+        }
+      }
+      return fail(text, images.length === 0 ? "no PNG written" : `${images.length} PNG(s), none usable`);
+    },
+    text,
+  };
+}
+
+/** Something a browser would render, rather than a stub. */
+const wroteAWebPage: Assertion = {
+  check: async ({ taskId }) => {
+    const text = "wrote an HTML page with its styling inside it";
+    const written = await deliverables(taskId);
+    for (const file of written.filter((one) => /\.html?$/i.test(one))) {
+      const body = await fs.readFile(file, "utf8").catch(() => "");
+      const styled = /<style[\s>]/i.test(body) || /style="/i.test(body);
+      if (body.length > 1500 && /<body[\s>]/i.test(body) && styled) {
+        return pass(
+          text,
+          `${path.basename(file)}, ${Math.round(body.length / 1024)}KB, styling inline`,
+        );
+      }
+    }
+    return fail(text, "no styled HTML page written");
+  },
+  text: "wrote an HTML page with its styling inside it",
+};
+
 export const WORKER_EVALS = [
+  defineEval({
+    // A visual deliverable, and the one that most needs looking at: a chart is
+    // either legible or it is not, and only opening it tells you which.
+    assertions: [wroteAnImage(), checkedItsOwnWork],
+    name: "worker-chart",
+    prompt:
+      "From this data -- Q1 412, Q2 388, Q3 561, Q4 730 -- make a clean bar chart as a PNG called quarters.png in your output folder. Label the axes, title it 'Units shipped by quarter', and make it something you would put in a deck.",
+  }),
+  defineEval({
+    assertions: [wroteAWebPage, checkedItsOwnWork],
+    name: "worker-web-page",
+    prompt:
+      "Build a single-file landing page called index.html in your output folder for a made-up app that tracks houseplant watering. One page: a headline, three feature blurbs, and a sign-up form that does not need to submit anywhere. Style it inside the file; no external stylesheets.",
+  }),
+  defineEval({
+    assertions: [
+      reportContains("total revenue", 742_370.74),
+      reportContains("the best region's revenue", 215_748.97),
+      checkedItsOwnWork,
+    ],
+    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    name: "worker-data-report",
+    prompt:
+      "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row. Work out total revenue for the year, revenue per region, and which region did best, and write it up as summary.md in your output folder with a short table. Revenue is units times unit price.",
+  }),
+
   defineEval({
     assertions: [wroteADocument(".docx"), checkedItsOwnWork],
     name: "worker-word-document",

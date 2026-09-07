@@ -219,7 +219,7 @@ node $DRIVE run $(dirname $DRIVE)/sweep-orchestrator-screens.mjs --window orches
 node $DRIVE run $(dirname $DRIVE)/sweep-orchestrator-screens.mjs --window orchestrator --args '{"reload":true}'
 ```
 
-It reads an app slug and a task id off the running app, so the parameterized screens are covered without an id written down here going stale and turning an unvisited screen into a clean result. `reload` restarts the renderer first, which is the only way to see what a screen logs while it *mounts*; it costs the wait, so it is off by default.
+It reads an app slug and a task id off the running app, so the parameterized screens are covered without an id written down here going stale and turning an unvisited screen into a clean result. `reload` restarts the renderer first, which is the only way to see what a screen logs while it _mounts_; it costs the wait, so it is off by default.
 
 Enabling the `Runtime` domain replays the console buffer, so a run would otherwise open by reporting whatever the window logged earlier — an older run's errors, or a person's — as its own findings. Nothing is recorded until the walk starts, and the reload happens before the enable so the buffer it clears is not the one that replays.
 

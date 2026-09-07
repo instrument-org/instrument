@@ -5,14 +5,16 @@ import {
 } from "@/client/atoms/orchestrator";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
-import { RelativeTime } from "@/client/components/relative-time";
+import {
+  TaskList,
+  type TaskListItem,
+} from "@/client/components/orchestrator/task-list";
 import {
   type RailBounds,
   StudioSidebarRail,
 } from "@/client/components/studio-sidebar-rail";
 import { Spinner } from "@/client/components/ui/spinner";
 import { hasLiveAgent } from "@/client/lib/agent-status";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -72,6 +74,18 @@ function TasksLayout() {
   );
   const stepOf = (id: TaskId) =>
     activity.data?.running.find((entry) => entry.taskId === id)?.step;
+  const openId = childIds.find(
+    (id) => location.pathname === `/orchestrator/tasks/${id}`,
+  );
+  const items: TaskListItem[] =
+    children.data?.map((child) => ({
+      ...(child.channel ? { channel: child.channel } : {}),
+      id: child.id,
+      line: child.standing.line,
+      standing: child.standing.kind,
+      title: child.title,
+      updatedAt: child.updatedAt,
+    })) ?? [];
   // The list is what is on screen only while no task is open beside it.
   useOnScreen(
     location.pathname === "/orchestrator/tasks" && children.data
@@ -86,6 +100,25 @@ function TasksLayout() {
         }
       : null,
   );
+  const list = children.data ? (
+    <TaskList
+      items={items}
+      onOpen={(id) => {
+        void navigate({ params: { id }, to: "/orchestrator/tasks/$id" });
+      }}
+      {...(openId ? { openId } : {})}
+    />
+  ) : (
+    <div className="flex justify-center py-8">
+      <Spinner className="size-5" />
+    </div>
+  );
+
+  // With nothing open the list is the screen; opening one puts it in a column
+  // beside the task, which is the only time its width has to be settled.
+  if (!openId) {
+    return <div className="h-full min-h-0">{list}</div>;
+  }
 
   return (
     <div className="flex h-full min-h-0">
@@ -99,67 +132,7 @@ function TasksLayout() {
         panelClassName="bg-background"
         widthAtom={tasksColumnWidthAtom}
       >
-        <div className="flex min-h-0 w-full flex-1 flex-col">
-          <h1 className="px-4 pt-3 pb-2 text-lg font-semibold">Tasks</h1>
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-            {children.data ? (
-              children.data.length === 0 ? (
-                <p className="px-2 py-2 text-sm text-muted-foreground">
-                  Ask for something and a task appears here.
-                </p>
-              ) : (
-                <ul className="flex flex-col gap-0.5">
-                  {children.data.map((child) => {
-                    const isOpen =
-                      location.pathname === `/orchestrator/tasks/${child.id}`;
-                    const isRunning = running.has(child.id);
-                    return (
-                      <li key={child.id}>
-                        <button
-                          className={cn(
-                            "flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-foreground/5",
-                            isOpen && "bg-foreground/8",
-                          )}
-                          onClick={() => {
-                            void navigate({
-                              params: { id: child.id },
-                              to: "/orchestrator/tasks/$id",
-                            });
-                          }}
-                          type="button"
-                        >
-                          <span className="w-full truncate text-sm">
-                            {child.title}
-                          </span>
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            {isRunning ? (
-                              <>
-                                <Spinner className="size-3" />
-                                Working
-                              </>
-                            ) : (
-                              <>
-                                Done ·{" "}
-                                <RelativeTime
-                                  date={child.updatedAt}
-                                  tooltip={false}
-                                />
-                              </>
-                            )}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )
-            ) : (
-              <div className="flex justify-center py-8">
-                <Spinner className="size-5" />
-              </div>
-            )}
-          </div>
-        </div>
+        <div className="flex min-h-0 w-full flex-1 flex-col">{list}</div>
       </StudioSidebarRail>
       <div className="min-w-0 flex-1">
         <Outlet />

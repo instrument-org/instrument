@@ -1,3 +1,4 @@
+import { ChannelMark } from "@/client/components/orchestrator/channel-strip";
 import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
@@ -37,6 +38,14 @@ function TaskRoute() {
       refetchInterval: REFRESH_MS,
     }),
   );
+  // The channel this was asked for in, which is the task's address rather than
+  // one more fact about how it ran, so it sits with the title.
+  const children = useQuery(
+    rpcClient.workspace.orchestrator.children.queryOptions({
+      input: { id: orchestrator.taskId },
+    }),
+  );
+  const channel = children.data?.find((child) => child.id === taskId)?.channel;
   const isWorking = status.data?.some(hasLiveAgent) ?? false;
   const step = activity.data?.running.find(
     (entry) => entry.taskId === taskId,
@@ -63,8 +72,16 @@ function TaskRoute() {
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b border-border px-4 py-2">
-        <h2 className="truncate text-sm font-medium">{task.data.title}</h2>
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2">
+        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">
+          {task.data.title}
+        </h2>
+        {channel && (
+          <span className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border">
+            <ChannelMark name={channel} />
+            #&nbsp;{channel}
+          </span>
+        )}
       </div>
       <div className="min-h-0 flex-1">
         <ChildTranscript key={taskId} task={task.data} />

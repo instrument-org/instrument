@@ -31,6 +31,27 @@ const TINTS = [
   "bg-emerald-100 text-emerald-700",
 ];
 
+/** The mark a channel wears wherever it is named: its letter on its tint. */
+export function ChannelMark({
+  className,
+  name,
+}: {
+  className?: string;
+  name: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "grid size-4 shrink-0 place-items-center rounded text-[9px] font-semibold uppercase",
+        tintOf(name),
+        className,
+      )}
+    >
+      {name.slice(0, 1)}
+    </span>
+  );
+}
+
 /**
  * The channels, as the first row of the conversation.
  *

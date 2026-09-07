@@ -15,8 +15,10 @@ import {
   createChannel,
   markChannelSeen,
 } from "../../lib/orchestrator/channels";
+import { taskChannels } from "../../lib/orchestrator/attribution";
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
+import { taskStanding } from "../../lib/orchestrator/standing";
 import {
   ensureHomeFolder,
   ensureOutputFolder,
@@ -66,11 +68,33 @@ const childStatus = base
 /** The tasks an orchestrator created, newest activity first. */
 const children = base
   .input(z.object({ id: TaskIdSchema }))
-  // With each one's folder on disk: what a link into `/tasks/<id>` opens.
-  .output(TaskSchema.extend({ dir: z.string() }).array())
+  .output(
+    TaskSchema.extend({
+      /** The channel it was filed from, absent for a task made before channels. */
+      channel: z.string().optional(),
+      // With each one's folder on disk: what a link into `/tasks/<id>` opens.
+      dir: z.string(),
+      /** Where it stands and the line the list says about it. */
+      standing: z.object({
+        kind: z.enum(["done", "running", "waiting"]),
+        line: z.string(),
+      }),
+    }).array(),
+  )
   .handler(async ({ input }) => {
     const tasks = await listChildTasks(input.id);
-    return tasks.map((task) => ({ ...task, dir: taskDir(task.id) }));
+    const channels = await taskChannels(input.id);
+    return await Promise.all(
+      tasks.map(async (task) => ({
+        ...task,
+        ...(channels[task.id] ? { channel: channels[task.id] } : {}),
+        dir: taskDir(task.id),
+        standing: await taskStanding({
+          isRunning: isWorking(task.id),
+          taskId: task.id,
+        }),
+      })),
+    );
   });
 
 /**

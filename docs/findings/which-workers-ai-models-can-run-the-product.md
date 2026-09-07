@@ -117,6 +117,23 @@ For GLM 5.3 Flash specifically, over ~114 first turns per level, seconds to the 
 
 `low` is the dramatic number and the wrong default. `medium` behaves like sending nothing. `high` is the setting, and it is what the catalog now declares as the Workers AI default.
 
+## The paid value tier, beyond the two controls
+
+Six more models in the same price band, over the four document briefs (memo, workbook, comparison page, mechanism explainer). Two are worth carrying:
+
+| Model | $/M in · out | Checks | Time | Round cost | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| Seed-2.0-mini | 0.10 · 0.40 | 13/14 | 6.4 min | $0.08 | **Add.** Cheapest of everything and nothing it wrote was wrong. Plain, but correct. |
+| MiniMax M3 | 0.30 · 1.20 | 12/14 | 5.6 min | $0.29 | **Add.** Best comparison page produced by anything so far, and the most thorough workbook. Produced nothing on the explainer. |
+| Gemini 3.1 Flash Lite | 0.25 · 1.50 | 12/14 | 2.2 min | $0.22 | No. Fastest tested, and wrote the year's total as $42,370.74 against a correct $742,370.74. |
+| GLM 4.6V | 0.30 · 0.90 | 11/14 | 8.8 min | $0.23 | No. Published a six-way comparison containing three products. |
+| Mistral Small 4 | 0.15 · 0.60 | 11/14 | 2.4 min | $0.11 | No. Recommended a machine its own table prices over the stated budget. |
+| Gemini 3.8 Flash | 0.75 · 3.75 | 11/14 | 9.8 min | $1.24 | No. Five times Luna's cost for the round and no Word document at all. |
+
+**The risk has moved from delivery to correctness.** Every one of these finished nearly everything, and three of the six got something quietly wrong in a file that opens cleanly and reads well. All three are only catchable by a check that knows the answer: the true total, the two defensible picks, the full list of supplied names. A suite that only asks whether the artifact exists would have scored all six the same.
+
+**The workbook brief is the sharpest one in the suite.** All eight models wrote a real `.xlsx` with a native chart and some formulas; four of them recompute. The other four found three separate ways to look computed and not be — literal rows under a live summary, a live row under literal totals, and both. `sheetRecomputes` requires formulas on more than one sheet *and* at least one crossing a sheet boundary, which is what makes an edit to a unit price actually travel.
+
 ## Checking its own work, which was never measurable
 
 The self-check assertion scores whether a task read its deliverable back, and by that measure every model is fine. The number that matters is narrower and it is a column of zeroes: across seventeen finished briefs, real pixels reached the model five times, and not one of those looks changed anything that shipped. The defects that survived are exactly the ones a render catches — an arrowhead over a label, a callout across an axis, a drawing running off its own viewBox — each in a file whose model passed the check.

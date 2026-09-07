@@ -541,13 +541,15 @@ const embeddedAnImage: Assertion = {
  * A spreadsheet that recomputes, rather than a table of answers typed into
  * cells.
  *
- * Counting formulas is not enough, and the difference is the whole brief.
- * Measured across four models, every workbook had a formula-driven summary and
- * only half of them computed revenue on the source rows: the other two typed
- * the per-row numbers in as literals, so changing a unit price -- the one thing
- * the brief asks for by name -- updates nothing. The split shows up as which
- * sheets carry formulas rather than how many, 48-and-19 against 0-and-16, so
- * that is what this reads.
+ * Counting formulas is not enough, and neither is counting sheets. Measured
+ * across seven workbooks, there were three separate ways to look computed and
+ * not be: the per-row revenue typed in as literals with a live summary over
+ * them, a live per-row revenue under a summary of literals, and both at once.
+ * An edit to a unit price only reaches the totals when the rows compute *and*
+ * the aggregation points back at them, so the rule is both -- formulas on more
+ * than one sheet, and at least one of them reaching across a sheet boundary.
+ * That splits the same seven cleanly, with the three near-misses on the
+ * failing side.
  */
 const sheetRecomputes: Assertion = {
   check: async ({ taskId }) => {
@@ -558,14 +560,21 @@ const sheetRecomputes: Assertion = {
       if (!archive) {
         continue;
       }
-      const counts = zipMembers(archive, (name) =>
+      const sheets = zipMembers(archive, (name) =>
         /^xl\/worksheets\/sheet\d+\.xml$/.test(name),
-      ).map((sheet) => [...sheet.toString("utf8").matchAll(/<f[\s>]/g)].length);
-      const live = counts.filter((count) => count > 0);
-      const evidence = `${path.basename(book)}, formulas per sheet: ${counts.join(", ") || "none"}`;
-      // Two sheets deep means the summary aggregates something that is itself
-      // computed, which is the only arrangement where an edit propagates.
-      return live.length >= 2 ? pass(text, evidence) : fail(text, evidence);
+      ).map((sheet) =>
+        [...sheet.toString("utf8").matchAll(/<f[^>]*>([^<]*)<\/f>/g)].map(
+          (match) => match[1] ?? "",
+        ),
+      );
+      const live = sheets.filter((formulas) => formulas.length > 0);
+      // A reference carrying a sheet name is the link between the rows and the
+      // totals; without one the summary is a picture of the rows at write time.
+      const across = sheets.flat().filter((formula) => formula.includes("!"));
+      const evidence = `${path.basename(book)}, formulas per sheet: ${sheets.map((one) => one.length).join(", ") || "none"}, ${across.length} reaching another sheet`;
+      return live.length >= 2 && across.length > 0
+        ? pass(text, evidence)
+        : fail(text, evidence);
     }
     return fail(text, "no workbook written");
   },

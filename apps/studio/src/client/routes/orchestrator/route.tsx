@@ -1082,8 +1082,11 @@ function useRecordRecents({
  * What the main process asks of the window: back and forward from a trackpad
  * swipe, a thumb button or the History menu, and the tab chords: close,
  * new, reopen, next and previous, one by number.
- * On a Mac the thumb buttons reach the page as mouse events and nothing else,
- * so they are answered here; elsewhere they arrive through the main process.
+ * On a Mac the thumb buttons reach the page as mouse events, so they are
+ * answered here; elsewhere they arrive through the main process. Chromium
+ * walks the renderer's own history on the same mouseup unless the page
+ * consumes it, and that history is not the tab's: left alone, back moved the
+ * tab one step and the renderer one step, and the second undid the first.
  */
 function useWindowCommands(handlers: {
   /** The tab's own history, which is the only history a thumb or a menu reaches. */
@@ -1103,15 +1106,31 @@ function useWindowCommands(handlers: {
     latest.current = handlers;
   });
   useEffect(() => {
+    const isThumb = (event: MouseEvent) =>
+      event.button === 3 || event.button === 4;
+    // Consumed at every stage, on the way down, so neither Chromium's own
+    // navigation nor a click handler under the pointer sees the press.
+    const swallow = (event: MouseEvent) => {
+      if (isThumb(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
     const onMouseUp = (event: MouseEvent) => {
+      if (!isThumb(event)) {
+        return;
+      }
+      swallow(event);
       if (event.button === 3) {
         latest.current.back();
-      } else if (event.button === 4) {
+      } else {
         latest.current.forward();
       }
     };
     if (isMacOS()) {
-      window.addEventListener("mouseup", onMouseUp);
+      window.addEventListener("mousedown", swallow, { capture: true });
+      window.addEventListener("mouseup", onMouseUp, { capture: true });
+      window.addEventListener("auxclick", swallow, { capture: true });
     }
     const controller = new AbortController();
     void (async () => {
@@ -1166,7 +1185,9 @@ function useWindowCommands(handlers: {
     })();
     return () => {
       controller.abort();
-      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("mousedown", swallow, { capture: true });
+      window.removeEventListener("mouseup", onMouseUp, { capture: true });
+      window.removeEventListener("auxclick", swallow, { capture: true });
     };
   }, [router]);
 }

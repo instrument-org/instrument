@@ -131,6 +131,8 @@ export type FileSystemProps = {
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
   defaultPath?: string;
   defaultView?: FileSystemView;
+  /** The order the browser opens in, when name ascending is the wrong one. */
+  defaultSort?: FileSystemSortState;
   /** Resolve a URL (e.g. presigned) for a file without one. */
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
   /** Flat manifest. Folders are optional; missing prefixes are inferred from file paths. */
@@ -464,7 +466,7 @@ export type FileSystemSortKey =
   | "name"
   | "size"
   | "updatedAt";
-type FileSystemSortState = {
+export type FileSystemSortState = {
   direction: "asc" | "desc";
   key: FileSystemSortKey;
 };
@@ -1258,6 +1260,7 @@ const VIEW_OPTIONS: Array<{
 export function FileSystem({
   className,
   defaultPath = "",
+  defaultSort,
   defaultView = "icons",
   getFileUrl,
   items,
@@ -1321,7 +1324,7 @@ export function FileSystem({
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
   const searchQuery = normalizeSearchQuery(searchInput);
   const isSearching = searchQuery.length > 0;
-  const [sort, setSort] = React.useState(DEFAULT_SORT);
+  const [sort, setSort] = React.useState(defaultSort ?? DEFAULT_SORT);
   const [filters, setFilters] = React.useState<FileSystemFilter[]>([]);
   const hasActiveFilters = filters.length > 0;
   // Files must pass every active filter; folders stay visible through

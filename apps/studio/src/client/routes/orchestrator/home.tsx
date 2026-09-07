@@ -1,11 +1,17 @@
 import {
   orchestratorRecentsAtom,
   pinsAtom,
+  selectedChannelAtom,
   visitedPagesAtom,
 } from "@/client/atoms/orchestrator";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { computerName } from "@/client/components/orchestrator/computer-name";
+import {
+  ComputerPage,
+  RECENTS_ROOT,
+} from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
+import { useOpenFileTab } from "@/client/components/orchestrator/file-tabs";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
@@ -16,9 +22,12 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import uFuzzy from "@leeoniya/ufuzzy";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { CornersInIcon } from "@phosphor-icons/react/CornersIn";
+import { CornersOutIcon } from "@phosphor-icons/react/CornersOut";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -26,13 +35,20 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { type ComponentType, type ReactNode, useState } from "react";
+import ms from "ms";
+import {
+  type ComponentType,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 /**
- * A new tab: the mark, one box that reaches every screen, every app, and any
- * site and, failing those, asks Instrument; under it the doors that stay
- * (This Mac, the apps, the tasks) and where the user was last. Whatever is
- * picked, this tab becomes it.
+ * A new tab: the apps this workspace reaches, then one box that reaches every
+ * screen, every app and any site and, failing those, asks Instrument; under it
+ * the places the user kept and the computer in a box. Whatever is picked, this
+ * tab becomes it.
  */
 export const Route = createFileRoute("/orchestrator/home")({
   component: HomeRoute,
@@ -64,9 +80,25 @@ const SCREENS: {
   },
 ];
 
+/**
+ * How many apps and how many bookmarks the page shows before the rest are
+ * behind the tile at the end of the row. Both rows are one line and never two:
+ * the computer below them should stay in view in a small window, and a row
+ * that wraps is the one thing on this page that can grow without being asked.
+ */
+const APPS_SHOWN = 8;
+const PINS_SHOWN = 6;
+
 const RECENTS_SHOWN = 6;
 const TASKS_SHOWN = 5;
 const SCREENS_SHOWN = 4;
+
+/**
+ * How often the Finder in the box re-reads what it is showing. Slower than the
+ * screen's own clock: this page can sit open all day beside the work, and what
+ * it shows is a glance rather than a folder being worked in.
+ */
+const FINDER_REFRESH_MS = ms("30 seconds");
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
 
@@ -83,19 +115,58 @@ function HomeRoute() {
   useOnScreen({ screen: "home" });
   const navigate = useNavigate();
   const router = useRouter();
+  const openFileTab = useOpenFileTab();
   const recents = useAtomValue(orchestratorRecentsAtom);
+  const selectedChannel = useAtomValue(selectedChannelAtom);
   const pins = useAtomValue(pinsAtom);
   const visited = useAtomValue(visitedPagesAtom);
-  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const words = query.trim().toLowerCase();
+  // The folder the Finder in the box has open. Held here rather than in the
+  // address, so walking the folders leaves this tab a new tab. It opens on
+  // what was touched last, which is what a tab opened to find something is
+  // most often opened to find.
+  const [finderAt, setFinderAt] = useState({ path: "", root: RECENTS_ROOT });
+  const [isFinderOpen, setFinderOpen] = useState(false);
+  // Whether the box's size is the user's to keep: it grows the first time
+  // they do something in it, and from then on stays whatever they leave it.
+  const finderTouched = useRef(false);
+  const growFinder = () => {
+    if (finderTouched.current) {
+      return;
+    }
+    finderTouched.current = true;
+    setFinderOpen(true);
+  };
+  const omnibox = useRef<HTMLInputElement>(null);
+  // A new tab the user opened should be ready to type in, but this page also
+  // appears when a channel with no tabs is switched to, and there the caret
+  // belongs in that channel's composer. So the box takes the keyboard as the
+  // page arrives and only while nothing else is holding it; from then on
+  // whatever the user gives it to, the Finder included, keeps it.
+  useEffect(() => {
+    if (!isTypingTarget(document.activeElement)) {
+      omnibox.current?.focus();
+    }
+  }, []);
 
   const children = useQuery(
     rpcClient.workspace.orchestrator.children.queryOptions({
       input: { id: taskId },
     }),
   );
+  const channels = useQuery(
+    rpcClient.workspace.orchestrator.channels.list.queryOptions({
+      input: { id: taskId },
+    }),
+  );
+  // Work spans every channel, so the way into it belongs in the one channel
+  // that is about the app itself rather than repeated at the foot of every
+  // new tab, where it sat beside the user's own things and read as one.
+  const isHomeChannel =
+    channels.data?.[0]?.id !== undefined &&
+    channels.data[0].id === selectedChannel;
   const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   const appsBySlug = new Map(
@@ -261,9 +332,8 @@ function HomeRoute() {
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
 
   return (
-    <div className="flex h-full min-h-0 flex-col items-center overflow-y-auto px-8 pt-16 pb-10">
-      <InstrumentGlyph className="size-9 text-foreground" />
-      <div className="relative mt-6 w-full max-w-xl">
+    <div className="flex h-full min-h-0 flex-col items-center overflow-y-auto px-8 pt-6 pb-8">
+      <div className="relative w-full max-w-xl">
         <div className="flex h-11 items-center gap-2 rounded-full border border-border bg-card px-4 shadow-sm focus-within:border-foreground/30">
           <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground" />
           <input
@@ -302,15 +372,7 @@ function HomeRoute() {
               }
             }}
             placeholder="Search, open, or ask Instrument"
-            ref={(element) => {
-              // A new tab the user opened should be ready to type in, but this
-              // page also appears when a channel with no tabs is switched to,
-              // and there the caret belongs in that channel's composer. So it
-              // takes focus only when nothing is holding it.
-              if (element && !isTypingTarget(document.activeElement)) {
-                element.focus();
-              }
-            }}
+            ref={omnibox}
             spellCheck={false}
             type="text"
             value={query}
@@ -363,162 +425,183 @@ function HomeRoute() {
         ) : null}
       </div>
 
-      <div className="mt-10 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
-        <button
-          className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm hover:bg-accent/30"
-          onClick={() => {
-            void navigate({
-              search: { path: "", root: "~" },
-              to: "/orchestrator/computer",
-            });
-          }}
-          type="button"
-        >
-          <LaptopIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">{computerName()}</span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {places.data?.favorites.map((place) => place.name).join(", ") ??
-                "Your folders"}
+      {/* The services the workspace reaches, under the box: marks with names,
+          small enough that the row reads as a strip of faces rather than as
+          cards. One line and never two, since a page that grows a row per
+          handful of apps pushes the computer under the fold; the rest are
+          behind the tile at the end, which is also where a new one is added.
+          An app still being connected is drawn faint, since it is not yet a
+          way in to anything. */}
+      <section className="mt-5 w-full max-w-3xl">
+        <div className="flex flex-nowrap justify-center gap-1">
+          {(appList.data?.apps ?? []).slice(0, APPS_SHOWN).map((app) => (
+            <button
+              className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
+              key={app.slug}
+              onClick={() => {
+                void navigate({
+                  params: { slug: app.slug },
+                  to: "/orchestrator/apps/$slug",
+                });
+              }}
+              type="button"
+            >
+              <AppIcon
+                className={
+                  app.standing === "connected" ? undefined : "opacity-50"
+                }
+                site={app.site}
+              />
+              <span className="w-full truncate text-center text-xs">
+                {app.name}
+              </span>
+            </button>
+          ))}
+          <button
+            className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
+            onClick={() => {
+              void navigate({ to: "/orchestrator/apps" });
+            }}
+            type="button"
+          >
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-dashed border-border text-muted-foreground">
+              <PlusIcon className="size-4" />
             </span>
-          </span>
-        </button>
-        <button
-          className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm hover:bg-accent/30"
-          onClick={() => {
-            void navigate({ to: "/orchestrator/apps" });
-          }}
-          type="button"
-        >
-          <AppWindowIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">Apps</span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {(appList.data?.apps ?? []).some(
-                (app) => app.standing === "connected",
-              )
-                ? (appList.data?.apps ?? [])
-                    .filter((app) => app.standing === "connected")
-                    .map((app) => app.name)
-                    .join(", ")
-                : "Connect the services you use"}
+            <span className="w-full truncate text-center text-xs">
+              All apps
             </span>
-          </span>
-        </button>
-      </div>
-
-      {pins.length > 0 ? (
-        <div className="mt-8 w-full max-w-3xl">
-          <p className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
-            Pinned
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {pins.map((pin) => (
-              <button
-                className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm shadow-sm hover:bg-accent/30"
-                key={pin.id}
-                onClick={() => {
-                  if (pin.kind === "page") {
-                    openPage(pin.target);
-                  } else {
-                    openScreen(pin.target);
-                  }
-                }}
-                type="button"
-              >
-                <span className="flex size-4 shrink-0 items-center justify-center">
-                  {pin.kind === "page" ? (
-                    <SiteIcon favicon={pin.favicon} url={pin.target} />
-                  ) : (
-                    <ScreenIcon appsBySlug={appsBySlug} href={pin.target} />
-                  )}
-                </span>
-                <span className="max-w-48 truncate">{pin.title}</span>
-              </button>
-            ))}
-          </div>
+          </button>
         </div>
-      ) : null}
+      </section>
 
-      {(appList.data?.apps ?? []).length > 0 ? (
-        <div className="mt-8 w-full max-w-3xl">
-          <p className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
-            Apps
+      {/* The places the user kept, which is what a bookmark is: their own
+          choice, before anything the app has to offer. What the row is comes
+          after the row itself, small and under it, since the names the user
+          chose are the thing and the word for them is only a caption. */}
+      <section className="mt-3 w-full max-w-3xl">
+        {pins.length === 0 ? (
+          <p className="text-center text-xs text-muted-foreground">
+            Right-click a tab to pin it here.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {(appList.data?.apps ?? []).map((app) => (
-              <button
-                className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm shadow-sm hover:bg-accent/30"
-                key={app.slug}
-                onClick={() => {
-                  void navigate({
-                    params: { slug: app.slug },
-                    to: "/orchestrator/apps/$slug",
-                  });
-                }}
-                type="button"
-              >
-                <AppIcon site={app.site} size="sm" />
-                <span>{app.name}</span>
-                {app.standing === "connected" ? null : (
-                  <span className="text-xs text-muted-foreground">
-                    {app.standing === "needs-sign-in" ||
-                    app.standing === "needs-key"
-                      ? "Connect"
-                      : "Setting up"}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {wasAt.length > 0 ? (
-        <div className="mt-10 w-full max-w-3xl">
-          <p className="text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
-            Recent
-          </p>
-          <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-            {wasAt.slice(0, RECENTS_SHOWN).map((entry) => (
-              <li key={`${entry.note}:${entry.title}:${entry.at}`}>
+        ) : (
+          <>
+            <div className="flex flex-nowrap justify-center gap-1.5">
+              {pins.slice(0, PINS_SHOWN).map((pin) => (
                 <button
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent/50"
-                  onClick={entry.run}
-                  title={entry.hint}
+                  className="flex min-w-0 shrink items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1 text-left shadow-sm hover:bg-accent/30"
+                  key={pin.id}
+                  onClick={() => {
+                    if (pin.kind === "page") {
+                      openPage(pin.target);
+                    } else {
+                      openScreen(pin.target);
+                    }
+                  }}
                   type="button"
                 >
-                  <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                    {entry.icon}
+                  <span className="flex size-4 shrink-0 items-center justify-center">
+                    {pin.kind === "page" ? (
+                      <SiteIcon favicon={pin.favicon} url={pin.target} />
+                    ) : (
+                      <ScreenIcon appsBySlug={appsBySlug} href={pin.target} />
+                    )}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{entry.title}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {entry.note}
+                  <span className="min-w-0 flex-1 truncate text-xs">
+                    {pin.title}
                   </span>
                 </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+              ))}
+            </div>
+            <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+              Bookmarks
+            </p>
+          </>
+        )}
+      </section>
 
-      <div className="mt-auto w-full max-w-3xl pt-10">
-        <button
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-muted-foreground hover:bg-accent/30"
-          onClick={() => {
-            void navigate({ to: "/orchestrator/tasks" });
-          }}
-          type="button"
+      {/* The computer itself, in a window on the page: the Finder whole, with
+          its places, its columns and its keyboard, opening folders without
+          taking the tab anywhere. It is small enough to glance at until the
+          user reaches into it, and then it takes the room a window takes; the
+          control in its own bar says the same thing by hand. */}
+      <section className="mt-5 w-full max-w-5xl">
+        <div
+          className={cn(
+            // One width, whatever the height: a box that widened under the
+            // pointer would move the row being clicked out from under it.
+            "flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-md",
+            isFinderOpen
+              ? "h-[calc(75vh/var(--app-zoom))]"
+              : "h-[calc(50vh/var(--app-zoom))]",
+          )}
         >
-          <InstrumentGlyph className="size-3.5 shrink-0" />
-          <span>
-            Tasks
-            {children.data && children.data.length > 0
-              ? ` · ${children.data.length}`
-              : ""}
-          </span>
-        </button>
-      </div>
+          <div className="flex h-7 shrink-0 items-center gap-2 border-b border-border bg-muted/40 px-2">
+            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              {computerName()}
+            </span>
+            <button
+              aria-label={isFinderOpen ? "Shrink" : "Expand"}
+              className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+              onClick={() => {
+                // Sized by hand is sized for good: the box stops growing on
+                // its own once the user has said how big they want it.
+                finderTouched.current = true;
+                setFinderOpen((open) => !open);
+              }}
+              type="button"
+            >
+              {isFinderOpen ? (
+                <CornersInIcon className="size-3.5" />
+              ) : (
+                <CornersOutIcon className="size-3.5" />
+              )}
+            </button>
+          </div>
+          {/* Reached into, the box grows, and stays grown for as long as the
+              tab lives. The keyboard landing on a row of the listing is not
+              that: the browser puts it there itself when a folder opens, and
+              every way a person arrives here is a press or lands on a control
+              of the browser's own first. */}
+          <div
+            className="min-h-0 flex-1"
+            onFocus={(event) => {
+              if (!event.target.closest('[role="option"]')) {
+                growFinder();
+              }
+            }}
+            onKeyDown={growFinder}
+            onPointerDown={growFinder}
+          >
+            <ComputerPage
+              onLocationChange={setFinderAt}
+              onOpenFile={openFileTab}
+              path={finderAt.path}
+              refreshInterval={FINDER_REFRESH_MS}
+              root={finderAt.root}
+            />
+          </div>
+        </div>
+      </section>
+
+      {isHomeChannel && (
+        <div className="mt-auto w-full max-w-3xl pt-8">
+          <button
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-muted-foreground hover:bg-accent/30"
+            onClick={() => {
+              void navigate({ to: "/orchestrator/tasks" });
+            }}
+            type="button"
+          >
+            <InstrumentGlyph className="size-3.5 shrink-0" />
+            <span>
+              Tasks
+              {children.data && children.data.length > 0
+                ? ` · ${children.data.length}`
+                : ""}
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -32,6 +32,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
@@ -48,6 +49,20 @@ import { useOrchestrator } from "./context";
 
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
+
+/**
+ * The soonest the recents are read again. Their own clock, slower than a
+ * folder's: the scan reads every place the computer is entered from and the
+ * folders under those, which is not a thing to do every few seconds.
+ */
+const RECENTS_REFRESH_MS = ms("20 seconds");
+
+/**
+ * The place that is not a folder: the files changed most recently, wherever
+ * they are. Stands where a root folder stands, so the browser opens on it the
+ * way it opens on Home.
+ */
+export const RECENTS_ROOT = "recents:";
 
 /** The folder the user is looking at, for the conversation. */
 export interface FolderOnScreen {
@@ -73,33 +88,63 @@ export interface FolderOnScreen {
  * The file browser holds a flat manifest and asks for a folder's children the
  * first time it is opened. Every folder it has asked for is re-read on a
  * clock, so what a task writes shows up without a refresh.
+ *
+ * A tab of its own is where this belongs, and a box on a page is where it also
+ * fits: the page that puts it in a box holds the folder it is looking at
+ * itself, so walking the folders leaves the tab where it is.
  */
 export function ComputerPage({
   onFolderChange,
+  onLocationChange,
   onOpenFile,
   onQuickLook,
   onQuickLookFollow,
   path,
-  quickLookOpen,
+  quickLookOpen = false,
+  refreshInterval = REFRESH_MS,
   root,
 }: {
   /** Told the folder on screen whenever it changes. */
-  onFolderChange: (folder: FolderOnScreen) => void;
+  onFolderChange?: (folder: FolderOnScreen) => void;
+  /**
+   * Where the browser has moved to. Left out, it writes the tab's own address,
+   * which is what the screen filling a tab wants; given, the page holding the
+   * browser keeps the folder in its own state and the tab stays where it is.
+   */
+  onLocationChange?: (location: { path: string; root: string }) => void;
   /** A file the user opened, when a granted folder covers it. */
   onOpenFile: (file: FileTab) => void;
-  /** The selected file, on Space. */
-  onQuickLook: (file: FileTab) => void;
+  /** The selected file, on Space. Left out, Space is not watched for at all. */
+  onQuickLook?: (file: FileTab) => void;
   /** The file the selection moved to while Quick Look is up, for it to show. */
-  onQuickLookFollow: (file: FileTab) => void;
+  onQuickLookFollow?: (file: FileTab) => void;
   path: string;
   /** Whether Quick Look is up: the arrows then move the selection under it. */
-  quickLookOpen: boolean;
+  quickLookOpen?: boolean;
+  /** How often every folder on screen is re-read; false to read each once. */
+  refreshInterval?: false | number;
   root: string;
 }) {
   const { taskId } = useOrchestrator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
+  // The recents stand where a root folder stands, and are listed the way a
+  // folder is, so everything the browser does to a folder it does to them.
+  const isRecents = root === RECENTS_ROOT;
+  const recents = useQuery(
+    rpcClient.workspace.computer.recents.queryOptions({
+      enabled: isRecents,
+      input: { id: taskId },
+      refetchInterval:
+        refreshInterval === false
+          ? false
+          : Math.max(refreshInterval, RECENTS_REFRESH_MS),
+    }),
+  );
+  const homePath = places.data?.favorites.find(
+    (place) => place.name === "Home",
+  )?.path;
   // Folder prefixes under the root whose listings are held, root first. The
   // browser asks for a folder's children only once the folder is in its
   // index, so the folder it opens on needs every folder above it listed. The
@@ -162,13 +207,15 @@ export function ComputerPage({
 
   const listings = useQueries({
     combine: combineListings,
-    queries: prefixes.map((prefix) =>
-      rpcClient.workspace.computer.list.queryOptions({
-        input: { id: taskId, path: hostPathOf(prefix) },
-        refetchInterval: REFRESH_MS,
-        retry: false,
-      }),
-    ),
+    queries: isRecents
+      ? []
+      : prefixes.map((prefix) =>
+          rpcClient.workspace.computer.list.queryOptions({
+            input: { id: taskId, path: hostPathOf(prefix) },
+            refetchInterval: refreshInterval,
+            retry: false,
+          }),
+        ),
   });
   // A folder that has gone (thrown away here, moved in the Finder) is asked
   // for on the clock until it is let go of, which is a failing read every few
@@ -188,7 +235,44 @@ export function ComputerPage({
     }));
   }, [goneFolder]);
   const assetBase = getAssetBaseUrl(taskId);
-  const items = listings.flatMap(({ data }, index) => {
+  // The recents as a folder's worth of files: named where they live, and flat,
+  // since a list of what changed is not a tree.
+  const recentEntries = recents.data ?? [];
+  const recentKeys = recentPaths(recentEntries);
+  const recentItems = recentEntries.map((entry, index): FileSystemItem => {
+    const mount = entry.access?.mountPath;
+    const url =
+      mount === undefined
+        ? undefined
+        : getAssetUrl({
+            assetBase,
+            filePath: mount,
+            version: entry.modifiedAt,
+          });
+    return {
+      contentType: entry.mimeType,
+      ...(entry.createdAt === undefined
+        ? {}
+        : { createdAt: new Date(entry.createdAt).toISOString() }),
+      kind: "file",
+      metadata: {
+        hostPath: entry.path,
+        ...(mount === undefined ? {} : { mount }),
+      },
+      name: entry.name,
+      path: recentKeys[index] ?? entry.name,
+      ...(url && entry.mimeType?.startsWith("image/")
+        ? { previewImageUrl: url, url }
+        : url
+          ? { url }
+          : {}),
+      size: entry.size,
+      ...(entry.modifiedAt === undefined
+        ? {}
+        : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
+    };
+  });
+  const folderItems = listings.flatMap(({ data }, index) => {
     const prefix = prefixes[index] ?? "";
     if (!data) {
       return [];
@@ -237,13 +321,28 @@ export function ComputerPage({
       };
     });
   });
+  const items = isRecents ? recentItems : folderItems;
+  const selectedItem =
+    selectedPath === null
+      ? undefined
+      : items.find((item) => item.path === selectedPath);
+  // The recent file the selection is on, which is what stands for a folder on
+  // a list of files from all over: it is the only place there is to be.
+  const selectedRecent =
+    isRecents && selectedPath !== null
+      ? recentEntries[recentKeys.indexOf(selectedPath)]
+      : undefined;
 
   // The listings are on a clock, but a folder the user just changed should
   // not wait for it.
-  const reread = () =>
+  const reread = () => {
     void queryClient.invalidateQueries({
       queryKey: rpcClient.workspace.computer.list.key(),
     });
+    void queryClient.invalidateQueries({
+      queryKey: rpcClient.workspace.computer.recents.key(),
+    });
+  };
 
   const browserRef = useRef<HTMLDivElement>(null);
   // Where the keyboard goes when an action is over and the row it acted on is
@@ -252,6 +351,29 @@ export function ComputerPage({
     browserRef.current
       ?.querySelector<HTMLElement>('[data-slot="file-system"]')
       ?.focus({ preventScroll: true });
+  };
+  // The keyboard crossing from the places into what the place opened, on the
+  // arrow that points that way. The row the listing's single tab stop names
+  // takes it and is handed the press, so the same arrow both arrives and
+  // moves, the way it does inside the listing. Until the listing has been
+  // read there is no row to hand it to, and the browser itself takes it: the
+  // next arrow reaches the first row through it.
+  const enterListing = () => {
+    const row = browserRef.current?.querySelector<HTMLElement>(
+      '[role="option"][tabindex="0"]',
+    );
+    if (!row) {
+      focusBrowser();
+      return;
+    }
+    row.focus({ preventScroll: true });
+    row.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "ArrowRight",
+      }),
+    );
   };
 
   // The Finder's own actions on the user's own files. Nothing here is the
@@ -337,15 +459,20 @@ export function ComputerPage({
   // written to history for the back button to return to.
   const settled = loaded.root === root;
   useEffect(() => {
-    if (settled && onScreen !== path) {
-      written.current = `${root}#${onScreen}`;
-      void navigate({
-        replace: true,
-        search: (previous) => ({ ...previous, path: onScreen, root }),
-        to: "/orchestrator/computer",
-      });
+    if (!settled || onScreen === path) {
+      return;
     }
-  }, [navigate, onScreen, path, root, settled]);
+    written.current = `${root}#${onScreen}`;
+    if (onLocationChange) {
+      onLocationChange({ path: onScreen, root });
+      return;
+    }
+    void navigate({
+      replace: true,
+      search: (previous) => ({ ...previous, path: onScreen, root }),
+      to: "/orchestrator/computer",
+    });
+  }, [navigate, onLocationChange, onScreen, path, root, settled]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -427,20 +554,31 @@ export function ComputerPage({
     };
   }, [onScreen, root, settled]);
 
-  // What the conversation is told "this folder" means.
-  const display = currentListing?.display;
-  const hostPath = currentListing?.path;
-  const mount = currentListing?.access?.mountPath;
-  const access = currentListing?.access?.access;
+  // What the conversation is told "this folder" means. At the recents that is
+  // where the selected file lives, since the list itself is nowhere; with
+  // nothing selected there, there is no folder to name.
+  const recentFolder = selectedRecent
+    ? folderOf(selectedRecent.path)
+    : undefined;
+  const display = isRecents
+    ? recentFolder && homeRelative(recentFolder, homePath)
+    : currentListing?.display;
+  const hostPath = isRecents ? recentFolder : currentListing?.path;
+  const mount = isRecents
+    ? selectedRecent?.access && folderOf(selectedRecent.access.mountPath)
+    : currentListing?.access?.mountPath;
+  const access = isRecents
+    ? selectedRecent?.access?.access
+    : currentListing?.access?.access;
   const selectedName =
     selectedPath !== null && !selectedPath.endsWith("/")
-      ? selectedPath.split("/").at(-1)
+      ? (selectedItem?.name ?? selectedPath.split("/").at(-1))
       : undefined;
   useEffect(() => {
     if (display === undefined || hostPath === undefined) {
       return;
     }
-    onFolderChange({
+    onFolderChange?.({
       ...(access === undefined ? {} : { access }),
       display,
       hostPath,
@@ -469,17 +607,12 @@ export function ComputerPage({
   };
 
   // Space on a selected file, the way the Finder shows one over everything.
-  const selectedFile =
-    selectedPath === null
-      ? undefined
-      : items.find(
-          (item): item is FileSystemFileItem =>
-            item.kind === "file" && item.path === selectedPath,
-        );
+  const selectedFile = selectedItem?.kind === "file" ? selectedItem : undefined;
   const quickLookTab = selectedFile ? fileTabOf(selectedFile) : undefined;
   const quickLookKey = quickLookTab?.mount;
   useEffect(() => {
-    if (!quickLookTab) {
+    // No panel to show one in, no key taken from the rest of the page.
+    if (!quickLookTab || !onQuickLook) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
@@ -541,13 +674,17 @@ export function ComputerPage({
   }, [quickLookOpen]);
   useEffect(() => {
     if (quickLookOpen && quickLookTab) {
-      onQuickLookFollow(quickLookTab);
+      onQuickLookFollow?.(quickLookTab);
     }
     // The tab is rebuilt with the items on every re-read; its path is its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickLookKey, quickLookOpen, onQuickLookFollow]);
 
   const rootTo = (folder: string, prefix = "") => {
+    if (onLocationChange) {
+      onLocationChange({ path: prefix, root: folder });
+      return;
+    }
     void navigate({
       search: { path: prefix, root: folder },
       to: "/orchestrator/computer",
@@ -574,19 +711,48 @@ export function ComputerPage({
     );
   }
 
-  const homePath = places.data.favorites.find(
-    (place) => place.name === "Home",
-  )?.path;
-  const rootHostPath = root === "~" ? homePath : root;
-  const rootName =
-    root === "~"
+  // The recents are rooted nowhere, so no place in the list is the one open.
+  const rootHostPath = isRecents ? undefined : root === "~" ? homePath : root;
+  const rootName = isRecents
+    ? "Recents"
+    : root === "~"
       ? "Home"
       : (root.split("/").findLast(Boolean) ??
         places.data.volumes[0]?.name ??
         "Root");
+  // The bar under the columns says where the folder is; at the recents, where
+  // the selected file is, which is the only place that list points to.
+  const pathBarHost = isRecents
+    ? recentFolder
+    : (currentListing?.path ?? rootHostPath ?? root);
   return (
     <div className="flex h-full min-h-0">
-      <nav className="flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm">
+      <nav
+        className="flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm"
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowRight") {
+            return;
+          }
+          event.preventDefault();
+          enterListing();
+        }}
+      >
+        {/* What was touched last, before the places it was touched in. */}
+        <PlaceList
+          onOpen={(folder) => {
+            rootTo(folder);
+          }}
+          places={[
+            {
+              icon: (
+                <ClockCounterClockwiseIcon className="size-4 text-muted-foreground" />
+              ),
+              isActive: isRecents,
+              name: "Recents",
+              path: RECENTS_ROOT,
+            },
+          ]}
+        />
         <PlaceList
           label="Favorites"
           onOpen={(folder) => {
@@ -625,10 +791,24 @@ export function ComputerPage({
               <FileSystem
                 className="h-full rounded-none border-0"
                 defaultPath={path}
+                // A list of recent files opens newest first; anywhere else the
+                // browser's own name order is what a folder is expected to be in.
+                {...(isRecents
+                  ? {
+                      defaultSort: {
+                        direction: "desc" as const,
+                        key: "updatedAt" as const,
+                      },
+                    }
+                  : {})}
                 defaultView="columns"
                 items={items}
                 key={`${root}#${openings}`}
                 loadChildren={async ({ path: prefix }) => {
+                  // The recents are one flat list of files; nothing on it opens.
+                  if (isRecents) {
+                    return { items: [] };
+                  }
                   setLoaded((previous) =>
                     previous.root === root && previous.prefixes.includes(prefix)
                       ? previous
@@ -731,16 +911,22 @@ export function ComputerPage({
           <FolderMenu
             item={menuItem}
             onDuplicate={() => void duplicate(menuItem)}
-            onNewFolder={() => {
-              void newFolderIn({
-                // The listing knows the folder's own path; until it has
-                // arrived, the root the sidebar resolved stands in for it.
-                hostPath:
-                  currentListing?.path ??
-                  hostPathOf(onScreen, rootHostPath ?? root),
-                prefix: onScreen,
-              });
-            }}
+            // The recents are a list rather than a folder, so there is nowhere
+            // there to make one.
+            onNewFolder={
+              isRecents
+                ? undefined
+                : () => {
+                    void newFolderIn({
+                      // The listing knows the folder's own path; until it has
+                      // arrived, the root the sidebar resolved stands in for it.
+                      hostPath:
+                        currentListing?.path ??
+                        hostPathOf(onScreen, rootHostPath ?? root),
+                      prefix: onScreen,
+                    });
+                  }
+            }
             onRename={() => {
               setRenamingPath(menuItem?.path ?? null);
             }}
@@ -753,11 +939,13 @@ export function ComputerPage({
             taskId={taskId}
           />
         </ContextMenu>
-        <PathBar
-          hostPath={currentListing?.path ?? rootHostPath ?? root}
-          onOpen={rootTo}
-          places={places.data}
-        />
+        {pathBarHost === undefined ? null : (
+          <PathBar
+            hostPath={pathBarHost}
+            onOpen={rootTo}
+            places={places.data}
+          />
+        )}
       </div>
     </div>
   );
@@ -864,7 +1052,8 @@ function FolderMenu({
 }: {
   item: FileSystemItem | undefined;
   onDuplicate: () => void;
-  onNewFolder: () => void;
+  /** Left out where there is no folder to make one in. */
+  onNewFolder: (() => void) | undefined;
   onRename: () => void;
   onReveal: () => void;
   onTrash: () => void;
@@ -907,10 +1096,12 @@ function FolderMenu({
           <span>{getRevealInFolderLabel()}</span>
         </ContextMenuItem>
       ) : null}
-      <ContextMenuItem onClick={onNewFolder}>
-        <FolderPlusIcon className="size-4" />
-        <span>New folder</span>
-      </ContextMenuItem>
+      {onNewFolder ? (
+        <ContextMenuItem onClick={onNewFolder}>
+          <FolderPlusIcon className="size-4" />
+          <span>New folder</span>
+        </ContextMenuItem>
+      ) : null}
       {item ? (
         <>
           <ContextMenuItem onClick={onRename}>
@@ -932,6 +1123,24 @@ function FolderMenu({
   );
 }
 
+/** The folder a path on the Mac sits in. */
+function folderOf(hostPath: string) {
+  return hostPath.slice(0, hostPath.lastIndexOf("/")) || "/";
+}
+
+/** A folder on the Mac the way a person writes it, the home folder as `~`. */
+function homeRelative(hostPath: string, home: string | undefined) {
+  if (home === undefined) {
+    return hostPath;
+  }
+  if (hostPath === home) {
+    return "~";
+  }
+  return hostPath.startsWith(`${home}/`)
+    ? `~${hostPath.slice(home.length)}`
+    : hostPath;
+}
+
 /** Where an item the browser is showing sits on the Mac. */
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
@@ -947,6 +1156,22 @@ function prefixesOf(folder: string): string[] {
     prefixes.push(at);
   }
   return prefixes;
+}
+
+/**
+ * What the browser knows each recent file by. Its own name for almost every
+ * one of them, which holds still as the list is read again; where two folders
+ * hold the same name, the later of the two is told apart by where it sits.
+ */
+function recentPaths(entries: readonly { name: string }[]): string[] {
+  const taken = new Set<string>();
+  return entries.map((entry, index) => {
+    const path = taken.has(entry.name)
+      ? `${entry.name} (${index})`
+      : entry.name;
+    taken.add(path);
+    return path;
+  });
 }
 
 /**
@@ -1024,7 +1249,9 @@ function fileTabOf(file: FileSystemFileItem): FileTab | undefined {
   return {
     ...(typeof hostFile === "string" ? { hostPath: hostFile } : {}),
     mount: mounted,
-    name: file.path.split("/").at(-1) ?? file.path,
+    // A recents row carries its own name: what it is called where it lives,
+    // rather than what the list knows it by.
+    name: file.name ?? file.path.split("/").at(-1) ?? file.path,
   };
 }
 
@@ -1042,7 +1269,8 @@ function PlaceList({
   onOpen,
   places,
 }: {
-  label: string;
+  /** Left out for a list of one, where a heading says nothing the row does not. */
+  label?: string;
   onOpen: (path: string) => void;
   places: {
     icon: ReactNode;
@@ -1053,9 +1281,11 @@ function PlaceList({
 }) {
   return (
     <div>
-      <p className="px-2 pb-1 text-xs font-medium text-muted-foreground/70">
-        {label}
-      </p>
+      {label === undefined ? null : (
+        <p className="px-2 pb-1 text-xs font-medium text-muted-foreground/70">
+          {label}
+        </p>
+      )}
       <ul className="flex flex-col gap-px">
         {places.map((place) => (
           <li key={place.path}>

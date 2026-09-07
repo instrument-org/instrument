@@ -4,7 +4,9 @@ import {
   ComputerListingSchema,
   computerPlaces,
   ComputerPlacesSchema,
+  ComputerRecentSchema,
   listComputerFolder,
+  recentComputerFiles,
 } from "../../lib/orchestrator/computer";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base } from "../base";
@@ -25,7 +27,17 @@ const places = base
   .output(ComputerPlacesSchema)
   .handler(() => computerPlaces());
 
+/**
+ * The files changed most recently in those folders, newest first, each with
+ * whether the orchestrator `id` can reach it.
+ */
+const recents = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(ComputerRecentSchema.array())
+  .handler(({ input }) => recentComputerFiles({ taskId: input.id }));
+
 export const computer = {
   list,
   places,
+  recents,
 };

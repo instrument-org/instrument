@@ -41,6 +41,12 @@ const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
 /** A year of sales by region and month, whose totals the case knows exactly. */
 const DATA_FIXTURE = path.resolve(import.meta.dirname, "../fixtures/Data");
 
+/** Six espresso machines whose specs decide the answer to the case below. */
+const SHOPPING_FIXTURE = path.resolve(
+  import.meta.dirname,
+  "../fixtures/Shopping",
+);
+
 /** Below this a document exists but holds nothing worth opening. */
 const MIN_DOCUMENT_BYTES = 4000;
 
@@ -349,7 +355,9 @@ function wroteAnImage(): Assertion {
   return {
     check: async ({ taskId }) => {
       const written = await deliverables(taskId);
-      const images = written.filter((file) => file.toLowerCase().endsWith(".png"));
+      const images = written.filter((file) =>
+        file.toLowerCase().endsWith(".png"),
+      );
       for (const image of images) {
         const body = await fs.readFile(image).catch(() => {});
         if (
@@ -363,7 +371,12 @@ function wroteAnImage(): Assertion {
           );
         }
       }
-      return fail(text, images.length === 0 ? "no PNG written" : `${images.length} PNG(s), none usable`);
+      return fail(
+        text,
+        images.length === 0
+          ? "no PNG written"
+          : `${images.length} PNG(s), none usable`,
+      );
     },
     text,
   };
@@ -429,6 +442,172 @@ function wroteSomethingToLookAt(
   };
 }
 
+/** The readable text of a Word document, tags stripped. */
+async function docxText(file: string): Promise<string> {
+  const archive = await fs.readFile(file).catch(() => {});
+  if (!archive) {
+    return "";
+  }
+  return zipMembers(archive, (name) => name === "word/document.xml")
+    .map((part) => part.toString("utf8"))
+    .join("")
+    .replaceAll(/<[^>]+>/g, " ");
+}
+
+/**
+ * A figure only a real computation produces, in a document that has to be
+ * unzipped to read. The same question `reportContains` asks of a Markdown
+ * file, asked of the format a memo actually arrives in -- and the one where a
+ * model can most easily write a confident sentence around a number it never
+ * worked out.
+ */
+function documentContains(label: string, value: number): Assertion {
+  const text = `got ${label} right`;
+  return {
+    check: async ({ taskId }) => {
+      const written = await deliverables(taskId);
+      const docs = written.filter((file) =>
+        file.toLowerCase().endsWith(".docx"),
+      );
+      const rounded = Math.round(value);
+      const wanted = [
+        rounded.toLocaleString("en-US"),
+        String(rounded),
+        value.toFixed(2),
+        Math.round(value / 1000).toLocaleString("en-US"),
+      ];
+      for (const doc of docs) {
+        const body = await docxText(doc);
+        const flat = body.replaceAll(",", "").replaceAll("$", "");
+        for (const candidate of wanted) {
+          if (
+            body.includes(candidate) ||
+            flat.includes(candidate.replaceAll(",", ""))
+          ) {
+            return pass(text, `${path.basename(doc)} names ${candidate}`);
+          }
+        }
+      }
+      return fail(
+        text,
+        docs.length === 0
+          ? "no Word document written"
+          : `${docs.length} written, none naming ${wanted.join(" / ")}`,
+      );
+    },
+    text,
+  };
+}
+
+/**
+ * A picture inside the document rather than beside it.
+ *
+ * Rendering a chart is one job and getting it into the file is another, and the
+ * second is where a task quietly settles for a paragraph describing the chart
+ * it made. OOXML puts embedded media under `<part>/media/`, so the archive
+ * answers this without opening the document.
+ */
+const embeddedAnImage: Assertion = {
+  check: async ({ taskId }) => {
+    const text = "put the chart inside the document";
+    const written = await deliverables(taskId);
+    const docs = written.filter((file) => /\.(?:docx|pptx)$/i.test(file));
+    for (const doc of docs) {
+      const archive = await fs.readFile(doc).catch(() => {});
+      if (!archive) {
+        continue;
+      }
+      const media = zipMembers(archive, (name) =>
+        /^(?:word|ppt)\/media\/.+\.(?:png|jpe?g|gif|emf)$/i.test(name),
+      );
+      if (media.length > 0) {
+        const biggest = Math.max(...media.map((one) => one.length));
+        return pass(
+          text,
+          `${path.basename(doc)} embeds ${media.length} image(s), largest ${Math.round(biggest / 1024)}KB`,
+        );
+      }
+    }
+    return fail(
+      text,
+      docs.length === 0 ? "no document written" : "document embeds no image",
+    );
+  },
+  text: "put the chart inside the document",
+};
+
+/** Every option the brief supplied, so a comparison cannot quietly drop half. */
+function comparedEvery(names: string[]): Assertion {
+  const text = `compared all ${names.length} of them`;
+  return {
+    check: async ({ taskId }) => {
+      const written = await deliverables(taskId);
+      for (const file of written.filter((one) =>
+        /\.(?:html?|md)$/i.test(one),
+      )) {
+        const body = await fs.readFile(file, "utf8").catch(() => "");
+        const missing = names.filter((name) => !body.includes(name));
+        if (body.length > 500 && missing.length === 0) {
+          return pass(text, `${path.basename(file)} names every one`);
+        }
+        if (body.length > 500) {
+          return fail(
+            text,
+            `${path.basename(file)} omits ${missing.join(", ")}`,
+          );
+        }
+      }
+      return fail(text, "nothing written to compare in");
+    },
+    text,
+  };
+}
+
+/**
+ * The pick the supplied data actually supports.
+ *
+ * A shopping comparison is only worth anything if the recommendation survives
+ * the constraints in the brief, and those constraints have exactly one or two
+ * right answers here. Read from the recommendation itself rather than the whole
+ * page, because every option is named somewhere on a comparison page by
+ * definition; the run of text after the word "recommend" is where the model
+ * commits.
+ */
+function recommended(allowed: string[], rejected: string[]): Assertion {
+  const text = `recommended one the constraints allow`;
+  return {
+    check: async ({ taskId }) => {
+      const written = await deliverables(taskId);
+      for (const file of written.filter((one) =>
+        /\.(?:html?|md)$/i.test(one),
+      )) {
+        const body = await fs.readFile(file, "utf8").catch(() => "");
+        if (body.length < 500) {
+          continue;
+        }
+        const flat = body.replaceAll(/<[^>]+>/g, " ").replaceAll(/\s+/g, " ");
+        const at = flat.search(/recommend/i);
+        if (at === -1) {
+          return fail(text, `${path.basename(file)} never recommends anything`);
+        }
+        const verdict = flat.slice(at, at + 300);
+        const picked = allowed.filter((name) => verdict.includes(name));
+        const wrong = rejected.filter((name) => verdict.includes(name));
+        return picked.length > 0 && wrong.length === 0
+          ? pass(text, `picked ${picked.join(", ")}`)
+          : fail(
+              text,
+              wrong.length > 0
+                ? `picked ${wrong.join(", ")}, which the brief rules out`
+                : `named none of ${allowed.join(" or ")}`,
+            );
+      }
+      return fail(text, "nothing written to recommend in");
+    },
+    text,
+  };
+}
+
 export const WORKER_EVALS = [
   defineEval({
     // Drawing from nothing, in a format the model writes by hand rather than
@@ -438,6 +617,25 @@ export const WORKER_EVALS = [
     name: "worker-svg-drawing",
     prompt:
       "Draw a pelican riding a bicycle as a single SVG file called pelican.svg in your output folder, about 800 by 600. Hand-written SVG, no libraries and no embedded images. It should be recognisable as both a pelican and a bicycle.",
+  }),
+  defineEval({
+    // The same skill as the pelican, asked for a subject no model has drawn
+    // before. Two familiar things in an arrangement nobody publishes, so what
+    // comes back is composition rather than recall -- and the count is the
+    // tell: five pins in flight is a spatial problem, and a model working from
+    // a remembered picture has no picture to remember.
+    assertions: [wroteSomethingToLookAt(".svg", 1200), checkedItsOwnWork],
+    name: "worker-svg-juggling",
+    prompt:
+      "Draw an octopus juggling five bowling pins as a single SVG file called juggler.svg in your output folder, about 800 by 600. Hand-written SVG, no libraries and no embedded images. All eight arms visible, all five pins in the air on an arc above it, and the pins should be different sizes.",
+  }),
+  defineEval({
+    // A creature and a machine, where the machine has parts that have to be in
+    // the right places relative to each other and to the animal using it.
+    assertions: [wroteSomethingToLookAt(".svg", 1200), checkedItsOwnWork],
+    name: "worker-svg-sewing",
+    prompt:
+      "Draw an axolotl using a sewing machine as a single SVG file called sewing.svg in your output folder, about 800 by 600. Hand-written SVG, no libraries and no embedded images. The axolotl's frilly gills should be visible, and the sewing machine needs a needle over the fabric, a spool of thread on top and a hand wheel on the side.",
   }),
   defineEval({
     assertions: [wroteSomethingToLookAt(".pdf", 20_000), checkedItsOwnWork],
@@ -493,6 +691,57 @@ export const WORKER_EVALS = [
       "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row. Work out total revenue for the year, revenue per region, and which region did best, and write it up as summary.md in your output folder with a short table. Revenue is units times unit price.",
   }),
 
+  defineEval({
+    // Data in, a document out, with the chart inside it. Three jobs that fail
+    // separately: the arithmetic, the plot, and getting the plot into the file
+    // rather than describing it in a sentence beside one.
+    assertions: [
+      wroteADocument(".docx"),
+      documentContains("total revenue", 742_370.74),
+      embeddedAnImage,
+      checkedItsOwnWork,
+    ],
+    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    name: "worker-data-memo",
+    prompt:
+      "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row -- revenue is units times unit price. Write it up as a one-page memo called memo.docx in your output folder for someone who will not open the spreadsheet: the total for the year up top, a table of revenue by region, a chart of monthly revenue actually embedded in the document, and one sentence saying what you would do about it. Lay it out so the point lands without reading every number.",
+  }),
+  defineEval({
+    // Shopping, with the research already done, which is how the product is
+    // actually used: the data is supplied and the work is laying it out and
+    // committing to a pick. The constraints leave exactly two defensible
+    // answers, so the recommendation is scoreable rather than a matter of
+    // taste.
+    assertions: [
+      wroteSomethingToLookAt(".html", 3000),
+      comparedEvery([
+        "Lumen Uno",
+        "Lumen Duo Pro",
+        "Corvo Bar 9",
+        "Marlow M1",
+        "Aster Compact",
+        "Verano Studio",
+      ]),
+      recommended(
+        ["Corvo Bar 9", "Marlow M1"],
+        ["Lumen Uno", "Lumen Duo Pro", "Aster Compact", "Verano Studio"],
+      ),
+      checkedItsOwnWork,
+    ],
+    folders: [{ access: "read-only", path: SHOPPING_FIXTURE }],
+    name: "worker-product-comparison",
+    prompt:
+      "espresso-machines.csv in my Shopping folder has six machines I am choosing between. Build me a single-file comparison page called compare.html in your output folder that lets me see the differences at a glance and ends with a clear recommendation. My budget is $700, I want a 58mm portafilter so my accessories fit, and I want PID temperature control. Everything else is a trade-off I want you to make for me: I pull one shot on a weekday morning and I am usually in a hurry. Style it inside the file, no libraries and no external images.",
+  }),
+  defineEval({
+    // A visual explanation of a mechanism, which is the shape of a good half of
+    // the real corpus: something with parts that move, two states worth
+    // contrasting, a number where the answer flips, and a verdict at the end.
+    assertions: [wroteSomethingToLookAt(".html", 3000), checkedItsOwnWork],
+    name: "worker-mechanism-explainer",
+    prompt:
+      "Explain to me, someone with no engineering background, how a heat pump heats a house and when it stops beating a gas furnace. One HTML page called heat-pump.html in your output folder. It has to be visual: draw the refrigerant loop in SVG with the four parts labelled and arrows showing which way heat moves, show the same loop again running backwards for cooling, and put in a small chart of efficiency against outside temperature with the crossover point marked. End with a plain-language verdict. Styling inside the file, no libraries.",
+  }),
   defineEval({
     assertions: [wroteADocument(".docx"), checkedItsOwnWork],
     name: "worker-word-document",

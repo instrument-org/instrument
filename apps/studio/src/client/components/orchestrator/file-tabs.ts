@@ -40,7 +40,9 @@ export function hostPathOfMount(
  */
 export function useOpenFileTab() {
   const { openOrFocusScreen } = useWindowTabs();
+  // Opened from somewhere else rather than asked for as a tab, so back from
+  // it puts it away rather than doing nothing.
   return (tab: FileTab) => {
-    openOrFocusScreen(fileHref(tab.mount));
+    openOrFocusScreen(fileHref(tab.mount), { isOpened: true });
   };
 }

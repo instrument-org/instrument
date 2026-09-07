@@ -51,17 +51,20 @@ export function useWindowTabs() {
   };
 
   /** Opens a screen at an address and shows it. */
-  const openScreen = (href: string) => {
+  const openScreen = (href: string, { isOpened = false } = {}) => {
     const id = `screen-${crypto.randomUUID()}`;
     setTabs((current) => ({
       activeId: id,
-      tabs: [...current.tabs, { href, id, kind: "screen" }],
+      tabs: [
+        ...current.tabs,
+        { at: 0, href, id, isOpened, kind: "screen", trail: [href] },
+      ],
     }));
     return id;
   };
 
   /** Shows the screen tab already at that address, or opens one there. */
-  const openOrFocusScreen = (href: string) => {
+  const openOrFocusScreen = (href: string, { isOpened = false } = {}) => {
     const existing = tabs.find(
       (tab) => tab.kind === "screen" && sameHref(tab.href, href),
     );
@@ -69,21 +72,69 @@ export function useWindowTabs() {
       select(existing.id);
       return existing.id;
     }
-    return openScreen(href);
+    return openScreen(href, { isOpened });
   };
 
-  /** Where the screen tab on screen is now: the router moved inside it. */
+  /**
+   * Where the screen tab on screen is now: the router moved inside it.
+   *
+   * The address joins the tab's trail, and anything that was ahead of it is
+   * dropped, the way a browser drops the forward stack when you go somewhere
+   * new. Arriving at the address the trail is already standing on is a step
+   * taken by back or forward, so it moves nothing.
+   */
   const setActiveHref = (href: string) => {
     setTabs((current) => ({
       ...current,
+      tabs: current.tabs.map((tab) => {
+        if (
+          tab.id !== current.activeId ||
+          tab.kind !== "screen" ||
+          tab.href === href
+        ) {
+          return tab;
+        }
+        const trail = tab.trail ?? [tab.href];
+        const at = tab.at ?? trail.length - 1;
+        return {
+          ...tab,
+          at: at + 1,
+          href,
+          trail: [...trail.slice(0, at + 1), href],
+        };
+      }),
+    }));
+  };
+
+  /** Puts a different tab in one's place, keeping where it sits in the strip. */
+  const replace = (id: string, next: WindowTab) => {
+    setTabs((current) => ({
+      activeId: current.activeId === id ? next.id : current.activeId,
+      tabs: current.tabs.map((tab) => (tab.id === id ? next : tab)),
+    }));
+  };
+
+  /**
+   * A step along the active tab's own trail, or nothing when it has none left.
+   * The caller navigates to what comes back; this only moves the mark.
+   */
+  const step = (direction: -1 | 1): string | undefined => {
+    if (active?.kind !== "screen") {
+      return undefined;
+    }
+    const trail = active.trail ?? [active.href];
+    const next = (active.at ?? trail.length - 1) + direction;
+    const href = trail[next];
+    if (href === undefined) {
+      return undefined;
+    }
+    setTabs((current) => ({
+      ...current,
       tabs: current.tabs.map((tab) =>
-        tab.id === current.activeId &&
-        tab.kind === "screen" &&
-        tab.href !== href
-          ? { ...tab, href }
-          : tab,
+        tab.id === active.id ? { ...tab, at: next, href } : tab,
       ),
     }));
+    return href;
   };
 
   const close = (id: string) => {
@@ -127,6 +178,14 @@ export function useWindowTabs() {
         close(active.id);
       }
     },
+    // Back is either a step along this tab's trail, or, at the start of a tab
+    // something else opened, closing it: a tab opened to show one thing is
+    // done when you have gone back past the thing.
+    canStepBack:
+      active?.kind === "screen" &&
+      (atOf(active) > 0 || Boolean(active.isOpened)),
+    canStepForward:
+      active?.kind === "screen" && atOf(active) < trailOf(active).length - 1,
     openOrFocusScreen,
     openScreen,
     reorder: (keys: string[]) => {
@@ -138,6 +197,7 @@ export function useWindowTabs() {
         }),
       }));
     },
+    replace,
     select,
     selectIndex: (index: number) => {
       const tab = index >= 9 ? tabs.at(-1) : tabs[index - 1];
@@ -153,10 +213,20 @@ export function useWindowTabs() {
       }
     },
     setActiveHref,
+    step,
     tabs,
   };
 }
 
+function atOf(tab: undefined | WindowTab) {
+  return tab?.kind === "screen" ? (tab.at ?? trailOf(tab).length - 1) : 0;
+}
+
 function searchEntries(search: URLSearchParams) {
   return [...search.entries()].sort().join("&");
+}
+
+/** Where a screen tab has been, and where along it the tab is standing. */
+function trailOf(tab: undefined | WindowTab) {
+  return tab?.kind === "screen" ? (tab.trail ?? [tab.href]) : [];
 }

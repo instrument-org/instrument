@@ -9,7 +9,41 @@ import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
+import { type TabLocation } from "./tab-location-row";
 import { parseHref } from "./window-tabs";
+
+/** Where a screen tab is, in the terms the row above it says a place in. */
+export function screenLocation(
+  href: string,
+  appsBySlug: Map<string, { name: string; site: string | undefined }>,
+): TabLocation {
+  const { pathname, search } = parseHref(href);
+  if (pathname === NEW_TAB_HREF) {
+    return { kind: "newTab" };
+  }
+  if (pathname === "/orchestrator/computer") {
+    const file = search.get("file");
+    if (file) {
+      return { kind: "file", name: file.split("/").at(-1) ?? file, path: file };
+    }
+    return { kind: "folder", path: search.get("path") ?? "" };
+  }
+  if (pathname.startsWith("/orchestrator/apps/")) {
+    const slug = pathname.slice("/orchestrator/apps/".length);
+    const app = appsBySlug.get(slug);
+    return {
+      kind: "app",
+      name: app?.name ?? slug,
+      ...(app?.site ? { site: app.site } : {}),
+    };
+  }
+  if (pathname === "/orchestrator/apps") {
+    return { kind: "app", name: "Apps" };
+  }
+  // Every other screen is the work, which is the one place a tab can be that
+  // is neither a file nor an app nor a site.
+  return { kind: "tasks" };
+}
 
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(

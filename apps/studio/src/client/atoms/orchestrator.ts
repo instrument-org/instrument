@@ -124,14 +124,37 @@ export const tasksColumnWidthAtom = atomWithStorage<number>(
 );
 
 /**
+ * Where a tab has been, and whether it was opened by something else.
+ *
+ * History belongs to a tab rather than to the window: back never moves you to
+ * a different tab, which is the thing that makes a strip of them readable. A
+ * page tab keeps its guest's own history instead of a trail, since the guest
+ * is already the thing that remembers.
+ */
+export interface TabHistory {
+  /** Where in `trail` the tab is standing; the end of it, until back is used. */
+  at?: number;
+  /**
+   * True when this tab was opened from another one rather than by the user
+   * asking for a tab. Back from the start of such a tab closes it, which is
+   * what a tab opened to show one thing should do when you are done with it.
+   */
+  isOpened?: boolean;
+  /** The screen addresses this tab has been at, oldest first. */
+  trail?: string[];
+}
+
+/**
  * A tab of the window. A page is a browser session of the orchestrator's,
  * drawn by a guest the pool holds; a screen is anything else the product
  * shows (a folder, a file, a task, the apps, a new tab), addressed by the
  * route it is at, so navigating inside it changes the tab and not the row.
  */
-export type WindowTab =
-  | (BrowserTab & { kind: "page" })
-  | { href: string; id: string; kind: "screen" };
+export type WindowTab = TabHistory &
+  (
+    | (BrowserTab & { kind: "page" })
+    | { href: string; id: string; kind: "screen" }
+  );
 
 /** The address a new tab opens at: the page with the box that reaches everything. */
 export const NEW_TAB_HREF = "/orchestrator/home";

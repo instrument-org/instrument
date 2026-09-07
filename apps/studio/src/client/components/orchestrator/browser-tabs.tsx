@@ -43,6 +43,12 @@ export interface BrowserPage {
 }
 
 export interface BrowserTabsHandle {
+  /** Whether the guest on screen has anywhere of its own to go. */
+  canGoBack: boolean;
+  canGoForward: boolean;
+  /** A step in the guest's own history, which is this tab's and no other's. */
+  goBack: () => void;
+  goForward: () => void;
   /** Opens a new page tab, at an address when given, and shows it. */
   open: (url?: string) => void;
   /** Shows the page tab already at that address, or opens one there. */
@@ -192,6 +198,38 @@ export function BrowserTabs({
   // The orchestrator's own browser is the tab on screen; a task's tab is the
   // task's to drive.
   const activeTarget = active && !active.taskId ? targetOf(active) : null;
+  // Whether the guest on screen has been anywhere, for the arrows in the row
+  // above it. Read from the guest rather than counted here: it is the thing
+  // that has the history, and a redirect moves it without our being told.
+  const [canStep, setCanStep] = useState({ back: false, forward: false });
+  const stepGuest = (direction: "back" | "forward") => {
+    const webview = activeTarget && getWebviewElement(activeTarget);
+    if (!webview) {
+      return;
+    }
+    if (direction === "back") {
+      webview.goBack();
+    } else {
+      webview.goForward();
+    }
+  };
+  // A tab arriving on screen brings its own history with it, so what the
+  // arrows say has to be re-read rather than left as the last tab's answer.
+  useEffect(() => {
+    const webview = activeTarget && getWebviewElement(activeTarget);
+    if (!webview) {
+      setCanStep({ back: false, forward: false });
+      return;
+    }
+    try {
+      setCanStep({
+        back: webview.canGoBack(),
+        forward: webview.canGoForward(),
+      });
+    } catch {
+      // Not attached yet; the navigation events do this once it is.
+    }
+  }, [activeTarget]);
   useEffect(() => {
     void rpcClient.workspace.orchestrator.setActiveTab.call({
       id: taskId,
@@ -327,6 +365,10 @@ export function BrowserTabs({
       }
       const onNavigate = () => {
         try {
+          setCanStep({
+            back: webview.canGoBack(),
+            forward: webview.canGoForward(),
+          });
           const url = webview.getURL();
           if (url && url !== "about:blank") {
             const title = webview.getTitle() || undefined;
@@ -434,6 +476,14 @@ export function BrowserTabs({
   useImperativeHandle(
     ref,
     () => ({
+      canGoBack: canStep.back,
+      canGoForward: canStep.forward,
+      goBack: () => {
+        stepGuest("back");
+      },
+      goForward: () => {
+        stepGuest("forward");
+      },
       open: (url) => {
         openTab(url);
       },

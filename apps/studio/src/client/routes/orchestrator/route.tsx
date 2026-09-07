@@ -33,7 +33,14 @@ import {
 import { ViewChip } from "@/client/components/orchestrator/conversation-chrome";
 import { fileHref } from "@/client/components/orchestrator/file-tabs";
 import { NewChannelDialog } from "@/client/components/orchestrator/new-channel-dialog";
-import { screenPresentation } from "@/client/components/orchestrator/screen-presentation";
+import {
+  screenLocation,
+  screenPresentation,
+} from "@/client/components/orchestrator/screen-presentation";
+import {
+  type TabLocation,
+  TabLocationRow,
+} from "@/client/components/orchestrator/tab-location-row";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
@@ -372,9 +379,75 @@ function OrchestratorLayout() {
     }
   };
 
+  // Back and forward, which belong to the tab on screen and to nothing else.
+  // A page hands them to its guest, which is the thing that has the history;
+  // a screen walks the trail this tab has been keeping. At the start of a
+  // page there is still somewhere to go: a new tab, which is where a tab
+  // opened at a site came from and where backing out of one lands.
+  // A page can always go back: into its guest's history, or, at the first
+  // page it showed, to the new tab it started as.
+  const canGoBack = isPageOnScreen ? true : windowTabs.canStepBack;
+  const canGoForward = isPageOnScreen
+    ? (browser?.canGoForward ?? false)
+    : windowTabs.canStepForward;
+  const goBack = () => {
+    if (!active) {
+      return;
+    }
+    if (active.kind === "page") {
+      if (browser?.canGoBack) {
+        browser.goBack();
+      } else {
+        // Backing out of the first page in a tab leaves the tab where it
+        // started, which is a new tab, rather than leaving it nowhere.
+        windowTabs.replace(active.id, {
+          at: 0,
+          href: NEW_TAB_HREF,
+          id: `screen-${crypto.randomUUID()}`,
+          kind: "screen",
+          trail: [NEW_TAB_HREF],
+        });
+        router.history.push(NEW_TAB_HREF);
+      }
+      return;
+    }
+    const href = windowTabs.step(-1);
+    if (href !== undefined) {
+      router.history.push(href);
+    } else if (active.isOpened) {
+      // Nothing behind it, and something else opened it: back is the way out
+      // of a tab that exists to show one thing.
+      windowTabs.close(active.id);
+    }
+  };
+  const goForward = () => {
+    if (active?.kind === "page") {
+      browser?.goForward();
+      return;
+    }
+    const href = windowTabs.step(1);
+    if (href !== undefined) {
+      router.history.push(href);
+    }
+  };
+
   // What the conversation asks to open, as it asks: a page as a tab, a file
   // of the user's as a file tab. The openers are read at the moment of each
   // ask, since they close over the tabs as they are then.
+  const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
+  const appsBySlug = new Map(
+    (appList.data?.apps ?? []).map((app) => [
+      app.slug,
+      { name: app.name, site: app.site },
+    ]),
+  );
+  const tabLocation: TabLocation =
+    active?.kind === "page"
+      ? { kind: "page", url: active.url ?? "" }
+      : active?.kind === "screen"
+        ? screenLocation(active.href, appsBySlug)
+        : { kind: "newTab" };
+
   const openers = useRef({ openPage, openScreen });
   useEffect(() => {
     openers.current = { openPage, openScreen };
@@ -718,7 +791,7 @@ function OrchestratorLayout() {
                                   : {
                                       at: tab.href,
                                       title: screenPresentation(tab.href, {
-                                        appsBySlug: new Map(),
+                                        appsBySlug,
                                         childTitles,
                                       }).title,
                                     },
@@ -735,6 +808,15 @@ function OrchestratorLayout() {
               </div>
             </StudioSidebarRail>
             <main className="relative flex min-w-0 flex-1 flex-col">
+              {/* Under the strip and across the pane: what this tab is
+                showing, and the way back out of it. */}
+              <TabLocationRow
+                canGoBack={canGoBack}
+                canGoForward={canGoForward}
+                location={tabLocation}
+                onBack={goBack}
+                onForward={goForward}
+              />
               <div className="relative min-h-0 flex-1">
                 <Outlet />
                 {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}

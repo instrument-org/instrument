@@ -1,6 +1,10 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
+import {
+  FILE_MISSING_LABEL,
+  useFilePresence,
+} from "@/client/hooks/use-file-presence";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { useState } from "react";
@@ -34,6 +38,7 @@ export function FilePreviewListItem({
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
     fileActions.showCopy || fileActions.showDownload || fileActions.showReveal;
+  const { isMissing, ref } = useFilePresence<HTMLButtonElement>(url);
 
   const content =
     url && fileType === "image" ? (
@@ -53,8 +58,10 @@ export function FilePreviewListItem({
               "transition-[outline] focus-visible:outline-[3px] focus-visible:outline-offset-0 focus-visible:outline-ring/50",
               isSelected &&
                 "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
+              isMissing && "opacity-60",
             )}
             onClick={onClick}
+            ref={ref}
             type="button"
             {...dragProps}
           >
@@ -76,11 +83,12 @@ export function FilePreviewListItem({
           collisionPadding={10}
           maxWidth="500px"
         >
-          {filePath}
+          {isMissing ? `${FILE_MISSING_LABEL}: ${filePath}` : filePath}
         </TooltipContent>
       </Tooltip>
     ) : (
       <PreviewListItem
+        className={cn(isMissing && "opacity-60")}
         dragProps={dragProps}
         icon={
           <FileIcon
@@ -92,6 +100,14 @@ export function FilePreviewListItem({
         isSelected={isSelected}
         label={filename}
         onClick={onClick}
+        ref={ref}
+        rightElement={
+          isMissing ? (
+            <span className="text-[10px] text-muted-foreground">
+              {FILE_MISSING_LABEL}
+            </span>
+          ) : undefined
+        }
         tooltipContent={filePath}
       />
     );

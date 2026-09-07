@@ -28,6 +28,7 @@ export function MediaCardShell({
   bottomBar,
   canCopy,
   children,
+  className,
   file,
   hideActionsMenu,
   isSelected,
@@ -41,6 +42,7 @@ export function MediaCardShell({
   bottomBar?: React.ReactNode;
   canCopy?: boolean;
   children: React.ReactNode;
+  className?: string;
   file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
@@ -93,6 +95,7 @@ export function MediaCardShell({
             MEDIA_CARD_ASPECT[shape],
             isSelected &&
               "outline-2 outline-offset-2 outline-brand-100 dark:outline-brand-700",
+            className,
           )}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}

@@ -6,14 +6,17 @@ import { cn } from "@/client/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function PreviewListItem({
+  className,
   dragProps,
   icon,
   isSelected = false,
   label,
   onClick,
+  ref,
   rightElement,
   tooltipContent,
 }: {
+  className?: string;
   // Present only where the row stands for a file on disk, which is the only
   // thing there is to hand another app.
   dragProps?: FileDragProps;
@@ -21,6 +24,7 @@ export function PreviewListItem({
   isSelected?: boolean;
   label: string;
   onClick: () => void;
+  ref?: React.Ref<HTMLButtonElement>;
   rightElement?: ReactNode;
   tooltipContent?: string;
 }) {
@@ -39,8 +43,10 @@ export function PreviewListItem({
         // The brand tint a `FilePreviewCard` takes when the pane is showing its
         // file, so a chip and a full-width card read as the same state.
         isSelected ? "bg-brand-600/8 dark:bg-brand-300/8" : "hover:bg-muted",
+        className,
       )}
       onClick={onClick}
+      ref={ref}
       type="button"
       {...dragProps}
     >

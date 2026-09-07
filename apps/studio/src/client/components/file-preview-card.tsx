@@ -3,6 +3,10 @@ import type { RefObject } from "react";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
+import {
+  FILE_MISSING_LABEL,
+  useFilePresence,
+} from "@/client/hooks/use-file-presence";
 import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
@@ -84,25 +88,27 @@ export function FilePreviewCard({
     }
   };
 
-  if (fileType === "image") {
-    return (
+  // The card stays whatever became of the file; it is drawn as gone once the
+  // origin says so, which is asked only once the card is near the viewport.
+  const { isMissing, ref } = useFilePresence<HTMLDivElement>(file.url);
+
+  const card =
+    fileType === "image" ? (
       <ImagePreviewCard
         file={file}
         hideActionsMenu={hideActionsMenu}
+        isMissing={isMissing}
         isSelected={isSelected}
         onClick={onClick}
         shape={shape}
       />
-    );
-  }
-
-  if (fileType === "video") {
-    return (
+    ) : fileType === "video" ? (
       <VideoPreviewCard
         file={file}
         handleMouseEnter={handleMouseEnter}
         handleMouseLeave={handleMouseLeave}
         hideActionsMenu={hideActionsMenu}
+        isMissing={isMissing}
         isPlaying={isPlaying}
         isSelected={isSelected}
         onClick={onClick}
@@ -120,27 +126,29 @@ export function FilePreviewCard({
         videoProgress={videoProgress}
         videoRef={videoRef}
       />
+    ) : (
+      <FileRowCard
+        file={file}
+        hideActionsMenu={hideActionsMenu}
+        isMissing={isMissing}
+        isSelected={isSelected}
+        onClick={onClick}
+      />
     );
-  }
 
-  return (
-    <FileRowCard
-      file={file}
-      hideActionsMenu={hideActionsMenu}
-      isSelected={isSelected}
-      onClick={onClick}
-    />
-  );
+  return <div ref={ref}>{card}</div>;
 }
 
 function FileRowCard({
   file,
   hideActionsMenu,
+  isMissing,
   isSelected,
   onClick,
 }: {
   file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
+  isMissing?: boolean;
   isSelected?: boolean;
   onClick: () => void;
 }) {
@@ -161,6 +169,7 @@ function FileRowCard({
         isSelected
           ? "border border-black/5 bg-brand-600/8 dark:bg-brand-300/8"
           : "bg-card shadow-xs hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40",
+        isMissing && "opacity-60",
       )}
       onClick={onClick}
       onMouseEnter={() => {
@@ -196,7 +205,7 @@ function FileRowCard({
           </TooltipContent>
         </Tooltip>
         <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-          {getFileKindLabel(file)}
+          {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
         </span>
       </div>
       {!hideActionsMenu && hasFileActions && (
@@ -235,15 +244,30 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+/**
+ * What a media tile says of a file the origin no longer has, over whatever
+ * the thumbnail fell back to. Always on, unlike the tile's hover chrome: it is
+ * the state, not a control.
+ */
+function MissingBadge() {
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
+      {FILE_MISSING_LABEL}
+    </div>
+  );
+}
+
 function ImagePreviewCard({
   file,
   hideActionsMenu,
+  isMissing,
   isSelected,
   onClick,
   shape,
 }: {
   file: TaskFileViewerFile;
   hideActionsMenu?: boolean;
+  isMissing?: boolean;
   isSelected?: boolean;
   onClick: () => void;
   shape?: MediaCardShape;
@@ -277,7 +301,9 @@ function ImagePreviewCard({
 
   return (
     <MediaCardShell
+      bottomBar={isMissing ? <MissingBadge /> : undefined}
       canCopy={!imageLoadError}
+      className={cn(isMissing && "opacity-60")}
       file={file}
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}
@@ -354,6 +380,7 @@ function VideoPreviewCard({
   handleMouseEnter,
   handleMouseLeave,
   hideActionsMenu,
+  isMissing,
   isPlaying,
   isSelected,
   onClick,
@@ -369,6 +396,7 @@ function VideoPreviewCard({
   handleMouseEnter: () => void;
   handleMouseLeave: () => void;
   hideActionsMenu?: boolean;
+  isMissing?: boolean;
   isPlaying: boolean;
   isSelected?: boolean;
   onClick: () => void;
@@ -395,8 +423,11 @@ function VideoPreviewCard({
 
   return (
     <MediaCardShell
+      className={cn(isMissing && "opacity-60")}
       bottomBar={
-        displayTime === null ? undefined : (
+        isMissing ? (
+          <MissingBadge />
+        ) : displayTime === null ? undefined : (
           <div className="pointer-events-none absolute right-4 bottom-4 left-4 z-10 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover/media:opacity-100">
             <span className="self-end text-xs font-medium text-white tabular-nums drop-shadow-sm">
               {formatTime(displayTime)}

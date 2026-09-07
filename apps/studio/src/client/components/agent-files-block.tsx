@@ -1,6 +1,11 @@
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import {
+  FILE_MISSING_LABEL,
+  useFilePresence,
+} from "@/client/hooks/use-file-presence";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
-import { isMediaFile } from "@/client/lib/get-file-type";
+import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
+import { cn } from "@/client/lib/utils";
 import {
   isAddressableTaskFilePath,
   parseFilesBlock,
@@ -112,21 +117,13 @@ export function FilePathsGrid({
     return (
       <div className="not-prose my-2 flex flex-col gap-1">
         {files.map((file) => (
-          <button
-            className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs hover:bg-accent/50"
+          <FileLine
+            file={file}
             key={file.filePath}
             onClick={() => {
               openElsewhere?.(file.filePath);
             }}
-            type="button"
-          >
-            <FileIcon className="size-4 shrink-0" filename={file.filename} />
-            <span className="min-w-0 flex-1 truncate">{file.filename}</span>
-            <span className="shrink-0 text-[10px] text-muted-foreground">
-              {fileKind(file.filename)}
-            </span>
-            <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
-          </button>
+          />
         ))}
       </div>
     );
@@ -143,10 +140,40 @@ export function FilePathsGrid({
   );
 }
 
-/** The kind a row names beside the file: its extension, upper-cased, or "File". */
-function fileKind(filename: string) {
-  const extension = filename.includes(".") ? filename.split(".").at(-1) : "";
-  return extension ? extension.toUpperCase() : "File";
+/**
+ * One file as a line: the shape a fence takes in the conversation's narrow
+ * column. The kind beside the name is the one the row cards say ("Text file",
+ * "Markdown"), and a file the origin no longer has says so in its place, the
+ * line staying where the reply put it.
+ */
+function FileLine({
+  file,
+  onClick,
+}: {
+  file: TaskFileViewerFile;
+  onClick: () => void;
+}) {
+  const { isMissing, ref } = useFilePresence<HTMLButtonElement>(file.url);
+  return (
+    <button
+      className={cn(
+        "flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs hover:bg-accent/50",
+        isMissing && "opacity-60",
+      )}
+      onClick={onClick}
+      ref={ref}
+      type="button"
+    >
+      <FileIcon className="size-4 shrink-0" filename={file.filename} />
+      <span className="min-w-0 flex-1 truncate">{file.filename}</span>
+      <span className="shrink-0 text-[10px] text-muted-foreground">
+        {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
+      </span>
+      {!isMissing && (
+        <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
+      )}
+    </button>
+  );
 }
 
 // Whether a line in the fence is worth drawing a card for: a path this app can

@@ -1,9 +1,10 @@
 import { ariaSnapshot } from "@/tests/aria-snapshot";
 import { renderInBrowser } from "@/tests/render-browser";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import { AgentFilesBlock } from "./agent-files-block";
+import { FilesLayoutContext } from "./files-layout-context";
 import { MarkdownTaskContext } from "./markdown-task-context";
 
 /**
@@ -31,7 +32,11 @@ const WIDE = 640;
 
 function drawFence(
   content: string,
-  { isStreaming = false, width = WIDE } = {},
+  {
+    isStreaming = false,
+    layout = "grid" as "grid" | "list",
+    width = WIDE,
+  } = {},
 ) {
   return renderInBrowser(
     <div style={{ width }}>
@@ -42,11 +47,29 @@ function drawFence(
           taskId: TaskIdSchema.parse("quarterly-numbers"),
         }}
       >
-        <AgentFilesBlock content={content} />
+        <FilesLayoutContext.Provider value={layout}>
+          <AgentFilesBlock content={content} />
+        </FilesLayoutContext.Provider>
       </MarkdownTaskContext>
     </div>,
   );
 }
+
+/**
+ * An asset origin that answers every probe the same way. The origin the tests
+ * name does not exist, so left alone a probe fails as a network error, which
+ * a card reads as "nothing known"; this is how a test says the file is gone.
+ */
+function originAnswering(status: number) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => Promise.resolve(new Response(null, { status }))),
+  );
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 async function fenceHeight(content: string, isStreaming: boolean) {
   const { container } = await drawFence(content, { isStreaming });
@@ -88,6 +111,34 @@ test("names every file it draws, in the tree and not just on screen", async () =
     - text: notes.md Markdown
     - button "Actions for notes.md""
   `);
+});
+
+test("says a file is no longer there, and keeps its line where the reply put it", async () => {
+  // A transcript is a record of what a reply handed over; a file gone since
+  // is drawn as gone rather than dropped. Asked of the origin once the card is
+  // near the viewport, which every card in a test's viewport is.
+  originAnswering(404);
+  const { getByText } = await drawFence("output/notes.md\noutput/here.txt", {
+    layout: "list",
+  });
+
+  await expect.element(getByText("here.txt")).toBeInTheDocument();
+  await expect
+    .element(getByText("No longer there").first())
+    .toBeInTheDocument();
+  expect(getByText("No longer there").all()).toHaveLength(2);
+});
+
+test("names a file's kind beside it the way the row cards do", async () => {
+  // The line's right-hand text used to be the extension upper-cased, which is
+  // the filename said twice; it is the kind the row cards say.
+  originAnswering(206);
+  const { getByText } = await drawFence("output/notes.md\noutput/here.txt", {
+    layout: "list",
+  });
+
+  await expect.element(getByText("Markdown")).toBeInTheDocument();
+  await expect.element(getByText("Text file")).toBeInTheDocument();
 });
 
 test("lands a lone tile's edge on the column its file cards are laid out on", async () => {

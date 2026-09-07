@@ -149,12 +149,12 @@ export function Omnibar({
    * it is a folder is learned by asking for it as one, which is the read the
    * folder view is about to make anyway.
    */
-  const openPath = async (typed: string) => {
+  const openPath = async (written: string) => {
     const places = await queryClient.fetchQuery(
       rpcClient.workspace.computer.places.queryOptions(),
     );
     const home = places.favorites.find((place) => place.name === "Home")?.path;
-    const host = expandHome(typed, home);
+    const host = expandHome(written, home);
     try {
       await queryClient.fetchQuery(
         rpcClient.workspace.computer.list.queryOptions({
@@ -176,7 +176,7 @@ export function Omnibar({
         router.history.push(fileHref(mount));
         return;
       }
-      toast(`Nothing at “${typed}”`, {
+      toast(`Nothing at “${written}”`, {
         description: mount
           ? "No folder or file there."
           : "Not a folder, and not a file in a folder Instrument can reach.",

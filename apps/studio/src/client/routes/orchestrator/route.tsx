@@ -18,7 +18,10 @@ import {
   BrowserTabs,
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
-import { ChannelBanner } from "@/client/components/orchestrator/channel-banner";
+import {
+  BannerWork,
+  ChannelBanner,
+} from "@/client/components/orchestrator/channel-banner";
 import {
   ChannelMenu,
   type MenuAt,
@@ -613,7 +616,6 @@ function OrchestratorLayout() {
                           ),
                         });
                       }}
-                      tasks={channelTasks}
                     />
                   )}
                   {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
@@ -631,6 +633,7 @@ function OrchestratorLayout() {
                       <FilesLayoutContext value="list">
                         <TaskChat
                           alwaysSubmittable
+                          beforeComposer={<BannerWork tasks={channelTasks} />}
                           composerLead={<ViewChip />}
                           {...(openChannel
                             ? {

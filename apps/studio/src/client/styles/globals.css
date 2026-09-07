@@ -834,29 +834,61 @@ body {
   }
 }
 
-/* A channel at work: its tile breathes, a soft glow in the channel's own color
- * rising and falling behind it. Nothing is added to the tile, so no mark
- * competes with the badge in its corner or reads as a second selection, and
- * the color is the tile's own rather than one laid over it. `channel-tint`
- * publishes the glow color on the tile; the app's own tile, which wears no
- * tint, glows brand. Kept within the rail's width, which clips past it. */
+/* A channel at work: an arc in the channel's own color runs around the edge
+ * of its tile, the way an indeterminate spinner runs, so it reads as motion
+ * rather than as a mark. Nothing sits on the tile itself, so the badge in its
+ * corner keeps the corner and nothing reads as a second selection. The
+ * `channel-tint` utility publishes the color on the tile; the app's own tile,
+ * which wears no tint, takes a brand shade light enough to show on it. */
+@property --channel-arc {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
 @utility channel-working {
-  --channel-glow: var(--channel-tint-edge, var(--brand-500));
-  animation: channel-working-breathe 2.8s ease-in-out infinite;
+  /* The palette color as chosen rather than the tint mixed from it: the tint
+     is made to sit quietly under an emoji, and the arc has to carry. */
+  --channel-glow: var(--channel-color, var(--brand-400));
+  position: relative;
+
+  /* The arc: a conic gradient the width of a hairline around the tile, its
+     middle cut out by masking the content box away, turned by animating the
+     angle it starts from. It lives on a pseudo-element two pixels past the
+     tile's edge, which the rail's row has room for. */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    padding: 2px;
+    border-radius: calc(var(--radius-xl) + 2px);
+    background: conic-gradient(
+      from var(--channel-arc),
+      transparent 0deg 140deg,
+      var(--channel-glow) 360deg
+    );
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    /* After the mask, so the halo is the arc's and not the ring's. */
+    filter: drop-shadow(0 0 2px var(--channel-glow));
+    animation: channel-working-turn 1.6s linear infinite;
+    pointer-events: none;
+  }
 
   @media (prefers-reduced-motion: reduce) {
-    animation: none;
-    box-shadow: 0 0 8px 1px var(--channel-glow);
+    &::before {
+      animation: none;
+      background: var(--channel-glow);
+      opacity: 0.7;
+    }
   }
 }
 
-@keyframes channel-working-breathe {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-  50% {
-    box-shadow: 0 0 8px 2px var(--channel-glow);
+@keyframes channel-working-turn {
+  to {
+    --channel-arc: 360deg;
   }
 }
 

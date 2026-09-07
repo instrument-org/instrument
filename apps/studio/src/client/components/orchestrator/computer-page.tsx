@@ -956,11 +956,9 @@ export function ComputerPage({
 
 /**
  * The path on the Mac as the Finder writes it at the bottom of a window: the
- * volume, then every folder down to this one, each a way there. The folder
- * view and a file's tab draw the same bar, so a file is never shown without
- * the place it sits in.
+ * volume, then every folder down to this one, each a way there.
  */
-export function PathBar({
+function PathBar({
   hostPath,
   onOpen,
   places,

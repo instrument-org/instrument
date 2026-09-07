@@ -4,11 +4,10 @@ import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { ComputerPage, type FolderOnScreen, PathBar } from "./computer-page";
+import { ComputerPage, type FolderOnScreen } from "./computer-page";
 import { useOrchestrator } from "./context";
 import { hostPathOfMount, useOpenFileTab } from "./file-tabs";
 import { useOnScreen } from "./on-screen";
@@ -44,8 +43,6 @@ export function FilesScreen({
       input: { id: taskId },
     }),
   );
-  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
-  const navigate = useNavigate();
   const [folder, setFolder] = useState<FolderOnScreen | null>(null);
   const quickLook = useQuickLook({ openFile });
   // Where the keyboard was when Quick Look opened, so it goes back there when
@@ -130,29 +127,15 @@ export function FilesScreen({
     <div className="flex h-full min-h-0 flex-col">
       <div className="relative min-h-0 flex-1">
         {activeFile ? (
-          <div className="flex h-full flex-col">
-            <div className="min-h-0 flex-1 p-3">
-              <FileViewer
-                className="h-full"
-                file={viewerFile(activeFile)}
-                key={activeFile.mount}
-                onClose={closeActive}
-              />
-            </div>
-            {/* Where the file sits on the Mac, the folder view's own bar: a
-                crumb turns this tab into that folder. */}
-            {activeFile.hostPath && places.data ? (
-              <PathBar
-                hostPath={folderOf(activeFile.hostPath)}
-                onOpen={(target) => {
-                  void navigate({
-                    search: { path: "", root: target },
-                    to: "/orchestrator/computer",
-                  });
-                }}
-                places={places.data}
-              />
-            ) : null}
+          // Where the file sits on the Mac is the row above, which every tab
+          // wears, so the viewer is the whole of the tab.
+          <div className="h-full p-3">
+            <FileViewer
+              className="h-full"
+              file={viewerFile(activeFile)}
+              key={activeFile.mount}
+              onClose={closeActive}
+            />
           </div>
         ) : (
           <ComputerPage
@@ -173,9 +156,4 @@ export function FilesScreen({
       {quickLook.dialog}
     </div>
   );
-}
-
-/** The folder a file sits in, from its path on the Mac. */
-function folderOf(hostPath: string) {
-  return hostPath.slice(0, hostPath.lastIndexOf("/")) || "/";
 }

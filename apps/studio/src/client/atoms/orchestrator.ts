@@ -140,6 +140,12 @@ export interface TabHistory {
    * what a tab opened to show one thing should do when you are done with it.
    */
   isOpened?: boolean;
+  /**
+   * The strip key of the tab this one took the place of, so the strip sees
+   * one tab changing rather than one leaving and another arriving: a new tab
+   * that became a page, a page that went back to being a new tab.
+   */
+  stripKey?: string;
   /** The screen addresses this tab has been at, oldest first. */
   trail?: string[];
 }

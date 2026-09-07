@@ -107,7 +107,11 @@ export function WindowTabStrip({
     );
   };
 
-  const menuTab = menu && tabs.find((tab) => tab.id === menu.key);
+  // The strip names a tab by the place it keeps, which is the key of the tab
+  // that first opened there; the tab itself is found from that.
+  const idOf = (key: string) =>
+    tabs.find((tab) => (tab.stripKey ?? tab.id) === key)?.id ?? key;
+  const menuTab = menu && tabs.find((tab) => tab.id === idOf(menu.key));
 
   // Which tasks are in their browsers right now, one probe per task with a
   // tab here, since the answer is a subscription and the list is a list.
@@ -167,17 +171,21 @@ export function WindowTabStrip({
         // sizing to the tabs it currently holds.
         className="min-w-0 flex-1"
         {...(groupKey === undefined ? {} : { groupKey })}
-        onClose={onClose}
+        onClose={(key) => {
+          onClose(idOf(key));
+        }}
         onContextMenu={(key, event) => {
           event.preventDefault();
           setMenu({ key, x: event.clientX, y: event.clientY });
         }}
         onNew={onNew}
         onReorder={onReorder}
-        onSelect={onSelect}
+        onSelect={(key) => {
+          onSelect(idOf(key));
+        }}
         selectedKey={selectedId}
         tabs={tabs.map((tab) => ({
-          key: tab.id,
+          key: tab.stripKey ?? tab.id,
           ...(tab.kind === "page"
             ? {
                 icon: <TabIcon favicon={tab.favicon} url={tab.url} />,

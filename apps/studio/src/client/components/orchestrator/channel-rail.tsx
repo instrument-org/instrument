@@ -1,4 +1,5 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 import { channelTint } from "@/client/components/orchestrator/channel-tint";
 import {
   Avatar,
@@ -338,8 +339,8 @@ function ChannelTile({
           // Working takes the corner the count would have had, because it is
           // the same question answered sooner: something happened in there.
           // A ring around the whole tile read as a second selection.
-          <span className="absolute top-0 right-0 grid size-4 place-items-center rounded-full bg-card ring-2 ring-card">
-            <span className="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+          <span className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-card">
+            <PlanningDotIcon />
           </span>
         ) : channel.needsYou ? (
           // A question rather than a warning: it is asking the user something,

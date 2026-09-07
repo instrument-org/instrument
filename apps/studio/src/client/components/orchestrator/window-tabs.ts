@@ -192,7 +192,9 @@ export function useWindowTabs() {
       setTabs((current) => ({
         ...current,
         tabs: keys.flatMap((key) => {
-          const tab = current.tabs.find((entry) => entry.id === key);
+          const tab = current.tabs.find(
+            (entry) => (entry.stripKey ?? entry.id) === key,
+          );
           return tab ? [tab] : [];
         }),
       }));

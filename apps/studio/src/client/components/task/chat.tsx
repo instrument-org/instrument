@@ -603,11 +603,27 @@ export function TaskChat({
 // conversation. A changing value rather than a direct call, so the scroll runs
 // from the render that turned autoScroll on and the scroller arms
 // follow-bottom with it.
+/** How long a transcript is given to settle after it arrives before the edge is taken a last time. */
+const SETTLE_MS = 250;
+
 function ScrollToEndBridge({ signal }: { signal: string }) {
   const { scrollToEnd } = useMessageScroller();
 
   useLayoutEffect(() => {
     scrollToEnd();
+    // The transcript settles after it is laid out: images size themselves,
+    // Markdown finishes, a code block measures. An end reached before that
+    // is short of the end, so the edge is taken again once things have.
+    const frame = requestAnimationFrame(() => {
+      scrollToEnd();
+    });
+    const later = setTimeout(() => {
+      scrollToEnd();
+    }, SETTLE_MS);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(later);
+    };
   }, [scrollToEnd, signal]);
 
   return null;

@@ -1,6 +1,7 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
+import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
@@ -43,7 +44,7 @@ export function TabLocationRow({
 }: {
   canGoBack: boolean;
   canGoForward: boolean;
-  /** What fills the field instead of the location: the box, on a new tab. */
+  /** What stands in for the field: a page's own address bar and controls. */
   field?: ReactNode;
   location: TabLocation;
   onBack: () => void;
@@ -65,9 +66,30 @@ export function TabLocationRow({
         label="Forward"
         onClick={onForward}
       />
-      <div className="relative mx-1 flex h-7 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs shadow-sm focus-within:border-foreground/30">
-        {field ?? <Field location={location} />}
-      </div>
+      {field ?? (
+        // The whole box is the field: a press anywhere on it, edge to edge,
+        // puts the caret in the input, the way a browser's address bar does.
+        <div
+          className="relative mx-1 flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs shadow-sm focus-within:border-foreground/30"
+          onPointerDown={(event) => {
+            const input = event.currentTarget.querySelector("input");
+            if (input && event.target !== input) {
+              event.preventDefault();
+              input.focus();
+            }
+          }}
+        >
+          <Omnibar
+            initial={locationText(location)}
+            key={locationText(location)}
+            resting={
+              location.kind === "newTab" ? undefined : (
+                <Field location={location} />
+              )
+            }
+          />
+        </div>
+      )}
       {trailing}
     </div>
   );
@@ -189,6 +211,28 @@ function hostOf(site: string) {
     return new URL(site).host;
   } catch {
     return site;
+  }
+}
+
+/** What the field holds when it is edited: the place, in words that can be typed over. */
+function locationText(location: TabLocation) {
+  switch (location.kind) {
+    case "app": {
+      return location.name;
+    }
+    case "file":
+    case "folder": {
+      return location.path;
+    }
+    case "newTab": {
+      return "";
+    }
+    case "page": {
+      return location.url;
+    }
+    case "tasks": {
+      return "Tasks";
+    }
   }
 }
 

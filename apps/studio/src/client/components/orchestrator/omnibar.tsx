@@ -74,24 +74,41 @@ interface OmniRow {
  * field, so a new tab is the field with nothing in it yet rather than a page
  * with a second field drawn on it.
  */
-export function Omnibar() {
+export function Omnibar({
+  initial = "",
+  resting,
+}: {
+  /** What the field says when it is edited: the place, ready to be typed over. */
+  initial?: string;
+  /**
+   * What the field shows until it is pressed: the place, in its own marks.
+   * Absent on a new tab, which has nowhere to show and takes the caret at once.
+   */
+  resting?: ReactNode;
+}) {
   const { ask, openPage, taskId } = useOrchestrator();
   const navigate = useNavigate();
   const router = useRouter();
   const recents = useAtomValue(orchestratorRecentsAtom);
   const visited = useAtomValue(visitedPagesAtom);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initial);
   const [highlight, setHighlight] = useState(0);
-  const words = query.trim().toLowerCase();
+  const [isEditing, setEditing] = useState(resting === undefined);
+  // What was typed over the place, which is what the rows answer to; the
+  // place itself, left as it was, asks for nothing.
+  const typed = query.trim() === initial.trim() ? "" : query.trim();
+  const words = typed.toLowerCase();
   const input = useRef<HTMLInputElement>(null);
   // A new tab the user opened should be ready to type in, but this field also
   // appears when a channel with no tabs is switched to, and there the caret
   // belongs in that channel's composer. So it takes the keyboard as it
   // arrives and only while nothing else is holding it.
   useEffect(() => {
-    if (!isTypingTarget(document.activeElement)) {
+    if (resting === undefined && !isTypingTarget(document.activeElement)) {
       input.current?.focus();
     }
+    // Once, as the field arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const children = useQuery(
@@ -104,8 +121,8 @@ export function Omnibar() {
   // The matcher the model picker uses: typed letters in order, close
   // together, so "lsbn" finds lisbon.md and "pel news" the pelican task.
   const matches = (name: string) =>
-    !words || (fuzzy.filter([name], query.trim())?.length ?? 0) > 0;
-  const typedSite = siteFromWords(query.trim());
+    !words || (fuzzy.filter([name], typed)?.length ?? 0) > 0;
+  const typedSite = siteFromWords(typed);
 
   const screens = SCREENS.filter((screen) => matches(screen.name)).slice(
     0,
@@ -191,24 +208,24 @@ export function Omnibar() {
     ...(words
       ? [
           {
-            group: `Use “${query.trim()}” with`,
+            group: `Use “${typed}” with`,
             icon: <MagnifyingGlassIcon className="size-4" />,
             name: "Search the web",
             note: "Browser",
             run: () => {
               openPage(
-                `https://www.google.com/search?q=${encodeURIComponent(query.trim())}`,
+                `https://www.google.com/search?q=${encodeURIComponent(typed)}`,
               );
               setQuery("");
             },
           },
           {
-            group: `Use “${query.trim()}” with`,
+            group: `Use “${typed}” with`,
             icon: <InstrumentGlyph className="size-4" />,
             name: "Ask Instrument",
             note: "Agent",
             run: () => {
-              ask(query.trim());
+              ask(typed);
               setQuery("");
             },
           },
@@ -254,13 +271,34 @@ export function Omnibar() {
 
   return (
     <>
-      <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      {isEditing || resting === undefined ? (
+        <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      ) : (
+        resting
+      )}
       <input
         aria-label="Search or ask"
-        className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+        className={cn(
+          "h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground",
+          // Kept in the box while the place is shown, so a press on the box
+          // has something to put the caret in; it takes the box over on focus.
+          !isEditing && resting !== undefined && "absolute inset-0 opacity-0",
+        )}
+        onBlur={() => {
+          if (resting !== undefined) {
+            setEditing(false);
+            setQuery(initial);
+          }
+        }}
         onChange={(event) => {
           setQuery(event.target.value);
           setHighlight(0);
+        }}
+        onFocus={(event) => {
+          setEditing(true);
+          // The place, selected whole, so typing replaces it the way it does
+          // in a browser's address bar.
+          event.currentTarget.select();
         }}
         onKeyDown={(event) => {
           switch (event.key) {
@@ -280,7 +318,11 @@ export function Omnibar() {
               break;
             }
             case "Escape": {
-              setQuery("");
+              if (resting === undefined) {
+                setQuery("");
+              } else {
+                event.currentTarget.blur();
+              }
               break;
             }
             // No default

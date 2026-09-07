@@ -34,7 +34,6 @@ import {
 import { ViewChip } from "@/client/components/orchestrator/conversation-chrome";
 import { fileHref } from "@/client/components/orchestrator/file-tabs";
 import { NewChannelDialog } from "@/client/components/orchestrator/new-channel-dialog";
-import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import {
   screenLocation,
   screenPresentation,
@@ -228,9 +227,20 @@ function OrchestratorLayout() {
     }),
   );
   const running = activity.data?.running ?? [];
-  const workingChannels = new Set(
-    running.flatMap((task) => (task.channel ? [task.channel] : [])),
-  );
+  // A channel is at work when a task of its is running, and also when its
+  // own agent is alive: the reply being written is the same kind of news as
+  // the task, and the mark on the rail says both the same way.
+  const conversationActivity = useQuery({
+    ...rpcClient.workspace.task.live.activity.experimental_liveOptions(),
+    select: (entries) => entries.find((entry) => entry.taskId === ids?.taskId),
+  });
+  const aliveSessions = (conversationActivity.data?.sessionActors ?? [])
+    .filter((actor) => actor.tags.includes("agent.alive"))
+    .map((actor): string => actor.sessionId);
+  const workingChannels = new Set([
+    ...aliveSessions,
+    ...running.flatMap((task) => (task.channel ? [task.channel] : [])),
+  ]);
   const [isNewChannelOpen, setNewChannelOpen] = useState(false);
   // Which channel a menu was asked for and where, so the rail's right click
   // and the banner's caret open the same one.
@@ -264,7 +274,13 @@ function OrchestratorLayout() {
   );
   // What the user has seen in the channel they are looking at, so its count
   // clears while they read rather than only when they leave.
-  const newestMessageId = messages.data?.at(-1)?.id;
+  const newestMessage = messages.data?.at(-1);
+  const newestMessageId = newestMessage?.id;
+  // A reply counts as seen once it has finished, so the mark is taken again
+  // when the newest message finishes and not only when it appears.
+  const newestMessageDone =
+    newestMessage?.role !== "assistant" ||
+    newestMessage.metadata.finishedAt !== undefined;
   useEffect(() => {
     if (!ids || !sessionId) {
       return;
@@ -272,7 +288,7 @@ function OrchestratorLayout() {
     markSeen.mutate({ id: ids.taskId, sessionId });
     // The mutation is stable; re-running on its identity would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [ids?.taskId, sessionId, newestMessageId]);
+  }, [ids?.taskId, sessionId, newestMessageId, newestMessageDone]);
   const [defaultModelURI] = useDefaultModelURI();
   const screenView = useAtomValue(screenViewAtom);
   const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
@@ -309,6 +325,9 @@ function OrchestratorLayout() {
   // since the send handler below and the screens read it.
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const windowTabs = useWindowTabs();
+  // The element in the row a page's own bar is drawn into, once the row has
+  // made one; null while a screen is up and the row is the field itself.
+  const [chromeSlot, setChromeSlot] = useState<HTMLElement | null>(null);
   const popClosed = usePopClosedTab();
   const { active, activeId, tabs } = windowTabs;
   const isPageOnScreen = active?.kind === "page";
@@ -369,10 +388,15 @@ function OrchestratorLayout() {
     active?.kind === "screen" &&
     parseHref(active.href).pathname === parseHref(NEW_TAB_HREF).pathname;
   const openPage = (url: string) => {
-    const fresh = isFreshNewTab ? active.id : undefined;
-    browser?.openOrFocus(url);
-    if (fresh) {
-      windowTabs.close(fresh);
+    // A page opened from a new tab becomes that tab. When the page is one
+    // already open, that one is shown and the new tab goes.
+    const fresh = isFreshNewTab ? active : undefined;
+    const outcome = browser?.openOrFocus(
+      url,
+      fresh ? { replacing: fresh } : undefined,
+    );
+    if (fresh && outcome !== "opened") {
+      windowTabs.close(fresh.id);
     }
   };
   const openScreen = (href: string) => {
@@ -404,11 +428,14 @@ function OrchestratorLayout() {
       } else {
         // Backing out of the first page in a tab leaves the tab where it
         // started, which is a new tab, rather than leaving it nowhere.
+        // It keeps the page's place in the strip, so the strip sees the tab
+        // change rather than one leave and another arrive.
         windowTabs.replace(active.id, {
           at: 0,
           href: NEW_TAB_HREF,
           id: `screen-${crypto.randomUUID()}`,
           kind: "screen",
+          stripKey: active.stripKey ?? active.id,
           trail: [NEW_TAB_HREF],
         });
         router.history.push(NEW_TAB_HREF);
@@ -828,10 +855,18 @@ function OrchestratorLayout() {
               <TabLocationRow
                 canGoBack={canGoBack}
                 canGoForward={canGoForward}
-                // The box lives here on a new tab, keyed by the tab so a
-                // second new tab starts empty rather than with the first's words.
-                {...(tabLocation.kind === "newTab" && active
-                  ? { field: <Omnibar key={active.id} /> }
+                // A page's field is the page's own bar, drawn into this slot
+                // by the panel that has the page: the address, reload and
+                // the menu, with nothing of theirs to keep in step.
+                {...(tabLocation.kind === "page"
+                  ? {
+                      field: (
+                        <div
+                          className="mx-1 flex min-w-0 flex-1 items-center gap-1"
+                          ref={setChromeSlot}
+                        />
+                      ),
+                    }
                   : {})}
                 location={tabLocation}
                 onBack={goBack}
@@ -848,7 +883,7 @@ function OrchestratorLayout() {
                 >
                   {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
                   <ActiveTabProvider isActive={isPageOnScreen}>
-                    <BrowserTabs ref={setBrowser} />
+                    <BrowserTabs chromeInto={chromeSlot} ref={setBrowser} />
                   </ActiveTabProvider>
                 </div>
               </div>

@@ -51,8 +51,15 @@ export interface BrowserTabsHandle {
   goForward: () => void;
   /** Opens a new page tab, at an address when given, and shows it. */
   open: (url?: string) => void;
-  /** Shows the page tab already at that address, or opens one there. */
-  openOrFocus: (url: string) => void;
+  /**
+   * Shows the page tab already at that address, or opens one there. Given a
+   * tab to replace, a page opened takes that tab's place in the strip rather
+   * than arriving beside it, and says which of the two it did.
+   */
+  openOrFocus: (
+    url: string,
+    options?: { replacing?: WindowTab },
+  ) => "focused" | "opened";
   /** Reads the page on screen as it is at that moment; undefined while none is. */
   readPage: () => Promise<PageContext | undefined>;
 }
@@ -144,9 +151,12 @@ type PageTabsUpdate = (current: {
  * every message.
  */
 export function BrowserTabs({
+  chromeInto,
   onPageChange,
   ref,
 }: {
+  /** The element in the row above that the page's own bar is drawn into. */
+  chromeInto?: HTMLElement | null;
   /** Told the page on screen whenever it changes, and undefined when none is. */
   onPageChange?: (page: BrowserPage | undefined) => void;
   ref: Ref<BrowserTabsHandle>;
@@ -456,15 +466,42 @@ export function BrowserTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePage?.favicon, activePage?.title, activePage?.url]);
 
-  const openTab = (url?: string) => {
+  const openTab = (url?: string, replacing?: WindowTab) => {
     const id = StoreId.newSessionId();
-    setTabs((current) => ({
-      activeId: id,
-      tabs: [
-        ...current.tabs,
-        { id, openedAt: Date.now(), ...(url ? { openedUrl: url, url } : {}) },
-      ],
-    }));
+    const page = {
+      id,
+      openedAt: Date.now(),
+      ...(url ? { openedUrl: url, url } : {}),
+    };
+    if (replacing) {
+      // In the replaced tab's place and under its strip key, so the strip
+      // sees a tab change rather than one leave and another arrive: a new
+      // tab becoming the page that was typed into it.
+      setAllTabs((current) => {
+        const index = current.tabs.findIndex((tab) => tab.id === replacing.id);
+        const tab: WindowTab = {
+          ...page,
+          kind: "page",
+          stripKey: replacing.stripKey ?? replacing.id,
+        };
+        return {
+          activeId: id,
+          tabs:
+            index === -1
+              ? [...current.tabs, tab]
+              : [
+                  ...current.tabs.slice(0, index),
+                  tab,
+                  ...current.tabs.slice(index + 1),
+                ],
+        };
+      });
+    } else {
+      setTabs((current) => ({
+        activeId: id,
+        tabs: [...current.tabs, page],
+      }));
+    }
     void rpcClient.workspace.browser.open.call({
       host: WINDOW_BROWSER_HOST,
       id: taskId,
@@ -487,7 +524,7 @@ export function BrowserTabs({
       open: (url) => {
         openTab(url);
       },
-      openOrFocus: (url) => {
+      openOrFocus: (url, options) => {
         // A tab still on that site, by where it is now: a tab that was opened
         // there and has since wandered off is not the site.
         const origin = originOf(url);
@@ -498,9 +535,10 @@ export function BrowserTabs({
           );
         if (existing) {
           setTabs((current) => ({ ...current, activeId: existing.id }));
-        } else {
-          openTab(url);
+          return "focused";
         }
+        openTab(url, options?.replacing);
+        return "opened";
       },
       readPage: async () => {
         const { active: current, tabs: all } = latest.current;
@@ -578,7 +616,7 @@ export function BrowserTabs({
       {active ? (
         <TaskBrowserPanel
           active={attached.has(targetOf(active))}
-          chrome={false}
+          chrome={{ into: chromeInto ?? null }}
           className="h-full"
           key={active.id}
           sessionId={StoreId.SessionSchema.parse(active.id)}

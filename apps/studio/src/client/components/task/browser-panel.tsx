@@ -57,6 +57,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 // Shape of the `<webview>` `did-fail-load` DOM event (Electron adds these
 // fields; the DOM lib types it as a plain Event).
@@ -79,15 +80,19 @@ interface DidFailLoadEvent extends Event {
  */
 export function TaskBrowserPanel({
   active,
-  chrome = true,
+  chrome = true as boolean | { into: HTMLElement | null },
   className,
   sessionId,
   sliding,
   taskId,
 }: {
   active: boolean;
-  /** False where the row above the panel already carries the arrows and the address. */
-  chrome?: boolean;
+  /**
+   * Where the bar goes: over the page as its own row, nowhere, or into an
+   * element the window keeps for it. Drawn there it loses the arrows, which
+   * that row has of its own, and keeps the address, reload and the menu.
+   */
+  chrome?: boolean | { into: HTMLElement | null };
   // See FileViewer: set when the surface is already drawn around this.
   className?: string;
   sessionId: StoreId.Session;
@@ -355,28 +360,9 @@ export function TaskBrowserPanel({
         className,
       )}
     >
-      {chrome && (
-        <div className="flex items-center gap-1 border-b p-1.5">
-          <ToolbarTooltip shortcut="goBack">
-            <Button
-              disabled={!active || !nav.back}
-              onClick={() => webviewFor()?.goBack()}
-              size="icon-sm"
-              variant="ghost"
-            >
-              <ArrowLeftIcon className="size-4" />
-            </Button>
-          </ToolbarTooltip>
-          <ToolbarTooltip shortcut="goForward">
-            <Button
-              disabled={!active || !nav.forward}
-              onClick={() => webviewFor()?.goForward()}
-              size="icon-sm"
-              variant="ghost"
-            >
-              <ArrowRightIcon className="size-4" />
-            </Button>
-          </ToolbarTooltip>
+      {(() => {
+        const bar = (
+          <>
           <ToolbarTooltip shortcut="reloadPage">
             <Button
               disabled={!active}
@@ -574,8 +560,37 @@ export function TaskBrowserPanel({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      )}
+          </>
+        );
+        if (typeof chrome === "object") {
+          return chrome.into ? createPortal(bar, chrome.into) : null;
+        }
+        return chrome ? (
+          <div className="flex items-center gap-1 border-b p-1.5">
+          <ToolbarTooltip shortcut="goBack">
+            <Button
+              disabled={!active || !nav.back}
+              onClick={() => webviewFor()?.goBack()}
+              size="icon-sm"
+              variant="ghost"
+            >
+              <ArrowLeftIcon className="size-4" />
+            </Button>
+          </ToolbarTooltip>
+          <ToolbarTooltip shortcut="goForward">
+            <Button
+              disabled={!active || !nav.forward}
+              onClick={() => webviewFor()?.goForward()}
+              size="icon-sm"
+              variant="ghost"
+            >
+              <ArrowRightIcon className="size-4" />
+            </Button>
+          </ToolbarTooltip>
+            {bar}
+          </div>
+        ) : null;
+      })()}
       {active && find.findOpen && (
         <BrowserFindBar
           closeFind={find.closeFind}

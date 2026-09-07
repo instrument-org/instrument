@@ -217,7 +217,7 @@ function describeModelProblem({
   // A selection the list no longer resolves is still worth naming: the user
   // picked it, and "choose a model" would read as though they never had.
   if (modelURI) {
-    return `${modelNameFromURI(modelURI)} is unavailable`;
+    return `${modelNameFromURI(modelURI) ?? modelURI} is unavailable`;
   }
   return models?.length ? "Choose a model" : "No models available";
 }

@@ -389,7 +389,84 @@ const wroteAWebPage: Assertion = {
   text: "wrote an HTML page with its styling inside it",
 };
 
+/**
+ * A file of the asked-for kind with enough in it to be worth looking at.
+ *
+ * Deliberately loose. These cases exist to be compared by eye, side by side,
+ * and a threshold tight enough to rank them would be a threshold encoding one
+ * person's taste into the suite. What it does catch is the failure that matters
+ * -- nothing written, or a stub written and reported as finished.
+ */
+function wroteSomethingToLookAt(
+  extension: string,
+  minBytes: number,
+): Assertion {
+  const text = `wrote a ${extension} worth opening`;
+  return {
+    check: async ({ taskId }) => {
+      const written = await deliverables(taskId);
+      const matches = written.filter(
+        (file) =>
+          file.toLowerCase().endsWith(extension) && !file.includes("templates"),
+      );
+      for (const file of matches) {
+        const body = await fs.readFile(file).catch(() => {});
+        if (body && body.length >= minBytes) {
+          return pass(
+            text,
+            `${path.basename(file)}, ${Math.round(body.length / 1024)}KB`,
+          );
+        }
+      }
+      return fail(
+        text,
+        matches.length === 0
+          ? `no ${extension} written`
+          : `${matches.length} written, all under ${minBytes} bytes`,
+      );
+    },
+    text,
+  };
+}
+
 export const WORKER_EVALS = [
+  defineEval({
+    // Drawing from nothing, in a format the model writes by hand rather than
+    // through a library: no toolchain to lean on, only whether it can picture
+    // the thing and lay out coordinates for it.
+    assertions: [wroteSomethingToLookAt(".svg", 1200), checkedItsOwnWork],
+    name: "worker-svg-drawing",
+    prompt:
+      "Draw a pelican riding a bicycle as a single SVG file called pelican.svg in your output folder, about 800 by 600. Hand-written SVG, no libraries and no embedded images. It should be recognisable as both a pelican and a bicycle.",
+  }),
+  defineEval({
+    assertions: [wroteSomethingToLookAt(".pdf", 20_000), checkedItsOwnWork],
+    name: "worker-poster",
+    prompt:
+      "Make a one-page A4 poster as a PDF called poster.pdf in your output folder, advertising a made-up neighbourhood record shop's weekend sale. Big type, a couple of colours, the date and address readable from across a room. It should look designed, not like a memo.",
+  }),
+  defineEval({
+    // The shape of work this product is used for most: a screen drawn to be
+    // argued about, where the judgement is layout and hierarchy rather than
+    // whether anything runs.
+    assertions: [wroteSomethingToLookAt(".html", 2000), checkedItsOwnWork],
+    name: "worker-wireframe",
+    prompt:
+      "Draw a wireframe of a mobile expense-tracking app's home screen as a single HTML file called wireframe.html in your output folder. Greyscale boxes and placeholder text, phone-sized frame centred on the page: a balance header, a filter row, a scrollable list of recent transactions with category icons, and a floating add button. Annotate two or three parts with short callouts beside the frame. No libraries.",
+  }),
+  defineEval({
+    assertions: [wroteSomethingToLookAt(".html", 2500), checkedItsOwnWork],
+    name: "worker-visual-explainer",
+    prompt:
+      "Explain how a CDN cache miss works as a single HTML page called explainer.html in your output folder. It has to be visual: a diagram you draw in SVG showing browser, edge server and origin with the request path across them, numbered steps beside it, and a short caption. One page, styling inside the file, no libraries.",
+  }),
+  defineEval({
+    assertions: [wroteSomethingToLookAt(".html", 2000), checkedItsOwnWork],
+    name: "worker-dashboard",
+    prompt:
+      "Build a single-file HTML dashboard called dashboard.html in your output folder for a made-up bike-share service: four headline stat tiles, a bar chart of rides by day of week, and a table of the five busiest stations. Invent plausible numbers. Draw the chart yourself in SVG or CSS; no chart libraries and no external files.",
+  }),
+
   defineEval({
     // A visual deliverable, and the one that most needs looking at: a chart is
     // either legible or it is not, and only opening it tells you which.

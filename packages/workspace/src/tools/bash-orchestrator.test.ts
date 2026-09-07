@@ -14,6 +14,24 @@ describe("leadingWords", () => {
     ]);
   });
 
+  it("leaves a pipe inside quotes alone, since it is an argument and not a stage", () => {
+    expect(
+      leadingWords("task log abc --tail 60 | grep -iE 'call|url|project'"),
+    ).toEqual([
+      { piped: false, word: "task" },
+      { piped: true, word: "grep" },
+    ]);
+    expect(
+      leadingWords(
+        `app call notion x '{"query":"a|b","note":"one; two && three"}'`,
+      ),
+    ).toEqual([{ piped: false, word: "app" }]);
+    expect(leadingWords(`cat "a|b.txt" | head -1`)).toEqual([
+      { piped: false, word: "cat" },
+      { piped: true, word: "head" },
+    ]);
+  });
+
   it("skips the body of a heredoc, which is a brief and not commands", () => {
     const script = [
       "task new --name 'Otters' <<'EOF'",
@@ -35,6 +53,25 @@ describe("orchestratorRefusal", () => {
       orchestratorRefusal("task log abc --tail 40 | rg -i error"),
     ).toBeUndefined();
     expect(orchestratorRefusal("app tools notion | head -20")).toBeUndefined();
+  });
+
+  it("lets the conversation read its other channels", () => {
+    expect(orchestratorRefusal("chat list")).toBeUndefined();
+    expect(
+      orchestratorRefusal("chat read Connect --tail 20 | head -5"),
+    ).toBeUndefined();
+    expect(orchestratorRefusal("chat search gmail")).toBeUndefined();
+  });
+
+  it("reads a quoted pipe as an argument, not a command", () => {
+    expect(
+      orchestratorRefusal(
+        "task log abc --tail 60 | grep -iE 'call|url|project'",
+      ),
+    ).toBeUndefined();
+    expect(
+      orchestratorRefusal(`app call notion x '{"query":"a|b"}'`),
+    ).toBeUndefined();
   });
 
   it("refuses anything else and names the way instead", () => {
@@ -84,6 +121,8 @@ describe("orchestratorRefusal: writing a file", () => {
   it.each([
     ["task list", "a plain command"],
     ["app tools notion 2>&1 | head -20", "stderr duplicated onto stdout"],
+    ["find /mnt -name 'ses_*' 2>/dev/null | head", "stderr thrown away"],
+    ["ls /mnt; ls /mnt/mytop 2> /dev/null", "stderr thrown away, spaced"],
     [
       "cat /mnt/Instrument/notes.md | rg '>' | head -3",
       "a quoted angle bracket",

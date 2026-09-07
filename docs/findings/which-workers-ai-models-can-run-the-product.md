@@ -85,11 +85,13 @@ The deliverables above are formats. A later round asked for five things with no 
 | --- | --- | --- | --- | --- |
 | Muse Spark 1.3 (contributor) | 5 of 5 | 14/14 | 9.3 min | Nothing. Busiest pages of the four. |
 | GPT 5.6 Luna | 5 of 5 | 14/14 | 5.1 min | Nothing. Two label collisions. |
-| GLM 5.3 Flash | 4 of 5 | 12/14 | 12.8 min | Sewing machine: reasoned the whole drawing out, then emitted eight tokens and no file. |
+| GLM 5.3 Flash | 4 of 5 | 12/14 | 12.8 min | One brief: reasoned the whole drawing out, then emitted eight tokens and no file. |
 | Qwen3.8 27B | 3 of 5 | 9/14 | 23.9 min | Two briefs empty; three requests refused. |
 
+Rerun unchanged, Luna and Muse repeated 14/14 and GLM repeated 4 of 5 — but lost a **different** brief, having delivered the one it failed before. So GLM's gap is roughly a one-in-five chance of reasoning a drawing out and emitting nothing, not a brief it cannot do. Qwen fell to 2 of 5.
+
 - **Quality on a finished brief is no longer the differentiator; finishing is.** Every model that produced a file produced a defensible one — correct to the cent on the memo, and all four that got there picked one of the two machines the constraints allow. What separates them is that Luna and Muse always finished and the two Cloudflare models did not.
-- **Qwen3.8 27B fails by going quiet.** On two of five briefs it spent exactly 300 seconds and emitted one output token, which is the five-minute no-chunk timeout in `machines/agent.ts`. Whether Workers AI buffers a long reasoning block past that window or the model genuinely stalls is untested, and it matters: the first would affect any slow-reasoning model rather than this one. It also had three requests refused with `Expected string, received array` at `messages[N].content` — the shape a message takes once it carries an image, which is the self-check path.
+- **Qwen3.8 27B is cut off at five minutes, by Cloudflare.** Five briefs across two rounds produced nothing, each ending at 300 or 301 seconds with `finishReason=other` and one output token. That looks exactly like the five-minute no-chunk timer in `machines/agent.ts`, and it is not: a direct streaming request to the endpoint returns 10,105 chunks over 300.9s with a longest gap of 31s, and the timer resets on every stream part including reasoning deltas, so it cannot fire. Nor is it an account cap — GLM has run a single generation to 330s on the same key. It is a per-model generation limit, nothing on our side changes it, and it rules Qwen out of any work that reasons past five minutes. Separately it had three requests refused with `Expected string, received array` at `messages[N].content`, the shape a message takes once it carries an image, which is the self-check path.
 - **Muse Spark 1.3 on the contributor tier is worth a look as the paid tier.** Same 14/14 as Luna at roughly half the cost, and on the two briefs that reward argument it produced more of it. Slower, and it spends tokens freely. Unscored on the conversation seat.
 - **Both new drawing briefs work as tests and the sewing machine is the better one.** Every model that finished the octopus satisfied the counting constraint, so it separates on arrangement rather than comprehension; the sewing machine broke two models outright.
 
@@ -119,7 +121,16 @@ For GLM 5.3 Flash specifically, over ~114 first turns per level, seconds to the 
 
 The self-check assertion scores whether a task read its deliverable back, and by that measure every model is fine. The number that matters is narrower and it is a column of zeroes: across seventeen finished briefs, real pixels reached the model five times, and not one of those looks changed anything that shipped. The defects that survived are exactly the ones a render catches — an arrowhead over a label, a callout across an axis, a drawing running off its own viewBox — each in a file whose model passed the check.
 
-Part of that is ours. Until 2026-09-07 the eval harness answered every browser command with an empty object, so a task trying to open the page it had just written got a CDP deserialization error and nothing else; see [a task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md). With that fixed, the first rerun rendered its SVG, moved a pin, and rendered it again — a loop that had never closed before. One observation, not a rate, and the reason to re-run the visual cases before treating any of the numbers above as settled.
+All of that was ours. Until 2026-09-07 the eval harness answered every browser command with an empty object, so a task trying to open the page it had just written got a CDP deserialization error and nothing else; see [a task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md). The whole suite was then rerun unchanged with the browser working:
+
+| | Finished briefs | Got real pixels | Changed something after |
+| --- | --- | --- | --- |
+| Browser broken | 17 | 5 | 0 of 5 |
+| Browser working | 16 | 7 | 6 of 7 |
+
+Across three different models, from one seam change and no prompt edit. Muse's next call after seeing its octopus was "Removing overlapping label from SVG"; GLM's after seeing its sewing machine was "Tightening the thread path so it hugs the machine instead of looping wide", then a re-shoot and a verify. Both are the defect class that shipped unnoticed the round before.
+
+Finishing rates did not move, so this buys quality on the briefs a model completes rather than more completions. Two rounds is two rounds; the direction is not subtle.
 
 ## What this does not cover
 

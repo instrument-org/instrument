@@ -1,6 +1,6 @@
 # Killing a degenerate stream loop
 
-**Status:** proposed, 2026-09-07. Nothing built. The detector below is calibrated against 289 real eval sessions and the separation is decisive; what needs a decision before writing code is the response policy and whether the same turn is retried or handed back.
+**Status:** proposed, 2026-09-07. Nothing built. The detector below is calibrated against 289 real eval sessions and the separation is decisive. The response policy is settled: kill the turn, record a real error, and let the orchestrator above the task recover — no in-place resample.
 
 ## What actually happens
 
@@ -65,13 +65,27 @@ Three files, one of them new.
 
 - **`src/logic/stream-degeneration.ts`** (new). Pure, no I/O: a small class that takes text deltas and answers `isDegenerate()`. Unit-tested directly against the captured transcripts, which is why it must not know anything about streams or actors.
 - **`src/logic/llm-request.ts`**. The `for await (const part of result.fullStream)` loop at line 327 is the chokepoint every provider path already goes through, and it is where `llmRequest.chunkReceived` is already sent. Feed `reasoning-delta` (line 415) and `text-delta` (line 534) into the detector; on a trip, abort through the same `signal` the loop already checks at line 328 and send a new `llmRequest.degenerated` event.
-- **`src/machines/agent.ts`**. Handle `llmRequest.degenerated` beside the chunk timeout's `raise({ type: "retry" })` at line 705. That reuses `maxAttemptCount` (3), the existing abort plumbing, and the existing retry accounting, so a loop costs one attempt rather than a special case.
+- **`src/machines/agent.ts`**. Handle `llmRequest.degenerated` next to the chunk timeout's `raise({ type: "retry" })` at line 705, but end the turn rather than resampling: no attempt is spent, because there is nothing to retry into. The message is saved with `finishReason: "error"` and an `error` of a new kind, both of which `schemas/session/message.ts` already carries (line 142 and 151).
 
-Reusing the retry path is the point. When the attempts are spent it becomes an ordinary failed turn, and for a task under an orchestrator the recovery already exists and is captured working: the conversation reads the task's log on the second overdue wake, stops it, starts a fresh one, and tells the user why.
+Not a retry, deliberately. Re-sampling the same request at the same settings is likely to loop again, and the recovery that already works is one level up: the conversation reads the task's log, stops it, starts a fresh one with what it learned, and tells the user why. That is captured working today against the overdue clock. Killing fast just gets it there in seconds instead of minutes.
 
-## What needs deciding before this is written
+## The gap that makes the recovery work
 
-1. **Retry the same request, or change something first.** Re-sampling at the same temperature may loop again. Options: retry unchanged (simplest, and the loop is rare enough that three tries is probably plenty), retry with the reasoning level dropped a notch, or retry with the partial text appended as an assistant turn saying it repeated itself. No data on which works, and getting it needs a reproducer.
-2. **Whether the user sees it.** The repetition is streaming to the screen while it happens. Silently swallowing and retrying is cleaner if the retry works, and confusing if the text visibly rewinds. A one-line status is probably right, but it is a UI call.
-3. **Whether to also bound repeated identical tool calls.** A different failure with the same smell — an agent calling the same tool with the same arguments forever — and the one opencode has open. Not observed in our corpus, so this proposes nothing; worth a counter if it shows up.
-4. **Telemetry first.** 233 sessions is a thin base rate. Shipping the detector in report-only mode for a while, counting trips through `captureEvent` without aborting, would say whether 5% is right in production before it can cost anyone a turn.
+`data-taskEvent` already declares `status: z.enum(["done", "error", "overdue"])` (`schemas/session/message-data-part.ts`, line 369), and **nothing ever emits `"error"`**. `lib/orchestrator/wake.ts` sends `"overdue"` at line 143 and `"done"` at line 219, and the done path is unconditional: it wakes the orchestrator with `status: "done"` and a summary taken from the last assistant text. A task that degenerated would therefore report success with a summary that is either empty or a fragment of the repetition.
+
+So this is two changes, and the second is the one that makes the first useful:
+
+1. Detect and kill, ending the turn in a real error.
+2. Wake the orchestrator with `status: "error"` and a summary that says what happened, so it can act immediately instead of waiting out the four-minute overdue clock.
+
+The enum is already right. The wake is what has to learn to use it.
+
+## What this does not cover
+
+**Degeneration in the top-level conversation.** There is no orchestrator above it, so the turn simply fails and the user asks again. Accepted: the alternative is inventing a self-recovery path for the one agent a human is already watching.
+
+## Still open
+
+1. **Whether the user sees the rewind.** The repetition is streaming to the screen while it happens, so ending the turn means visible text stopping mid-flow. A one-line status is probably right, but it is a UI call.
+2. **Whether to also bound repeated identical tool calls.** A different failure with the same smell — an agent calling the same tool with the same arguments forever — and the one opencode has open. Not observed in our corpus, so this proposes nothing; worth a counter if it shows up.
+3. **Report-only first, or not.** 233 sessions is a thin base rate for a production threshold. Counting trips through `captureEvent` without killing anything would confirm 5% before it can cost a turn. Against it: the margin is 13x, and every day it is off, a loop costs a task its whole run.

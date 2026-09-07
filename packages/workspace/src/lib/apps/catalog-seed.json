@@ -55,6 +55,33 @@
       ]
     },
     {
+      "slug": "algolia",
+      "name": "Algolia",
+      "tagline": "Search indices, records, and the analytics behind them.",
+      "description": "Algolia's MCP server reads the indices an app searches, the records inside them, and the analytics that say what people typed.",
+      "domain": "algolia.com",
+      "categories": [
+        "search",
+        "developer-tools"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Algolia MCP server",
+          "endpoint": "https://mcp.algolia.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://dashboard.algolia.com"
+    },
+    {
       "slug": "alltrails",
       "name": "AllTrails",
       "tagline": "Trails, with their length, difficulty, and reviews.",
@@ -328,6 +355,39 @@
       "home": "https://app.axiom.co"
     },
     {
+      "slug": "box",
+      "name": "Box",
+      "tagline": "Files, folders, and the metadata an enterprise drive keeps on them.",
+      "description": "Box's MCP server is not reachable from here: it only accepts OAuth clients Box has issued in advance and refuses one registered on the spot. The way in is the REST API, with a developer token from a Box app or that app's own OAuth client.",
+      "domain": "box.com",
+      "categories": [
+        "documents",
+        "productivity"
+      ],
+      "authMethods": [
+        {
+          "type": "token",
+          "label": "Developer token",
+          "note": "A short-lived token from a Box app's console, sent as a Bearer header."
+        },
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Only for clients Box has issued in advance, which the sign-in card cannot be; not a way in from here."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "openapi",
+          "name": "Box REST API",
+          "endpoint": "https://api.box.com/2.0",
+          "auth": "token"
+        }
+      ],
+      "docsUrl": "https://developer.box.com/reference/",
+      "home": "https://app.box.com"
+    },
+    {
       "slug": "brex",
       "name": "Brex",
       "tagline": "Expenses, cards, and budgets.",
@@ -352,6 +412,62 @@
         }
       ],
       "home": "https://dashboard.brex.com"
+    },
+    {
+      "slug": "brightdata",
+      "name": "Bright Data",
+      "tagline": "Web data at scale: search results, pages, and crawls.",
+      "description": "Bright Data's MCP server returns search-engine results, scrapes pages that block ordinary requests, and crawls the sites it covers into structured data.",
+      "domain": "brightdata.com",
+      "categories": [
+        "web-scraping",
+        "search",
+        "data"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Bright Data MCP server",
+          "endpoint": "https://mcp.brightdata.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://brightdata.com/cp"
+    },
+    {
+      "slug": "browserbase",
+      "name": "Browserbase",
+      "tagline": "A cloud browser driven by describing the step, not the selector.",
+      "description": "Browserbase runs headless browsers in the cloud. Its MCP server drives one through act, observe, and extract, so a page is worked in the words of what to do rather than in selectors that break.",
+      "domain": "browserbase.com",
+      "categories": [
+        "web-scraping",
+        "automation",
+        "developer-tools"
+      ],
+      "authMethods": [
+        {
+          "type": "api_key",
+          "label": "API key",
+          "note": "A key from the service's dashboard, sent as a Bearer header."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Browserbase MCP server",
+          "endpoint": "https://mcp.browserbase.com/mcp",
+          "auth": "api_key"
+        }
+      ],
+      "home": "https://www.browserbase.com/overview"
     },
     {
       "slug": "buildkite",
@@ -458,6 +574,28 @@
         }
       ],
       "home": "https://app.clay.com"
+    },
+    {
+      "slug": "clerk",
+      "name": "Clerk",
+      "tagline": "Clerk SDK snippets for the framework in hand.",
+      "description": "Clerk's MCP server hands back the SDK snippet for a task and framework. It reaches no account, so it helps write the auth code rather than manage the users behind it.",
+      "domain": "clerk.com",
+      "categories": [
+        "documentation",
+        "developer-tools",
+        "security"
+      ],
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Clerk MCP server",
+          "endpoint": "https://mcp.clerk.com/mcp",
+          "auth": "none"
+        }
+      ],
+      "home": "https://dashboard.clerk.com"
     },
     {
       "slug": "clickup",
@@ -611,6 +749,55 @@
       ]
     },
     {
+      "slug": "convex",
+      "name": "Convex",
+      "tagline": "Starting a Convex backend, and scaling one.",
+      "description": "Convex's MCP server scaffolds an app, adds Convex to a project that already exists, and answers with the runbook for scaling one. It advises rather than reaching a deployment.",
+      "domain": "convex.dev",
+      "categories": [
+        "database",
+        "developer-tools",
+        "documentation"
+      ],
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Convex MCP server",
+          "endpoint": "https://mcp.convex.dev/mcp",
+          "auth": "none"
+        }
+      ],
+      "home": "https://dashboard.convex.dev"
+    },
+    {
+      "slug": "crossbeam",
+      "name": "Crossbeam",
+      "tagline": "Account overlaps with your partners, and the pipeline they feed.",
+      "description": "Crossbeam compares your accounts against your partners' and reports where they overlap; its MCP server puts that comparison in reach of an agent.",
+      "domain": "crossbeam.com",
+      "categories": [
+        "sales",
+        "data"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Crossbeam MCP server",
+          "endpoint": "https://mcp.crossbeam.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://app.crossbeam.com"
+    },
+    {
       "slug": "deepwiki",
       "name": "DeepWiki",
       "tagline": "Ask questions of any public repository's generated wiki.",
@@ -657,6 +844,33 @@
       ]
     },
     {
+      "slug": "dropbox",
+      "name": "Dropbox",
+      "tagline": "Files and folders, searched and read.",
+      "description": "Dropbox's MCP server searches a Dropbox, reads what it finds, and follows the sharing a file already carries.",
+      "domain": "dropbox.com",
+      "categories": [
+        "documents",
+        "productivity"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Dropbox MCP server",
+          "endpoint": "https://mcp.dropbox.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://www.dropbox.com/home"
+    },
+    {
       "slug": "exa",
       "name": "Exa",
       "tagline": "Web search built for agents.",
@@ -694,6 +908,60 @@
           "auth": "none"
         }
       ]
+    },
+    {
+      "slug": "expo",
+      "name": "Expo",
+      "tagline": "React Native builds, updates, and store submissions.",
+      "description": "Expo's MCP server reaches EAS: the builds a project has run, the over-the-air updates it has shipped, and the submissions that followed.",
+      "domain": "expo.dev",
+      "categories": [
+        "developer-tools",
+        "ci"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Expo MCP server",
+          "endpoint": "https://mcp.expo.dev/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://expo.dev"
+    },
+    {
+      "slug": "fal",
+      "name": "fal",
+      "tagline": "Run image, video, and audio models and collect the file.",
+      "description": "fal hosts generative models behind one API; its MCP server finds a model, runs it, and returns what it produced.",
+      "domain": "fal.ai",
+      "categories": [
+        "ai",
+        "media"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "fal MCP server",
+          "endpoint": "https://mcp.fal.ai/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://fal.ai/dashboard"
     },
     {
       "slug": "fathom",
@@ -810,6 +1078,35 @@
       "home": "https://app.fireflies.ai"
     },
     {
+      "slug": "front",
+      "name": "Front",
+      "tagline": "Shared inboxes, conversations, and drafts.",
+      "description": "Front's MCP server only accepts OAuth clients Front has issued in advance, so the way in is the REST API with an API token from the app's developer settings.",
+      "domain": "front.com",
+      "categories": [
+        "support",
+        "communication",
+        "email"
+      ],
+      "authMethods": [
+        {
+          "type": "api_key",
+          "label": "API key",
+          "note": "A key from the service's dashboard, sent as a Bearer header."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "openapi",
+          "name": "Front REST API",
+          "endpoint": "https://api2.frontapp.com",
+          "auth": "api_key"
+        }
+      ],
+      "docsUrl": "https://dev.frontapp.com/reference/introduction",
+      "home": "https://app.frontapp.com"
+    },
+    {
       "slug": "gamma",
       "name": "Gamma",
       "tagline": "Presentations, documents, and sites generated from an outline.",
@@ -880,6 +1177,33 @@
       "home": "https://github.com"
     },
     {
+      "slug": "gitlab",
+      "name": "GitLab",
+      "tagline": "Repos, merge requests, issues, and pipelines.",
+      "description": "GitLab's MCP server is part of the platform's own API and takes a client registered on the spot, which is where it parts company with GitHub's: an agent reaches projects, merge requests, issues, and CI over a browser sign-in with no token pasted anywhere.",
+      "domain": "gitlab.com",
+      "categories": [
+        "developer-tools",
+        "version-control",
+        "ci"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "GitLab MCP server",
+          "endpoint": "https://gitlab.com/api/v4/mcp",
+          "auth": "oauth"
+        }
+      ]
+    },
+    {
       "slug": "globalping",
       "name": "Globalping",
       "tagline": "Ping, traceroute, DNS, and HTTP from probes around the world.",
@@ -944,6 +1268,33 @@
       "home": "https://mail.google.com"
     },
     {
+      "slug": "grafana",
+      "name": "Grafana",
+      "tagline": "Dashboards, datasource queries, and alerts.",
+      "description": "Grafana's MCP server queries the datasources a stack already has, reads its dashboards and alert rules, and searches the incidents attached to them.",
+      "domain": "grafana.com",
+      "categories": [
+        "observability",
+        "developer-tools"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Grafana MCP server",
+          "endpoint": "https://mcp.grafana.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://grafana.com/orgs"
+    },
+    {
       "slug": "granola",
       "name": "Granola",
       "tagline": "Meeting notes, searchable by an agent.",
@@ -968,6 +1319,60 @@
           "auth": "oauth"
         }
       ]
+    },
+    {
+      "slug": "greenhouse",
+      "name": "Greenhouse",
+      "tagline": "Open roles, candidates, and interview scorecards.",
+      "description": "Greenhouse's MCP server reaches the applicant tracking system: which roles are open, who is in them, and what the interviewers wrote down.",
+      "domain": "greenhouse.io",
+      "categories": [
+        "hiring",
+        "productivity"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Greenhouse MCP server",
+          "endpoint": "https://mcp.greenhouse.io/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://app.greenhouse.io"
+    },
+    {
+      "slug": "heroku",
+      "name": "Heroku",
+      "tagline": "Apps, dynos, add-ons, and logs.",
+      "description": "Heroku's MCP server manages apps and the dynos under them, reads config and add-ons, and pulls the logs behind a release that went wrong.",
+      "domain": "heroku.com",
+      "categories": [
+        "hosting",
+        "developer-tools"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Heroku MCP server",
+          "endpoint": "https://mcp.heroku.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://dashboard.heroku.com"
     },
     {
       "slug": "hex",
@@ -1049,6 +1454,33 @@
           "auth": "oauth"
         }
       ]
+    },
+    {
+      "slug": "incident-io",
+      "name": "incident.io",
+      "tagline": "Incidents, who responded, and what was left to do.",
+      "description": "incident.io's MCP server reads live and past incidents, the responders on them, and the follow-up actions they left behind.",
+      "domain": "incident.io",
+      "categories": [
+        "observability",
+        "developer-tools"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "incident.io MCP server",
+          "endpoint": "https://mcp.incident.io/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://app.incident.io"
     },
     {
       "slug": "instacart",
@@ -1293,6 +1725,54 @@
       ]
     },
     {
+      "slug": "mercury",
+      "name": "Mercury",
+      "tagline": "Business accounts, transactions, and statements.",
+      "description": "Mercury's MCP server reads accounts and the transactions in them. Its sign-in asks for read scope, so an agent reports on the money rather than moving it.",
+      "domain": "mercury.com",
+      "categories": [
+        "finance"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Mercury MCP server",
+          "endpoint": "https://mcp.mercury.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://app.mercury.com"
+    },
+    {
+      "slug": "mermaid-chart",
+      "name": "Mermaid Chart",
+      "tagline": "Mermaid diagrams, validated and rendered before they ship.",
+      "description": "Mermaid Chart's MCP server validates a Mermaid diagram and renders it, searches the icon sets a diagram can draw from, and reads the syntax reference for the diagram type in hand.",
+      "domain": "mermaidchart.com",
+      "categories": [
+        "design",
+        "documentation",
+        "developer-tools"
+      ],
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Mermaid Chart MCP server",
+          "endpoint": "https://mcp.mermaidchart.com/mcp",
+          "auth": "none"
+        }
+      ],
+      "home": "https://www.mermaidchart.com"
+    },
+    {
       "slug": "microsoft-learn",
       "name": "Microsoft Learn",
       "tagline": "Microsoft and Azure documentation, searched and read.",
@@ -1389,6 +1869,34 @@
           "auth": "oauth"
         }
       ]
+    },
+    {
+      "slug": "mongodb",
+      "name": "MongoDB Atlas",
+      "tagline": "Projects, clusters, and the database users on them.",
+      "description": "MongoDB's MCP server only accepts OAuth clients MongoDB has issued in advance. The way in is the Atlas Administration API with a service account, which manages projects, clusters, and database users.",
+      "domain": "mongodb.com",
+      "categories": [
+        "database",
+        "infrastructure"
+      ],
+      "authMethods": [
+        {
+          "type": "token",
+          "label": "Service account",
+          "note": "Client credentials from Atlas, exchanged for a Bearer token."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "openapi",
+          "name": "Atlas Administration API",
+          "endpoint": "https://cloud.mongodb.com/api/atlas/v2",
+          "auth": "token"
+        }
+      ],
+      "docsUrl": "https://www.mongodb.com/docs/atlas/reference/api-resources-spec/",
+      "home": "https://cloud.mongodb.com"
     },
     {
       "slug": "motherduck",
@@ -1537,6 +2045,61 @@
       ]
     },
     {
+      "slug": "oxylabs",
+      "name": "Oxylabs",
+      "tagline": "Scrape a page, crawl a site, or read a marketplace listing.",
+      "description": "Oxylabs' MCP server scrapes a URL, maps and crawls a site, and returns search-engine and marketplace results as structured data.",
+      "domain": "oxylabs.io",
+      "categories": [
+        "web-scraping",
+        "search",
+        "data"
+      ],
+      "authMethods": [
+        {
+          "type": "api_key",
+          "label": "API key",
+          "note": "A key from the service's dashboard, sent as a Bearer header."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Oxylabs MCP server",
+          "endpoint": "https://mcp.oxylabs.io/mcp",
+          "auth": "api_key"
+        }
+      ],
+      "home": "https://dashboard.oxylabs.io"
+    },
+    {
+      "slug": "paddle",
+      "name": "Paddle",
+      "tagline": "Subscriptions, transactions, and payouts.",
+      "description": "Paddle is a merchant of record for software; its MCP server reads the subscriptions, transactions, and payouts that come with that arrangement.",
+      "domain": "paddle.com",
+      "categories": [
+        "payments",
+        "finance"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Paddle MCP server",
+          "endpoint": "https://mcp.paddle.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://vendors.paddle.com"
+    },
+    {
       "slug": "pagerduty",
       "name": "PagerDuty",
       "tagline": "Incidents, services, and on-call schedules.",
@@ -1564,6 +2127,27 @@
       "home": "https://www.pagerduty.com"
     },
     {
+      "slug": "paper",
+      "name": "Paper",
+      "tagline": "The design canvas that is open right now, read and edited in place.",
+      "description": "Paper's MCP server runs inside Paper Desktop rather than in the cloud, so it reaches the file open on this machine instead of an account somewhere. An agent reads the selection, the node tree, and the computed styles, writes HTML into an artboard, moves and restyles nodes, and exports PNG, SVG, or MP4. There is nothing to sign in to and nothing to install: Paper Desktop has to be running with the file open, and nothing answers when it is not.",
+      "domain": "paper.design",
+      "categories": [
+        "design"
+      ],
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Paper Desktop MCP server",
+          "endpoint": "http://127.0.0.1:29979/mcp",
+          "auth": "none"
+        }
+      ],
+      "docsUrl": "https://paper.design/docs/mcp",
+      "home": "https://paper.design"
+    },
+    {
       "slug": "paypal",
       "name": "PayPal",
       "tagline": "Invoices, payments, and disputes.",
@@ -1589,6 +2173,27 @@
         }
       ],
       "home": "https://www.paypal.com"
+    },
+    {
+      "slug": "peloton",
+      "name": "Peloton",
+      "tagline": "Classes, and a training plan built out of them.",
+      "description": "Peloton's MCP server searches the class catalog and schedules what it finds into a training plan.",
+      "domain": "onepeloton.com",
+      "categories": [
+        "fitness",
+        "media"
+      ],
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Peloton MCP server",
+          "endpoint": "https://mcp.onepeloton.com/mcp",
+          "auth": "none"
+        }
+      ],
+      "home": "https://members.onepeloton.com"
     },
     {
       "slug": "posthog",
@@ -1679,6 +2284,33 @@
       "home": "https://console.prisma.io"
     },
     {
+      "slug": "productboard",
+      "name": "Productboard",
+      "tagline": "Customer insights, features, and the roadmap over them.",
+      "description": "Productboard's MCP server reads the notes customers sent, the features they were attached to, and the roadmap that ordered them.",
+      "domain": "productboard.com",
+      "categories": [
+        "product-management",
+        "productivity"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Productboard MCP server",
+          "endpoint": "https://mcp.productboard.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://app.productboard.com"
+    },
+    {
       "slug": "quickbooks",
       "name": "QuickBooks",
       "tagline": "Invoices, expenses, and reports.",
@@ -1704,6 +2336,33 @@
         }
       ],
       "home": "https://app.qbo.intuit.com"
+    },
+    {
+      "slug": "railway",
+      "name": "Railway",
+      "tagline": "Services, deploys, variables, and logs.",
+      "description": "Railway's MCP server creates and inspects projects, reads the logs of a deploy, and manages the variables a service runs with.",
+      "domain": "railway.com",
+      "categories": [
+        "hosting",
+        "developer-tools"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Railway MCP server",
+          "endpoint": "https://mcp.railway.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://railway.com/dashboard"
     },
     {
       "slug": "ramp",
@@ -1786,6 +2445,32 @@
       "home": "https://dashboard.render.com"
     },
     {
+      "slug": "replicate",
+      "name": "Replicate",
+      "tagline": "Run published models and collect the output.",
+      "description": "Replicate runs open models on demand; its MCP server searches them, starts a prediction, and returns what came back.",
+      "domain": "replicate.com",
+      "categories": [
+        "ai",
+        "media"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Replicate MCP server",
+          "endpoint": "https://mcp.replicate.com/mcp",
+          "auth": "oauth"
+        }
+      ]
+    },
+    {
       "slug": "resend",
       "name": "Resend",
       "tagline": "Send email from any agent with one API key.",
@@ -1818,6 +2503,33 @@
       ],
       "docsUrl": "https://resend.com/docs",
       "home": "https://resend.com/emails"
+    },
+    {
+      "slug": "sanity",
+      "name": "Sanity",
+      "tagline": "Structured content: documents, schemas, and datasets.",
+      "description": "Sanity's MCP server queries a dataset with GROQ, reads the schema behind it, and writes documents back through the same shape.",
+      "domain": "sanity.io",
+      "categories": [
+        "cms",
+        "developer-tools"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Sanity MCP server",
+          "endpoint": "https://mcp.sanity.io/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://www.sanity.io/manage"
     },
     {
       "slug": "scite",
@@ -1954,6 +2666,33 @@
       "home": "https://admin.shopify.com"
     },
     {
+      "slug": "shortcut",
+      "name": "Shortcut",
+      "tagline": "Stories, epics, and iterations.",
+      "description": "Shortcut's MCP server creates and updates stories, reads the epics and iterations holding them, and searches across the lot.",
+      "domain": "shortcut.com",
+      "categories": [
+        "productivity",
+        "project-management"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Shortcut MCP server",
+          "endpoint": "https://mcp.shortcut.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://app.shortcut.com"
+    },
+    {
       "slug": "signnow",
       "name": "SignNow",
       "tagline": "Send documents for e-signature and track them.",
@@ -1979,6 +2718,34 @@
         }
       ],
       "home": "https://app.signnow.com"
+    },
+    {
+      "slug": "similarweb",
+      "name": "Similarweb",
+      "tagline": "Traffic and audience estimates for any site.",
+      "description": "Similarweb estimates how much traffic a site gets and where it comes from; its MCP server answers that for a domain an agent names, including one it does not own.",
+      "domain": "similarweb.com",
+      "categories": [
+        "analytics",
+        "marketing",
+        "research"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Similarweb MCP server",
+          "endpoint": "https://mcp.similarweb.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://pro.similarweb.com"
     },
     {
       "slug": "slack",
@@ -2075,6 +2842,27 @@
       "home": "https://squareup.com/dashboard"
     },
     {
+      "slug": "squarespace",
+      "name": "Squarespace",
+      "tagline": "Domain search and name ideas.",
+      "description": "Squarespace's MCP server covers domains and nothing else: whether a name is free, and what else is close to it.",
+      "domain": "squarespace.com",
+      "categories": [
+        "dns",
+        "services"
+      ],
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Squarespace MCP server",
+          "endpoint": "https://mcp.squarespace.com/mcp",
+          "auth": "none"
+        }
+      ],
+      "home": "https://account.squarespace.com"
+    },
+    {
       "slug": "stack-overflow",
       "name": "Stack Overflow",
       "tagline": "Questions and answers, searched from the agent.",
@@ -2099,6 +2887,33 @@
           "auth": "oauth"
         }
       ]
+    },
+    {
+      "slug": "strava",
+      "name": "Strava",
+      "tagline": "Activities, routes, and segments.",
+      "description": "Strava's MCP server reads activities and the routes and segments under them. The sign-in asks for read scope over the profile's own data.",
+      "domain": "strava.com",
+      "categories": [
+        "fitness",
+        "outdoors"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Strava MCP server",
+          "endpoint": "https://mcp.strava.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://www.strava.com/dashboard"
     },
     {
       "slug": "stripe",
@@ -2197,6 +3012,55 @@
         }
       ],
       "home": "https://mail.superhuman.com"
+    },
+    {
+      "slug": "supermetrics",
+      "name": "Supermetrics",
+      "tagline": "Marketing data from every ad platform at once.",
+      "description": "Supermetrics collects marketing data from the ad and analytics platforms a team runs on; its MCP server queries that collection rather than each platform in turn.",
+      "domain": "supermetrics.com",
+      "categories": [
+        "marketing",
+        "analytics",
+        "data"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Supermetrics MCP server",
+          "endpoint": "https://mcp.supermetrics.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://team.supermetrics.com"
+    },
+    {
+      "slug": "svelte",
+      "name": "Svelte",
+      "tagline": "The Svelte and SvelteKit documentation.",
+      "description": "Svelte's MCP server lists the documentation's sections and returns the one an answer needs, builds a playground link for a snippet, and checks a component against the compiler.",
+      "domain": "svelte.dev",
+      "categories": [
+        "documentation",
+        "developer-tools"
+      ],
+      "authMethods": [],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Svelte MCP server",
+          "endpoint": "https://mcp.svelte.dev/mcp",
+          "auth": "none"
+        }
+      ],
+      "home": "https://svelte.dev/docs"
     },
     {
       "slug": "tavily",
@@ -2302,6 +3166,33 @@
         }
       ],
       "home": "https://www.trivago.com"
+    },
+    {
+      "slug": "vanta",
+      "name": "Vanta",
+      "tagline": "Compliance controls, tests, and evidence.",
+      "description": "Vanta's MCP server reads the controls a framework asks for, the tests that check them, and the evidence collected against each one.",
+      "domain": "vanta.com",
+      "categories": [
+        "security",
+        "compliance"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Vanta MCP server",
+          "endpoint": "https://mcp.vanta.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://app.vanta.com"
     },
     {
       "slug": "vercel",
@@ -2423,6 +3314,61 @@
       "home": "https://www.wolframalpha.com"
     },
     {
+      "slug": "workos",
+      "name": "WorkOS",
+      "tagline": "Enterprise auth: organizations, directories, and SSO.",
+      "description": "WorkOS's MCP server reads and manages the organizations, directory connections, and SSO setups an app authenticates against.",
+      "domain": "workos.com",
+      "categories": [
+        "developer-tools",
+        "security"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "WorkOS MCP server",
+          "endpoint": "https://mcp.workos.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://dashboard.workos.com"
+    },
+    {
+      "slug": "xero",
+      "name": "Xero",
+      "tagline": "Invoices, bills, and the ledger behind them.",
+      "description": "Xero authenticates every path, its MCP server included, with an OAuth client from an app registered in Xero's developer portal, which the sign-in card cannot be. There is no API key. Not reachable as an app from here; the user signs in on the Browser screen and a task works there.",
+      "domain": "xero.com",
+      "categories": [
+        "accounting",
+        "finance"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Bring your own app registered in Xero's developer portal; there is no key to paste instead."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "openapi",
+          "name": "Xero Accounting API",
+          "endpoint": "https://api.xero.com/api.xro/2.0",
+          "auth": "oauth"
+        }
+      ],
+      "docsUrl": "https://developer.xero.com/documentation/api/accounting/overview",
+      "home": "https://go.xero.com"
+    },
+    {
       "slug": "zapier",
       "name": "Zapier",
       "tagline": "Thousands of app actions through one server.",
@@ -2473,6 +3419,33 @@
           "auth": "oauth"
         }
       ]
+    },
+    {
+      "slug": "zoominfo",
+      "name": "ZoomInfo",
+      "tagline": "Company and contact data for prospecting.",
+      "description": "ZoomInfo's MCP server searches its company and contact database and enriches records an agent already holds.",
+      "domain": "zoominfo.com",
+      "categories": [
+        "sales",
+        "data"
+      ],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "ZoomInfo MCP server",
+          "endpoint": "https://mcp.zoominfo.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "home": "https://app.zoominfo.com"
     }
   ]
 }

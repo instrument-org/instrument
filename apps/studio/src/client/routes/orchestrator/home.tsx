@@ -182,22 +182,13 @@ function HomeRoute() {
           that the row reads as a strip of faces rather than as cards. One line
           and never two, since a page that grows a row per handful of apps
           pushes everything under the fold; the rest are behind the tile at the
-          end, which is also where a new one is added. An app still being
-          connected is drawn faint, since it is not yet a way in to anything. */}
+          end, which is also where a new one is added. */}
       <section className="mx-auto mt-5 w-full max-w-5xl">
         <p className={SECTION_LABEL}>Apps</p>
         <div className={DOOR_ROW}>
           {(appList.data?.apps ?? []).slice(0, APPS_SHOWN).map((app) => (
             <Door
-              icon={
-                <AppIcon
-                  className={
-                    app.standing === "connected" ? undefined : "opacity-50"
-                  }
-                  site={app.site}
-                  size="lg"
-                />
-              }
+              icon={<AppIcon site={app.site} size="lg" />}
               key={app.slug}
               name={app.name}
               onOpen={() => {

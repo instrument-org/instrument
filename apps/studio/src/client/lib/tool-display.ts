@@ -7,6 +7,7 @@ import { FlagIcon } from "@phosphor-icons/react/Flag";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
+import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlugsConnectedIcon } from "@phosphor-icons/react/PlugsConnected";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
@@ -24,6 +25,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   read_file: "Read",
   request_folder: "Asked for a folder",
   start_activity: "Started working",
+  task: "Started a task",
   unavailable: "Used unknown tool",
   web_fetch: "Read web page",
   web_search: "Searched web",
@@ -40,6 +42,7 @@ const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   read_file: "Reading file",
   request_folder: "Waiting for a folder",
   start_activity: "Starting work",
+  task: "Starting a task",
   unavailable: "Using unknown tool",
   web_fetch: "Reading web page",
   web_search: "Searching the web",
@@ -59,6 +62,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   read_file: "Reading",
   request_folder: TOOL_STREAMING_DISPLAY_NAMES.request_folder,
   start_activity: TOOL_STREAMING_DISPLAY_NAMES.start_activity,
+  task: "Starting task",
   unavailable: TOOL_STREAMING_DISPLAY_NAMES.unavailable,
   web_fetch: "Reading",
   web_search: "Searching for",
@@ -75,6 +79,7 @@ const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   read_file: "Tried to read file",
   request_folder: "Tried to ask for a folder",
   start_activity: "Tried to start work",
+  task: "Tried to start a task",
   unavailable: "Tried unknown tool",
   web_fetch: "Tried to read web page",
   web_search: "Tried to search the web",
@@ -111,6 +116,10 @@ const TOOL_SUMMARY_PHRASES: Record<
   request_folder: { singular: "asked for a folder" },
   // Never summarized: it is the heading, not a step under one.
   start_activity: undefined,
+  task: {
+    plural: (count) => `started ${count} tasks`,
+    singular: "started a task",
+  },
   unavailable: { singular: "used an unknown tool" },
   web_fetch: {
     plural: (count) => `read ${count} web pages`,
@@ -133,6 +142,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   read_file: EyeIcon,
   request_folder: FolderOpenIcon,
   start_activity: FlagIcon,
+  task: ListChecksIcon,
   unavailable: WrenchIcon,
   web_fetch: GlobeIcon,
   web_search: MagnifyingGlassIcon,

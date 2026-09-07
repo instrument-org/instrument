@@ -51,6 +51,8 @@ declare namespace NodeJS {
        * docs/findings/drag-out-does-not-cross-xwayland.md.
        */
       INSTRUMENT_OZONE_PLATFORM: string | undefined;
+      /** Dev only: gives the conversation a `task` tool beside the shell one. */
+      INSTRUMENT_TASK_TOOL: string | undefined;
       NODE_ENV: string | undefined;
       PATH: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */

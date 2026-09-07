@@ -27,6 +27,15 @@ import { useRef } from "react";
  * described once and its `onSelect` is what differs per surface.
  */
 export interface ComposerAction {
+  /**
+   * For an entry that opens another surface in this menu's place. It runs once
+   * the menu has closed rather than on the click: a popover opened while the
+   * menu is still tearing down loses the caret to it -- a menu takes focus back
+   * to its own content as the pointer leaves an item, and a layer that sees
+   * focus land outside itself dismisses. The caret is then the new surface's,
+   * so the prompt does not take it back either.
+   */
+  handsOff?: boolean;
   icon: Icon;
   id: string;
   /**
@@ -35,12 +44,6 @@ export interface ComposerAction {
    */
   keepMenuOpen?: boolean;
   label: string;
-  /**
-   * For an entry that opens another surface which takes the caret itself. The
-   * menu then closes without putting the caret anywhere, since focusing the
-   * prompt would close what just opened.
-   */
-  leavesFocus?: boolean;
   onSelect: () => void;
 }
 
@@ -92,7 +95,10 @@ export function ComposerAddMenu({
   // Whether this closed because something was chosen, which is the only case
   // where the menu owns where focus lands next. Dismissing it is the user
   // going somewhere themselves, and Radix's own handling is right for that.
-  const chose = useRef<"leave" | "prompt" | null>(null);
+  const chose = useRef<"hand-off" | "prompt" | null>(null);
+  // A hand-off's own work, held until this menu is gone rather than run where
+  // it was chosen. See `handsOff`.
+  const handOff = useRef<(() => void) | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const { alignOffset, side, sideOffset, width } = useComposerMenuPlacement({
     anchorRef: triggerRef,
@@ -143,14 +149,20 @@ export function ComposerAddMenu({
         // second menu deep and would otherwise leave the caret nowhere.
         onCloseAutoFocus={(event) => {
           const after = chose.current;
+          const opensNext = handOff.current;
+          chose.current = null;
+          handOff.current = null;
           if (!after) {
             return;
           }
-          chose.current = null;
           event.preventDefault();
           if (after === "prompt") {
             onReturnFocus();
           }
+          // Radix fires this from the teardown of the layer itself, so by here
+          // the menu is gone and the surface this hands off to is the only one
+          // on screen.
+          opensNext?.();
         }}
         side={side}
         sideOffset={sideOffset}
@@ -173,9 +185,15 @@ export function ComposerAddMenu({
                 onSelect={(event) => {
                   if (action.keepMenuOpen) {
                     event.preventDefault();
-                  } else {
-                    chose.current = action.leavesFocus ? "leave" : "prompt";
+                    action.onSelect();
+                    return;
                   }
+                  if (action.handsOff) {
+                    chose.current = "hand-off";
+                    handOff.current = action.onSelect;
+                    return;
+                  }
+                  chose.current = "prompt";
                   action.onSelect();
                 }}
               >

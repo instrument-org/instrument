@@ -25,7 +25,11 @@ import { folderNameFromPath } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import {
+  type AIGatewayModel,
+  type AIGatewayModelURI,
+  modelNameFromURI,
+} from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
@@ -42,6 +46,7 @@ import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { StopIcon } from "@phosphor-icons/react/Stop";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
@@ -169,6 +174,52 @@ interface PromptInputProps {
   showWorkInFolder?: boolean;
   /** A pill is one row, the height of a text field, that grows with the draft. */
   variant?: "block" | "pill";
+}
+
+/**
+ * What is wrong with the model a prompt would be sent with, in the few words a
+ * chip has room for, or `null` while there is nothing wrong with it.
+ *
+ * For a composer that keeps the model out of sight: naming a working one in a
+ * menu is enough while it works, but a model missing, restricted, or one no
+ * connected provider offers has to be visible. The only other sign of it is a
+ * send that refuses, which turns a prompt away for a reason it never showed.
+ * Nothing while the list is still arriving, since that is a wait rather than a
+ * problem, and a chip that flashed on every mount would be noise.
+ */
+function describeModelProblem({
+  models,
+  modelsIsError,
+  modelsIsLoading,
+  modelURI,
+  selectedModel,
+}: {
+  models?: AIGatewayModel.Type[];
+  modelsIsError: boolean;
+  modelsIsLoading: boolean;
+  modelURI?: AIGatewayModelURI.Type;
+  selectedModel?: AIGatewayModel.Type;
+}): null | string {
+  if (modelsIsLoading) {
+    return null;
+  }
+  if (selectedModel) {
+    return selectedModel.restricted
+      ? `${selectedModel.name.trim()} is unavailable`
+      : null;
+  }
+  // A list that never arrived outranks anything read off it: the selection is
+  // unresolvable either way, and blaming the model would send the user to pick
+  // another one that is equally beyond reach.
+  if (modelsIsError) {
+    return "Failed to load models";
+  }
+  // A selection the list no longer resolves is still worth naming: the user
+  // picked it, and "choose a model" would read as though they never had.
+  if (modelURI) {
+    return `${modelNameFromURI(modelURI)} is unavailable`;
+  }
+  return models?.length ? "Choose a model" : "No models available";
 }
 
 export const PromptInput = ({
@@ -567,14 +618,14 @@ export const PromptInput = ({
     ...(variant === "pill"
       ? [
           {
+            // The picker opens once this menu has closed, and takes the caret
+            // from there.
+            handsOff: true,
             icon: CpuIcon,
             id: "model",
             label: selectedModel
               ? `Model · ${selectedModel.name}`
               : "Choose a model",
-            // The picker takes the caret; the prompt getting it back would
-            // read as focus leaving the picker and close it at once.
-            leavesFocus: true,
             onSelect: () => {
               setPickerOpen(true);
             },
@@ -601,6 +652,17 @@ export const PromptInput = ({
       menuView !== null ||
       value.trim().length > 0 ||
       attachedItems.length > 0);
+
+  const modelProblem =
+    variant === "pill"
+      ? describeModelProblem({
+          models,
+          modelsIsError,
+          modelsIsLoading,
+          modelURI,
+          selectedModel,
+        })
+      : null;
 
   const validateSubmission = () => {
     if (isUnavailableModel) {
@@ -980,6 +1042,22 @@ export const PromptInput = ({
         extras={
           pillOpen ? (
             <>
+              {modelProblem && (
+                // Leads the row, and is the way to the picker as well as the
+                // notice: what it says is a thing to fix rather than a state to
+                // read, and the plus menu is a poor place to be sent looking.
+                <button
+                  className="flex h-7 min-w-0 items-center gap-1.5 rounded-lg bg-warning-700/10 px-2 text-xs text-warning-700 hover:bg-warning-700/15 dark:bg-warning-300/10 dark:text-warning-300 dark:hover:bg-warning-300/15"
+                  disabled={disabled || isLoading}
+                  onClick={() => {
+                    setPickerOpen(true);
+                  }}
+                  type="button"
+                >
+                  <WarningIcon className="size-3.5 shrink-0" />
+                  <span className="truncate">{modelProblem}</span>
+                </button>
+              )}
               {allowWorkInProject && selectedProjectId && (
                 <PromptProjectChip
                   disabled={disabled || isLoading}
@@ -1006,8 +1084,9 @@ export const PromptInput = ({
         layout={variant}
         leading={
           variant === "pill" ? (
-            // The picker's own button is laid over the plus, unseen, so its
-            // popover opens from the plus when the menu asks for it.
+            // The picker has no button of its own here: it hangs off an empty
+            // box over the plus, so its panel opens from the plus when the menu
+            // or the notice asks for it.
             <div className="relative">
               <ComposerAddMenu
                 actions={actions}
@@ -1031,7 +1110,8 @@ export const PromptInput = ({
                 view={menuView}
               />
               <ModelPicker
-                className="pointer-events-none absolute inset-0 opacity-0"
+                anchorOnly
+                className="pointer-events-none absolute inset-0"
                 disabled={disabled || isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}

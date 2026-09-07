@@ -23,9 +23,10 @@
  * task to open its result the way the user will see it before reporting done,
  * and whether a model obeys that is the difference between a report and a guess.
  *
- * What these cannot see: web search and the browser are stubbed in the harness,
- * so research and page-driving -- a third of the real corpus -- are not scored
- * here at all.
+ * What these cannot see: web search is stubbed in the harness, so research -- a
+ * third of the real corpus -- is not scored here at all. The browser is real,
+ * but it is one the CLI starts rather than the task's own view, so what is
+ * scored is a task's ability to open a page, not the in-app browsing surface.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -648,7 +649,7 @@ export const WORKER_EVALS = [
     assertions: [wroteSomethingToLookAt(".svg", 1200), checkedItsOwnWork],
     name: "worker-svg-drawing",
     prompt:
-      "Draw a pelican riding a bicycle as a single SVG file called pelican.svg in your output folder, about 800 by 600. Hand-written SVG, no libraries and no embedded images. It should be recognisable as both a pelican and a bicycle.",
+      "Draw a pelican riding a bicycle as a single SVG file called pelican.svg in your output folder, about 800 by 600. Hand-written SVG, no libraries and no embedded images. It should be recognizable as both a pelican and a bicycle.",
   }),
   defineEval({
     // The same skill as the pelican, asked for a subject no model has drawn
@@ -673,16 +674,16 @@ export const WORKER_EVALS = [
     assertions: [wroteSomethingToLookAt(".pdf", 20_000), checkedItsOwnWork],
     name: "worker-poster",
     prompt:
-      "Make a one-page A4 poster as a PDF called poster.pdf in your output folder, advertising a made-up neighbourhood record shop's weekend sale. Big type, a couple of colours, the date and address readable from across a room. It should look designed, not like a memo.",
+      "Make a one-page A4 poster as a PDF called poster.pdf in your output folder, advertising a made-up neighborhood record shop's weekend sale. Big type, a couple of colors, the date and address readable from across a room. It should look designed, not like a memo.",
   }),
   defineEval({
     // The shape of work this product is used for most: a screen drawn to be
-    // argued about, where the judgement is layout and hierarchy rather than
+    // argued about, where the judgment is layout and hierarchy rather than
     // whether anything runs.
     assertions: [wroteSomethingToLookAt(".html", 2000), checkedItsOwnWork],
     name: "worker-wireframe",
     prompt:
-      "Draw a wireframe of a mobile expense-tracking app's home screen as a single HTML file called wireframe.html in your output folder. Greyscale boxes and placeholder text, phone-sized frame centred on the page: a balance header, a filter row, a scrollable list of recent transactions with category icons, and a floating add button. Annotate two or three parts with short callouts beside the frame. No libraries.",
+      "Draw a wireframe of a mobile expense-tracking app's home screen as a single HTML file called wireframe.html in your output folder. Greyscale boxes and placeholder text, phone-sized frame centered on the page: a balance header, a filter row, a scrollable list of recent transactions with category icons, and a floating add button. Annotate two or three parts with short callouts beside the frame. No libraries.",
   }),
   defineEval({
     assertions: [wroteSomethingToLookAt(".html", 2500), checkedItsOwnWork],
@@ -772,7 +773,7 @@ export const WORKER_EVALS = [
     assertions: [wroteSomethingToLookAt(".html", 3000), checkedItsOwnWork],
     name: "worker-mechanism-explainer",
     prompt:
-      "Explain to me, someone with no engineering background, how a heat pump heats a house and when it stops beating a gas furnace. One HTML page called heat-pump.html in your output folder. It has to be visual: draw the refrigerant loop in SVG with the four parts labelled and arrows showing which way heat moves, show the same loop again running backwards for cooling, and put in a small chart of efficiency against outside temperature with the crossover point marked. End with a plain-language verdict. Styling inside the file, no libraries.",
+      "Explain to me, someone with no engineering background, how a heat pump heats a house and when it stops beating a gas furnace. One HTML page called heat-pump.html in your output folder. It has to be visual: draw the refrigerant loop in SVG with the four parts labeled and arrows showing which way heat moves, show the same loop again running backwards for cooling, and put in a small chart of efficiency against outside temperature with the crossover point marked. End with a plain-language verdict. Styling inside the file, no libraries.",
   }),
   defineEval({
     assertions: [wroteADocument(".docx"), checkedItsOwnWork],

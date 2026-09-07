@@ -2,7 +2,7 @@
 
 **Status:** measured 2026-09-06/07 against the Cloudflare Workers AI catalog, GPT 5.6 Luna as the paid control. The verdict is **GLM 5.3 Flash in both seats**, with a reasoning level set. Eligibility rules out most of the catalog before behavior is even scored, and validity checks rule out nothing — the models separate on design and reliability, which only rendering the output shows. Re-running this costs roughly four hours of wall clock and a few million tokens, so the numbers are recorded rather than the method alone.
 
-Companion reading: [the reasoning level was never connected](reasoning-effort-was-never-connected.md) for why every number here would have been different a day earlier.
+Companion reading: [the reasoning level was never connected](reasoning-effort-was-never-connected.md) for why every number here would have been different a day earlier, and [a task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md) for why the self-check numbers below are a floor rather than a measurement.
 
 ## The short answer
 
@@ -10,8 +10,8 @@ Companion reading: [the reasoning level was never connected](reasoning-effort-wa
 | --- | --- | --- |
 | The conversation | **GLM 5.3 Flash** | Best delegation score in the eligible pool (74%), cheapest per correct turn, and the only free model strong in both seats. |
 | Tasks | **GLM 5.3 Flash** | Produces designed documents. The cheaper alternative does not, and the seats stop disagreeing once quality is scored. |
-| Second source for tasks | Qwen3.8 27B | Same breadth, 60% slower, design is inconsistent between runs. |
-| Paid upgrade | GPT 5.6 Luna | 92% delegation, three times faster on task work, and not uniformly better — see the chart below. |
+| Second source for tasks | Qwen3.8 27B | Same breadth, but it delivered nothing at all on two of five later briefs. Fallback, not a plan. |
+| Paid upgrade | GPT 5.6 Luna, or Muse Spark 1.3 on the contributor tier | 92% delegation, three times faster on task work, and not uniformly better — see the chart below. Muse matched it on deliverables for half the money; it has not been scored as a conversation. |
 
 ## Eligibility cuts 27 models to 6
 
@@ -77,6 +77,22 @@ The same model can be good in one format and useless in another: Gemma's **Word*
 
 **Frontier is not uniformly better.** Asked for a bar chart, Luna picked a font the sandbox does not have and matplotlib substituted glyphs badly: the title renders "Units shipped By quarter" with corrupted letters and the caption's "Source: provided data" loses letters. GLM's chart is clean, labeled, with the best bar highlighted. Luna's self-check assertion passed on that run — it opened the PNG and shipped it anyway, which is the limit of that check: it detects that a model looked, not that it judged.
 
+## A second round, on work nobody has seen before
+
+The deliverables above are formats. A later round asked for five things with no memorized answer: an octopus juggling five bowling pins and an axolotl at a sewing machine (both hand-written SVG, replacing the pelican, which every model can recall), a year of CSV sales as a one-page Word memo with the chart embedded in the document, a six-machine shopping comparison whose constraints leave exactly two defensible picks, and a heat-pump explainer with both loop directions drawn and a crossover chart.
+
+| Model | Briefs finished | Checks | Working time | Where it lost |
+| --- | --- | --- | --- | --- |
+| Muse Spark 1.3 (contributor) | 5 of 5 | 14/14 | 9.3 min | Nothing. Busiest pages of the four. |
+| GPT 5.6 Luna | 5 of 5 | 14/14 | 5.1 min | Nothing. Two label collisions. |
+| GLM 5.3 Flash | 4 of 5 | 12/14 | 12.8 min | Sewing machine: reasoned the whole drawing out, then emitted eight tokens and no file. |
+| Qwen3.8 27B | 3 of 5 | 9/14 | 23.9 min | Two briefs empty; three requests refused. |
+
+- **Quality on a finished brief is no longer the differentiator; finishing is.** Every model that produced a file produced a defensible one — correct to the cent on the memo, and all four that got there picked one of the two machines the constraints allow. What separates them is that Luna and Muse always finished and the two Cloudflare models did not.
+- **Qwen3.8 27B fails by going quiet.** On two of five briefs it spent exactly 300 seconds and emitted one output token, which is the five-minute no-chunk timeout in `machines/agent.ts`. Whether Workers AI buffers a long reasoning block past that window or the model genuinely stalls is untested, and it matters: the first would affect any slow-reasoning model rather than this one. It also had three requests refused with `Expected string, received array` at `messages[N].content` — the shape a message takes once it carries an image, which is the self-check path.
+- **Muse Spark 1.3 on the contributor tier is worth a look as the paid tier.** Same 14/14 as Luna at roughly half the cost, and on the two briefs that reward argument it produced more of it. Slower, and it spends tokens freely. Unscored on the conversation seat.
+- **Both new drawing briefs work as tests and the sewing machine is the better one.** Every model that finished the octopus satisfied the counting constraint, so it separates on arrangement rather than comprehension; the sewing machine broke two models outright.
+
 ## Reliability, which is where GLM actually costs you
 
 - **A degenerate repetition loop.** Twice in 233 GLM sessions (~1%), and not observed in 54 Luna sessions or 24 Qwen sessions — denominators too small to call it GLM-specific, but real. One instance emitted 85,739 characters over 490 seconds; another spent 686 seconds and 32,000 output tokens repeating "I need to load the spreadsheet skill first" and produced no file. It accounts for most of GLM's 15.2 minutes above. The token cap cannot see it, because usage only lands when an assistant message is saved and these are aborted, so the wall-clock cap is the only thing that ends it.
@@ -99,9 +115,16 @@ For GLM 5.3 Flash specifically, over ~114 first turns per level, seconds to the 
 
 `low` is the dramatic number and the wrong default. `medium` behaves like sending nothing. `high` is the setting, and it is what the catalog now declares as the Workers AI default.
 
+## Checking its own work, which was never measurable
+
+The self-check assertion scores whether a task read its deliverable back, and by that measure every model is fine. The number that matters is narrower and it is a column of zeroes: across seventeen finished briefs, real pixels reached the model five times, and not one of those looks changed anything that shipped. The defects that survived are exactly the ones a render catches — an arrowhead over a label, a callout across an axis, a drawing running off its own viewBox — each in a file whose model passed the check.
+
+Part of that is ours. Until 2026-09-07 the eval harness answered every browser command with an empty object, so a task trying to open the page it had just written got a CDP deserialization error and nothing else; see [a task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md). With that fixed, the first rerun rendered its SVG, moved a pin, and rendered it again — a loop that had never closed before. One observation, not a rate, and the reason to re-run the visual cases before treating any of the numbers above as settled.
+
 ## What this does not cover
 
 - **Web search and the browser are stubbed in the eval harness.** Research and page-driving are roughly a third of the real corpus and are unscored here. This is where the eligible models are most likely to separate, and where the verdict above is least tested.
 - **One to two runs per model per deliverable.** Enough to separate delivers from does-not and to catch the design gap twice; not enough to rank the models that pass.
+- **Every visual case was scored with the browser broken.** The models could not open what they wrote, which is the affordance the self-check numbers are about.
 - **Long-horizon work.** These deliverables take one to fifteen minutes; the real corpus has tasks running 28 and 41.
 - **Kimi K2.6 and K2.7 were not scored on the conversation seat** or on the newer deliverables, at the point where they were ruled out on other grounds.

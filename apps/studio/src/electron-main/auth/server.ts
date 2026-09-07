@@ -19,8 +19,7 @@ import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
 import { getSessionStore } from "@/electron-main/stores/session";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
-import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
+import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
 import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
 import {
@@ -34,14 +33,8 @@ import { type Context, Hono } from "hono";
 import fs from "node:fs/promises";
 
 function focusAppWindow() {
-  // Prefer the onboarding window if it's currently open (first-run login).
-  // Otherwise fall back to the main window (login from inside the app).
-  const onboardingWindow = getOnboardingWindow();
-  const target =
-    onboardingWindow && !onboardingWindow.isDestroyed()
-      ? onboardingWindow
-      : getMainWindow();
-  if (target && !target.isDestroyed()) {
+  const target = getForegroundWindow();
+  if (target) {
     if (target.isMinimized()) {
       target.restore();
     }

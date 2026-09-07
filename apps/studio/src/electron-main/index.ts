@@ -9,6 +9,7 @@ import { createApplicationMenu } from "@/electron-main/menus";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
 import { isFeatureEnabled } from "@/electron-main/stores/features";
 import { checkRecentVersionBump } from "@/electron-main/stores/preferences";
+import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import {
   createMainWindow,
   ensureMainWindowVisible,
@@ -17,7 +18,6 @@ import {
 import { focusMainContents } from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import {
-  getOnboardingWindow,
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
@@ -277,28 +277,24 @@ async function bootstrapPrimaryInstance() {
 }
 
 /**
- * Bring the active foreground window forward. The main window is the target
- * once visible; while it is still hidden (e.g. prepared during onboarding),
- * onboarding stays the foreground target so focus never lands on nothing.
+ * Bring the active foreground window forward. A window that is not on screen is
+ * not that window: the main window is prepared hidden during onboarding, and
+ * stays hidden for as long as Instrument 2.0 is on.
  *
- * With no window left at all this opens one. Relaunching the app is how a user
- * asks for a window back, and the single-instance lock routes that launch here
- * instead of starting a process that could serve it.
+ * With no window to come forward this opens one. Relaunching the app is how a
+ * user asks for a window back, and the single-instance lock routes that launch
+ * here instead of starting a process that could serve it.
  */
 function focusForegroundWindow() {
-  const mainWindow = getMainWindow();
-  if (mainWindow?.isVisible()) {
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
+  const target = getForegroundWindow();
+  if (target?.isVisible()) {
+    if (target.isMinimized()) {
+      target.restore();
     }
-    mainWindow.focus();
-    focusMainContents();
-    return;
-  }
-
-  const onboardingWindow = getOnboardingWindow();
-  if (onboardingWindow && !onboardingWindow.isDestroyed()) {
-    onboardingWindow.focus();
+    target.focus();
+    if (target === getMainWindow()) {
+      focusMainContents();
+    }
     return;
   }
 
@@ -309,6 +305,10 @@ function focusForegroundWindow() {
   }
   if (shouldShowOnboarding()) {
     openOnboardingWindow();
+    return;
+  }
+  if (isFeatureEnabled("instrument_2")) {
+    openOrchestratorWindow();
     return;
   }
   void ensureMainWindowVisible();

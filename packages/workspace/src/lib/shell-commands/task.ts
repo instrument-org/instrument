@@ -37,7 +37,11 @@ import { expectStop } from "../orchestrator/wake";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
-import { recordTaskActivity, updateTaskSettings } from "../task-settings";
+import {
+  getTaskSettings,
+  recordTaskActivity,
+  updateTaskSettings,
+} from "../task-settings";
 import { trashTask } from "../trash-task";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
@@ -53,14 +57,14 @@ export { TASK_COMMAND } from "./task-command";
 export interface TaskCommandContext {
   /** The orchestrator whose tasks these are. Every subcommand is scoped to it. */
   orchestratorTaskId: TaskId;
+  /** What is left of the enclosing call's yield window, read when a wait starts. */
+  remainingYieldMs: () => number;
   /**
    * The channel this command is running in, recorded on every task it makes so
    * the outcome comes back where it was asked for. Absent where the command is
    * built outside a turn, which leaves a task unattributed rather than wrong.
    */
   sessionId?: StoreId.Session;
-  /** What is left of the enclosing call's yield window, read when a wait starts. */
-  remainingYieldMs: () => number;
 }
 
 const DEFAULT_LOG_TAIL_LINES = 120;
@@ -174,6 +178,191 @@ export function createTaskCommand(context: TaskCommandContext) {
       return fail(error instanceof Error ? error.message : String(error));
     }
   });
+}
+
+export async function runNew(
+  args: string[],
+  context: TaskCommandContext,
+  stdin: ByteString,
+) {
+  const { positional, values } = parseFlags(args, {
+    flags: ["app", "folder", "model", "name", "tab"],
+    repeatable: ["app", "folder"],
+  });
+  const prompt = promptFrom(positional.join(" "), stdin);
+  if (!prompt) {
+    throw new Error(
+      `new: a brief is required, on stdin through a quoted heredoc.\n\n${USAGE}`,
+    );
+  }
+  const workspaceConfig = getWorkspaceConfig();
+  const orchestratorState = await getTaskState(
+    taskDir(context.orchestratorTaskId),
+  );
+  const rawURI = values.get("model")?.[0] ?? orchestratorState.selectedModelURI;
+  if (!rawURI) {
+    throw new Error(
+      "new: no model. This conversation has not chosen one yet; pass --model <uri>.",
+    );
+  }
+  const { model, modelURI } = await resolveModel(rawURI);
+  const folders = withWorkspaceFolder(
+    resolveFolders(
+      values.get("folder") ?? [],
+      orchestratorState.attachedFolders ?? {},
+    ),
+  );
+  const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
+  const tab = values.get("tab")?.[0];
+  const browserTargetId =
+    tab === undefined ? undefined : resolveTab(tab, context.orchestratorTaskId);
+  const apps = await resolveApps(values.get("app") ?? []);
+  requireAppsNamedInBrief(prompt, apps);
+
+  const taskId = await newTaskId({ prompt, workspaceConfig });
+  // How hard the conversation thinks is how hard its tasks think: the level is
+  // a property of the workspace rather than of one turn, and a task the
+  // conversation cannot configure has no other way to be told.
+  const parentSettings = await getTaskSettings(
+    taskDir(context.orchestratorTaskId),
+  );
+  const initialized = await initializeTask(
+    {
+      initialSettings: {
+        apps,
+        kind: "task",
+        name,
+        parentTaskId: context.orchestratorTaskId,
+        ...(parentSettings?.reasoningEffort
+          ? { reasoningEffort: parentSettings.reasoningEffort }
+          : {}),
+      },
+      taskId,
+      workspaceConfig,
+    },
+    {},
+  );
+  if (initialized.isErr()) {
+    throw initialized.error;
+  }
+  if (browserTargetId) {
+    await setTaskState(taskDir(taskId), { browserTargetId });
+  }
+  if (context.sessionId) {
+    await recordTaskChannel({
+      orchestratorTaskId: context.orchestratorTaskId,
+      sessionId: context.sessionId,
+      taskId,
+    });
+  }
+  const session = await latestOrNewSessionId(taskId);
+  if (session.isErr()) {
+    throw session.error;
+  }
+  const sessionId = session.value;
+  const message = await newMessage({
+    folders,
+    model,
+    modelURI,
+    prompt,
+    sessionId,
+    taskId,
+  });
+  if (message.isErr()) {
+    throw message.error;
+  }
+
+  publisher.publish("task.updated", { id: taskId });
+  getWorkspaceActorRef().send({
+    type: "createSession",
+    value: {
+      agentName: "main",
+      id: taskId,
+      message: message.value,
+      model,
+      sessionId,
+    },
+  });
+  await recordTaskActivity(taskId);
+
+  return ok(
+    `Created ${taskId} ("${name}"). It is running now.\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
+  );
+}
+
+export async function runSend(
+  args: string[],
+  context: TaskCommandContext,
+  stdin: ByteString,
+) {
+  const task = await requireChild(args[0], context);
+  const prompt = promptFrom(args.slice(1).join(" "), stdin);
+  if (!prompt) {
+    throw new Error(
+      "send: a message is required, on stdin through a quoted heredoc.",
+    );
+  }
+  const state = await getTaskState(taskDir(task.id));
+  const orchestratorState = await getTaskState(
+    taskDir(context.orchestratorTaskId),
+  );
+  const rawURI = state.selectedModelURI ?? orchestratorState.selectedModelURI;
+  if (!rawURI) {
+    throw new Error("send: the task has no model; set one with `task model`.");
+  }
+  const { model, modelURI } = await resolveModel(rawURI);
+  const session = await latestOrNewSessionId(task.id);
+  if (session.isErr()) {
+    throw session.error;
+  }
+  const sessionId = session.value;
+  const message = await newMessage({
+    model,
+    modelURI,
+    prompt,
+    sessionId,
+    taskId: task.id,
+  });
+  if (message.isErr()) {
+    throw message.error;
+  }
+  const running = isWorking(task.id);
+  // Written now, so the task's transcript shows it the moment it was sent.
+  const written = await Store.saveMessageWithParts(message.value, task.id);
+  if (written.isErr()) {
+    throw written.error;
+  }
+  getWorkspaceActorRef().send({
+    type: "addMessage",
+    value: {
+      agentName: "main",
+      id: task.id,
+      message: message.value,
+      model,
+      saved: true,
+      sessionId,
+    },
+  });
+  await recordTaskActivity(task.id);
+  return ok(
+    running
+      ? `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes.\n`
+      : `Sent to ${task.id}. It is running now; you will be told when it finishes.\n`,
+  );
+}
+
+export async function runStop(args: string[], context: TaskCommandContext) {
+  const task = await requireChild(args[0], context);
+  const running = isWorking(task.id);
+  if (!running) {
+    return ok(`${task.id} is not running.\n`);
+  }
+  // The wake would report the turn this ends as a finish; it is not news.
+  expectStop(task.id);
+  getWorkspaceActorRef().send({ type: "stopSessions", value: { id: task.id } });
+  return ok(
+    `Stopping ${task.id}. Its turn ends where it is; \`task send\` gives it the next thing to do.\n`,
+  );
 }
 
 function fail(message: string) {
@@ -448,107 +637,6 @@ async function runModels(args: string[]) {
   return ok(modelTable(models));
 }
 
-async function runNew(
-  args: string[],
-  context: TaskCommandContext,
-  stdin: ByteString,
-) {
-  const { positional, values } = parseFlags(args, {
-    flags: ["app", "folder", "model", "name", "tab"],
-    repeatable: ["app", "folder"],
-  });
-  const prompt = promptFrom(positional.join(" "), stdin);
-  if (!prompt) {
-    throw new Error(
-      `new: a brief is required, on stdin through a quoted heredoc.\n\n${USAGE}`,
-    );
-  }
-  const workspaceConfig = getWorkspaceConfig();
-  const orchestratorState = await getTaskState(
-    taskDir(context.orchestratorTaskId),
-  );
-  const rawURI = values.get("model")?.[0] ?? orchestratorState.selectedModelURI;
-  if (!rawURI) {
-    throw new Error(
-      "new: no model. This conversation has not chosen one yet; pass --model <uri>.",
-    );
-  }
-  const { model, modelURI } = await resolveModel(rawURI);
-  const folders = withWorkspaceFolder(
-    resolveFolders(
-      values.get("folder") ?? [],
-      orchestratorState.attachedFolders ?? {},
-    ),
-  );
-  const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
-  const tab = values.get("tab")?.[0];
-  const browserTargetId =
-    tab === undefined ? undefined : resolveTab(tab, context.orchestratorTaskId);
-  const apps = await resolveApps(values.get("app") ?? []);
-  requireAppsNamedInBrief(prompt, apps);
-
-  const taskId = await newTaskId({ prompt, workspaceConfig });
-  const initialized = await initializeTask(
-    {
-      initialSettings: {
-        apps,
-        kind: "task",
-        name,
-        parentTaskId: context.orchestratorTaskId,
-      },
-      taskId,
-      workspaceConfig,
-    },
-    {},
-  );
-  if (initialized.isErr()) {
-    throw initialized.error;
-  }
-  if (browserTargetId) {
-    await setTaskState(taskDir(taskId), { browserTargetId });
-  }
-  if (context.sessionId) {
-    await recordTaskChannel({
-      orchestratorTaskId: context.orchestratorTaskId,
-      sessionId: context.sessionId,
-      taskId,
-    });
-  }
-  const session = await latestOrNewSessionId(taskId);
-  if (session.isErr()) {
-    throw session.error;
-  }
-  const sessionId = session.value;
-  const message = await newMessage({
-    folders,
-    model,
-    modelURI,
-    prompt,
-    sessionId,
-    taskId,
-  });
-  if (message.isErr()) {
-    throw message.error;
-  }
-
-  publisher.publish("task.updated", { id: taskId });
-  getWorkspaceActorRef().send({
-    type: "createSession",
-    value: {
-      agentName: "main",
-      id: taskId,
-      message: message.value,
-      model,
-      sessionId,
-    },
-  });
-  await recordTaskActivity(taskId);
-
-  return ok(
-    `Created ${taskId} ("${name}"). It is running now.\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
-  );
-}
-
 async function runRename(args: string[], context: TaskCommandContext) {
   const task = await requireChild(args[0], context);
   const title = args.slice(1).join(" ").trim();
@@ -561,67 +649,6 @@ async function runRename(args: string[], context: TaskCommandContext) {
   }
   publisher.publish("task.updated", { id: task.id });
   return ok(`Renamed ${task.id} to "${title}".\n`);
-}
-
-async function runSend(
-  args: string[],
-  context: TaskCommandContext,
-  stdin: ByteString,
-) {
-  const task = await requireChild(args[0], context);
-  const prompt = promptFrom(args.slice(1).join(" "), stdin);
-  if (!prompt) {
-    throw new Error(
-      "send: a message is required, on stdin through a quoted heredoc.",
-    );
-  }
-  const state = await getTaskState(taskDir(task.id));
-  const orchestratorState = await getTaskState(
-    taskDir(context.orchestratorTaskId),
-  );
-  const rawURI = state.selectedModelURI ?? orchestratorState.selectedModelURI;
-  if (!rawURI) {
-    throw new Error("send: the task has no model; set one with `task model`.");
-  }
-  const { model, modelURI } = await resolveModel(rawURI);
-  const session = await latestOrNewSessionId(task.id);
-  if (session.isErr()) {
-    throw session.error;
-  }
-  const sessionId = session.value;
-  const message = await newMessage({
-    model,
-    modelURI,
-    prompt,
-    sessionId,
-    taskId: task.id,
-  });
-  if (message.isErr()) {
-    throw message.error;
-  }
-  const running = isWorking(task.id);
-  // Written now, so the task's transcript shows it the moment it was sent.
-  const written = await Store.saveMessageWithParts(message.value, task.id);
-  if (written.isErr()) {
-    throw written.error;
-  }
-  getWorkspaceActorRef().send({
-    type: "addMessage",
-    value: {
-      agentName: "main",
-      id: task.id,
-      message: message.value,
-      model,
-      saved: true,
-      sessionId,
-    },
-  });
-  await recordTaskActivity(task.id);
-  return ok(
-    running
-      ? `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes.\n`
-      : `Sent to ${task.id}. It is running now; you will be told when it finishes.\n`,
-  );
 }
 
 async function runShow(args: string[], context: TaskCommandContext) {
@@ -656,20 +683,6 @@ async function runShow(args: string[], context: TaskCommandContext) {
     `last said: ${lastSaid ? `\n  ${lastSaid.replaceAll("\n", "\n  ")}` : "nothing yet"}`,
   ];
   return ok(`${lines.join("\n")}\n`);
-}
-
-async function runStop(args: string[], context: TaskCommandContext) {
-  const task = await requireChild(args[0], context);
-  const running = isWorking(task.id);
-  if (!running) {
-    return ok(`${task.id} is not running.\n`);
-  }
-  // The wake would report the turn this ends as a finish; it is not news.
-  expectStop(task.id);
-  getWorkspaceActorRef().send({ type: "stopSessions", value: { id: task.id } });
-  return ok(
-    `Stopping ${task.id}. Its turn ends where it is; \`task send\` gives it the next thing to do.\n`,
-  );
 }
 
 async function runWait(

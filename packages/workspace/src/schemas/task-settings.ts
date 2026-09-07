@@ -1,3 +1,4 @@
+import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import { ProjectIdSchema } from "./project-id";
@@ -38,6 +39,11 @@ export const TaskSettingsSchema = z.object({
   // folder name.
   pinnedAt: z.coerce.date().optional(),
   projectId: ProjectIdSchema.optional(),
+  // How hard this task's model is asked to think, on every turn it takes. Sits
+  // beside the task rather than on a message because a task runs on one model
+  // for its whole life and the level is part of that choice. Absent leaves the
+  // provider's own default, which is what every task took before this existed.
+  reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
   // Presence marks the task as unread. Lives in the folder for the same reasons
   // as pinnedAt, so listing unread tasks is just a scan of task settings.
   unreadIndicator: TaskIndicatorSchema.optional(),

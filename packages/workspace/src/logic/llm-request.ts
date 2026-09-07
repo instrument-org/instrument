@@ -8,6 +8,8 @@ import {
   findCachedModelByProviderId,
   namesSameModel,
   providerOptionsForModel,
+  REASONING_EFFORTS,
+  type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
 import {
   APICallError,
@@ -26,6 +28,8 @@ import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
+import { taskDir } from "../lib/task-dir-utils";
+import { getTaskSettings } from "../lib/task-settings";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
@@ -292,6 +296,12 @@ export const llmRequestLogic = fromPromise<
 
     const aiSDKModel = aiSDKModelResult.value;
 
+    // Read per turn rather than captured with the session's context, because a
+    // level changed on a task takes effect on its next turn: the context
+    // baseline is immutable for the life of the session, and a request
+    // parameter is not part of it.
+    const taskSettings = await getTaskSettings(taskDir(input.taskId));
+
     requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
       abortSignal: signal,
@@ -306,7 +316,10 @@ export const llmRequestLogic = fromPromise<
         // These are thrown and handled by the catch block
         // no-op to avoid excessive logging
       },
-      providerOptions: providerOptionsForModel(aiSDKModel),
+      providerOptions: providerOptionsForModel(aiSDKModel, {
+        effort: taskSettings?.reasoningEffort ?? catalogEffort(input.model),
+        reasoning: input.model.reasoning,
+      }),
       toolChoice: input.toolChoice,
       tools,
     });
@@ -932,3 +945,27 @@ export const llmRequestLogic = fromPromise<
 
   return { message: assistantMessage, parts: await getCurrentParts() };
 });
+
+/**
+ * The level a model runs at when nobody chose one for the task.
+ *
+ * Only ever the model's own stated default, and only for a model that already
+ * reasons without being asked: naming the level it was going to use anyway
+ * makes it explicit, while sending one to a model whose reasoning is off by
+ * default would turn it on and charge for it. Both facts come from the
+ * catalog, which is also where the measurement that set the Workers AI default
+ * is recorded.
+ *
+ * The catalog's word is a provider's, so a rung outside our ladder -- OpenAI's
+ * `xhigh`, Google's `minimal` -- resolves to nothing rather than being coerced.
+ */
+function catalogEffort(model: AIGatewayModel.Type): ReasoningEffort | undefined {
+  const reasoning = model.reasoning;
+  if (!reasoning?.enabledByDefault || reasoning.defaultEffort === undefined) {
+    return undefined;
+  }
+  const rung = REASONING_EFFORTS.find(
+    (effort) => effort === reasoning.defaultEffort,
+  );
+  return rung;
+}

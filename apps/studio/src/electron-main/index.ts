@@ -26,6 +26,7 @@ import {
 import {
   getOrchestratorWindow,
   openOrchestratorWindow,
+  updateOrchestratorWindowBackgroundColor,
 } from "@/electron-main/windows/orchestrator";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
@@ -336,4 +337,5 @@ app.on("window-all-closed", () => {
 function applyThemeToWindows() {
   updateMainWindowBackgroundColor();
   updateOnboardingWindowBackgroundColor();
+  updateOrchestratorWindowBackgroundColor();
 }

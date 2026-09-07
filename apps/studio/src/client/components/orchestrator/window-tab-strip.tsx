@@ -205,7 +205,7 @@ export function WindowTabStrip({
             role="menuitem"
             type="button"
           >
-            Pin to sidebar
+            Pin to new tab
           </button>
           <button
             className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"

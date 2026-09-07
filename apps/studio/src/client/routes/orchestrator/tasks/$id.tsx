@@ -1,4 +1,4 @@
-import { ChannelMark } from "@/client/components/orchestrator/channel-stack";
+import { ChannelFace } from "@/client/components/orchestrator/channel-rail";
 import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
@@ -78,8 +78,8 @@ function TaskRoute() {
         </h2>
         {channel && (
           <span className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border">
-            <ChannelMark />
-            {channel}
+            <ChannelFace channel={{ ...channel, id: "" }} className="text-[12px]" />
+            {channel.name}
           </span>
         )}
       </div>

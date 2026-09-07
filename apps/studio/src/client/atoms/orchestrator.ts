@@ -136,13 +136,25 @@ export type WindowTab =
 /** The address a new tab opens at: the page with the box that reaches everything. */
 export const NEW_TAB_HREF = "/orchestrator/home";
 
-/** The window's tabs in strip order and which is on screen, kept across launches. */
-export const windowTabsAtom = atomWithStorage<{
+/** What one channel has open: its tabs in strip order, and which is on screen. */
+export interface ChannelTabs {
   activeId: null | string;
   tabs: WindowTab[];
-}>("orchestrator.tabs.v1", { activeId: null, tabs: [] }, undefined, {
-  getOnInit: true,
-});
+}
+
+const NO_TABS: ChannelTabs = { activeId: null, tabs: [] };
+
+/**
+ * Every channel's tabs, by channel id, kept across launches.
+ *
+ * A channel owns what is open in the window while it is the one on the rail:
+ * switching channels swaps the whole strip and the page on screen, and the
+ * guests of the channels not on screen stay attached, so a task can carry on
+ * browsing in a channel the user is not looking at.
+ */
+export const windowTabsByChannelAtom = atomWithStorage<
+  Record<string, ChannelTabs>
+>("orchestrator.tabs.v2", {}, undefined, { getOnInit: true });
 
 /** Tabs closed this launch, newest last, for Shift+Cmd+T. A page comes back at its last address. */
 export const closedTabsAtom = atom<WindowTab[]>([]);
@@ -208,4 +220,53 @@ export const selectedChannelAtom = atomWithStorage<null | string>(
   null,
   undefined,
   { getOnInit: true },
+);
+
+/**
+ * The tabs of the channel on screen. Every screen reads and writes this one
+ * and never knows which channel it belongs to; the channel is what the write
+ * is keyed by.
+ */
+export const windowTabsAtom = atom(
+  (get) =>
+    get(windowTabsByChannelAtom)[get(selectedChannelAtom) ?? ""] ?? NO_TABS,
+  (get, set, update: ((current: ChannelTabs) => ChannelTabs) | ChannelTabs) => {
+    const channel = get(selectedChannelAtom) ?? "";
+    set(windowTabsByChannelAtom, (byChannel) => ({
+      ...byChannel,
+      [channel]:
+        typeof update === "function"
+          ? update(byChannel[channel] ?? NO_TABS)
+          : update,
+    }));
+  },
+);
+
+/** Writes a named channel's tabs, for what arrives on a channel other than the one on screen. */
+export const channelTabsAtom = atom(
+  null,
+  (
+    _get,
+    set,
+    channel: string,
+    update: ((current: ChannelTabs) => ChannelTabs) | ChannelTabs,
+  ) => {
+    set(windowTabsByChannelAtom, (byChannel) => ({
+      ...byChannel,
+      [channel]:
+        typeof update === "function"
+          ? update(byChannel[channel] ?? NO_TABS)
+          : update,
+    }));
+  },
+);
+
+/** Every tab id the window holds, across every channel, so nothing is opened twice. */
+export const everyTabIdAtom = atom(
+  (get) =>
+    new Set(
+      Object.values(get(windowTabsByChannelAtom)).flatMap((channel) =>
+        channel.tabs.map((tab) => tab.id),
+      ),
+    ),
 );

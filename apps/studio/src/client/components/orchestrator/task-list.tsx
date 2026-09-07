@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 
 /** One task as the list needs it. */
 export interface TaskListItem {
-  channel?: string;
+  channel?: { emoji?: string; name: string };
   id: TaskId;
   line: string;
   standing: "done" | "running" | "waiting";
@@ -56,7 +56,7 @@ export function TaskList({
       !words ||
       item.title.toLowerCase().includes(words) ||
       item.line.toLowerCase().includes(words) ||
-      (item.channel ?? "").toLowerCase().includes(words)
+      (item.channel?.name ?? "").toLowerCase().includes(words)
     );
   });
   // One clock for the whole render, so every row's "20m" is measured from the
@@ -173,7 +173,7 @@ function groupByDay(
   )) {
     const label = dayLabel(item.updatedAt, now);
     const last = groups.at(-1);
-    if (last && last[0] === label) {
+    if (last?.[0] === label) {
       last[1].push(item);
     } else {
       groups.push([label, [item]]);

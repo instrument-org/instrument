@@ -1,12 +1,10 @@
 import {
   linkedFilesAtom,
   NEW_TAB_HREF,
-  orchestratorPinsHeightAtom,
   type OrchestratorRecent,
   orchestratorRecentsAtom,
   orchestratorSidebarOpenAtom,
   orchestratorSidebarWidthAtom,
-  PINS_HEIGHT_MIN,
   RECENTS_MAX,
   screenViewAtom,
   selectedChannelAtom,
@@ -20,18 +18,16 @@ import {
   BrowserTabs,
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
-import { ChannelStack } from "@/client/components/orchestrator/channel-stack";
+import { ChannelBanner } from "@/client/components/orchestrator/channel-banner";
+import { ChannelRail } from "@/client/components/orchestrator/channel-rail";
 import {
   OrchestratorContext,
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
-import {
-  TasksWorkingRow,
-  ViewChip,
-} from "@/client/components/orchestrator/conversation-chrome";
+import { ViewChip } from "@/client/components/orchestrator/conversation-chrome";
 import { fileHref } from "@/client/components/orchestrator/file-tabs";
+import { NewChannelDialog } from "@/client/components/orchestrator/new-channel-dialog";
 import { screenPresentation } from "@/client/components/orchestrator/screen-presentation";
-import { OrchestratorPins } from "@/client/components/orchestrator/sidebar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
   PAGE_ROUTE,
@@ -108,9 +104,6 @@ const SIDEBAR_BOUNDS: RailBounds = {
   min: SIDEBAR_WIDTH_MIN,
 };
 
-/** The least the conversation keeps when the pinned area is dragged down. */
-const CHAT_HEIGHT_MIN = 240;
-
 export const Route = createFileRoute("/orchestrator")({
   component: OrchestratorLayout,
   head: () => ({ meta: [{ title: APP_NAME }] }),
@@ -165,6 +158,14 @@ function OrchestratorLayout() {
   const sessionId = channelId
     ? StoreId.SessionSchema.parse(channelId)
     : ids?.sessionId;
+  // The tabs are kept per channel and keyed by this, so a selection that is
+  // still null while the list loads would file the first tabs opened under
+  // nothing. Written the moment the list settles rather than left implied.
+  useEffect(() => {
+    if (channelId && selectedChannel !== channelId) {
+      setSelectedChannel(channelId);
+    }
+  }, [channelId, selectedChannel, setSelectedChannel]);
   const createChannel = useMutation(
     rpcClient.workspace.orchestrator.channels.create.mutationOptions({
       onSuccess: (channel) => {
@@ -177,8 +178,8 @@ function OrchestratorLayout() {
     rpcClient.workspace.orchestrator.channels.seen.mutationOptions(),
   );
   const afterChannelChange = { onSuccess: () => void channels.refetch() };
-  const renameChannel = useMutation(
-    rpcClient.workspace.orchestrator.channels.rename.mutationOptions(
+  const updateChannel = useMutation(
+    rpcClient.workspace.orchestrator.channels.update.mutationOptions(
       afterChannelChange,
     ),
   );
@@ -187,23 +188,19 @@ function OrchestratorLayout() {
       afterChannelChange,
     ),
   );
-  const reorderChannels = useMutation(
-    rpcClient.workspace.orchestrator.channels.reorder.mutationOptions(
-      afterChannelChange,
-    ),
-  );
-  // Which channels have a task running, for the dot on their tabs.
+  // Which channels have a task running, for the ring on their marks and for
+  // the line under the banner of the one on screen.
   const activity = useQuery(
     rpcClient.workspace.orchestrator.activity.queryOptions({
       input: ids ? { id: ids.taskId } : skipToken,
       refetchInterval: REFRESH_MS,
     }),
   );
+  const running = activity.data?.running ?? [];
   const workingChannels = new Set(
-    (activity.data?.running ?? []).flatMap((task) =>
-      task.channel ? [task.channel] : [],
-    ),
+    running.flatMap((task) => (task.channel ? [task.channel] : [])),
   );
+  const [isNewChannelOpen, setNewChannelOpen] = useState(false);
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: ids ? { id: ids.taskId } : skipToken,
@@ -242,7 +239,6 @@ function OrchestratorLayout() {
   const [defaultModelURI] = useDefaultModelURI();
   const screenView = useAtomValue(screenViewAtom);
   const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
-  const [pinsHeight, setPinsHeight] = useAtom(orchestratorPinsHeightAtom);
   const isDeveloperMode = useDeveloperMode();
   const setLinkedFiles = useSetAtom(linkedFilesAtom);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -484,6 +480,28 @@ function OrchestratorLayout() {
     );
   }
 
+  // The channels as the rail draws them, and the one it has open. A channel
+  // on screen has nothing unread by definition, since the user is reading it.
+  const railChannels = channelList.map((channel) => ({
+    ...(channel.color ? { color: channel.color } : {}),
+    ...(channel.emoji ? { emoji: channel.emoji } : {}),
+    id: channel.id,
+    name: channel.name,
+    needsYou: channel.id === sessionId ? false : channel.needsYou,
+    unread: channel.id === sessionId ? 0 : channel.unread,
+    working: workingChannels.has(channel.id),
+  }));
+  const openChannel = railChannels.find((channel) => channel.id === sessionId);
+  // Only this channel's work, since the line belongs to the channel rather
+  // than to the window.
+  const channelTasks = running
+    .filter((entry) => entry.channel === sessionId)
+    .map((entry) => ({
+      step: entry.step ?? "Working",
+      taskId: entry.taskId,
+      title: entry.title,
+    }));
+
   if (!screens || !task.data || !state.data) {
     return (
       <Frame>
@@ -504,6 +522,18 @@ function OrchestratorLayout() {
       >
         <PageOpenContext value={openPage}>
           <Frame>
+            {/* The window's own rail, outside the sidebar: a channel owns the
+              conversation, the tabs and the pages in them, so what switches
+              them sits against the traffic lights rather than inside the panel
+              it switches. */}
+            <ChannelRail
+              channels={railChannels}
+              onNew={() => {
+                setNewChannelOpen(true);
+              }}
+              onSelect={setSelectedChannel}
+              {...(sessionId ? { selectedId: sessionId } : {})}
+            />
             {isSidebarOpen ? null : (
               <Rail
                 onOpen={() => {
@@ -521,11 +551,11 @@ function OrchestratorLayout() {
               panelClassName="bg-background"
               widthAtom={orchestratorSidebarWidthAtom}
             >
-              <div className="relative flex min-h-0 w-full flex-1 flex-col pt-10">
+              <div className="relative flex min-h-0 w-full flex-1 flex-col">
                 {/* Beside the traffic lights, where the rail's twin sits. */}
                 <button
                   aria-label="Hide sidebar"
-                  className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                  className="absolute top-2 right-2 z-10 rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
                   onClick={() => {
                     setSidebarOpen(false);
                   }}
@@ -533,61 +563,40 @@ function OrchestratorLayout() {
                 >
                   <SidebarSimpleIcon className="size-4" />
                 </button>
-                <div
-                  className="shrink-0 overflow-y-auto"
-                  style={{ height: pinsHeight }}
-                >
-                  <OrchestratorPins />
-                </div>
-                <PinsDivider
-                  onResize={(height, sidebarHeight) => {
-                    setPinsHeight(
-                      Math.max(
-                        PINS_HEIGHT_MIN,
-                        Math.min(sidebarHeight - CHAT_HEIGHT_MIN, height),
-                      ),
-                    );
-                  }}
-                />
-                <ChannelStack
-                  channels={channelList.map((channel) => ({
-                    id: channel.id,
-                    name: channel.name,
-                    unread: channel.id === sessionId ? 0 : channel.unread,
-                    working: workingChannels.has(channel.id),
-                  }))}
-                  {...(channelList[0] ? { firstId: channelList[0].id } : {})}
-                  onArchive={(id) => {
-                    if (id === sessionId) {
-                      setSelectedChannel(
-                        channelList.find((channel) => channel.id !== id)?.id ??
-                          null,
-                      );
-                    }
-                    archiveChannel.mutate({
-                      id: screens.taskId,
-                      sessionId: StoreId.SessionSchema.parse(id),
-                    });
-                  }}
-                  onNew={(name) => {
-                    createChannel.mutate({ id: screens.taskId, name });
-                  }}
-                  onRename={(id, name) => {
-                    renameChannel.mutate({
-                      id: screens.taskId,
-                      name,
-                      sessionId: StoreId.SessionSchema.parse(id),
-                    });
-                  }}
-                  onReorder={(ids) => {
-                    reorderChannels.mutate({
-                      id: screens.taskId,
-                      ids: ids.map((id) => StoreId.SessionSchema.parse(id)),
-                    });
-                  }}
-                  onSelect={setSelectedChannel}
-                  selectedId={sessionId}
-                >
+                <div className="flex min-h-0 flex-1 flex-col pt-10">
+                  {openChannel && (
+                    <ChannelBanner
+                      channel={openChannel}
+                      {...(channelList[0] &&
+                      channelList[0].id !== openChannel.id
+                        ? {
+                            onArchive: () => {
+                              setSelectedChannel(
+                                channelList.find(
+                                  (channel) => channel.id !== openChannel.id,
+                                )?.id ?? null,
+                              );
+                              archiveChannel.mutate({
+                                id: screens.taskId,
+                                sessionId: StoreId.SessionSchema.parse(
+                                  openChannel.id,
+                                ),
+                              });
+                            },
+                          }
+                        : {})}
+                      onRename={(name) => {
+                        updateChannel.mutate({
+                          id: screens.taskId,
+                          name,
+                          sessionId: StoreId.SessionSchema.parse(
+                            openChannel.id,
+                          ),
+                        });
+                      }}
+                      tasks={channelTasks}
+                    />
+                  )}
                   {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
                   <div
                     className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]"
@@ -603,7 +612,6 @@ function OrchestratorLayout() {
                       <FilesLayoutContext value="list">
                         <TaskChat
                           alwaysSubmittable
-                          beforeComposer={<TasksWorkingRow />}
                           composerLead={<ViewChip />}
                           navigateOnSend={false}
                           presentation="orchestrator"
@@ -649,7 +657,7 @@ function OrchestratorLayout() {
                       </FilesLayoutContext>
                     </TaskSessionProvider>
                   </div>
-                </ChannelStack>
+                </div>
               </div>
             </StudioSidebarRail>
             <main className="relative flex min-w-0 flex-1 flex-col">
@@ -691,6 +699,13 @@ function OrchestratorLayout() {
                   </ActiveTabProvider>
                 </div>
               </div>
+              <NewChannelDialog
+                onCreate={(channel) => {
+                  createChannel.mutate({ ...channel, id: screens.taskId });
+                }}
+                onOpenChange={setNewChannelOpen}
+                open={isNewChannelOpen}
+              />
               <AlertDialog
                 onOpenChange={(open) => {
                   if (!open) {
@@ -735,55 +750,6 @@ function OrchestratorLayout() {
         </PageOpenContext>
       </FileOpenContext>
     </OrchestratorContext>
-  );
-}
-
-/**
- * The line between the pinned area and the conversation, dragged to give
- * either the height. Reports the pinned height and the sidebar's, so the
- * conversation keeps its floor.
- */
-function PinsDivider({
-  onResize,
-}: {
-  onResize: (pinsHeight: number, sidebarHeight: number) => void;
-}) {
-  return (
-    <div
-      aria-label="Resize the pinned area"
-      aria-orientation="horizontal"
-      className="relative mx-3 h-px shrink-0 cursor-row-resize bg-border before:absolute before:inset-x-0 before:-inset-y-1.5 hover:bg-muted-foreground/40"
-      onPointerDown={(event) => {
-        const handle = event.currentTarget;
-        const sidebar = handle.parentElement;
-        if (!sidebar) {
-          return;
-        }
-        event.preventDefault();
-        handle.setPointerCapture(event.pointerId);
-        const top = sidebar.getBoundingClientRect().top;
-        const move = (moveEvent: PointerEvent) => {
-          const zoom = Number.parseFloat(
-            getComputedStyle(document.documentElement).getPropertyValue(
-              "--app-zoom",
-            ) || "1",
-          );
-          onResize(
-            (moveEvent.clientY - top) / zoom - 40,
-            sidebar.getBoundingClientRect().height / zoom,
-          );
-        };
-        const up = () => {
-          handle.removeEventListener("pointermove", move);
-          handle.removeEventListener("pointerup", up);
-          handle.removeEventListener("pointercancel", up);
-        };
-        handle.addEventListener("pointermove", move);
-        handle.addEventListener("pointerup", up);
-        handle.addEventListener("pointercancel", up);
-      }}
-      role="separator"
-    />
   );
 }
 

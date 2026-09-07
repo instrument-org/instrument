@@ -1,4 +1,4 @@
-import { ChannelMark } from "@/client/components/orchestrator/channel-stack";
+import { ChannelFace } from "@/client/components/orchestrator/channel-rail";
 import { cn } from "@/client/lib/utils";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 
@@ -24,7 +24,7 @@ export function TaskRow({
   time,
   title,
 }: {
-  channel?: string;
+  channel?: { emoji?: string; name: string };
   isOpen: boolean;
   line: string;
   madeSomething?: boolean;
@@ -76,8 +76,8 @@ export function TaskRow({
       </span>
       {channel && (
         <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-          <ChannelMark />
-          <span className="hidden @[22rem]/tasks:inline">{channel}</span>
+          <ChannelFace channel={{ ...channel, id: "" }} className="text-[12px]" />
+          <span className="hidden @[22rem]/tasks:inline">{channel.name}</span>
         </span>
       )}
       {madeSomething && (

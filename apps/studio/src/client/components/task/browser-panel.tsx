@@ -80,7 +80,7 @@ interface DidFailLoadEvent extends Event {
  */
 export function TaskBrowserPanel({
   active,
-  chrome = true as boolean | { into: HTMLElement | null },
+  chrome = true,
   className,
   sessionId,
   sliding,

@@ -64,15 +64,17 @@ export function ColorRow({
   return (
     // Eight to a row, each swatch taking an equal share of the width, so the
     // pale row sits square over the deep one and the two read as two families.
-    <div className="grid grid-cols-8 gap-2">
+    <div className="grid grid-cols-8 justify-items-center gap-2">
       {CHANNEL_COLORS.map((color) => (
         <button
           aria-label={`Color ${color}`}
           className={cn(
-            "aspect-square w-full rounded-full ring-1 ring-black/10 transition channel-tint ring-inset",
+            "size-7 rounded-full transition channel-tint",
             color === value
-              ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
-              : "hover:scale-110",
+              ? // Outside the swatch, so choosing one does not shrink it: an
+                // inset ring eats into the color it is meant to be marking.
+                "ring-2 ring-foreground ring-offset-2 ring-offset-popover"
+              : "ring-1 ring-black/10 ring-inset hover:scale-110",
           )}
           key={color}
           onClick={() => {

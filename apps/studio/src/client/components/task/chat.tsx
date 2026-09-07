@@ -465,7 +465,13 @@ export function TaskChat({
       key={selectedSessionId}
       scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
     >
-      <ScrollToEndBridge signal={scrollToEndSignal} />
+      {/* The session is half the signal: arriving in a conversation puts you
+        at its live edge the way opening one does, and switching channels is
+        arriving. Without it the transcript kept whatever offset the previous
+        channel happened to leave behind. */}
+      <ScrollToEndBridge
+        signal={`${selectedSessionId ?? ""}:${scrollToEndSignal}`}
+      />
       <div className="flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
           {/* Named so a block inside a message can measure the pane rather
@@ -567,11 +573,12 @@ export function TaskChat({
           </div>
         </MessageScroller>
 
-        {beforeComposer}
-
         {/* isolate: keep the tutorial card's -z-10 background and the prompt
             input's z-10 contained to the composer. */}
         <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
+          {/* Inside the column rather than above it, so it is exactly as wide
+              as the composer it belongs to. */}
+          {beforeComposer}
           <QueuedPrompts onRemove={remove} prompts={queue} />
           {showTutorial === undefined ? (
             promptInput
@@ -592,17 +599,14 @@ export function TaskChat({
 
 // The scroll commands come from the provider's context, so they are only
 // reachable below it. This renders nothing and exists to run scrollToEnd for
-// the submit handler, which sits above the provider. A counter rather than a
-// direct call, so the scroll runs from the render that turned autoScroll on and
-// the scroller arms follow-bottom with it.
-function ScrollToEndBridge({ signal }: { signal: number }) {
+// the submit handler, which sits above the provider, and for arriving in a
+// conversation. A changing value rather than a direct call, so the scroll runs
+// from the render that turned autoScroll on and the scroller arms
+// follow-bottom with it.
+function ScrollToEndBridge({ signal }: { signal: string }) {
   const { scrollToEnd } = useMessageScroller();
 
   useLayoutEffect(() => {
-    if (signal === 0) {
-      return;
-    }
-
     scrollToEnd();
   }, [scrollToEnd, signal]);
 

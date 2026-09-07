@@ -673,7 +673,14 @@ function OrchestratorLayout() {
                       <FilesLayoutContext value="list">
                         <TaskChat
                           alwaysSubmittable
-                          beforeComposer={<BannerWork tasks={channelTasks} />}
+                          beforeComposer={
+                            <BannerWork
+                              onOpen={(taskId) => {
+                                openScreen(`/orchestrator/tasks/${taskId}`);
+                              }}
+                              tasks={channelTasks}
+                            />
+                          }
                           composerLead={<ViewChip />}
                           {...(openChannel
                             ? {

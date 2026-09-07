@@ -504,7 +504,13 @@ function Tab({
     sizing,
     isSelected
       ? "bg-accent text-accent-foreground"
-      : cn("text-muted-foreground", !isDragging && "hover:bg-accent/50"),
+      : // An opacity of the ink rather than a grey: the strip sits on the
+        // channel's tint in the window bar, and a fixed grey reads as dirt on
+        // a colored ground.
+        cn(
+          "text-foreground/55",
+          !isDragging && "hover:bg-foreground/8 hover:text-foreground",
+        ),
     isDragging && "z-10 shadow-xs-soft",
     isArriving && "pane-tab-arriving",
     isFixed && showSeparator && "mr-3",

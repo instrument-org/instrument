@@ -20,16 +20,23 @@ export interface BannerTask {
  * No mark beside the step, because the step's own shimmer is what says
  * something is happening.
  */
-export function BannerWork({ tasks }: { tasks: BannerTask[] }) {
+export function BannerWork({
+  onOpen,
+  tasks,
+}: {
+  /** Opening one is opening the task itself, which is a tab of its own. */
+  onOpen: (taskId: string) => void;
+  tasks: BannerTask[];
+}) {
   const [isOpen, setOpen] = useState(false);
   if (tasks.length === 0) {
     return null;
   }
   const newest = tasks[0];
   return (
-    <div className="mx-2 mb-1 shrink-0 rounded-lg bg-card/70 px-2 py-1 ring-1 ring-border">
+    <div className="mb-1.5 shrink-0 overflow-hidden rounded-lg bg-card ring-1 ring-border">
       <button
-        className="flex w-full items-center gap-1.5 text-left text-[11px]"
+        className="flex w-full items-center gap-1.5 px-2 py-1 text-left text-[11px]"
         onClick={() => {
           setOpen((open) => !open);
         }}
@@ -45,9 +52,16 @@ export function BannerWork({ tasks }: { tasks: BannerTask[] }) {
             {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
           </span>
         ) : (
-          <span className="min-w-0 flex-1 truncate">
+          <span className="flex min-w-0 flex-1 gap-1 truncate">
             {tasks.length > 1 ? `${tasks.length} tasks · ` : ""}
-            <span className={cn(!newest?.isDone && "brand-shiny-text")}>
+            {/* `brand-shiny-text` is an inline-block, which a parent's truncate
+              cannot shrink, so the step carries its own. */}
+            <span
+              className={cn(
+                "min-w-0 truncate",
+                !newest?.isDone && "brand-shiny-text",
+              )}
+            >
               {newest?.step}
             </span>
           </span>
@@ -55,17 +69,29 @@ export function BannerWork({ tasks }: { tasks: BannerTask[] }) {
       </button>
       {isOpen &&
         tasks.map((task) => (
-          <div className="border-t border-border/60 py-1" key={task.taskId}>
-            <p className="truncate text-[12px] font-medium">{task.title}</p>
-            <p
-              className={cn(
-                "truncate text-[11px]",
-                task.isDone ? "text-muted-foreground" : "brand-shiny-text",
-              )}
-            >
-              {task.step}
-            </p>
-          </div>
+          <button
+            className="flex w-full items-center gap-1.5 border-t border-border/60 px-2 py-1 text-left hover:bg-accent/50"
+            key={task.taskId}
+            onClick={() => {
+              onOpen(task.taskId);
+            }}
+            type="button"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12px] font-medium">
+                {task.title}
+              </span>
+              <span
+                className={cn(
+                  "block max-w-full truncate text-[11px]",
+                  task.isDone ? "text-muted-foreground" : "brand-shiny-text",
+                )}
+              >
+                {task.step}
+              </span>
+            </span>
+            <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
+          </button>
         ))}
     </div>
   );

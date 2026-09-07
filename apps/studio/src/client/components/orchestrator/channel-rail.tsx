@@ -316,16 +316,13 @@ function ChannelTile({
         <ChannelChip
           channel={channel}
           className={cn(
-            // Drawn inside the tile's own box: an outline offset outwards
-            // leaves a hairline of the rail showing between it and the tile,
-            // which reads as a seam on a light ground.
-            // An inset shadow rather than an outline: an outline is painted
-            // outside the border box and the rail clips what leaves a tile,
-            // which took the left and right of the ring with it.
-            isSelected && "shadow-[inset_0_0_0_2px_var(--foreground)]",
-            channel.working &&
-              !isSelected &&
-              "shadow-[inset_0_0_0_2px_var(--primary)]",
+            // A ring rather than an outline or an inset shadow. An outline is
+            // painted outside the border box and the rail clips what leaves a
+            // tile; an inset shadow sits half over the tint and softens at the
+            // corners. A ring is a box-shadow with no spread gap, so it takes
+            // the tile's radius exactly and stays inside what the rail clips.
+            isSelected && "ring-2 ring-foreground",
+            channel.working && !isSelected && "ring-2 ring-primary",
           )}
         />
         {channel.needsYou ? (

@@ -7,8 +7,10 @@ import {
 import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
 import { isFeatureEnabled } from "@/electron-main/stores/features";
 import { diskModelCache } from "@/electron-main/stores/model-cache";
-import { ensureMainWindowVisible } from "@/electron-main/windows/main";
-import { getMainWindow } from "@/electron-main/windows/main/instance";
+import {
+  ensureForegroundWindowVisible,
+  getForegroundWindow,
+} from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
@@ -293,8 +295,10 @@ export function createWorkspaceActor({
 
     // Parent the dialog on the window that is being closed so it is
     // window-modal, rather than a detached app-modal box that can end up behind
-    // the window it is asking about.
-    const parentWindow = getMainWindow();
+    // the window it is asking about. A window that is not on screen is not that
+    // window: a sheet parented to the hidden classic window is a prompt nobody
+    // can answer, and the quit reads as a hang.
+    const parentWindow = getForegroundWindow();
     const { response } = await (parentWindow
       ? dialog.showMessageBox(parentWindow, options)
       : dialog.showMessageBox(options));
@@ -333,7 +337,7 @@ export function createWorkspaceActor({
           // Canceling has to leave the user somewhere. This quit may have
           // started from a window close, and outside macOS a process whose last
           // window is gone can't be reached again at all.
-          void ensureMainWindowVisible();
+          void ensureForegroundWindowVisible();
           return;
         }
 

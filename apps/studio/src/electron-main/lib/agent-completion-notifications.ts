@@ -5,6 +5,7 @@ import {
   type AgentCompletionNotificationMode,
   getPreferencesStore,
 } from "@/electron-main/stores/preferences";
+import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { focusMainContents } from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import {
@@ -168,22 +169,29 @@ function focusTask({
   id: TaskId;
   sessionId: StoreId.Session;
 }) {
-  const mainWindow = getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed()) {
+  const target = getForegroundWindow();
+  if (!target) {
     return;
   }
 
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore();
+  if (target.isMinimized()) {
+    target.restore();
   }
-  mainWindow.show();
-  mainWindow.focus();
-  focusMainContents();
-  sendAppCommand({
-    id,
-    sessionId,
-    type: "focusTask",
-  });
+  target.show();
+  target.focus();
+  // The task opens in a tab, which only the classic window has. Raising the
+  // window is the whole of what a click can do anywhere else, and raising the
+  // right one matters more than the tab: the classic window is hidden under
+  // Instrument 2.0, so showing it put a window the user had never opened over
+  // the one they were working in.
+  if (target === getMainWindow()) {
+    focusMainContents();
+    sendAppCommand({
+      id,
+      sessionId,
+      type: "focusTask",
+    });
+  }
 }
 
 // Reduces the last assistant turn to a short plain-text body. Notifications

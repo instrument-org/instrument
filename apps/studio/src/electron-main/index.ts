@@ -9,10 +9,12 @@ import { createApplicationMenu } from "@/electron-main/menus";
 import { getAppStateStore } from "@/electron-main/stores/app-state";
 import { isFeatureEnabled } from "@/electron-main/stores/features";
 import { checkRecentVersionBump } from "@/electron-main/stores/preferences";
-import { getForegroundWindow } from "@/electron-main/windows/foreground";
+import {
+  ensureForegroundWindowVisible,
+  getForegroundWindow,
+} from "@/electron-main/windows/foreground";
 import {
   createMainWindow,
-  ensureMainWindowVisible,
   updateMainWindowBackgroundColor,
 } from "@/electron-main/windows/main";
 import { focusMainContents } from "@/electron-main/windows/main/controls";
@@ -307,11 +309,7 @@ function focusForegroundWindow() {
     openOnboardingWindow();
     return;
   }
-  if (isFeatureEnabled("instrument_2")) {
-    openOrchestratorWindow();
-    return;
-  }
-  void ensureMainWindowVisible();
+  void ensureForegroundWindowVisible();
 }
 
 function handleDeepLink(_url: string) {

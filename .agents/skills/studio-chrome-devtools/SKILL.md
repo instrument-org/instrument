@@ -190,7 +190,7 @@ studio-drive.mjs stop && studio-drive.mjs boot --purpose "2.0"
 
 The dev panel's **Start in Instrument 2.0** checkbox sets the same flag, and the 2.0 window's File menu has "Switch to Classic Instrument" to turn it off.
 
-With the flag on, one instance serves both windows on one debug port, and both are pages under `/renderer/` — the 2.0 one is often listed *first*. So every command takes `--window`:
+With the flag on, one instance serves both windows on one debug port, and both are pages under `/renderer/` — the 2.0 one is often listed _first_. So every command takes `--window`:
 
 ```
 studio-drive.mjs state --window orchestrator
@@ -209,6 +209,21 @@ It defaults to `main`, and it belongs on every command meant for the 2.0 window 
 Everything else — `click`, `type`, `press`, `wait`, `rpc`, `shot`, `snapshot`, `wait --idle` — behaves identically, because it works on the DOM and the RPC bridge rather than on the classic window's atoms.
 
 A task spawned by the orchestrator opens its browser as a page tab **inside this window**, so its guests are `<webview>`s here rather than in the classic window.
+
+### Sweeping its screens for errors
+
+`scripts/sweep-orchestrator-screens.mjs` walks every 2.0 screen and reports the console errors, warnings and uncaught exceptions each one produced, named by screen:
+
+```bash
+node $DRIVE run $(dirname $DRIVE)/sweep-orchestrator-screens.mjs --window orchestrator
+node $DRIVE run $(dirname $DRIVE)/sweep-orchestrator-screens.mjs --window orchestrator --args '{"reload":true}'
+```
+
+It reads an app slug and a task id off the running app, so the parameterized screens are covered without an id written down here going stale and turning an unvisited screen into a clean result. `reload` restarts the renderer first, which is the only way to see what a screen logs while it *mounts*; it costs the wait, so it is off by default.
+
+Enabling the `Runtime` domain replays the console buffer, so a run would otherwise open by reporting whatever the window logged earlier — an older run's errors, or a person's — as its own findings. Nothing is recorded until the walk starts, and the reload happens before the enable so the buffer it clears is not the one that replays.
+
+The event subscription behind it (`app.cdp.on`) is available to any sequence; the domain that emits them still has to be enabled (`app.cdp.send("Runtime.enable")`).
 
 ## States a dev build otherwise cannot reach
 

@@ -276,8 +276,20 @@ export async function openCdp(origin, windowName = "main") {
 
   let nextId = 0;
   const pending = new Map();
+  // Events, as opposed to command replies. A caller that wants them has to say
+  // so twice: subscribe here, and enable the domain that emits them
+  // (`Runtime.enable` for console output and uncaught exceptions). Without a
+  // subscriber they are parsed and dropped, which is what every call that only
+  // asks questions wants.
+  const listeners = new Set();
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data);
+    if (message.method !== undefined) {
+      for (const listener of listeners) {
+        listener(message);
+      }
+      return;
+    }
     const entry = pending.get(message.id);
     if (!entry) {
       return;
@@ -301,6 +313,11 @@ export async function openCdp(origin, windowName = "main") {
   return {
     close: () => {
       socket.close();
+    },
+    /** Subscribe to CDP events. Returns the function that unsubscribes. */
+    on: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
     send,
   };

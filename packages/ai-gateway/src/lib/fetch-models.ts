@@ -3,7 +3,9 @@ import {
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { Result } from "typescript-result";
+import { z } from "zod";
 
+import { AIGatewayModel } from "../schemas/model";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { demoteSupersededModels } from "./demote-superseded-models";
 import { demoteVariantsOfListedModels } from "./demote-variants-of-listed-models";
@@ -72,7 +74,9 @@ export function fetchModelsForProvider(
       // Variants go first, so a Pro or Fast build cannot stand as its series'
       // current release and demote the base model it is a step up from.
       const models = demoteSupersededModels(
-        demoteVariantsOfListedModels(rawModels),
+        demoteVariantsOfListedModels(
+          representableModels(rawModels, config, captureException),
+        ),
       );
 
       // Don't cache an empty list: a transient empty (or filtered-to-nothing)
@@ -84,11 +88,7 @@ export function fetchModelsForProvider(
       return models;
     })
     .onFailure((error) => {
-      const captureKey = getCaptureKey(config, error);
-      if (!capturedErrors.has(captureKey)) {
-        capturedErrors.add(captureKey);
-        captureException(error);
-      }
+      captureOnce(config, error, captureException);
     })
     .recover((error) => {
       const cached = modelCache.read(config.cacheIdentifier);
@@ -97,6 +97,20 @@ export function fetchModelsForProvider(
       }
       return Result.error(error);
     });
+}
+
+// Once per provider and message, so a catalog that keeps serving the same bad
+// entry is reported the first time rather than on every refetch.
+function captureOnce(
+  config: AIGatewayProviderConfig.Type,
+  error: Error,
+  captureException: CaptureExceptionFunction,
+) {
+  const captureKey = getCaptureKey(config, error);
+  if (!capturedErrors.has(captureKey)) {
+    capturedErrors.add(captureKey);
+    captureException(error);
+  }
 }
 
 function getCaptureKey(config: AIGatewayProviderConfig.Type, error: Error) {
@@ -108,6 +122,35 @@ function getCaptureKey(config: AIGatewayProviderConfig.Type, error: Error) {
 // not-found statuses stay loud because a bad key or URL needs the user.
 function isTransientHttpStatus(status: number) {
   return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+/**
+ * The models this build can represent, dropping any it cannot.
+ *
+ * A list is validated as a whole where it leaves for the renderer, so one entry
+ * carrying a field that fails the model schema takes every other model in the
+ * response with it: the app then reports having no models at all, for a catalog
+ * that was almost entirely fine. A provider is worth more one model short than
+ * empty, so the entry is dropped here, where the failure can still name itself.
+ */
+function representableModels(
+  models: AIGatewayModel.Type[],
+  config: AIGatewayProviderConfig.Type,
+  captureException: CaptureExceptionFunction,
+) {
+  return models.filter((model) => {
+    const parsed = AIGatewayModel.Schema.safeParse(model);
+    if (!parsed.success) {
+      captureOnce(
+        config,
+        new TypedError.Parse(
+          `Dropped ${model.providerId} from ${config.type}: ${z.prettifyError(parsed.error)}`,
+        ),
+        captureException,
+      );
+    }
+    return parsed.success;
+  });
 }
 
 function shouldUseCachedModels(error: Error) {

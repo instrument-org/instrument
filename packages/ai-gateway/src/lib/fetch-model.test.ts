@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type AIGatewayModel } from "../schemas/model";
+import { AIGatewayModel } from "../schemas/model";
 import { AIGatewayModelURI } from "../schemas/model-uri";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { fetchModel } from "./fetch-model";
@@ -31,20 +31,25 @@ const OTHER_MODEL_URI = AIGatewayModelURI.Schema.parse(
   `anthropic/other?provider=anthropic&providerConfigId=${config.id}`,
 );
 
-// The fetcher is mocked, so only `uri` matters to the resolution under test,
-// plus a `canonicalId` and `tags` for the variant and supersession rules the
-// fetch path runs on the way past.
-const FETCHED = [
-  { canonicalId: "claude", name: "claude", tags: [], uri: MODEL_URI },
-] as unknown as AIGatewayModel.Type[];
-const CACHED = [
-  {
-    canonicalId: "claude-cached",
-    name: "claude-cached",
+// The fetcher is mocked, so only `uri` matters to the resolution under test.
+// Whole models even so: the fetch path drops what it cannot represent on the
+// way past, so a stand-in missing half its fields never reaches the end.
+function model(name: string, uri: AIGatewayModel.Type["uri"]) {
+  return AIGatewayModel.Schema.parse({
+    author: "anthropic",
+    canonicalId: name,
+    features: ["inputText", "outputText", "tools"],
+    name,
+    params: { provider: config.type, providerConfigId: config.id },
+    providerId: `anthropic/${name}`,
+    providerName: "Anthropic",
     tags: [],
-    uri: MODEL_URI,
-  },
-] as unknown as AIGatewayModel.Type[];
+    uri,
+  });
+}
+
+const FETCHED = [model("claude", MODEL_URI)];
+const CACHED = [model("claude-cached", MODEL_URI)];
 
 function createMemoryCache(seed?: AIGatewayModel.Type[]): ModelCache {
   const store = new Map<string, AIGatewayModel.Type[]>();
@@ -93,7 +98,7 @@ describe("fetchModel", () => {
   it("fetches when the cache holds other models but not this one", async () => {
     fetchAndParseAnthropicModels.mockResolvedValue([
       ...FETCHED,
-      { canonicalId: "other", name: "other", tags: [], uri: OTHER_MODEL_URI },
+      model("other", OTHER_MODEL_URI),
     ]);
 
     const result = await fetchModel({

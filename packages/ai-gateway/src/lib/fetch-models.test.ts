@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type AIGatewayModel } from "../schemas/model";
+import { AIGatewayModel } from "../schemas/model";
+import { AIGatewayModelURI } from "../schemas/model-uri";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { TypedError } from "./errors";
 import { fetchModelsForProvider } from "./fetch-models";
@@ -11,16 +12,6 @@ const { fetchAndParseAnthropicModels } = vi.hoisted(() => ({
 }));
 
 vi.mock("./fetch-models/anthropic", () => ({ fetchAndParseAnthropicModels }));
-
-// The fetcher is mocked, so only `canonicalId` and `tags` matter, and only
-// because the variant and supersession rules read them on the way through to
-// the cache.
-const MODELS = [
-  { canonicalId: "claude", name: "claude", tags: [] },
-] as unknown as AIGatewayModel.Type[];
-const CACHED = [
-  { canonicalId: "claude-cached", name: "claude-cached", tags: [] },
-] as unknown as AIGatewayModel.Type[];
 
 const config: AIGatewayProviderConfig.Type = {
   apiKey: "test-key",
@@ -33,6 +24,32 @@ function AIProviderConfigId(id: string): AIGatewayProviderConfig.Type["id"] {
   // Branded ID; a bare string is fine for this test.
   return id as AIGatewayProviderConfig.Type["id"];
 }
+
+// The fetcher is mocked, so what these carry beyond `canonicalId` and `tags` --
+// which the variant and supersession rules read on the way through to the cache
+// -- goes unread. Whole models even so: what this path now drops is a model it
+// cannot represent, and a stand-in missing half its fields is one of those.
+function model(name: string): AIGatewayModel.Type {
+  const params = { provider: config.type, providerConfigId: config.id };
+  return AIGatewayModel.Schema.parse({
+    author: "anthropic",
+    canonicalId: name,
+    features: ["inputText", "outputText", "tools"],
+    name,
+    params,
+    providerId: `anthropic/${name}`,
+    providerName: "Anthropic",
+    tags: [],
+    uri: AIGatewayModelURI.fromModel({
+      author: "anthropic",
+      canonicalId: AIGatewayModel.CanonicalIdSchema.parse(name),
+      params,
+    }),
+  });
+}
+
+const MODELS = [model("claude")];
+const CACHED = [model("claude-cached")];
 
 function createMemoryCache(seed?: AIGatewayModel.Type[]): ModelCache & {
   store: Map<string, AIGatewayModel.Type[]>;
@@ -66,6 +83,31 @@ describe("fetchModelsForProvider", () => {
 
     expect(result.getOrNull()).toEqual(MODELS);
     expect(cache.store.get(config.cacheIdentifier)).toEqual(MODELS);
+  });
+
+  // The list is validated as a whole where it leaves for the renderer, so an
+  // entry carrying a field the model schema refuses used to take every other
+  // model in the response with it: the app reported having no models at all,
+  // over one bad value, and offered nothing to do about it.
+  it("drops a model it cannot represent and keeps the rest", async () => {
+    // A catalog entry that says it has no context at all. Nothing else about it
+    // is wrong, and a length of zero is not a length.
+    const noContext = { ...model("no-context"), contextLength: 0 };
+    fetchAndParseAnthropicModels.mockResolvedValue([...MODELS, noContext]);
+    const cache = createMemoryCache();
+
+    const result = await fetchModelsForProvider(config, {
+      captureException,
+      modelCache: cache,
+    });
+
+    expect(result.getOrNull()).toEqual(MODELS);
+    expect(cache.store.get(config.cacheIdentifier)).toEqual(MODELS);
+    // And says which one went, since a catalog that grew a shape we cannot read
+    // is worth hearing about rather than quietly serving one model short.
+    expect(String(captureException.mock.calls[0]?.[0])).toContain(
+      "anthropic/no-context",
+    );
   });
 
   it("does not overwrite cached models when the fetch returns an empty list", async () => {

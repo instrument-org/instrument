@@ -13,6 +13,7 @@ import {
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOpenFileTab } from "@/client/components/orchestrator/file-tabs";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
+import { useQuickLook } from "@/client/components/orchestrator/quick-look";
 import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { InstrumentGlyph } from "@/client/components/wordmark";
@@ -118,6 +119,7 @@ function HomeRoute() {
   const navigate = useNavigate();
   const router = useRouter();
   const openFileTab = useOpenFileTab();
+  const quickLook = useQuickLook({ openFile: openFileTab });
   const recents = useAtomValue(orchestratorRecentsAtom);
   const selectedChannel = useAtomValue(selectedChannelAtom);
   const pins = useAtomValue(pinsAtom);
@@ -324,8 +326,11 @@ function HomeRoute() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-8 pt-5 pb-5">
+      {/* The box stays in the middle of the page. The rows under it start at
+        the column's left edge, which is where a list of things belongs; the
+        one control the page is for does not. */}
       <div className="mx-auto w-full max-w-5xl">
-        <div className="relative max-w-xl">
+        <div className="relative mx-auto max-w-xl">
           <div className="flex h-11 items-center gap-2 rounded-full border border-border bg-card px-4 shadow-sm focus-within:border-foreground/30">
             <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground" />
             <input
@@ -478,13 +483,32 @@ function HomeRoute() {
           thing would be the only difference between them. */}
       <section className="mx-auto mt-3 w-full max-w-5xl">
         <p className={SECTION_LABEL}>Bookmarks</p>
-        {pins.length === 0 ? (
+        {pins.length === 0 && !isHomeChannel ? (
           <p className="text-xs text-muted-foreground">
             Right-click a tab to pin it here.
           </p>
         ) : (
           <>
             <div className="flex flex-nowrap gap-1 overflow-hidden">
+              {/* The app's own room keeps one bookmark it did not have to be
+                given: the work, which spans every channel and so belongs to
+                the channel that is about the app rather than to a tab. */}
+              {isHomeChannel && (
+                <button
+                  className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
+                  onClick={() => {
+                    void navigate({ to: "/orchestrator/tasks" });
+                  }}
+                  type="button"
+                >
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card shadow-sm">
+                    <InstrumentGlyph className="size-5 text-brand-600" />
+                  </span>
+                  <span className="w-full truncate text-center text-xs">
+                    Tasks
+                  </span>
+                </button>
+              )}
               {pins.slice(0, PINS_SHOWN).map((pin) => (
                 <button
                   className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
@@ -529,29 +553,12 @@ function HomeRoute() {
             path={finderAt.path}
             refreshInterval={FINDER_REFRESH_MS}
             root={finderAt.root}
+            {...quickLook.props}
           />
         </div>
       </section>
 
-      {isHomeChannel && (
-        <div className="mx-auto w-full max-w-5xl pt-4">
-          <button
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-muted-foreground hover:bg-accent/30"
-            onClick={() => {
-              void navigate({ to: "/orchestrator/tasks" });
-            }}
-            type="button"
-          >
-            <InstrumentGlyph className="size-3.5 shrink-0" />
-            <span>
-              Tasks
-              {children.data && children.data.length > 0
-                ? ` · ${children.data.length}`
-                : ""}
-            </span>
-          </button>
-        </div>
-      )}
+      {quickLook.dialog}
     </div>
   );
 }

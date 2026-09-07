@@ -322,10 +322,16 @@ function ChannelTile({
             // corners. A ring is a box-shadow with no spread gap, so it takes
             // the tile's radius exactly and stays inside what the rail clips.
             isSelected && "ring-2 ring-foreground",
-            channel.working && !isSelected && "ring-2 ring-primary",
           )}
         />
-        {channel.needsYou ? (
+        {channel.working ? (
+          // Working takes the corner the count would have had, because it is
+          // the same question answered sooner: something happened in there.
+          // A ring around the whole tile read as a second selection.
+          <span className="absolute top-0 right-0 grid size-4 place-items-center rounded-full bg-card ring-2 ring-card">
+            <span className="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+          </span>
+        ) : channel.needsYou ? (
           // A question rather than a warning: it is asking the user something,
           // and it takes the corner from the count because a channel that has
           // stopped is the more urgent of the two. Inside the tile's own box,

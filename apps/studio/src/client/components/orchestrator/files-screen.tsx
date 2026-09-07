@@ -1,23 +1,18 @@
 import { type FileTab } from "@/client/atoms/orchestrator";
 import { FileViewer } from "@/client/components/file-viewer";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/client/components/ui/dialog";
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
-import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ComputerPage, type FolderOnScreen, PathBar } from "./computer-page";
 import { useOrchestrator } from "./context";
 import { hostPathOfMount, useOpenFileTab } from "./file-tabs";
 import { useOnScreen } from "./on-screen";
+import { useQuickLook } from "./quick-look";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -52,10 +47,9 @@ export function FilesScreen({
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const navigate = useNavigate();
   const [folder, setFolder] = useState<FolderOnScreen | null>(null);
-  const [quickLook, setQuickLook] = useState<FileTab | null>(null);
+  const quickLook = useQuickLook({ openFile });
   // Where the keyboard was when Quick Look opened, so it goes back there when
   // Quick Look closes and the arrows keep walking the folder.
-  const quickLookOrigin = useRef<HTMLElement | null>(null);
   const activeFile: FileTab | undefined = file
     ? {
         ...(() => {
@@ -170,75 +164,13 @@ export function FilesScreen({
               );
             }}
             onOpenFile={openFile}
-            onQuickLook={(tab) => {
-              if (document.activeElement instanceof HTMLElement) {
-                quickLookOrigin.current = document.activeElement;
-              }
-              setQuickLook((current) =>
-                current?.mount === tab.mount ? null : tab,
-              );
-            }}
-            onQuickLookFollow={setQuickLook}
             path={path}
-            quickLookOpen={quickLook !== null}
             root={root}
+            {...quickLook.props}
           />
         )}
       </div>
-      <Dialog
-        onOpenChange={(open) => {
-          if (!open) {
-            setQuickLook(null);
-          }
-        }}
-        open={quickLook !== null}
-      >
-        <DialogContent
-          className="h-full gap-0 p-0 outline-none"
-          // Most of the window, the way Quick Look fills it, whatever the zoom.
-          maxHeight="calc(85vh / var(--content-zoom))"
-          maxWidth="calc(88vw / var(--content-zoom))"
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            quickLookOrigin.current?.focus();
-          }}
-          // Focus stays on the panel itself rather than moving to the first
-          // control in it, so Space puts the panel away instead of pressing
-          // whatever button it landed on, the way a second Space does in the
-          // Finder. Caught on the way down, before any control sees it.
-          onKeyDownCapture={(event) => {
-            if (event.key === " " && !isTypingTarget(event.target)) {
-              event.preventDefault();
-              event.stopPropagation();
-              setQuickLook(null);
-            }
-          }}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            if (event.currentTarget instanceof HTMLElement) {
-              event.currentTarget.focus();
-            }
-          }}
-        >
-          <DialogTitle className="sr-only">
-            {quickLook?.name ?? "Quick Look"}
-          </DialogTitle>
-          {quickLook ? (
-            <FileViewer
-              className="h-full"
-              file={viewerFile(quickLook)}
-              key={quickLook.mount}
-              onClose={() => {
-                setQuickLook(null);
-              }}
-              onExpand={() => {
-                setQuickLook(null);
-                openFile(quickLook);
-              }}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      {quickLook.dialog}
     </div>
   );
 }

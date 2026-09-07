@@ -8,24 +8,25 @@ import {
   orchestratorActivity,
   OrchestratorActivitySchema,
 } from "../../lib/orchestrator/activity";
+import { taskChannels } from "../../lib/orchestrator/attribution";
 import {
   archiveChannel,
   CHANNEL_NAME_MAX,
   channelName,
   channelStandings,
   createChannel,
+  listChannels,
   markChannelSeen,
-  renameChannel,
   reorderChannels,
+  updateChannel,
 } from "../../lib/orchestrator/channels";
-import { taskChannels } from "../../lib/orchestrator/attribution";
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
-import { taskStanding } from "../../lib/orchestrator/standing";
 import {
   ensureHomeFolder,
   ensureOutputFolder,
 } from "../../lib/orchestrator/output-folder";
+import { taskStanding } from "../../lib/orchestrator/standing";
 import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
@@ -73,8 +74,15 @@ const children = base
   .input(z.object({ id: TaskIdSchema }))
   .output(
     TaskSchema.extend({
-      /** The channel it was filed from, absent for a task made before channels. */
-      channel: z.string().optional(),
+      /**
+       * The channel it was filed from, as the user knows it, absent for a task
+       * made before channels or filed from one since archived.
+       */
+      channel: z
+        .object({ emoji: z.string().optional(), name: z.string() })
+        .optional(),
+      /** The same channel by its session id, for the window's own bookkeeping. */
+      channelId: StoreId.SessionSchema.optional(),
       // With each one's folder on disk: what a link into `/tasks/<id>` opens.
       dir: z.string(),
       /** Where it stands and the line the list says about it. */
@@ -86,17 +94,34 @@ const children = base
   )
   .handler(async ({ input }) => {
     const tasks = await listChildTasks(input.id);
-    const channels = await taskChannels(input.id);
+    const filedIn = await taskChannels(input.id);
+    // The session a task was filed from is an id; the row wants the name and
+    // the mark the user chose for it.
+    const channels = await listChannels(input.id);
+    const known = new Map(
+      channels.map((channel) => [
+        channel.id,
+        {
+          ...(channel.emoji ? { emoji: channel.emoji } : {}),
+          name: channel.name,
+        },
+      ]),
+    );
     return await Promise.all(
-      tasks.map(async (task) => ({
-        ...task,
-        ...(channels[task.id] ? { channel: channels[task.id] } : {}),
-        dir: taskDir(task.id),
-        standing: await taskStanding({
-          isRunning: isWorking(task.id),
-          taskId: task.id,
-        }),
-      })),
+      tasks.map(async (task) => {
+        const filed = filedIn[task.id];
+        const channel = filed ? known.get(filed) : undefined;
+        return {
+          ...task,
+          ...(channel ? { channel } : {}),
+          ...(filed && channel ? { channelId: filed } : {}),
+          dir: taskDir(task.id),
+          standing: await taskStanding({
+            isRunning: isWorking(task.id),
+            taskId: task.id,
+          }),
+        };
+      }),
     );
   });
 
@@ -123,11 +148,20 @@ const ensure = base
   });
 
 const ChannelSchema = z.object({
+  color: z.string().optional(),
   createdAt: z.number(),
+  emoji: z.string().optional(),
   id: StoreId.SessionSchema,
   name: z.string(),
+  needsYou: z.boolean(),
   unread: z.number(),
   updatedAt: z.number(),
+});
+
+/** What the user picks about a channel: its mark, its tint. */
+const ChannelMarkSchema = z.object({
+  color: z.string().max(9).optional(),
+  emoji: z.string().max(8).optional(),
 });
 
 /** The conversation's channels, in the order they were made. */
@@ -139,7 +173,7 @@ const listChannelsRoute = base
 /** Makes a channel: a session of the same conversation under a name. */
 const createChannelRoute = base
   .input(
-    z.object({
+    ChannelMarkSchema.extend({
       id: TaskIdSchema,
       name: z
         .string()
@@ -147,23 +181,33 @@ const createChannelRoute = base
         .max(CHANNEL_NAME_MAX * 2),
     }),
   )
-  .output(ChannelSchema.omit({ unread: true, updatedAt: true }))
-  .handler(({ input }) => createChannel(input.id, channelName(input.name)));
+  .output(ChannelSchema.omit({ needsYou: true, unread: true, updatedAt: true }))
+  .handler(({ input }) =>
+    createChannel(input.id, channelName(input.name), {
+      ...(input.color ? { color: input.color } : {}),
+      ...(input.emoji ? { emoji: input.emoji } : {}),
+    }),
+  );
 
-/** Renames a channel, in place. */
-const renameChannelRoute = base
+/** Changes what the user chose about a channel: its name, its mark, its tint. */
+const updateChannelRoute = base
   .input(
-    z.object({
+    ChannelMarkSchema.extend({
       id: TaskIdSchema,
       name: z
         .string()
         .min(1)
-        .max(CHANNEL_NAME_MAX * 2),
+        .max(CHANNEL_NAME_MAX * 2)
+        .optional(),
       sessionId: StoreId.SessionSchema,
     }),
   )
   .handler(async ({ input }) => {
-    await renameChannel(input.id, input.sessionId, input.name);
+    await updateChannel(input.id, input.sessionId, {
+      ...(input.color === undefined ? {} : { color: input.color }),
+      ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
+      ...(input.name === undefined ? {} : { name: input.name }),
+    });
   });
 
 /** Takes a channel out of the strip, keeping what was said in it. */
@@ -227,9 +271,9 @@ export const orchestrator = {
     archive: archiveChannelRoute,
     create: createChannelRoute,
     list: listChannelsRoute,
-    rename: renameChannelRoute,
     reorder: reorderChannelsRoute,
     seen: seenChannelRoute,
+    update: updateChannelRoute,
   },
   children,
   childStatus,

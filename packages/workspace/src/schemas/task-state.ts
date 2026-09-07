@@ -46,7 +46,11 @@ export const StoredTaskStateSchema = z
         z.object({
           /** Out of the strip, with everything said in it kept. */
           archived: z.boolean().optional(),
+          /** The tint its conversation is drawn on, as a hex string. */
+          color: z.string().optional(),
           createdAt: z.number(),
+          /** What stands for it on the rail: one emoji, chosen when it was made. */
+          emoji: z.string().optional(),
           id: StoreId.SessionSchema,
           name: z.string(),
           seenMessageId: StoreId.MessageSchema.optional(),

@@ -117,27 +117,6 @@ export async function setTaskState(
 }
 
 /**
- * Apply a change to the pane, reading the current one inside the write queue.
- *
- * The tab actions are read-modify-write on top of a read-modify-write, and the
- * whole point of queuing is lost if the read happens before the queue: two
- * `show` calls in one command line would each append to the tabs they saw and
- * the second would drop the first's.
- */
-export async function updateTaskPane(
-  dir: TaskDir,
-  update: (pane: TaskPane.Type) => TaskPane.Type,
-): Promise<TaskPane.Type> {
-  const written = await updateTaskRecord(dir, (record) =>
-    recordWithState(record, {
-      pane: update(record.state.pane ?? TaskPane.EMPTY),
-    }),
-  );
-
-  return written.state.pane ?? TaskPane.EMPTY;
-}
-
-/**
  * Applies a change to the channels, reading them inside the write queue.
  *
  * Every channel write is read-modify-write on one array, and several run at
@@ -156,6 +135,27 @@ export async function updateTaskChannels(
     recordWithState(record, { channels: update(record.state.channels ?? []) }),
   );
   return written.state.channels ?? [];
+}
+
+/**
+ * Apply a change to the pane, reading the current one inside the write queue.
+ *
+ * The tab actions are read-modify-write on top of a read-modify-write, and the
+ * whole point of queuing is lost if the read happens before the queue: two
+ * `show` calls in one command line would each append to the tabs they saw and
+ * the second would drop the first's.
+ */
+export async function updateTaskPane(
+  dir: TaskDir,
+  update: (pane: TaskPane.Type) => TaskPane.Type,
+): Promise<TaskPane.Type> {
+  const written = await updateTaskRecord(dir, (record) =>
+    recordWithState(record, {
+      pane: update(record.state.pane ?? TaskPane.EMPTY),
+    }),
+  );
+
+  return written.state.pane ?? TaskPane.EMPTY;
 }
 
 /**

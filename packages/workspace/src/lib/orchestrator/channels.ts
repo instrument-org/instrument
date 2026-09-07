@@ -6,6 +6,7 @@ import { type TaskState } from "../../schemas/task-state";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, updateTaskChannels } from "../task-record";
+import { sessionAsk } from "./standing";
 
 /**
  * The channel every orchestrator has, made on first use and never archived:
@@ -22,53 +23,17 @@ export type Channel = NonNullable<TaskState["channels"]>[number];
 
 /** A channel and what the user has not seen in it. */
 export interface ChannelStanding {
+  color?: string;
   createdAt: number;
+  emoji?: string;
   id: StoreId.Session;
   name: string;
+  /** Its last turn ended on an ask, so it has stopped until the user answers. */
+  needsYou: boolean;
   /** Assistant messages since the user last had this channel on screen. */
   unread: number;
   /** When anything last landed in it, for ordering and for the agent's context. */
   updatedAt: number;
-}
-
-/** A channel by name, however the caller cased or hashed it. */
-export async function channelByName(
-  taskId: TaskId,
-  name: string,
-): Promise<Channel | undefined> {
-  // Case-insensitive, since a name is written by the user and typed back by
-  // the agent, and neither should have to remember which.
-  const wanted = channelName(name).toLowerCase();
-  const channels = await listChannels(taskId);
-  return channels.find((channel) => channel.name.toLowerCase() === wanted);
-}
-
-/** What a name becomes: no hash, one space between words, bounded. */
-export function channelName(raw: string): string {
-  return raw
-    .trim()
-    .replace(/^#+/, "")
-    .replaceAll(/\s+/g, " ")
-    .trim()
-    .slice(0, CHANNEL_NAME_MAX);
-}
-
-/**
- * Renames a channel. The name is the user's, so nothing here judges it beyond
- * the shape every name takes.
- */
-export async function renameChannel(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-  name: string,
-): Promise<void> {
-  await updateTaskChannels(taskDir(taskId), (channels) =>
-    channels.map((channel) =>
-      channel.id === sessionId
-        ? { ...channel, name: channelName(name) }
-        : channel,
-    ),
-  );
 }
 
 /**
@@ -100,20 +65,26 @@ export async function archiveChannel(
   return refused ? { archived: false, reason: refused } : { archived: true };
 }
 
-/** The order the strip was left in, which is the order it opens in. */
-export async function reorderChannels(
+/** A channel by name, however the caller cased or hashed it. */
+export async function channelByName(
   taskId: TaskId,
-  ids: StoreId.Session[],
-): Promise<void> {
-  await updateTaskChannels(taskDir(taskId), (channels) => {
-    const byId = new Map(channels.map((channel) => [channel.id, channel]));
-    const moved = ids.flatMap((id) => {
-      const channel = byId.get(id);
-      return channel ? [channel] : [];
-    });
-    const rest = channels.filter((channel) => !ids.includes(channel.id));
-    return [...moved, ...rest];
-  });
+  name: string,
+): Promise<Channel | undefined> {
+  // Case-insensitive, since a name is written by the user and typed back by
+  // the agent, and neither should have to remember which.
+  const wanted = channelName(name).toLowerCase();
+  const channels = await listChannels(taskId);
+  return channels.find((channel) => channel.name.toLowerCase() === wanted);
+}
+
+/** What a name becomes: no hash, one space between words, bounded. */
+export function channelName(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^#+/, "")
+    .replaceAll(/\s+/g, " ")
+    .trim()
+    .slice(0, CHANNEL_NAME_MAX);
 }
 
 /** The channel a session belongs to, or none when the session is not one. */
@@ -157,6 +128,7 @@ export async function channelStandings(
   const standings = await Promise.all(
     channels.map(async (channel) => ({
       ...channel,
+      needsYou: (await sessionAsk(taskId, channel.id)) !== undefined,
       unread: await unreadCount(taskId, channel),
       updatedAt: await lastActivity(taskId, channel.id),
     })),
@@ -168,10 +140,13 @@ export async function channelStandings(
 export async function createChannel(
   taskId: TaskId,
   name: string,
+  mark: { color?: string; emoji?: string } = {},
 ): Promise<Channel> {
   await listChannels(taskId);
   const channel: Channel = {
+    ...(mark.color ? { color: mark.color } : {}),
     createdAt: Date.now(),
+    ...(mark.emoji ? { emoji: mark.emoji } : {}),
     id: await makeSession(taskId, name),
     name: channelName(name),
   };
@@ -232,6 +207,48 @@ export async function markChannelSeen(
     channels.map((channel) =>
       channel.id === sessionId
         ? { ...channel, seenMessageId: newest }
+        : channel,
+    ),
+  );
+}
+
+/** The order the strip was left in, which is the order it opens in. */
+export async function reorderChannels(
+  taskId: TaskId,
+  ids: StoreId.Session[],
+): Promise<void> {
+  await updateTaskChannels(taskDir(taskId), (channels) => {
+    const byId = new Map(channels.map((channel) => [channel.id, channel]));
+    const moved = ids.flatMap((id) => {
+      const channel = byId.get(id);
+      return channel ? [channel] : [];
+    });
+    const rest = channels.filter((channel) => !ids.includes(channel.id));
+    return [...moved, ...rest];
+  });
+}
+
+/**
+ * Changes what the user chose about a channel: its name, its mark, its color.
+ * All three are the user's, so nothing here judges them beyond the shape every
+ * name takes; anything left out is left alone.
+ */
+export async function updateChannel(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+  change: { color?: string; emoji?: string; name?: string },
+): Promise<void> {
+  await updateTaskChannels(taskDir(taskId), (channels) =>
+    channels.map((channel) =>
+      channel.id === sessionId
+        ? {
+            ...channel,
+            ...(change.color === undefined ? {} : { color: change.color }),
+            ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
+            ...(change.name === undefined
+              ? {}
+              : { name: channelName(change.name) }),
+          }
         : channel,
     ),
   );

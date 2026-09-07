@@ -1,13 +1,11 @@
+import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import { Store } from "../store";
 import { latestStep } from "./activity";
 import { lastAssistantText, latestSessionId } from "./latest-session";
-import { Store } from "../store";
 
 /** How much of the agent's own words the list shows on a task's second line. */
 const LINE_MAX = 90;
-
-/** Where a task stands, in the three words the list can say it in. */
-export type TaskStandingKind = "done" | "running" | "waiting";
 
 export interface TaskStanding {
   kind: TaskStandingKind;
@@ -18,12 +16,50 @@ export interface TaskStanding {
   line: string;
 }
 
+/** Where a task stands, in the three words the list can say it in. */
+export type TaskStandingKind = "done" | "running" | "waiting";
+
 /** What a pending ask is waiting for, in the user's terms. */
 const ASKS: Record<string, string> = {
   choose: "Waiting for you to answer",
   connect_app: "Waiting for you to sign in",
   request_folder: "Waiting for you to pick a folder",
 };
+
+/**
+ * What a conversation is waiting on the user for, when its last turn ended on
+ * an ask rather than on words. A channel is a session, so this is also how a
+ * channel says it has stopped and needs an answer.
+ */
+export async function sessionAsk(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<string | undefined> {
+  const messages = await Store.getMessagesWithParts({
+    sessionId,
+    taskId,
+  });
+  if (messages.isErr()) {
+    return undefined;
+  }
+  const last = messages.value.findLast(
+    (message) => message.role === "assistant",
+  );
+  for (const part of last?.parts ?? []) {
+    const name = part.type.startsWith("tool-")
+      ? part.type.slice("tool-".length)
+      : undefined;
+    if (
+      name &&
+      ASKS[name] &&
+      "state" in part &&
+      (part.state === "input-available" || part.state === "input-streaming")
+    ) {
+      return ASKS[name];
+    }
+  }
+  return undefined;
+}
 
 /**
  * Where a task stands and what to say about it.
@@ -79,28 +115,5 @@ async function pendingAsk(taskId: TaskId): Promise<string | undefined> {
   if (sessionId.isErr() || !sessionId.value) {
     return undefined;
   }
-  const messages = await Store.getMessagesWithParts({
-    sessionId: sessionId.value,
-    taskId,
-  });
-  if (messages.isErr()) {
-    return undefined;
-  }
-  const last = messages.value.findLast(
-    (message) => message.role === "assistant",
-  );
-  for (const part of last?.parts ?? []) {
-    const name = part.type.startsWith("tool-")
-      ? part.type.slice("tool-".length)
-      : undefined;
-    if (
-      name &&
-      ASKS[name] &&
-      "state" in part &&
-      (part.state === "input-available" || part.state === "input-streaming")
-    ) {
-      return ASKS[name];
-    }
-  }
-  return undefined;
+  return sessionAsk(taskId, sessionId.value);
 }

@@ -15,15 +15,6 @@ const freshTask = () =>
     TaskIdSchema.parse(`standing-${Date.now()}-${(counter += 1)}`),
   );
 
-async function withSession(taskId: ReturnType<typeof freshTask>) {
-  const sessionId = StoreId.newSessionId();
-  await Store.saveSession(
-    { createdAt: new Date(), id: sessionId, title: "task" },
-    taskId,
-  );
-  return sessionId;
-}
-
 function assistant(
   sessionId: StoreId.Session,
   part: (ids: {
@@ -44,6 +35,15 @@ function assistant(
     parts: [part({ messageId, sessionId })],
     role: "assistant",
   };
+}
+
+async function withSession(taskId: ReturnType<typeof freshTask>) {
+  const sessionId = StoreId.newSessionId();
+  await Store.saveSession(
+    { createdAt: new Date(), id: sessionId, title: "task" },
+    taskId,
+  );
+  return sessionId;
 }
 
 describe("taskStanding", () => {

@@ -119,71 +119,6 @@ export function leadingWords(
 }
 
 /**
- * A line cut into its commands (at `;`, `&&`, `||`) and each command into
- * the stages of its pipeline (at `|`), with quoted text left whole: a `|`
- * inside a grep pattern or an app call's JSON is data, and cutting there
- * would refuse the command for a word from the middle of its argument.
- */
-function stages(line: string): { piped: boolean; stage: string }[] {
-  const result: { piped: boolean; stage: string }[] = [];
-  let quote: string | undefined;
-  let start = 0;
-  let piped = false;
-  const cut = (end: number, next: number, nextPiped: boolean) => {
-    result.push({ piped, stage: line.slice(start, end) });
-    start = next;
-    piped = nextPiped;
-  };
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
-    if (quote !== undefined) {
-      if (quote === '"' && character === "\\") {
-        index += 1;
-      } else if (character === quote) {
-        quote = undefined;
-      }
-      continue;
-    }
-    switch (character) {
-      case "'":
-      case '"': {
-        quote = character;
-        break;
-      }
-      case "\\": {
-        index += 1;
-        break;
-      }
-      case ";": {
-        cut(index, index + 1, false);
-        break;
-      }
-      case "&": {
-        if (line[index + 1] === "&") {
-          cut(index, index + 2, false);
-          index += 1;
-        }
-        break;
-      }
-      case "|": {
-        if (line[index + 1] === "|") {
-          cut(index, index + 2, false);
-          index += 1;
-        } else {
-          cut(index, index + 1, true);
-        }
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
-  result.push({ piped, stage: line.slice(start) });
-  return result;
-}
-
-/**
  * The conversation's agent does no work of its own: every command it runs
  * is `task` or `app`, and a filter is allowed only downstream of one, on
  * their output. Anything else is refused with the way to do it instead, so
@@ -251,6 +186,71 @@ async function raceYield<T>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * A line cut into its commands (at `;`, `&&`, `||`) and each command into
+ * the stages of its pipeline (at `|`), with quoted text left whole: a `|`
+ * inside a grep pattern or an app call's JSON is data, and cutting there
+ * would refuse the command for a word from the middle of its argument.
+ */
+function stages(line: string): { piped: boolean; stage: string }[] {
+  const result: { piped: boolean; stage: string }[] = [];
+  let quote: string | undefined;
+  let start = 0;
+  let piped = false;
+  const cut = (end: number, next: number, nextPiped: boolean) => {
+    result.push({ piped, stage: line.slice(start, end) });
+    start = next;
+    piped = nextPiped;
+  };
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (quote !== undefined) {
+      if (quote === '"' && character === "\\") {
+        index += 1;
+      } else if (character === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+    switch (character) {
+      case '"':
+      case "'": {
+        quote = character;
+        break;
+      }
+      case "&": {
+        if (line[index + 1] === "&") {
+          cut(index, index + 2, false);
+          index += 1;
+        }
+        break;
+      }
+      case ";": {
+        cut(index, index + 1, false);
+        break;
+      }
+      case "\\": {
+        index += 1;
+        break;
+      }
+      case "|": {
+        if (line[index + 1] === "|") {
+          cut(index, index + 2, false);
+          index += 1;
+        } else {
+          cut(index, index + 1, true);
+        }
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  result.push({ piped, stage: line.slice(start) });
+  return result;
 }
 
 export const BashTool = setupTool({

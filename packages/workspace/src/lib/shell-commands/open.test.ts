@@ -8,20 +8,6 @@ import { createOpenCommand } from "./open";
 
 const taskId = TaskIdSchema.parse("open-command-task");
 
-function run(options: { tabIdTimeoutMs?: number }, ...args: string[]) {
-  const fsTree = new InMemoryFs();
-  fsTree.writeFileSync("/mnt/Instrument/report.md", "# report");
-  return createOpenCommand({ taskId, ...options }).execute(
-    args,
-    createCommandContext({
-      cwd: "/task",
-      env: new Map<string, string>(),
-      fs: fsTree,
-      stdin: EMPTY_BYTES,
-    }),
-  );
-}
-
 /** A window: answers each page it is asked to open with the tab it made. */
 function answeringWindow() {
   const tabIds: StoreId.Session[] = [];
@@ -38,6 +24,20 @@ function answeringWindow() {
     });
   });
   return { tabIds, unsubscribe };
+}
+
+function run(options: { tabIdTimeoutMs?: number }, ...args: string[]) {
+  const fsTree = new InMemoryFs();
+  fsTree.writeFileSync("/mnt/Instrument/report.md", "# report");
+  return createOpenCommand({ taskId, ...options }).execute(
+    args,
+    createCommandContext({
+      cwd: "/task",
+      env: new Map<string, string>(),
+      fs: fsTree,
+      stdin: EMPTY_BYTES,
+    }),
+  );
 }
 
 describe("open", () => {

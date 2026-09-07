@@ -11,7 +11,11 @@ import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
 import { channelsContextText } from "../lib/orchestrator/channels";
-import { listRunnableModels, modelTable } from "../lib/orchestrator/models";
+import {
+  listRunnableModels,
+  modelTable,
+  ownProviderConfigId,
+} from "../lib/orchestrator/models";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { taskDir } from "../lib/task-dir-utils";
@@ -19,6 +23,7 @@ import { getTaskState } from "../lib/task-record";
 import { effectiveFolderAccess } from "../lib/workspace-fs-layout";
 import { MOUNT } from "../mount-points";
 import { type SessionMessage } from "../schemas/session/message";
+import { type TaskId } from "../schemas/task-id";
 import { TOOLS } from "../tools/all";
 import { setupAgent } from "./create-agent";
 import {
@@ -43,10 +48,14 @@ export const TASK_TOOL_ENABLED = process.env.INSTRUMENT_TASK_TOOL === "1";
 /** How many of the newest models ride along in the context, so "the newest" needs no command. */
 const NEWEST_MODELS_IN_CONTEXT = 12;
 
-async function newestModelsText(): Promise<string[]> {
+async function newestModelsText(orchestratorTaskId: TaskId): Promise<string[]> {
   let models;
   try {
-    models = await listRunnableModels();
+    const providerConfigId = await ownProviderConfigId(orchestratorTaskId);
+    if (providerConfigId === undefined) {
+      return [];
+    }
+    models = await listRunnableModels(providerConfigId);
   } catch {
     return [];
   }
@@ -192,7 +201,7 @@ ${
           })
         : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;
 
-    const modelsText = await newestModelsText();
+    const modelsText = await newestModelsText(taskId);
     const appsText = await buildAppsContextText();
     const channelsText = await channelsContextText(taskId, sessionId);
     const userMessage = createContextMessage({

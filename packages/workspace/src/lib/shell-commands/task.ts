@@ -1,4 +1,5 @@
 import {
+  type AIGatewayModel,
   AIGatewayModelURI,
   fetchModel,
   REASONING_EFFORTS,
@@ -36,7 +37,11 @@ import {
   latestOrNewSessionId,
   latestSessionId,
 } from "../orchestrator/latest-session";
-import { listRunnableModels, modelTable } from "../orchestrator/models";
+import {
+  listRunnableModels,
+  modelTable,
+  ownProviderConfigId,
+} from "../orchestrator/models";
 import { outputFolderPath } from "../orchestrator/output-folder";
 import { expectStop } from "../orchestrator/wake";
 import { Store } from "../store";
@@ -115,11 +120,12 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
   ${TASK_COMMAND.name} log <id> [--tail <lines>]
       Its transcript, last ${DEFAULT_LOG_TAIL_LINES} lines by default. Composes: \`${TASK_COMMAND.name} log <id> | rg error\`.
   ${TASK_COMMAND.name} model <id> <uri>
-      The model its next turn runs on.
+      The model its next turn runs on, named from the list \`models\` gives.
   ${TASK_COMMAND.name} models [--author <name>]
       Every model you can run, newest first: release date, context window, price
       in dollars per million tokens in and out, what it takes besides text, and
-      tags. Long; pipe it through head or rg.
+      tags. All of them on the provider this conversation runs on, which is the
+      only provider a task of yours runs on. Long; pipe it through head or rg.
   ${TASK_COMMAND.name} wait <id> [--timeout <ms>]
       Block until it finishes or the timeout, whichever comes first. Rarely the
       right call: you are woken when it finishes anyway.
@@ -158,7 +164,7 @@ export function createTaskCommand(context: TaskCommandContext) {
           return await runModel(rest, context);
         }
         case "models": {
-          return await runModels(rest);
+          return await runModels(rest, context);
         }
         case "new": {
           return await runNew(rest, context, ctx.stdin);
@@ -214,6 +220,7 @@ export async function runNew(
     );
   }
   const { model, modelURI } = await resolveModel(rawURI);
+  await requireOwnProvider(model, context);
   const folders = withWorkspaceFolder(
     resolveFolders(
       values.get("folder") ?? [],
@@ -465,6 +472,39 @@ async function requireChild(
 }
 
 /**
+ * Refuses a model from any other provider. Another provider is another account
+ * and another bill, spent without anything here reporting the difference until
+ * it had been. The user is still free to move a task to any model themselves.
+ */
+async function requireOwnProvider(
+  model: AIGatewayModel.Type,
+  context: TaskCommandContext,
+) {
+  const providerConfigId = await requireOwnProviderConfigId(context);
+  if (model.params.providerConfigId !== providerConfigId) {
+    throw new Error(
+      `${model.uri} is not on this conversation's provider, and a task runs on no other. \`${TASK_COMMAND.name} models\` lists every model you can hand one.`,
+    );
+  }
+}
+
+/**
+ * The provider config this conversation runs on, which is the only one it may
+ * put a task on.
+ */
+async function requireOwnProviderConfigId(context: TaskCommandContext) {
+  const providerConfigId = await ownProviderConfigId(
+    context.orchestratorTaskId,
+  );
+  if (providerConfigId === undefined) {
+    throw new Error(
+      "this conversation has not chosen a model yet, so it has no provider to run a task on.",
+    );
+  }
+  return providerConfigId;
+}
+
+/**
  * The apps a task is handed, each checked to be connected now: a task given
  * an app that cannot answer would fail on its first call and wake the
  * orchestrator about it, which is a turn wasted on what this catches.
@@ -627,15 +667,18 @@ async function runModel(args: string[], context: TaskCommandContext) {
   if (!rawURI) {
     throw new Error("model: a model URI is required.");
   }
-  const { modelURI } = await resolveModel(rawURI);
+  const { model, modelURI } = await resolveModel(rawURI);
+  await requireOwnProvider(model, context);
   await setTaskState(taskDir(task.id), { selectedModelURI: modelURI });
   return ok(`${task.id} will run its next turn on ${modelURI}.\n`);
 }
 
-async function runModels(args: string[]) {
+async function runModels(args: string[], context: TaskCommandContext) {
   const { values } = parseFlags(args, { flags: ["author"], repeatable: [] });
   const author = values.get("author")?.[0]?.toLowerCase();
-  const runnable = await listRunnableModels();
+  const runnable = await listRunnableModels(
+    await requireOwnProviderConfigId(context),
+  );
   const models = runnable.filter(
     (model) => author === undefined || model.author.toLowerCase() === author,
   );

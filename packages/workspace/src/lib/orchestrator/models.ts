@@ -1,8 +1,13 @@
 import {
   type AIGatewayModel,
+  AIGatewayModelURI,
   fetchModelResultsForProviders,
 } from "@instrument-org/ai-gateway";
+import { type AIProviderConfigId } from "@instrument-org/shared";
 
+import { type TaskId } from "../../schemas/task-id";
+import { taskDir } from "../task-dir-utils";
+import { getTaskState } from "../task-record";
 import { getWorkspaceConfig } from "../workspace-config";
 
 export type ModelColumn =
@@ -17,15 +22,23 @@ export type ModelColumn =
   | "uri";
 
 /**
- * Every model the orchestrator can hand a task, newest first. A restricted
- * model is one the signed-in user cannot run, so it is left out rather than
- * listed for a task that would fail on its first request. Models with no
- * release date sort after every dated one, and names break ties.
+ * Every model the orchestrator can hand a task, newest first. One provider
+ * config only, the conversation's own, because every other one is another
+ * account and another bill: the same model is usually listed by several, and
+ * a conversation free to pick any of them spends from whichever row it read
+ * first. A restricted model is one the signed-in user cannot run, so it is
+ * left out rather than listed for a task that would fail on its first
+ * request. Models with no release date sort after every dated one, and names
+ * break ties.
  */
-export async function listRunnableModels(): Promise<AIGatewayModel.Type[]> {
+export async function listRunnableModels(
+  providerConfigId: AIProviderConfigId,
+): Promise<AIGatewayModel.Type[]> {
   const workspaceConfig = getWorkspaceConfig();
   const results = await fetchModelResultsForProviders(
-    workspaceConfig.getAIProviderConfigs(),
+    workspaceConfig
+      .getAIProviderConfigs()
+      .filter((config) => config.id === providerConfigId),
     {
       captureException: workspaceConfig.captureException,
       modelCache: workspaceConfig.modelCache,
@@ -39,6 +52,22 @@ export async function listRunnableModels(): Promise<AIGatewayModel.Type[]> {
         (b.releasedAt ?? "").localeCompare(a.releasedAt ?? "") ||
         a.name.localeCompare(b.name),
     );
+}
+
+/**
+ * The provider config a conversation runs on, and so the only one its tasks
+ * may run on. Undefined until it has been messaged, since a conversation has
+ * no model before then.
+ */
+export async function ownProviderConfigId(
+  orchestratorTaskId: TaskId,
+): Promise<AIProviderConfigId | undefined> {
+  const state = await getTaskState(taskDir(orchestratorTaskId));
+  if (!state.selectedModelURI) {
+    return undefined;
+  }
+  const parsed = AIGatewayModelURI.parse(state.selectedModelURI);
+  return parsed.ok ? parsed.value.params.providerConfigId : undefined;
 }
 
 const ALL_MODEL_COLUMNS: ModelColumn[] = [

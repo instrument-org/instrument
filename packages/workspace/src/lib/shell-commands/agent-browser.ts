@@ -696,6 +696,12 @@ export function createAgentBrowserCommand({
       // one started without it holds no CDP endpoint and would launch its own
       // browser the next time a command needed a page.
       commandArgs.push("--session", `${sessionId}-read`, ...resolvedArgs);
+    } else if (workspaceConfig.browser.hasNoWindow) {
+      // No window to drive, so leave the provider unregistered and let the CLI
+      // start a browser of its own. It does that correctly, and it is the
+      // difference between a task that can open the page it just wrote and one
+      // that gets a CDP deserialization error on every attempt.
+      commandArgs.push("--session", sessionId, ...resolvedArgs);
     } else {
       // A task handed a tab of the orchestrator window drives that tab rather
       // than a browser of its own; nothing is created and nothing recorded,

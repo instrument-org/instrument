@@ -178,6 +178,7 @@ export function createStubBrowserConfig(): BrowserConfig {
         targetId: encodeBrowserTargetId(id, sessionId),
       }),
     getTargetMeta: () => null,
+    hasNoWindow: true,
     listTargets: () => Promise.resolve([]),
     onTargetDestroyed: () => noop,
     sendCommand: () => Promise.resolve({}),

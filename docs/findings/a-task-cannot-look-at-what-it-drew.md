@@ -24,7 +24,15 @@ The command exists, the skill loads, the binary runs, and the first navigation f
 
 `agent-browser` is pointed at the workspace's own CDP bridge rather than at a browser of its own: `shell-commands/agent-browser.ts` registers the Instrument provider plugin with a `ws://` URL into `routes/cdp-bridge.ts`, which forwards every command to `workspaceConfig.browser.sendCommand`. In the eval harness that is `createStubBrowserConfig` (`src/test/helpers/mock-task-config.ts`), whose `sendCommand` resolves `{}` for every method. `Page.navigate` is answered with an empty object, `agent-browser`'s Rust client requires `frameId` on that response, and it errors.
 
-So this is a harness gap, not a product defect: in the app the bridge is backed by a real webview. What is untested is whether a task in the app can open **its own file** — the guest is driven through the bridge to a URL, and a task's deliverable lives in the virtual FS rather than at a URL the guest can reach, so the working route is likely the per-task asset origin rather than a path. Nothing in the prompt or the skill says so today.
+So this is a harness gap, not a product defect: in the app the bridge is backed by a real webview.
+
+A task opening its own file by path is fine, and the wrapper is what makes it fine. `agent-browser open output/page.html` comes back as
+
+```
+✓ http://assets.2026-09-07-write-a-file-page-html-in-your-output.localhost:48500/output/page.html
+```
+
+— the command rewrites a task-relative path onto the per-task asset origin before the browser sees it, so the model never has to know the origin exists. That translation is in the shared wrapper rather than anywhere eval-specific, so the same call should work in the app; that has not been run against a packaged build.
 
 ## Why it matters more than it looks
 
@@ -45,7 +53,15 @@ GLM 5.3 Flash, on the octopus drawing, spent six of thirteen tool calls trying t
 
 That last line is the whole workaround, and it took a model six failures to find. The two paid models in the same round tried the browser once and moved on.
 
-## What would fix it
+## The fix, and what it changed
 
-- **In the harness:** give eval tasks a browser that works. Either back `createStubBrowserConfig` with a real headless Chrome over CDP, or leave the Instrument provider plugin unregistered when there is no real browser, so `agent-browser` launches its own — which it does correctly, as the standalone check above shows. Until then, a stub that answers with a clear refusal beats one that answers with a deserialization error, because a task can act on the first and only burns steps on the second.
-- **In the product, once the app path is checked:** if a task cannot open its own deliverable in the app either, that is the single highest-leverage change available to output quality, because it is the difference between a task that verifies and a task that asserts. If it can, the route needs to be in the `agent-browser` skill in as many words, since three models out of four guessed a bare path and none guessed an asset URL.
+`BrowserConfig` gained `hasNoWindow`, which only the eval harness sets. Where it is set, `agent-browser` is left without the Instrument provider plugin and starts a browser of its own, which it does correctly. Nothing about the app path moves.
+
+The check that it works is also the check that matters: asked to write a page and read its heading back, the same model that could not navigate before now opens the file, gets the asset URL above, and reports the heading.
+
+Two things the working loop showed immediately, both on GLM 5.3 Flash and neither visible before:
+
+- Given sight of its own drawing, it **changes it**. On the octopus it rendered the SVG, read the PNG, moved the center pin, re-rendered, and looked again. That is the whole self-check loop, and it had never once completed in any earlier round.
+- Rasterizing is still a scavenger hunt. `pnpm add sharp` cannot run in the task sandbox and the `sharp-images` skill's copy is not reachable either, so the only route that works is `pip install resvg-py`. Every model that wants to see an SVG pays several failed calls to find it.
+
+So the remaining product question is not whether a task can open a page — it can — but whether it has any supported way to turn a drawing or a document into pixels. Today it does not, and the models are finding one by trial.

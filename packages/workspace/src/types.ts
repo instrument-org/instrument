@@ -26,6 +26,16 @@ import { type WebSearchClient } from "./schemas/web-search";
 export const BrowserHostSchema = z.enum(["main", "orchestrator"]);
 export interface BrowserConfig {
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
+  /**
+   * True where there is no window behind this config, so a task should be left
+   * to start a browser of its own rather than pointed at the CDP bridge.
+   *
+   * Only the eval harness sets it. Without it a run stubs `sendCommand` to an
+   * empty object, the bridge answers `Page.navigate` with no `frameId`, and
+   * every attempt a task makes to look at what it wrote dies on a protocol
+   * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
+   */
+  hasNoWindow?: boolean;
   createTarget: (
     id: TaskId,
     sessionId: StoreId.Session,

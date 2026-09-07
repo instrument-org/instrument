@@ -49,8 +49,14 @@ export interface BrowserTabsHandle {
   /** A step in the guest's own history, which is this tab's and no other's. */
   goBack: () => void;
   goForward: () => void;
-  /** Opens a new page tab, at an address when given, and shows it. */
-  open: (url?: string) => void;
+  /** Sends the guest on screen to an address, in the tab it is in. */
+  navigate: (url: string) => void;
+  /**
+   * Opens a new page tab, at an address when given, and shows it. Given a
+   * tab to replace, the page takes that tab's place in the strip: a new tab
+   * becoming the page that was typed into it.
+   */
+  open: (url?: string, options?: { replacing?: WindowTab }) => void;
   /**
    * Shows the page tab already at that address, or opens one there. Given a
    * tab to replace, a page opened takes that tab's place in the strip rather
@@ -521,8 +527,14 @@ export function BrowserTabs({
       goForward: () => {
         stepGuest("forward");
       },
-      open: (url) => {
-        openTab(url);
+      navigate: (url) => {
+        const webview = activeTarget && getWebviewElement(activeTarget);
+        if (webview) {
+          void webview.loadURL(url);
+        }
+      },
+      open: (url, options) => {
+        openTab(url, options?.replacing);
       },
       openOrFocus: (url, options) => {
         // A tab still on that site, by where it is now: a tab that was opened

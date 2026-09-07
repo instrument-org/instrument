@@ -390,14 +390,9 @@ function OrchestratorLayout() {
   const openPage = (url: string) => {
     // A page opened from a new tab becomes that tab. When the page is one
     // already open, that one is shown and the new tab goes.
-    const fresh = isFreshNewTab ? active : undefined;
-    const outcome = browser?.openOrFocus(
-      url,
-      fresh ? { replacing: fresh } : undefined,
-    );
-    if (fresh && outcome !== "opened") {
-      windowTabs.close(fresh.id);
-    }
+    // Always a tab of its own: a site already open elsewhere is not this
+    // request, and showing it instead left the strip pointing at nothing.
+    browser?.open(url, isFreshNewTab ? { replacing: active } : undefined);
   };
   const openScreen = (href: string) => {
     if (isFreshNewTab) {
@@ -855,14 +850,15 @@ function OrchestratorLayout() {
               <TabLocationRow
                 canGoBack={canGoBack}
                 canGoForward={canGoForward}
-                // A page's field is the page's own bar, drawn into this slot
-                // by the panel that has the page: the address, reload and
-                // the menu, with nothing of theirs to keep in step.
+                // On a page the field sends the tab's own guest somewhere,
+                // and the page's controls (reload, the way out, the menu) are
+                // drawn into the row's tail by the panel that has the page.
                 {...(tabLocation.kind === "page"
                   ? {
-                      field: (
+                      onSite: (url: string) => browser?.navigate(url),
+                      trailing: (
                         <div
-                          className="mx-1 flex min-w-0 flex-1 items-center gap-1"
+                          className="flex shrink-0 items-center gap-0.5"
                           ref={setChromeSlot}
                         />
                       ),

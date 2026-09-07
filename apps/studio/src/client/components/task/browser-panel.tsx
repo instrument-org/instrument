@@ -361,232 +361,404 @@ export function TaskBrowserPanel({
       )}
     >
       {(() => {
-        const bar = (
+        // Reload and the menu, which the row above can carry as they are; the
+        // address is drawn there by the row itself, so only its way out to
+        // the user's own browser comes along.
+        const controls = (
           <>
-          <ToolbarTooltip shortcut="reloadPage">
-            <Button
-              disabled={!active}
-              onClick={() => webviewFor()?.reload()}
-              size="icon-sm"
-              variant="ghost"
-            >
-              <ArrowClockwiseIcon className="size-4" />
-            </Button>
-          </ToolbarTooltip>
-          <form
-            className="min-w-0 flex-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const target = resolveUrlOrSearch(draftUrl);
-              if (target) {
-                navigateTo(target);
-                // Blur so the "editing" guard releases and the resolved final URL
-                // (after normalization/redirects) syncs back into the bar once the
-                // navigation commits, instead of leaving what the user typed.
-                inputRef.current?.blur();
-              }
-            }}
-          >
-            <InputGroup className="h-8 rounded-lg border border-input from-transparent to-transparent shadow-none dark:bg-transparent">
-              <InputGroupInput
-                className="h-full bg-none text-ellipsis dark:border-0"
+            <ToolbarTooltip shortcut="reloadPage">
+              <Button
                 disabled={!active}
-                onBlur={() => {
-                  editingUrlRef.current = false;
-                }}
-                onChange={(event) => {
-                  setDraftUrl(event.target.value);
-                }}
-                onFocus={() => {
-                  editingUrlRef.current = true;
-                }}
-                placeholder="Enter a URL or search"
-                ref={inputRef}
-                spellCheck={false}
-                value={draftUrl}
-              />
-              <InputGroupAddon
-                align="inline-end"
-                className="hidden group-focus-within/input-group:flex group-hover/input-group:flex"
+                onClick={() => webviewFor()?.reload()}
+                size="icon-sm"
+                variant="ghost"
               >
-                <ToolbarTooltip label="Open in external browser">
-                  <InputGroupButton
-                    disabled={!pageUrl}
-                    onClick={() => {
-                      if (pageUrl) {
-                        openExternalLink.mutate({ url: pageUrl });
-                      }
-                    }}
-                    size="icon-xs"
-                  >
-                    <ArrowSquareOutIcon />
-                  </InputGroupButton>
-                </ToolbarTooltip>
-              </InputGroupAddon>
-            </InputGroup>
-          </form>
-          <DropdownMenu
-            // Non-modal so clicking into the guest `<webview>` (a separate
-            // WebContents) isn't blocked by the modal body `pointer-events: none`;
-            // combined with the window-blur close above, that dismisses the menu.
-            modal={false}
-            onOpenChange={(open) => {
-              // No live page -> nothing to act on; refuse to open even if the
-              // disabled trigger is bypassed.
-              if (open && !pageUrl) {
-                return;
-              }
-              if (open) {
-                const webview = webviewFor();
-                if (webview) {
-                  try {
-                    setZoomFactor(webview.getZoomFactor());
-                  } catch {
-                    // Not dom-ready yet; keep the last known zoom.
+                <ArrowClockwiseIcon className="size-4" />
+              </Button>
+            </ToolbarTooltip>
+            <DropdownMenu
+              // Non-modal so clicking into the guest `<webview>` (a separate
+              // WebContents) isn't blocked by the modal body `pointer-events: none`;
+              // combined with the window-blur close above, that dismisses the menu.
+              modal={false}
+              onOpenChange={(open) => {
+                // No live page -> nothing to act on; refuse to open even if the
+                // disabled trigger is bypassed.
+                if (open && !pageUrl) {
+                  return;
+                }
+                if (open) {
+                  const webview = webviewFor();
+                  if (webview) {
+                    try {
+                      setZoomFactor(webview.getZoomFactor());
+                    } catch {
+                      // Not dom-ready yet; keep the last known zoom.
+                    }
                   }
                 }
-              }
-              setMenuOpen(open);
-            }}
-            open={menuOpen}
-          >
-            <DropdownMenuTrigger asChild>
-              <Button disabled={!pageUrl} size="icon-sm" variant="ghost">
-                <DotsThreeVerticalIcon className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="flex items-center justify-between px-2 py-1.5">
-                <span className="text-sm">Zoom</span>
-                <ZoomStepperControl
-                  canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
-                  canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
-                  onZoomIn={() => {
-                    applyZoom(
-                      steppedZoom({
-                        direction: "in",
-                        factor: zoomFactor,
-                        max: BROWSER_ZOOM_MAX,
-                        min: BROWSER_ZOOM_MIN,
-                      }),
-                    );
-                  }}
-                  onZoomOut={() => {
-                    applyZoom(
-                      steppedZoom({
-                        direction: "out",
-                        factor: zoomFactor,
-                        max: BROWSER_ZOOM_MAX,
-                        min: BROWSER_ZOOM_MIN,
-                      }),
-                    );
-                  }}
-                  readout={
-                    <ZoomLevelMenu
-                      max={BROWSER_ZOOM_MAX}
-                      min={BROWSER_ZOOM_MIN}
-                      nested
-                      onSelect={applyZoom}
-                      zoom={zoomFactor}
-                    />
-                  }
-                />
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <DeviceMobileIcon className="size-4" />
-                  View as
-                  {emulatedDevice && (
-                    <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
-                      {emulatedDevice.label}
-                    </span>
-                  )}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup
-                    onValueChange={(value) => {
-                      setEmulatedDevice(
-                        EMULATED_DEVICES.find(
-                          (device) => device.id === value,
-                        ) ?? null,
+                setMenuOpen(open);
+              }}
+              open={menuOpen}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button disabled={!pageUrl} size="icon-sm" variant="ghost">
+                  <DotsThreeVerticalIcon className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="flex items-center justify-between px-2 py-1.5">
+                  <span className="text-sm">Zoom</span>
+                  <ZoomStepperControl
+                    canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
+                    canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
+                    onZoomIn={() => {
+                      applyZoom(
+                        steppedZoom({
+                          direction: "in",
+                          factor: zoomFactor,
+                          max: BROWSER_ZOOM_MAX,
+                          min: BROWSER_ZOOM_MIN,
+                        }),
                       );
                     }}
-                    value={emulatedDevice?.id ?? "actual-size"}
-                  >
-                    <DropdownMenuRadioItem value="actual-size">
-                      Actual size
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuSeparator />
-                    {EMULATED_DEVICES.map((device) => (
-                      <DropdownMenuRadioItem key={device.id} value={device.id}>
-                        {device.label}
-                        <span className="ml-auto text-xs text-muted-foreground">
-                          {device.width}×{device.height}
-                        </span>
+                    onZoomOut={() => {
+                      applyZoom(
+                        steppedZoom({
+                          direction: "out",
+                          factor: zoomFactor,
+                          max: BROWSER_ZOOM_MAX,
+                          min: BROWSER_ZOOM_MIN,
+                        }),
+                      );
+                    }}
+                    readout={
+                      <ZoomLevelMenu
+                        max={BROWSER_ZOOM_MAX}
+                        min={BROWSER_ZOOM_MIN}
+                        nested
+                        onSelect={applyZoom}
+                        zoom={zoomFactor}
+                      />
+                    }
+                  />
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <DeviceMobileIcon className="size-4" />
+                    View as
+                    {emulatedDevice && (
+                      <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
+                        {emulatedDevice.label}
+                      </span>
+                    )}
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuRadioGroup
+                      onValueChange={(value) => {
+                        setEmulatedDevice(
+                          EMULATED_DEVICES.find(
+                            (device) => device.id === value,
+                          ) ?? null,
+                        );
+                      }}
+                      value={emulatedDevice?.id ?? "actual-size"}
+                    >
+                      <DropdownMenuRadioItem value="actual-size">
+                        Actual size
                       </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  find.setFindOpen(true);
-                }}
-              >
-                <MagnifyingGlassIcon className="size-4" />
-                Find in page
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  webviewFor()?.reloadIgnoringCache();
-                }}
-              >
-                <ArrowCounterClockwiseIcon className="size-4" />
-                Hard reload
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  const url = currentUrl();
-                  if (url) {
-                    void navigator.clipboard.writeText(url);
+                      <DropdownMenuSeparator />
+                      {EMULATED_DEVICES.map((device) => (
+                        <DropdownMenuRadioItem
+                          key={device.id}
+                          value={device.id}
+                        >
+                          {device.label}
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {device.width}×{device.height}
+                          </span>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    find.setFindOpen(true);
+                  }}
+                >
+                  <MagnifyingGlassIcon className="size-4" />
+                  Find in page
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    webviewFor()?.reloadIgnoringCache();
+                  }}
+                >
+                  <ArrowCounterClockwiseIcon className="size-4" />
+                  Hard reload
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    const url = currentUrl();
+                    if (url) {
+                      void navigator.clipboard.writeText(url);
+                    }
+                  }}
+                >
+                  <CopyIcon className="size-4" />
+                  Copy URL
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <ToolbarTooltip label="Open in external browser">
+              <Button
+                disabled={!pageUrl}
+                onClick={() => {
+                  if (pageUrl) {
+                    openExternalLink.mutate({ url: pageUrl });
                   }
                 }}
+                size="icon-sm"
+                variant="ghost"
               >
-                <CopyIcon className="size-4" />
-                Copy URL
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <ArrowSquareOutIcon className="size-4" />
+              </Button>
+            </ToolbarTooltip>
+          </>
+        );
+        const bar = (
+          <>
+            <ToolbarTooltip shortcut="reloadPage">
+              <Button
+                disabled={!active}
+                onClick={() => webviewFor()?.reload()}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <ArrowClockwiseIcon className="size-4" />
+              </Button>
+            </ToolbarTooltip>
+            <form
+              className="min-w-0 flex-1"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const target = resolveUrlOrSearch(draftUrl);
+                if (target) {
+                  navigateTo(target);
+                  // Blur so the "editing" guard releases and the resolved final URL
+                  // (after normalization/redirects) syncs back into the bar once the
+                  // navigation commits, instead of leaving what the user typed.
+                  inputRef.current?.blur();
+                }
+              }}
+            >
+              <InputGroup className="h-8 rounded-lg border border-input from-transparent to-transparent shadow-none dark:bg-transparent">
+                <InputGroupInput
+                  className="h-full bg-none text-ellipsis dark:border-0"
+                  disabled={!active}
+                  onBlur={() => {
+                    editingUrlRef.current = false;
+                  }}
+                  onChange={(event) => {
+                    setDraftUrl(event.target.value);
+                  }}
+                  onFocus={() => {
+                    editingUrlRef.current = true;
+                  }}
+                  placeholder="Enter a URL or search"
+                  ref={inputRef}
+                  spellCheck={false}
+                  value={draftUrl}
+                />
+                <InputGroupAddon
+                  align="inline-end"
+                  className="hidden group-focus-within/input-group:flex group-hover/input-group:flex"
+                >
+                  <ToolbarTooltip label="Open in external browser">
+                    <InputGroupButton
+                      disabled={!pageUrl}
+                      onClick={() => {
+                        if (pageUrl) {
+                          openExternalLink.mutate({ url: pageUrl });
+                        }
+                      }}
+                      size="icon-xs"
+                    >
+                      <ArrowSquareOutIcon />
+                    </InputGroupButton>
+                  </ToolbarTooltip>
+                </InputGroupAddon>
+              </InputGroup>
+            </form>
+            <DropdownMenu
+              // Non-modal so clicking into the guest `<webview>` (a separate
+              // WebContents) isn't blocked by the modal body `pointer-events: none`;
+              // combined with the window-blur close above, that dismisses the menu.
+              modal={false}
+              onOpenChange={(open) => {
+                // No live page -> nothing to act on; refuse to open even if the
+                // disabled trigger is bypassed.
+                if (open && !pageUrl) {
+                  return;
+                }
+                if (open) {
+                  const webview = webviewFor();
+                  if (webview) {
+                    try {
+                      setZoomFactor(webview.getZoomFactor());
+                    } catch {
+                      // Not dom-ready yet; keep the last known zoom.
+                    }
+                  }
+                }
+                setMenuOpen(open);
+              }}
+              open={menuOpen}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button disabled={!pageUrl} size="icon-sm" variant="ghost">
+                  <DotsThreeVerticalIcon className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="flex items-center justify-between px-2 py-1.5">
+                  <span className="text-sm">Zoom</span>
+                  <ZoomStepperControl
+                    canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
+                    canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
+                    onZoomIn={() => {
+                      applyZoom(
+                        steppedZoom({
+                          direction: "in",
+                          factor: zoomFactor,
+                          max: BROWSER_ZOOM_MAX,
+                          min: BROWSER_ZOOM_MIN,
+                        }),
+                      );
+                    }}
+                    onZoomOut={() => {
+                      applyZoom(
+                        steppedZoom({
+                          direction: "out",
+                          factor: zoomFactor,
+                          max: BROWSER_ZOOM_MAX,
+                          min: BROWSER_ZOOM_MIN,
+                        }),
+                      );
+                    }}
+                    readout={
+                      <ZoomLevelMenu
+                        max={BROWSER_ZOOM_MAX}
+                        min={BROWSER_ZOOM_MIN}
+                        nested
+                        onSelect={applyZoom}
+                        zoom={zoomFactor}
+                      />
+                    }
+                  />
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <DeviceMobileIcon className="size-4" />
+                    View as
+                    {emulatedDevice && (
+                      <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
+                        {emulatedDevice.label}
+                      </span>
+                    )}
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuRadioGroup
+                      onValueChange={(value) => {
+                        setEmulatedDevice(
+                          EMULATED_DEVICES.find(
+                            (device) => device.id === value,
+                          ) ?? null,
+                        );
+                      }}
+                      value={emulatedDevice?.id ?? "actual-size"}
+                    >
+                      <DropdownMenuRadioItem value="actual-size">
+                        Actual size
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuSeparator />
+                      {EMULATED_DEVICES.map((device) => (
+                        <DropdownMenuRadioItem
+                          key={device.id}
+                          value={device.id}
+                        >
+                          {device.label}
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {device.width}×{device.height}
+                          </span>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    find.setFindOpen(true);
+                  }}
+                >
+                  <MagnifyingGlassIcon className="size-4" />
+                  Find in page
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    webviewFor()?.reloadIgnoringCache();
+                  }}
+                >
+                  <ArrowCounterClockwiseIcon className="size-4" />
+                  Hard reload
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    const url = currentUrl();
+                    if (url) {
+                      void navigator.clipboard.writeText(url);
+                    }
+                  }}
+                >
+                  <CopyIcon className="size-4" />
+                  Copy URL
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         );
         if (typeof chrome === "object") {
-          return chrome.into ? createPortal(bar, chrome.into) : null;
+          return chrome.into ? createPortal(controls, chrome.into) : null;
         }
         return chrome ? (
           <div className="flex items-center gap-1 border-b p-1.5">
-          <ToolbarTooltip shortcut="goBack">
-            <Button
-              disabled={!active || !nav.back}
-              onClick={() => webviewFor()?.goBack()}
-              size="icon-sm"
-              variant="ghost"
-            >
-              <ArrowLeftIcon className="size-4" />
-            </Button>
-          </ToolbarTooltip>
-          <ToolbarTooltip shortcut="goForward">
-            <Button
-              disabled={!active || !nav.forward}
-              onClick={() => webviewFor()?.goForward()}
-              size="icon-sm"
-              variant="ghost"
-            >
-              <ArrowRightIcon className="size-4" />
-            </Button>
-          </ToolbarTooltip>
+            <ToolbarTooltip shortcut="goBack">
+              <Button
+                disabled={!active || !nav.back}
+                onClick={() => webviewFor()?.goBack()}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <ArrowLeftIcon className="size-4" />
+              </Button>
+            </ToolbarTooltip>
+            <ToolbarTooltip shortcut="goForward">
+              <Button
+                disabled={!active || !nav.forward}
+                onClick={() => webviewFor()?.goForward()}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <ArrowRightIcon className="size-4" />
+              </Button>
+            </ToolbarTooltip>
             {bar}
           </div>
         ) : null;

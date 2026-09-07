@@ -76,10 +76,13 @@ interface OmniRow {
  */
 export function Omnibar({
   initial = "",
+  onSite,
   resting,
 }: {
   /** What the field says when it is edited: the place, ready to be typed over. */
   initial?: string;
+  /** Where a site goes when one is asked for: the tab's own guest, on a page. Absent, a new tab. */
+  onSite?: (url: string) => void;
   /**
    * What the field shows until it is pressed: the place, in its own marks.
    * Absent on a new tab, which has nowhere to show and takes the caret at once.
@@ -197,7 +200,7 @@ export function Omnibar({
             name: `Open ${typedSite.host}`,
             note: "Site",
             run: () => {
-              openPage(typedSite.url);
+              (onSite ?? openPage)(typedSite.url);
             },
           },
         ]
@@ -213,7 +216,7 @@ export function Omnibar({
             name: "Search the web",
             note: "Browser",
             run: () => {
-              openPage(
+              (onSite ?? openPage)(
                 `https://www.google.com/search?q=${encodeURIComponent(typed)}`,
               );
               setQuery("");

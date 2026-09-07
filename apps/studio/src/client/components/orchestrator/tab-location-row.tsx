@@ -40,6 +40,7 @@ export function TabLocationRow({
   location,
   onBack,
   onForward,
+  onSite,
   trailing,
 }: {
   canGoBack: boolean;
@@ -49,6 +50,8 @@ export function TabLocationRow({
   location: TabLocation;
   onBack: () => void;
   onForward: () => void;
+  /** Where a site typed into the field goes on this tab, when not a new tab of its own. */
+  onSite?: (url: string) => void;
   /** What this page can do with itself, held at the row's right edge. */
   trailing?: ReactNode;
 }) {
@@ -82,6 +85,7 @@ export function TabLocationRow({
           <Omnibar
             initial={locationText(location)}
             key={locationText(location)}
+            {...(onSite ? { onSite } : {})}
             resting={
               location.kind === "newTab" ? undefined : (
                 <Field location={location} />
@@ -187,13 +191,8 @@ function Field({ location }: { location: TabLocation }) {
           )}
         </span>
         <span className="min-w-0 flex-1 truncate">
+          <span className="text-muted-foreground">Apps / </span>
           {location.name}
-          {location.site ? (
-            <span className="text-muted-foreground">
-              {" · "}
-              {hostOf(location.site)}
-            </span>
-          ) : null}
         </span>
       </>
     );
@@ -204,14 +203,6 @@ function Field({ location }: { location: TabLocation }) {
       <span className="min-w-0 flex-1 truncate">Tasks</span>
     </>
   );
-}
-
-function hostOf(site: string) {
-  try {
-    return new URL(site).host;
-  } catch {
-    return site;
-  }
 }
 
 /** What the field holds when it is edited: the place, in words that can be typed over. */

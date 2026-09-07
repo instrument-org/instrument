@@ -136,13 +136,8 @@ function AppRoute() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-10">
-      <InternalLink
-        className="text-xs text-muted-foreground hover:text-foreground"
-        to="/orchestrator/apps"
-      >
-        Apps
-      </InternalLink>
-      <div className="mt-2 flex items-center gap-4">
+      {/* No way back up to Apps here: the row above says where this is. */}
+      <div className="flex items-center gap-4">
         <AppIcon site={site} size="lg" />
         <div className="min-w-0">
           <div className="flex items-center gap-1">

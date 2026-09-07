@@ -183,7 +183,9 @@ export function WindowTabStrip({
         onSelect={(key) => {
           onSelect(idOf(key));
         }}
-        selectedKey={selectedId}
+        selectedKey={
+          tabs.find((tab) => tab.id === selectedId)?.stripKey ?? selectedId
+        }
         tabs={tabs.map((tab) => ({
           key: tab.stripKey ?? tab.id,
           ...(tab.kind === "page"

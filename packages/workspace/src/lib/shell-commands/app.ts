@@ -169,9 +169,15 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
     const auth = surface.auth ? ` (${surface.auth})` : "";
     return `    ${surface.format.padEnd(9)} ${surface.endpoint ?? surface.package ?? surface.name}${auth}`;
   });
-  const methods = entry.authMethods
-    .map((method) => `${method.label}${method.note ? `: ${method.note}` : ""}`)
-    .join("; ");
+  const methods =
+    entry.authMethods.length === 0
+      ? "none needed"
+      : entry.authMethods
+          .map(
+            (method) =>
+              `${method.label}${method.note ? `: ${method.note}` : ""}`,
+          )
+          .join("; ");
   const mcp = catalogEntryMcpEndpoint(entry);
   const local = catalogEntryLocalServer(entry);
   // An API a key opens is the third way in. A service with none of the three

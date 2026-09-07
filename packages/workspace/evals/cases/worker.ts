@@ -537,6 +537,74 @@ const embeddedAnImage: Assertion = {
   text: "put the chart inside the document",
 };
 
+/**
+ * A spreadsheet that recomputes, rather than a table of answers typed into
+ * cells.
+ *
+ * Counting formulas is not enough, and the difference is the whole brief.
+ * Measured across four models, every workbook had a formula-driven summary and
+ * only half of them computed revenue on the source rows: the other two typed
+ * the per-row numbers in as literals, so changing a unit price -- the one thing
+ * the brief asks for by name -- updates nothing. The split shows up as which
+ * sheets carry formulas rather than how many, 48-and-19 against 0-and-16, so
+ * that is what this reads.
+ */
+const sheetRecomputes: Assertion = {
+  check: async ({ taskId }) => {
+    const text = "built a workbook that recomputes when an input changes";
+    const written = await deliverables(taskId);
+    for (const book of written.filter((one) => /\.xlsx$/i.test(one))) {
+      const archive = await fs.readFile(book).catch(() => {});
+      if (!archive) {
+        continue;
+      }
+      const counts = zipMembers(archive, (name) =>
+        /^xl\/worksheets\/sheet\d+\.xml$/.test(name),
+      ).map((sheet) => [...sheet.toString("utf8").matchAll(/<f[\s>]/g)].length);
+      const live = counts.filter((count) => count > 0);
+      const evidence = `${path.basename(book)}, formulas per sheet: ${counts.join(", ") || "none"}`;
+      // Two sheets deep means the summary aggregates something that is itself
+      // computed, which is the only arrangement where an edit propagates.
+      return live.length >= 2 ? pass(text, evidence) : fail(text, evidence);
+    }
+    return fail(text, "no workbook written");
+  },
+  text: "built a workbook that recomputes when an input changes",
+};
+
+/**
+ * A chart the spreadsheet owns, rather than a picture pasted beside it.
+ *
+ * A native chart part redraws when the numbers change and an embedded PNG does
+ * not, which is the same live-versus-dead distinction the formulas check makes.
+ * Either counts as having produced something to look at; only one of them is a
+ * spreadsheet doing its job, so the evidence says which.
+ */
+const sheetHasAChart: Assertion = {
+  check: async ({ taskId }) => {
+    const text = "put a chart in the workbook";
+    const written = await deliverables(taskId);
+    for (const book of written.filter((one) => /\.xlsx$/i.test(one))) {
+      const archive = await fs.readFile(book).catch(() => {});
+      if (!archive) {
+        continue;
+      }
+      const charts = zipMembers(archive, (name) =>
+        /^xl\/charts\/chart\d+\.xml$/.test(name),
+      ).length;
+      const images = zipMembers(archive, (name) =>
+        /^xl\/media\/.+\.(?:png|jpe?g)$/i.test(name),
+      ).length;
+      const evidence = `${charts} native chart(s), ${images} embedded image(s)`;
+      return charts > 0 || images > 0
+        ? pass(text, evidence)
+        : fail(text, "no chart and no image");
+    }
+    return fail(text, "no workbook written");
+  },
+  text: "put a chart in the workbook",
+};
+
 /** Every option the brief supplied, so a comparison cannot quietly drop half. */
 function comparedEvery(names: string[]): Assertion {
   const text = `compared all ${names.length} of them`;
@@ -738,6 +806,21 @@ export const WORKER_EVALS = [
     name: "worker-data-memo",
     prompt:
       "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row -- revenue is units times unit price. Write it up as a one-page memo called memo.docx in your output folder for someone who will not open the spreadsheet: the total for the year up top, a table of revenue by region, a chart of monthly revenue actually embedded in the document, and one sentence saying what you would do about it. Lay it out so the point lands without reading every number.",
+  }),
+  defineEval({
+    // The same data as the memo, asked for as a thing the user can drive rather
+    // than a thing they read. What separates the two is whether the totals are
+    // formulas and whether the chart is the workbook's own.
+    assertions: [
+      wroteADocument(".xlsx"),
+      sheetRecomputes,
+      sheetHasAChart,
+      checkedItsOwnWork,
+    ],
+    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    name: "worker-data-workbook",
+    prompt:
+      "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row -- revenue is units times unit price. Turn it into a workbook called sales.xlsx in your output folder that I can actually work in: the rows with revenue worked out per row, a summary of revenue by region and by month that totals with real formulas rather than pasted numbers, and a chart of the monthly trend. Lay it out so I can find things, and make it so that changing a unit price updates everything downstream.",
   }),
   defineEval({
     // Shopping, with the research already done, which is how the product is

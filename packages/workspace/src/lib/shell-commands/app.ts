@@ -163,6 +163,38 @@ async function allowedSlugs(taskId: TaskId): Promise<Set<string> | undefined> {
   return settings?.apps ? new Set(settings.apps) : undefined;
 }
 
+/**
+ * How a service is reached, decided once so the index and the detail cannot
+ * disagree about it. An API a key opens is the third way in; a service with
+ * none of the three (every way in wants a sign-in client of the user's own,
+ * which the card cannot make) is told so, rather than handed a set-up line of
+ * placeholders that no --auth the command takes can fill.
+ */
+function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
+  const mcp = catalogEntryMcpEndpoint(entry);
+  if (mcp) {
+    // A server that wants no sign-in says so, since an MCP app defaults to a
+    // sign-in card.
+    const auth = entry.interfaces.find(
+      (surface) => surface.endpoint === mcp,
+    )?.auth;
+    return { endpoint: mcp, kind: "mcp", open: auth === "none" };
+  }
+  const local = catalogEntryLocalServer(entry);
+  if (local) {
+    return { kind: "local", ...local };
+  }
+  const keyed = entry.interfaces.find(
+    (surface) =>
+      surface.format !== "mcp" &&
+      surface.endpoint !== undefined &&
+      ["api_key", "pat", "token"].includes(surface.auth ?? ""),
+  );
+  return keyed?.endpoint
+    ? { endpoint: keyed.endpoint, kind: "api" }
+    : { kind: "browser", where: entry.home ?? `https://${entry.domain}` };
+}
+
 /** The catalog, as lines: what each service is and how it is reached. */
 function describeCatalogEntry(entry: AppCatalogEntry): string {
   const surfaces = entry.interfaces.map((surface) => {
@@ -178,25 +210,16 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
               `${method.label}${method.note ? `: ${method.note}` : ""}`,
           )
           .join("; ");
-  const mcp = catalogEntryMcpEndpoint(entry);
-  const local = catalogEntryLocalServer(entry);
-  // An API a key opens is the third way in. A service with none of the three
-  // (every way in wants a sign-in client of the user's own, which the card
-  // cannot make) gets told so in the listing, rather than a set-up line of
-  // placeholders that no --auth the command takes can fill.
-  const keyed = entry.interfaces.find(
-    (surface) =>
-      surface.format !== "mcp" &&
-      surface.endpoint !== undefined &&
-      ["api_key", "pat", "token"].includes(surface.auth ?? ""),
-  );
-  const howTo = mcp
-    ? `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --mcp ${mcp}`
-    : local
-      ? `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --local ${local.package} --runtime ${local.runtime}`
-      : keyed
-        ? `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}' --api ${keyed.endpoint} --auth bearer --test <a cheap GET, such as /me>`
-        : `not as an app from here: every way in needs a sign-in client of the user's own, which the sign-in card cannot make. The user can sign in on the Browser screen (${entry.home ?? `https://${entry.domain}`}), and a task handed that tab works there.`;
+  const way = catalogWayIn(entry);
+  const start = `${APP_COMMAND.name} new ${entry.slug} --name '${entry.name}'`;
+  const howTo =
+    way.kind === "mcp"
+      ? `${start} --mcp ${way.endpoint}${way.open ? " --auth none" : ""}`
+      : way.kind === "local"
+        ? `${start} --local ${way.package} --runtime ${way.runtime}`
+        : way.kind === "api"
+          ? `${start} --api ${way.endpoint} --auth bearer --test <a cheap GET, such as /me>`
+          : `not as an app from here: every way in needs a sign-in client of the user's own, which the sign-in card cannot make. The user can sign in on the Browser screen (${way.where}), and a task handed that tab works there.`;
   return [
     `${entry.slug}  ${entry.name}  ${entry.domain}`,
     `  ${entry.tagline}`,
@@ -205,6 +228,26 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
     ...(entry.docsUrl ? [`  docs: ${entry.docsUrl}`] : []),
     `  set up: ${howTo}`,
   ].join("\n");
+}
+
+/**
+ * One entry on one line, for a listing too long to render in full. The way in
+ * is on it because it is what decides whether a service is worth reaching for
+ * at all.
+ */
+function summarizeCatalogEntry(entry: AppCatalogEntry): string {
+  const way = catalogWayIn(entry);
+  const label =
+    way.kind === "mcp"
+      ? way.open
+        ? "mcp:open"
+        : "mcp"
+      : way.kind === "local"
+        ? "mcp:local"
+        : way.kind === "api"
+          ? "api:key"
+          : "browser";
+  return `  ${entry.slug.padEnd(17)} ${label.padEnd(9)} ${entry.tagline}`;
 }
 
 function fail(message: string) {

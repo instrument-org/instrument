@@ -39,6 +39,16 @@ describe("app catalog", () => {
     expect(text).not.toContain("<base-url>");
   });
 
+  // Figma's hosted server only registers clients Figma has approved, so the
+  // desktop app's own server is the way in; it wants no sign-in, and the line
+  // has to say so, since an MCP app defaults to a sign-in card.
+  it("puts --auth none on a keyless MCP server's line", async () => {
+    const text = await catalog("figma");
+    expect(text).toContain(
+      "set up: app new figma --name 'Figma' --mcp http://127.0.0.1:3845/mcp --auth none",
+    );
+  });
+
   it("says plainly when every way in needs a client the card cannot make", async () => {
     const text = await catalog("google-workspace");
     expect(text).toContain("set up: not as an app from here");

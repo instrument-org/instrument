@@ -726,7 +726,7 @@
       "slug": "figma",
       "name": "Figma",
       "tagline": "Design files, components, and variables, read by an agent.",
-      "description": "Figma's REST API lets agents inspect files, comments, components, variables, projects, and webhooks. Its hosted MCP server supplies authenticated design context and canvas tools.",
+      "description": "Figma's hosted MCP server supplies design context and canvas tools, but it only accepts MCP clients on Figma's own catalog and refuses to register any other (a bare 403 at the registration endpoint), so it is not reachable from here. The way in is the Dev Mode MCP server the Figma desktop app runs on this machine, at http://127.0.0.1:3845/mcp with no sign-in: the user turns it on under the Figma menu, Preferences, Enable Dev Mode MCP Server, and it needs a Dev or Full seat. Failing that, the user signs in on the Browser screen and a task works there.",
       "domain": "figma.com",
       "categories": [
         "design",
@@ -736,13 +736,19 @@
         {
           "type": "oauth2",
           "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "note": "Only for clients Figma has approved in advance, which the sign-in card cannot be; not a way in from here."
         }
       ],
       "interfaces": [
         {
           "format": "mcp",
-          "name": "Figma MCP server",
+          "name": "Figma desktop Dev Mode MCP server",
+          "endpoint": "http://127.0.0.1:3845/mcp",
+          "auth": "none"
+        },
+        {
+          "format": "mcp",
+          "name": "Figma MCP server (approved clients only)",
           "endpoint": "https://mcp.figma.com/mcp",
           "auth": "oauth"
         }

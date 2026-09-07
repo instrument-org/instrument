@@ -7,13 +7,13 @@ import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { computerName } from "@/client/components/orchestrator/computer-name";
+import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
+import { useOrchestrator } from "@/client/components/orchestrator/context";
+import { useOpenFileTab } from "@/client/components/orchestrator/file-tabs";
 import {
   folderOf,
   homeRelative,
-  RECENTS_ROOT,
-} from "@/client/components/orchestrator/computer-page";
-import { useOrchestrator } from "@/client/components/orchestrator/context";
-import { useOpenFileTab } from "@/client/components/orchestrator/file-tabs";
+} from "@/client/components/orchestrator/host-path";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
@@ -74,6 +74,44 @@ const MARK_CARD =
  * can sit open all day beside the work.
  */
 const RECENTS_REFRESH_MS = ms("30 seconds");
+
+/** One tile of a row: a mark above a name, the same gesture whatever it opens. */
+function Door({
+  icon,
+  name,
+  onOpen,
+}: {
+  icon: ReactNode;
+  name: string;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
+      onClick={onOpen}
+      type="button"
+    >
+      {icon}
+      <span className="line-clamp-2 w-full text-center text-xs leading-tight">
+        {name}
+      </span>
+    </button>
+  );
+}
+
+/** The tab a shown file opens in, when a granted folder covers it. */
+function fileTabOf(file: RecentFile): FileTab | undefined {
+  return file.access
+    ? { hostPath: file.path, mount: file.access.mountPath, name: file.name }
+    : undefined;
+}
+
+/** Puts the keyboard on one row of the list, by place. */
+function focusRow(list: HTMLElement, index: number) {
+  list
+    .querySelector<HTMLElement>(`[data-index="${index}"]`)
+    ?.focus({ preventScroll: true });
+}
 
 function HomeRoute() {
   const { openPage, openScreen, taskId } = useOrchestrator();
@@ -311,30 +349,6 @@ function HomeRoute() {
   );
 }
 
-/** One tile of a row: a mark above a name, the same gesture whatever it opens. */
-function Door({
-  icon,
-  name,
-  onOpen,
-}: {
-  icon: ReactNode;
-  name: string;
-  onOpen: () => void;
-}) {
-  return (
-    <button
-      className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
-      onClick={onOpen}
-      type="button"
-    >
-      {icon}
-      <span className="line-clamp-2 w-full text-center text-xs leading-tight">
-        {name}
-      </span>
-    </button>
-  );
-}
-
 /**
  * The shown files as a column: each its type's mark, its name, the folder it
  * lives in and when it was shown. A row opens the file; the arrows walk the
@@ -374,11 +388,6 @@ function RecentFiles({
     }
     wasOpen.current = quickLookOpen;
   }, [quickLookOpen, selected]);
-  const focusRow = (list: HTMLElement, index: number) => {
-    list
-      .querySelector<HTMLElement>(`[data-index="${index}"]`)
-      ?.focus({ preventScroll: true });
-  };
   const step = (direction: -1 | 1) =>
     Math.max(0, Math.min(files.length - 1, (selected ?? -1) + direction));
 
@@ -489,7 +498,7 @@ function RecentFiles({
             <span className="min-w-0 flex-1 truncate">{file.name}</span>
             {/* Where it lives, the home folder as `~`: the one thing about a
                 file its name does not say. */}
-            <span className="min-w-0 max-w-2/5 truncate text-xs text-muted-foreground">
+            <span className="max-w-2/5 min-w-0 truncate text-xs text-muted-foreground">
               {homeRelative(folderOf(file.path), homePath)}
             </span>
             <RelativeTime
@@ -516,11 +525,4 @@ function RecentFiles({
       ) : null}
     </ul>
   );
-}
-
-/** The tab a shown file opens in, when a granted folder covers it. */
-function fileTabOf(file: RecentFile): FileTab | undefined {
-  return file.access
-    ? { hostPath: file.path, mount: file.access.mountPath, name: file.name }
-    : undefined;
 }

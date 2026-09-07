@@ -46,6 +46,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
+import { folderOf, homeRelative } from "./host-path";
 
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
@@ -955,44 +956,6 @@ export function ComputerPage({
 }
 
 /**
- * The path on the Mac as the Finder writes it at the bottom of a window: the
- * volume, then every folder down to this one, each a way there.
- */
-function PathBar({
-  hostPath,
-  onOpen,
-  places,
-}: {
-  hostPath: string;
-  /** A folder along the path, chosen. */
-  onOpen: (folder: string) => void;
-  places: { volumes: { name: string; path: string }[] };
-}) {
-  const crumbs = breadcrumbs(hostPath, places);
-  return (
-    <div className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto border-t border-border px-2 text-xs text-muted-foreground">
-      {crumbs.map((crumb, index) => (
-        <span className="flex shrink-0 items-center gap-0.5" key={crumb.path}>
-          {index > 0 ? <CaretRightIcon className="size-3" /> : null}
-          <button
-            className={cn(
-              "rounded px-1 py-0.5 hover:bg-foreground/5 hover:text-foreground",
-              index === crumbs.length - 1 && "text-foreground",
-            )}
-            onClick={() => {
-              onOpen(crumb.path);
-            }}
-            type="button"
-          >
-            {crumb.name}
-          </button>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/**
  * The folder's whole path on the Mac as the Finder writes it at the bottom
  * of a window: the volume, then every folder down to this one.
  */
@@ -1124,28 +1087,48 @@ function FolderMenu({
   );
 }
 
-/** The folder a path on the Mac sits in. */
-export function folderOf(hostPath: string) {
-  return hostPath.slice(0, hostPath.lastIndexOf("/")) || "/";
-}
-
-/** A folder on the Mac the way a person writes it, the home folder as `~`. */
-export function homeRelative(hostPath: string, home: string | undefined) {
-  if (home === undefined) {
-    return hostPath;
-  }
-  if (hostPath === home) {
-    return "~";
-  }
-  return hostPath.startsWith(`${home}/`)
-    ? `~${hostPath.slice(home.length)}`
-    : hostPath;
-}
-
 /** Where an item the browser is showing sits on the Mac. */
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";
+}
+
+/**
+ * The path on the Mac as the Finder writes it at the bottom of a window: the
+ * volume, then every folder down to this one, each a way there.
+ */
+function PathBar({
+  hostPath,
+  onOpen,
+  places,
+}: {
+  hostPath: string;
+  /** A folder along the path, chosen. */
+  onOpen: (folder: string) => void;
+  places: { volumes: { name: string; path: string }[] };
+}) {
+  const crumbs = breadcrumbs(hostPath, places);
+  return (
+    <div className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto border-t border-border px-2 text-xs text-muted-foreground">
+      {crumbs.map((crumb, index) => (
+        <span className="flex shrink-0 items-center gap-0.5" key={crumb.path}>
+          {index > 0 ? <CaretRightIcon className="size-3" /> : null}
+          <button
+            className={cn(
+              "rounded px-1 py-0.5 hover:bg-foreground/5 hover:text-foreground",
+              index === crumbs.length - 1 && "text-foreground",
+            )}
+            onClick={() => {
+              onOpen(crumb.path);
+            }}
+            type="button"
+          >
+            {crumb.name}
+          </button>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /** A folder prefix and every folder above it, root first: `a/b/` is `""`, `a/`, `a/b/`. */

@@ -242,6 +242,12 @@ export function ChannelStack({
             }}
           />
         ) : null}
+        {/* Before the channels have been read, and in the moment after one is
+          archived, no row is the open one; the conversation is still the
+          sidebar's whole point, so it stands on its own until a row claims it. */}
+        {channels.some((channel) => channel.id === selectedId) ? null : (
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        )}
       </div>
       {menu && menuChannel && (
         <div

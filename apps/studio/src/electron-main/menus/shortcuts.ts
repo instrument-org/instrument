@@ -3,6 +3,7 @@ import {
   matchesAccelerator,
   parseAccelerator,
 } from "@/electron-main/menus/match-accelerator";
+import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/preferences";
 import {
   focusMainContents,
@@ -114,6 +115,9 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, null | ShortcutAction> = {
   },
   settings: () => {
     sendAppCommand({ type: "openSettings" });
+    // The orchestrator window has a stream of its own; the classic window is
+    // hidden while it is up, so only one of the two is there to answer.
+    publisher.publish("orchestrator.command", "openSettings");
   },
   shortcutGuide: () => {
     sendAppCommand({ type: "openShortcutGuide" });

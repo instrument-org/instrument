@@ -44,6 +44,7 @@ interface PublisherEvents {
     | "forward"
     | "newTab"
     | "nextTab"
+    | "openSettings"
     | "previousTab"
     | "reopenTab"
     | { index: number; type: "selectTab" };

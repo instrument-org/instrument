@@ -1,6 +1,15 @@
+import { openSettings } from "@/client/atoms/settings-modal";
 import { channelTint } from "@/client/components/orchestrator/channel-tint";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/client/components/ui/avatar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { useLiveUser } from "@/client/hooks/use-live-user";
+import { getInitials } from "@/client/lib/get-initials";
 import { cn } from "@/client/lib/utils";
+import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useState } from "react";
 
@@ -232,6 +241,7 @@ export function ChannelRail({
           <PlusIcon className="size-4" />
         </button>
       </div>
+      <RailUser />
     </nav>
   );
 }
@@ -354,5 +364,36 @@ function ChannelTile({
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * The person, at the foot of the rail, which is where an app keeps the way
+ * into its settings. The mark alone: the rail is a column of marks, and a
+ * name would be the one word in it.
+ */
+function RailUser() {
+  const { data: user } = useLiveUser();
+  return (
+    <button
+      aria-label="Settings"
+      className="mt-2 grid size-9 shrink-0 place-items-center rounded-xl hover:bg-foreground/8"
+      onClick={() => {
+        openSettings({ tab: "General" });
+      }}
+      title="Settings"
+      type="button"
+    >
+      {user ? (
+        <Avatar className="size-7 rounded-lg">
+          <AvatarImage alt={user.name} src={user.image ?? undefined} />
+          <AvatarFallback className="rounded-lg text-[10px]">
+            {getInitials(user.name)}
+          </AvatarFallback>
+        </Avatar>
+      ) : (
+        <FadersHorizontalIcon className="size-4 text-muted-foreground" />
+      )}
+    </button>
   );
 }

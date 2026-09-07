@@ -244,19 +244,6 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-/**
- * What a media tile says of a file the origin no longer has, over whatever
- * the thumbnail fell back to. Always on, unlike the tile's hover chrome: it is
- * the state, not a control.
- */
-function MissingBadge() {
-  return (
-    <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
-      {FILE_MISSING_LABEL}
-    </div>
-  );
-}
-
 function ImagePreviewCard({
   file,
   hideActionsMenu,
@@ -375,6 +362,19 @@ function ImagePreviewCard({
   );
 }
 
+/**
+ * What a media tile says of a file the origin no longer has, over whatever
+ * the thumbnail fell back to. Always on, unlike the tile's hover chrome: it is
+ * the state, not a control.
+ */
+function MissingBadge() {
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
+      {FILE_MISSING_LABEL}
+    </div>
+  );
+}
+
 function VideoPreviewCard({
   file,
   handleMouseEnter,
@@ -423,7 +423,6 @@ function VideoPreviewCard({
 
   return (
     <MediaCardShell
-      className={cn(isMissing && "opacity-60")}
       bottomBar={
         isMissing ? (
           <MissingBadge />
@@ -441,6 +440,7 @@ function VideoPreviewCard({
           </div>
         )
       }
+      className={cn(isMissing && "opacity-60")}
       file={file}
       hideActionsMenu={hideActionsMenu}
       isSelected={isSelected}

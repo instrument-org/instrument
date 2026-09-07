@@ -10,7 +10,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { TabIcon } from "./browser-tabs";
 import { useOrchestrator } from "./context";
@@ -42,6 +42,7 @@ export function WindowTabStrip({
   onSelect,
   selectedId,
   tabs,
+  trailing,
 }: {
   childTitles: Map<TaskId, string>;
   onClose: (id: string) => void;
@@ -50,6 +51,8 @@ export function WindowTabStrip({
   onSelect: (id: string) => void;
   selectedId: string | undefined;
   tabs: WindowTab[];
+  /** What sits at the end of the row, past the tabs: the window's top right. */
+  trailing?: ReactNode;
 }) {
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const appsBySlug = new Map(
@@ -182,6 +185,7 @@ export function WindowTabStrip({
               }
             : screenPresentation(tab.href, { appsBySlug, childTitles })),
         }))}
+        trailing={trailing}
       />
       {menu && menuTab && (
         <div

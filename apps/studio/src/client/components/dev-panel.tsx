@@ -704,6 +704,15 @@ export function DevPanel() {
                       key={feature}
                       onCheckedChange={(enabled) => {
                         setFeatureEnabled({ enabled, feature });
+                        if (feature === "instrument_2") {
+                          // Which window the app opens is decided at launch,
+                          // so nothing happens here until it is relaunched.
+                          toast(
+                            enabled
+                              ? "Restart to open in Instrument 2.0"
+                              : "Restart to open in the classic window",
+                          );
+                        }
                       }}
                       title={FEATURE_METADATA[feature].description}
                     >

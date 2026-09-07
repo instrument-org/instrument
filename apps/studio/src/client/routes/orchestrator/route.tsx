@@ -60,6 +60,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { pathsNamedInMessage } from "@/client/lib/paths-named-in-message";
 import { cn, isMacOS } from "@/client/lib/utils";
@@ -76,7 +77,22 @@ import {
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+// The panel that turns Instrument 2.0 off again, in the window it turns off:
+// loaded only where developer mode already put it.
+const DevPanel = lazy(() =>
+  import("@/client/components/dev-panel").then((m) => ({
+    default: m.DevPanel,
+  })),
+);
 
 /** How often the tasks' titles are re-read, for the strip. */
 const REFRESH_MS = ms("2 seconds");
@@ -227,6 +243,7 @@ function OrchestratorLayout() {
   const screenView = useAtomValue(screenViewAtom);
   const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
   const [pinsHeight, setPinsHeight] = useAtom(orchestratorPinsHeightAtom);
+  const isDeveloperMode = useDeveloperMode();
   const setLinkedFiles = useSetAtom(linkedFilesAtom);
   const conversationRef = useRef<HTMLDivElement>(null);
   // The files the conversation has handed over, newest first, for the sidebar.
@@ -651,6 +668,13 @@ function OrchestratorLayout() {
                 onSelect={windowTabs.select}
                 selectedId={active?.id}
                 tabs={tabs}
+                trailing={
+                  isDeveloperMode ? (
+                    <Suspense fallback={null}>
+                      <DevPanel />
+                    </Suspense>
+                  ) : null
+                }
               />
               <div className="relative min-h-0 flex-1">
                 <Outlet />

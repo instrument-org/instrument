@@ -34,7 +34,7 @@ export const FEATURE_METADATA: Record<
   },
   instrument_2: {
     description:
-      "Open the app in the Instrument 2.0 window and keep the classic window out of sight. Its File menu switches back, which also turns this off.",
+      "Open the app in the Instrument 2.0 window and keep the classic window out of sight. Takes effect on the next launch; this panel is in both windows, so it is also how you come back.",
     title: "Start in Instrument 2.0",
   },
   prompt_queue: {

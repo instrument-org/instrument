@@ -1,7 +1,5 @@
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getFeaturesStore } from "@/electron-main/stores/features";
-import { ensureMainWindowVisible } from "@/electron-main/windows/main";
 import { type MenuItemConstructorOptions } from "electron";
 
 import { isDeveloperMode } from "../stores/preferences";
@@ -48,15 +46,6 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
         accelerator: "Shift+CmdOrCtrl+W",
         label: "Close Window",
         role: "close" as const,
-      },
-      { type: "separator" as const },
-      {
-        // The classic window, shown again, and the next launch starts there.
-        click: () => {
-          getFeaturesStore().set("instrument_2", false);
-          void ensureMainWindowVisible();
-        },
-        label: "Switch to Classic Instrument",
       },
     ],
   };

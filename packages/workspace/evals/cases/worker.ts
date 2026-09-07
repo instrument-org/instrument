@@ -545,7 +545,9 @@ function comparedEvery(names: string[]): Assertion {
       for (const file of written.filter((one) =>
         /\.(?:html?|md)$/i.test(one),
       )) {
-        const body = await fs.readFile(file, "utf8").catch(() => "");
+        const body = visibleText(
+          await fs.readFile(file, "utf8").catch(() => ""),
+        );
         const missing = names.filter((name) => !body.includes(name));
         if (body.length > 500 && missing.length === 0) {
           return pass(text, `${path.basename(file)} names every one`);
@@ -561,6 +563,29 @@ function comparedEvery(names: string[]): Assertion {
     },
     text,
   };
+}
+
+/** Whichever of `names` appears earliest, so a runner-up cannot be read as the pick. */
+function firstNamed(window: string, names: string[]): string | undefined {
+  return names
+    .map((name) => [window.indexOf(name), name] as const)
+    .filter(([at]) => at !== -1)
+    .sort(([a], [b]) => a - b)[0]?.[1];
+}
+
+/**
+ * What a reader sees, which is not what the file contains.
+ *
+ * A styled single-file page is mostly CSS, and CSS is full of the vocabulary
+ * these checks look for: a rule for `tr.recommended` put the word "recommend"
+ * 4KB before the verdict and cost one model a passing run it had earned. Drop
+ * the head, the style and the script blocks before reading anything as prose.
+ */
+function visibleText(html: string): string {
+  return html
+    .replaceAll(/<(script|style|head)\b[^>]*>[\S\s]*?<\/\1>/gi, " ")
+    .replaceAll(/<[^>]+>/g, " ")
+    .replaceAll(/\s+/g, " ");
 }
 
 /**
@@ -585,20 +610,27 @@ function recommended(allowed: string[], rejected: string[]): Assertion {
         if (body.length < 500) {
           continue;
         }
-        const flat = body.replaceAll(/<[^>]+>/g, " ").replaceAll(/\s+/g, " ");
-        const at = flat.search(/recommend/i);
-        if (at === -1) {
+        const flat = visibleText(body);
+        const windows = [...flat.matchAll(/recommend/gi)].map((match) =>
+          flat.slice(match.index, match.index + 300),
+        );
+        if (windows.length === 0) {
           return fail(text, `${path.basename(file)} never recommends anything`);
         }
-        const verdict = flat.slice(at, at + 300);
-        const picked = allowed.filter((name) => verdict.includes(name));
-        const wrong = rejected.filter((name) => verdict.includes(name));
-        return picked.length > 0 && wrong.length === 0
-          ? pass(text, `picked ${picked.join(", ")}`)
+        // The first product a window names is the one it is recommending;
+        // anything after that is the runner-up or the reason. Any window may
+        // carry the verdict, because a page is as likely to head the panel
+        // "Our recommendation" as to end a paragraph with one.
+        const picks = windows
+          .map((window) => firstNamed(window, [...allowed, ...rejected]))
+          .filter((name) => name !== undefined);
+        const right = picks.find((name) => allowed.includes(name));
+        return right
+          ? pass(text, `picked ${right}`)
           : fail(
               text,
-              wrong.length > 0
-                ? `picked ${wrong.join(", ")}, which the brief rules out`
+              picks.length > 0
+                ? `picked ${picks[0]}, which the brief rules out`
                 : `named none of ${allowed.join(" or ")}`,
             );
       }

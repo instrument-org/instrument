@@ -141,10 +141,12 @@ export function ComputerPage({
     setOpenings((count) => count + 1);
   }, [path, root]);
 
-  // `~` names the home folder; the workspace expands it.
-  const hostPathOf = (prefix: string) => {
+  // `~` names the home folder, which the workspace expands for a folder it is
+  // being asked to read. Nothing else does: a path this hands to an action
+  // reaches the filesystem as it is, so those pass the expanded root instead.
+  const hostPathOf = (prefix: string, base = root) => {
     const folder = prefix.replace(/\/$/, "");
-    return folder ? `${root}/${folder}` : root;
+    return folder ? `${base}/${folder}` : base;
   };
 
   // What the folder's own menu is open on. Nothing means the menu came up on
@@ -661,7 +663,11 @@ export function ComputerPage({
             onDuplicate={() => void duplicate(hostPathOfItem(menuItem))}
             onNewFolder={() => {
               void newFolderIn({
-                hostPath: currentListing?.path ?? hostPathOf(onScreen),
+                // The listing knows the folder's own path; until it has
+                // arrived, the root the sidebar resolved stands in for it.
+                hostPath:
+                  currentListing?.path ??
+                  hostPathOf(onScreen, rootHostPath ?? root),
                 prefix: onScreen,
               });
             }}

@@ -42,6 +42,15 @@ async function freePath(parent: string, name: string, extension = "") {
   throw new Error(`No free name for ${name} in ${parent}`);
 }
 
+/**
+ * A place on this computer, spelled the way the filesystem spells one. Nothing
+ * here expands `~` or resolves against a working directory, so a path that
+ * arrives as either names somewhere nobody meant and is refused at the door.
+ */
+const HostPathSchema = z.string().refine((value) => path.isAbsolute(value), {
+  message: "Not a path on this computer",
+});
+
 const NAME_ERRORS = {
   NAME_IN_USE: { message: "Something with that name is already there" },
   NAME_INVALID: { message: "That name cannot be used" },
@@ -60,7 +69,7 @@ function isUsableName(name: string) {
 
 const newFolder = base
   .errors({ CANNOT_WRITE: { message: "That folder cannot be written to" } })
-  .input(z.object({ parent: z.string() }))
+  .input(z.object({ parent: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
     try {
@@ -76,7 +85,7 @@ const newFolder = base
 
 const rename = base
   .errors(NAME_ERRORS)
-  .input(z.object({ name: z.string(), path: z.string() }))
+  .input(z.object({ name: z.string(), path: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
     const name = input.name.trim();
@@ -96,7 +105,7 @@ const rename = base
 
 const duplicate = base
   .errors({ CANNOT_WRITE: { message: "That folder cannot be written to" } })
-  .input(z.object({ path: z.string() }))
+  .input(z.object({ path: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
     // The Finder's naming: `notes copy.txt`, then `notes copy 2.txt`, with the
@@ -120,7 +129,7 @@ const duplicate = base
 
 const trash = base
   .errors({ CANNOT_TRASH: { message: "That could not be moved to the trash" } })
-  .input(z.object({ path: z.string() }))
+  .input(z.object({ path: HostPathSchema }))
   .handler(async ({ errors, input }) => {
     try {
       await shell.trashItem(input.path);

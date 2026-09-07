@@ -321,6 +321,8 @@ async function unreadCount(taskId: TaskId, channel: Channel): Promise<number> {
   if (messages.isErr()) {
     return 0;
   }
-  return messages.value.filter((message) => message.role === "assistant")
-    .length;
+  // Anything that is not the user's own: a reply, and whatever else a channel
+  // may be written into by. Counting only assistant messages left a channel
+  // silent for everything the conversation puts there by another route.
+  return messages.value.filter((message) => message.role !== "user").length;
 }

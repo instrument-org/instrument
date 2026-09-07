@@ -42,11 +42,6 @@ const SCREENS: {
       }),
   },
   {
-    icon: InstrumentGlyph,
-    name: "Tasks",
-    open: (navigate) => void navigate({ to: "/orchestrator/tasks" }),
-  },
-  {
     icon: AppWindowIcon,
     name: "Apps",
     open: (navigate) => void navigate({ to: "/orchestrator/apps" }),
@@ -54,7 +49,6 @@ const SCREENS: {
 ];
 
 const RECENTS_SHOWN = 6;
-const TASKS_SHOWN = 5;
 const SCREENS_SHOWN = 4;
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
@@ -89,7 +83,7 @@ export function Omnibar({
    */
   resting?: ReactNode;
 }) {
-  const { ask, openPage, taskId } = useOrchestrator();
+  const { ask, openPage } = useOrchestrator();
   const navigate = useNavigate();
   const router = useRouter();
   const recents = useAtomValue(orchestratorRecentsAtom);
@@ -114,11 +108,6 @@ export function Omnibar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const children = useQuery(
-    rpcClient.workspace.orchestrator.children.queryOptions({
-      input: { id: taskId },
-    }),
-  );
   const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   // The matcher the model picker uses: typed letters in order, close
@@ -158,32 +147,32 @@ export function Omnibar({
         site: `https://${entry.domain}`,
       })),
   ].filter((app) => matches(app.name));
-  // A task's id is made from its brief, so words in the brief find it too.
-  const tasks = (children.data ?? [])
-    .filter(
-      (child) => matches(child.title) || matches(child.id.replaceAll("-", " ")),
-    )
-    .slice(0, words ? TASKS_SHOWN : 0);
   // Where the window has been: the screens it landed on and the pages the
   // browser showed, newest first, as one list.
+  // The work is not in here: a task looks like a place and is not one, and
+  // the Tasks bookmark is the way to it.
   const wasAt = [
-    ...recents.map((entry) => ({
-      at: entry.at,
-      icon: <RecentIcon recent={entry} />,
-      note: { browser: "Page", file: "File", folder: "Folder", task: "Task" }[
-        entry.kind
-      ],
-      run: () => {
-        router.history.push(entry.href);
-      },
-      title: entry.title,
-    })),
+    ...recents
+      .filter((entry) => entry.kind !== "task")
+      .map((entry) => ({
+        at: entry.at,
+        icon: <RecentIcon recent={entry} />,
+        note: { browser: "Page", file: "File", folder: "Folder", task: "Task" }[
+          entry.kind
+        ],
+        run: () => {
+          router.history.push(entry.href);
+        },
+        title: entry.title,
+      })),
+    // A page it has been to goes where a typed site goes: this tab's own
+    // guest on a page, a tab of its own anywhere else.
     ...visited.map((page) => ({
       at: page.at,
       icon: <SiteIcon favicon={page.favicon} url={page.url} />,
       note: "Page",
       run: () => {
-        openPage(page.url);
+        (onSite ?? openPage)(page.url);
       },
       title: page.title || page.url,
     })),
@@ -241,18 +230,6 @@ export function Omnibar({
       note: "Screen",
       run: () => {
         screen.open(navigate);
-      },
-    })),
-    ...tasks.map((child) => ({
-      group: "Tasks",
-      icon: <InstrumentGlyph className="size-4" />,
-      name: child.title,
-      note: "Task",
-      run: () => {
-        void navigate({
-          params: { id: child.id },
-          to: "/orchestrator/tasks/$id",
-        });
       },
     })),
     ...recentRows.map((entry) => ({

@@ -60,13 +60,22 @@ const PINS_SHOWN = 8;
  */
 const RECENTS_SHOWN = 8;
 
-/** What names a row of things. As small as a label can be and still be read. */
+/**
+ * What names a row of things. As small as a label can be and still be read,
+ * on the same left edge as the marks under it.
+ */
 const SECTION_LABEL =
-  "mb-1 pl-5.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase";
+  "mb-1.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase";
+
+/**
+ * A row of doors: the marks a fixed pitch apart, the row's left edge the
+ * label's, and a little room at each end for a hover to bleed past a mark.
+ */
+const DOOR_ROW = "-m-1 flex flex-nowrap gap-3 overflow-hidden p-1";
 
 /** A mark drawn on a card, for a door whose thing has no icon of its own. */
 const MARK_CARD =
-  "grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card shadow-sm";
+  "grid size-12 shrink-0 place-items-center rounded-xl border border-border bg-card shadow-sm";
 
 /**
  * How often the list of shown files is re-read. Slower than a folder's clock:
@@ -75,7 +84,12 @@ const MARK_CARD =
  */
 const RECENTS_REFRESH_MS = ms("30 seconds");
 
-/** One tile of a row: a mark above a name, the same gesture whatever it opens. */
+/**
+ * One tile of a row: a mark with its name under it, both on the tile's left
+ * edge so a row of them lines up with the label above. The hover is drawn
+ * close around the mark, since the mark is the thing being pressed; the name
+ * is one line, cut where the tile ends.
+ */
 function Door({
   icon,
   name,
@@ -87,12 +101,14 @@ function Door({
 }) {
   return (
     <button
-      className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-lg px-1 py-1.5 hover:bg-accent/40"
+      className="group flex w-18 shrink-0 flex-col items-start gap-1.5 text-left"
       onClick={onOpen}
       type="button"
     >
-      {icon}
-      <span className="line-clamp-2 w-full text-center text-xs leading-tight">
+      <span className="-m-1 rounded-xl p-1 group-hover:bg-foreground/8 group-focus-visible:bg-foreground/8">
+        {icon}
+      </span>
+      <span className="w-full truncate text-xs leading-tight text-foreground/80 group-hover:text-foreground">
         {name}
       </span>
     </button>
@@ -174,7 +190,7 @@ function HomeRoute() {
           connected is drawn faint, since it is not yet a way in to anything. */}
       <section className="mx-auto mt-5 w-full max-w-5xl">
         <p className={SECTION_LABEL}>Apps</p>
-        <div className="flex flex-nowrap gap-1 overflow-hidden">
+        <div className={DOOR_ROW}>
           {(appList.data?.apps ?? []).slice(0, APPS_SHOWN).map((app) => (
             <Door
               icon={
@@ -183,6 +199,7 @@ function HomeRoute() {
                     app.standing === "connected" ? undefined : "opacity-50"
                   }
                   site={app.site}
+                  size="lg"
                 />
               }
               key={app.slug}
@@ -197,8 +214,8 @@ function HomeRoute() {
           ))}
           <Door
             icon={
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-dashed border-border text-muted-foreground">
-                <PlusIcon className="size-4" />
+              <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-dashed border-border text-muted-foreground">
+                <PlusIcon className="size-5" />
               </span>
             }
             name="All apps"
@@ -220,7 +237,7 @@ function HomeRoute() {
             Right-click a tab to pin it here.
           </p>
         ) : (
-          <div className="flex flex-nowrap gap-1 overflow-hidden">
+          <div className={DOOR_ROW}>
             {/* The app's own room keeps one bookmark it did not have to be
                 given: the work, which spans every channel and so belongs to
                 the channel that is about the app rather than to a tab. */}
@@ -228,7 +245,7 @@ function HomeRoute() {
               <Door
                 icon={
                   <span className={MARK_CARD}>
-                    <InstrumentGlyph className="size-5 text-brand-600" />
+                    <InstrumentGlyph className="size-6 text-brand-600" />
                   </span>
                 }
                 name="Tasks"
@@ -241,7 +258,7 @@ function HomeRoute() {
               <Door
                 icon={
                   <span
-                    className={cn(MARK_CARD, "[&_img]:size-5 [&_svg]:size-5")}
+                    className={cn(MARK_CARD, "[&_img]:size-6 [&_svg]:size-6")}
                   >
                     {pin.kind === "page" ? (
                       <SiteIcon favicon={pin.favicon} url={pin.target} />
@@ -271,11 +288,11 @@ function HomeRoute() {
           place, since a folder is where most trips into the computer end. */}
       <section className="mx-auto mt-3 w-full max-w-5xl">
         <p className={SECTION_LABEL}>Places</p>
-        <div className="flex flex-nowrap gap-1 overflow-hidden">
+        <div className={DOOR_ROW}>
           <Door
             icon={
               <span className={MARK_CARD}>
-                <LaptopIcon className="size-5" />
+                <LaptopIcon className="size-6" />
               </span>
             }
             name={computerName()}
@@ -286,8 +303,8 @@ function HomeRoute() {
           {folders.map((place) => (
             <Door
               icon={
-                <span className="grid size-9 shrink-0 place-items-center">
-                  <FileSystemFolderGlyph className="h-7 w-auto" />
+                <span className="grid size-12 shrink-0 place-items-center">
+                  <FileSystemFolderGlyph className="h-9 w-auto" />
                 </span>
               }
               key={place.path}
@@ -307,7 +324,7 @@ function HomeRoute() {
       <section className="mx-auto mt-5 w-full max-w-5xl">
         <p className={SECTION_LABEL}>Recent files</p>
         {recents.data === undefined ? null : recents.data.length === 0 ? (
-          <p className="pl-5.5 text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Files Instrument shows you in the conversation will appear here.
           </p>
         ) : (
@@ -422,7 +439,9 @@ function RecentFiles({
   return (
     <ul
       aria-label="Recent files"
-      className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card"
+      // No wider than the rows of tiles above: a list edge to edge read as
+      // the widest thing on the page.
+      className="max-w-3xl divide-y divide-border overflow-hidden rounded-xl border border-border bg-card"
       onBlur={(event) => {
         // The keyboard leaving the list takes the highlight with it, unless it
         // left for the panel, which is still showing the row it is on.

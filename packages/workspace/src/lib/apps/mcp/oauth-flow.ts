@@ -9,6 +9,7 @@ import { type AbsolutePath } from "../../../schemas/paths";
 import { recordConnection } from "../connection";
 import { loadApp } from "../store";
 import { type McpConnectionError } from "./client";
+import { fetchForMcp } from "./fetch";
 import { createMcpOAuthProvider, type McpOAuthStore } from "./oauth-provider";
 
 /**
@@ -106,6 +107,7 @@ export async function beginMcpOAuth({
   });
   const transport = new StreamableHTTPClientTransport(new URL(manifest.url), {
     authProvider: provider,
+    fetch: fetchForMcp,
   });
   const client = new Client({ name: APP_NAME, version: "1.0.0" });
 
@@ -135,6 +137,7 @@ export async function beginMcpOAuth({
     // have started the authorization is never coming: ask for it outright.
     await client.close().catch(noop);
     await auth(provider, {
+      fetchFn: fetchForMcp,
       scope: manifest.auth.scope,
       serverUrl: new URL(manifest.url),
     });
@@ -219,6 +222,7 @@ export async function completeMcpOAuth({
   const client = new Client({ name: APP_NAME, version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(flow.url), {
     authProvider: flow.provider,
+    fetch: fetchForMcp,
   });
   try {
     await flow.transport.finishAuth(code);

@@ -13,6 +13,7 @@ import { noop } from "radashi";
 
 import { isLoopbackHost } from "../manifest";
 import { checkPublicUrl } from "../safe-url";
+import { fetchForMcp } from "./fetch";
 import { type LocalServerLaunch } from "./local-server";
 
 /**
@@ -145,6 +146,7 @@ export async function withMcpClient<T>({
   return runWithTransport(
     new StreamableHTTPClientTransport(url, {
       authProvider,
+      fetch: fetchForMcp,
       requestInit: {
         headers: authProvider ? {} : authHeaders(config.auth),
         signal,

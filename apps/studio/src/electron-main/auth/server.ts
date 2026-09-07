@@ -93,14 +93,7 @@ async function start() {
   // localhost/127.0.0.1.
   const bound = await listenWithPortFallback({
     basePort: DEFAULT_PORT,
-    listen: (port) =>
-      serve({
-        fetch: app.fetch,
-        hostname: "127.0.0.1",
-        // See the workspace server: the global Response stays Node's own.
-        overrideGlobalObjects: false,
-        port,
-      }),
+    listen: (port) => serve({ fetch: app.fetch, hostname: "127.0.0.1", port }),
   }).catch((error: unknown) => {
     captureServerException(
       new Error("Failed to start the auth callback server", { cause: error }),

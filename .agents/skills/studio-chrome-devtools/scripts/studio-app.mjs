@@ -948,7 +948,17 @@ function keyDescriptor(combination) {
     ...descriptor,
     modifiers,
     ...(descriptor.keyCode && {
-      nativeVirtualKeyCode: descriptor.keyCode,
+      // The table above holds Windows virtual key codes, which are the
+      // platform's own only on Windows, and `nativeVirtualKeyCode` is read as
+      // the platform's. macOS numbers its keys differently -- 76 is the
+      // keypad's Enter rather than `L` -- so a chord carrying one there names a
+      // key the event's own character disagrees with. Held with Command, that
+      // is what matches `About <app>`: the first item of the first menu, and
+      // the one item carrying no key equivalent of its own. The chord appears
+      // to do nothing and the About panel opens over whatever the user is in.
+      ...(process.platform === "win32" && {
+        nativeVirtualKeyCode: descriptor.keyCode,
+      }),
       windowsVirtualKeyCode: descriptor.keyCode,
     }),
     // Meta+K must not also insert a "k". Shift is the exception, since Shift+A

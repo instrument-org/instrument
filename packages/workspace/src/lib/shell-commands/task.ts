@@ -25,12 +25,16 @@ import {
   readConnection,
 } from "../apps/connection";
 import { loadApp } from "../apps/store";
+import {
+  killBackgroundProcess,
+  listTaskBackgroundProcesses,
+} from "../background-processes";
 import { defaultTaskName } from "../default-task-name";
 import { getTask } from "../get-tasks";
 import { initializeTask } from "../initialize-task";
 import { newMessage } from "../new-message";
 import { newTaskId } from "../new-task-id";
-import { isWorking } from "../orchestrator/activity";
+import { isWorking, leftRunning } from "../orchestrator/activity";
 import { recordTaskChannel } from "../orchestrator/attribution";
 import { listChildTasks } from "../orchestrator/children";
 import {
@@ -38,6 +42,7 @@ import {
   latestOrNewSessionId,
   latestSessionId,
 } from "../orchestrator/latest-session";
+import { describeLeftRunning } from "../orchestrator/left-running";
 import {
   listRunnableModels,
   modelTable,
@@ -132,9 +137,15 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       if busy. Follow-ups, corrections, answers to its questions. Same heredoc.
   ${TASK_COMMAND.name} stop <id>
       Interrupt a running task. Follow with send to redirect it.
+  ${TASK_COMMAND.name} kill <id> [<bg id>]
+      Stop what a task left running in the background after its turn ended:
+      the one process named, by the id \`show\` lists (bg_1), or every one. A
+      server the user is still using is theirs to keep; a scan nobody is
+      waiting on is not.
   ${TASK_COMMAND.name} list [--since <date>] [--until <date>] [--running] [--limit <n>] [--all]
-      Your tasks, newest activity first: id, status, the day it was last active,
-      how long ago that was, and the title. The newest ${TASK_LIST_WINDOW} unless narrowed, and
+      Your tasks, newest activity first: id, status, what it has running in the
+      background when anything does, the day it was last active, how long ago
+      that was, and the title. The newest ${TASK_LIST_WINDOW} unless narrowed, and
       a count of the rest; --all shows every match. --since and --until take a
       day (2026-08-14) or a span back from now (30d), and read the day a task
       was last active, not the date its id begins with: that one is the day it
@@ -186,6 +197,9 @@ export function createTaskCommand(context: TaskCommandContext) {
         case "delete": {
           return await runArchive(rest, context);
         }
+        case "kill": {
+          return await runKill(rest, context);
+        }
         case "list": {
           return await runList(rest, context);
         }
@@ -227,6 +241,56 @@ export function createTaskCommand(context: TaskCommandContext) {
       return fail(error instanceof Error ? error.message : String(error));
     }
   });
+}
+
+/**
+ * Stops what a task left running in the background: one process, or all of
+ * them. Acts on the registry directly rather than asking the task to, which
+ * would cost it a turn and trust the model that left the process behind. The
+ * same act as the stop button beside the task's title.
+ */
+export async function runKill(args: string[], context: TaskCommandContext) {
+  const task = await requireChild(args[0], context);
+  const wanted = args[1];
+  const running = listTaskBackgroundProcesses(task.id).filter(
+    (process) => process.status === "running",
+  );
+  if (running.length === 0) {
+    return ok(`${task.id} has nothing running in the background.\n`);
+  }
+  const targets =
+    wanted === undefined
+      ? running
+      : running.filter((process) => process.id === wanted);
+  if (wanted !== undefined && targets.length === 0) {
+    const background = leftRunning(task.id)
+      .map((process) => describeLeftRunning(process))
+      .join(", ");
+    throw new Error(
+      `no ${wanted} running in ${task.id}. In the background: ${background}.`,
+    );
+  }
+  const now = Date.now();
+  const lines = await Promise.all(
+    targets.map(async (process) => {
+      const described = describeLeftRunning({
+        command: process.command,
+        id: process.id,
+        runningForMs: now - process.startedAt.getTime(),
+      });
+      const killed = await killBackgroundProcess({
+        id: process.id,
+        sessionId: process.sessionId,
+      });
+      if (!killed?.stoppedByThisCall) {
+        return `${process.id} had already ended.`;
+      }
+      return killed.terminationConfirmed
+        ? `Stopped ${described}.`
+        : `Told ${described} to stop, but could not confirm it did; \`${TASK_COMMAND.name} show ${task.id}\` will say.`;
+    }),
+  );
+  return ok(`${lines.join("\n")}\n`);
 }
 
 export async function runNew(
@@ -699,6 +763,7 @@ function listRowsOf(tasks: Task[]): TaskListRow[] {
   return tasks.map((task) => ({
     id: task.id,
     isRunning: isWorking(task.id),
+    leftRunning: leftRunning(task.id).length,
     title: task.title,
     updatedAt: task.updatedAt,
   }));
@@ -897,9 +962,18 @@ async function runShow(args: string[], context: TaskCommandContext) {
       : translateMountPaths(said, taskFolders, orchestratorFolders);
 
   const usage = await getTaskUsageSummary(task.id);
+  // Its own line rather than a word in the status: the status is the turn,
+  // and a turn that ended with a scan still going leaves the task idle with
+  // something running.
+  const background = leftRunning(task.id);
   const lines = [
     `${task.id}: "${task.title}"`,
     `status: ${running ? "running" : "idle"}`,
+    ...(background.length > 0
+      ? [
+          `in the background: ${background.length > 1 ? "\n  " : ""}${background.map((process) => describeLeftRunning(process)).join("\n  ")}`,
+        ]
+      : []),
     `last activity: ${task.updatedAt.toISOString().slice(0, 10)}, ${formatAge(Date.now() - task.updatedAt.getTime())} ago`,
     `spent: ${ms(Math.max(1000, usage.activeMs), { long: true })} of work, ${usage.inputTokens + usage.outputTokens} tokens`,
     `model: ${state.selectedModelURI ?? "(none yet)"}`,

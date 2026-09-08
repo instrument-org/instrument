@@ -19,10 +19,12 @@ function row(
   title: string,
   daysAgo: number,
   isRunning = false,
+  leftRunning = 0,
 ): TaskListRow {
   return {
     id: TaskIdSchema.parse(id),
     isRunning,
+    leftRunning,
     title,
     updatedAt: new Date(NOW.getTime() - daysAgo * 86_400_000),
   };
@@ -132,6 +134,21 @@ describe("renderTaskList", () => {
       2026-09-04-webauthn   idle     2026-09-04  4d ago   Test WebAuthn registration
       2026-08-14-nest       idle     2026-08-14  25d ago  Second-floor Nest eco mode guard
       golden-iron-stone-73  idle     2026-04-15  5mo ago  Wednesday afternoon greeting
+      "
+    `);
+  });
+
+  it("adds a background column only when a task has something there", () => {
+    const tasks = [
+      row("2026-09-08-vault", "Find the vault", 0, false, 1),
+      row("2026-09-08-hey", "hey", 0, true),
+      row("2026-09-04-webauthn", "Test WebAuthn registration", 4),
+    ];
+    expect(renderTaskList(selectTasks(tasks), { now: NOW }))
+      .toMatchInlineSnapshot(`
+      "2026-09-08-vault     idle     1 in background  2026-09-08  1s ago  Find the vault
+      2026-09-08-hey       running                   2026-09-08  1s ago  hey
+      2026-09-04-webauthn  idle                      2026-09-04  4d ago  Test WebAuthn registration
       "
     `);
   });

@@ -40,7 +40,13 @@ export interface TaskListQuery {
 /** One task as the listing needs it. */
 export interface TaskListRow {
   id: TaskId;
+  /** Whether an agent turn is live in it. */
   isRunning: boolean;
+  /**
+   * How many processes it has running in the background, whatever its turn
+   * is doing. The two come apart when a turn ends with a scan still going.
+   */
+  leftRunning: number;
   title: string;
   updatedAt: Date;
 }
@@ -136,33 +142,44 @@ export function parseListDate(
 }
 
 /**
- * The listing itself: a column each for the id, whether it is running, the day
- * it was last active, how long ago that was, and its title.
+ * The listing itself: a column each for the id, whether it is running, what it
+ * has in the background when any row does, the day it was last active, how
+ * long ago that was, and its title.
  *
  * The day is written out as well as the age because a listing without one is
  * filtered by reading a date out of the id, which is the day the task was made
  * rather than the day it was last active, and which a quarter of tasks do not
  * carry at all.
+ *
+ * The background column is its own rather than a word in the status column,
+ * because "running" there means an agent turn is live, and a task that ended
+ * its turn with a scan still going is idle and has one. One cell saying both
+ * with one word would say neither.
  */
 export function renderTaskList(
   selection: TaskListSelection,
   { now = new Date() }: { now?: Date } = {},
 ): string {
+  const anyLeft = selection.shown.some((row) => row.leftRunning > 0);
   const cells = selection.shown.map((row) => [
     row.id,
     row.isRunning ? "running" : "idle",
+    ...(anyLeft
+      ? [row.leftRunning > 0 ? `${row.leftRunning} in background` : ""]
+      : []),
     row.updatedAt.toISOString().slice(0, 10),
     `${formatAge(now.getTime() - row.updatedAt.getTime())} ago`,
     row.title,
   ]);
-  const widths = [0, 1, 2, 3].map((column) =>
+  const last = (cells[0]?.length ?? 1) - 1;
+  const widths = Array.from({ length: last }, (_, column) =>
     Math.max(...cells.map((row) => (row[column] ?? "").length)),
   );
   const table = cells
     .map((row) =>
       row
         .map((cell, column) =>
-          column === 4 ? cell : cell.padEnd(widths[column] ?? 0),
+          column === last ? cell : cell.padEnd(widths[column] ?? 0),
         )
         .join("  "),
     )

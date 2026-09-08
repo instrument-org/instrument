@@ -24,6 +24,7 @@ import {
   buildBashFs,
   buildWorkspaceFsLayout,
   effectiveFolderAccess,
+  folderHoldsWorkspace,
 } from "./workspace-fs-layout";
 import {
   beginSkillChangeTracking,
@@ -460,14 +461,7 @@ describe("effectiveFolderAccess", () => {
   });
 
   function accessFor(folderPath: string) {
-    return effectiveFolderAccess({
-      access: "read-write",
-      createdAt: 0,
-      id: FolderAttachment.IdSchema.parse("folder-id"),
-      mountName: "Folder",
-      path: AbsolutePathSchema.parse(folderPath),
-      source: "user",
-    });
+    return effectiveFolderAccess({ access: "read-write", path: folderPath });
   }
 
   it("grants read-write to a folder clear of the workspace", () => {
@@ -492,6 +486,30 @@ describe("effectiveFolderAccess", () => {
     await fs.symlink(tmpDir, link);
     expect(accessFor(path.join(link, "workspace", "projects"))).toBe(
       "read-only",
+    );
+  });
+
+  it("judges the folder given rather than the attachment it came from", () => {
+    expect(
+      effectiveFolderAccess({
+        access: "read-write",
+        path: path.join(tmpDir, "elsewhere"),
+      }),
+    ).toBe("read-write");
+    expect(effectiveFolderAccess({ access: "read-write", path: tmpDir })).toBe(
+      "read-only",
+    );
+  });
+
+  it("knows a folder that holds the workspace from one beside or inside it", async () => {
+    expect(folderHoldsWorkspace(tmpDir)).toBe(true);
+    const link = path.join(tmpDir, "link-to-root-again");
+    await fs.symlink(tmpDir, link);
+    expect(folderHoldsWorkspace(link)).toBe(true);
+    expect(folderHoldsWorkspace(path.join(tmpDir, "workspace"))).toBe(false);
+    expect(folderHoldsWorkspace(path.join(tmpDir, "elsewhere"))).toBe(false);
+    expect(folderHoldsWorkspace(path.join(tmpDir, "workspace", "tasks"))).toBe(
+      false,
     );
   });
 });

@@ -28,6 +28,11 @@ export function buildAttachedFoldersText({
     missing?: boolean;
     mountPoint: string;
     path: string;
+    /**
+     * Read-only as a whole because the workspace lives inside it, while a
+     * folder inside it takes the write grant the user gave: the home folder.
+     */
+    writableInside?: boolean;
   }[];
   intro: string;
   /**
@@ -45,13 +50,17 @@ export function buildAttachedFoldersText({
   }
 
   const folderList = folders
-    .map(({ access, missing, mountPoint, path }, index) => {
+    .map(({ access, missing, mountPoint, path, writableInside }, index) => {
       const name = displayNames[index] ?? path;
       const parent =
         (nameCounts.get(name) ?? 0) > 1 ? folderParentLabel(path) : undefined;
       const where = parent ? ` (in ${parent})` : "";
       const state = [
-        access === "read-write" ? "read and write" : "read-only",
+        access === "read-write"
+          ? "read and write"
+          : writableInside
+            ? "read-only as a whole, read and write inside"
+            : "read-only",
         missing ? "no longer exists" : null,
       ]
         .filter((part) => part !== null)
@@ -61,7 +70,10 @@ export function buildAttachedFoldersText({
     .join("\n");
 
   const writable = folders.some(({ access }) => access === "read-write");
-  const readOnly = folders.some(({ access }) => access !== "read-write");
+  const readOnly = folders.some(
+    ({ access, writableInside }) => access !== "read-write" && !writableInside,
+  );
+  const writableInside = folders.some((folder) => folder.writableInside);
 
   // Lines, not a `- ` list: the folder list above already is one, and a second
   // list under it reads as more folders.
@@ -75,6 +87,9 @@ export function buildAttachedFoldersText({
             : null,
           readOnly
             ? `Writing into a read-only folder fails, for you and for a task. It mirrors the user's real files and is not yours to change.`
+            : null,
+          writableInside
+            ? `A folder that is read-only as a whole keeps ${APP_NAME}'s own data somewhere inside it: you read it and never write it, and a task is handed a folder inside it (--folder <mount>/<folder>) and writes there.`
             : null,
         ]
       : [

@@ -368,6 +368,11 @@ export function buildWorkspaceFsLayout({
  * them. Reading those files was already possible for anyone who attached such
  * a folder; writing them is refused.
  *
+ * The judgment is about the folder given, not about the attachment it came
+ * from: the home folder attached whole is read-only, since the workspace is
+ * somewhere inside it, while its Desktop handed on its own is clear of the
+ * workspace and carries the same grant in full.
+ *
  * Applied here rather than at the UI so it holds for a hand-edited state.json,
  * and shared with the agent's folder list so what the model is told matches
  * what the filesystem enforces.
@@ -378,9 +383,10 @@ export function buildWorkspaceFsLayout({
  * matching it as a prefix. Only a read-write grant pays for that, so the usual
  * read-only folder costs nothing.
  */
-export function effectiveFolderAccess(
-  folder: FolderAttachment.Type,
-): FolderAttachment.Access {
+export function effectiveFolderAccess(folder: {
+  access: FolderAttachment.Access;
+  path: string;
+}): FolderAttachment.Access {
   if (folder.access !== "read-write") {
     return "read-only";
   }
@@ -397,6 +403,25 @@ export function effectiveFolderAccess(
     pathIsWithin(folderPath, workspaceRoot) ||
     pathIsWithin(workspaceRoot, folderPath);
   return overlapsWorkspace ? "read-only" : "read-write";
+}
+
+/**
+ * True when a folder contains the workspace root: the home folder attached
+ * whole. Such a folder is read-only as a whole (effectiveFolderAccess) while a
+ * folder inside it takes a write grant, which is what a refusal to write it
+ * whole should say to do instead.
+ */
+export function folderHoldsWorkspace(folderPath: string): boolean {
+  const resolved = canonicalizeThroughMissing(folderPath);
+  const workspaceRoot = canonicalizeThroughMissing(
+    getWorkspaceConfig().rootDir,
+  );
+  return (
+    resolved !== null &&
+    workspaceRoot !== null &&
+    resolved !== workspaceRoot &&
+    pathIsWithin(workspaceRoot, resolved)
+  );
 }
 
 /**

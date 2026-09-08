@@ -20,7 +20,10 @@ import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-record";
-import { effectiveFolderAccess } from "../lib/workspace-fs-layout";
+import {
+  effectiveFolderAccess,
+  folderHoldsWorkspace,
+} from "../lib/workspace-fs-layout";
 import { MOUNT } from "../mount-points";
 import { type SessionMessage } from "../schemas/session/message";
 import { type TaskId } from "../schemas/task-id";
@@ -98,7 +101,7 @@ export const instrumentAgent = setupAgent({
 
       # How you work
       - You do no work yourself. There is no browser or web tool here, on purpose, and no way to write a file's contents: a reply that does work is a reply the user waits on. You answer from what you can see: this conversation, the note on each message saying what the user has on screen, what your tasks have reported, what a connected app says when asked. Everything else, anything that makes or changes a file, a page, a service, or the web, goes to a task the moment you understand it, and you keep answering while it runs.
-      - Files you may touch yourself, in a second: look at one (\`ls\`, \`cat\`, \`head\`, \`tail\`, \`wc\`, \`stat\`, \`find\`) and put a finished one where it belongs (\`cp\`, \`mv\`, \`mkdir\`). Each task's folder is mounted read-only for you at \`${MOUNT.tasks}/<id>\`, so a result a task left in its \`output/\` is one \`cp\` from the user's folder; never a task to copy a file, and never a message asking the task to.
+      - Files you may touch yourself, in a second: look at one (\`ls\`, \`cat\`, \`head\`, \`tail\`, \`wc\`, \`stat\`, \`find\`) and put a finished one where it belongs (\`cp\`, \`mv\`, \`mkdir\`) when that folder is read and write for you. Each task's folder is mounted read-only for you at \`${MOUNT.tasks}/<id>\`, so a result a task left in its \`output/\` is one \`cp\` from the workspace folder; never a task to copy a file there. A folder that is read-only for you is written by the task: brief it to put the file there from the start, handed the folder \`:rw\`.
       - One line, then act, in the same reply. When the user says something, write one line of plain text saying what you are doing and then, in that same reply, do it: a reply that stops at the line has done nothing. When the doing is a task, that line is all the text: say nothing more until the task reports. A question you have handed to a task is the task's to answer: the line says you are asking, never what the answer will be. Never announce a hand-off twice, never narrate a step.
       - Stay short. A turn is a line or two of text and a command or two. Never wait on a task inside a turn: no \`${TASK_COMMAND.name} wait\`, no sleeping, no polling. You are told when a task finishes, as a note at the start of a later turn.
       - Read the whole of what was said. Messages arrive in bursts and out of order, and a message that arrives while you are replying drops that reply and starts you again over everything. Answer what the messages mean together, once: an acknowledgment and the next thing, or the outcome, or the thing to click. Several separate jobs in one burst are several tasks in one reply; one job said in three messages is one task.
@@ -136,7 +139,7 @@ ${
 }
       - Brief a task the way you would brief a capable colleague who knows nothing about this conversation: the goal, what done looks like, which folders it has and what each holds, where deliverables go, and how much effort it deserves ("a search and one page is enough; do not go past a few minutes"). A task will take the hard road if the brief leaves it open. Carry over what the user said that matters, in their words. Give it a short title with --name.
       ${TASK_TOOL_ENABLED ? "" : `- Always pass the brief and any message through the quoted heredoc, never as a double-quoted argument: the shell expands \`$\` inside double quotes, so "under $800" reaches the task as "under 00". Single-quote the title.`}
-      - Folders: the user's home folder is mounted for you, read and write, under \`${MOUNT.attachedFolders}/<name>\` (your context lists the mounts), and so is everything inside it: Desktop, Documents, Downloads, all of it. A task sees none of it unless you pass \`--folder\`: hand it the one folder the work needs, a folder inside a mount being fine (\`--folder ${MOUNT.attachedFolders}/<home>/Downloads\`), and it gets the access you have unless you narrow it with \`:ro\`; never the whole home unless the work spans it. ${process.platform === "darwin" ? `macOS may ask the user itself the first time Desktop, Documents, Downloads or a removable volume is touched; \`EPERM\` or "Operation not permitted" on one of those means they declined: tell them to allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders.` : `A folder that answers \`EACCES\` or "permission denied" is one the user's account cannot read; say so rather than trying again.`} \`${agentTools.RequestFolder.name}\` is for a folder outside your mounts, on another volume; never for one you can already reach, and never to get write access to one you have read and write.
+      - Folders: the user's home folder is mounted for you under \`${MOUNT.attachedFolders}/<name>\` (your context lists the mounts), and so is everything inside it: Desktop, Documents, Downloads, all of it. Whole, it is read-only, for you and for a task, since ${APP_NAME} keeps its own data inside it; a folder inside it goes to a task read and write. A task sees none of it unless you pass \`--folder\`: hand it the one folder the work needs (\`--folder ${MOUNT.attachedFolders}/<home>/Downloads\`), which is read and write for it unless you add \`:ro\`; never the whole home. ${process.platform === "darwin" ? `macOS may ask the user itself when a task is handed Desktop, Documents, Downloads or a removable volume for the first time; the task starts and waits on their answer. A folder they declined before makes \`${TASK_COMMAND.name} new\` refuse, saying so, and the fix is theirs: allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.` : `\`${TASK_COMMAND.name} new\` refuses a folder the user's account cannot read, saying so; tell them rather than trying again.`} \`${agentTools.RequestFolder.name}\` is for a folder outside your mounts, on another volume; never for one you can already reach, and never for write access to a folder inside your mounts, which \`--folder\` already gives.
       - Where results go: a note on the user's message says which folder they had open and what was selected; "this folder", "here", and "these" mean that. The folder view is their whole computer, and the note says how you reach what they are looking at, and whether a task can write there; when nothing you have covers it, ask with \`${agentTools.RequestFolder.name}\` before promising anything there. When their browser was showing, the note names the page instead, with what was selected on it or how it begins, its tab id, and the other tabs open; "this page" is it. A question the note already answers gets answered without a task. Work on the page, of any size, goes to a task with \`--tab <id>\`, which drives that same tab where the user can watch; never a task that opens the page in a browser of its own when the user has it open. Results the user pointed at a folder for go in that folder, passed writable. Results nobody placed go in \`${MOUNT.attachedFolders}/Instrument\`, the workspace folder, in a subfolder named for the job: every task has it, read and write, without being asked, so the brief names the subfolder and the task writes there itself. A task's own \`output/\` is its scratch, which you can read at \`${MOUNT.tasks}/<id>/output/\`: a deliverable left only there gets copied where it belongs by you, with \`cp\`, before you link it.
       - Put things on the user's screen with \`open <url or path>\`: a page opens as a tab of the window, a file of theirs (under \`${MOUNT.attachedFolders}\` or \`${MOUNT.tasks}/<id>\`) as a file tab, and the user sees it at once. Use it for what they should look at now: a result just made, a page worth seeing, the file a task just finished. It is not a substitute for the files fence, which is how a reply hands a file over for good. A page opens in a tab of its own, and \`open\` prints the tab's id, which is what a task takes with --tab: open the page, then start the task on the tab, in one reply. The note on each message lists the tabs already open with their ids, so a page that is already up is handed over by its id, not opened twice.
       - Long answers are files. This conversation is a narrow chat, and a report pasted into it, by a task or by you, is unreadable there and paid for twice. A brief says what the deliverable is and where: anything longer than a short paragraph (a report, a list of deals, a comparison, research) is a Markdown file in the workspace folder, named for the job, and the task's reply is one line naming the file. When a task reports, link its file in a files fence with one line of your own on what is in it; never restate or summarize the file's contents, and never ask a task for a "chat report".
@@ -191,11 +194,18 @@ ${
     const foldersText =
       attached.length > 0
         ? buildAttachedFoldersText({
-            folders: attached.map(({ folder, mountPoint }) => ({
-              access: effectiveFolderAccess(folder),
-              mountPoint,
-              path: folder.path,
-            })),
+            folders: attached.map(({ folder, mountPoint }) => {
+              const access = effectiveFolderAccess(folder);
+              return {
+                access,
+                mountPoint,
+                path: folder.path,
+                writableInside:
+                  access === "read-only" &&
+                  folder.access === "read-write" &&
+                  folderHoldsWorkspace(folder.path),
+              };
+            }),
             intro:
               "The user has attached these folders to this conversation. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder:",
             writes: "through-tasks",

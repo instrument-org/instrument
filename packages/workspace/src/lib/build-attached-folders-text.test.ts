@@ -146,6 +146,29 @@ describe("buildAttachedFoldersText", () => {
     expect(listOf(throughTasks)).toEqual(listOf(here));
   });
 
+  it("tells a reader without file tools how the home folder is written: inside, by a task", () => {
+    const text = buildAttachedFoldersText({
+      folders: [
+        {
+          access: "read-only",
+          mountPoint: "/mnt/sam",
+          path: "/Users/sam",
+          writableInside: true,
+        },
+      ],
+      intro: INTRO,
+      writes: "through-tasks",
+    });
+
+    expect(listOf(text)).toMatchInlineSnapshot(`
+      [
+        "- "sam" -> \`/mnt/sam\` (read-only as a whole, read and write inside)",
+      ]
+    `);
+    expect(text).toContain("keeps Instrument's own data somewhere inside it");
+    expect(text).not.toContain("Writing into a read-only folder fails");
+  });
+
   it.runIf(process.platform === "darwin")(
     "tells a reader with file tools what a refusal from macOS looks like",
     () => {

@@ -4,7 +4,10 @@ import path from "node:path";
 
 import { MOUNT } from "../../mount-points";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
-import { effectiveFolderAccess } from "../workspace-fs-layout";
+import {
+  effectiveFolderAccess,
+  folderHoldsWorkspace,
+} from "../workspace-fs-layout";
 
 /**
  * `--flag value` and `--flag=value` pairs, plus everything else in order. Each
@@ -118,12 +121,6 @@ export function resolveFolders(
         `no folder "${name}" in this conversation. Yours: ${available}; a folder inside one is written ${MOUNT.attachedFolders}/<mount>/<folder>. Ask for one outside them with request_folder.`,
       );
     }
-    const granted = effectiveFolderAccess(folder);
-    if (access === "read-write" && granted !== "read-write") {
-      throw new Error(
-        `${MOUNT.attachedFolders}/${name} is read-only in this conversation, so a task cannot write to it. Ask the user to attach it with write access.`,
-      );
-    }
     // A folder inside the mount and never one outside it: `..` in the
     // subpath would hand a task a folder the user never granted.
     const root = path.resolve(folder.path);
@@ -131,6 +128,20 @@ export function resolveFolders(
     if (folderPath !== root && !folderPath.startsWith(`${root}${path.sep}`)) {
       throw new Error(
         `"${spec}" leaves ${MOUNT.attachedFolders}/${name}. A task can be handed a folder inside a mount, not one outside it.`,
+      );
+    }
+    // The grant is judged for the folder handed, not for the mount: the home
+    // folder is read-only as a whole because the workspace lives inside it,
+    // while its Desktop, clear of the workspace, carries the grant in full.
+    const granted = effectiveFolderAccess({
+      access: folder.access,
+      path: folderPath,
+    });
+    if (access === "read-write" && granted !== "read-write") {
+      throw new Error(
+        folder.access === "read-write" && folderHoldsWorkspace(folderPath)
+          ? `${MOUNT.attachedFolders}/${name} holds ${APP_NAME}'s own data, so a task reads it whole and never writes it whole. Hand it the folder inside that the work needs: --folder ${MOUNT.attachedFolders}/${name}/<folder>:rw.`
+          : `${MOUNT.attachedFolders}/${name} is read-only in this conversation, so a task cannot write to it. Ask the user to attach it with write access.`,
       );
     }
     // The task gets what the conversation has unless the brief narrows it.

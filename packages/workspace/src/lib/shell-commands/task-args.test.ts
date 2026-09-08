@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { getWorkspaceConfig } from "../workspace-config";
 import {
   parseFlags,
   parseFolderSpec,
@@ -112,6 +113,47 @@ describe("resolveFolders", () => {
     expect(() => resolveFolders(["Notes:rw"], attached)).toThrow(
       "/mnt/Notes is read-only in this conversation",
     );
+  });
+
+  // The home folder on a real machine: the workspace lives inside it, so the
+  // whole is read-only, while a folder inside it takes the grant in full.
+  describe("a grant that holds the workspace", () => {
+    const home = {
+      Root: FolderAttachment.Schema.parse({
+        access: "read-write",
+        createdAt: 1,
+        id: "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+        mountName: "Root",
+        path: path.dirname(getWorkspaceConfig().rootDir),
+        source: "user",
+      }),
+    };
+
+    it("reads the whole and refuses to write it, naming the folder inside to hand instead", () => {
+      expect(resolveFolders(["Root"], home)).toEqual([
+        { access: "read-only", path: home.Root.path, source: "user" },
+      ]);
+      expect(() => resolveFolders(["Root:rw"], home)).toThrow(
+        "/mnt/Root holds Instrument's own data, so a task reads it whole and never writes it whole. Hand it the folder inside that the work needs: --folder /mnt/Root/<folder>:rw.",
+      );
+    });
+
+    it("hands a folder inside it read and write, asked for or not", () => {
+      const desktop = path.join(home.Root.path, "Desktop");
+      expect(resolveFolders(["Root/Desktop:rw", "Root/Desktop"], home)).toEqual(
+        [
+          { access: "read-write", path: desktop, source: "user" },
+          { access: "read-write", path: desktop, source: "user" },
+        ],
+      );
+    });
+
+    it("keeps the workspace itself read-only under that grant", () => {
+      const workspace = `Root/${path.basename(getWorkspaceConfig().rootDir)}`;
+      expect(() => resolveFolders([`${workspace}:rw`], home)).toThrow(
+        "/mnt/Root is read-only in this conversation",
+      );
+    });
   });
 
   it("refuses a subpath that leaves the mount", () => {

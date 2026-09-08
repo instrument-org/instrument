@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 
+import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
 import { getMimeType } from "../get-mime-type";
 import { resolveExistingFilePath } from "../resolve-agent-path";
@@ -11,6 +12,7 @@ import { resolveTaskProjectFolder } from "../task-project-folder";
 import { getTaskState } from "../task-record";
 import {
   buildWorkspaceFsLayout,
+  effectiveFolderAccess,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { childTaskMounts } from "./children";
@@ -88,7 +90,12 @@ export type ComputerPlaces = z.output<typeof ComputerPlacesSchema>;
 
 /** A granted folder as a host root, with how the agent reaches what is under it. */
 interface AttachedRoot {
-  access: ComputerAccess["access"];
+  /**
+   * The access the grant carries. What a folder under the root gets is judged
+   * for that folder: the home folder is read-only as a whole, since the
+   * workspace lives inside it, while its Desktop takes the grant in full.
+   */
+  grant: FolderAttachment.Access;
   mountPoint: string;
   root: string;
 }
@@ -204,11 +211,10 @@ export async function recentComputerFiles({
 }: {
   taskId: TaskId;
 }): Promise<ComputerRecent[]> {
-  const [shown, layout] = await Promise.all([
+  const [shown, { layout, roots }] = await Promise.all([
     linkedFiles(taskId),
-    orchestratorLayout(taskId),
+    orchestratorView(taskId),
   ]);
-  const roots = reachableRoots(layout);
   const described = await Promise.all(
     shown.map(async (file) => {
       const resolved = resolveExistingFilePath({
@@ -240,18 +246,22 @@ function accessIn(
   roots: AttachedRoot[],
   hostPath: string,
 ): ComputerAccess | undefined {
-  let best: ComputerAccess | undefined;
-  for (const { access, mountPoint, root } of roots) {
+  let best: AttachedRoot | undefined;
+  for (const candidate of roots) {
+    const { root } = candidate;
     const inside = hostPath === root || hostPath.startsWith(`${root}/`);
     if (inside && (best === undefined || root.length > best.root.length)) {
-      best = {
-        access,
-        mountPath: `${mountPoint}${hostPath.slice(root.length)}`,
-        root,
-      };
+      best = candidate;
     }
   }
-  return best;
+  if (!best) {
+    return undefined;
+  }
+  return {
+    access: effectiveFolderAccess({ access: best.grant, path: hostPath }),
+    mountPath: `${best.mountPoint}${hostPath.slice(best.root.length)}`,
+    root: best.root,
+  };
 }
 
 /**
@@ -262,7 +272,8 @@ async function computerAccess(
   taskId: TaskId,
   hostPath: string,
 ): Promise<ComputerAccess | undefined> {
-  return accessIn(reachableRoots(await orchestratorLayout(taskId)), hostPath);
+  const { roots } = await orchestratorView(taskId);
+  return accessIn(roots, hostPath);
 }
 
 /**
@@ -364,17 +375,20 @@ async function isDirectory(folder: string) {
 /**
  * The orchestrator's own view of the filesystem: the folders the user attached
  * and a read-only mount per task it created, which is where a file its work
- * made actually sits.
+ * made actually sits. Beside the layout, the same mounts as host roots with
+ * the grant each carries, which is what a folder's access is judged from.
  */
-async function orchestratorLayout(taskId: TaskId) {
+async function orchestratorView(taskId: TaskId) {
   const taskHostRoot = taskDir(taskId);
   const state = await getTaskState(taskHostRoot);
-  return buildWorkspaceFsLayout({
-    attachedFolders: state.attachedFolders,
+  const attachedFolders = state.attachedFolders ?? {};
+  const layout = buildWorkspaceFsLayout({
+    attachedFolders,
     extraMounts: await childTaskMounts(taskId),
     projectFolderName: await resolveTaskProjectFolder(taskId),
     taskHostRoot,
   });
+  return { layout, roots: reachableRoots(layout, attachedFolders) };
 }
 
 /**
@@ -383,10 +397,24 @@ async function orchestratorLayout(taskId: TaskId) {
  * it reads and never writes. A file one of its tasks made lives in the second
  * kind, so leaving those out would show the user a file with no way to open it.
  */
-function reachableRoots(layout: WorkspaceFsLayout): AttachedRoot[] {
-  return layout.attached.map((mount) => ({
-    access: mount.readOnly ? "read-only" : "read-write",
-    mountPoint: mount.mountPoint,
-    root: path.resolve(mount.hostRoot),
-  }));
+function reachableRoots(
+  layout: WorkspaceFsLayout,
+  attachedFolders: Record<string, FolderAttachment.Type>,
+): AttachedRoot[] {
+  const grants = new Map(
+    Object.values(attachedFolders).map((folder) => [
+      path.resolve(folder.path),
+      folder.access,
+    ]),
+  );
+  return layout.attached.map((mount) => {
+    const root = path.resolve(mount.hostRoot);
+    return {
+      // A mount with no grant behind it is a task the orchestrator created,
+      // which it reads and never writes.
+      grant: grants.get(root) ?? (mount.readOnly ? "read-only" : "read-write"),
+      mountPoint: mount.mountPoint,
+      root,
+    };
+  });
 }

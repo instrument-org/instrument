@@ -8,10 +8,13 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 
 /**
- * The user's home folder, attached read-write to the orchestrator's
- * conversation from the start: what the app can reach, the agent can reach,
- * and a task is handed the part of it the work needs. macOS asks the user
- * itself the first time a protected folder inside it is touched.
+ * The user's home folder, attached to the orchestrator's conversation from
+ * the start with a write grant: what the app can reach, the agent can reach,
+ * and a task is handed the part of it the work needs. The grant holds for a
+ * folder inside it and not for the whole, since the workspace lives inside it
+ * too (effectiveFolderAccess). macOS asks the user itself the first time a
+ * protected folder inside it is looked into, which `task new` does as it hands
+ * a folder over.
  */
 export async function ensureHomeFolder(
   orchestratorTaskId: TaskId,

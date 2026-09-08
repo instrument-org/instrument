@@ -40,6 +40,7 @@ import { type TaskId } from "../src/schemas/task-id";
 import { type TaskKind } from "../src/schemas/task-kind";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import {
   buildProviderConfigs,
   c,
@@ -176,6 +177,15 @@ const TREE_QUIET_MS = 6000;
 const TREE_POLL_MS = 500;
 
 export interface EvalCase {
+  /**
+   * Connected apps to stand up before the run, each a real loopback server with
+   * a real manifest and a connection on record. For the paths that only exist
+   * once a service is reachable: handing one to a task, and calling it.
+   *
+   * One apps directory serves every case in a run, so these are listed in every
+   * case's context, not only this one's. Run an app case on its own.
+   */
+  apps?: AppFixture[];
   assertions?: Assertion[];
   files?: FileUpload.Type[];
   folders?: { access?: FolderAttachment.Access; path: string }[];
@@ -280,10 +290,11 @@ export async function runEvals(
     return { runs: [], workspaceRootDir };
   }
 
+  const appsConfig = createMemoryAppsConfig();
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
-      apps: createMemoryAppsConfig(),
+      apps: appsConfig,
       appVersion: "0.0.0-test",
       browser: createStubBrowserConfig(),
       captureEvent: () => {
@@ -337,6 +348,24 @@ export async function runEvals(
 
   const totalRuns = runs.length;
   let finishedRuns = 0;
+
+  // Seeded once, before any case starts, because the apps a task may reach are
+  // read into the session context the first time a session needs model input.
+  // One apps directory serves the whole run, so an app a case declares is
+  // listed for every case in that run: score an app case on its own.
+  const declaredApps = _.unique(
+    runs.flatMap((run) => run.evalCase.apps ?? []),
+    (app) => app.slug,
+  );
+  const appFixtures = await seedConnectedApps(declaredApps, {
+    apps: appsConfig,
+    appsDir: path.join(workspaceRootDir, "apps"),
+  });
+  for (const app of declaredApps) {
+    write(
+      `${c.dim}App       :${c.reset} ${app.slug} ${c.dim}connected${c.reset}\n`,
+    );
+  }
 
   // A task id is slugified from the prompt, and the name is claimed by creating
   // the directory. Running one case against several models means several runs
@@ -611,6 +640,7 @@ export async function runEvals(
     },
   );
 
+  await appFixtures.close();
   actor.stop();
 
   return { runs: completed, workspaceRootDir };

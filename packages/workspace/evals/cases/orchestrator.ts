@@ -160,11 +160,12 @@ function saidAtMost(chars: number): Assertion {
 }
 
 /**
- * A task revised where it stands rather than replaced. `task folder --add` is
- * the move being scored; `task tab` and `task model` are the same act on the
- * task's other settings, and any of them followed by a `send` is the shape.
+ * A task revised where it stands rather than replaced. `task folder --add` and
+ * `task app --add` are the moves being scored; `task tab` and `task model` are
+ * the same act on the task's other settings, and any of them followed by a
+ * `send` is the shape.
  */
-const REVISED_A_TASK = /(?:^|[\n;&|])\s*task (?:folder|tab|model)\b/;
+const REVISED_A_TASK = /(?:^|[\n;&|])\s*task (?:app|folder|tab|model)\b/;
 
 /**
  * How many tasks the conversation started, where more than one is the failure:
@@ -405,5 +406,27 @@ export const ORCHESTRATOR_EVALS = [
     name: "orchestrator-widens-a-running-task",
     prompt:
       "Write two short markdown notes, one on what a CDN is and one on what DNS is, one file each in my Instrument folder.",
+  }),
+
+  defineEval({
+    // The same widening, on the setting a task cannot ask about itself. It has
+    // no way in to an app it was not handed and no way to request one, so it
+    // stops; the whole of the fix is handing it the app and saying carry on.
+    // The app is connected before the run, which is the state the conversation
+    // is in once the user has signed in.
+    apps: [{ name: "Beacon", slug: "beacon" }],
+    assertions: [
+      delegated(1),
+      startedExactly(1),
+      revisedATaskInPlace,
+      didNotDoTheWorkItself,
+    ],
+    followUps: [
+      "Good. Now file each of the points it made as its own issue in our Beacon tracker.",
+    ],
+    kind: "orchestrator",
+    name: "orchestrator-hands-over-an-app",
+    prompt:
+      "Write me a short markdown note in my Instrument folder about what makes a good bug report.",
   }),
 ];

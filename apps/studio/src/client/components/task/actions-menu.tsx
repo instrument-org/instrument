@@ -195,12 +195,26 @@ export function TaskActionsMenuItems({
         <FileArchiveIcon className="size-4" />
         <span>Export as zip</span>
       </Item>
+      {/* Beside the zip, since both are the task leaving the app, and offered
+          to everyone: a person who cannot get their own conversation out
+          without turning developer mode on cannot get it out at all. It acts
+          without opening anything, because a transcript is nearly always on
+          its way somewhere else. */}
+      <Item
+        disabled={!selectedSessionId}
+        onSelect={() => {
+          transcript.save("markdown");
+        }}
+      >
+        <ArrowLineDownIcon className="size-4" />
+        <span>Save transcript</span>
+      </Item>
 
       {isDeveloperMode && (
         <>
           <Separator />
-          {/* Copy and save come first and act without opening anything: the
-              transcript is nearly always on its way to somewhere else. */}
+          {/* The whole transcript onto the clipboard, which is a developer's
+              errand: it replaces whatever the user was holding. */}
           <Item
             className="text-dev-700 dark:text-dev-300"
             disabled={!selectedSessionId}
@@ -210,16 +224,6 @@ export function TaskActionsMenuItems({
           >
             <CopyIcon className="size-4 text-dev-700 dark:text-dev-300" />
             Copy transcript
-          </Item>
-          <Item
-            className="text-dev-700 dark:text-dev-300"
-            disabled={!selectedSessionId}
-            onSelect={() => {
-              transcript.save("markdown");
-            }}
-          >
-            <ArrowLineDownIcon className="size-4 text-dev-700 dark:text-dev-300" />
-            Save transcript
           </Item>
           <Item
             className="text-dev-700 dark:text-dev-300"

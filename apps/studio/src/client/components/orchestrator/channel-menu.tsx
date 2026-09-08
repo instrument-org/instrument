@@ -4,7 +4,6 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 
@@ -15,11 +14,12 @@ export interface MenuAt {
 }
 
 /**
- * The menu a channel gets on right click.
+ * The menu a channel gets on right click: its details, and its transcript out
+ * of the app.
  *
- * It offers the details dialog and nothing else. Archiving used to be here and
- * is not: it is the most destructive thing a channel can be told, and a menu
- * item beside a harmless one is a slip of the pointer away.
+ * Archiving used to be here and is not: it is the most destructive thing a
+ * channel can be told, and a menu item beside a harmless one is a slip of the
+ * pointer away.
  */
 export function ChannelMenu({
   at,
@@ -36,7 +36,6 @@ export function ChannelMenu({
   /** The conversation the channel belongs to, which is the task its session is stored under. */
   taskId: TaskId;
 }) {
-  const isDeveloperMode = useDeveloperMode();
   const transcript = useTranscriptActions({
     id: taskId,
     label: channel.name,
@@ -81,25 +80,21 @@ export function ChannelMenu({
         >
           View channel details…
         </button>
-        {isDeveloperMode && (
-          <>
-            <div aria-hidden className="my-1 h-px bg-border" />
-            {/* Saves without opening anything: a channel's transcript is on its
-              way somewhere else, and the path lands on the clipboard for it. */}
-            <button
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-dev-700 hover:bg-accent dark:text-dev-300"
-              onClick={() => {
-                transcript.save("markdown");
-                onClose();
-              }}
-              role="menuitem"
-              type="button"
-            >
-              <ArrowLineDownIcon className="size-4" />
-              Save transcript
-            </button>
-          </>
-        )}
+        <div aria-hidden className="my-1 h-px bg-border" />
+        {/* Saves without opening anything: a channel's transcript is on its
+          way somewhere else, and the path lands on the clipboard for it. */}
+        <button
+          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+          onClick={() => {
+            transcript.save("markdown");
+            onClose();
+          }}
+          role="menuitem"
+          type="button"
+        >
+          <ArrowLineDownIcon className="size-4 text-muted-foreground" />
+          Save transcript
+        </button>
       </PopoverContent>
     </Popover>
   );

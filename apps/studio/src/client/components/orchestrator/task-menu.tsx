@@ -7,17 +7,14 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 
 /**
  * The menu beside a task's name, for what someone looking over its shoulder can
- * do with the run itself rather than with anything in it.
- *
- * Everything in it is developer-only so far, so the button is too: a menu that
- * opens on nothing is worse than no menu at all.
+ * do with the run itself rather than with anything in it. Saving its transcript
+ * is the first thing in it.
  */
 export function TaskMenu({
   sessionId,
@@ -27,12 +24,8 @@ export function TaskMenu({
   sessionId: StoreId.Session | undefined;
   taskId: TaskId;
 }) {
-  const isDeveloperMode = useDeveloperMode();
   const transcript = useTranscriptActions({ id: taskId, sessionId });
 
-  if (!isDeveloperMode) {
-    return null;
-  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -53,13 +46,12 @@ export function TaskMenu({
         {/* Saves without opening anything: the transcript is on its way
           somewhere else, and the path lands on the clipboard for it. */}
         <DropdownMenuItem
-          className="text-dev-700 dark:text-dev-300"
           disabled={!sessionId}
           onSelect={() => {
             transcript.save("markdown");
           }}
         >
-          <ArrowLineDownIcon className="size-4 text-dev-700 dark:text-dev-300" />
+          <ArrowLineDownIcon className="size-4" />
           Save transcript
         </DropdownMenuItem>
       </DropdownMenuContent>

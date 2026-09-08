@@ -151,6 +151,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-maxSteps": {
       return `<data-maxSteps maxStepCount="${part.data.maxStepCount}" />`;
     }
+    case "data-messageGap": {
+      return `<data-messageGap minutes="${part.data.minutes}" />`;
+    }
     case "data-modelChange": {
       return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
     }

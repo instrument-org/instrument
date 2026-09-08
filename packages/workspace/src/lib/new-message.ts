@@ -19,6 +19,7 @@ import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
+import { detectMessageGap } from "./message-gap";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-record";
@@ -182,6 +183,29 @@ export async function newMessage({
     getWorkspaceConfig().captureException(dateChange.error);
   } else if (dateChange.value) {
     parts.push(dateChange.value);
+  }
+
+  // Nothing in the context says what time it is, so a message sent a day after
+  // the one before it is otherwise indistinguishable from one sent a moment
+  // later.
+  //
+  // Only where a person is the one who went quiet. A task's messages come from
+  // the orchestrator by way of `task send`, so the same gap there measures how
+  // long the app took to say something back, which is neither the task's to
+  // reason about nor what its instructions tell it to do with the answer.
+  if (settings?.kind === "orchestrator") {
+    const messageGap = await detectMessageGap({
+      messageId,
+      sentAt: createdAt,
+      sessionId,
+      taskId,
+    });
+    if (messageGap.isErr()) {
+      // Awareness of the gap is best-effort; never block sending.
+      getWorkspaceConfig().captureException(messageGap.error);
+    } else if (messageGap.value) {
+      parts.push(messageGap.value);
+    }
   }
 
   // A message that says what its window has on screen has said it all; the

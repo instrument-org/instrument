@@ -44,6 +44,7 @@ export namespace SessionMessageDataPart {
     "skillChanges",
     "skillMentions",
     "maxSteps",
+    "messageGap",
     "modelChange",
     "paneTabs",
     "projectChanges",
@@ -554,6 +555,30 @@ export namespace SessionMessageDataPart {
   export type DateChangeDataPart = z.output<typeof DateChangeDataPartSchema>;
 
   /**
+   * Whole minutes since the user last wrote in this channel, written to a
+   * message they sent after a long enough silence to mean they went away and
+   * came back.
+   *
+   * The date correction above is the only other thing that says time has
+   * passed, and it answers a different question: it fires on a calendar
+   * rollover, so a session running through midnight gets one after two minutes
+   * and a session idle from morning to night gets none. This is the gap itself,
+   * measured only against messages the user actually sent -- a task finishing
+   * three minutes ago is the app talking to itself and would otherwise mask a
+   * day of silence.
+   *
+   * Stored as the number rather than as words or as the timestamp to subtract
+   * from: the wording is the renderer's to change, and a duration fixed at send
+   * time cannot drift the way `now - then` would every time the transcript is
+   * rebuilt.
+   */
+  const MessageGapDataPartSchema = z.object({
+    minutes: z.number(),
+  });
+
+  export type MessageGapDataPart = z.output<typeof MessageGapDataPartSchema>;
+
+  /**
    * Retired, and read anyway.
    *
    * The directory watcher that wrote this is gone, and so is the change card it
@@ -656,6 +681,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
+    [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,

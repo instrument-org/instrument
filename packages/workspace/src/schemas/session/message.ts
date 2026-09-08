@@ -27,6 +27,7 @@ import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
+import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
@@ -394,6 +395,20 @@ export namespace SessionMessage {
         if (dateChangePart) {
           injectedParts.push({
             text: dateChangeModelNote(dateChangePart.data),
+            type: "text",
+          });
+        }
+
+        const messageGapPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-messageGap";
+          } => part.type === "data-messageGap",
+        );
+        if (messageGapPart) {
+          injectedParts.push({
+            text: messageGapModelNote(messageGapPart.data),
             type: "text",
           });
         }

@@ -1,6 +1,6 @@
 # Plan: parse markdown a block at a time
 
-Status: proposed, not started. The measurements behind it are done and recorded below; the four things it breaks are known and each was reproduced rather than guessed. Buying it instead of building it was considered and is written up in "The alternative: migrate to Streamdown instead", which recommends against. Depends on nothing, and does not replace `patches/micromark-extension-gfm-table@2.1.1.patch` — the two cover different halves of the same cost, and the reason is in "What this does not fix".
+Status: proposed, not started. The measurements behind it are done and recorded below; the four things it breaks are known and each was reproduced rather than guessed. Buying it instead of building it was spiked against streamdown 2.6.0 rather than argued about, and is written up in "The alternative: migrate to Streamdown instead", which recommends against on the grounds that it has not solved the two parts nobody wants to own either. Depends on nothing, and does not replace `patches/micromark-extension-gfm-table@2.1.1.patch` — the two cover different halves of the same cost, and the reason is in "What this does not fix".
 
 ---
 
@@ -88,11 +88,38 @@ Its prop type is a superset of react-markdown's, reimplemented locally rather th
 - `InlineLink`'s origin disclosure and `shell.openExternal`, against `linkSafety`'s confirmation modal, which is on by default and is a different answer to the same question.
 - The image policy, the task-file chips and their drag and context menu, the `files` fence, and the mermaid prefetch, none of which it has an equivalent for.
 
-**And one trap worth knowing before anyone starts.** Streamdown inserts `rehype-sanitize` and `rehype-harden` ahead of caller plugins *only while the caller supplies no `rehypePlugins` of their own*. Provide any — and we must, for `rehype-slug`, and for `rehype-raw` and `rehype-katex` when a document needs them — and that insertion does not happen: sanitization becomes ours. Which it already is, so nothing is lost on the day of the migration. What is lost is that the library then looks like it is sanitizing and is not, and the `allowedTags` prop that would be the obvious place to reach documents itself as working "only with default rehype plugins". Our schema and its three departures are reasoned through in `markdown.tsx`; they would have to keep being, with less around them saying so.
+### What a spike found
 
-**Recommendation: build phases 1-4, and read their source while doing it.** What we would use of Streamdown is the block machinery, which is phases 1-4 and small; what it offers beyond that is the part we would switch off. Taking a large opinionated renderer to use its splitter, and turning off its sanitization by the act of configuring it, is a worse trade than owning three hundred lines. But their `lib/parse-blocks.tsx` and `lib/block-incomplete-context.ts` are the accumulated answer to streaming edge cases we would otherwise rediscover one bug report at a time, and the license invites reading them. Borrow the reasoning; describe it in our own terms in the code.
+Measured against streamdown 2.6.0 by rendering through `renderToStaticMarkup`, which exercises the split and the render but not the client-side animation.
 
-The judgment to revisit: if we ever want the *whole* surface — their table, their code block, their link handling — the calculus flips, because then the overrides stop being the point and the library is doing the job it was built for. That is a product decision about how much of the chat's look we want to own, not a performance one.
+**The plumbing transfers.** Custom components receive `node`, with `children` carrying `tagName`, so `markdownPre`'s fence reader, `markdownParagraph`'s section-label check and `markdownOrderedList`'s item count all work unchanged. Overrides for `pre`, `p`, `ol`, `a`, `code` and `table` replace the built-ins rather than wrapping them. `img` reaches ours too, but only once we pass our own rehype plugins; under their defaults an image is intercepted before the component map and rendered as their blocked-image chip.
+
+**Every element we do not override arrives pre-styled**, with Tailwind utilities inline: `<h2 class="mt-6 mb-2 font-semibold text-2xl" data-streamdown="heading-2">`, `<li class="py-1">`, and a wrapper carrying `space-y-4 whitespace-normal`. Not a stylesheet we can decline to import — it is in the markup. Living with `prose-custom` means overriding the rest of the element set too, which is the prestyling turned back off one tag at a time.
+
+**Supplying rehype plugins does not merely hand sanitization back to us, it turns off the escaping as well.** Rendering markdown carrying an event handler, an `onerror` image, an iframe and a `javascript:` link:
+
+| rehypePlugins | `onclick` | `onerror` | `<iframe>` | `javascript:` |
+| --- | --- | --- | --- | --- |
+| none — their defaults | stripped | stripped | stripped | stripped |
+| `[rehypeSlug]` | **renders** | **renders** | stripped | **renders** |
+| `[rehypeRaw, rehypeSanitize, rehypeSlug]` | stripped | stripped | stripped | stripped |
+
+`rehype-slug` is the minimum we need, so the middle row is the configuration a migration lands on by default. The failure is silent and it is not the one the docs imply: raw HTML is not escaped either, so a model-authored `<span onclick>` executes. Our current pipeline loads `rehype-raw` only for documents whose HTML we detect, on the reasoning that without it HTML is inert; under Streamdown that reasoning inverts and `rehype-raw` plus `rehype-sanitize` would have to run over every document, always — which is the one thing `markdown.tsx` deliberately avoids, since the HTML parser is the largest bundle it can pull in.
+
+**And it has two of the same four breakages.** Rendering each case in `static` and `streaming` mode and diffing:
+
+| | Streamdown streaming |
+| --- | --- |
+| Footnotes | resolves |
+| HTML across a blank line | merges correctly |
+| Link reference definitions | **breaks** — `See [the docs][d].` renders literally, where static resolves it |
+| Heading id dedupe | **breaks** — six `## Setup` headings all get `id="setup"`, where static gives `setup`, `setup-1`, … |
+
+The heading one is invisible until you ask for it: their headings carry no `id` at all by default, so nothing looks wrong until `rehype-slug` goes in, and then it is wrong only while streaming.
+
+**Recommendation: build phases 1-4.** The reason is narrower than "not invented here". The work nobody wants to own — deduplicating heading ids across a split, and keeping link reference definitions resolvable — is work Streamdown has not done either. Adopting it would leave both of those to us anyway, in a codebase where the fix is a pull request rather than an edit, and would add the sanitization inversion and the prestyling to the pile. What it would genuinely save is the splitter and its merge rules, which is the smallest and most testable part of this plan.
+
+The judgment to revisit: if we ever want the *whole* surface — their table, their code block, their link handling, their styling — the calculus flips, because then the overrides stop being the point and the library is doing the job it was built for. That is a product decision about how much of the chat's look we want to own, not a performance one. Their `lib/parse-blocks.tsx` and `lib/block-incomplete-context.ts` are worth reading either way: they are the accumulated answer to streaming edge cases we would otherwise meet one bug report at a time, and the license invites it. Borrow the reasoning; describe it in our own terms in the code.
 
 ## How to tell whether it works
 

@@ -1,6 +1,6 @@
 # Plan: parse markdown a block at a time
 
-Status: proposed, not started. The measurements behind it are done and recorded below; the four things it breaks are known and each was reproduced rather than guessed. Buying it instead of building it was spiked against streamdown 2.6.0 rather than argued about, and is written up in "The alternative: migrate to Streamdown instead", which recommends against on the grounds that it has not solved the two parts nobody wants to own either. Depends on nothing, and does not replace `patches/micromark-extension-gfm-table@2.1.1.patch` — the two cover different halves of the same cost, and the reason is in "What this does not fix".
+Status: built on `spike/block-split-markdown`, for review before it lands. The splitting, the block rendering and the streaming scope are done and measured; progressive first paint (the last phase) is not started and is separable. The design changed while it was being built, in the direction that removes most of the risk: **splitting happens only while the text is still arriving**, so a settled message and every document in the file viewer parse exactly as they always did. That is what made the heading-id phase unnecessary — see "Phases, and what changed". Buying it instead was spiked against streamdown 2.6.0 rather than argued about, and is written up in "The alternative: migrate to Streamdown instead". Does not replace `patches/micromark-extension-gfm-table@2.1.1.patch` — the two cover different halves of the same cost, and the reason is in "What this does not fix".
 
 ---
 
@@ -39,37 +39,19 @@ Four things, each reproduced against the real pipeline by parsing whole and per-
 
 > Both are answered the same way: a document containing a footnote or link-reference definition is parsed whole. Detecting one is a regex over the source, done once, next to the `containsMathSyntax` and `rawHtmlPattern` checks that already gate the optional plugins. These are rare in model output and rarer still in long model output, so the fallback costs the feature nothing in the case it exists for.
 >
-> That is the blunt answer, and there is a better one: Streamdown resolves footnotes while splitting, and only link reference definitions defeat it. Whatever it does there is worth reading before settling for the fallback, since a document that carries one footnote should not lose the split for the whole of its length.
+> That is the blunt answer, and reading Streamdown's splitter for a better one found that it does exactly the same thing: a footnote anywhere in the document and the whole of it comes back as a single block. There is no cleverer answer in the field to borrow.
 
-**Heading ids stop deduplicating.** Two `## Setup` headings in one document get `setup` and `setup-1` when parsed whole, and `setup` twice when parsed per block, because `rehype-slug` builds a fresh `github-slugger` per run. Every duplicate heading becomes a hash link that goes to the wrong place, and [`useHashLinkScroll`](../../../apps/studio/src/client/hooks/use-hash-link-scroll.ts) is what would take a reader there. Answered by deriving the ids once from the whole source — headings are cheap to find and the `marked` token stream already has them — and handing each block the ids its headings should carry, in place of `rehype-slug`'s own pass.
+## Phases, and what changed
 
-**HTML spanning blocks stops nesting.** A `<details>` opened in one block and closed three blocks later concatenates correctly as an HTML *string*, which is why a naive test says this case passes. It does not survive being rendered: each block is its own React subtree, so the `<details>` cannot wrap a paragraph that is a sibling of it. `streamdown` handles this by merging consecutive html tokens until the tags balance, and the same merge belongs here. Worth writing tests for before the merge rather than after.
+**1. The splitter.** `client/lib/split-markdown-blocks.ts`. It lexes and never parses; the table in that file records why, and a comment in it carries the rule. A footnote or a link reference definition anywhere in the document returns the whole of it as one block. A run of raw HTML is held together until its tags balance — counted per unclosed opening rather than per run, which is a bug in the implementation it was learned from: a block opening `<div><div>` and closing neither ends at the first `</div>`, and everything after it falls out of the outer element. Tested from both ends, which is what caught that: the blocks rejoin into the source byte for byte, and each block rendered alone builds the same tree as the whole document over sixteen documents, with the HTML parser both on and off.
 
-## Phases
+**2. Heading ids at document scope — dropped, not needed.** The original plan was to derive them once for the whole document, because `rehype-slug` builds a fresh slugger per parse and would stop deduplicating. Splitting only while the text is arriving removes the problem instead: a settled message is one parse again, so its ids are what they always were, and nobody is following an anchor into a message that is still being written. Streamdown, which does not stop splitting, has this defect — six `## Setup` headings all take `id="setup"` there.
 
-**1. The splitter, behind nothing.** A `splitBlocks(source)` in `client/lib/`, wrapping `marked`'s `Lexer.lex(source, {gfm: true})`, returning `string[]`. It merges unbalanced html tokens, and returns a single-element array for any document carrying a footnote or link-reference definition. Unit-testable in the node project with no React at all, which is where the merge rules and the fallback want to be pinned.
+**3. Block rendering.** `Markdown` maps its blocks onto a memoized `MarkdownBlock`. Every prop it takes has to stay referentially stable for that to hold, which is what the `useMemo`s around the components map and the plugin lists are for; the component's own comments say so, since a later edit that inlines one of them silently turns the whole thing off.
 
-**The splitter may lex and must never parse.** `marked` carries a quadratic of its own, in `Marked.prototype.walkTokens`, which accumulates with `concat` once per token and re-concats each recursive result into its parent's array. It runs whenever any extension registers a `walkTokens` hook, which the alert and footnote plugins both do, and it is not small: a *no-op* `walkTokens` takes the 1.97 MB file from 37 ms to 811 ms. Measured against the shape this plan actually uses:
+**4. Streaming scope.** `remend` runs on the last block alone, since it repairs what the text stops in the middle of and only the last block can be stopped in the middle of anything. The word fade deliberately did **not** move to the last block: a block that lost its spans as the next one opened would drop whatever words were mid-fade to full opacity, and a memoized block pays for the plugin once either way.
 
-| | 1.97 MB |
-| --- | --- |
-| `Lexer.lex`, GFM on | 32 ms |
-| `marked.parse` → HTML | 37 ms |
-| a `Marked` instance with a no-op `walkTokens`, `.parse` | 811 ms |
-| the same instance, `.lexer` | 35 ms |
-| `Lexer.lex` after a global `marked.use({walkTokens})` | 33 ms |
-
-So lexing is untouched: the hook runs only in `parse`, and a global `marked.use` does not leak into the static lexer. The rule that follows is worth keeping even though nothing violates it today — the splitter calls `Lexer.lex` and nothing else, and the day someone reaches for `marked.parse` or registers an extension to get a feature out of it, the split becomes more expensive than the parse it was added to avoid. Found by the session working on `index-app`, which renders with `marked` and hit it head-on.
-
-This adds `marked` to the renderer's bundle, which is the one cost of the plan rather than a saving. It is a renderer-only dependency and so a `devDependency` (see [AGENTS.md](../../../apps/studio/AGENTS.md)), and only its lexer is reached, so what actually lands is what the bundler keeps of it. Worth measuring rather than assuming, and worth knowing before phase 1 that the alternative — deriving block boundaries from micromark's own event stream — buys the bundle back at the cost of writing the one part of this that a maintained library already does correctly.
-
-**2. Heading ids at document scope.** Replace `rehype-slug` with a pass fed the ids computed once for the whole source. Testable against the current renderer before any splitting happens: same document, same ids, including the duplicates.
-
-**3. `Markdown` renders blocks.** A memoized `MarkdownBlock` per block, keyed by index. Index keys are right here rather than a compromise: only the tail block is unstable, so an index that shifts is an index whose content changed anyway. The plugin decision (`needsMath`, `needsRawHtml`) stays at document scope and every block gets the same list, so a document with one formula does not make 89 separate decisions.
-
-**4. Only the tail streams.** `isStreaming` becomes a property of the last block rather than the message, which is what makes `remend` and `rehypeAnimateWords` stop running over settled text. Both are per-render passes over everything they are handed, and `remend` is itself quadratic, so this is the phase that collects most of the win. The behavior to watch: a block that settles drops its `data-stream-word` spans and re-renders, and words already faded in must not flicker.
-
-**5. Progressive first paint, for the document viewer.** Once blocks are separate components, the viewer can mount the first screenful and fill the rest in on idle callbacks. This is the phase that addresses what is left of the 2.7 s open on a 2 MB file, which is React building 51,600 elements and not the parse. Separable from everything above, and worth doing only if the open still reads as slow once phases 1-4 have landed.
+**5. Progressive first paint — not started.** Mount the first screenful of a large document and fill the rest in on idle. This is the phase that would address the file viewer's 2.7 s open, which is React building 51,600 elements rather than parsing. Separable from everything above, and worth doing only if that open still reads as slow.
 
 ## What this does not fix
 
@@ -123,10 +105,26 @@ The heading one is invisible until you ask for it: their headings carry no `id` 
 
 The judgment to revisit: if we ever want the *whole* surface — their table, their code block, their link handling, their styling — the calculus flips, because then the overrides stop being the point and the library is doing the job it was built for. That is a product decision about how much of the chat's look we want to own, not a performance one. Their `lib/parse-blocks.tsx` and `lib/block-incomplete-context.ts` are worth reading either way: they are the accumulated answer to streaming edge cases we would otherwise meet one bug report at a time, and the license invites it. Borrow the reasoning; describe it in our own terms in the code.
 
+## What it actually cost, measured
+
+The parse-only projection at the top of this plan was optimistic about what would reach the reader, so here is the same question asked through the real component: a reply replayed in 240-byte chunks, counting the blocking main-thread work rather than wall clock — React's own render time from the profiler, plus the lex the split costs.
+
+| Reply | Chunks | Whole document | Split | Per chunk |
+| --- | --- | --- | --- | --- |
+| 8 KB | 34 | 428 ms | 190 ms | 12.6 → 5.6 ms |
+| 16 KB | 68 | 1,277 ms | 543 ms | 18.8 → 8.0 ms |
+| 32 KB | 137 | 5,185 ms | 1,510 ms | 37.8 → 11.0 ms |
+
+Read it as a change of constant rather than of shape. The whole-document column quadruples for every doubling; the split column roughly triples, so it is still superlinear — the lex reads the whole text on every chunk, and React still reconciles one child per block. What moved is the size: 37.8 ms of blocking work per chunk is more than two frames of jank and 11 ms is under one, and the advantage widens from 2.2x to 3.4x across that range and keeps going.
+
+Wall clock does not move in that harness, and that is worth knowing before anyone re-runs it and concludes nothing happened. Re-rendering 137 times as fast as the loop can go leaves the browser laying out a DOM of tens of thousands of nodes with no frame budget, which dominates and is identical either way. In a turn, chunks arrive at network pace and what a reader feels is the work that blocks the frame in between.
+
+Two things left on the table, both cheap and neither done: the lex could start from the last settled block boundary instead of the top, and the reconciliation could be bounded by rendering only the blocks near the viewport.
+
 ## How to tell whether it works
 
-The harness for the table above is the honest test and is worth keeping: replay a reply in chunks, count total parse time, assert it is linear in reply length rather than quadratic. It is a node test, needs no DOM, and would have caught the current behavior.
+Correctness is a diff, not a timing. `split-markdown-blocks.test.ts` renders sixteen documents whole and per block and requires the same tree, with the HTML parser on and off, and separately requires the blocks to rejoin into the source byte for byte. The pair is what makes the whitespace normalization in it honest: one covers the bytes, the other covers the tree. `markdown.test.tsx` asks the same of the component — the same document drawn streaming and settled has to yield the same elements and the same text.
 
-Correctness is the diff, not the timing: parse a corpus whole and per-block and require identical hast. Seed it with the nine cases already written for this — duplicate headings, footnote, link reference definition, html across a blank line, setext heading, list then paragraph, table, lazy continuation, indented code after a list — and add to it whenever a merge rule changes. The three that currently differ are the specification for phases 1 and 2: they must be identical when those phases are done.
+The measurement above is a throwaway harness rather than a test, deliberately: a timing assertion in CI is a flake. It is a `Profiler` around the component, a loop that re-renders with a growing slice, and a sum of `actualDuration`; rebuilding it takes ten minutes and the numbers to beat are in the table.
 
-Then a real turn in the app, on a model that writes long replies with tables in them, watching for the two things a diff cannot see: whether the word fade still reads as one continuous stream across a block boundary, and whether a table's controls still place themselves when the table is the tail block and still growing.
+What no test covers, and wants a real turn in the app on a model that writes long replies with tables in them: whether the word fade still reads as one continuous stream across a block boundary, and whether a table's controls still place themselves while the table is the block still growing.

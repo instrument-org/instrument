@@ -253,8 +253,13 @@ function useFileText(url: string) {
 // space they have, so there is no intrinsic-size variant left to pick. Exported
 // for the panel's placeholder frame, which stands in while a file is being
 // looked up and has to be the same card.
+//
+// The card is a different ground from the one markdown is drawn on everywhere
+// else, so it names itself: anything inside that has to paint its own
+// background -- a table's scroll fade, the controls that stand on it -- reads
+// `--markdown-surface` rather than assuming the window's.
 export const fileViewerClassName =
-  "flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm";
+  "flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm [--markdown-surface:var(--card)]";
 
 interface ViewerContext {
   fallback: ReactNode;

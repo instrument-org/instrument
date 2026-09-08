@@ -1,3 +1,5 @@
+import { type TaskId } from "../../schemas/task-id";
+
 /**
  * How long each unit a span may be written in lasts. A month and a year are
  * the round figures a question uses rather than calendar arithmetic, since a
@@ -31,14 +33,13 @@ export interface TaskListQuery {
   all?: boolean;
   limit?: number;
   running?: boolean;
-  search?: string;
   since?: Date;
   until?: Date;
 }
 
 /** One task as the listing needs it. */
 export interface TaskListRow {
-  id: string;
+  id: TaskId;
   isRunning: boolean;
   title: string;
   updatedAt: Date;
@@ -48,6 +49,19 @@ export interface TaskListSelection {
   /** Matched the query but fell outside the window, and so goes in the footer. */
   omitted: number;
   shown: TaskListRow[];
+  total: number;
+}
+
+/** A task that matched a search, with what it said about the term. */
+export interface TaskSearchRow extends TaskListRow {
+  /** Text parts that matched; zero when only the name did. */
+  count: number;
+  snippet: string;
+}
+
+export interface TaskSearchSelection {
+  omitted: number;
+  shown: TaskSearchRow[];
   total: number;
 }
 
@@ -156,23 +170,57 @@ export function renderTaskList(
   if (selection.omitted === 0) {
     return `${table}\n`;
   }
-  return `${table}\n\n… ${selection.omitted} more of ${selection.total}. Narrow with --search <words>, --since <date>, or --until <date>; --all shows every match.\n`;
+  return `${table}\n\n${moreLine(selection, ", or find one with `task search <words>`")}\n`;
+}
+
+/**
+ * A search result: the same row, with what the task said about the term under
+ * it. The status column goes, since what a task is doing now is not what is
+ * being asked; the count stays, because one mention and thirty are different
+ * answers and the ordering is built on the difference.
+ */
+export function renderTaskSearch(
+  selection: TaskSearchSelection,
+  { now = new Date() }: { now?: Date } = {},
+): string {
+  const cells = selection.shown.map((row) => [
+    row.id,
+    row.updatedAt.toISOString().slice(0, 10),
+    `${formatAge(now.getTime() - row.updatedAt.getTime())} ago`,
+    row.title,
+  ]);
+  const widths = [0, 1, 2].map((column) =>
+    Math.max(...cells.map((row) => (row[column] ?? "").length)),
+  );
+  const table = selection.shown
+    .map((row, index) => {
+      const head = (cells[index] ?? [])
+        .map((cell, column) =>
+          column === 3 ? cell : cell.padEnd(widths[column] ?? 0),
+        )
+        .join("  ");
+      const mentions = row.count === 0 ? "in its name" : `${row.count}×`;
+      return `${head}\n    ${mentions}  ${row.snippet || "matched its name"}`;
+    })
+    .join("\n");
+  if (selection.omitted === 0) {
+    return `${table}\n`;
+  }
+  return `${table}\n\n${moreLine(selection)}\n`;
 }
 
 /**
  * The rows a query asks for, and how many it left behind.
  *
  * Every filter runs over the whole list and the window is applied last, so a
- * search or a date range sees every task rather than whichever ones the
- * default window happened to show. A filter that only saw the window would
- * answer "no such task" for a task that is right there, and nothing in the
- * output would say so.
+ * date range sees every task rather than whichever ones the default window
+ * happened to show. A filter that only saw the window would answer "no such
+ * task" for a task that is right there, and nothing in the output would say so.
  */
 export function selectTasks(
   rows: TaskListRow[],
   query: TaskListQuery = {},
 ): TaskListSelection {
-  const words = query.search?.trim().toLowerCase();
   const matched = rows.filter((row) => {
     if (query.running && !row.isRunning) {
       return false;
@@ -180,12 +228,7 @@ export function selectTasks(
     if (query.since && row.updatedAt < query.since) {
       return false;
     }
-    if (query.until && row.updatedAt > query.until) {
-      return false;
-    }
-    // The id as well as the title: a task renamed since it was made is still
-    // looked for by what it was first asked for, which is what the id holds.
-    return !words || `${row.title} ${row.id}`.toLowerCase().includes(words);
+    return !(query.until && row.updatedAt > query.until);
   });
   const size = query.all
     ? matched.length
@@ -196,4 +239,16 @@ export function selectTasks(
     shown,
     total: matched.length,
   };
+}
+
+/**
+ * What the footer says when the window left rows behind. Naming every way to
+ * narrow is the point of it: a listing that only says there is more invites an
+ * answer drawn from the part that fit.
+ */
+function moreLine(
+  selection: { omitted: number; total: number },
+  extra = "",
+): string {
+  return `… ${selection.omitted} more of ${selection.total}. Narrow with --since <date> or --until <date>${extra}; --all shows every match.`;
 }

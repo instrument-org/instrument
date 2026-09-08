@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { TaskIdSchema } from "../../schemas/task-id";
 import {
   formatAge,
   parseListDate,
   renderTaskList,
+  renderTaskSearch,
   selectTasks,
   TASK_LIST_WINDOW,
   type TaskListRow,
@@ -19,7 +21,7 @@ function row(
   isRunning = false,
 ): TaskListRow {
   return {
-    id,
+    id: TaskIdSchema.parse(id),
     isRunning,
     title,
     updatedAt: new Date(NOW.getTime() - daysAgo * 86_400_000),
@@ -88,25 +90,6 @@ describe("selectTasks", () => {
     expect(selectTasks(TASKS).omitted).toBe(0);
   });
 
-  it("searches every task, not just the window", () => {
-    const many = [
-      ...Array.from({ length: 40 }, (_, index) =>
-        row(`task-${index}`, `Task ${index}`, index),
-      ),
-      row("2026-01-02-needle", "The one about the needle", 200),
-    ];
-    const selection = selectTasks(many, { search: "needle" });
-    expect(selection.shown.map((task) => task.title)).toEqual([
-      "The one about the needle",
-    ]);
-  });
-
-  it("matches the id as well as the title", () => {
-    expect(
-      selectTasks(TASKS, { search: "webauthn" }).shown.map((task) => task.id),
-    ).toEqual(["2026-09-04-webauthn"]);
-  });
-
   it("holds a date range against last activity", () => {
     const selection = selectTasks(TASKS, {
       since: parseListDate("2026-08-10"),
@@ -158,7 +141,40 @@ describe("renderTaskList", () => {
       row(`task-${index}`, `Task ${index}`, index),
     );
     expect(renderTaskList(selectTasks(many), { now: NOW })).toContain(
-      "… 5 more of 30. Narrow with --search <words>, --since <date>, or --until <date>; --all shows every match.",
+      "… 5 more of 30. Narrow with --since <date> or --until <date>, or find one with `task search <words>`; --all shows every match.",
     );
+  });
+});
+
+describe("renderTaskSearch", () => {
+  const found = [
+    {
+      ...row("2026-09-01-chair", "Cheap small chair options on Wayfair", 7),
+      count: 29,
+      snippet: "…Opening Wayfair chair search…",
+    },
+    {
+      ...row("2026-08-14-nest", "Second-floor Nest eco mode guard", 25),
+      count: 0,
+      snippet: "",
+    },
+  ];
+
+  it("puts what was said under each task", () => {
+    expect(
+      renderTaskSearch({ omitted: 0, shown: found, total: 2 }, { now: NOW }),
+    ).toMatchInlineSnapshot(`
+      "2026-09-01-chair  2026-09-01  7d ago   Cheap small chair options on Wayfair
+          29×  …Opening Wayfair chair search…
+      2026-08-14-nest   2026-08-14  25d ago  Second-floor Nest eco mode guard
+          in its name  matched its name
+      "
+    `);
+  });
+
+  it("says a name-only match was one", () => {
+    expect(
+      renderTaskSearch({ omitted: 0, shown: found, total: 2 }, { now: NOW }),
+    ).toContain("in its name  matched its name");
   });
 });

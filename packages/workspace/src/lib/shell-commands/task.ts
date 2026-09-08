@@ -66,12 +66,17 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
 import { parseFlags, requireFoldersOnDisk, resolveFolders } from "./task-args";
 import { TASK_COMMAND } from "./task-command";
+import { searchTaskContent } from "./task-content-search";
 import {
   formatAge,
   parseListDate,
   renderTaskList,
+  renderTaskSearch,
   selectTasks,
   TASK_LIST_WINDOW,
+  type TaskListQuery,
+  type TaskListRow,
+  type TaskSearchRow,
 } from "./task-list-output";
 import { subprocessStdin } from "./utils";
 
@@ -127,14 +132,21 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       if busy. Follow-ups, corrections, answers to its questions. Same heredoc.
   ${TASK_COMMAND.name} stop <id>
       Interrupt a running task. Follow with send to redirect it.
-  ${TASK_COMMAND.name} list [--search <words>] [--since <date>] [--until <date>] [--running] [--limit <n>] [--all]
+  ${TASK_COMMAND.name} list [--since <date>] [--until <date>] [--running] [--limit <n>] [--all]
       Your tasks, newest activity first: id, status, the day it was last active,
       how long ago that was, and the title. The newest ${TASK_LIST_WINDOW} unless narrowed, and
-      a count of the rest; --all shows every match. --search matches the title and
-      the id. --since and --until take a day (2026-08-14) or a span back from
-      now (30d), and read the day a task was last active, not the date its id
-      begins with: that one is the day it was created, and a quarter of tasks
-      have no date in the id at all.
+      a count of the rest; --all shows every match. --since and --until take a
+      day (2026-08-14) or a span back from now (30d), and read the day a task
+      was last active, not the date its id begins with: that one is the day it
+      was created, and a quarter of tasks have no date in the id at all.
+  ${TASK_COMMAND.name} search <words> [--since <date>] [--until <date>] [--limit <n>] [--all]
+      Find a task by what was said in it. Searches every one of your tasks, not
+      only the ones \`list\` last showed, and matches their titles and ids too.
+      Each result carries how many times it came up and the words around the
+      first mention, best match first. What a person or the agent said, not
+      what a tool was handed or returned, so a page that happened to contain
+      the word is not a match. Takes the same dates as \`list\`, which narrow
+      what is opened before the search runs.
   ${TASK_COMMAND.name} show <id>
       Status, model, folders, output files, and what it last said.
   ${TASK_COMMAND.name} log <id> [--tail <lines>]
@@ -191,6 +203,9 @@ export function createTaskCommand(context: TaskCommandContext) {
         }
         case "rename": {
           return await runRename(rest, context);
+        }
+        case "search": {
+          return await runSearch(rest, context);
         }
         case "send": {
           return await runSend(rest, context, ctx.stdin);
@@ -649,48 +664,59 @@ async function runArchive(args: string[], context: TaskCommandContext) {
   return ok(`Archived ${task.id} ("${task.title}").\n`);
 }
 
-async function runList(args: string[], context: TaskCommandContext) {
+/**
+ * A task named for the term counts for about this many mentions of it.
+ *
+ * A conversation that said the word thirty times is what is being looked for,
+ * so mentions lead the ordering. But a task whose title is the term is at
+ * least as good an answer as one that mentioned it in passing, and ranking
+ * purely on mentions would push it past the window and out of sight.
+ */
+const NAME_MATCH_MENTIONS = 5;
+
+/** The window and date flags `list` and `search` share. */
+function listQueryFrom(args: string[]): TaskListQuery {
   const { values } = parseFlags(args, {
-    flags: ["limit", "search", "since", "until"],
+    flags: ["limit", "since", "until"],
     repeatable: [],
   });
-  const running = args.includes("--running");
   const rawLimit = values.get("limit")?.[0];
   if (rawLimit !== undefined && !Number.isInteger(Number(rawLimit))) {
     throw new Error(`--limit takes a whole number, not "${rawLimit}".`);
   }
-  const limit = rawLimit === undefined ? undefined : Number(rawLimit);
-  const search = values.get("search")?.[0]?.trim();
   const rawSince = values.get("since")?.[0];
   const rawUntil = values.get("until")?.[0];
+  return {
+    all: args.includes("--all"),
+    ...(rawLimit === undefined ? {} : { limit: Number(rawLimit) }),
+    running: args.includes("--running"),
+    ...(rawSince ? { since: parseListDate(rawSince) } : {}),
+    ...(rawUntil ? { until: parseListDate(rawUntil, { endOfDay: true }) } : {}),
+  };
+}
+
+function listRowsOf(tasks: Task[]): TaskListRow[] {
+  return tasks.map((task) => ({
+    id: task.id,
+    isRunning: isWorking(task.id),
+    title: task.title,
+    updatedAt: task.updatedAt,
+  }));
+}
+
+async function runList(args: string[], context: TaskCommandContext) {
+  const query = listQueryFrom(args);
   const children = await listChildTasks(context.orchestratorTaskId);
-  const selection = selectTasks(
-    children.map((task) => ({
-      id: task.id,
-      isRunning: isWorking(task.id),
-      title: task.title,
-      updatedAt: task.updatedAt,
-    })),
-    {
-      all: args.includes("--all"),
-      ...(limit === undefined ? {} : { limit }),
-      running,
-      ...(search ? { search } : {}),
-      ...(rawSince ? { since: parseListDate(rawSince) } : {}),
-      ...(rawUntil
-        ? { until: parseListDate(rawUntil, { endOfDay: true }) }
-        : {}),
-    },
-  );
+  const selection = selectTasks(listRowsOf(children), query);
   if (selection.shown.length === 0) {
     if (children.length === 0) {
       return ok("No tasks yet. Create one with `task new`.\n");
     }
-    if (running && !search && !rawSince && !rawUntil) {
+    if (query.running && !query.since && !query.until) {
       return ok("No tasks running.\n");
     }
     return ok(
-      `No task matches, out of ${children.length}. Widen the search, or list them all with \`task list --all\`.\n`,
+      `No task in that range, out of ${children.length}. Widen the dates, or list them all with \`task list --all\`.\n`,
     );
   }
   return ok(renderTaskList(selection));
@@ -782,6 +808,65 @@ async function runRename(args: string[], context: TaskCommandContext) {
   }
   publisher.publish("task.updated", { id: task.id });
   return ok(`Renamed ${task.id} to "${title}".\n`);
+}
+
+async function runSearch(args: string[], context: TaskCommandContext) {
+  const { positional } = parseFlags(args, {
+    flags: ["limit", "since", "until"],
+    repeatable: [],
+  });
+  const term = positional
+    .filter((word) => !word.startsWith("--"))
+    .join(" ")
+    .trim();
+  if (!term) {
+    throw new Error("search needs words. `task search <words>`.");
+  }
+  const query = listQueryFrom(args);
+  const children = await listChildTasks(context.orchestratorTaskId);
+  // The dates narrow which conversations are opened at all; the window is
+  // applied after ranking, so nothing is missed for having been old.
+  const scoped = selectTasks(listRowsOf(children), {
+    all: true,
+    ...(query.since ? { since: query.since } : {}),
+    ...(query.until ? { until: query.until } : {}),
+  });
+  const hits = await searchTaskContent({
+    taskIds: scoped.shown.map((row) => row.id),
+    term,
+  });
+  const wanted = term.toLowerCase();
+  const matched: TaskSearchRow[] = scoped.shown.flatMap((row) => {
+    const hit = hits.get(row.id);
+    const named = `${row.title} ${row.id}`.toLowerCase().includes(wanted);
+    if (!hit && !named) {
+      return [];
+    }
+    return [{ ...row, count: hit?.count ?? 0, snippet: hit?.snippet ?? "" }];
+  });
+  const scoreOf = (row: TaskSearchRow) =>
+    row.count +
+    (`${row.title} ${row.id}`.toLowerCase().includes(wanted)
+      ? NAME_MATCH_MENTIONS
+      : 0);
+  matched.sort(
+    (a, b) =>
+      scoreOf(b) - scoreOf(a) || b.updatedAt.getTime() - a.updatedAt.getTime(),
+  );
+  const size = query.all ? matched.length : (query.limit ?? TASK_LIST_WINDOW);
+  const shown = matched.slice(0, Math.max(0, size));
+  if (shown.length === 0) {
+    return ok(
+      `Nothing said "${term}", across ${scoped.total} ${scoped.total === 1 ? "task" : "tasks"}.\n`,
+    );
+  }
+  return ok(
+    renderTaskSearch({
+      omitted: matched.length - shown.length,
+      shown,
+      total: matched.length,
+    }),
+  );
 }
 
 async function runShow(args: string[], context: TaskCommandContext) {

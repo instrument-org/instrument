@@ -92,6 +92,14 @@ If the user-facing dead end is worth closing later, the better lever is the sing
 
 `kill -9` on the main process is the only exit. `SIGTERM` will not do it: Electron routes it into the same JS quit path, and that thread is exactly what is starved. Squirrel picks up from there on its own and installs the staged build normally, so the update is not lost. Task databases are the risk, being in `delete` journal mode rather than WAL.
 
+## Every livelock reports as a clean exit
+
+Nothing records that this happened. The boot after the second sighting logged no non-graceful exit and reported `app.ready` with `graceful_exit: true`, for a session that had spun for half an hour and died to `SIGKILL`.
+
+The ordering is why, and it is deliberate. `quitTeardown` unlinks the session lock as its first statement so the marker does not depend on the network flush that follows, and the spin happens after that unlink. The marker is therefore always already gone by the time a livelocked process is killed.
+
+So "seen twice" counts the times a person noticed a pinwheel, not the times this occurred. A fleet metric built on this marker would read zero forever, and would keep reading zero as the problem got worse. Whatever replaces it in [privacy-first diagnostics and feedback](../plans/active/privacy-first-diagnostics-and-feedback.md) should clear the marker after teardown completes rather than before, and solve the flush dependency some other way.
+
 ## Still open
 
 Which microtask spins. The stage is now known and the shape is known, and neither names a caller. Any promise chain still pending when the quit begins is a candidate, since the checkpoint drains all of them.

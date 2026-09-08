@@ -1,8 +1,12 @@
 import { rmSync } from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
+import { FolderAttachment } from "../schemas/folder-attachment";
+import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
@@ -19,7 +23,9 @@ import {
 } from "./background-processes";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import { currentShellOutputSink } from "./shell-commands/output-sink";
+import { virtualizeOutput } from "./shell-commands/rg";
 import { taskDir } from "./task-dir-utils";
+import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
 const usedSessionIds: StoreId.Session[] = [];
 
@@ -105,7 +111,11 @@ function makeOwner(name: string) {
 function promote(
   owner: ReturnType<typeof makeOwner>,
   command: string,
-  options?: { explanation?: string; settleOnAbort?: boolean },
+  options?: {
+    explanation?: string;
+    settleOnAbort?: boolean;
+    virtualizePaths?: (text: string) => string;
+  },
 ) {
   const controllable = controllableRun(options);
   const handle = startBackgroundRun({
@@ -114,6 +124,7 @@ function promote(
     explanation: options?.explanation,
     run: controllable.run,
     taskId: owner.taskId,
+    virtualizePaths: options?.virtualizePaths,
   });
   const promoted = promoteBackgroundProcess({ handle, ...owner });
   if ("error" in promoted) {
@@ -621,6 +632,53 @@ describe("background processes", () => {
     });
     // The streamed copy and the final output agree, so there is nothing to add.
     expect(read?.output).not.toContain("[final shell output]");
+  });
+
+  it("names a mount by its mount point in the live copy, never by its host root", async () => {
+    const owner = makeOwner("mounted");
+    const home = os.homedir();
+    const attachedFolders = {
+      Notes: {
+        access: "read-only" as const,
+        createdAt: 0,
+        id: FolderAttachment.IdSchema.parse("notes-id"),
+        mountName: "Notes",
+        path: AbsolutePathSchema.parse(path.join(home, "notes")),
+        source: "user" as const,
+      },
+      Vault: {
+        access: "read-only" as const,
+        createdAt: 0,
+        id: FolderAttachment.IdSchema.parse("vault-id"),
+        mountName: "Vault",
+        path: AbsolutePathSchema.parse("/Volumes/External/Vault"),
+        source: "user" as const,
+      },
+    };
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders,
+      taskHostRoot: taskDir(owner.taskId),
+    });
+    const { controllable, info } = promote(
+      owner,
+      "rg -l status /mnt/Notes /mnt/Vault",
+      { virtualizePaths: (text) => virtualizeOutput(text, layout) },
+    );
+    await controllable.emit(
+      `${path.join(home, "notes", "a.md")}\n/Volumes/External/Vault/b.md\n`,
+    );
+
+    const read = await readBackgroundProcess({
+      id: info.id,
+      sessionId: owner.sessionId,
+      waitMs: 0,
+    });
+    // A mount under the home directory would otherwise be folded into `~`,
+    // which resolves to nothing inside the sandbox; one outside it would reach
+    // the agent as the host path it is never shown.
+    expect(read?.output).toBe("/mnt/Notes/a.md\n/mnt/Vault/b.md\n");
+    expect(read?.output).not.toContain("~/");
+    expect(read?.output).not.toContain("/Volumes/External");
   });
 
   it("does not duplicate output that differs only in path separators", async () => {

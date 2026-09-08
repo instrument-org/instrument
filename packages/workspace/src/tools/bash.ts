@@ -19,6 +19,7 @@ import {
   JOBS_COMMAND,
   KILL_COMMAND,
 } from "../lib/shell-commands/background-jobs";
+import { virtualizeOutput } from "../lib/shell-commands/rg";
 import { systemNote } from "../lib/system-note";
 import { taskDir } from "../lib/task-dir-utils";
 import { resolveTaskProjectFolder } from "../lib/task-project-folder";
@@ -28,6 +29,7 @@ import {
   TRUNCATE_TAIL_BYTES,
   truncateMiddle,
 } from "../lib/truncate-buffer";
+import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
@@ -305,19 +307,28 @@ export const BashTool = setupTool({
     const taskState = await getTaskState(taskDir(taskId));
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
+    const childMounts =
+      agentName === "instrument" ? await childTaskMounts(taskId) : undefined;
+    const projectFolderName = await resolveTaskProjectFolder(taskId);
     const bash = await createBashEnv({
       attachedFolders: taskState.attachedFolders,
-      orchestrator:
-        agentName === "instrument"
-          ? { childMounts: await childTaskMounts(taskId) }
-          : undefined,
-      projectFolderName: await resolveTaskProjectFolder(taskId),
+      orchestrator: childMounts ? { childMounts } : undefined,
+      projectFolderName,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
       // makes it return sooner than it strictly has to.
       remainingYieldMs: () => yieldMs - (performance.now() - startedAt),
       sessionId,
       taskId,
+    });
+    // The mounts the native shims map their own output through, so the live
+    // copy a promoted command streams names them the way the foreground copy
+    // does.
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders: taskState.attachedFolders,
+      extraMounts: childMounts,
+      projectFolderName,
+      taskHostRoot: taskDir(taskId),
     });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
@@ -354,6 +365,7 @@ export const BashTool = setupTool({
         }
       },
       taskId,
+      virtualizePaths: (text) => virtualizeOutput(text, layout),
     });
 
     const outcome = await raceYield(handle.completion, yieldMs);

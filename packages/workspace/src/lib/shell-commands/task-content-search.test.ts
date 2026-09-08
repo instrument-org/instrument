@@ -55,9 +55,9 @@ describe("snippetAround", () => {
   it("keeps a lead-in and collapses the whitespace", () => {
     const text =
       "I looked at a lot of options and eventually found that the cheap small chair on Wayfair\nwas the best of them by a distance, so that is the one.";
-    expect(
-      snippetAround(text, text.indexOf("Wayfair")),
-    ).toMatchInlineSnapshot(`"…lly found that the cheap small chair on Wayfair was the best of them by a distance, so that is the one."`);
+    expect(snippetAround(text, text.indexOf("Wayfair"))).toMatchInlineSnapshot(
+      `"…lly found that the cheap small chair on Wayfair was the best of them by a distance, so that is the one."`,
+    );
   });
 
   it("does not lead with an ellipsis at the start", () => {

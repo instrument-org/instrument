@@ -13,7 +13,7 @@ import { studioURL } from "@/electron-main/lib/urls";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
-  getMainWindowZoom,
+  getAppZoom,
   getWindowState,
   isWindowBoundsVisible,
   rememberWorkAreaFromMaximized,
@@ -25,7 +25,6 @@ import {
   focusMainContents,
   goBack,
   goForward,
-  setTrafficLightForZoom,
 } from "@/electron-main/windows/main/controls";
 import {
   clearMainWindow,
@@ -33,6 +32,7 @@ import {
   getOrCreateMainWindow,
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
+import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { is } from "@electron-toolkit/utils";
 import { app, type BaseWindow, BrowserWindow } from "electron";
 import path from "node:path";
@@ -134,7 +134,7 @@ async function createMainWindowInstance() {
   // renderer mounts and syncs its zoom. This runs after creation rather than
   // through the `trafficLightPosition` option, which only applies to frameless
   // windows; on macOS this one keeps its frame (see `frame` above).
-  setTrafficLightForZoom(getMainWindowZoom());
+  setTrafficLightForZoom(mainWindow, getAppZoom());
 
   // Bind the agent-browser `<webview>` attach lifecycle to this window's
   // webContents so the main process can grab guest WebContents (for CDP) as

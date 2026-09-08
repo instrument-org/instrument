@@ -1,5 +1,4 @@
 import { tabsAtom } from "@/client/atoms/tabs";
-import { zoomAtom } from "@/client/atoms/zoom";
 import { AppChrome } from "@/client/components/app-chrome";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { WindowBorder } from "@/client/components/window-border";
@@ -13,6 +12,7 @@ import { useAppCommands } from "@/client/hooks/use-app-commands";
 import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
+import { useSyncZoom } from "@/client/hooks/use-sync-zoom";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
@@ -31,9 +31,7 @@ import {
 import { setTabMeta, setTabPathname } from "@/client/lib/tabs-model";
 import { captureComponentError, capturePageView } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { type Tab } from "@/shared/tabs";
-import { safe } from "@orpc/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -41,7 +39,7 @@ import {
   RouterContextProvider,
   RouterProvider,
 } from "@tanstack/react-router";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { useEffect } from "react";
 
 import { ThemeProvider } from "./theme-provider";
@@ -56,7 +54,6 @@ import { TooltipProvider } from "./ui/tooltip";
  */
 export function MainWindow() {
   const { model } = useTabsController();
-  const zoom = useAtomValue(zoomAtom);
   const routers = useTabRouters(model.tabs);
   const activeRouter = model.selectedId
     ? routers.get(model.selectedId)
@@ -65,13 +62,7 @@ export function MainWindow() {
   useMouseBackForward();
   useAppCommands();
   useShortcutGuideHotkey();
-
-  // Keep the macOS traffic-light position in sync with the main-window zoom (the
-  // toolbar height scales with it). Only the main window renders MainWindow, so
-  // this stays out of the zoom atom (which the onboarding window also imports).
-  useEffect(() => {
-    void safe(rpcClient.utils.syncZoom.call({ zoom }));
-  }, [zoom]);
+  useSyncZoom();
 
   return (
     <QueryClientProvider client={sharedQueryClient}>

@@ -10,6 +10,8 @@ import {
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { getAppZoom } from "@/electron-main/stores/window-state";
+import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { app, BrowserWindow } from "electron";
 import path from "node:path";
 
@@ -45,7 +47,6 @@ export function openOrchestratorWindow(): BrowserWindow {
     show: false,
     title: "Instrument",
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {
       additionalArguments: ["--windowType=orchestrator"],
       contextIsolation: true,
@@ -56,6 +57,13 @@ export function openOrchestratorWindow(): BrowserWindow {
     },
     width: ORCHESTRATOR_WIDTH,
   });
+
+  // Center the lights in the window bar for the zoom the renderer last
+  // reported, so they are in place for the first paint instead of jumping once
+  // this window mounts and syncs its own. Set here rather than through the
+  // `trafficLightPosition` option, which only applies to frameless windows; this
+  // one keeps its macOS frame, as the main window does.
+  setTrafficLightForZoom(orchestratorWindow, getAppZoom());
 
   orchestratorWindow.once("ready-to-show", () => {
     orchestratorWindow?.show();

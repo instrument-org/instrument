@@ -42,12 +42,13 @@ const store = new Store<StoredWindowState>({
 const learnedWorkAreas = new Map<number, { height: number; width: number }>();
 
 /**
- * The main-window UI zoom the renderer last reported. The renderer owns the
- * value (`zoomAtom`); the main process keeps a copy so a window can place its
- * macOS traffic lights for the zoomed toolbar height at creation, rather than
- * waiting for the renderer to mount and report the zoom back.
+ * The app's UI zoom, as the renderer last reported it. The renderer owns the
+ * value (`zoomAtom`, one setting shared by every window at the origin); the main
+ * process keeps a copy so a window can place its macOS traffic lights for the
+ * zoomed toolbar height at creation, rather than waiting for the renderer to
+ * mount and report the zoom back.
  */
-export function getMainWindowZoom() {
+export function getAppZoom() {
   const zoom = store.get("zoom");
   return typeof zoom === "number" && Number.isFinite(zoom) && zoom > 0
     ? zoom
@@ -94,7 +95,7 @@ export function rememberWorkAreaFromMaximized(bounds: WindowBounds) {
   });
 }
 
-export function setMainWindowZoom(zoom: number) {
+export function setAppZoom(zoom: number) {
   store.set("zoom", zoom);
 }
 

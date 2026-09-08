@@ -1,6 +1,7 @@
 import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import { ZoomToast } from "@/client/components/zoom-controls";
 import { ZoomRoot } from "@/client/components/zoom-root";
+import { useSyncZoom } from "@/client/hooks/use-sync-zoom";
 import { rpcClient } from "@/client/rpc/client";
 import { steppedZoom } from "@/shared/zoom";
 import { useSetAtom } from "jotai";
@@ -17,12 +18,16 @@ const RECONNECT_DELAY_MS = 500;
  * tab/navigation commands), then renders the shared {@link ZoomRoot} so
  * onboarding zoom uses the identical CSS-`zoom` mechanism as the main window
  * (clamped range, portalled-popover compensation via `useAppZoomStyle`) rather
- * than Electron's native page zoom. `zoomAtom` is `localStorage`-backed at the
- * same origin, so a zoom set here is already applied when the main window mounts
- * (and syncs live via storage events while both are open).
+ * than Electron's native page zoom, and reports the level back for the window's
+ * macOS traffic lights the way MainWindow does. `zoomAtom` is
+ * `localStorage`-backed at the same origin, so a zoom set here is already
+ * applied when the main window mounts (and syncs live via storage events while
+ * both are open).
  */
 export function OnboardingZoomRoot({ children }: { children: ReactNode }) {
   const setZoom = useSetAtom(zoomAtom);
+
+  useSyncZoom();
 
   useEffect(() => {
     const controller = new AbortController();

@@ -23,16 +23,17 @@ import {
 } from "@/electron-main/lib/server-exceptions";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { setMainWindowZoom } from "@/electron-main/stores/window-state";
+import { setAppZoom } from "@/electron-main/stores/window-state";
 import {
   closeMainWindow,
   isMainWindowFullScreen,
   isMainWindowMaximized,
   minimizeMainWindow,
-  setTrafficLightForZoom,
   toggleMaximizeMainWindow,
 } from "@/electron-main/windows/main/controls";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { getOrchestratorWindow } from "@/electron-main/windows/orchestrator";
+import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import {
   OpenTaskInTypeSchema,
   SupportedEditorSchema,
@@ -640,15 +641,18 @@ const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
 });
 
-// The renderer owns the main-window zoom (CSS `zoom`); it reports the current level so
-// the main process can keep the macOS traffic lights centered in the toolbar,
-// whose visual height scales with that zoom. The level is stored so the next
-// window can be created with the buttons already in the right place.
+// The renderer owns the app zoom (CSS `zoom`); it reports the current level so
+// the main process can keep the macOS traffic lights centered in the band of
+// chrome above the UI, whose visual height scales with that zoom. One setting
+// shared by every window at the origin, so every window that draws such a band
+// is moved, whichever one reported it. The level is stored so the next window
+// can be created with the buttons already in the right place.
 const syncZoom = base
   .input(z.object({ zoom: z.number() }))
   .handler(({ input }) => {
-    setTrafficLightForZoom(input.zoom);
-    setMainWindowZoom(input.zoom);
+    setTrafficLightForZoom(getMainWindow(), input.zoom);
+    setTrafficLightForZoom(getOrchestratorWindow(), input.zoom);
+    setAppZoom(input.zoom);
   });
 
 // Custom title-bar window controls (Windows/Linux, and macOS when force-shown).

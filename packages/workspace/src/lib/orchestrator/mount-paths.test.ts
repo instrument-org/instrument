@@ -68,7 +68,9 @@ describe("translateMountPaths", () => {
         withNamesake,
         handedTheNamesake,
       ),
-    ).toMatchInlineSnapshot(`"Read /mnt/Instrument/README.md and put the notes in /mnt/Documents-Instrument/notes.md."`);
+    ).toMatchInlineSnapshot(
+      `"Read /mnt/Instrument/README.md and put the notes in /mnt/Documents-Instrument/notes.md."`,
+    );
   });
 
   it("leaves a folder the reading side does not have exactly as it was", () => {
@@ -137,7 +139,9 @@ describe("translateMountPaths", () => {
           Downloads: "/Users/x/Downloads",
         }),
       ),
-    ).toMatchInlineSnapshot(`"Put it in /mnt/Downloads and say when /mnt/Desktop is clear."`);
+    ).toMatchInlineSnapshot(
+      `"Put it in /mnt/Downloads and say when /mnt/Desktop is clear."`,
+    );
   });
 
   it("takes a path out of a link and out of backticks", () => {
@@ -147,7 +151,9 @@ describe("translateMountPaths", () => {
         task,
         conversation,
       ),
-    ).toMatchInlineSnapshot(`"Wrote [the summary](/mnt/Home/Downloads/summary.md) beside \`/mnt/Home/Downloads/raw.csv\`."`);
+    ).toMatchInlineSnapshot(
+      `"Wrote [the summary](/mnt/Home/Downloads/summary.md) beside \`/mnt/Home/Downloads/raw.csv\`."`,
+    );
   });
 
   it("leaves a path that climbs out of its mount where it was", () => {

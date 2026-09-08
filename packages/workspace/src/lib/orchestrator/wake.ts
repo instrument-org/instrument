@@ -157,28 +157,6 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   }
 }
 
-/**
- * What a task said, in the paths the conversation that started it reads. The
- * two hold the same folders under names of their own (see mount-paths.ts), and
- * a note is composed for the conversation rather than for the task.
- */
-async function inOrchestratorPaths(
-  text: string | undefined,
-  {
-    orchestratorTaskId,
-    taskId,
-  }: { orchestratorTaskId: TaskId; taskId: TaskId },
-): Promise<string | undefined> {
-  if (text === undefined) {
-    return undefined;
-  }
-  return translateMountPaths(
-    text,
-    await mountsOf(taskId),
-    await mountsOf(orchestratorTaskId),
-  );
-}
-
 async function deliver(
   orchestratorId: TaskId,
   events: TaskEvent[],
@@ -206,6 +184,28 @@ async function deliver(
       sessions.get(key),
     );
   }
+}
+
+/**
+ * What a task said, in the paths the conversation that started it reads. The
+ * two hold the same folders under names of their own (see mount-paths.ts), and
+ * a note is composed for the conversation rather than for the task.
+ */
+async function inOrchestratorPaths(
+  text: string | undefined,
+  {
+    orchestratorTaskId,
+    taskId,
+  }: { orchestratorTaskId: TaskId; taskId: TaskId },
+): Promise<string | undefined> {
+  if (text === undefined) {
+    return undefined;
+  }
+  return translateMountPaths(
+    text,
+    await mountsOf(taskId),
+    await mountsOf(orchestratorTaskId),
+  );
 }
 
 async function onSessionDone(

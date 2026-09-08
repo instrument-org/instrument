@@ -27,20 +27,14 @@ const MAYBE_PATH_ENDS = new Set([
   " ",
   "\t",
   ")",
+  ",",
+  ".",
+  ":",
+  ";",
+  ">",
   "]",
   "}",
-  ",",
-  ";",
-  ":",
-  ".",
-  ">",
 ]);
-
-/** The folders a task reaches, as it reaches them. */
-export async function mountsOf(taskId: TaskId): Promise<FolderMounts> {
-  const state = await getTaskState(taskDir(taskId));
-  return state.attachedFolders ?? {};
-}
 
 /**
  * The path a folder on disk is reached by in `mounts`, through the deepest
@@ -53,35 +47,10 @@ export function mountPathOf(
   return deepestMount(path.resolve(hostPath), mounts)?.mountPath;
 }
 
-/**
- * The mount that covers a folder most closely, of those a task has. Two mounts
- * can both cover it -- the home folder and something inside it -- and the
- * closer one is the one that says most about which folder is meant.
- */
-function deepestMount(
-  hostPath: string,
-  mounts: FolderMounts,
-): undefined | { depth: number; mountPath: string } {
-  let deepest: undefined | { mountName: string; root: string };
-  for (const folder of Object.values(mounts)) {
-    const root = path.resolve(folder.path);
-    const covers =
-      hostPath === root || hostPath.startsWith(`${root}${path.sep}`);
-    if (
-      covers &&
-      (deepest === undefined || root.length > deepest.root.length)
-    ) {
-      deepest = { mountName: folder.mountName, root };
-    }
-  }
-  if (!deepest) {
-    return undefined;
-  }
-  const rest = hostPath.slice(deepest.root.length).split(path.sep).join("/");
-  return {
-    depth: deepest.root.length,
-    mountPath: `${PREFIX}${deepest.mountName}${rest}`,
-  };
+/** The folders a task reaches, as it reaches them. */
+export async function mountsOf(taskId: TaskId): Promise<FolderMounts> {
+  const state = await getTaskState(taskDir(taskId));
+  return state.attachedFolders ?? {};
 }
 
 /**
@@ -140,24 +109,34 @@ export function translateMountPaths(
 }
 
 /**
- * Whether a mount's name is the name at this point in the text, rather than
- * the start of a longer one: `Home` is not the mount in `/mnt/Home-Downloads`.
+ * The mount that covers a folder most closely, of those a task has. Two mounts
+ * can both cover it -- the home folder and something inside it -- and the
+ * closer one is the one that says most about which folder is meant.
  */
-function startsWithMountName(
-  text: string,
-  at: number,
-  mountName: string,
-): boolean {
-  if (!text.startsWith(mountName, at)) {
-    return false;
+function deepestMount(
+  hostPath: string,
+  mounts: FolderMounts,
+): undefined | { depth: number; mountPath: string } {
+  let deepest: undefined | { mountName: string; root: string };
+  for (const folder of Object.values(mounts)) {
+    const root = path.resolve(folder.path);
+    const covers =
+      hostPath === root || hostPath.startsWith(`${root}${path.sep}`);
+    if (
+      covers &&
+      (deepest === undefined || root.length > deepest.root.length)
+    ) {
+      deepest = { mountName: folder.mountName, root };
+    }
   }
-  const after = text[at + mountName.length];
-  return (
-    after === undefined ||
-    after === "/" ||
-    PATH_ENDS.has(after) ||
-    MAYBE_PATH_ENDS.has(after)
-  );
+  if (!deepest) {
+    return undefined;
+  }
+  const rest = hostPath.slice(deepest.root.length).split(path.sep).join("/");
+  return {
+    depth: deepest.root.length,
+    mountPath: `${PREFIX}${deepest.mountName}${rest}`,
+  };
 }
 
 /**
@@ -206,4 +185,25 @@ function readSubpath(
     }
   }
   return best;
+}
+
+/**
+ * Whether a mount's name is the name at this point in the text, rather than
+ * the start of a longer one: `Home` is not the mount in `/mnt/Home-Downloads`.
+ */
+function startsWithMountName(
+  text: string,
+  at: number,
+  mountName: string,
+): boolean {
+  if (!text.startsWith(mountName, at)) {
+    return false;
+  }
+  const after = text[at + mountName.length];
+  return (
+    after === undefined ||
+    after === "/" ||
+    PATH_ENDS.has(after) ||
+    MAYBE_PATH_ENDS.has(after)
+  );
 }

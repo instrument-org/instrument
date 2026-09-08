@@ -431,6 +431,23 @@ function fail(message: string) {
   };
 }
 
+/**
+ * What a task was handed, in this conversation's own paths: the folders named
+ * on the command with the access each ended up with, and the workspace folder
+ * that goes with them whether it was named or not.
+ */
+function handedFolders(
+  folders: { access: FolderAttachment.Access; path: string }[],
+  orchestratorFolders: FolderMounts,
+): string {
+  return folders
+    .map(
+      (folder) =>
+        `${mountPathOf(folder.path, orchestratorFolders) ?? folder.path} (${folder.access})`,
+    )
+    .join(", ");
+}
+
 async function listOutputs(taskId: TaskId): Promise<string[]> {
   const outputDir = absolutePathJoin(taskDir(taskId), TASK_FOLDER_NAMES.output);
   try {
@@ -835,23 +852,6 @@ async function runWait(
   return ok(
     `${task.id} is still running after ${ms(Math.max(1000, Date.now() - startedAt), { long: true })}. You will be told when it finishes; there is no need to wait again.\n`,
   );
-}
-
-/**
- * What a task was handed, in this conversation's own paths: the folders named
- * on the command with the access each ended up with, and the workspace folder
- * that goes with them whether it was named or not.
- */
-function handedFolders(
-  folders: { access: FolderAttachment.Access; path: string }[],
-  orchestratorFolders: FolderMounts,
-): string {
-  return folders
-    .map(
-      (folder) =>
-        `${mountPathOf(folder.path, orchestratorFolders) ?? folder.path} (${folder.access})`,
-    )
-    .join(", ");
 }
 
 /**

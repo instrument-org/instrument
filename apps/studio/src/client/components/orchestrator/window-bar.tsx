@@ -5,6 +5,7 @@ import {
 } from "@/client/components/orchestrator/channel-rail";
 import { channelTint } from "@/client/components/orchestrator/channel-tint";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { type ReactNode } from "react";
 
@@ -39,14 +40,25 @@ export function WindowBar({
   return (
     <div
       className={cn(
-        "flex h-10 shrink-0 items-center gap-1.5 border-b border-border pr-2 channel-tint [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
+        "flex shrink-0 items-center gap-1.5 border-b border-border pr-2 channel-tint [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
         // The lights are drawn by the system over the window's top left; on
         // the platforms that put controls elsewhere the row starts at the edge.
-        isMacOS() ? "pl-20" : "pl-2",
+        isMacOS() ? undefined : "pl-2",
       )}
       style={{
         background: "var(--channel-tint-surface, var(--background))",
         borderColor: "var(--channel-tint-edge, var(--border))",
+        // The band the main process centers the traffic lights in, so the row's
+        // height is the one that arithmetic is done against.
+        height: `${TOOLBAR_HEIGHT}px`,
+        // The gutter the buttons sit in is real pixels the system draws, so it
+        // has to stay a fixed visual width: divided by the window's zoom, the
+        // zoomed row scales it back to a constant 5rem at every level. That is
+        // the 12px cluster inset plus the 52px cluster, leaving the sidebar
+        // button the same air from the lights that the row keeps elsewhere.
+        ...(isMacOS()
+          ? { paddingLeft: "calc(5rem / var(--app-zoom, 1))" }
+          : {}),
         ...channelTint(channel && channelColor(channel)),
       }}
     >

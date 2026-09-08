@@ -38,6 +38,8 @@ Four things, each reproduced against the real pipeline by parsing whole and per-
 **Link reference definitions break completely.** `See [the docs][d].` with `[d]: https://example.test` at the bottom renders as literal `[the docs][d]`. Same cause.
 
 > Both are answered the same way: a document containing a footnote or link-reference definition is parsed whole. Detecting one is a regex over the source, done once, next to the `containsMathSyntax` and `rawHtmlPattern` checks that already gate the optional plugins. These are rare in model output and rarer still in long model output, so the fallback costs the feature nothing in the case it exists for.
+>
+> That is the blunt answer, and there is a better one: Streamdown resolves footnotes while splitting, and only link reference definitions defeat it. Whatever it does there is worth reading before settling for the fallback, since a document that carries one footnote should not lose the split for the whole of its length.
 
 **Heading ids stop deduplicating.** Two `## Setup` headings in one document get `setup` and `setup-1` when parsed whole, and `setup` twice when parsed per block, because `rehype-slug` builds a fresh `github-slugger` per run. Every duplicate heading becomes a hash link that goes to the wrong place, and [`useHashLinkScroll`](../../../apps/studio/src/client/hooks/use-hash-link-scroll.ts) is what would take a reader there. Answered by deriving the ids once from the whole source — headings are cheap to find and the `marked` token stream already has them — and handing each block the ids its headings should carry, in place of `rehype-slug`'s own pass.
 

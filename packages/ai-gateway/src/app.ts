@@ -4,10 +4,12 @@ import { logger } from "hono/logger";
 
 import { PROVIDERS_PATH } from "./constants";
 import { createAuthMiddleware } from "./lib/auth-middleware";
+import { gatewayErrorHandler } from "./lib/error-handler";
 import { providerApp } from "./routes/provider";
 import { type AIGatewayEnv } from "./types";
 
 const app = new Hono<AIGatewayEnv>().basePath(AI_GATEWAY_API_PATH);
+app.onError(gatewayErrorHandler);
 
 if (process.env.NODE_ENV === "development") {
   app.use(logger());

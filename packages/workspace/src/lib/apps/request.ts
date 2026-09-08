@@ -251,6 +251,15 @@ function applyAuth({
     return;
   }
   switch (auth.kind) {
+    case "basic": {
+      const userinfo =
+        auth.user === undefined ? credential : `${auth.user}:${credential}`;
+      headers.set(
+        "Authorization",
+        `Basic ${Buffer.from(userinfo, "utf8").toString("base64")}`,
+      );
+      break;
+    }
     case "bearer": {
       headers.set("Authorization", `Bearer ${credential}`);
       break;

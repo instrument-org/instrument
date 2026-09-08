@@ -28,6 +28,16 @@ export type AppSlug = z.output<typeof AppSlugSchema>;
  * them guessing. An unrecognized-key error is the feedback loop.
  */
 const ApiAuthSchema = z.discriminatedUnion("kind", [
+  // Authorization: Basic base64(<user>:<credential>), or base64(<credential>)
+  // with no "user". Both forms exist in the wild: a service that names a
+  // username for its keys (Twilio) wants the first, and one that calls the key
+  // itself the Basic credentials (WakaTime) wants the second. The encoding
+  // happens here because nothing upstream can do it: the agent's shell has no
+  // base64, and the user pastes the key as the service gave it to them.
+  z.strictObject({
+    kind: z.literal("basic"),
+    user: z.string().min(1).optional(),
+  }),
   // Authorization: Bearer <credential>
   z.strictObject({ kind: z.literal("bearer") }),
   // <header>: <credential>  (e.g. X-Api-Key)
@@ -229,7 +239,7 @@ Local MCP app (an MCP server that runs on this machine, installed from npm ("nod
   "auth": { "kind": "none" }
 }
 
-API app (authenticated HTTP requests; auth kinds: bearer, header (with "header"), query (with "param"), none):
+API app (authenticated HTTP requests; auth kinds: bearer, basic (optionally with "user"), header (with "header"), query (with "param"), none):
 {
   "name": "Notion",
   "type": "api",

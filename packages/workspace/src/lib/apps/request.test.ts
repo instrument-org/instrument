@@ -298,6 +298,46 @@ describe("performAppRequest", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  // The agent's own shell has no base64 and the user pastes the key exactly as
+  // the service gave it to them, so this encoding is the only place it can
+  // happen. A service documenting "the API key as the Basic credentials" wants
+  // the key alone; one naming a username wants the ordinary pair.
+  it.each([
+    {
+      auth: { kind: "basic" } as const,
+      expected: `Basic ${Buffer.from("k3y").toString("base64")}`,
+      name: "encodes the credential alone with no user",
+    },
+    {
+      auth: { kind: "basic", user: "acct" } as const,
+      expected: `Basic ${Buffer.from("acct:k3y").toString("base64")}`,
+      name: "encodes user:credential when the manifest names a user",
+    },
+  ])("$name", async ({ auth, expected }) => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("{}", {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await performAppRequest({
+      body: undefined,
+      credential: "k3y",
+      manifest: { ...publicManifest(), auth },
+      method: "GET",
+      params: {},
+      path: "/items",
+      signal: AbortSignal.timeout(1000),
+    });
+
+    const headers = new Headers(
+      (fetchMock.mock.calls[0]?.[1] as RequestInit).headers,
+    );
+    expect(headers.get("authorization")).toBe(expected);
+  });
+
   it("allows a hostname that resolves to a public address", async () => {
     vi.stubGlobal(
       "fetch",

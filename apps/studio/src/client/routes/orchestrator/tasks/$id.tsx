@@ -1,7 +1,9 @@
 import { ChannelFace } from "@/client/components/orchestrator/channel-rail";
 import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
+import { useNewestSessionId } from "@/client/components/orchestrator/newest-session";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
+import { TaskMenu } from "@/client/components/orchestrator/task-menu";
 import { Spinner } from "@/client/components/ui/spinner";
 import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
@@ -46,6 +48,9 @@ function TaskRoute() {
     }),
   );
   const channel = children.data?.find((child) => child.id === taskId)?.channel;
+  // The session the transcript below is showing, so the menu acts on what is
+  // on screen rather than on whichever session it would pick for itself.
+  const sessionId = useNewestSessionId(taskId);
   const isWorking = status.data?.some(hasLiveAgent) ?? false;
   const step = activity.data?.running.find(
     (entry) => entry.taskId === taskId,
@@ -73,9 +78,14 @@ function TaskRoute() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2">
-        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">
-          {task.data.title}
-        </h2>
+        {/* The title and its menu travel together, so the menu reads as acting
+          on the task named beside it rather than on the screen. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <h2 className="min-w-0 truncate text-sm font-medium">
+            {task.data.title}
+          </h2>
+          <TaskMenu sessionId={sessionId} taskId={taskId} />
+        </div>
         {channel && (
           <span className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border">
             <ChannelFace channel={channel} className="text-[12px]" />

@@ -24,6 +24,7 @@ import ms from "ms";
 import { type ReactNode } from "react";
 
 import { TabIcon } from "./browser-tabs";
+import { useNewestSessionId } from "./newest-session";
 
 /** How often a task's sessions and standing are re-read while it is open. */
 const REFRESH_MS = ms("2 seconds");
@@ -39,17 +40,7 @@ const noop = () => {
  * its shoulder and not a second conversation.
  */
 export function ChildTranscript({ task }: { task: Task }) {
-  const sessions = useQuery(
-    rpcClient.workspace.session.list.queryOptions({
-      input: { id: task.id },
-      refetchInterval: REFRESH_MS,
-    }),
-  );
-  // Newest session: ids are ulids, so the last one alphabetically.
-  const sessionId = sessions.data
-    ?.map((session) => session.id)
-    .toSorted()
-    .at(-1);
+  const sessionId = useNewestSessionId(task.id);
   const messages = useQuery(
     rpcClient.workspace.message.live.list.experimental_liveOptions({
       input: sessionId ? { id: task.id, sessionId } : skipToken,

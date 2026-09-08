@@ -6,7 +6,6 @@ export {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
 export { appEventModelNote } from "./lib/app-event-model-text";
-export { attachedFolderChangesModelNote } from "./lib/attached-folder-changes-model-text";
 export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
 export { dateChangeModelNote } from "./lib/date-change-model-text";

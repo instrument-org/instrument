@@ -240,10 +240,6 @@ export async function newMessage({
     parts.push(projectChanges.value);
   }
 
-  // Notify agent of folders removed or renamed since last turn (per-session
-  // baseline diff). Runs after writeUploadedAttachments/detectProjectChanges
-  // above so a rename either of them triggers this message is read as part of
-  // "current" and reported now instead of lagging a turn behind.
   // The apps a task may reach are named in the session context, which is never
   // rewritten, so an app handed over after it started arrives here or nowhere.
   const appChanges = await detectTaskAppChanges({
@@ -258,8 +254,24 @@ export async function newMessage({
     parts.push(appChanges.value);
   }
 
+  // Notify agent of folders added, removed, or renamed since last turn
+  // (per-session baseline diff). Runs after writeUploadedAttachments and
+  // detectProjectChanges above so a rename either of them triggers this message
+  // is read as part of "current" and reported now instead of lagging a turn
+  // behind -- and so the folders those two just introduced can be named here as
+  // already announced. A project folder arriving is the project's news, told
+  // once by the part above; told again here it would reach the model twice and
+  // the user as two separate notes about one change.
+  const projectFolders =
+    projectChanges.isOk() &&
+    projectChanges.value?.type === "data-projectChanges"
+      ? projectChanges.value.data.foldersAdded.map((folder) => folder.path)
+      : [];
   const folderChanges = await detectAttachedFolderChanges({
-    announced: folders?.map((folder) => folder.path),
+    announced: [
+      ...(folders?.map((folder) => folder.path) ?? []),
+      ...projectFolders,
+    ],
     messageId,
     sessionId,
     taskId,

@@ -9,23 +9,35 @@ import { FolderIcon } from "@phosphor-icons/react/Folder";
  * made in the panel is silent until a turn carries it, and this is where the
  * user finds out that the one they made is the one the agent has.
  *
- * Renames are deliberately absent. A rename here is of the mount we assign, not
- * of the user's folder, so reporting one describes something they never did.
+ * Two of the four changes are ours rather than theirs, and neither is shown
+ * outside developer mode. A rename here is of the mount we assign, not of the
+ * user's folder, so reporting one describes something they never did. And a
+ * folder arriving is most often the app attaching its own two at startup, or
+ * the conversation handing one to a task it is running: real, but nothing the
+ * person reading this chat did or has to act on, and unreadable as "Added 2
+ * folders" besides. In developer mode it says which, since there it is being
+ * read to find out what the agent was told.
  */
 export function AttachedFolderChangesNote({
   data,
+  isDeveloperMode = false,
 }: {
   data: SessionMessageDataPart.AttachedFolderChangesDataPart;
+  isDeveloperMode?: boolean;
 }) {
   const changes: string[] = [];
-  const [attached] = data.added;
   const [regranted] = data.accessChanged;
   const [detached] = data.removed;
 
-  if (attached && data.added.length === 1) {
-    changes.push(`added ${folderLabel(attached.path)}`);
-  } else if (data.added.length > 1) {
-    changes.push(`added ${data.added.length} folders`);
+  if (isDeveloperMode && data.added.length > 0) {
+    changes.push(
+      `added ${data.added
+        .map(
+          (folder) =>
+            `${folderLabel(folder.path)} (${folder.access === "read-write" ? "read and write" : "read-only"})`,
+        )
+        .join(", ")}`,
+    );
   }
 
   if (regranted && data.accessChanged.length === 1) {

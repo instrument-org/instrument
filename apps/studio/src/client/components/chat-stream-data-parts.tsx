@@ -129,7 +129,11 @@ export function renderDataPart({
     }
     case "data-attachedFolderChanges": {
       return (
-        <AttachedFolderChangesNote data={part.data} key={part.metadata.id} />
+        <AttachedFolderChangesNote
+          data={part.data}
+          isDeveloperMode={ctx.isDeveloperMode}
+          key={part.metadata.id}
+        />
       );
     }
     case "data-attachments":

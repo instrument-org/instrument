@@ -129,6 +129,18 @@ describe("detectAttachedFolderChanges", () => {
     ]);
   });
 
+  it("says nothing about a folder the project part on this message already reports", async () => {
+    const shared = path.join(rootDir, "Shared");
+    await fs.mkdir(shared);
+    await attachFolder({ access: "read-only", path: shared, taskId: TASK_ID });
+
+    // What `detectProjectChanges` writes into task state and names in its own
+    // part, a moment before this runs.
+    const changes = await changesSince([], [shared]);
+
+    expect(changes).toBeUndefined();
+  });
+
   it("reports nothing when the folders are as the model last saw them", async () => {
     await attachFolder({
       access: "read-write",

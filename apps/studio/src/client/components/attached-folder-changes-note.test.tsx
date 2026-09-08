@@ -49,29 +49,50 @@ describe("AttachedFolderChangesNote", () => {
       text: "Removed 2 folders",
     },
     {
-      data: changes({ added: [{ access: "read-write", ...NOTES }] }),
-      text: "Added Notes",
-    },
-    {
-      data: changes({
-        added: [
-          { access: "read-write", ...NOTES },
-          { access: "read-only", ...PHOTOS },
-        ],
-      }),
-      text: "Added 2 folders",
-    },
-    {
       data: changes({
         added: [{ access: "read-write", ...NOTES }],
         removed: [PHOTOS],
       }),
-      text: "Added Notes, removed Photos",
+      text: "Removed Photos",
     },
   ])("says $text", ({ data, text }) => {
     renderWithProviders(<AttachedFolderChangesNote data={data} />);
 
     expect(noteText()).toBe(text);
+  });
+
+  // The app attaches its own two folders at startup and the conversation hands
+  // one to a task it is running. Both arrive here, and neither is something the
+  // person reading the chat did.
+  it("draws nothing for folders arriving alone", () => {
+    renderWithProviders(
+      <AttachedFolderChangesNote
+        data={changes({
+          added: [
+            { access: "read-write", ...NOTES },
+            { access: "read-only", ...PHOTOS },
+          ],
+        })}
+      />,
+    );
+
+    expect(noteText()).toBeNull();
+  });
+
+  it("names the folders that arrived in developer mode", () => {
+    renderWithProviders(
+      <AttachedFolderChangesNote
+        data={changes({
+          added: [
+            { access: "read-write", ...NOTES },
+            { access: "read-only", ...PHOTOS },
+          ],
+        })}
+        isDeveloperMode
+      />,
+    );
+
+    expect(noteText()).toBe("Added Notes (read and write), Photos (read-only)");
   });
 
   // The mount is ours and moves for reasons on our side; the user's folder is

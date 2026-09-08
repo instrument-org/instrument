@@ -1,7 +1,9 @@
 import {
   orchestratorRecentsAtom,
+  orchestratorSidebarOpenAtom,
   visitedPagesAtom,
 } from "@/client/atoms/orchestrator";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { computerName } from "@/client/components/orchestrator/computer-name";
@@ -21,12 +23,16 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import uFuzzy from "@leeoniya/ufuzzy";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
+import { GearIcon } from "@phosphor-icons/react/Gear";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
+import { WrenchIcon } from "@phosphor-icons/react/Wrench";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
 import {
   type ComponentType,
@@ -62,6 +68,20 @@ const RECENTS_SHOWN = 6;
 const SCREENS_SHOWN = 4;
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
+
+/** Something the window can be asked to do, as opposed to somewhere it can go. */
+interface OmniCommand {
+  icon: ReactNode;
+  id: string;
+  name: string;
+  run: () => void;
+  /**
+   * The words that summon it, each matched from its start. A command the field
+   * should not offer of its own accord is summoned by a word starting `!`,
+   * which nothing else typed here begins with.
+   */
+  words: string[];
+}
 
 interface OmniRow {
   group: string;
@@ -109,6 +129,19 @@ export function Omnibar({
   });
   const recents = useAtomValue(orchestratorRecentsAtom);
   const visited = useAtomValue(visitedPagesAtom);
+  const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
+  const preferences = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setDeveloperMode = useMutation(
+    rpcClient.preferences.setDeveloperMode.mutationOptions(),
+  );
+  const checkForUpdates = useMutation(
+    rpcClient.preferences.checkForUpdates.mutationOptions(),
+  );
+  const simulateNoUpdate = useMutation(
+    rpcClient.debug.trigger.testNoUpdateNotification.mutationOptions(),
+  );
   const [query, setQuery] = useState(initial);
   const [highlight, setHighlight] = useState(0);
   const [isEditing, setEditing] = useState(resting === undefined);
@@ -319,6 +352,80 @@ export function Omnibar({
     note: app.note,
     run: app.run,
   }));
+  // The switches this window keeps nowhere else, developer mode among them, so
+  // turning one on is a thing you type rather than a build you restart.
+  // A command runs on Enter, so it is summoned by words of its own from three
+  // letters on, rather than by the matcher the places use: a search that
+  // merely grazed one would otherwise take the top of the list from the web.
+  // Developer mode answers to `!dev`, as it did in the window this one
+  // replaces: it is for whoever already knows to ask for it.
+  const developerMode = preferences.data?.developerMode ?? false;
+  const commands: OmniCommand[] = [
+    {
+      icon: <WrenchIcon className="size-4" />,
+      id: "developer-mode",
+      name: developerMode
+        ? "Turn off developer mode"
+        : "Turn on developer mode",
+      run: () => {
+        setDeveloperMode.mutate({ enabled: !developerMode });
+        toast(developerMode ? "Developer mode off" : "Developer mode on");
+      },
+      words: ["!dev"],
+    },
+    {
+      icon: <SidebarSimpleIcon className="size-4" />,
+      id: "sidebar",
+      name: isSidebarOpen ? "Hide the sidebar" : "Show the sidebar",
+      run: () => {
+        setSidebarOpen(!isSidebarOpen);
+      },
+      words: ["sidebar"],
+    },
+    {
+      icon: <GearIcon className="size-4" />,
+      id: "settings",
+      name: "Settings",
+      run: () => {
+        openSettings({ tab: "General" });
+      },
+      words: ["settings", "preferences"],
+    },
+    {
+      icon: <ArrowsClockwiseIcon className="size-4" />,
+      id: "updates",
+      name: "Check for updates",
+      run: () => {
+        // In development there is no build to find, so the window is shown the
+        // answer it would have got instead.
+        if (import.meta.env.DEV) {
+          simulateNoUpdate.mutate(undefined);
+        } else {
+          checkForUpdates.mutate({});
+        }
+      },
+      words: ["updates", "check for updates"],
+    },
+  ];
+  const commandRows: OmniRow[] = commands
+    .filter(
+      (command) =>
+        words.length >= 3 &&
+        command.words.some((phrase) => phrase.startsWith(words)),
+    )
+    .map((command) => ({
+      group: "Commands",
+      icon: command.icon,
+      id: command.id,
+      name: command.name,
+      note: "Command",
+      run: () => {
+        command.run();
+        // Done with: the field goes back to showing the place it is in.
+        setQuery("");
+        input.current?.blur();
+      },
+    }));
   const matched = [...screenRows, ...recentOmniRows, ...appRows];
   const rows: OmniRow[] = [
     // What the words are, when they are a place: a path on the computer, an
@@ -355,6 +462,9 @@ export function Omnibar({
     ...matched
       .filter((row) => isNamed(row.name))
       .map((row) => ({ ...row, group: "Open" })),
+    // Then what the words ask the window to do, which is as plain a reading of
+    // them as a place is.
+    ...commandRows,
     // What the words can be used with, next: searching the web and asking
     // the conversation are what typed words most often mean, and the rows
     // that matched them follow.

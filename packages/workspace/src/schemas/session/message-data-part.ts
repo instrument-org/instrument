@@ -48,6 +48,7 @@ export namespace SessionMessageDataPart {
     "paneTabs",
     "projectChanges",
     "projectContext",
+    "taskAppChanges",
     "taskEvent",
     "unknown",
     "viewContext",
@@ -599,6 +600,31 @@ export namespace SessionMessageDataPart {
   export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
 
   /**
+   * The apps this task may reach, changed since the model last looked --
+   * attached to the user message that carries the change in.
+   *
+   * A task reaches the apps it was handed and no others, and which those are is
+   * written into the session context, which is composed once and never
+   * rewritten. So a task handed an app after it started could call it while its
+   * standing context says it cannot, which reads to the model as a refusal
+   * rather than a capability. The usual reason one arrives late is that the app
+   * did not exist when the task did: the task needed a service, the
+   * conversation asked the user to sign in, and the task is still waiting on it.
+   */
+  const TaskAppChangesDataPartSchema = z.object({
+    added: z
+      .array(z.object({ name: z.string(), slug: z.string() }))
+      .default([]),
+    removed: z
+      .array(z.object({ name: z.string(), slug: z.string() }))
+      .default([]),
+  });
+
+  export type TaskAppChangesDataPart = z.output<
+    typeof TaskAppChangesDataPartSchema
+  >;
+
+  /**
    * What a data part becomes when it cannot be read as the type it claims.
    *
    * Two ways in, both of them a task outliving a schema: a type this build has
@@ -636,6 +662,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
+    [NameSchema.enum.taskAppChanges]: TaskAppChangesDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
     [NameSchema.enum.viewContext]: ViewContextDataPartSchema,

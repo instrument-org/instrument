@@ -19,6 +19,7 @@ import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
+import { TaskAppChangesNote } from "./task-app-changes-note";
 import { TaskEventNote } from "./task-event-note";
 
 type DataPartType = SessionMessagePart.DataPart["type"];
@@ -68,6 +69,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-projectContext": "hidden",
   "data-skillChanges": "always",
   "data-skillMentions": "dev",
+  // Shown for the same reason the folder note is: the change was made in a
+  // conversation the reader of this transcript is not looking at, and it is
+  // usually what the task had stopped and waited for.
+  "data-taskAppChanges": "always",
   // The reason an orchestrator woke, shown so a reply that follows nothing the
   // user typed has a visible cause.
   "data-taskEvent": "always",
@@ -253,6 +258,9 @@ export function renderDataPart({
           text={`Skills mentioned: ${part.data.names.join(", ")}`}
         />
       );
+    }
+    case "data-taskAppChanges": {
+      return <TaskAppChangesNote data={part.data} key={part.metadata.id} />;
     }
     case "data-taskEvent": {
       // The conversation was woken by it; what it says about it is its reply.

@@ -19,6 +19,7 @@ import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
+import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-record";
 import { getTaskSettings } from "./task-settings";
@@ -219,6 +220,20 @@ export async function newMessage({
   // baseline diff). Runs after writeUploadedAttachments/detectProjectChanges
   // above so a rename either of them triggers this message is read as part of
   // "current" and reported now instead of lagging a turn behind.
+  // The apps a task may reach are named in the session context, which is never
+  // rewritten, so an app handed over after it started arrives here or nowhere.
+  const appChanges = await detectTaskAppChanges({
+    messageId,
+    sessionId,
+    taskId,
+  });
+  if (appChanges.isErr()) {
+    // Awareness of app changes is best-effort; never block sending.
+    getWorkspaceConfig().captureException(appChanges.error);
+  } else if (appChanges.value) {
+    parts.push(appChanges.value);
+  }
+
   const folderChanges = await detectAttachedFolderChanges({
     announced: folders?.map((folder) => folder.path),
     messageId,

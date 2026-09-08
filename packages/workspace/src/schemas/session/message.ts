@@ -30,6 +30,7 @@ import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
+import { taskAppChangesModelNote } from "../../lib/task-app-changes-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { TOOL_NAMES } from "../../tools/name";
@@ -441,6 +442,20 @@ export namespace SessionMessage {
         );
         if (folderChangesPart) {
           const note = attachedFolderChangesModelNote(folderChangesPart.data);
+          if (note) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+        }
+
+        const appChangesPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-taskAppChanges";
+          } => part.type === "data-taskAppChanges",
+        );
+        if (appChangesPart) {
+          const note = taskAppChangesModelNote(appChangesPart.data);
           if (note) {
             injectedParts.push({ text: note, type: "text" });
           }

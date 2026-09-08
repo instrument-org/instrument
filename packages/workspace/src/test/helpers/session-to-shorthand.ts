@@ -194,6 +194,13 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-skillMentions": {
       return `<data-skillMentions>${part.data.names.join(",")}</data-skillMentions>`;
     }
+    case "data-taskAppChanges": {
+      const appsList = [
+        ...part.data.added.map((app) => `<added slug="${app.slug}" />`),
+        ...part.data.removed.map((app) => `<removed slug="${app.slug}" />`),
+      ].join("\n");
+      return `<data-taskAppChanges>\n${indent(appsList)}\n</data-taskAppChanges>`;
+    }
     case "data-taskEvent": {
       const events = part.data.events
         .map((event) => `${event.taskId}:${event.status}`)

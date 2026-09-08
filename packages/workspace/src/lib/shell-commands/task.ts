@@ -159,6 +159,12 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       that one at the new access instead of mounting it twice. --remove takes
       one away; the workspace folder stays, since that is where its results go.
       A task hears about the change on the next message you send it.
+  ${TASK_COMMAND.name} app <id> [--add <slug>]... [--remove <slug>]...
+      Change which connected apps a task already running may reach. A task that
+      stopped for want of a service is why this exists: connect the app with
+      \`connect_app\`, hand it over here, and ${TASK_COMMAND.name} send tells it to carry on,
+      rather than starting the work again from nothing. Only a connected app
+      can be handed over.
   ${TASK_COMMAND.name} tab <id> <tab id>|--none
       Hand a task one of the user's browser tabs after the fact, by the id the
       note on their message gives, or take the tab back with --none, which
@@ -214,6 +220,9 @@ export function createTaskCommand(context: TaskCommandContext) {
         case undefined: {
           return ok(USAGE);
         }
+        case "app": {
+          return await runApp(rest, context);
+        }
         case "folder": {
           return await runFolder(rest, context);
         }
@@ -267,6 +276,68 @@ export function createTaskCommand(context: TaskCommandContext) {
       return fail(error instanceof Error ? error.message : String(error));
     }
   });
+}
+
+/**
+ * Changes which connected apps a task already under way may reach.
+ *
+ * The flow this exists for: a task needs a service it was not handed, and it
+ * has no way to ask for one itself, so it stops and says so. The conversation
+ * connects the app with the user, hands it over here, and sends the task on its
+ * way. Without this the app arrives with nowhere to go and the only move left
+ * is a second task, briefed from nothing, paying again for everything the first
+ * one had worked out.
+ */
+export async function runApp(args: string[], context: TaskCommandContext) {
+  const { positional, values } = parseFlags(args, {
+    flags: ["add", "remove"],
+    repeatable: ["add", "remove"],
+  });
+  const task = await requireChild(positional[0], context);
+  const askedAdds = values.get("add") ?? [];
+  const askedRemoves = values.get("remove") ?? [];
+  if (askedAdds.length === 0 && askedRemoves.length === 0) {
+    throw new Error(
+      `app: --add or --remove is required. \`${TASK_COMMAND.name} show ${task.id}\` lists the apps it has.`,
+    );
+  }
+  const settings = await getTaskSettings(taskDir(task.id));
+  // A task a person made reaches every app and holds no list; narrowing it to
+  // one here would take away every app it has by handing it a single app.
+  if (settings?.apps === undefined) {
+    throw new Error(
+      `${task.id} was not created by this conversation, so it already reaches every connected app.`,
+    );
+  }
+  // Checked before anything is written, so a refused slug leaves the task's
+  // apps as they were rather than half changed.
+  const adds = await resolveApps(askedAdds);
+  const held = new Set(settings.apps);
+  for (const slug of askedRemoves) {
+    if (!held.has(slug)) {
+      throw new Error(
+        `${task.id} does not have "${slug}". It has: ${settings.apps.join(", ") || "none"}.`,
+      );
+    }
+  }
+  const removed = new Set(askedRemoves);
+  const apps = [
+    ...settings.apps.filter((slug) => !removed.has(slug)),
+    ...adds.filter((slug) => !held.has(slug)),
+  ];
+  const result = await updateTaskSettings(task.id, { apps });
+  if (result.isErr()) {
+    throw result.error;
+  }
+  const lines = [
+    ...askedRemoves.map((slug) => `Took ${slug} back from ${task.id}.`),
+    ...adds
+      .filter((slug) => !held.has(slug))
+      .map((slug) => `${task.id} can now reach ${slug}.`),
+  ];
+  return ok(
+    `${lines.join("\n") || `${task.id} already had ${adds.join(", ")}.`}\nIt learns of this on the next message you send it; say what the app is for when it stopped for want of one.\n`,
+  );
 }
 
 /**

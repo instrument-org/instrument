@@ -85,4 +85,12 @@ export namespace StorageKey {
   export function sessions() {
     return "sessions";
   }
+
+  // Per-session baseline of the apps the task may reach, diffed against its
+  // settings when composing a user message so an app handed to it (or taken
+  // back) after it started reaches the model at all. Keyed by session for the
+  // same reason the folder baseline is.
+  export function taskAppsBaseline(sessionId: StoreId.Session) {
+    return ["task-apps-baseline", sessionId].join(SEPARATOR);
+  }
 }

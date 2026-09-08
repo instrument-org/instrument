@@ -498,7 +498,7 @@ function OrchestratorLayout() {
       active?.kind === "page"
         ? { kind: "page", url: active.url ?? "" }
         : active?.kind === "screen"
-          ? screenLocation(active.href, appsBySlug)
+          ? screenLocation(active.href, { appsBySlug, childTitles })
           : { kind: "newTab" };
     if (fromTab.kind === "file" && screenView?.file) {
       return { ...fromTab, path: screenView.file.path };

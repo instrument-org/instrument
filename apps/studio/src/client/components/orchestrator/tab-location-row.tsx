@@ -20,6 +20,7 @@ export type TabLocation =
   | { kind: "folder"; path: string }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
+  | { kind: "task"; title: string }
   | { kind: "tasks" };
 
 /**
@@ -215,6 +216,20 @@ function Field({ location }: { location: TabLocation }) {
       </>
     );
   }
+  if (location.kind === "task") {
+    // A task under the list it was opened from, the way an app page sits
+    // under Apps: the field says which of them you are looking at, since the
+    // pane beside the list is the only thing that changed when you opened it.
+    return (
+      <>
+        <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600" />
+        <span className="min-w-0 flex-1 truncate">
+          <span className="text-muted-foreground">Tasks / </span>
+          {location.title}
+        </span>
+      </>
+    );
+  }
   return (
     <>
       <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600" />
@@ -241,6 +256,9 @@ function locationText(location: TabLocation) {
     }
     case "page": {
       return location.url;
+    }
+    case "task": {
+      return location.title;
     }
     case "tasks": {
       return "Tasks";

@@ -15,7 +15,13 @@ import { parseHref } from "./window-tabs";
 /** Where a screen tab is, in the terms the row above it says a place in. */
 export function screenLocation(
   href: string,
-  appsBySlug: Map<string, { name: string; site: string | undefined }>,
+  {
+    appsBySlug,
+    childTitles,
+  }: {
+    appsBySlug: Map<string, { name: string; site: string | undefined }>;
+    childTitles: Map<TaskId, string>;
+  },
 ): TabLocation {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -39,6 +45,10 @@ export function screenLocation(
   }
   if (pathname === "/orchestrator/apps") {
     return { kind: "apps" };
+  }
+  if (pathname.startsWith("/orchestrator/tasks/")) {
+    const id = pathname.slice("/orchestrator/tasks/".length) as TaskId;
+    return { kind: "task", title: childTitles.get(id) ?? "Task" };
   }
   // Every other screen is the work, which is the one place a tab can be that
   // is neither a file nor an app nor a site.

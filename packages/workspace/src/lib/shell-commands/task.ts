@@ -66,6 +66,13 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
 import { parseFlags, requireFoldersOnDisk, resolveFolders } from "./task-args";
 import { TASK_COMMAND } from "./task-command";
+import {
+  formatAge,
+  parseListDate,
+  renderTaskList,
+  selectTasks,
+  TASK_LIST_WINDOW,
+} from "./task-list-output";
 import { subprocessStdin } from "./utils";
 
 export { TASK_COMMAND } from "./task-command";
@@ -120,8 +127,14 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       if busy. Follow-ups, corrections, answers to its questions. Same heredoc.
   ${TASK_COMMAND.name} stop <id>
       Interrupt a running task. Follow with send to redirect it.
-  ${TASK_COMMAND.name} list [--running]
-      Your tasks, newest activity first: id, status, last activity, title.
+  ${TASK_COMMAND.name} list [--search <words>] [--since <date>] [--until <date>] [--running] [--limit <n>] [--all]
+      Your tasks, newest activity first: id, status, the day it was last active,
+      how long ago that was, and the title. The newest ${TASK_LIST_WINDOW} unless narrowed, and
+      a count of the rest; --all shows every match. --search matches the title and
+      the id. --since and --until take a day (2026-08-14) or a span back from
+      now (30d), and read the day a task was last active, not the date its id
+      begins with: that one is the day it was created, and a quarter of tasks
+      have no date in the id at all.
   ${TASK_COMMAND.name} show <id>
       Status, model, folders, output files, and what it last said.
   ${TASK_COMMAND.name} log <id> [--tail <lines>]
@@ -637,41 +650,50 @@ async function runArchive(args: string[], context: TaskCommandContext) {
 }
 
 async function runList(args: string[], context: TaskCommandContext) {
-  const children = await listChildTasks(context.orchestratorTaskId);
-  const rows: string[][] = [];
-  for (const task of children) {
-    const running = isWorking(task.id);
-    if (args.includes("--running") && !running) {
-      continue;
-    }
-    rows.push([
-      task.id,
-      running ? "running" : "idle",
-      `${ms(Math.max(1000, Date.now() - task.updatedAt.getTime()))} ago`,
-      task.title,
-    ]);
+  const { values } = parseFlags(args, {
+    flags: ["limit", "search", "since", "until"],
+    repeatable: [],
+  });
+  const running = args.includes("--running");
+  const rawLimit = values.get("limit")?.[0];
+  if (rawLimit !== undefined && !Number.isInteger(Number(rawLimit))) {
+    throw new Error(`--limit takes a whole number, not "${rawLimit}".`);
   }
-  if (rows.length === 0) {
+  const limit = rawLimit === undefined ? undefined : Number(rawLimit);
+  const search = values.get("search")?.[0]?.trim();
+  const rawSince = values.get("since")?.[0];
+  const rawUntil = values.get("until")?.[0];
+  const children = await listChildTasks(context.orchestratorTaskId);
+  const selection = selectTasks(
+    children.map((task) => ({
+      id: task.id,
+      isRunning: isWorking(task.id),
+      title: task.title,
+      updatedAt: task.updatedAt,
+    })),
+    {
+      all: args.includes("--all"),
+      ...(limit === undefined ? {} : { limit }),
+      running,
+      ...(search ? { search } : {}),
+      ...(rawSince ? { since: parseListDate(rawSince) } : {}),
+      ...(rawUntil
+        ? { until: parseListDate(rawUntil, { endOfDay: true }) }
+        : {}),
+    },
+  );
+  if (selection.shown.length === 0) {
+    if (children.length === 0) {
+      return ok("No tasks yet. Create one with `task new`.\n");
+    }
+    if (running && !search && !rawSince && !rawUntil) {
+      return ok("No tasks running.\n");
+    }
     return ok(
-      args.includes("--running")
-        ? "No tasks running.\n"
-        : "No tasks yet. Create one with `task new`.\n",
+      `No task matches, out of ${children.length}. Widen the search, or list them all with \`task list --all\`.\n`,
     );
   }
-  const widths = [0, 1, 2].map((column) =>
-    Math.max(...rows.map((row) => (row[column] ?? "").length)),
-  );
-  return ok(
-    `${rows
-      .map((row) =>
-        row
-          .map((cell, column) =>
-            column === 3 ? cell : cell.padEnd(widths[column] ?? 0),
-          )
-          .join("  "),
-      )
-      .join("\n")}\n`,
-  );
+  return ok(renderTaskList(selection));
 }
 
 async function runLog(args: string[], context: TaskCommandContext) {
@@ -793,7 +815,7 @@ async function runShow(args: string[], context: TaskCommandContext) {
   const lines = [
     `${task.id}: "${task.title}"`,
     `status: ${running ? "running" : "idle"}`,
-    `last activity: ${ms(Math.max(1000, Date.now() - task.updatedAt.getTime()))} ago`,
+    `last activity: ${task.updatedAt.toISOString().slice(0, 10)}, ${formatAge(Date.now() - task.updatedAt.getTime())} ago`,
     `spent: ${ms(Math.max(1000, usage.activeMs), { long: true })} of work, ${usage.inputTokens + usage.outputTokens} tokens`,
     `model: ${state.selectedModelURI ?? "(none yet)"}`,
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,

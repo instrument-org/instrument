@@ -71,7 +71,7 @@ export function TaskTranscriptViewer({
   });
 
   const { data, isPending } = useQuery(
-    rpcClient.debug.sessionTranscript.queryOptions({
+    rpcClient.transcript.content.queryOptions({
       input:
         open && selectedSessionId
           ? { format, id: task.id, sessionId: selectedSessionId }

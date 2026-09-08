@@ -4,7 +4,7 @@ import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export type TranscriptFormat = RPCInput["debug"]["sessionTranscript"]["format"];
+export type TranscriptFormat = RPCInput["transcript"]["save"]["format"];
 
 /**
  * Copy and save for a session's transcript, in whichever format is asked for.
@@ -13,6 +13,9 @@ export type TranscriptFormat = RPCInput["debug"]["sessionTranscript"]["format"];
  * thing the app moves, and neither action has any use for it here. That also
  * keeps them callable from a menu item, with no viewer mounted and nothing
  * fetched.
+ *
+ * Saving is offered to everyone; copying is behind developer mode, so a caller
+ * outside it wants `save` alone.
  */
 export function useTranscriptActions({
   id,
@@ -29,7 +32,7 @@ export function useTranscriptActions({
   );
 
   const copy = useMutation(
-    rpcClient.debug.copySessionTranscript.mutationOptions({
+    rpcClient.transcript.copy.mutationOptions({
       onError: (error) => {
         toast.error("Failed to copy transcript", {
           description: error.message,
@@ -42,7 +45,7 @@ export function useTranscriptActions({
   );
 
   const save = useMutation(
-    rpcClient.debug.saveSessionTranscript.mutationOptions({
+    rpcClient.transcript.save.mutationOptions({
       onError: (error) => {
         toast.error("Failed to save transcript", {
           description: error.message,

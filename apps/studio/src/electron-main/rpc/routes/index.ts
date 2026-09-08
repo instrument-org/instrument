@@ -17,6 +17,7 @@ import { releases } from "./releases";
 import { stripe } from "./stripe";
 import { syntax } from "./syntax";
 import { telemetry } from "./telemetry";
+import { transcript } from "./transcript";
 import { updates } from "./updates";
 import { user } from "./user";
 import { utils } from "./utils";
@@ -39,6 +40,7 @@ export const router = {
   stripe,
   syntax,
   telemetry,
+  transcript,
   updates,
   user,
   utils,

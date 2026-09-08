@@ -2,7 +2,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
+import { assignMountNames } from "../assign-mount-names";
 import { attachFolder } from "../attach-folder";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
@@ -45,10 +47,9 @@ async function ensureAttached(
   folderPath: string,
 ): Promise<string> {
   const state = await getTaskState(taskDir(orchestratorTaskId));
-  const attached = Object.values(state.attachedFolders ?? {}).find(
-    (folder) => folder.path === folderPath,
-  );
-  if (attached?.access === "read-write") {
+  const folders = Object.values(state.attachedFolders ?? {});
+  const attached = folders.find((folder) => folder.path === folderPath);
+  if (attached?.access === "read-write" && keepsItsName(folders, attached)) {
     return attached.mountName;
   }
   const folder = await attachFolder({
@@ -57,4 +58,19 @@ async function ensureAttached(
     taskId: orchestratorTaskId,
   });
   return folder.mountName;
+}
+
+/**
+ * Whether the name a folder is on record under is the one today's rules give
+ * it. A folder named under earlier rules is attached again to take the name it
+ * would get now, which is the whole of the correction: this conversation is in
+ * no project, so detectProjectChanges never reaches it, and the rename is
+ * announced to the agent by detectAttachedFolderChanges like any other.
+ */
+function keepsItsName(
+  folders: FolderAttachment.Type[],
+  folder: FolderAttachment.Type,
+): boolean {
+  const sorted = folders.toSorted((a, b) => a.createdAt - b.createdAt);
+  return assignMountNames(sorted).get(folder.id) === folder.mountName;
 }

@@ -62,6 +62,11 @@ describe("assignMountNames", () => {
     `);
   });
 
+  it("names the home directory itself for what it is, not for the account", () => {
+    const names = assignMountNames([{ id: "a", path: os.homedir() }]);
+    expect(names.get("a")).toMatchInlineSnapshot(`"Home"`);
+  });
+
   it("substitutes the home directory's real name with a generic label", () => {
     const home = os.homedir();
     const names = assignMountNames([

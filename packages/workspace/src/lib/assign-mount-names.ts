@@ -6,10 +6,13 @@ import path from "node:path";
 // and falling back to a numeric suffix.
 const MAX_PARENT_SEGMENTS = 3;
 
-// The OS username segment of the home directory is real PII (it ends up in
-// agent context, session markdown exports, and shared task transcripts), so
-// it's replaced with this generic label rather than shown verbatim.
-const HOME_DIR_BASENAME = path.basename(os.homedir());
+// The OS username is what the home directory is called, and it is real PII (it
+// ends up in agent context, session markdown exports, and shared task
+// transcripts), so it is replaced with this generic label rather than shown
+// verbatim -- as the mount's own name where the home directory is the folder
+// attached, and as a segment where an ancestor qualifies one.
+const HOME_DIR = path.resolve(os.homedir());
+const HOME_DIR_BASENAME = path.basename(HOME_DIR);
 const HOME_DIR_LABEL = "Home";
 
 /**
@@ -52,7 +55,10 @@ export function assignMountNames(
 }
 
 function uniqueName(folderPath: string, used: ReadonlySet<string>): string {
-  const baseName = folderNameFromPath(folderPath);
+  const baseName =
+    path.resolve(folderPath) === HOME_DIR
+      ? HOME_DIR_LABEL
+      : folderNameFromPath(folderPath);
   if (!used.has(baseName)) {
     return baseName;
   }

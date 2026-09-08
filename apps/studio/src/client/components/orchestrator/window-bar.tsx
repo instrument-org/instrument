@@ -1,4 +1,8 @@
-import { ChannelFace } from "@/client/components/orchestrator/channel-rail";
+import { channelColor } from "@/client/components/orchestrator/channel-colors";
+import {
+  ChannelFace,
+  type ChannelMark,
+} from "@/client/components/orchestrator/channel-rail";
 import { channelTint } from "@/client/components/orchestrator/channel-tint";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
@@ -23,7 +27,7 @@ export function WindowBar({
   tabs,
   trailing,
 }: {
-  channel?: { color?: string; emoji?: string; isHome?: boolean; name: string };
+  channel?: ChannelMark & { name: string };
   isSidebarOpen: boolean;
   onOpenDetails: () => void;
   onToggleSidebar: () => void;
@@ -43,7 +47,7 @@ export function WindowBar({
       style={{
         background: "var(--channel-tint-surface, var(--background))",
         borderColor: "var(--channel-tint-edge, var(--border))",
-        ...channelTint(channel?.color),
+        ...channelTint(channel && channelColor(channel)),
       }}
     >
       <button

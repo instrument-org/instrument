@@ -40,6 +40,34 @@ export const CHANNEL_COLORS = [
 const CHANNEL_HUES = 8;
 
 /**
+ * The color a channel is drawn in, wherever one is drawn: the app's own for
+ * the channel the conversation started in, then whatever the user picked, and
+ * failing both one taken from the name, so a channel nobody marked still keeps
+ * one color for as long as it is called that.
+ */
+export function channelColor(channel: {
+  color?: string;
+  isHome?: boolean;
+  name?: string;
+}): string {
+  if (channel.isHome) {
+    return HOME_CHANNEL_COLOR;
+  }
+  if (channel.color) {
+    return channel.color;
+  }
+  const name = channel.name ?? "";
+  let sum = 0;
+  for (const character of name) {
+    sum += character.codePointAt(0) ?? 0;
+  }
+  // Off the deep tier: an unpicked color has to hold its own against the picked
+  // ones beside it, and the pale row is chosen rather than fallen back on.
+  const deep = CHANNEL_COLORS.slice(CHANNEL_HUES);
+  return deep[sum % deep.length] ?? HOME_CHANNEL_COLOR;
+}
+
+/**
  * Whether a color is one of the pale tier, which the tint keeps pale. A color
  * from outside the palette, such as the app's own, is deep: it was chosen to
  * be itself rather than picked off a row.

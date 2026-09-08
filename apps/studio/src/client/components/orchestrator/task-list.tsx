@@ -1,3 +1,4 @@
+import { type ChannelMark } from "@/client/components/orchestrator/channel-rail";
 import { TaskRow } from "@/client/components/orchestrator/task-row";
 import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
@@ -7,7 +8,7 @@ import { useEffect, useState } from "react";
 
 /** One task as the list needs it. */
 export interface TaskListItem {
-  channel?: { emoji?: string; name: string };
+  channel?: ChannelMark & { name: string };
   id: TaskId;
   line: string;
   standing: "done" | "running" | "waiting";

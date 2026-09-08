@@ -1,4 +1,5 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { channelColor } from "@/client/components/orchestrator/channel-colors";
 import { channelTint } from "@/client/components/orchestrator/channel-tint";
 import {
   Avatar,
@@ -23,9 +24,7 @@ export interface ChannelMark {
 }
 
 /** A channel as the rail draws it: what stands for it, and what it wants. */
-export interface RailChannel {
-  color?: string;
-  emoji?: string;
+export interface RailChannel extends ChannelMark {
   id: string;
   name: string;
   /** An ask is waiting on the user in it: it has stopped until they answer. */
@@ -36,20 +35,6 @@ export interface RailChannel {
   working?: boolean;
 }
 
-/**
- * The color a channel with no chosen one is drawn in, from its name, so it
- * keeps the same one for as long as it is called that.
- */
-const ASSIGNED = [
-  "#3b6ef6",
-  "#e0562f",
-  "#0f9d6e",
-  "#8b5cf6",
-  "#d4a017",
-  "#0891b2",
-  "#db2777",
-  "#65a30d",
-];
 /** The tile a channel's mark sits on, tinted by the color it carries. */
 export function ChannelChip({
   channel,
@@ -82,7 +67,7 @@ export function ChannelChip({
         // A tint rather than a fill: the emoji has to stay legible on it, and a
         // column of solid squares would read as a toolbar.
         background: "var(--channel-tint-surface, var(--card))",
-        ...channelTint(channel.color ?? assignedColor(channel.name ?? "")),
+        ...channelTint(channelColor(channel)),
       }}
     >
       <ChannelFace channel={channel} />
@@ -121,7 +106,7 @@ export function ChannelFace({
   return (
     <span
       className={cn("font-semibold uppercase", className)}
-      style={{ color: channel.color ?? assignedColor(channel.name ?? "") }}
+      style={{ color: channelColor(channel) }}
     >
       {letter}
     </span>
@@ -197,12 +182,12 @@ export function ChannelRail({
         pill for the open channel and the badge in a tile's corner are both
         drawn inside the row's own box rather than beside it. */}
       <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-x-clip overflow-y-auto">
-        {channels.map((channel, index) => (
+        {channels.map((channel) => (
           <ChannelTile
             // The channel the conversation started in cannot be archived, and
             // for the same reason it does not move.
-            canDrag={index > 0}
-            channel={{ ...channel, isHome: index === 0 }}
+            canDrag={!channel.isHome}
+            channel={channel}
             drop={
               drag?.over === channel.id
                 ? drag.after
@@ -246,14 +231,6 @@ export function ChannelRail({
   );
 }
 
-function assignedColor(name: string) {
-  let sum = 0;
-  for (const character of name) {
-    sum += character.codePointAt(0) ?? 0;
-  }
-  return ASSIGNED[sum % ASSIGNED.length];
-}
-
 /** One channel's mark, with what it is saying and the name it says on hover. */
 function ChannelTile({
   canDrag,
@@ -269,7 +246,7 @@ function ChannelTile({
   onSelect,
 }: {
   canDrag: boolean;
-  channel: ChannelMark & RailChannel;
+  channel: RailChannel;
   /** Where the carried channel would land against this one. */
   drop?: "after" | "before";
   isCarried: boolean;

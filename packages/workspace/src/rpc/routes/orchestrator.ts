@@ -79,7 +79,13 @@ const children = base
        * made before channels or filed from one since archived.
        */
       channel: z
-        .object({ emoji: z.string().optional(), name: z.string() })
+        .object({
+          color: z.string().optional(),
+          emoji: z.string().optional(),
+          /** The channel the conversation started in, which wears the app's mark. */
+          isHome: z.boolean().optional(),
+          name: z.string(),
+        })
         .optional(),
       /** The same channel by its session id, for the window's own bookkeeping. */
       channelId: StoreId.SessionSchema.optional(),
@@ -95,14 +101,17 @@ const children = base
   .handler(async ({ input }) => {
     const tasks = await listChildTasks(input.id);
     const filedIn = await taskChannels(input.id);
-    // The session a task was filed from is an id; the row wants the name and
-    // the mark the user chose for it.
+    // The session a task was filed from is an id; the row wants the whole mark
+    // the user chose for it, so a task is drawn in the colors of the channel it
+    // was asked for in wherever it is named.
     const channels = await listChannels(input.id);
     const known = new Map(
-      channels.map((channel) => [
+      channels.map((channel, index) => [
         channel.id,
         {
+          ...(channel.color ? { color: channel.color } : {}),
           ...(channel.emoji ? { emoji: channel.emoji } : {}),
+          ...(index === 0 ? { isHome: true } : {}),
           name: channel.name,
         },
       ]),

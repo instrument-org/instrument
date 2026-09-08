@@ -1,4 +1,7 @@
-import { ChannelFace } from "@/client/components/orchestrator/channel-rail";
+import {
+  ChannelFace,
+  type ChannelMark,
+} from "@/client/components/orchestrator/channel-rail";
 import { cn } from "@/client/lib/utils";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 
@@ -24,7 +27,7 @@ export function TaskRow({
   time,
   title,
 }: {
-  channel?: { emoji?: string; name: string };
+  channel?: ChannelMark & { name: string };
   isOpen: boolean;
   line: string;
   madeSomething?: boolean;

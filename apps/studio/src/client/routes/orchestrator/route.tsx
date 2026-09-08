@@ -21,7 +21,6 @@ import {
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
 import { BannerWork } from "@/client/components/orchestrator/channel-banner";
-import { HOME_CHANNEL_COLOR } from "@/client/components/orchestrator/channel-colors";
 import { ChannelDetailsDialog } from "@/client/components/orchestrator/channel-details-dialog";
 import {
   ChannelMenu,
@@ -652,18 +651,19 @@ function OrchestratorLayout() {
   // The channels as the rail draws them, and the one it has open. A channel
   // on screen has nothing unread by definition, since the user is reading it.
   const railChannels = channelList.map((channel, index) => ({
-    // The app's own room is drawn in the app's own color, which is what the
-    // bar above it is tinted with; the rest carry whatever the user picked.
-    color: index === 0 ? HOME_CHANNEL_COLOR : channel.color,
+    ...(channel.color ? { color: channel.color } : {}),
     ...(channel.emoji ? { emoji: channel.emoji } : {}),
     id: channel.id,
+    // Which one is the app's own room is settled here, once, off the order the
+    // conversation keeps them in: everything that draws a channel takes its
+    // mark and its color from that rather than working it out again.
+    ...(index === 0 ? { isHome: true } : {}),
     name: channel.name,
     needsYou: channel.id === sessionId ? false : channel.needsYou,
     unread: channel.id === sessionId ? 0 : channel.unread,
     working: workingChannels.has(channel.id),
   }));
   const openChannel = railChannels.find((channel) => channel.id === sessionId);
-  const isHomeChannel = channelList[0]?.id === sessionId;
   const menuChannel = railChannels.find((channel) => channel.id === menu?.id);
   const detailsChannel = railChannels.find(
     (channel) => channel.id === detailsFor,
@@ -743,9 +743,7 @@ function OrchestratorLayout() {
                     <UpdateStatusIndicator />
                   </>
                 }
-                {...(openChannel
-                  ? { channel: { ...openChannel, isHome: isHomeChannel } }
-                  : {})}
+                {...(openChannel ? { channel: openChannel } : {})}
               />
             }
           >
@@ -920,11 +918,8 @@ function OrchestratorLayout() {
               )}
               {detailsChannel && (
                 <ChannelDetailsDialog
-                  canEdit={channelList[0]?.id !== detailsChannel.id}
-                  channel={{
-                    ...detailsChannel,
-                    isHome: channelList[0]?.id === detailsChannel.id,
-                  }}
+                  canEdit={!detailsChannel.isHome}
+                  channel={detailsChannel}
                   onChange={(edits) => {
                     updateChannel.mutate({
                       ...edits,
@@ -938,7 +933,7 @@ function OrchestratorLayout() {
                     }
                   }}
                   open
-                  {...(channelList[0]?.id === detailsChannel.id
+                  {...(detailsChannel.isHome
                     ? {}
                     : {
                         onArchive: () => {

@@ -5,7 +5,7 @@ import {
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { Button } from "@/client/components/ui/button";
 import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
-import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
+import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
@@ -53,7 +53,7 @@ export function ComposerFolderTray({
           the tray opening around it. */}
       <AnimatePresence initial={false}>
         {folders.map((folder) => {
-          const name = folderNameFromPath(folder.path);
+          const name = folderLabel(folder.path);
 
           return (
             <motion.div

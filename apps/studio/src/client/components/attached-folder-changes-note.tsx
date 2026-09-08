@@ -1,4 +1,4 @@
-import { folderNameFromPath } from "@/client/lib/path-utils";
+import { folderLabel } from "@/client/lib/path-utils";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 
@@ -23,7 +23,7 @@ export function AttachedFolderChangesNote({
 
   if (regranted && data.accessChanged.length === 1) {
     changes.push(
-      `${folderNameFromPath(regranted.path)} ${
+      `${folderLabel(regranted.path)} ${
         regranted.access === "read-write"
           ? "now has full access"
           : "is now read-only"
@@ -34,7 +34,7 @@ export function AttachedFolderChangesNote({
   }
 
   if (detached && data.removed.length === 1) {
-    changes.push(`removed ${folderNameFromPath(detached.path)}`);
+    changes.push(`removed ${folderLabel(detached.path)}`);
   } else if (data.removed.length > 1) {
     changes.push(`removed ${data.removed.length} folders`);
   }

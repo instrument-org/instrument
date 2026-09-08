@@ -11,9 +11,46 @@
  * transcript), so both platforms' separators are handled rather than the host's.
  */
 
+/**
+ * What the home folder is called instead of what it is called on disk, which is
+ * the account name. That name is real PII -- it reaches agent context, session
+ * markdown exports, and shared task transcripts -- and it is a poor label
+ * besides, so the substitution holds everywhere the folder is named: on screen,
+ * to the model, and in the path the agent reads it at.
+ */
+export const HOME_DIR_LABEL = "Home";
+
 /** What the user calls a folder: its own name, never any name we assigned it. */
 export function folderNameFromPath(folderPath: string): string {
   return folderPath.split(/[/\\]/).findLast(Boolean) ?? folderPath;
+}
+
+/**
+ * What a folder is called wherever it is named for a person. Its own name,
+ * except the home folder. Given no home directory nothing is the home folder,
+ * so every folder is called what it is called on disk.
+ */
+export function folderLabelFromPath(
+  folderPath: string,
+  homeDir: string | undefined,
+): string {
+  return isHomeDir(folderPath, homeDir)
+    ? HOME_DIR_LABEL
+    : folderNameFromPath(folderPath);
+}
+
+/** Whether a path is the home directory itself, spelled either way. */
+export function isHomeDir(
+  filePath: string,
+  homeDir: string | undefined,
+): boolean {
+  if (!homeDir) {
+    return false;
+  }
+  const normalizedHome = normalizeForCompare(homeDir);
+  return (
+    normalizedHome !== "" && normalizeForCompare(filePath) === normalizedHome
+  );
 }
 
 /** The folder one level up, or undefined at a filesystem root. */

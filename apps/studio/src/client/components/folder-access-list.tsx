@@ -19,7 +19,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
-import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
+import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -289,7 +289,7 @@ function FolderAccessRow({
           <MacFolderIcon className="size-8 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-xs font-medium">
-              {folderNameFromPath(path)}
+              {folderLabel(path)}
             </span>
             <span
               className="truncate text-xs font-medium text-muted-foreground"
@@ -301,7 +301,7 @@ function FolderAccessRow({
           <div className="flex items-center gap-x-1.5">
             <FolderAccessControl
               access={access}
-              folderName={folderNameFromPath(path)}
+              folderName={folderLabel(path)}
               onChange={onAccessChange}
             />
             <button
@@ -310,7 +310,7 @@ function FolderAccessRow({
               type="button"
             >
               <XIcon className="size-3" />
-              <span className="sr-only">Remove {folderNameFromPath(path)}</span>
+              <span className="sr-only">Remove {folderLabel(path)}</span>
             </button>
           </div>
         </div>

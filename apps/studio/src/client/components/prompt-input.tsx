@@ -21,7 +21,7 @@ import {
 } from "@/client/hooks/use-file-drop-region";
 import { BLOCK_CLOSE, BLOCK_OPEN, ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
-import { folderNameFromPath } from "@/client/lib/path-utils";
+import { folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -444,7 +444,7 @@ export const PromptInput = ({
 
       for (const folder of folders) {
         if (existingPaths.has(folder.path)) {
-          duplicates.push(folderNameFromPath(folder.path));
+          duplicates.push(folderLabel(folder.path));
         } else {
           newFolders.push({
             access: DEFAULT_FOLDER_ACCESS,
@@ -524,7 +524,7 @@ export const PromptInput = ({
     if (
       attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
     ) {
-      toast.info(`“${folderNameFromPath(folderPath)}” is already added`, {
+      toast.info(`“${folderLabel(folderPath)}” is already added`, {
         description:
           "That folder has already been attached. Each folder can only be added once.",
       });

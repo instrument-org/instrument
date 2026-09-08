@@ -1,4 +1,4 @@
-import { folderNameFromPath } from "@instrument-org/shared";
+import { folderLabelFromPath, HOME_DIR_LABEL } from "@instrument-org/shared";
 import os from "node:os";
 import path from "node:path";
 
@@ -6,14 +6,12 @@ import path from "node:path";
 // and falling back to a numeric suffix.
 const MAX_PARENT_SEGMENTS = 3;
 
-// The OS username is what the home directory is called, and it is real PII (it
-// ends up in agent context, session markdown exports, and shared task
-// transcripts), so it is replaced with this generic label rather than shown
-// verbatim -- as the mount's own name where the home directory is the folder
-// attached, and as a segment where an ancestor qualifies one.
-const HOME_DIR = path.resolve(os.homedir());
-const HOME_DIR_BASENAME = path.basename(HOME_DIR);
-const HOME_DIR_LABEL = "Home";
+// The generic label the home directory takes rather than the account name (see
+// folder-paths.ts in the shared package) reaches a mount name two ways: as the
+// mount's own name where the home directory is the folder attached, which
+// folderLabelFromPath gives it, and as a segment where an ancestor qualifies
+// another folder's name, which is this.
+const HOME_DIR_BASENAME = path.basename(os.homedir());
 
 /**
  * Assigns every folder in `folders` the name it is mounted under, unique within
@@ -55,10 +53,7 @@ export function assignMountNames(
 }
 
 function uniqueName(folderPath: string, used: ReadonlySet<string>): string {
-  const baseName =
-    path.resolve(folderPath) === HOME_DIR
-      ? HOME_DIR_LABEL
-      : folderNameFromPath(folderPath);
+  const baseName = folderLabelFromPath(folderPath, os.homedir());
   if (!used.has(baseName)) {
     return baseName;
   }

@@ -3,7 +3,7 @@ import {
   FolderAccessLabel,
 } from "@/client/components/folder-access-list";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
-import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
+import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
@@ -50,7 +50,7 @@ export function FolderAttachmentRow({
   removeLabel?: string;
 }) {
   const [isConfirmingRemove, setConfirmingRemove] = useState(false);
-  const name = folderNameFromPath(path);
+  const name = folderLabel(path);
 
   const handleOpen = async () => {
     const [error] = await safe(

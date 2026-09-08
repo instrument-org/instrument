@@ -23,7 +23,7 @@ import { Textarea } from "@/client/components/ui/textarea";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
-import { displayPath, folderNameFromPath } from "@/client/lib/path-utils";
+import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type Project,
@@ -405,7 +405,7 @@ function ProjectModalForm({
                       <MacFolderIcon className="size-7 shrink-0" />
                       <div className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-sm font-medium">
-                          {folderNameFromPath(folder.path)}
+                          {folderLabel(folder.path)}
                         </span>
                         <span
                           className="truncate text-xs text-muted-foreground"
@@ -416,7 +416,7 @@ function ProjectModalForm({
                       </div>
                       <FolderAccessControl
                         access={folder.access}
-                        folderName={folderNameFromPath(folder.path)}
+                        folderName={folderLabel(folder.path)}
                         onChange={(access) => {
                           setFolders((prev) =>
                             prev.map((f) =>

@@ -166,4 +166,23 @@ describe("requireFoldersOnDisk", () => {
       requireFoldersOnDisk([{ path: file }], ["Home/notes.txt"]),
     ).rejects.toThrow('"Home/notes.txt" is a file, not a folder');
   });
+
+  // Root reads a folder whatever its mode says, so the refusal cannot be
+  // provoked there.
+  it.skipIf(process.getuid?.() === 0)(
+    "refuses a folder the account cannot look into",
+    async () => {
+      const shut = path.join(root, "shut");
+      await fs.mkdir(shut, { mode: 0o000 });
+      try {
+        await expect(
+          requireFoldersOnDisk([{ path: shut }], ["Home/shut:rw"]),
+        ).rejects.toThrow(
+          '"Home/shut:rw" cannot be read by the account Instrument runs as (EACCES)',
+        );
+      } finally {
+        await fs.chmod(shut, 0o700);
+      }
+    },
+  );
 });

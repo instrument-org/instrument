@@ -146,6 +146,29 @@ describe("buildAttachedFoldersText", () => {
     expect(listOf(throughTasks)).toEqual(listOf(here));
   });
 
+  it.runIf(process.platform === "darwin")(
+    "tells a reader with file tools what a refusal from macOS looks like",
+    () => {
+      const folders = [
+        {
+          access: "read-write" as const,
+          mountPoint: "/mnt/Desktop",
+          path: "/Users/sam/Desktop",
+        },
+      ];
+      expect(buildAttachedFoldersText({ folders, intro: INTRO })).toContain(
+        "Operation not permitted",
+      );
+      expect(
+        buildAttachedFoldersText({
+          folders,
+          intro: INTRO,
+          writes: "through-tasks",
+        }),
+      ).not.toContain("Operation not permitted");
+    },
+  );
+
   it("marks a folder that is no longer on disk", () => {
     const text = buildAttachedFoldersText({
       folders: [

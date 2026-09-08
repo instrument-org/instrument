@@ -1,4 +1,4 @@
-import { folderNameFromPath } from "@instrument-org/shared";
+import { APP_NAME, folderNameFromPath } from "@instrument-org/shared";
 import { dedent } from "radashi";
 
 import { type FolderAttachment } from "../schemas/folder-attachment";
@@ -85,6 +85,9 @@ export function buildAttachedFoldersText({
             : null,
           readOnly
             ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
+            : null,
+          process.platform === "darwin"
+            ? `\`EPERM\` or "Operation not permitted" inside one of these means macOS refused ${APP_NAME} the folder when it asked the user. Stop and say so rather than trying again; they can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders.`
             : null,
           `A real subprocess (python, node, ffmpeg, pnpm, git) cannot see a mount at all. Copy into the task first and work on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
           `That includes \`git\`: copy the whole repository (\`cp -R '<mount path>' work/\`), not just \`.git\`, which without a working tree beside it reports every file as deleted.`,

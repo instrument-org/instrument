@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -89,6 +90,7 @@ export async function requireFoldersOnDisk(
         `"${spec}" is a file, not a folder. A task is handed the folder, and finds the file inside it.`,
       );
     }
+    await requireReadable(folder.path, spec);
   }
 }
 
@@ -138,4 +140,61 @@ export function resolveFolders(
       source: "user" as const,
     };
   });
+}
+
+/**
+ * How long a look inside a folder is given before it is taken to be the system
+ * asking the user about the folder. A folder that is readable answers in
+ * microseconds; one that is refused answers as fast.
+ */
+const LOOK_INSIDE_MS = 750;
+
+/**
+ * A look inside the folder, which is what the operating system gates where a
+ * stat is not. On a Mac the first look into Desktop, Documents, Downloads or a
+ * removable volume raises the system's own ask, and taking it here puts that
+ * ask at the moment the user pointed at the folder rather than at the task's
+ * first `ls`; a refusal already given becomes a reason the conversation can
+ * pass on instead of an `EPERM` a task has to make sense of.
+ *
+ * The ask blocks the look until the user answers, and the command must not
+ * wait on that: it would outlive the call's yield and come back as a
+ * background job. So a look that has not answered in time is let go, and the
+ * task starts: its first read waits on the same answer, and a refusal given
+ * then reaches it there.
+ */
+async function requireReadable(folderPath: string, spec: string) {
+  const look = (async () => {
+    const dir = await fs.opendir(folderPath);
+    try {
+      await dir.read();
+    } finally {
+      await dir.close();
+    }
+  })();
+  let timer: NodeJS.Timeout | undefined;
+  const asking = new Promise<"asking">((resolve) => {
+    timer = setTimeout(() => {
+      resolve("asking");
+    }, LOOK_INSIDE_MS);
+  });
+  const outcome = await Promise.race([
+    look.then(
+      () => "readable" as const,
+      (error: unknown) => error,
+    ),
+    asking,
+  ]).finally(() => {
+    clearTimeout(timer);
+  });
+  if (outcome === "readable" || outcome === "asking") {
+    return;
+  }
+  const code =
+    outcome instanceof Error && "code" in outcome ? String(outcome.code) : "";
+  throw new Error(
+    process.platform === "darwin" && code === "EPERM"
+      ? `macOS did not let ${APP_NAME} into "${spec}": the user declined its ask. They can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.`
+      : `"${spec}" cannot be read by the account ${APP_NAME} runs as (${code || "unknown error"}). Say so rather than trying again.`,
+  );
 }

@@ -10,7 +10,8 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
-| 2026-08-27 | [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md) |
+| 2026-09-08 | [Carry the just-bash `find` fix as a local patch until it is released](2026-09-08-carry-the-find-patch.md) |
+| 2026-08-27 | [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md) narrowed by 2026-09-08 |
 | 2026-08-26 | [Discussions are the front door, issues are the accepted backlog](2026-08-26-discussions-are-the-front-door.md) |
 | 2026-08-15 | [Plugins over connectors](2026-08-15-plugins-over-connectors.md) |
 | 2026-08-15 | [anti-slop is not part of the lint pipeline](2026-08-15-anti-slop-is-not-in-the-lint-pipeline.md) |

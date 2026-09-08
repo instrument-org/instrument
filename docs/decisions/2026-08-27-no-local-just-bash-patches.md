@@ -2,6 +2,8 @@
 
 Date: 2026-08-27
 
+Narrowed by [2026-09-08-carry-the-find-patch.md](2026-09-08-carry-the-find-patch.md): one patch is carried, for a gap that turned out to sit on the main path. The reasoning below still decides everything else.
+
 ## Context
 
 Moving to `just-bash@3.4.1` deleted the one local patch we had. Five of our pull requests remain open upstream, none merged as of that release, so the question is whether any of them is worth re-patching the published bundle for rather than waiting.

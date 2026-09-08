@@ -73,6 +73,7 @@ patchedDependencies:
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
   app-builder-lib@26.15.7: patches/app-builder-lib@26.15.7.patch
   conf@14.0.0: patches/conf@14.0.0.patch
+  just-bash@3.4.1: patches/just-bash@3.4.1.patch
   micromark-extension-gfm-table@2.1.1: patches/micromark-extension-gfm-table@2.1.1.patch
   sonner@2.0.7: patches/sonner@2.0.7.patch
 

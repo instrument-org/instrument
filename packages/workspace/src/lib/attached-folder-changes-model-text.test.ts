@@ -45,7 +45,7 @@ describe("attachedFolderChangesModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      These folders are mounted at a new path, because another attachment now shares the name theirs was derived from. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
+      These folders are mounted at a new path. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
       - "Downloads": now \`/mnt/CloudDocs-Downloads\`, was \`/mnt/Downloads\`
       </instrument-system-note>"
     `);
@@ -70,7 +70,7 @@ describe("attachedFolderChangesModelNote", () => {
       The user removed these attached folders from this task since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:
       - "Old" (was mounted at \`/mnt/Old\`)
 
-      These folders are mounted at a new path, because another attachment now shares the name theirs was derived from. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
+      These folders are mounted at a new path. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
       - "Downloads": now \`/mnt/Local-Downloads\`, was \`/mnt/Downloads\`
       </instrument-system-note>"
     `);

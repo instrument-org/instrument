@@ -1,8 +1,7 @@
-import { folderNameFromPath } from "@instrument-org/shared";
-
 import { MOUNT } from "../mount-points";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { attachedFolderMountPoint } from "./attached-folder-mounts";
+import { folderLabel } from "./folder-parent-label";
 import { systemNote } from "./system-note";
 
 /**
@@ -22,7 +21,7 @@ export function attachedFolderChangesModelNote(
     const removed = data.removed
       .map(
         (folder) =>
-          `- "${folderNameFromPath(folder.path)}" (was mounted at \`${attachedFolderMountPoint(folder.name)}\`)`,
+          `- "${folderLabel(folder.path)}" (was mounted at \`${attachedFolderMountPoint(folder.name)}\`)`,
       )
       .join("\n");
     lines.push(
@@ -34,11 +33,11 @@ export function attachedFolderChangesModelNote(
     const renamed = data.renamed
       .map(
         (folder) =>
-          `- "${folderNameFromPath(folder.path)}": now \`${attachedFolderMountPoint(folder.newName)}\`, was \`${attachedFolderMountPoint(folder.oldName)}\``,
+          `- "${folderLabel(folder.path)}": now \`${attachedFolderMountPoint(folder.newName)}\`, was \`${attachedFolderMountPoint(folder.oldName)}\``,
       )
       .join("\n");
     lines.push(
-      `These folders are mounted at a new path, because another attachment now shares the name theirs was derived from. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:\n${renamed}`,
+      `These folders are mounted at a new path. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:\n${renamed}`,
     );
   }
 
@@ -46,7 +45,7 @@ export function attachedFolderChangesModelNote(
     const changed = data.accessChanged
       .map(
         (folder) =>
-          `- "${folderNameFromPath(folder.path)}" (\`${attachedFolderMountPoint(folder.name)}\`): now ${folder.access === "read-write" ? "read and write" : "read-only"}`,
+          `- "${folderLabel(folder.path)}" (\`${attachedFolderMountPoint(folder.name)}\`): now ${folder.access === "read-write" ? "read and write" : "read-only"}`,
       )
       .join("\n");
     lines.push(

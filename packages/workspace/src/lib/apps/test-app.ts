@@ -1,4 +1,6 @@
+import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
+import { APP_COMMAND } from "../shell-commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { recordConnection } from "./connection";
 import {
@@ -11,7 +13,7 @@ import { withAppMcpClient } from "./mcp/run";
 import { mcpAuthProviderForCommand } from "./mcp/tool-auth";
 import { performAppRequest, redactCredential } from "./request";
 import { scanAppFolder } from "./secret-scan";
-import { loadApp, readAppGuide } from "./store";
+import { guidePlaceholdersLeft, loadApp, readAppGuide } from "./store";
 
 export interface AppTestReport {
   checks: AppTestCheck[];
@@ -99,6 +101,11 @@ export async function runAppTest({
   });
 
   const guide = await readAppGuide(app.dir);
+  // A guide still carrying the skeleton's prompts is worse than none: it
+  // passes as "present", and then the first request in a task is answered with
+  // the blank form instead of the endpoint it asked about. The prompts left in
+  // it are the questions about this service nobody wrote down.
+  const unanswered = guide === null ? [] : guidePlaceholdersLeft(guide);
   checks.push(
     guide === null
       ? {
@@ -107,11 +114,18 @@ export async function runAppTest({
             `${APP_GUIDE_FILE_NAME} is missing or empty. Write it before connecting: what the service is for, and for an API app the endpoints and conventions a request needs.`,
           ),
         }
-      : {
-          detail: `${APP_GUIDE_FILE_NAME} is present.`,
-          name: "guide",
-          status: "pass",
-        },
+      : unanswered.length > 0
+        ? {
+            name: "guide",
+            ...failure(
+              `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} is still the skeleton \`${APP_COMMAND.name} new\` wrote: ${unanswered.length} of its prompts are unanswered. Answer them from what you know about the service before connecting, since this file is what the first request in a task is handed instead of its answer. Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+            ),
+          }
+        : {
+            detail: `${APP_GUIDE_FILE_NAME} is present.`,
+            name: "guide",
+            status: "pass",
+          },
   );
 
   const { apps } = getWorkspaceConfig();
@@ -267,9 +281,13 @@ export async function runAppTest({
       ...failure(
         `${canaryMethod} ${manifest.test.path} returned ${canary.value.status}. ${
           rejected
-            ? "The stored key was rejected: it may be wrong, expired, or missing a scope. Ask for it again with connect_app."
-            : `Expected a 2xx response; fix the test path or the manifest. Some APIs require static headers on every request (an API-version header, say): set them in the manifest's "headers". Response body: ${redactCredential(canary.value.bodyText, credential).slice(0, 400)}`
-        }`,
+            ? // A key the service would accept is refused exactly like a wrong
+              // one when it rides in the wrong place, and the placement is the
+              // thing the agent chose and can change. Naming only the key sends
+              // it back to the card for a key that was right all along.
+              `The key was refused. That is as often the wrong placement as the wrong key: a service that documents Basic credentials, an \`X-Api-Key\`, or an \`api_key\` query parameter refuses a bearer token just like this. Try the placements the manifest can take (bearer, basic, basic:<user>, header:<Name>, query:<param>) with \`${APP_COMMAND.name} new ${slug} ... --force\`, then \`${APP_COMMAND.name} test ${slug}\`, which reuses the stored key and does not ask the user. Only once every one is refused is the key itself in question: ask for it again with connect_app, saying what was wrong.`
+            : `Expected a 2xx response; fix the test path or the manifest. Some APIs require static headers on every request (an API-version header, say): set them in the manifest's "headers".`
+        } Response body: ${redactCredential(canary.value.bodyText, credential).slice(0, 400)}`,
       ),
     });
   }

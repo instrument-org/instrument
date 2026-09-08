@@ -7,6 +7,7 @@ import {
   AvatarImage,
 } from "@/client/components/ui/avatar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { getInitials } from "@/client/lib/get-initials";
 import { cn } from "@/client/lib/utils";
@@ -260,7 +261,8 @@ function ChannelTile({
 }) {
   // The rail scrolls, so anything drawn beside a tile is clipped by it. The
   // name is placed against the window instead, off the button's own box.
-  const [flyoutAt, setFlyoutAt] = useState<{ left: number; top: number }>();
+  const [flyoutAt, setFlyoutAt] = useState<{ x: number; y: number }>();
+  const flyoutStyle = useWindowPointStyle(flyoutAt ?? { x: 0, y: 0 });
   return (
     <div
       className={cn(
@@ -300,7 +302,7 @@ function ChannelTile({
         }}
         onPointerEnter={(event) => {
           const box = event.currentTarget.getBoundingClientRect();
-          setFlyoutAt({ left: box.right + 8, top: box.top + box.height / 2 });
+          setFlyoutAt({ x: box.right + 8, y: box.top + box.height / 2 });
         }}
         onPointerLeave={() => {
           setFlyoutAt(undefined);
@@ -330,7 +332,7 @@ function ChannelTile({
       {flyoutAt && (
         <span
           className="pointer-events-none fixed z-50 -translate-y-1/2 rounded-md bg-popover px-2 py-1 text-xs whitespace-nowrap text-popover-foreground shadow-md ring-1 ring-border"
-          style={{ left: flyoutAt.left, top: flyoutAt.top }}
+          style={flyoutStyle}
         >
           {channel.name}
         </span>

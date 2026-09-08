@@ -4,6 +4,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
+import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 
@@ -41,6 +42,9 @@ export function ChannelMenu({
     label: channel.name,
     sessionId: channel.id,
   });
+  // Hooks run whether a menu was asked for or not, so the corner stands in for
+  // a press that has not happened; nothing is rendered at it.
+  const anchorStyle = useWindowPointStyle(at ?? { x: 0, y: 0 });
 
   if (!at) {
     return null;
@@ -60,7 +64,7 @@ export function ChannelMenu({
         <span
           aria-hidden
           className="pointer-events-none fixed size-px"
-          style={{ left: at.x, top: at.y }}
+          style={anchorStyle}
         />
       </PopoverAnchor>
       <PopoverContent

@@ -44,6 +44,21 @@ export function useAppZoomStyle(style?: CSSProperties): CSSProperties {
   } as CSSProperties;
 }
 
+/**
+ * `left`/`top` for an element inside the zoomed root that has to land on a point
+ * measured in window coordinates: where a pointer event happened
+ * (`event.clientX`/`clientY`) or an edge read off `getBoundingClientRect()`.
+ *
+ * Those are on-screen px, while a length on a descendant of `ZoomRoot` is layout
+ * px that the root's `zoom` scales back up, so the raw value lands `zoom x` from
+ * the window's corner -- exact at the 1x default, and off by half a window at
+ * 2x. Dividing by the zoom is what puts the element under the pointer.
+ */
+export function useWindowPointStyle(point: { x: number; y: number }) {
+  const zoom = useAtomValue(zoomAtom);
+  return { left: point.x / zoom, top: point.y / zoom };
+}
+
 /** Breathing room kept between portalled content and the window edge. */
 const VIEWPORT_GUTTER = "2rem";
 

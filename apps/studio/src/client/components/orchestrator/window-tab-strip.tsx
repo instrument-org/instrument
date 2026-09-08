@@ -1,4 +1,5 @@
 import { pinsAtom, type WindowTab } from "@/client/atoms/orchestrator";
+import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
 import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import {
@@ -59,6 +60,7 @@ export function WindowTabStrip({
   const appsBySlug = useAppsBySlug();
   const setPins = useSetAtom(pinsAtom);
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
+  const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
 
   useEffect(() => {
     if (!menu) return;
@@ -204,7 +206,7 @@ export function WindowTabStrip({
             event.stopPropagation();
           }}
           role="menu"
-          style={{ left: menu.x, top: menu.y }}
+          style={menuStyle}
         >
           <button
             className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"

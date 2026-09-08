@@ -2,7 +2,13 @@ import { logger } from "@/client/lib/logger";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   tableClipboardItem,
@@ -44,11 +50,11 @@ const CONTROL_GAP = 8;
 /**
  * Writes that skip a value already in place.
  *
- * `sync` reads the layout and then writes to it, and runs once per table for
- * every measurement that arrives. Left ungated, each write dirties the layout
- * the next table's read has to rebuild, so a transcript holding several tables
- * pays a full recalculation each rather than one between them all. Reading back
- * an inline style or an attribute costs nothing, since neither is layout.
+ * A write dirties the layout, and one runs per table for every measurement that
+ * arrives. The queue below already keeps a batch's writes clear of that batch's
+ * reads; this keeps a write that changes nothing from dirtying anything at all.
+ * Reading back an inline style or an attribute costs nothing, since neither is
+ * layout.
  */
 const setStyle = (
   element: HTMLElement,
@@ -68,6 +74,56 @@ const setFlag = (element: HTMLElement, name: string, on: boolean) => {
 
 /** The transcript the block sits in, where one named itself. */
 const transcriptOf = (frame: HTMLElement) => frame.closest("[data-transcript]");
+
+/** A table's measurement, which hands back the writes that follow from it. */
+type Measure = () => (() => void) | undefined;
+
+/**
+ * A table in the queue below, held by its ref rather than by its measurement.
+ *
+ * The measurement closes over the render that produced it, and the queue needs
+ * one identity per table for the whole of its life. The ref is that identity,
+ * and reading through it is what gets the measurement matching the DOM as it
+ * stands rather than as it was when the table was enqueued.
+ */
+type Waker = RefObject<Measure | undefined>;
+
+/**
+ * One layout pass for all the tables that woke together.
+ *
+ * Every table in a document measures against the same width, so anything that
+ * changes it -- the window, a pane opening, the document mounting -- wakes all
+ * of them at once. A table that reads the layout and then writes to it dirties
+ * what the next table's read has to rebuild, so a document holding a hundred
+ * tables pays a hundred recalculations where one would do; a file of tables is
+ * exactly the document where that stops being affordable, and it is what makes
+ * dragging the window edge crawl.
+ *
+ * Queuing separates the halves. Every table in the batch measures, then every
+ * one of them writes, and the browser lays out once for the lot. Keyed on the
+ * ref, so a table woken several times before the frame lands is measured once.
+ */
+const waking = new Set<Waker>();
+let frameRequest: number | undefined;
+
+const flush = () => {
+  frameRequest = undefined;
+  const batch = [...waking];
+  waking.clear();
+  const writes = batch.map((waker) => waker.current?.());
+  for (const write of writes) {
+    write?.();
+  }
+};
+
+const wake = (waker: Waker) => {
+  waking.add(waker);
+  frameRequest ??= requestAnimationFrame(flush);
+};
+
+const sleep = (waker: Waker) => {
+  waking.delete(waker);
+};
 
 const copy = (rows: string[][], format?: TableCopyFormat) => {
   if (rows.length === 0) {
@@ -160,19 +216,30 @@ export const MarkdownTable = ({
   };
 
   /**
-   * Puts the toolbar beside the table where the transcript has room for it,
-   * and above the header where it does not.
+   * Where the toolbar goes: beside the table where the transcript has room for
+   * it, and above the header where it does not.
    *
    * Beside is the better of the two and the reason the room is checked at all:
    * a control that belongs to the whole table reads best on the table's own top
    * corner. Above the header is for the table that has taken the whole pane,
    * where the only alternative is standing on a column name.
    */
-  const placeToolbar = (toolbar: HTMLElement, frame: HTMLElement) => {
+  const measureToolbar = (toolbar: HTMLElement, frame: HTMLElement) => {
     const { edge, room } = trailing(frame);
-    setFlag(toolbar, "data-outside", room >= toolbar.offsetWidth + CONTROL_GAP);
-    setStyle(toolbar, "top", `${offsetTop(element()) ?? 0}px`);
-    setStyle(toolbar, "left", `${edge}px`);
+    return {
+      left: `${edge}px`,
+      outside: room >= toolbar.offsetWidth + CONTROL_GAP,
+      top: `${offsetTop(element()) ?? 0}px`,
+    };
+  };
+
+  const placeToolbar = (
+    toolbar: HTMLElement,
+    { left, outside, top }: ReturnType<typeof measureToolbar>,
+  ) => {
+    setFlag(toolbar, "data-outside", outside);
+    setStyle(toolbar, "top", top);
+    setStyle(toolbar, "left", left);
   };
 
   /**
@@ -193,30 +260,37 @@ export const MarkdownTable = ({
     setStyle(chip, "left", `${outside ? edge : edge - 4}px`);
   };
 
-  // An attribute rather than state: a scroll handler that re-renders every
-  // table in the transcript is the one thing a transcript cannot afford, and
-  // nothing about this edge is React's to know.
-  const sync = () => {
+  // Attributes and inline styles rather than state: a scroll handler that
+  // re-renders every table in the transcript is the one thing a transcript
+  // cannot afford, and nothing about this edge is React's to know.
+  //
+  // Reads first, writes second, with the split handed to the queue so a
+  // document's worth of tables costs one layout between them. See `wake`.
+  const measure = () => {
     const frame = frameRef.current;
     if (!frame) {
       return;
     }
     const behind = frame.scrollWidth - frame.clientWidth - frame.scrollLeft;
-    setFlag(frame, "data-scroll-start", frame.scrollLeft > 1);
-    setFlag(frame, "data-scroll-end", behind > 1);
+    const scrolledFromStart = frame.scrollLeft > 1;
+    const moreToCome = behind > 1;
 
     // Both placements hang off the table's top edge at the trailing end of what
     // is visible, and which one it takes is CSS's from there.
     const toolbar = toolbarRef.current;
-    if (toolbar) {
-      placeToolbar(toolbar, frame);
-    }
+    const placement = toolbar ? measureToolbar(toolbar, frame) : undefined;
+
+    return () => {
+      setFlag(frame, "data-scroll-start", scrolledFromStart);
+      setFlag(frame, "data-scroll-end", moreToCome);
+      if (toolbar && placement) {
+        placeToolbar(toolbar, placement);
+      }
+    };
   };
 
-  // `sync` measures, so it is a different function every render. The listeners
-  // are given a ref to whichever is current rather than the one that existed
-  // when they were attached, which is what lets them be attached once.
-  const syncRef = useRef(sync);
+  // The queue's handle on this table; see `Waker`.
+  const measureRef = useRef<Measure>(undefined);
 
   // After every render, which is what catches the table growing a column at a
   // time while it streams: the frame is already at its cap by then, so its own
@@ -229,8 +303,8 @@ export const MarkdownTable = ({
   // the render path, and the cost of it being there is paid down by writing
   // only what moved. See `setStyle`.
   useEffect(() => {
-    syncRef.current = sync;
-    sync();
+    measureRef.current = measure;
+    wake(measureRef);
   });
 
   useEffect(() => {
@@ -240,7 +314,7 @@ export const MarkdownTable = ({
     }
 
     const run = () => {
-      syncRef.current();
+      wake(measureRef);
     };
 
     frame.addEventListener("scroll", run, { passive: true });
@@ -262,6 +336,7 @@ export const MarkdownTable = ({
     }
 
     return () => {
+      sleep(measureRef);
       frame.removeEventListener("scroll", run);
       observer.disconnect();
       window.clearTimeout(copiedTimer.current);

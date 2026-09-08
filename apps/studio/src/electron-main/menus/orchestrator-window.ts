@@ -1,5 +1,6 @@
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { getOrchestratorWindow } from "@/electron-main/windows/orchestrator";
 import { type MenuItemConstructorOptions } from "electron";
 
 import { isDeveloperMode } from "../stores/preferences";
@@ -21,6 +22,19 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
+      {
+        accelerator: "CmdOrCtrl+L",
+        click: () => {
+          // The chord arrives here when a page guest has the keyboard, since
+          // its keys never reach the window's own renderer. The field is the
+          // window's, so the window takes the keyboard back before it is asked
+          // for.
+          getOrchestratorWindow()?.webContents.focus();
+          publisher.publish("orchestrator.command", "search");
+        },
+        label: "Search or Ask",
+      },
+      { type: "separator" },
       {
         accelerator: "CmdOrCtrl+T",
         click: () => {

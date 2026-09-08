@@ -10,7 +10,7 @@ import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { type ReactNode } from "react";
+import { type ReactNode, type Ref } from "react";
 
 /** What the tab on screen is showing, in the terms that page has for itself. */
 export type TabLocation =
@@ -43,6 +43,7 @@ export function TabLocationRow({
   onBack,
   onForward,
   onSite,
+  ref,
   trailing,
 }: {
   canGoBack: boolean;
@@ -54,11 +55,16 @@ export function TabLocationRow({
   onForward: () => void;
   /** Where a site typed into the field goes on this tab, when not a new tab of its own. */
   onSite?: (url: string) => void;
+  /** The row itself, so the window can put the caret in the field it holds. */
+  ref?: Ref<HTMLDivElement>;
   /** What this page can do with itself, held at the row's right edge. */
   trailing?: ReactNode;
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-background px-2">
+    <div
+      className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
+      ref={ref}
+    >
       <Arrow
         disabled={!canGoBack}
         icon={<CaretLeftIcon className="size-4" />}

@@ -37,7 +37,7 @@ interface PublisherEvents {
   "features.updated": null;
   // Asked of the orchestrator window by a swipe, a thumb button, or a menu
   // chord, which reach the main process rather than the page: history either
-  // way, or the close of the tab on screen.
+  // way, the close of the tab on screen, or the caret in the window's field.
   "orchestrator.command":
     | "back"
     | "closeTab"
@@ -47,6 +47,7 @@ interface PublisherEvents {
     | "openSettings"
     | "previousTab"
     | "reopenTab"
+    | "search"
     | { index: number; type: "selectTab" };
   "preferences.updated": null;
   "provider-config.updated": null;

@@ -566,6 +566,16 @@ function OrchestratorLayout() {
       });
   };
 
+  // The one field the window has, which is the tab's own: asked for by chord,
+  // it takes the caret with the place already in it, selected, so the words
+  // typed next replace it.
+  const locationRef = useRef<HTMLDivElement>(null);
+  const focusOmnibar = () => {
+    const field = locationRef.current?.querySelector("input");
+    field?.focus();
+    field?.select();
+  };
+
   useWindowCommands({
     back: goBack,
     closeTab: () => {
@@ -588,6 +598,7 @@ function OrchestratorLayout() {
         windowTabs.openScreen(tab.href);
       }
     },
+    search: focusOmnibar,
     selectRelative: windowTabs.selectRelative,
     selectTab: windowTabs.selectIndex,
   });
@@ -872,6 +883,7 @@ function OrchestratorLayout() {
               <TabLocationRow
                 canGoBack={canGoBack}
                 canGoForward={canGoForward}
+                ref={locationRef}
                 // On a page the field sends the tab's own guest somewhere,
                 // and the page's controls (reload, the way out, the menu) are
                 // drawn into the row's tail by the panel that has the page.
@@ -1099,8 +1111,8 @@ function useRecordRecents({
 
 /**
  * What the main process asks of the window: back and forward from a trackpad
- * swipe, a thumb button or the History menu, and the tab chords: close,
- * new, reopen, next and previous, one by number.
+ * swipe, a thumb button or the History menu, the tab chords (close, new,
+ * reopen, next and previous, one by number), and the caret into the field.
  * On a Mac the thumb buttons reach the page as mouse events, so they are
  * answered here; elsewhere they arrive through the main process. Chromium
  * walks the renderer's own history on the same mouseup unless the page
@@ -1114,6 +1126,8 @@ function useWindowCommands(handlers: {
   forward: () => void;
   newTab: () => void;
   reopenTab: () => void;
+  /** The caret into the window's field, wherever it was. */
+  search: () => void;
   selectRelative: (direction: -1 | 1) => void;
   selectTab: (index: number) => void;
 }) {
@@ -1146,6 +1160,22 @@ function useWindowCommands(handlers: {
         latest.current.forward();
       }
     };
+    // The chord for the field, taken before anything on the page reads it: the
+    // native menu is only offered the keys web content left alone, and the
+    // composer's editor takes this one for itself. The menu item stays for the
+    // case this cannot see, a focused page guest, whose keys never reach here.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "l"
+      ) {
+        event.preventDefault();
+        latest.current.search();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, { capture: true });
     if (isMacOS()) {
       window.addEventListener("mousedown", swallow, { capture: true });
       window.addEventListener("mouseup", onMouseUp, { capture: true });
@@ -1196,6 +1226,10 @@ function useWindowCommands(handlers: {
               latest.current.reopenTab();
               break;
             }
+            case "search": {
+              latest.current.search();
+              break;
+            }
           }
         }
       } catch {
@@ -1204,6 +1238,7 @@ function useWindowCommands(handlers: {
     })();
     return () => {
       controller.abort();
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
       window.removeEventListener("mousedown", swallow, { capture: true });
       window.removeEventListener("mouseup", onMouseUp, { capture: true });
       window.removeEventListener("auxclick", swallow, { capture: true });

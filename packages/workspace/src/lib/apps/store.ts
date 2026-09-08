@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
+import { APP_COMMAND } from "../shell-commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   APP_GUIDE_FILE_NAME,
@@ -132,6 +133,46 @@ export async function readAppGuide(
   } catch {
     return null;
   }
+}
+
+/**
+ * The prompts `guideSkeleton` leaves for the agent to answer, in one place so
+ * the skeleton that writes them and the check that looks for them cannot drift
+ * apart.
+ */
+const GUIDE_PROMPTS = {
+  conventions:
+    "Anything a request has to get right that the service does not say in its errors.",
+  endpoints:
+    "List the endpoints the work needs, with an example each: the method, the path relative to the base URL, the parameters, and what comes back. Pagination and rate limits go here too.",
+  local:
+    "Say here what has to be true on this machine for it to work (an app installed, a file in place).",
+  purpose: "What this app is for, in a sentence or two.",
+} as const;
+
+/**
+ * Which of the skeleton's prompts are still sitting in a guide unanswered.
+ *
+ * The guide is what the first request in a task is handed instead of its
+ * answer, so a folder that connects with the skeleton in place spends that
+ * turn showing the agent the form it was asked to fill in. Every prompt still
+ * there is a question about the service nobody wrote down.
+ */
+export function guidePlaceholdersLeft(guide: string): string[] {
+  return Object.values(GUIDE_PROMPTS).filter((prompt) =>
+    guide.includes(prompt),
+  );
+}
+
+/** A guide the agent fills in: what the app is for, and how it is reached. */
+export function guideSkeleton(manifest: AppManifest): string {
+  const reach =
+    manifest.type === "mcp-local"
+      ? `Runs on this machine from the ${manifest.runtime === "node" ? "npm" : "PyPI"} package ${manifest.package}: \`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one. ${GUIDE_PROMPTS.local}`
+      : manifest.type === "mcp"
+        ? `Reached through its MCP server at ${manifest.url}: \`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one.`
+        : `Reached through its API at ${manifest.baseUrl}: \`${APP_COMMAND.name} request <slug> GET /path\`.\n\n## Endpoints\n\n${GUIDE_PROMPTS.endpoints}`;
+  return `# ${manifest.name}\n\n${GUIDE_PROMPTS.purpose}\n\n${reach}\n\n## Conventions\n\n${GUIDE_PROMPTS.conventions}\n`;
 }
 
 /** Write a manifest and, when the folder has none, a guide to fill in. */

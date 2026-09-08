@@ -908,12 +908,17 @@ function OrchestratorLayout() {
               {menuChannel && (
                 <ChannelMenu
                   at={menu?.at}
+                  channel={{
+                    id: StoreId.SessionSchema.parse(menuChannel.id),
+                    name: menuChannel.name,
+                  }}
                   onClose={() => {
                     setMenu(undefined);
                   }}
                   onOpenDetails={() => {
                     setDetailsFor(menuChannel.id);
                   }}
+                  taskId={screens.taskId}
                 />
               )}
               {detailsChannel && (

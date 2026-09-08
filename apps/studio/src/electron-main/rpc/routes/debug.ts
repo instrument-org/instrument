@@ -93,6 +93,12 @@ const TRANSCRIPT_EXTENSION = {
 const transcriptInput = z.object({
   format: TranscriptFormatSchema,
   id: TaskIdSchema,
+  /**
+   * What the saved file is named after, when the task's own name is not what
+   * the user asked for: a conversation holds one session per channel, and every
+   * one of them would otherwise land in Downloads under the conversation's name.
+   */
+  label: z.string().optional(),
   sessionId: StoreId.SessionSchema,
 });
 
@@ -154,7 +160,7 @@ const saveSessionTranscript = devOnly
     const { name: filename } = await findAvailableName({
       isTaken: (candidate) =>
         fsSync.existsSync(path.join(outputPath, candidate)),
-      name: `${transcriptFilenameStem(settings?.name ?? input.id)}.${TRANSCRIPT_EXTENSION[input.format]}`,
+      name: `${transcriptFilenameStem(input.label ?? settings?.name ?? input.id)}.${TRANSCRIPT_EXTENSION[input.format]}`,
       splitExtension: true,
     });
 

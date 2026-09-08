@@ -1,8 +1,12 @@
+import { useTranscriptActions } from "@/client/components/task/transcript-actions";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 
 /** Where a menu was asked for, in window coordinates. */
 export interface MenuAt {
@@ -19,13 +23,26 @@ export interface MenuAt {
  */
 export function ChannelMenu({
   at,
+  channel,
   onClose,
   onOpenDetails,
+  taskId,
 }: {
   at: MenuAt | undefined;
+  /** The channel this was asked for: its session, and the name a saved file takes. */
+  channel: { id: StoreId.Session; name: string };
   onClose: () => void;
   onOpenDetails: () => void;
+  /** The conversation the channel belongs to, which is the task its session is stored under. */
+  taskId: TaskId;
 }) {
+  const isDeveloperMode = useDeveloperMode();
+  const transcript = useTranscriptActions({
+    id: taskId,
+    label: channel.name,
+    sessionId: channel.id,
+  });
+
   if (!at) {
     return null;
   }
@@ -64,6 +81,25 @@ export function ChannelMenu({
         >
           View channel details…
         </button>
+        {isDeveloperMode && (
+          <>
+            <div aria-hidden className="my-1 h-px bg-border" />
+            {/* Saves without opening anything: a channel's transcript is on its
+              way somewhere else, and the path lands on the clipboard for it. */}
+            <button
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-dev-700 hover:bg-accent dark:text-dev-300"
+              onClick={() => {
+                transcript.save("markdown");
+                onClose();
+              }}
+              role="menuitem"
+              type="button"
+            >
+              <ArrowLineDownIcon className="size-4" />
+              Save transcript
+            </button>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );

@@ -16,9 +16,12 @@ export type TranscriptFormat = RPCInput["debug"]["sessionTranscript"]["format"];
  */
 export function useTranscriptActions({
   id,
+  label,
   sessionId,
 }: {
   id: TaskId;
+  /** What the saved file is named after, where the task's name is not it: a channel's, say. */
+  label?: string;
   sessionId: StoreId.Session | undefined;
 }) {
   const showFileInFolder = useMutation(
@@ -64,17 +67,19 @@ export function useTranscriptActions({
     }),
   );
 
+  const named = label === undefined ? {} : { label };
+
   return {
     copy: (format: TranscriptFormat) => {
       if (sessionId) {
-        copy.mutate({ format, id, sessionId });
+        copy.mutate({ format, id, sessionId, ...named });
       }
     },
     isCopying: copy.isPending,
     isSaving: save.isPending,
     save: (format: TranscriptFormat) => {
       if (sessionId) {
-        save.mutate({ format, id, sessionId });
+        save.mutate({ format, id, sessionId, ...named });
       }
     },
   };

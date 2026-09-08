@@ -71,7 +71,7 @@ Only the last keeps the dialog's layout room constant while letting it grow on s
 
 That is a prop and an inline style rather than a Tailwind class because a class is the form of this that can go missing. `cn()` merges a caller's `max-w-*` over the primitive's own and takes the window cap with it, silently, at the call site where the author is thinking about width and not about zoom. An inline style outranks every class, so the cap cannot be merged away and the intrinsic size can only be set by passing one in. `apps/studio/src/client/components/ui/dialog-zoom.browser.test.tsx` pins both halves of the contract: an oversized dialog stays inside the window at 1x/1.5x/2x, and a dialog that already fits grows with the zoom instead of staying pinned.
 
-A viewport unit written anywhere else in the renderer is the same bug wearing different clothes, so a test walks `src/client` and fails on any `vw`/`vh` not divided by the zoom factor in scope (`use-app-zoom.test.tsx`).
+A viewport unit written anywhere else in the renderer is the same bug wearing different clothes, so a test walks `src/client` and fails on any `vw`/`vh` not divided by the zoom factor in scope (`use-app-zoom.test.tsx`). The same test bans `h-screen` and its siblings outright: the utility is `100vh` with nowhere to write a divisor, and inside the zoom root the window is already what `h-full` measures against.
 
 ## Gotchas
 

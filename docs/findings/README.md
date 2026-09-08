@@ -77,6 +77,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Main log retention and transport](main-log-retention-and-transport.md) | partly addressed |
 | [Windows long paths in the task directory](windows-long-paths.md) | partly fixed |
 | [A watchman probe froze boot on Windows](windows-watchman-probe-freezes-boot.md) | resolved |
+| [The agent's filesystem work stalls the window](agent-filesystem-work-stalls-the-window.md) — not by blocking it; the freeze is filesystem latency for everything else on the thread | open, measured |
 | [Preview.app declares no text types](preview-app-declares-no-text-types.md) | closed, working as designed |
 | [The file-open cache is sized for a vanished cost](file-open-cache-is-sized-for-a-vanished-cost.md) | open, deliberate |
 | [The task list ordered itself by file mtime](task-list-order-followed-file-mtimes.md) — so reading a task counted as changing it | fixed |

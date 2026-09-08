@@ -17,7 +17,7 @@ type AppCredentialsStore = z.output<typeof AppCredentialsStoreSchema>;
 
 let APP_CREDENTIALS_STORE: null | Store<AppCredentialsStore> = null;
 
-export const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
+const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
   if (!APP_CREDENTIALS_STORE) {
     const defaultStore: AppCredentialsStore = { credentials: {} };
 

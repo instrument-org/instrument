@@ -275,7 +275,6 @@ async function makeSession(
   return id;
 }
 
-
 async function newestSessionId(
   taskId: TaskId,
 ): Promise<StoreId.Session | undefined> {

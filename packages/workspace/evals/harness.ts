@@ -175,12 +175,6 @@ const TREE_QUIET_MS = 6000;
 /** How often the tree is sampled while waiting for it to go quiet. */
 const TREE_POLL_MS = 500;
 
-export interface ChildTaskSessions {
-  sessions: Session.WithMessagesAndParts[];
-  taskId: TaskId;
-  title: string;
-}
-
 export interface EvalCase {
   assertions?: Assertion[];
   files?: FileUpload.Type[];
@@ -222,6 +216,12 @@ interface AssertionContext {
   childSessions: () => Promise<ChildTaskSessions[]>;
   sessions: Session.WithMessagesAndParts[];
   taskId: TaskId;
+}
+
+interface ChildTaskSessions {
+  sessions: Session.WithMessagesAndParts[];
+  taskId: TaskId;
+  title: string;
 }
 
 export function defineEval(evalCase: EvalCase): EvalCase {

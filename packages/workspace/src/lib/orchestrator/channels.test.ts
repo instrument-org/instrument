@@ -116,6 +116,9 @@ describe("channelStandings", () => {
         metadata: {
           createdAt: new Date(),
           finishReason: "stop",
+          // A reply is only seen once it has finished arriving, so a fixture
+          // standing in for a finished one has to carry this.
+          finishedAt: new Date(),
           modelId: "glm-5.3-flash",
           providerId: "openai-compatible",
           sessionId,

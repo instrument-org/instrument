@@ -43,7 +43,7 @@ import {
  * never did. Read from the environment so one suite can be scored both ways
  * without two builds.
  */
-export const TASK_TOOL_ENABLED = process.env.INSTRUMENT_TASK_TOOL === "1";
+const TASK_TOOL_ENABLED = process.env.INSTRUMENT_TASK_TOOL === "1";
 
 /** How many of the newest models ride along in the context, so "the newest" needs no command. */
 const NEWEST_MODELS_IN_CONTEXT = 12;

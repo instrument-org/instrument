@@ -124,6 +124,18 @@ export const tasksColumnWidthAtom = atomWithStorage<number>(
 );
 
 /**
+ * A tab of the window. A page is a browser session of the orchestrator's,
+ * drawn by a guest the pool holds; a screen is anything else the product
+ * shows (a folder, a file, a task, the apps, a new tab), addressed by the
+ * route it is at, so navigating inside it changes the tab and not the row.
+ */
+export type WindowTab = TabHistory &
+  (
+    | (BrowserTab & { kind: "page" })
+    | { href: string; id: string; kind: "screen" }
+  );
+
+/**
  * Where a tab has been, and whether it was opened by something else.
  *
  * History belongs to a tab rather than to the window: back never moves you to
@@ -131,7 +143,7 @@ export const tasksColumnWidthAtom = atomWithStorage<number>(
  * page tab keeps its guest's own history instead of a trail, since the guest
  * is already the thing that remembers.
  */
-export interface TabHistory {
+interface TabHistory {
   /** Where in `trail` the tab is standing; the end of it, until back is used. */
   at?: number;
   /**
@@ -149,18 +161,6 @@ export interface TabHistory {
   /** The screen addresses this tab has been at, oldest first. */
   trail?: string[];
 }
-
-/**
- * A tab of the window. A page is a browser session of the orchestrator's,
- * drawn by a guest the pool holds; a screen is anything else the product
- * shows (a folder, a file, a task, the apps, a new tab), addressed by the
- * route it is at, so navigating inside it changes the tab and not the row.
- */
-export type WindowTab = TabHistory &
-  (
-    | (BrowserTab & { kind: "page" })
-    | { href: string; id: string; kind: "screen" }
-  );
 
 /** The address a new tab opens at: the page with the box that reaches everything. */
 export const NEW_TAB_HREF = "/orchestrator/home";
@@ -181,9 +181,12 @@ const NO_TABS: ChannelTabs = { activeId: null, tabs: [] };
  * guests of the channels not on screen stay attached, so a task can carry on
  * browsing in a channel the user is not looking at.
  */
-export const windowTabsByChannelAtom = atomWithStorage<
-  Record<string, ChannelTabs>
->("orchestrator.tabs.v2", {}, undefined, { getOnInit: true });
+const windowTabsByChannelAtom = atomWithStorage<Record<string, ChannelTabs>>(
+  "orchestrator.tabs.v2",
+  {},
+  undefined,
+  { getOnInit: true },
+);
 
 /** Tabs closed this launch, newest last, for Shift+Cmd+T. A page comes back at its last address. */
 export const closedTabsAtom = atom<WindowTab[]>([]);
@@ -209,7 +212,7 @@ export const orchestratorSidebarOpenAtom = atomWithStorage<boolean>(
 );
 
 export const PINS_HEIGHT_MIN = 40;
-export const PINS_HEIGHT_DEFAULT = 96;
+const PINS_HEIGHT_DEFAULT = 96;
 
 /** The height of the pinned area above the conversation, in CSS px, dragged by the divider under it. */
 export const orchestratorPinsHeightAtom = atomWithStorage<number>(

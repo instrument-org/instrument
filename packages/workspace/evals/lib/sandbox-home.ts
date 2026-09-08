@@ -24,7 +24,7 @@ const SANDBOX_SUBFOLDERS = [
   "Downloads",
 ];
 
-export function sandboxHomeDir(): string {
+function sandboxHomeDir(): string {
   return (
     process.env.INSTRUMENT_EVAL_HOME ??
     path.join(os.tmpdir(), "instrument-eval-home")

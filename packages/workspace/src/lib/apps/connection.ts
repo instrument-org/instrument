@@ -7,7 +7,7 @@ import { getWorkspaceConfig } from "../workspace-config";
  * is the only state a call goes through; the other three say what is missing,
  * and the card in the conversation and the Apps screen draw them.
  */
-export const AppConnectionStatusSchema = z.enum([
+const AppConnectionStatusSchema = z.enum([
   "connected",
   "declined",
   "failed",

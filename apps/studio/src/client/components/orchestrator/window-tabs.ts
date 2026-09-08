@@ -15,15 +15,6 @@ export function parseHref(href: string) {
   return { pathname: url.pathname, search: url.searchParams };
 }
 
-/** Two addresses are one screen when the route and every search entry agree, however either was encoded. */
-export function sameHref(a: string, b: string) {
-  const [x, y] = [parseHref(a), parseHref(b)];
-  if (x.pathname.replace(/\/$/, "") !== y.pathname.replace(/\/$/, "")) {
-    return false;
-  }
-  return searchEntries(x.search) === searchEntries(y.search);
-}
-
 /** Takes the tab closed last off the pile, for whoever can bring it back. */
 export function usePopClosedTab() {
   const [closed, setClosed] = useAtom(closedTabsAtom);
@@ -222,6 +213,15 @@ export function useWindowTabs() {
 
 function atOf(tab: undefined | WindowTab) {
   return tab?.kind === "screen" ? (tab.at ?? trailOf(tab).length - 1) : 0;
+}
+
+/** Two addresses are one screen when the route and every search entry agree, however either was encoded. */
+function sameHref(a: string, b: string) {
+  const [x, y] = [parseHref(a), parseHref(b)];
+  if (x.pathname.replace(/\/$/, "") !== y.pathname.replace(/\/$/, "")) {
+    return false;
+  }
+  return searchEntries(x.search) === searchEntries(y.search);
 }
 
 function searchEntries(search: URLSearchParams) {

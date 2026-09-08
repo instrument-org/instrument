@@ -112,7 +112,7 @@ export type FileSystemFileItem = {
   /** Optional if already public/presigned. Otherwise resolved via `getFileUrl`. */
   url?: string;
 };
-export type FileSystemFolderItem = {
+type FileSystemFolderItem = {
   createdAt?: string;
   /** Set when children exist but are not in `items` yet; enables `loadChildren`. */
   hasChildren?: boolean;
@@ -125,11 +125,11 @@ export type FileSystemFolderItem = {
   updatedAt?: string;
 };
 export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
-export type FileSystemLoadChildrenArgs = {
+type FileSystemLoadChildrenArgs = {
   cursor: null | string;
   path: string;
 };
-export type FileSystemLoadChildrenResult = {
+type FileSystemLoadChildrenResult = {
   items: FileSystemItem[];
   nextCursor?: null | string;
 };
@@ -562,7 +562,7 @@ const SORT_OPTIONS: Array<{
   },
 ];
 const DEFAULT_SORT: FileSystemSortState = { direction: "asc", key: "name" };
-export type FileSystemFilterType = "dateCreated" | "dateModified" | "fileType";
+type FileSystemFilterType = "dateCreated" | "dateModified" | "fileType";
 type FileSystemDateFilterType = Exclude<FileSystemFilterType, "fileType">;
 type FileSystemFilter = {
   id: string;

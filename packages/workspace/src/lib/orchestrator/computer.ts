@@ -23,7 +23,7 @@ const MAX_ENTRIES = 2000;
 /** How many of the files the conversation showed the recents list carries. */
 const RECENTS_MAX = 20;
 
-export const ComputerEntrySchema = z.object({
+const ComputerEntrySchema = z.object({
   createdAt: z.number().optional(),
   kind: z.enum(["file", "folder"]),
   mimeType: z.string().optional(),
@@ -33,21 +33,21 @@ export const ComputerEntrySchema = z.object({
   path: z.string(),
   size: z.number().optional(),
 });
-export type ComputerEntry = z.output<typeof ComputerEntrySchema>;
+type ComputerEntry = z.output<typeof ComputerEntrySchema>;
 
 /**
  * How the orchestrator reaches a folder of the computer, when one of the
  * folders granted to it covers that folder. Absent means the agent cannot
  * read it or hand it to a task until the user allows it.
  */
-export const ComputerAccessSchema = z.object({
+const ComputerAccessSchema = z.object({
   access: z.enum(["read-only", "read-write"]),
   /** The virtual path the agent knows this folder by. */
   mountPath: z.string(),
   /** The host path of the granted folder this one is in. */
   root: z.string(),
 });
-export type ComputerAccess = z.output<typeof ComputerAccessSchema>;
+type ComputerAccess = z.output<typeof ComputerAccessSchema>;
 
 /**
  * A file the conversation showed, with whether the agent can reach it. A
@@ -76,7 +76,7 @@ export const ComputerListingSchema = z.object({
 });
 export type ComputerListing = z.output<typeof ComputerListingSchema>;
 
-export const ComputerPlaceSchema = z.object({
+const ComputerPlaceSchema = z.object({
   name: z.string(),
   path: z.string(),
 });
@@ -91,17 +91,6 @@ interface AttachedRoot {
   access: ComputerAccess["access"];
   mountPoint: string;
   root: string;
-}
-
-/**
- * The grant that covers a host path, if any: the deepest granted folder it is
- * in, and the virtual path the agent reaches it by through that grant.
- */
-export async function computerAccess(
-  taskId: TaskId,
-  hostPath: string,
-): Promise<ComputerAccess | undefined> {
-  return accessIn(reachableRoots(await orchestratorLayout(taskId)), hostPath);
 }
 
 /**
@@ -263,6 +252,17 @@ function accessIn(
     }
   }
   return best;
+}
+
+/**
+ * The grant that covers a host path, if any: the deepest granted folder it is
+ * in, and the virtual path the agent reaches it by through that grant.
+ */
+async function computerAccess(
+  taskId: TaskId,
+  hostPath: string,
+): Promise<ComputerAccess | undefined> {
+  return accessIn(reachableRoots(await orchestratorLayout(taskId)), hostPath);
 }
 
 /**

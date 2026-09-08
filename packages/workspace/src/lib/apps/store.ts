@@ -120,19 +120,6 @@ export async function loadApp(
   });
 }
 
-/**
- * A digest of the manifest as parsed, so a connection record can say which
- * manifest passed the test and a call can refuse one edited since. Over the
- * parsed value rather than the file's bytes, so reformatting the JSON is not
- * a change.
- */
-export function manifestHash(manifest: AppManifest): string {
-  return createHash("sha256")
-    .update(JSON.stringify(sortKeys(manifest)))
-    .digest("hex")
-    .slice(0, 32);
-}
-
 export async function readAppGuide(
   appDir: AbsolutePath,
 ): Promise<null | string> {
@@ -171,6 +158,19 @@ export async function writeAppFolder({
     await fs.writeFile(guidePath, guide, "utf8");
   }
   return dir;
+}
+
+/**
+ * A digest of the manifest as parsed, so a connection record can say which
+ * manifest passed the test and a call can refuse one edited since. Over the
+ * parsed value rather than the file's bytes, so reformatting the JSON is not
+ * a change.
+ */
+function manifestHash(manifest: AppManifest): string {
+  return createHash("sha256")
+    .update(JSON.stringify(sortKeys(manifest)))
+    .digest("hex")
+    .slice(0, 32);
 }
 
 function sortKeys(value: unknown): unknown {

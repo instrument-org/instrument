@@ -183,7 +183,7 @@ In `state`, `path` is authoritative; `tabs[].pathname` mirrors it a moment later
 
 Instrument 2.0 is a **second** window with its own web contents, serving the same renderer bundle under the `#/orchestrator` route. It opens at launch behind the `instrument_2` feature flag, which also keeps the classic window loaded but hidden — the tasks' machinery and a task page's browser host live in it. There is no route that opens it on demand, so setting the flag is not enough on its own:
 
-```
+```bash
 studio-drive.mjs rpc features.setEnabled '{"feature":"instrument_2","enabled":true}'
 studio-drive.mjs stop && studio-drive.mjs boot --purpose "2.0"
 ```
@@ -192,7 +192,7 @@ The dev panel's **Start in Instrument 2.0** checkbox sets the same flag, and the
 
 With the flag on, one instance serves both windows on one debug port, and both are pages under `/renderer/` — the 2.0 one is often listed _first_. So every command takes `--window`:
 
-```
+```bash
 studio-drive.mjs state --window orchestrator
 studio-drive.mjs click "This Mac" --window orchestrator
 studio-drive.mjs shot two-oh.png --window orchestrator

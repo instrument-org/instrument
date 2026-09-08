@@ -11,7 +11,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
-type CatalogEntry = RPCOutput["apps"]["catalog"][number];
 
 /**
  * The Apps screen: the directory, in rows. Connected apps first, each with a
@@ -320,5 +319,3 @@ function settingUpLine(app: App): string {
     }
   }
 }
-
-export type { CatalogEntry };

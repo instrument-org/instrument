@@ -37,7 +37,7 @@ export const CHANNEL_COLORS = [
 ];
 
 /** How many hues the palette holds, which is the width of a row of swatches. */
-export const CHANNEL_HUES = 8;
+const CHANNEL_HUES = 8;
 
 /**
  * Whether a color is one of the pale tier, which the tint keeps pale. A color
@@ -54,7 +54,7 @@ export function isPaleChannelColor(color: string) {
  * to be things a person would actually name a piece of work after rather than
  * whatever the picker's first row happens to hold.
  */
-export const STARTER_EMOJI = [
+const STARTER_EMOJI = [
   "🛒",
   "🔬",
   "🧵",

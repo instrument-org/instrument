@@ -277,7 +277,15 @@ function describeSignInFailure(failure: unknown): string {
   if (failure === undefined) {
     return "the server asked for no authorization";
   }
-  const message = failure instanceof Error ? failure.message : String(failure);
+  // Anything that is neither an Error nor a string has no words of its own to
+  // pass on, and stringifying it would put "[object Object]" in front of the
+  // user.
+  const message =
+    failure instanceof Error
+      ? failure.message
+      : typeof failure === "string"
+        ? failure
+        : "the server refused the sign-in without saying why";
   if (/^HTTP 403\b/.test(message)) {
     return "the server refuses to register a client from here (HTTP 403). It only accepts clients it has approved in advance, so this sign-in cannot be one; a sign-in on the Browser screen, or a server the service ships for this machine, is the way in.";
   }

@@ -51,7 +51,7 @@ describe("open", () => {
       );
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe(
-        `Opened https://example.com/ (tab ${window.tabIds[0]})\nOpened https://example.org/ (tab ${window.tabIds[1]})\n`,
+        `Opened https://example.com/ (tab ${window.tabIds[0] ?? ""})\nOpened https://example.org/ (tab ${window.tabIds[1] ?? ""})\n`,
       );
     } finally {
       window.unsubscribe();

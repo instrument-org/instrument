@@ -119,7 +119,7 @@ function wroteADocument(extension: string): Assertion {
         return fail(text, `no ${extension} anywhere the task could write`);
       }
       for (const candidate of candidates) {
-        const body = await fs.readFile(candidate).catch(() => {});
+        const body = await fs.readFile(candidate).catch(() => null);
         if (!body || body.length < MIN_DOCUMENT_BYTES) {
           continue;
         }
@@ -133,7 +133,7 @@ function wroteADocument(extension: string): Assertion {
       }
       const sizes = await Promise.all(
         candidates.map(async (file) => {
-          const stat = await fs.stat(file).catch(() => {});
+          const stat = await fs.stat(file).catch(() => null);
           return `${path.basename(file)} ${stat?.size ?? "?"}B`;
         }),
       );
@@ -203,7 +203,7 @@ const deckWasDesigned: Assertion = {
         file.toLowerCase().endsWith(".pptx") && !file.includes("templates"),
     );
     for (const deck of decks) {
-      const archive = await fs.readFile(deck).catch(() => {});
+      const archive = await fs.readFile(deck).catch(() => null);
       if (!archive) {
         continue;
       }
@@ -264,9 +264,9 @@ const checkedItsOwnWork: Assertion = {
           }
           const looked =
             part.type === "tool-read_file"
-              ? String(part.input?.filePath ?? "")
+              ? (part.input?.filePath ?? "")
               : part.type === "tool-bash"
-                ? String(part.input?.command ?? "")
+                ? (part.input?.command ?? "")
                 : "";
           for (const name of made) {
             if (looked.includes(name)) {
@@ -276,7 +276,7 @@ const checkedItsOwnWork: Assertion = {
           // A file made by a script rather than a file tool still counts as
           // made, so a later read of it is still a check of its own work.
           if (part.type === "tool-bash") {
-            for (const [, name] of String(part.input?.command ?? "").matchAll(
+            for (const [, name] of (part.input?.command ?? "").matchAll(
               /([\w-]+\.(?:docx|xlsx|pptx|png|pdf|csv|md))/g,
             )) {
               if (name) {
@@ -360,7 +360,7 @@ function wroteAnImage(): Assertion {
         file.toLowerCase().endsWith(".png"),
       );
       for (const image of images) {
-        const body = await fs.readFile(image).catch(() => {});
+        const body = await fs.readFile(image).catch(() => null);
         if (
           body &&
           body.length >= MIN_IMAGE_BYTES &&
@@ -450,7 +450,7 @@ function documentContains(label: string, value: number): Assertion {
 
 /** The readable text of a Word document, tags stripped. */
 async function docxText(file: string): Promise<string> {
-  const archive = await fs.readFile(file).catch(() => {});
+  const archive = await fs.readFile(file).catch(() => null);
   if (!archive) {
     return "";
   }
@@ -481,7 +481,7 @@ function wroteSomethingToLookAt(
           file.toLowerCase().endsWith(extension) && !file.includes("templates"),
       );
       for (const file of matches) {
-        const body = await fs.readFile(file).catch(() => {});
+        const body = await fs.readFile(file).catch(() => null);
         if (body && body.length >= minBytes) {
           return pass(
             text,
@@ -514,7 +514,7 @@ const embeddedAnImage: Assertion = {
     const written = await deliverables(taskId);
     const docs = written.filter((file) => /\.(?:docx|pptx)$/i.test(file));
     for (const doc of docs) {
-      const archive = await fs.readFile(doc).catch(() => {});
+      const archive = await fs.readFile(doc).catch(() => null);
       if (!archive) {
         continue;
       }
@@ -556,7 +556,7 @@ const sheetRecomputes: Assertion = {
     const text = "built a workbook that recomputes when an input changes";
     const written = await deliverables(taskId);
     for (const book of written.filter((one) => /\.xlsx$/i.test(one))) {
-      const archive = await fs.readFile(book).catch(() => {});
+      const archive = await fs.readFile(book).catch(() => null);
       if (!archive) {
         continue;
       }
@@ -594,7 +594,7 @@ const sheetHasAChart: Assertion = {
     const text = "put a chart in the workbook";
     const written = await deliverables(taskId);
     for (const book of written.filter((one) => /\.xlsx$/i.test(one))) {
-      const archive = await fs.readFile(book).catch(() => {});
+      const archive = await fs.readFile(book).catch(() => null);
       if (!archive) {
         continue;
       }
@@ -688,12 +688,13 @@ function recommended(allowed: string[], rejected: string[]): Assertion {
           .map((window) => firstNamed(window, [...allowed, ...rejected]))
           .filter((name) => name !== undefined);
         const right = picks.find((name) => allowed.includes(name));
+        const [firstPick] = picks;
         return right
           ? pass(text, `picked ${right}`)
           : fail(
               text,
-              picks.length > 0
-                ? `picked ${picks[0]}, which the brief rules out`
+              firstPick
+                ? `picked ${firstPick}, which the brief rules out`
                 : `named none of ${allowed.join(" or ")}`,
             );
       }

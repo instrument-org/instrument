@@ -17,7 +17,7 @@ export interface TaskStanding {
 }
 
 /** Where a task stands, in the three words the list can say it in. */
-export type TaskStandingKind = "done" | "running" | "waiting";
+type TaskStandingKind = "done" | "running" | "waiting";
 
 /** What a pending ask is waiting for, in the user's terms. */
 const ASKS: Record<string, string> = {

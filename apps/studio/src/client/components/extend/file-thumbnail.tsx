@@ -1,6 +1,6 @@
 import * as React from "react";
 
-export type ThumbnailFile = {
+type ThumbnailFile = {
   name: string;
   type: string;
 };
@@ -21,7 +21,7 @@ function cx(...classes: Array<string | false | null | undefined>) {
 // remount thumbnails; URLs in this set render instantly instead of replaying
 // the blur-in, so only an image's first load animates.
 const revealedPreviewImageUrls = new Set<string>();
-export function FileThumbnailLoadingOverlay() {
+function FileThumbnailLoadingOverlay() {
   return (
     <div
       aria-hidden="true"

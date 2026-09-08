@@ -71,7 +71,7 @@ export interface BrowserTabsHandle {
 }
 
 /** What the page had on it that the words in a message can refer to. */
-export interface PageContext {
+interface PageContext {
   /** The control the user's cursor is in, described: "the editor, after 'Prototype'". */
   focus?: string;
   selection?: string;

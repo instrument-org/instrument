@@ -1,5 +1,6 @@
 import { type WindowTab, windowTabsAtom } from "@/client/atoms/orchestrator";
 import { ChatStream } from "@/client/components/chat-stream";
+import { FileOpenContext } from "@/client/components/file-open-context";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { ModelPreview } from "@/client/components/tasks-data-table/model-preview";
 import {
@@ -21,9 +22,11 @@ import {
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import ms from "ms";
-import { type ReactNode } from "react";
+import { type ReactNode, useContext } from "react";
 
 import { TabIcon } from "./browser-tabs";
+import { useOrchestrator } from "./context";
+import { conversationPathOfTaskPath } from "./file-tabs";
 import { useNewestSessionId } from "./newest-session";
 
 /** How often a task's sessions and standing are re-read while it is open. */
@@ -55,6 +58,7 @@ export function ChildTranscript({ task }: { task: Task }) {
   const isWorking = status.data?.some(hasLiveAgent) ?? false;
 
   const isDeveloperMode = useDeveloperMode();
+  const openFile = useOpenFileNamedByTask(task.id);
 
   if (!sessionId || !messages.data) {
     return (
@@ -85,18 +89,22 @@ export function ChildTranscript({ task }: { task: Task }) {
               {/* Names the task and session for the links inside, so a page
                   the task names offers its browser as well as the user's. */}
               <TaskSessionProvider sessionId={sessionId} taskId={task.id}>
-                <ChatStream
-                  isAgentRunning={isWorking}
-                  isDeveloperMode={false}
-                  messages={messages.data}
-                  onContinue={noop}
-                  onModelChange={noop}
-                  onRetry={noop}
-                  onRunAgain={noop}
-                  onStartNewTask={noop}
-                  renderAsItems
-                  task={task}
-                />
+                {/* A file the task hands over opens as a tab of the window,
+                    which reads every path in the conversation's terms. */}
+                <FileOpenContext value={openFile}>
+                  <ChatStream
+                    isAgentRunning={isWorking}
+                    isDeveloperMode={false}
+                    messages={messages.data}
+                    onContinue={noop}
+                    onModelChange={noop}
+                    onRetry={noop}
+                    onRunAgain={noop}
+                    onStartNewTask={noop}
+                    renderAsItems
+                    task={task}
+                  />
+                </FileOpenContext>
               </TaskSessionProvider>
             </MessageScrollerContent>
           </MessageScrollerViewport>
@@ -205,4 +213,40 @@ function TaskBrief({
       ))}
     </div>
   );
+}
+
+/**
+ * Opens a file the task named, in the window's own terms.
+ *
+ * A reply writes the paths the task works in, which is the whole of what it
+ * knows: `output/report.md` is its own folder, and a folder it was handed
+ * wears the name it was mounted under there. The window has neither -- it
+ * shows a file through the conversation, whose mounts are its own -- so the
+ * path is translated before a tab is asked for it. Untranslated, a card in a
+ * task's reply opens a tab reporting a file that was never in the
+ * conversation's folder.
+ */
+function useOpenFileNamedByTask(taskId: Task["id"]) {
+  const orchestrator = useOrchestrator();
+  // The window's own opener, which this stands in front of rather than
+  // replaces: where a file opens is the window's business either way.
+  const openInWindow = useContext(FileOpenContext);
+  const state = useQuery(
+    rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
+  );
+  const conversation = useQuery(
+    rpcClient.workspace.task.state.get.queryOptions({
+      input: { id: orchestrator.taskId },
+    }),
+  );
+  return (filePath: string) => {
+    openInWindow?.(
+      conversationPathOfTaskPath({
+        attachedFolders: state.data?.attachedFolders ?? {},
+        conversationFolders: conversation.data?.attachedFolders ?? {},
+        path: filePath,
+        taskId,
+      }),
+    );
+  };
 }

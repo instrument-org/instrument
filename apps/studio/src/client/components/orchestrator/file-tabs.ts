@@ -1,7 +1,52 @@
 import { type FileTab } from "@/client/atoms/orchestrator";
-import { MOUNT } from "@instrument-org/workspace/client";
+import { MOUNT, type TaskId } from "@instrument-org/workspace/client";
 
 import { useWindowTabs } from "./window-tabs";
+
+/**
+ * A path as a task's own reply wrote it, in the paths the conversation that
+ * started it reaches the same file by.
+ *
+ * A task names its own folder (`output/report.md`), which means nothing
+ * outside it, and the conversation reads that folder at `/tasks/<id>`. A
+ * folder the task was handed is one folder under two names, since the
+ * conversation granted it from a mount of its own, so where it sits on the
+ * Mac is what the two agree on.
+ *
+ * Every screen of this window reads a path in the conversation's terms -- the
+ * asset origin it loads a file from, the note telling the conversation what is
+ * on screen -- so a path from a task is translated once, here, on its way in.
+ */
+export function conversationPathOfTaskPath({
+  attachedFolders,
+  conversationFolders,
+  path,
+  taskId,
+}: {
+  /** The task's own mounts, which its paths are written in. */
+  attachedFolders: Record<string, { mountName: string; path: string }>;
+  /** The conversation's mounts, which this window's paths are written in. */
+  conversationFolders: Record<string, { mountName: string; path: string }>;
+  path: string;
+  taskId: TaskId;
+}): string {
+  if (path.startsWith(`${MOUNT.attachedFolders}/`)) {
+    const hostPath = hostPathOfMount(path, attachedFolders);
+    const inConversation =
+      hostPath === undefined
+        ? undefined
+        : mountOfHostPath(hostPath, conversationFolders);
+    // A folder granted to the task alone is one the conversation has no path
+    // for, and the task's own is then the nearest thing to an address.
+    return inConversation ?? path;
+  }
+  const own = `${MOUNT.task}/`;
+  const inTask = path.startsWith(own) ? path.slice(own.length) : path;
+  // Only the task's own folder is renamed. Any other absolute path is under a
+  // mount the conversation knows by the same name or cannot reach at all, and
+  // neither is this function's to rewrite.
+  return inTask.startsWith("/") ? inTask : `${MOUNT.tasks}/${taskId}/${inTask}`;
+}
 
 /** The address of a file's tab: the folder view with the file open in it. */
 export function fileHref(mount: string) {

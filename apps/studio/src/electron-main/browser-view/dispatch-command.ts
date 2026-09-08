@@ -18,6 +18,7 @@ import {
 } from "./guest-surface";
 import { log } from "./log";
 import { withMacEditingCommands } from "./mac-editing-commands";
+import { withoutMacNativeKeyCode } from "./mac-native-key-code";
 import { handlePrintToPDF } from "./print-to-pdf";
 import { startScreencast, stopScreencast } from "./screencast";
 
@@ -232,7 +233,10 @@ export async function sendCommand({
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
-      wc.debugger.sendCommand(method, withMacEditingCommands(method, params)),
+      wc.debugger.sendCommand(
+        method,
+        withMacEditingCommands(method, withoutMacNativeKeyCode(method, params)),
+      ),
       new Promise<never>((_, reject) =>
         setTimeout(() => {
           // Cast is safe: has() is a runtime membership check against a fixed string set

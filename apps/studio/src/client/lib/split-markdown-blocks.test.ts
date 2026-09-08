@@ -15,11 +15,9 @@ const documents = {
   "blockquote with a lazy line": "> quoted\ncontinued\n\nAfter.\n",
   "custom element across blocks":
     "<my-note>\n\nInside the element.\n\n</my-note>\n\nAfter.\n",
-  "display math split by a rule line":
-    "$$\nx = 1\n===\ny = 2\n$$\n\nAfter.\n",
+  "display math split by a rule line": "$$\nx = 1\n===\ny = 2\n$$\n\nAfter.\n",
   "duplicate headings": "## Setup\n\ntext\n\n## Setup\n\nmore\n",
-  "fence holding a dollar pair":
-    "```sh\necho $$\n```\n\n| a |\n| - |\n| 1 |\n",
+  "fence holding a dollar pair": "```sh\necho $$\n```\n\n| a |\n| - |\n| 1 |\n",
   "fence holding something like a link definition":
     "```\n[d]: not-a-definition\n```\n\nAfter.\n",
   "html across a blank line":
@@ -64,9 +62,7 @@ describe("splitMarkdownBlocks", () => {
   );
 
   it("holds a run of raw HTML together until its tag closes", () => {
-    expect(
-      splitMarkdownBlocks(documents["html across a blank line"]),
-    ).toEqual([
+    expect(splitMarkdownBlocks(documents["html across a blank line"])).toEqual([
       "<details>\n<summary>More</summary>\n\nHidden prose.\n\n</details>\n\n",
       "After.\n",
     ]);
@@ -79,9 +75,9 @@ describe("splitMarkdownBlocks", () => {
   });
 
   it("keeps a self-closing tag from swallowing what follows", () => {
-    expect(splitMarkdownBlocks(documents["self-closing html then prose"])).toEqual(
-      ["<hr />\n\n", "After.\n"],
-    );
+    expect(
+      splitMarkdownBlocks(documents["self-closing html then prose"]),
+    ).toEqual(["<hr />\n\n", "After.\n"]);
   });
 
   it("splits adjacent tables apart", () => {
@@ -114,19 +110,22 @@ describe("splitMarkdownBlocks", () => {
  * text and a merge that split it wrong still reads the same.
  */
 const renderers = {
-  "raw html parsed": (markdown: string) =>
-    renderToStaticMarkup(
-      createElement(
-        ReactMarkdown,
-        { rehypePlugins: [rehypeRaw], remarkPlugins: [remarkGfm, remarkBreaks] },
-        markdown,
-      ),
-    ),
   "raw html escaped": (markdown: string) =>
     renderToStaticMarkup(
       createElement(
         ReactMarkdown,
         { remarkPlugins: [remarkGfm, remarkBreaks] },
+        markdown,
+      ),
+    ),
+  "raw html parsed": (markdown: string) =>
+    renderToStaticMarkup(
+      createElement(
+        ReactMarkdown,
+        {
+          rehypePlugins: [rehypeRaw],
+          remarkPlugins: [remarkGfm, remarkBreaks],
+        },
         markdown,
       ),
     ),

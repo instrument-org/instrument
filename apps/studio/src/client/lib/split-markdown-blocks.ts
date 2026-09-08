@@ -114,7 +114,7 @@ const countClosings = (block: string, tag: string) =>
 // The tag a run of raw HTML opens, which is the one the run has to close before
 // the block can end. Hyphens and colons are in the name so a custom element is
 // tracked like any other.
-const OPENING_TAG = /<([A-Za-z][\w:-]*)[\s>/]/;
+const OPENING_TAG = /<([A-Z][\w:-]*)[\s>/]/i;
 
 // A `$$` display formula is not a block construct the lexer knows, so a
 // formula whose body happens to look like one -- a line of `=`, most often --
@@ -151,7 +151,7 @@ export function splitMarkdownBlocks(markdown: string): string[] {
   let afterCodeFence = false;
 
   const appendToLast = (raw: string) => {
-    blocks[blocks.length - 1] += raw;
+    blocks[blocks.length - 1] = (blocks.at(-1) ?? "") + raw;
   };
 
   for (const token of Lexer.lex(markdown, { gfm: true }) as Token[]) {
@@ -161,7 +161,10 @@ export function splitMarkdownBlocks(markdown: string): string[] {
       appendToLast(raw);
       // Counted against the innermost open tag alone, so that a nested one of
       // the same name closing does not end the outer element early.
-      const tag = openTags.at(-1) as string;
+      const tag = openTags.at(-1);
+      if (tag === undefined) {
+        continue;
+      }
       for (let index = 0; index < countOpenings(raw, tag); index += 1) {
         openTags.push(tag);
       }
@@ -197,7 +200,7 @@ export function splitMarkdownBlocks(markdown: string): string[] {
     }
 
     if (blocks.length > 0 && !afterCodeFence) {
-      const previous = blocks[blocks.length - 1] as string;
+      const previous = blocks.at(-1) ?? "";
       if (countDisplayMathMarkers(previous) % 2 === 1) {
         appendToLast(raw);
         continue;

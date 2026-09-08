@@ -27,6 +27,11 @@ export function TaskEventNote({
                 ? "Still working: "
                 : "Finished: "}
             {event.title}
+            {/* Past tense on purpose: the note is written once, and what was
+                left running then may have been stopped since. */}
+            {event.running && event.running.length > 0
+              ? ` · left ${event.running.length} running`
+              : null}
           </span>
         </p>
       ))}

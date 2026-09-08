@@ -1,6 +1,7 @@
 import ms from "ms";
 
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { describeLeftRunning } from "./orchestrator/left-running";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
 
@@ -38,7 +39,11 @@ export function taskEventModelNote(
       event.files && event.files.length > 0
         ? `\n  It wrote: ${event.files.join(", ")}`
         : "";
-    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${summary}${files}`;
+    const running =
+      event.running && event.running.length > 0
+        ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} kill ${event.taskId} <bg id>\`, or all of it with \`${TASK_COMMAND.name} kill ${event.taskId}\`; a server they are using stays.`
+        : "";
+    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${summary}${files}${running}`;
   });
 
   const overdue = data.events.every((event) => event.status === "overdue");

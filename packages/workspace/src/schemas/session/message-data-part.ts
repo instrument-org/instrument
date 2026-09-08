@@ -363,6 +363,21 @@ export namespace SessionMessageDataPart {
            */
           files: z.array(z.string()).optional(),
           /**
+           * What the child left running in the background as its turn ended:
+           * a server it started on purpose, or a scan it never stopped. Absent
+           * when nothing was, and on an overdue event, whose turn is still
+           * going.
+           */
+          running: z
+            .array(
+              z.object({
+                command: z.string(),
+                id: z.string(),
+                runningForMs: z.number().nonnegative(),
+              }),
+            )
+            .optional(),
+          /**
            * Done and error end a turn; overdue is a task still at work past
            * the point the orchestrator should look, and says so once.
            */

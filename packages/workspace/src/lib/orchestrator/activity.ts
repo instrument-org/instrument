@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { type TaskId } from "../../schemas/task-id";
+import { listTaskBackgroundProcesses } from "../background-processes";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { isToolPart } from "../is-tool-part";
 import { Store } from "../store";
@@ -8,6 +9,7 @@ import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { taskChannels } from "./attribution";
 import { listChildTasks } from "./children";
 import { latestSessionId } from "./latest-session";
+import { type LeftRunning } from "./left-running";
 
 const RunningTaskSchema = z.object({
   /** The channel it was filed from, absent for a task made before channels. */
@@ -76,6 +78,24 @@ export async function latestStep(taskId: TaskId): Promise<string | undefined> {
     }
   }
   return undefined;
+}
+
+/**
+ * What a task has running in the background right now, oldest first.
+ *
+ * Every session of the task, because the orchestrator reads a task the way the
+ * user does: what a subagent of it started is the task's. A different fact
+ * from `isWorking`, and the two come apart exactly when it matters: a task
+ * whose turn ended with a scan still going is idle and has this.
+ */
+export function leftRunning(taskId: TaskId, now = Date.now()): LeftRunning[] {
+  return listTaskBackgroundProcesses(taskId)
+    .filter((process) => process.status === "running")
+    .map((process) => ({
+      command: process.command,
+      id: process.id,
+      runningForMs: Math.max(0, now - process.startedAt.getTime()),
+    }));
 }
 
 /**

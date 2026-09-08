@@ -14,7 +14,7 @@ import { getTaskState } from "../task-record";
 import { getTaskSettings, recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
-import { isWorking, latestStep, turnStartedAt } from "./activity";
+import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { channelOfTask } from "./attribution";
 import { filesWrittenBy } from "./files-written";
 import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
@@ -239,6 +239,9 @@ async function onSessionDone(
   }
 
   const usage = await getTaskUsageSummary(id);
+  // Read as the turn ends rather than at delivery, a debounce later: a process
+  // that exits in between was the task's own doing and is not news.
+  const running = leftRunning(id);
   schedule(
     orchestratorId,
     {
@@ -248,6 +251,7 @@ async function onSessionDone(
         sessionId,
         taskId: id,
       }),
+      ...(running.length > 0 ? { running } : {}),
       status: "done",
       summary: await inOrchestratorPaths(
         await lastAssistantText({

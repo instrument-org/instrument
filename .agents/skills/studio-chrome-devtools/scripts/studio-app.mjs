@@ -246,7 +246,7 @@ async function pickTarget(origin, windowName) {
   const pages = list.filter(
     (t) => t.type === "page" && t.url.includes("/renderer/"),
   );
-  const page = pages.find(match);
+  const page = pages.find((target) => match(target));
   if (!page) {
     if (pages.length === 0) {
       fail(

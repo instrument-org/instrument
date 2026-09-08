@@ -100,3 +100,4 @@ Grouped by area; status is the short form of each file's own line.
 | [Why the spell checker is `typos`](spelling-check-cost-versus-signal.md) — and not cspell | resolved |
 | [A dev rebuild wipes the live main bundle](dev-rebuild-wipes-live-main-bundle.md) | fixed |
 | [Driving Studio over CDP: what makes it flaky](driving-studio-for-ui-capture.md) | partly addressed |
+| [A driven chord opens the About panel](a-driven-chord-opens-the-about-panel.md) — a keycode macOS reads as another key, landing on the one menu item carrying no key equivalent | fixed |

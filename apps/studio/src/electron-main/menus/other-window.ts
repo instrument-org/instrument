@@ -1,4 +1,8 @@
-import { sendAppCommand } from "@/electron-main/app-command";
+import {
+  resetZoom,
+  zoomIn,
+  zoomOut,
+} from "@/electron-main/windows/main/controls";
 import { type MenuItemConstructorOptions } from "electron";
 
 import { isDeveloperMode } from "../stores/preferences";
@@ -43,19 +47,21 @@ export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
       { role: "forceReload" as const },
       { role: "toggleDevTools" as const },
       { type: "separator" as const },
-      // Custom CSS `zoom` (not Electron's native page zoom), so onboarding shares
-      // the main window's zoom mechanism and persisted level. See OnboardingZoomRoot.
+      // Custom CSS `zoom` (not Electron's native page zoom), so these windows
+      // share the app's zoom mechanism and persisted level. See
+      // OnboardingZoomRoot. A focused browser guest zooms its own page first,
+      // the way it does in the main window.
       {
         accelerator: "CmdOrCtrl+0",
         click: () => {
-          sendAppCommand({ type: "zoomReset" });
+          resetZoom();
         },
         label: "Actual Size",
       },
       {
         accelerator: "CmdOrCtrl+Plus",
         click: () => {
-          sendAppCommand({ type: "zoomIn" });
+          zoomIn();
         },
         label: "Zoom In",
       },
@@ -64,7 +70,7 @@ export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
         // matches CmdOrCtrl+Plus on macOS, so this hidden duplicate covers it.
         accelerator: "CmdOrCtrl+=",
         click: () => {
-          sendAppCommand({ type: "zoomIn" });
+          zoomIn();
         },
         label: "Zoom In",
         visible: false,
@@ -74,7 +80,7 @@ export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
         // explicitly; hidden so it doesn't add a second Zoom In menu row.
         accelerator: "CmdOrCtrl+numadd",
         click: () => {
-          sendAppCommand({ type: "zoomIn" });
+          zoomIn();
         },
         label: "Zoom In",
         visible: false,
@@ -82,7 +88,7 @@ export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
       {
         accelerator: "CmdOrCtrl+-",
         click: () => {
-          sendAppCommand({ type: "zoomOut" });
+          zoomOut();
         },
         label: "Zoom Out",
       },
@@ -90,7 +96,7 @@ export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
         // Numpad "-" duplicate of Zoom Out, hidden like the numpad "+" above.
         accelerator: "CmdOrCtrl+numsub",
         click: () => {
-          sendAppCommand({ type: "zoomOut" });
+          zoomOut();
         },
         label: "Zoom Out",
         visible: false,

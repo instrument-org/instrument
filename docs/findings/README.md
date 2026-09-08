@@ -69,7 +69,7 @@ Grouped by area; status is the short form of each file's own line.
 
 | Finding | Status |
 | --- | --- |
-| [Quit teardown can livelock](quit-teardown-can-livelock-the-app.md) — and every guard on that path is blind to it | guards landed, cause unknown |
+| [Quit teardown can livelock](quit-teardown-can-livelock-the-app.md) — and every guard on that path is blind to it | open; seen twice, stage pinned, loop unknown |
 | [A quit confirmation outlives the window](quit-confirmation-outlives-the-window.md) — Windows/Linux ordering | resolved, guidance |
 | [An update check un-stages the macOS build](update-check-un-stages-the-macos-build.md) | resolved |
 | [A deb update can leave the package unconfigured](deb-update-left-the-package-unconfigured.md) | fixed, verified |

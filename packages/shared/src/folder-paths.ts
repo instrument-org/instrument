@@ -20,11 +20,6 @@
  */
 export const HOME_DIR_LABEL = "Home";
 
-/** What the user calls a folder: its own name, never any name we assigned it. */
-export function folderNameFromPath(folderPath: string): string {
-  return folderPath.split(/[/\\]/).findLast(Boolean) ?? folderPath;
-}
-
 /**
  * What a folder is called wherever it is named for a person. Its own name,
  * except the home folder. Given no home directory nothing is the home folder,
@@ -37,6 +32,11 @@ export function folderLabelFromPath(
   return isHomeDir(folderPath, homeDir)
     ? HOME_DIR_LABEL
     : folderNameFromPath(folderPath);
+}
+
+/** What the user calls a folder: its own name, never any name we assigned it. */
+export function folderNameFromPath(folderPath: string): string {
+  return folderPath.split(/[/\\]/).findLast(Boolean) ?? folderPath;
 }
 
 /** Whether a path is the home directory itself, spelled either way. */

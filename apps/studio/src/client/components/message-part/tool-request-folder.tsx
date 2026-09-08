@@ -116,8 +116,8 @@ export function ToolRequestFolder({
         ) : part.state === "output-available" ? (
           <p className="mt-2 text-xs text-muted-foreground">
             {part.output.status === "granted"
-              ? `Attached at ${part.output.mountPoint} (${part.output.access}).`
-              : "Declined."}
+              ? `You attached "${part.output.mountPoint.slice(MOUNT.attachedFolders.length + 1)}" (${part.output.access === "read-write" ? "read and write" : "read-only"}).`
+              : "You declined."}
           </p>
         ) : null}
       </ToolCardSection>

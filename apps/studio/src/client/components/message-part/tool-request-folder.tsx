@@ -1,4 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import {
   MOUNT,
   type SessionMessagePart,
@@ -21,6 +22,10 @@ type RequestFolderPart = Extract<
  * reason and two buttons: one opens the Mac's own dialog, attaches what was
  * picked to this conversation, and answers the call with the mount; the other
  * answers that the user declined. Once answered it says what happened.
+ *
+ * The dialog is a sheet over this window, so the card is out of sight while
+ * it is up: the reason goes into the sheet as its message, with what the
+ * agent will be able to do there, and its button says Allow.
  */
 export function ToolRequestFolder({
   part,
@@ -52,11 +57,14 @@ export function ToolRequestFolder({
     return <ToolCardEmpty message="The request has not arrived yet." />;
   }
 
-  const access = part.input.access;
+  const { access, reason } = part.input;
   const isPending = part.state === "input-available";
 
   const choose = async () => {
-    const picked = await rpcClient.utils.showFolderPicker.call();
+    const picked = await rpcClient.utils.showFolderPicker.call({
+      buttonLabel: "Allow",
+      message: `${APP_NAME} asked for a folder: ${reason ?? ""} It will ${access === "read-write" ? "read and change files in the folder you choose" : "only read the folder you choose"}.`,
+    });
     if (!picked) {
       return;
     }
@@ -91,7 +99,7 @@ export function ToolRequestFolder({
       <ToolCardSection collapsedHeight={256}>
         <p className="flex items-start gap-2 text-sm">
           <FolderOpenIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-          <span>{part.input.reason}</span>
+          <span>{reason}</span>
         </p>
         {isPending ? (
           <div className="mt-3 flex gap-2">

@@ -834,20 +834,35 @@ const prepareTaskFileDrag = base
   });
 
 const showFolderPicker = base
+  .input(
+    z.object({
+      /** What the confirm button says; the system's own word when absent. */
+      buttonLabel: z.string().min(1).optional(),
+      /**
+       * A line the panel shows above the file list. The sheet covers the
+       * window that asked, so a picker opened for a reason carries the reason
+       * with it rather than leaving it behind under the sheet.
+       */
+      message: z.string().min(1).optional(),
+    }),
+  )
   .output(z.object({ path: z.string() }).nullable())
-  .handler(async () => {
+  .handler(async ({ input }) => {
     // Pass the parent window so macOS presents a window-modal sheet, which keeps
     // the open-panel service warm across opens. Without a parent it falls back to
     // app-modal and cold-starts the panel every time (~2-3s). The focused window
     // first, so a picker asked for from a second window opens on that window.
     const parentWindow = BrowserWindow.getFocusedWindow() ?? getMainWindow();
+    const options = {
+      ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
+      ...(input.message
+        ? { message: input.message, title: input.message }
+        : {}),
+      properties: ["openDirectory", "createDirectory"] as const,
+    } satisfies Electron.OpenDialogOptions;
     const result = await (parentWindow
-      ? dialog.showOpenDialog(parentWindow, {
-          properties: ["openDirectory", "createDirectory"],
-        })
-      : dialog.showOpenDialog({
-          properties: ["openDirectory", "createDirectory"],
-        }));
+      ? dialog.showOpenDialog(parentWindow, options)
+      : dialog.showOpenDialog(options));
     if (result.canceled || result.filePaths.length === 0) {
       return null;
     }

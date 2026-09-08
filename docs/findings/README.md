@@ -60,6 +60,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Leaking z-index stacks](leaking-z-index-stacks.md) | resolved; rule stands |
 | [The transcript column jumps while a turn runs](transcript-column-jumps-while-a-turn-runs.md) | open, instrumented not diagnosed |
 | [Wide tables widen the transcript](wide-tables-widen-the-transcript.md) — a Markdown table with nowhere to scroll takes the conversation with it | resolved |
+| [Markdown that is mostly tables](markdown-that-is-mostly-tables.md) — two quadratic parses cost twenty seconds on a 2 MB file, and why `content-visibility` was rejected | fixed; the DOM is what is left |
 | [What marks a renderer hidden](electron-page-visibility.md) — and what does not | resolved, guidance |
 | [Task file links resolve at render time](task-file-links-resolve-at-render-time.md) | resolved |
 | [Task attention state must be persisted](task-attention-state-persistence.md) — not derived from live status | implemented for unread; needs-input and restart reconciliation open |

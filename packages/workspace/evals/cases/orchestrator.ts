@@ -27,8 +27,19 @@
  *   task and then restated by the conversation is the same words paid for three
  *   times.
  */
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
+
+/**
+ * When this process started, which is near enough to when the run did. The
+ * sandbox home outlives a run, so a file already in a folder says nothing
+ * about the run that is being scored.
+ */
+const RUN_STARTED_AT = Date.now();
 
 // ---------------------------------------------------------------------------
 // Reading a conversation back out of a transcript
@@ -223,6 +234,39 @@ const tasksWroteFiles: Assertion = {
   text: "every task wrote at least one file",
 };
 
+/**
+ * Did anything land in the folder the ask named?
+ *
+ * Read off the disk rather than out of a transcript, because a transcript is
+ * exactly what cannot answer it: the conversation and the task mount the same
+ * folder under names of their own, and a task briefed in a path its own mounts
+ * do not have writes nothing, writes into its own scratch instead, or has to
+ * spend turns working out what it was really given -- and reports that it is
+ * done in every one of those cases.
+ */
+function wroteInto(folder: string): Assertion {
+  const text = `a file landed in the user's ${folder} folder`;
+  return {
+    check: () => {
+      const dir = path.join(os.homedir(), folder);
+      const entries = fs.readdirSync(dir, {
+        recursive: true,
+        withFileTypes: true,
+      });
+      const written = entries
+        .filter((entry) => entry.isFile())
+        .map((entry) => path.join(entry.parentPath, entry.name))
+        .filter(
+          (filePath) => fs.statSync(filePath).mtimeMs >= RUN_STARTED_AT - 1000,
+        );
+      return written.length > 0
+        ? pass(text, written.join(", "))
+        : fail(text, `nothing this run wrote is in ${dir}`);
+    },
+    text,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Cases
 // ---------------------------------------------------------------------------
@@ -268,6 +312,24 @@ export const ORCHESTRATOR_EVALS = [
     kind: "orchestrator",
     name: "orchestrator-answers-a-question",
     prompt: "How many files are in my Instrument folder?",
+  }),
+
+  defineEval({
+    // The only case that names a folder other than the workspace one, which is
+    // the one folder both sides happen to call the same thing. Everything the
+    // conversation has to get right about handing a folder over is here: the
+    // mount it passes, the access it asks for, and the path it writes into the
+    // brief for a task that reaches that folder by another.
+    assertions: [
+      delegated(1),
+      didNotDoTheWorkItself,
+      tasksWroteFiles,
+      wroteInto("Downloads"),
+    ],
+    kind: "orchestrator",
+    name: "orchestrator-hands-over-a-folder",
+    prompt:
+      "Write me a one-page markdown summary of what a CDN is and put it in my Downloads folder.",
   }),
 
   defineEval({

@@ -4,7 +4,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 
-import { useTaskPaneActions } from "../../hooks/use-task-pane";
+import { useShowTaskFile } from "../../hooks/use-show-task-file";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileIcon } from "../file-icon";
 import { IconButton } from "../icon-button";
@@ -177,13 +177,13 @@ function ReadFileCard({
   openOnContentClick?: boolean;
 }) {
   const filename = filenameFromFilePath(filePath);
-  const { openFiles } = useTaskPaneActions(id);
+  const showTaskFile = useShowTaskFile(id);
 
   const handleExpand = () => {
     if (modifiedAt === undefined) {
       return;
     }
-    openFiles([filePath]);
+    showTaskFile(filePath);
   };
 
   return (
@@ -209,7 +209,7 @@ function ReadFileCard({
               className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
               icon={ArrowsOutSimpleIcon}
               onClick={handleExpand}
-              tooltip="Open in panel"
+              tooltip="Open"
               variant="ghost"
             />
           </ToolCardActions>

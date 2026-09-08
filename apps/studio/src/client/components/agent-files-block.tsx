@@ -3,6 +3,7 @@ import {
   FILE_MISSING_LABEL,
   useFilePresence,
 } from "@/client/hooks/use-file-presence";
+import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
@@ -14,7 +15,6 @@ import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { useContext } from "react";
 
 import { FileIcon } from "./file-icon";
-import { FileOpenContext } from "./file-open-context";
 import { FilesGrid } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
 import { MarkdownTaskContext } from "./markdown-task-context";
@@ -92,7 +92,7 @@ export function FilePathsGrid({
   const { assetBaseUrl, assetVersion, taskId } =
     useContext(MarkdownTaskContext);
   const layout = useContext(FilesLayoutContext);
-  const openElsewhere = useContext(FileOpenContext);
+  const showTaskFile = useShowTaskFile(taskId);
 
   if (
     taskId === undefined ||
@@ -121,7 +121,7 @@ export function FilePathsGrid({
             file={file}
             key={file.filePath}
             onClick={() => {
-              openElsewhere?.(file.filePath);
+              showTaskFile(file.filePath);
             }}
           />
         ))}

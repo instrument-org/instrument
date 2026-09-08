@@ -14,7 +14,7 @@ import { ImagesIcon } from "@phosphor-icons/react/Images";
 import { QuotesIcon } from "@phosphor-icons/react/Quotes";
 import { useEffect, useState } from "react";
 
-import { useTaskPaneActions } from "../../hooks/use-task-pane";
+import { useShowTaskFile } from "../../hooks/use-show-task-file";
 import { copyFileToClipboard } from "../../lib/file-actions";
 import { getAssetUrl } from "../../lib/get-asset-url";
 import { filenameFromFilePath } from "../../lib/path-utils";
@@ -131,7 +131,7 @@ export function ToolGenerateImage({
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
 }) {
-  const { openFiles } = useTaskPaneActions(id);
+  const showTaskFile = useShowTaskFile(id);
 
   if (!part.input) {
     return <ToolCardEmpty message="The prompt has not arrived yet." />;
@@ -168,8 +168,8 @@ export function ToolGenerateImage({
   // and the card behind it names what that setting picked.
   const servedModelName = resolveImageModelName(successOutput?.modelIdServed);
 
-  const openInPanel = ({ filePath }: { filePath: string }) => {
-    openFiles([filePath]);
+  const openImage = ({ filePath }: { filePath: string }) => {
+    showTaskFile(filePath);
   };
 
   return (
@@ -211,7 +211,7 @@ export function ToolGenerateImage({
             filePath={image.filePath}
             key={index}
             modifiedAt={image.modifiedAt}
-            onOpen={openInPanel}
+            onOpen={openImage}
           />
         ))
       )}
@@ -265,7 +265,7 @@ export function ToolGenerateImage({
                       filePath={file.filePath}
                       key={index}
                       modifiedAt={file.modifiedAt}
-                      onOpen={openInPanel}
+                      onOpen={openImage}
                     />
                   ))}
                 </div>
@@ -429,10 +429,10 @@ function humanizeParamKey(key: string): string {
 }
 
 function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
-  const { openFiles } = useTaskPaneActions(id);
+  const showTaskFile = useShowTaskFile(id);
 
   const handleExpand = () => {
-    openFiles([filePath]);
+    showTaskFile(filePath);
   };
 
   const handleCopy = async () => {
@@ -445,7 +445,7 @@ function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
         className="size-5 shrink-0 p-0.5 text-foreground/50 hover:text-foreground/80"
         icon={ArrowsOutSimpleIcon}
         onClick={handleExpand}
-        tooltip="Open in panel"
+        tooltip="Open"
         variant="ghost"
       />
       <ConfirmedIconButton

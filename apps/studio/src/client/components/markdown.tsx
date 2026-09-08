@@ -2,7 +2,7 @@ import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
-import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
+import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
 import {
   AGENT_FILES_LANGUAGE,
   isAddressableTaskFilePath,
@@ -57,7 +57,6 @@ import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
-import { FileOpenContext } from "./file-open-context";
 import {
   INLINE_CHIP_CLASS_NAME,
   INLINE_CHIP_ICON_CLASS_NAME,
@@ -114,8 +113,8 @@ interface MarkdownProps {
   isStreaming?: boolean;
   markdown: string;
   // Present only when rendered inside a task chat. Enables the task-file
-  // right-click menu (Open in {App} / Save as… / Reveal / …); left-click
-  // open-in-panel works without it.
+  // right-click menu (Open in {App} / Save as… / Reveal / …); a left click
+  // opens the file without it.
   taskId?: TaskId;
 }
 
@@ -347,8 +346,7 @@ const TaskFileLink = ({
   const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
-  const { openFiles } = useTaskPaneActions(taskId);
-  const openElsewhere = useContext(FileOpenContext);
+  const showTaskFile = useShowTaskFile(taskId);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
   // Before the guard below, so the chip that turns out not to name a task file
   // still asks in the same order every render.
@@ -362,21 +360,12 @@ const TaskFileLink = ({
     return <span className={className}>{children}</span>;
   }
 
-  // A chip is a file the reply offers, so it goes where the surface around it
-  // sends one: the pane on the task page, and a tab of its own in a window
-  // that has no pane to open.
-  const openFile = () => {
-    if (openElsewhere) {
-      openElsewhere(filePath);
-      return;
-    }
-    openFiles([filePath]);
-  };
-
   const chip = (
     <button
       className={cn(INLINE_CHIP_CLASS_NAME, className)}
-      onClick={openFile}
+      onClick={() => {
+        showTaskFile(filePath);
+      }}
       title={filePath}
       type="button"
       {...dragProps}

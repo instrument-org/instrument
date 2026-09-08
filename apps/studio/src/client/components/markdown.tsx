@@ -746,8 +746,18 @@ const taskFilePathFromImageSrc = (src: string | undefined) =>
  * Memoized on its own text, which is the point of the whole arrangement: a
  * block behind the one still arriving is handed the same string and the same
  * plugins on every chunk, so it is neither reparsed nor rebuilt into React
- * elements. Every prop it takes has to stay referentially stable across a
- * render for that to hold, which is what the `useMemo`s above are for.
+ * elements.
+ *
+ * This `memo` and the `useMemo`s that keep its props referentially stable are
+ * load-bearing, which is worth saying plainly because the compiler makes that
+ * kind of memoization unnecessary nearly everywhere else in this app and the
+ * reflex is to delete it. Measured over a 32 KB reply arriving in chunks, cost
+ * per chunk: 38.9 ms not split, 11.4 ms split as written, and **74.7 ms split
+ * with the memoization removed** -- twice the cost of not splitting at all,
+ * because a document is then parsed once per block on every chunk instead of
+ * once. The compiler cannot reach it: `blocks.map` builds fresh elements every
+ * render, so without a memo boundary holding stable props there is nothing to
+ * tell React that the block three back is the one it already has.
  */
 const MarkdownBlock = memo(function MarkdownBlock({
   components,

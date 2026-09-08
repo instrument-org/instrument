@@ -2888,6 +2888,36 @@
       "home": "https://vercel.com/dashboard"
     },
     {
+      "slug": "wakatime",
+      "name": "WakaTime",
+      "tagline": "Coding time, by project, language, and editor.",
+      "description": "WakaTime records time spent coding from an editor plugin and reports it as day-level summaries. Read them at /users/current/summaries with range=Today or range=Last 7 Days, or explicit start and end dates; /users/current is the cheapest GET that proves a key. The key rides as HTTP Basic credentials, the key alone rather than a user and password, which is what --auth basic sends; ?api_key= is documented as an alternative and puts the key in the URL.",
+      "domain": "wakatime.com",
+      "categories": ["analytics", "developer-tools", "productivity"],
+      "authMethods": [
+        {
+          "type": "api_key",
+          "label": "API key",
+          "note": "From wakatime.com/api-key; sent as HTTP Basic credentials."
+        },
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Authorization-code flow for multi-user apps, and it needs a client of your own; the API key is the way in for one person."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "openapi",
+          "name": "WakaTime API v1",
+          "endpoint": "https://api.wakatime.com/api/v1",
+          "auth": "basic"
+        }
+      ],
+      "docsUrl": "https://wakatime.com/developers",
+      "home": "https://wakatime.com/dashboard"
+    },
+    {
       "slug": "webflow",
       "name": "Webflow",
       "tagline": "Sites, CMS collections, and pages.",

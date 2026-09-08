@@ -28,6 +28,7 @@ import { withAppMcpClient } from "../apps/mcp/run";
 import { performAppRequest, redactCredential } from "../apps/request";
 import {
   type AppInfo,
+  guideSkeleton,
   listApps,
   loadApp,
   readAppGuide,
@@ -54,7 +55,7 @@ export interface AppCommandContext {
 
 /** How a service is reached: one decision, shared by the index and the detail. */
 type CatalogWayIn =
-  | { endpoint: string; kind: "api" }
+  | { auth: string; endpoint: string; kind: "api" }
   | { endpoint: string; kind: "mcp"; open: boolean }
   | { kind: "browser"; where: string }
   | { kind: "local"; package: string; runtime: "node" | "python" };
@@ -74,10 +75,14 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       to prefer, an API base) and how each is reached (a sign-in, a key). Words
       filter by name, domain, or category, the services they name first. With
       no words, the whole directory one line each; add a word for the detail.
-  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package>) [--auth oauth|bearer|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--test <path>] [--force]
+  ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package>) [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--test <path>] [--force]
       Write ${MOUNT.apps}/<slug>/${APP_MANIFEST_FILE_NAME}, and a ${APP_GUIDE_FILE_NAME} to fill in when
       there is none. An MCP app defaults to oauth (a one-click sign-in, no key);
       an API app to bearer, and needs --test, a cheap GET that proves the key.
+      A key the service documents as HTTP Basic credentials takes basic (the key
+      alone) or basic:<user> (the key as the password behind a fixed username);
+      the base64 happens here, so the user pastes the key exactly as the service
+      gave it to them and is never asked to encode or prefix anything.
       --local names an MCP server that runs on this machine, installed from npm
       (--runtime node, the default) or PyPI (--runtime python): it defaults to
       no key, takes env:<VAR> when the server reads one from its environment,
@@ -177,6 +182,30 @@ async function allowedSlugs(taskId: TaskId): Promise<Set<string> | undefined> {
 }
 
 /**
+ * Where a keyed surface's key rides, as the --auth the command takes, or
+ * undefined when the surface has no key to ride at all.
+ *
+ * The directory's own words ("api_key", "pat") say only that a key exists, and
+ * a bearer header is what most of them mean, so those keep the default. An
+ * entry that names the placement outright carries it through instead, which is
+ * the difference between a set-up line that connects and one that spends the
+ * conversation on 401s.
+ */
+function catalogKeyPlacement(auth: string | undefined): string | undefined {
+  if (auth === undefined) {
+    return undefined;
+  }
+  if (["api_key", "pat", "token"].includes(auth)) {
+    return "bearer";
+  }
+  try {
+    return parseAuth(auth, "api").kind === "none" ? undefined : auth;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * How a service is reached, decided once so the index and the detail cannot
  * disagree about it. An API a key opens is the third way in; a service with
  * none of the three (every way in wants a sign-in client of the user's own,
@@ -197,15 +226,16 @@ function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
   if (local) {
     return { kind: "local", ...local };
   }
-  const keyed = entry.interfaces.find(
-    (surface) =>
-      surface.format !== "mcp" &&
-      surface.endpoint !== undefined &&
-      ["api_key", "pat", "token"].includes(surface.auth ?? ""),
-  );
-  return keyed?.endpoint
-    ? { endpoint: keyed.endpoint, kind: "api" }
-    : { kind: "browser", where: entry.home ?? `https://${entry.domain}` };
+  for (const surface of entry.interfaces) {
+    if (surface.format === "mcp" || surface.endpoint === undefined) {
+      continue;
+    }
+    const auth = catalogKeyPlacement(surface.auth);
+    if (auth !== undefined) {
+      return { auth, endpoint: surface.endpoint, kind: "api" };
+    }
+  }
+  return { kind: "browser", where: entry.home ?? `https://${entry.domain}` };
 }
 
 /** The catalog, as lines: what each service is and how it is reached. */
@@ -231,7 +261,7 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
       : way.kind === "local"
         ? `${start} --local ${way.package} --runtime ${way.runtime}`
         : way.kind === "api"
-          ? `${start} --api ${way.endpoint} --auth bearer --test <a cheap GET, such as /me>`
+          ? `${start} --api ${way.endpoint} --auth ${way.auth} --test <a cheap GET, such as /me>`
           : `not as an app from here: every way in needs a sign-in client of the user's own, which the sign-in card cannot make. The user can sign in on the Browser screen (${way.where}), and a task handed that tab works there.`;
   return [
     `${entry.slug}  ${entry.name}  ${entry.domain}`,
@@ -257,17 +287,6 @@ function firstSentence(text: string): string {
   const end = flat.search(/[.!?](?:\s|$)/);
   const sentence = end === -1 ? flat : flat.slice(0, end + 1);
   return sentence.length > 160 ? `${sentence.slice(0, 157)}...` : sentence;
-}
-
-/** A guide the agent fills in: what the app is for, and how it is reached. */
-function guideSkeleton(manifest: AppManifest): string {
-  const reach =
-    manifest.type === "mcp-local"
-      ? `Runs on this machine from the ${manifest.runtime === "node" ? "npm" : "PyPI"} package ${manifest.package}: \`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one. Say here what has to be true on this machine for it to work (an app installed, a file in place).`
-      : manifest.type === "mcp"
-        ? `Reached through its MCP server at ${manifest.url}: \`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one.`
-        : `Reached through its API at ${manifest.baseUrl}: \`${APP_COMMAND.name} request <slug> GET /path\`.\n\n## Endpoints\n\nList the endpoints the work needs, with an example each: the method, the path relative to the base URL, the parameters, and what comes back. Pagination and rate limits go here too.`;
-  return `# ${manifest.name}\n\nWhat this app is for, in a sentence or two.\n\n${reach}\n\n## Conventions\n\nAnything a request has to get right that the service does not say in its errors.\n`;
 }
 
 /** JSON from an inline argument or stdin, as an object. */
@@ -330,13 +349,23 @@ function parseAuth(
   if (value === "oauth") {
     if (type === "api") {
       throw new Error(
-        "oauth is for MCP apps. An API app takes bearer, header:<Name>, query:<param>, or none.",
+        "oauth is for MCP apps. An API app takes bearer, basic, basic:<user>, header:<Name>, query:<param>, or none.",
       );
     }
     return { kind: "oauth" };
   }
   if (value === "bearer" || value === "none") {
     return { kind: value };
+  }
+  const basic = /^basic(?::(.+))?$/.exec(value);
+  if (basic) {
+    if (type === "mcp") {
+      throw new Error(
+        "basic is for API apps. An MCP app takes oauth, bearer, header:<Name>, or none.",
+      );
+    }
+    const user = basic[1]?.trim();
+    return user ? { kind: "basic", user } : { kind: "basic" };
   }
   const header = /^header:(.+)$/.exec(value);
   if (header?.[1]) {
@@ -350,7 +379,11 @@ function parseAuth(
     return { kind: "query", param: query[1].trim() };
   }
   throw new Error(
-    `--auth takes oauth, bearer, header:<Name>, query:<param>, or none (got "${value}").`,
+    `--auth takes ${
+      type === "mcp"
+        ? "oauth, bearer, header:<Name>, or none"
+        : "bearer, basic, basic:<user>, header:<Name>, query:<param>, or none"
+    } (got "${value}").`,
   );
 }
 
@@ -488,7 +521,7 @@ function runCatalog(args: string[]) {
   const entries = searchAppCatalog(query);
   if (entries.length === 0) {
     return ok(
-      `Nothing in the directory matches "${query}". Set it up by hand: research the service's API in a task if you do not know it, then \`${APP_COMMAND.name} new\` or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
+      `Nothing in the directory matches "${query}". Set it up by hand. A service you do not know is a short research task first, and the brief has to name what you can actually write, or what comes back is a manifest shape this command does not take: ask it for the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
     );
   }
   // Every entry in full runs past what a command's output keeps, and what gets
@@ -667,12 +700,22 @@ async function runNew(args: string[], context: AppCommandContext) {
     manifest,
     slug,
   });
+  // A key already in the store outlives the manifest that asked for it, so
+  // rewriting one to try another auth placement costs the user nothing: the
+  // test reuses what they already pasted. Asking again for a key we hold is
+  // how one wrong placement turns into four trips to the card.
+  const stored =
+    manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
+      ? null
+      : await getWorkspaceConfig().apps.getCredential(slug);
   const next =
     manifest.auth.kind === "none"
       ? `Run \`${APP_COMMAND.name} test ${slug}\`.`
       : manifest.auth.kind === "oauth"
         ? `Ask the user to sign in with connect_app; the app connects on its own when they do.`
-        : `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
+        : stored === null
+          ? `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`
+          : `A key for this app is already stored: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with connect_app only once every placement has been refused.`;
   return ok(
     `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() ? "" : ` and a ${APP_GUIDE_FILE_NAME} to fill in`}. ${next}\n`,
   );

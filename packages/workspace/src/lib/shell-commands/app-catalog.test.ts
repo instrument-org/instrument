@@ -41,6 +41,17 @@ describe("app catalog", () => {
     expect(text).not.toContain("<base-url>");
   });
 
+  // A key that is not a bearer token is refused exactly like a wrong key, so
+  // the entry names the placement and the set-up line carries it: WakaTime's
+  // key is HTTP Basic credentials, and the bearer default spends the
+  // conversation on 401s the agent has no way to read as a placement problem.
+  it("carries a keyed API's own auth placement into the set-up line", async () => {
+    const text = await catalog("wakatime");
+    expect(text).toContain(
+      "set up: app new wakatime --name 'WakaTime' --api https://api.wakatime.com/api/v1 --auth basic --test",
+    );
+  });
+
   // Figma's hosted server only registers clients Figma has approved, so the
   // desktop app's own server is the way in; it wants no sign-in, and the line
   // has to say so, since an MCP app defaults to a sign-in card.

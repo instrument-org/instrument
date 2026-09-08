@@ -159,6 +159,52 @@ function saidAtMost(chars: number): Assertion {
   };
 }
 
+/**
+ * A task revised where it stands rather than replaced. `task folder --add` is
+ * the move being scored; `task tab` and `task model` are the same act on the
+ * task's other settings, and any of them followed by a `send` is the shape.
+ */
+const REVISED_A_TASK = /(?:^|[\n;&|])\s*task (?:folder|tab|model)\b/;
+
+/**
+ * How many tasks the conversation started, where more than one is the failure:
+ * the second one is the first one's context bought twice.
+ */
+function startedExactly(count: number): Assertion {
+  const text = `started exactly ${count} task${count === 1 ? "" : "s"}`;
+  return {
+    check: ({ sessions }) => {
+      const started = taskNewCount(sessions);
+      const commands = bashCommands(sessions);
+      return started === count
+        ? pass(text, `${started} \`task new\` in ${commands.length} commands`)
+        : fail(
+            text,
+            `${started} \`task new\`: ${commands
+              .map((command) => command.split("\n")[0])
+              .join(" | ")}`,
+          );
+    },
+    text,
+  };
+}
+
+const revisedATaskInPlace: Assertion = {
+  check: ({ sessions }) => {
+    const text = "changed a running task's setup rather than starting another";
+    const revisions = bashCommands(sessions).filter((command) =>
+      REVISED_A_TASK.test(command),
+    );
+    return revisions.length > 0
+      ? pass(text, revisions.join(" | "))
+      : fail(
+          text,
+          `no \`task folder\`, \`task tab\` or \`task model\` in ${bashCommands(sessions).length} commands`,
+        );
+  },
+  text: "changed a running task's setup rather than starting another",
+};
+
 const answeredWithoutATask: Assertion = {
   check: ({ sessions }) => {
     const text = "answered from what it could see, without starting a task";
@@ -340,5 +386,24 @@ export const ORCHESTRATOR_EVALS = [
     name: "orchestrator-steers-a-running-task",
     prompt:
       "Write a 1500-word essay on the pelican in heraldry, with sources, to pelican-heraldry.md in my Instrument folder.",
+  }),
+
+  defineEval({
+    // A follow-up that widens the work to a folder the running task was never
+    // handed. The task holds everything already worked out, so the move is to
+    // give it the folder where it stands and say so; starting a second task
+    // throws that away and pays for it again. The conversation cannot do it
+    // itself either, since the home mount is read-only as a whole for it.
+    assertions: [
+      delegated(1),
+      startedExactly(1),
+      revisedATaskInPlace,
+      didNotDoTheWorkItself,
+    ],
+    followUps: ["Put copies of those in my Downloads folder as well."],
+    kind: "orchestrator",
+    name: "orchestrator-widens-a-running-task",
+    prompt:
+      "Write two short markdown notes, one on what a CDN is and one on what DNS is, one file each in my Instrument folder.",
   }),
 ];

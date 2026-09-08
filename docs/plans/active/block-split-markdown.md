@@ -1,6 +1,6 @@
 # Plan: parse markdown a block at a time
 
-Status: proposed, not started. The measurements behind it are done and recorded below; the four things it breaks are known and each was reproduced rather than guessed. Depends on nothing, and does not replace `patches/micromark-extension-gfm-table@2.1.1.patch` — the two cover different halves of the same cost, and the reason is in "What this does not fix".
+Status: proposed, not started. The measurements behind it are done and recorded below; the four things it breaks are known and each was reproduced rather than guessed. Buying it instead of building it was considered and is written up in "The alternative: migrate to Streamdown instead", which recommends against. Depends on nothing, and does not replace `patches/micromark-extension-gfm-table@2.1.1.patch` — the two cover different halves of the same cost, and the reason is in "What this does not fix".
 
 ---
 
@@ -47,6 +47,18 @@ Four things, each reproduced against the real pipeline by parsing whole and per-
 
 **1. The splitter, behind nothing.** A `splitBlocks(source)` in `client/lib/`, wrapping `marked`'s `Lexer.lex(source, {gfm: true})`, returning `string[]`. It merges unbalanced html tokens, and returns a single-element array for any document carrying a footnote or link-reference definition. Unit-testable in the node project with no React at all, which is where the merge rules and the fallback want to be pinned.
 
+**The splitter may lex and must never parse.** `marked` carries a quadratic of its own, in `Marked.prototype.walkTokens`, which accumulates with `concat` once per token and re-concats each recursive result into its parent's array. It runs whenever any extension registers a `walkTokens` hook, which the alert and footnote plugins both do, and it is not small: a *no-op* `walkTokens` takes the 1.97 MB file from 37 ms to 811 ms. Measured against the shape this plan actually uses:
+
+| | 1.97 MB |
+| --- | --- |
+| `Lexer.lex`, GFM on | 32 ms |
+| `marked.parse` → HTML | 37 ms |
+| a `Marked` instance with a no-op `walkTokens`, `.parse` | 811 ms |
+| the same instance, `.lexer` | 35 ms |
+| `Lexer.lex` after a global `marked.use({walkTokens})` | 33 ms |
+
+So lexing is untouched: the hook runs only in `parse`, and a global `marked.use` does not leak into the static lexer. The rule that follows is worth keeping even though nothing violates it today — the splitter calls `Lexer.lex` and nothing else, and the day someone reaches for `marked.parse` or registers an extension to get a feature out of it, the split becomes more expensive than the parse it was added to avoid. Found by the session working on `index-app`, which renders with `marked` and hit it head-on.
+
 This adds `marked` to the renderer's bundle, which is the one cost of the plan rather than a saving. It is a renderer-only dependency and so a `devDependency` (see [AGENTS.md](../../../apps/studio/AGENTS.md)), and only its lexer is reached, so what actually lands is what the bundler keeps of it. Worth measuring rather than assuming, and worth knowing before phase 1 that the alternative — deriving block boundaries from micromark's own event stream — buys the bundle back at the cost of writing the one part of this that a maintained library already does correctly.
 
 **2. Heading ids at document scope.** Replace `rehype-slug` with a pass fed the ids computed once for the whole source. Testable against the current renderer before any splitting happens: same document, same ids, including the duplicates.
@@ -62,6 +74,25 @@ This adds `marked` to the renderer's bundle, which is the one cost of the plan r
 **A single enormous table.** One table is one block, so a 12,000-row table is parsed in one run and the edit map inside it grows exactly as before. That is the case the micromark patch covers, and it is why both exist: splitting bounds the cost *across* a document's blocks, the patch bounds it *within* one. A document of 89 tables is fixed by either; a document that is one huge table is fixed only by the patch.
 
 **The file viewer's open time**, until phase 5. Splitting a static 2 MB file costs about what parsing it whole costs now that the patch is in, because nothing is memoized on a first render. The streaming path is where phases 1-4 pay.
+
+## The alternative: migrate to Streamdown instead
+
+Everything in the five phases above already exists, built and maintained, in [Streamdown](https://github.com/vercel/streamdown) — Vercel's React markdown renderer for model output, Apache-2.0, 110 KB unpacked, React 18/19 peer, v2.6.0 published three weeks before this was written and pushed the day before. Block splitting, per-block memoization, `remend` wired to the tail alone, the word-fade animation, a `static` / `streaming` mode, and handling for a code fence or an HTML tag that has not finished arriving. It is also not a stranger: `remend` is one of its packages, so we are already on part of its stack.
+
+Its prop type is a superset of react-markdown's, reimplemented locally rather than imported but the same shape — `components`, `remarkPlugins`, `rehypePlugins`, `urlTransform`, `allowElement`, `allowedElements`, `skipHtml`. Caller components merge shallowly over its own (`{...defaultComponents, ...userComponents}`), so every override in [markdown.tsx](../../../apps/studio/src/client/components/markdown.tsx) transfers rather than being fought. It even exposes `parseMarkdownIntoBlocksFn`, so the split itself stays swappable. On the API alone this is a plausible afternoon.
+
+**The mismatch is not the API, it is what the library is for.** Its own migration guide tells you to delete your custom components, delete your code block and mermaid components, strip your `prose` classes, and remove your memo wrappers, because all of that is prestyled and built in. That instruction is right for most callers and inverted for us: the components it wants to give us are the ones we have spent the most on and would immediately turn off.
+
+- `MarkdownTable` — the transcript-spanning bleed, the lead spacer, the scroll fades, copy / copy-row / expand, the expand modal, and the wrap-at-cap rule. Streamdown has its own table with `tableMaxHeight` and `controls`.
+- `MarkdownCodeBlock`, which highlights through a main-process RPC, against `@streamdown/code`'s Shiki in the renderer.
+- `InlineLink`'s origin disclosure and `shell.openExternal`, against `linkSafety`'s confirmation modal, which is on by default and is a different answer to the same question.
+- The image policy, the task-file chips and their drag and context menu, the `files` fence, and the mermaid prefetch, none of which it has an equivalent for.
+
+**And one trap worth knowing before anyone starts.** Streamdown inserts `rehype-sanitize` and `rehype-harden` ahead of caller plugins *only while the caller supplies no `rehypePlugins` of their own*. Provide any — and we must, for `rehype-slug`, and for `rehype-raw` and `rehype-katex` when a document needs them — and that insertion does not happen: sanitization becomes ours. Which it already is, so nothing is lost on the day of the migration. What is lost is that the library then looks like it is sanitizing and is not, and the `allowedTags` prop that would be the obvious place to reach documents itself as working "only with default rehype plugins". Our schema and its three departures are reasoned through in `markdown.tsx`; they would have to keep being, with less around them saying so.
+
+**Recommendation: build phases 1-4, and read their source while doing it.** What we would use of Streamdown is the block machinery, which is phases 1-4 and small; what it offers beyond that is the part we would switch off. Taking a large opinionated renderer to use its splitter, and turning off its sanitization by the act of configuring it, is a worse trade than owning three hundred lines. But their `lib/parse-blocks.tsx` and `lib/block-incomplete-context.ts` are the accumulated answer to streaming edge cases we would otherwise rediscover one bug report at a time, and the license invites reading them. Borrow the reasoning; describe it in our own terms in the code.
+
+The judgment to revisit: if we ever want the *whole* surface — their table, their code block, their link handling — the calculus flips, because then the overrides stop being the point and the library is doing the job it was built for. That is a product decision about how much of the chat's look we want to own, not a performance one.
 
 ## How to tell whether it works
 

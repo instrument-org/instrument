@@ -33,7 +33,7 @@ export async function buildBriefContextText(
     So: put the answer in a file, and say where it is.
     - The deliverable is the file. Write it, then check it the way the user will see it.
     - Your last message is a receipt, not a report: one or two sentences saying what you made and anything the assistant has to act on -- a question you need answered, a thing you could not do, a judgment call you made. Never summarize the file's contents, never restate its findings, never repeat its sources. That work is already in the file, and saying it here spends the conversation's context on words it is told not to pass on.
-    - Name every file you made by a path that resolves outside this task: a folder under \`${MOUNT.attachedFolders}/\` when the brief gave you one, which is the same folder for the assistant as for you. A path of your own like \`output/report.md\` means nothing to it.
+    - Name every file you made by a path that resolves outside this task: a folder under \`${MOUNT.attachedFolders}/\` when the brief gave you one, in the path you reach it at. A path of your own like \`output/report.md\` means nothing to it.
     - When the brief named a folder for the deliverable, that is where it goes, over anything this prompt says about \`output/\`.
     </who_reads_you>
   `;

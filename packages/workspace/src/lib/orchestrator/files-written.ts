@@ -2,6 +2,7 @@ import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { Store } from "../store";
+import { mountsOf, translateMountPaths } from "./mount-paths";
 
 /**
  * The most files one task's finish reports. A task that wrote a hundred of
@@ -23,13 +24,15 @@ const MAX_FILES = 8;
  * The paths are translated on the way out. A task writes `output/report.md`
  * relative to its own folder, which is not a path that resolves anywhere in
  * the conversation's shell; the same file is `/tasks/<id>/output/report.md`
- * there. A path already under a shared mount is left alone, because that mount
- * is the same folder for both of them.
+ * there. A path under a mount is translated too, into the conversation's own
+ * name for that folder, which need not be the task's (see mount-paths.ts).
  */
 export async function filesWrittenBy({
+  orchestratorTaskId,
   sessionId,
   taskId,
 }: {
+  orchestratorTaskId: TaskId;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }): Promise<string[]> {
@@ -53,7 +56,16 @@ export async function filesWrittenBy({
       paths.add(asOrchestratorPath({ filePath, taskId }));
     }
   }
-  return [...paths].slice(-MAX_FILES);
+  if (paths.size === 0) {
+    return [];
+  }
+  const taskMounts = await mountsOf(taskId);
+  const orchestratorMounts = await mountsOf(orchestratorTaskId);
+  return [...paths]
+    .slice(-MAX_FILES)
+    .map((filePath) =>
+      translateMountPaths(filePath, taskMounts, orchestratorMounts),
+    );
 }
 
 function asOrchestratorPath({

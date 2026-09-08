@@ -1,16 +1,12 @@
 import path from "node:path";
 
 import { MOUNT } from "../../mount-points";
-import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 
 /** The folders a task reaches, by the name each is mounted under. */
-export type FolderMounts = Record<
-  string,
-  Pick<FolderAttachment.Type, "mountName" | "path">
->;
+export type FolderMounts = Record<string, { mountName: string; path: string }>;
 
 const PREFIX = `${MOUNT.attachedFolders}/`;
 

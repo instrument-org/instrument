@@ -13,6 +13,7 @@ import { z } from "zod";
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
+import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { StoreId } from "../../schemas/store-id";
 import { type Task } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
@@ -42,6 +43,12 @@ import {
   modelTable,
   ownProviderConfigId,
 } from "../orchestrator/models";
+import {
+  type FolderMounts,
+  mountPathOf,
+  mountsOf,
+  translateMountPaths,
+} from "../orchestrator/mount-paths";
 import { outputFolderPath } from "../orchestrator/output-folder";
 import { expectStop } from "../orchestrator/wake";
 import { Store } from "../store";
@@ -231,10 +238,8 @@ export async function runNew(
   const { model, modelURI } = await resolveModel(rawURI);
   await requireOwnProvider(model, context);
   const askedFolders = values.get("folder") ?? [];
-  const resolvedFolders = resolveFolders(
-    askedFolders,
-    orchestratorState.attachedFolders ?? {},
-  );
+  const orchestratorFolders = orchestratorState.attachedFolders ?? {};
+  const resolvedFolders = resolveFolders(askedFolders, orchestratorFolders);
   await requireFoldersOnDisk(resolvedFolders, askedFolders);
   const folders = withWorkspaceFolder(resolvedFolders);
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
@@ -300,6 +305,25 @@ export async function runNew(
   if (message.isErr()) {
     throw message.error;
   }
+  // The brief names folders by the paths this conversation reaches them at, and
+  // the task reaches the same folders at paths of its own: the message attached
+  // them a line ago, which is what makes the task's names readable here.
+  const taskFolders = await mountsOf(taskId);
+  const briefed = {
+    ...message.value,
+    parts: message.value.parts.map((part) =>
+      part.type === "text"
+        ? {
+            ...part,
+            text: translateMountPaths(
+              part.text,
+              orchestratorFolders,
+              taskFolders,
+            ),
+          }
+        : part,
+    ),
+  };
 
   publisher.publish("task.updated", { id: taskId });
   getWorkspaceActorRef().send({
@@ -307,7 +331,7 @@ export async function runNew(
     value: {
       agentName: "main",
       id: taskId,
-      message: message.value,
+      message: briefed,
       model,
       sessionId,
     },
@@ -315,7 +339,7 @@ export async function runNew(
   await recordTaskActivity(taskId);
 
   return ok(
-    `Created ${taskId} ("${name}"). It is running now.\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
+    `Created ${taskId} ("${name}"). It is running now.\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
   );
 }
 
@@ -348,7 +372,12 @@ export async function runSend(
   const message = await newMessage({
     model,
     modelURI,
-    prompt,
+    // In the task's paths, as the brief that started it was.
+    prompt: translateMountPaths(
+      prompt,
+      orchestratorState.attachedFolders ?? {},
+      state.attachedFolders ?? {},
+    ),
     sessionId,
     taskId: task.id,
   });
@@ -720,13 +749,17 @@ async function runShow(args: string[], context: TaskCommandContext) {
   const task = await requireChild(args[0], context);
   const state = await getTaskState(taskDir(task.id));
   const running = isWorking(task.id);
-  const folders = Object.values(state.attachedFolders ?? {}).map(
+  // Everything below is the task's, said in this conversation's paths: the
+  // names are the task's own and mean nothing here (see mount-paths.ts).
+  const taskFolders = state.attachedFolders ?? {};
+  const orchestratorFolders = await mountsOf(context.orchestratorTaskId);
+  const folders = Object.values(taskFolders).map(
     (folder) =>
-      `${MOUNT.attachedFolders}/${folder.mountName} (${effectiveFolderAccess(folder)})`,
+      `${mountPathOf(folder.path, orchestratorFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} (${effectiveFolderAccess(folder)})`,
   );
   const outputs = await listOutputs(task.id);
   const sessionId = await latestSessionId(task.id);
-  const lastSaid =
+  const said =
     sessionId.isOk() && sessionId.value
       ? await lastAssistantText({
           maxLength: SHOW_SUMMARY_MAX_LENGTH,
@@ -734,6 +767,10 @@ async function runShow(args: string[], context: TaskCommandContext) {
           taskId: task.id,
         })
       : undefined;
+  const lastSaid =
+    said === undefined
+      ? undefined
+      : translateMountPaths(said, taskFolders, orchestratorFolders);
 
   const usage = await getTaskUsageSummary(task.id);
   const lines = [
@@ -798,6 +835,23 @@ async function runWait(
   return ok(
     `${task.id} is still running after ${ms(Math.max(1000, Date.now() - startedAt), { long: true })}. You will be told when it finishes; there is no need to wait again.\n`,
   );
+}
+
+/**
+ * What a task was handed, in this conversation's own paths: the folders named
+ * on the command with the access each ended up with, and the workspace folder
+ * that goes with them whether it was named or not.
+ */
+function handedFolders(
+  folders: { access: FolderAttachment.Access; path: string }[],
+  orchestratorFolders: FolderMounts,
+): string {
+  return folders
+    .map(
+      (folder) =>
+        `${mountPathOf(folder.path, orchestratorFolders) ?? folder.path} (${folder.access})`,
+    )
+    .join(", ");
 }
 
 /**

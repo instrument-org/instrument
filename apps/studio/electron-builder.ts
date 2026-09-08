@@ -181,9 +181,18 @@ const config: Configuration = {
     extendInfo: {
       // Must match the Icon Composer bundle name (build/icon.icon).
       CFBundleIconName: "icon",
+      // Why the system's own ask names a reason: without these macOS asks for
+      // each protected folder with generic text. Each is raised the first time
+      // a task is handed the folder.
+      NSAppDataUsageDescription: `${APP_NAME} reads another app's files when you ask it to work with them.`,
       // Restrict macOS verification-code AutoFill to explicitly annotated OTP fields.
       NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
+      NSDesktopFolderUsageDescription: `${APP_NAME} reads and writes files on your Desktop when you ask it to work there.`,
+      NSDocumentsFolderUsageDescription: `${APP_NAME} reads and writes files in your Documents when you ask it to work there, and keeps what it makes in Documents/${APP_NAME}.`,
+      NSDownloadsFolderUsageDescription: `${APP_NAME} reads and writes files in your Downloads when you ask it to work there.`,
       NSLocalNetworkUsageDescription: `${APP_NAME} uses your local network to connect to tools needed for your tasks.`,
+      NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
+      NSRemovableVolumesUsageDescription: `${APP_NAME} reads and writes files on a removable drive when you ask it to work there.`,
     },
     gatekeeperAssess: false,
     hardenedRuntime: true,

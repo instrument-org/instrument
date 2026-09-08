@@ -4,9 +4,18 @@ Status: proposal, not started. Owner: TBD. Split out from [user-chosen-working-f
 
 ## Problem
 
-Each task's conversation lives in its own SQLite file at `tasks/<id>/.instrument/task.db`. That makes any cross-task question expensive and any agent-driven one impractical: "when did we discuss X", "find the task where I set up the deploy script", "rename this project everywhere" all require opening every database in turn.
+Each task's conversation lives in its own SQLite file at `tasks/<id>/.instrument/task.db`. Any cross-task question — "when did we discuss X", "find the task where I set up the deploy script", "rename this project everywhere" — has to open every database in turn, and every such capability needs a bespoke fan-out tool.
 
-This is about to matter more than it does today. The near-term goal is for the agent to have meta control over the app: search its own history, discover old conversations, reorganize projects. With per-task databases, every one of those capabilities needs a bespoke fan-out tool.
+This is about to matter more than it does today. The near-term goal is for the agent to have meta control over the app: search its own history, discover old conversations, reorganize projects.
+
+**How expensive the fan-out actually is, measured.** Over a real workspace of 310 tasks and 198 MB of `task.db`, opening and closing every database read-only takes 21ms warm and 67ms cold. A content search — one `LIKE` over the 13,945 `parts:` rows in all 310, with matches sorted and a snippet pulled from each — takes about 220ms warm and under a second on a cold page cache. It is linear in total bytes with no index, so ten times the history is roughly two seconds.
+
+So the cost separates by **how often the question is asked**, not by whether it fans out:
+
+- **Per render is unaffordable.** The list view runs on every window open, and it is why [get-tasks.ts](../../../packages/workspace/src/lib/get-tasks.ts) never opens `task.db`. Message counts and linked-file projections fall on this side, and no fan-out makes them viable. This is the case that justifies the index in phase 3.
+- **On demand is affordable today.** An agent-invoked content search at ~220ms needs neither the index nor this plan. It should not wait on either.
+
+Two constraints on any fan-out written before the storage change lands. It must open `node:sqlite` directly and close immediately, **not** go through `getSessionsStoreStorage`: that accessor caches one storage instance per task in a module-level map that is only evicted by explicit disposal, and its own comment records that the db0 driver never closes the database. Routing a 310-task search through it would leave 310 databases resident for the life of the process, and would run `runStoreMigrations` against each. And the bodies are superjson-encoded, so a search term containing a quote, backslash, or newline has to be escaped or the query silently returns nothing — the same trap this document already notes for the ripgrep design.
 
 Two repo skills are the current cost, already paid: `task-database-query` exists to run safe read-only SQL against a task database, and `session-transcript` exists to convert one into readable markdown. Both are workarounds for our own data being unreadable by the tools we ship.
 

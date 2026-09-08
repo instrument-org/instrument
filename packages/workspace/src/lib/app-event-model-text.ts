@@ -12,9 +12,12 @@ export function appEventModelNote(
   data: SessionMessageDataPart.AppEventDataPart,
 ) {
   const lines = data.events.map((event) => {
+    // The detail is a sentence of the app's own where it has one, so the
+    // period the clause around it ends with is already there.
+    const detail = event.detail?.replace(/\.$/, "");
     switch (event.event) {
       case "connected": {
-        return `- The user signed in to ${event.name} (${event.slug}). It is connected${event.detail ? `: ${event.detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.`;
+        return `- The user signed in to ${event.name} (${event.slug}). It is connected${detail ? `: ${detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.`;
       }
       case "declined": {
         return `- The user declined to connect ${event.name} (${event.slug}). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can.`;
@@ -23,7 +26,7 @@ export function appEventModelNote(
         return `- ${event.name} (${event.slug}) was disconnected. Its tools and requests will refuse until it is connected again.`;
       }
       case "failed": {
-        return `- Connecting ${event.name} (${event.slug}) failed${event.detail ? `: ${event.detail}` : ""}. Read \`${APP_COMMAND.name} list\`, fix what you can, and tell the user in a line what happened.`;
+        return `- Connecting ${event.name} (${event.slug}) failed${detail ? `: ${detail}` : ""}. Read \`${APP_COMMAND.name} list\`, fix what you can, and tell the user in a line what happened.`;
       }
       case "removed": {
         return `- ${event.name} (${event.slug}) was removed: its folder is gone along with its sign-in or key. Set it up again with \`${APP_COMMAND.name} new\` only if the user asks for it.`;

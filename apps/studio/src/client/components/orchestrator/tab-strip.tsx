@@ -63,13 +63,21 @@ const TAB_MOTION = {
   "--tab-motion": `${TAB_MOTION_MS}ms`,
 } as React.CSSProperties;
 
+// What the tab being read stands on: the channel's own color raised off the
+// bar, so the selection reads in the same hue the bar is wearing. A strip
+// drawn for no channel falls back to the theme's own selected surface.
+const SELECTED = {
+  backgroundColor: "var(--channel-tint-raised, var(--accent))",
+} satisfies React.CSSProperties;
+
 // What a tab stands on while it is being carried over the others.
 const CARRIED = {
   backgroundColor: "var(--card)",
 } satisfies React.CSSProperties;
 const CARRIED_SELECTED = {
   ...CARRIED,
-  backgroundImage: "linear-gradient(var(--accent), var(--accent))",
+  backgroundImage:
+    "linear-gradient(var(--channel-tint-raised, var(--accent)), var(--channel-tint-raised, var(--accent)))",
 } satisfies React.CSSProperties;
 
 interface StripLayout {
@@ -503,7 +511,7 @@ function Tab({
     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
     sizing,
     isSelected
-      ? "bg-accent text-accent-foreground"
+      ? "text-foreground shadow-xs-soft"
       : // An opacity of the ink rather than a grey: the strip sits on the
         // channel's tint in the window bar, and a fixed grey reads as dirt on
         // a colored ground.
@@ -579,9 +587,11 @@ function Tab({
     </>
   );
 
-  let surface: React.CSSProperties | undefined;
+  let surface: React.CSSProperties | undefined = isSelected
+    ? SELECTED
+    : undefined;
   if (isClosing) {
-    surface = COLLAPSED;
+    surface = { ...surface, ...COLLAPSED };
   } else if (isDragging) {
     surface = isSelected ? CARRIED_SELECTED : CARRIED;
   }

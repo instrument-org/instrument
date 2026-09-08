@@ -781,9 +781,10 @@ body {
 
 /* Window chrome tinted by the channel it belongs to: the top bar, a rail tile.
  * Set `--channel-color` to the channel's palette hex (`channelTint()` writes
- * that declaration) and paint with the two colors this publishes:
+ * that declaration) and paint with the three colors this publishes:
  * `--channel-tint-surface` for the fill, `--channel-tint-edge` for the hairline
- * or ring around it.
+ * or ring around it, and `--channel-tint-raised` for something sitting on the
+ * fill and standing off it, such as the tab being read.
  *
  * The hue of the chosen color survives, and the tier it was picked from; every
  * other thing about it is rebuilt, because the palette's hexes
@@ -804,14 +805,22 @@ body {
  * goes with it. Dark takes the larger share, since the same step away from a
  * dark ground reads as a smaller one.
  *
- * Neither color resolves without a `--channel-color`, so a surface that is also
- * drawn for a channel without one paints through a fallback:
+ * The raised color goes the other way, mixing into `--card`, since what stands
+ * on the fill is standing on the ground a card would: in light that is a move
+ * toward white, so it takes little of the tint, and in dark the color is the
+ * lighter of the two, so it takes most of it. Either way it lands clear of the
+ * fill beneath it while staying in the channel's hue, which a grey laid over a
+ * colored bar does not.
+ *
+ * None of the three resolves without a `--channel-color`, so a surface that is
+ * also drawn for a channel without one paints through a fallback:
  * `var(--channel-tint-surface, var(--background))`. */
 @utility channel-tint {
   /* Only the strengths are themed, so the mixes are written once here rather
      than restated per theme. */
   --channel-tint-surface-strength: 30%;
   --channel-tint-edge-strength: 52%;
+  --channel-tint-raised-strength: 12%;
 
   --channel-tint-base: oklch(
     from var(--channel-color) var(--channel-lightness, 0.62)
@@ -827,10 +836,16 @@ body {
     var(--channel-tint-base) var(--channel-tint-edge-strength),
     var(--background)
   );
+  --channel-tint-raised: color-mix(
+    in oklab,
+    var(--channel-tint-base) var(--channel-tint-raised-strength),
+    var(--card)
+  );
 
   :is(.dark *) & {
     --channel-tint-surface-strength: 34%;
     --channel-tint-edge-strength: 58%;
+    --channel-tint-raised-strength: 40%;
   }
 }
 

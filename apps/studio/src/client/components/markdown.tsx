@@ -758,6 +758,18 @@ export const Markdown = memo(
     const [remarkPlugins, setRemarkPlugins] = useState<RemarkPluginList>(
       emptyRemarkPluginList,
     );
+    // `remend` closes what a half-arrived message ends in the middle of: an
+    // unterminated fence, a bold with only its opening `**`, a link with no
+    // `)` yet. A document that has finished arriving has nothing to close, and
+    // the repair is not free -- it walks the whole string once per construct it
+    // knows about, and several of those walks are quadratic, so a large file
+    // spends longer being repaired than being parsed. So it runs while the text
+    // is still moving and nowhere else, which is also the only reading under
+    // which a file someone opened is shown as they wrote it.
+    const text = useMemo(
+      () => (isStreaming ? remend(markdown) : markdown),
+      [isStreaming, markdown],
+    );
     const needsMath = useMemo(() => containsMathSyntax(markdown), [markdown]);
     const needsRawHtml = useMemo(
       () => rawHtmlPattern.test(markdown),
@@ -917,7 +929,7 @@ export const Markdown = memo(
           ]}
           urlTransform={markdownUrlTransform}
         >
-          {remend(markdown)}
+          {text}
         </ReactMarkdown>
       </MarkdownTaskContext>
     );

@@ -376,6 +376,36 @@ describe("Markdown images", () => {
   });
 });
 
+/**
+ * Closing a construct the text stops in the middle of is a reading of text that
+ * has not all arrived, and it is only right while that is true. A file someone
+ * opened has arrived in full, so a `**` in it is two asterisks the author wrote,
+ * and repairing it would show them a document they do not have.
+ *
+ * The cost is the other half of it: the repair walks the whole string once per
+ * construct it knows, and several of those walks are quadratic, so a large
+ * document spends longer being mended than parsed.
+ */
+describe("Markdown half-written constructs", () => {
+  const rendered = (markdown: string, isStreaming?: boolean) =>
+    renderWithProviders(
+      <Markdown isStreaming={isStreaming} markdown={markdown} />,
+    ).container;
+
+  it("closes an unterminated emphasis while the text is still arriving", () => {
+    expect(
+      rendered("A **half written", true).querySelector("strong")?.textContent,
+    ).toBe("half written");
+  });
+
+  it("leaves a finished document as its author wrote it", () => {
+    const container = rendered("A **half written");
+
+    expect(container.querySelector("strong")).toBeNull();
+    expect(container.textContent).toContain("**half written");
+  });
+});
+
 // react-markdown under the name the stylesheet looks for.
 describe("Markdown streaming words", () => {
   const streamingWords = (markdown: string) => {

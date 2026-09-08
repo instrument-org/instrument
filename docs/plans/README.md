@@ -32,6 +32,7 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 | [Shortcut table, menu bar, and guide](active/shortcut-table-menu-bar-and-guide.md) | phases 1-3 landed |
 | [Chat stream turn-model refactor](active/chat-stream-turn-model-refactor.md) | proposed |
 | [Incremental live transcript updates](active/incremental-live-transcript-updates.md) | proposed |
+| [Block-split markdown](active/block-split-markdown.md) — a streaming reply reparses itself once per chunk | proposed |
 | [Full-height transcript scrollbar](active/full-height-transcript-scrollbar.md) | proposed |
 | [Edit a user message in place](active/edit-user-message-in-place.md) — rewind and rerun | proposed |
 | [Semantic prompt composer](active/semantic-prompt-composer.md) | landed for skills, rest deferred |

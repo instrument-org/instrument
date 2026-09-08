@@ -137,7 +137,7 @@ const save = base
   .input(transcriptInput)
   .output(z.object({ filepath: z.string() }))
   .handler(async ({ context, input, signal }) => {
-    const content = await renderTranscript({ context, input, signal });
+    const markdown = await renderTranscript({ context, input, signal });
 
     const settings = await getTaskSettings(taskDir(input.id));
     const outputPath = app.getPath("downloads");
@@ -149,7 +149,7 @@ const save = base
     });
 
     const filepath = path.join(outputPath, filename);
-    await fs.writeFile(filepath, content, "utf8");
+    await fs.writeFile(filepath, markdown, "utf8");
 
     // The transcript is usually saved on its way to an agent, and what an agent
     // needs is the path, not the bytes. Leaving it on the clipboard turns the

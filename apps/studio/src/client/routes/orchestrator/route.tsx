@@ -72,11 +72,13 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { UpdatedToast } from "@/client/components/updated-toast";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
+import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   pathsNamedInMessage,
@@ -135,19 +137,36 @@ export const Route = createFileRoute("/orchestrator")({
  */
 function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
   return (
-    <div className="relative flex h-screen flex-col bg-background">
-      {/* The bar is the window's own row and reserves the band the traffic
-        lights are drawn in, so no column below has to leave a gap for them. */}
-      {bar ?? (
-        <div className="h-10 shrink-0 border-b border-border [-webkit-app-region:drag]" />
-      )}
-      <div className="flex min-h-0 flex-1">{children}</div>
-      <StudioModals />
-      <Toaster position="top-center" />
-      {/* No action beside it: the release notes are a screen this window has
-        not got, and the version it is now on is the part worth saying. */}
-      <UpdatedToast />
-    </div>
+    // The band across the top is the window's, so every menu, popover and
+    // tooltip is held below it: on macOS the traffic lights are drawn over that
+    // strip of web contents and what lands under them cannot be clicked at all.
+    <ChromeInsetProvider top={TOOLBAR_HEIGHT}>
+      {/* `h-full` rather than the viewport: this is drawn inside `ZoomRoot`,
+        which is already the real window scaled to the zoom the UI is laid out
+        at, so a viewport height would apply that zoom a second time. */}
+      <div className="relative flex h-full flex-col bg-background">
+        {/* The bar is the window's own row and reserves the band the traffic
+          lights are drawn in, so no column below has to leave a gap for them. */}
+        {bar ?? (
+          <div
+            className="shrink-0 border-b border-border [-webkit-app-region:drag]"
+            style={{ height: `${TOOLBAR_HEIGHT}px` }}
+          />
+        )}
+        <div className="flex min-h-0 flex-1">{children}</div>
+        <StudioModals />
+        {/* Below the bar, which is where the window's own news belongs and, on
+          macOS, the only place a toast at the top is not partly untouchable. */}
+        <Toaster
+          mobileOffset={{ top: TOOLBAR_HEIGHT + 16 }}
+          offset={{ top: TOOLBAR_HEIGHT + 16 }}
+          position="top-center"
+        />
+        {/* No action beside it: the release notes are a screen this window has
+          not got, and the version it is now on is the part worth saying. */}
+        <UpdatedToast />
+      </div>
+    </ChromeInsetProvider>
   );
 }
 

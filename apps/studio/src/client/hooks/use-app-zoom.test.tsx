@@ -22,6 +22,12 @@ const ZOOM_DIVISORS = ["var(--content-zoom)", "var(--app-zoom)"];
 
 const VIEWPORT_UNIT = /[\d.]+v(?:h|w|max|min)\b/g;
 
+// The same length written as a utility class, where no divisor can be spelled:
+// `h-screen` is `100vh`, so a window drawn with one is the whole window times
+// the zoom it is drawn at. Inside the zoomed root the window is already what
+// `h-full` measures against, and outside it nothing in this app is laid out.
+const VIEWPORT_UTILITY = /\b(?:max-|min-)?[hw]-screen\b/g;
+
 /** Quote characters, which bound the expression a match can belong to. */
 const QUOTES = ['"', "'", "`"];
 
@@ -125,6 +131,17 @@ describe("viewport units in the renderer", () => {
           (match) =>
             `${path.relative(CLIENT_DIR, file)}: ${enclosingExpression(source, match.index)}`,
         );
+    });
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("are never asked for by a viewport utility class", () => {
+    const offenders = sourceFiles(CLIENT_DIR).flatMap((file) => {
+      const source = withoutComments(fs.readFileSync(file, "utf8"));
+      return [...source.matchAll(VIEWPORT_UTILITY)].map(
+        (match) => `${path.relative(CLIENT_DIR, file)}: ${match[0]}`,
+      );
     });
 
     expect(offenders).toEqual([]);

@@ -950,3 +950,84 @@ describe("Markdown plugin loading", () => {
     expect(commits).toBe(1);
   });
 });
+
+/**
+ * A message still arriving is drawn a block at a time so the parser is not
+ * handed the whole of it on every chunk; see `splitMarkdownBlocks`.
+ *
+ * The split is only allowed to change when the parsing happens, never what it
+ * produces, and it stops the moment the text settles. So the test is the same
+ * document read both ways: the words, the elements and their nesting have to
+ * match, and the only licensed difference is the spans the word fade adds while
+ * the text is moving.
+ */
+describe("Markdown while a message is still arriving", () => {
+  const draw = (markdown: string, isStreaming?: boolean) =>
+    renderWithProviders(
+      <Markdown isStreaming={isStreaming} markdown={markdown} />,
+    ).container;
+
+  /**
+   * The two things that have to match: which elements were built, in order, and
+   * every character of text they hold.
+   *
+   * Read as two values rather than as serialized HTML, because the one
+   * difference a split is allowed is whitespace at a block boundary -- a
+   * document rendered whole puts a newline between siblings and one rendered a
+   * block at a time has nowhere to put one -- and no amount of normalizing a
+   * string distinguishes that from a space inside a sentence. Comparing the
+   * element sequence catches anything lost, duplicated or renested, and
+   * comparing text with the whitespace out catches anything dropped from a
+   * word. What is left uncovered, a space lost between two words, is what
+   * `splitMarkdownBlocks`' round-trip test rules out at the source.
+   *
+   * The word-fade spans are unwrapped first: they exist only while the text is
+   * moving, so they are a difference between the two readings by design.
+   */
+  const reading = (container: HTMLElement) => {
+    const copy = container.cloneNode(true) as HTMLElement;
+    for (const span of copy.querySelectorAll("[data-stream-word]")) {
+      span.replaceWith(...span.childNodes);
+    }
+    return {
+      elements: [...copy.querySelectorAll("*")]
+        .map((element) => element.tagName.toLowerCase())
+        .join(" "),
+      text: copy.textContent.replaceAll(/\s+/g, ""),
+    };
+  };
+
+  // Deliberately not here: a document ending mid-construct. The two readings
+  // differ on it by design -- one is repaired and one is shown as written --
+  // which is what the case below asserts.
+  const documents = {
+    "a table after prose": "Before.\n\n| a | b |\n| - | - |\n| 1 | 2 |\n",
+    "html across a blank line":
+      "<details>\n<summary>More</summary>\n\nInside.\n\n</details>\n\nAfter.\n",
+    "prose, list, fence": "One.\n\n- a\n- b\n\n```ts\nconst x = 1;\n```\n",
+    "several paragraphs": "One.\n\nTwo.\n\nThree.\n",
+  };
+
+  it.each(Object.entries(documents))(
+    "reads %s the same split as whole",
+    (_name, markdown) => {
+      expect(reading(draw(markdown, true))).toEqual(reading(draw(markdown)));
+    },
+  );
+
+  // The repair belongs to the block that is still growing and to no other, so
+  // it has to still reach it once the document is in pieces.
+  it("still closes what the last block stops in the middle of", () => {
+    const { container } = renderWithProviders(
+      <Markdown isStreaming markdown={"One.\n\nTwo is **half writ"} />,
+    );
+
+    expect(container.querySelector("strong")?.textContent).toBe("half writ");
+  });
+
+  it("leaves a settled message with no word spans at all", () => {
+    expect(
+      draw(documents["several paragraphs"]).querySelector("[data-stream-word]"),
+    ).toBeNull();
+  });
+});

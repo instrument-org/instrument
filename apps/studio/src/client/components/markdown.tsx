@@ -52,6 +52,7 @@ import {
 } from "../lib/mermaid";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
+import { splitMarkdownBlocks } from "../lib/split-markdown-blocks";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
@@ -739,6 +740,38 @@ const taskFilePathFromImageSrc = (src: string | undefined) =>
     ? src
     : undefined;
 
+/**
+ * One block of a message, or a whole document when it is not being split.
+ *
+ * Memoized on its own text, which is the point of the whole arrangement: a
+ * block behind the one still arriving is handed the same string and the same
+ * plugins on every chunk, so it is neither reparsed nor rebuilt into React
+ * elements. Every prop it takes has to stay referentially stable across a
+ * render for that to hold, which is what the `useMemo`s above are for.
+ */
+const MarkdownBlock = memo(function MarkdownBlock({
+  components,
+  markdown,
+  rehypePlugins,
+  remarkPlugins,
+}: {
+  components: Components;
+  markdown: string;
+  rehypePlugins: PluginList;
+  remarkPlugins: RemarkPluginList;
+}) {
+  return (
+    <ReactMarkdown
+      components={components}
+      rehypePlugins={rehypePlugins}
+      remarkPlugins={remarkPlugins}
+      urlTransform={markdownUrlTransform}
+    >
+      {markdown}
+    </ReactMarkdown>
+  );
+});
+
 export const Markdown = memo(
   ({
     assetBaseUrl,
@@ -756,16 +789,28 @@ export const Markdown = memo(
     const [remarkPlugins, setRemarkPlugins] = useState<RemarkPluginList>(
       emptyRemarkPluginList,
     );
-    // `remend` closes what a half-arrived message ends in the middle of: an
-    // unterminated fence, a bold with only its opening `**`, a link with no
-    // `)` yet. A document that has finished arriving has nothing to close, and
-    // the repair is not free -- it walks the whole string once per construct it
-    // knows about, and several of those walks are quadratic, so a large file
-    // spends longer being repaired than being parsed. So it runs while the text
-    // is still moving and nowhere else, which is also the only reading under
-    // which a file someone opened is shown as they wrote it.
-    const text = useMemo(
-      () => (isStreaming ? remend(markdown) : markdown),
+    /**
+     * The blocks a message still arriving is drawn as, and nothing once it has
+     * settled.
+     *
+     * Re-parsing the whole message on every chunk costs a turn the square of
+     * its own length, because the parse starts from the beginning each time and
+     * there are as many parses as there are chunks. A closed block is never
+     * reopened by later text, so only the last one can have changed and the
+     * rest are already right; drawn as separate memoized children, they are
+     * neither reparsed nor rebuilt.
+     *
+     * A message that has stopped arriving goes back to being one document, and
+     * that is the whole of why splitting is safe to do here. Everything a split
+     * cannot get right is a thing that resolves across blocks -- a heading id
+     * deduplicated against the headings before it, a footnote, a link
+     * reference definition -- and none of it is being read while the words are
+     * still landing. The last chunk of a turn buys the correct reading of all
+     * of it for one whole-document parse, which is what the old code paid on
+     * every chunk.
+     */
+    const blocks = useMemo(
+      () => (isStreaming ? splitMarkdownBlocks(markdown) : undefined),
       [isStreaming, markdown],
     );
     const needsMath = useMemo(() => containsMathSyntax(markdown), [markdown]);
@@ -865,70 +910,104 @@ export const Markdown = memo(
     // whole: the HTML `rehype-raw` re-parses, the formulas `rehype-katex`
     // consumes. It leaves the pipeline the moment the text settles, so a
     // finished message carries no spans at all.
-    const streamingRehypePlugins = isStreaming
-      ? [...rehypePlugins, rehypeAnimateWords]
-      : rehypePlugins;
+    //
+    // Every block carries it rather than only the one still arriving. A block
+    // that lost its spans as the next one opened would drop whatever words were
+    // mid-fade straight to full opacity, and since a block is memoized the
+    // plugin runs over it once either way.
+    const streamingRehypePlugins = useMemo(
+      () =>
+        isStreaming ? [...rehypePlugins, rehypeAnimateWords] : rehypePlugins,
+      [isStreaming, rehypePlugins],
+    );
+
+    // Held apart from the render so a block that has not changed is a memo hit
+    // rather than a re-parse; see `MarkdownBlock`.
+    const components = useMemo<Components>(
+      () => ({
+        a: MarkdownLink,
+        img: ({ alt, className, node: _node, ref: _ref, src, ...props }) => {
+          const image = resolveImageSource(src, {
+            assetBaseUrl,
+            assetVersion,
+            documentUrl,
+          });
+          if (!isImageKindAllowed(image.kind, imageKinds)) {
+            return hideImages ? null : (
+              <BlockedImage alt={alt} src={image.src} />
+            );
+          }
+          // A document's source is written against the directory the
+          // document is in, so it names no path the rest of the app could
+          // resolve; only a message's is a task-root path.
+          const filePath = documentUrl
+            ? undefined
+            : taskFilePathFromImageSrc(src);
+          return (
+            <MarkdownImage
+              {...props}
+              alt={alt}
+              className={className}
+              filePath={filePath}
+              onClick={(event) => {
+                handleImageClick(event, filePath);
+              }}
+              src={image.src}
+            />
+          );
+        },
+        ol: markdownOrderedList,
+        p: markdownParagraph,
+        pre: markdownPre,
+        table: MarkdownTable,
+      }),
+      [
+        assetBaseUrl,
+        assetVersion,
+        documentUrl,
+        handleImageClick,
+        hideImages,
+        imageKinds,
+      ],
+    );
+
+    const remarkPluginList = useMemo(
+      () => [remarkGfm, remarkBreaks, remarkDropBreakAfterBr, ...remarkPlugins],
+      [remarkPlugins],
+    );
 
     return (
       <MarkdownTaskContext
         value={{ assetBaseUrl, assetVersion, isStreaming, taskId }}
       >
-        <ReactMarkdown
-          components={{
-            a: MarkdownLink,
-            img: ({
-              alt,
-              className,
-              node: _node,
-              ref: _ref,
-              src,
-              ...props
-            }) => {
-              const image = resolveImageSource(src, {
-                assetBaseUrl,
-                assetVersion,
-                documentUrl,
-              });
-              if (!isImageKindAllowed(image.kind, imageKinds)) {
-                return hideImages ? null : (
-                  <BlockedImage alt={alt} src={image.src} />
-                );
+        {blocks === undefined ? (
+          <MarkdownBlock
+            components={components}
+            markdown={markdown}
+            rehypePlugins={streamingRehypePlugins}
+            remarkPlugins={remarkPluginList}
+          />
+        ) : (
+          blocks.map((block, index) => (
+            <MarkdownBlock
+              components={components}
+              // The index is the right key here rather than a compromise: a
+              // block only changes identity by being the one still growing, and
+              // that one's contents have changed anyway.
+              key={index}
+              markdown={
+                // `remend` closes what the text stops in the middle of -- an
+                // unterminated fence, a bold with only its opening `**`. Only
+                // the last block can be stopped in the middle of anything, and
+                // the repair walks the whole string it is given once per
+                // construct it knows, several of those walks quadratically.
+                index === blocks.length - 1 ? remend(block) : block
               }
-              // A document's source is written against the directory the
-              // document is in, so it names no path the rest of the app could
-              // resolve; only a message's is a task-root path.
-              const filePath = documentUrl
-                ? undefined
-                : taskFilePathFromImageSrc(src);
-              return (
-                <MarkdownImage
-                  {...props}
-                  alt={alt}
-                  className={className}
-                  filePath={filePath}
-                  onClick={(event) => {
-                    handleImageClick(event, filePath);
-                  }}
-                  src={image.src}
-                />
-              );
-            },
-            ol: markdownOrderedList,
-            p: markdownParagraph,
-            pre: markdownPre,
-            table: MarkdownTable,
-          }}
-          rehypePlugins={streamingRehypePlugins}
-          remarkPlugins={[
-            remarkGfm,
-            remarkBreaks,
-            remarkDropBreakAfterBr,
-            ...remarkPlugins,
-          ]}
-          urlTransform={markdownUrlTransform}
-        >
-          {text}
-        </ReactMarkdown>
+              rehypePlugins={streamingRehypePlugins}
+              remarkPlugins={remarkPluginList}
+            />
+          ))
+        )}
       </MarkdownTaskContext>
     );
   },

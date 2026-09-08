@@ -55,14 +55,24 @@ export namespace SessionMessageDataPart {
 
   export type Name = z.output<typeof NameSchema>;
 
-  // Attached folders removed, renamed, or re-permissioned since the model last
-  // saw them -- attached to the user message that triggers the next turn so the
-  // model stops relying on stale names, removed folders, or an access level the
-  // user has since changed. The standing folder list lives in the session
-  // context, which is written once and never rewritten, so this is the only
-  // thing that gets a change to the model at all.
+  // Attached folders added, removed, renamed, or re-permissioned since the
+  // model last saw them -- attached to the user message that triggers the next
+  // turn so the model stops relying on stale names, removed folders, or an
+  // access level that has since changed, and knows about a folder handed to it
+  // mid-flight. The standing folder list lives in the session context, which is
+  // written once and never rewritten, so this is the only thing that gets a
+  // change to the model at all.
   const AttachedFolderChangesDataPartSchema = z.object({
     accessChanged: z
+      .array(
+        z.object({
+          access: FolderAttachment.AccessSchema,
+          name: z.string(),
+          path: z.string(),
+        }),
+      )
+      .default([]),
+    added: z
       .array(
         z.object({
           access: FolderAttachment.AccessSchema,

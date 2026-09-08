@@ -18,8 +18,15 @@ export function AttachedFolderChangesNote({
   data: SessionMessageDataPart.AttachedFolderChangesDataPart;
 }) {
   const changes: string[] = [];
+  const [attached] = data.added;
   const [regranted] = data.accessChanged;
   const [detached] = data.removed;
+
+  if (attached && data.added.length === 1) {
+    changes.push(`added ${folderLabel(attached.path)}`);
+  } else if (data.added.length > 1) {
+    changes.push(`added ${data.added.length} folders`);
+  }
 
   if (regranted && data.accessChanged.length === 1) {
     changes.push(

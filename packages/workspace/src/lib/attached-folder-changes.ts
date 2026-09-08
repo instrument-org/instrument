@@ -28,11 +28,19 @@ import { effectiveFolderAccess } from "./workspace-fs-layout";
  * part of "current" and reported the same turn instead of lagging behind.
  */
 export function detectAttachedFolderChanges({
+  announced,
   messageId,
   sessionId,
   signal,
   taskId,
 }: {
+  /**
+   * Folders this same message already introduces in full, by host path: the
+   * ones arriving with it, which the attachment part lists with their mounts
+   * and their access. Announcing them again here would say the same thing
+   * twice on the path folders ordinarily arrive by.
+   */
+  announced?: string[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
@@ -67,6 +75,17 @@ export function detectAttachedFolderChanges({
       const currentByPath = new Map<string, (typeof current)[number]>(
         current.map((folder) => [folder.path, folder]),
       );
+      const baselinePaths = new Set(baseline.map((folder) => folder.path));
+      const introduced = new Set(announced ?? []);
+      // A folder attached between turns, which on this side of the app is one
+      // the conversation handed the task with `task folder --add`. The mount is
+      // already live -- the sandbox is built from task state every turn -- so
+      // what this carries is the telling, without which the model has a folder
+      // it was never told it had and a standing list that contradicts it.
+      const added = current.filter(
+        (folder) =>
+          !baselinePaths.has(folder.path) && !introduced.has(folder.path),
+      );
       const removed = baseline.filter(
         (folder) => !currentByPath.has(folder.path),
       );
@@ -94,6 +113,7 @@ export function detectAttachedFolderChanges({
         return [currentFolder];
       });
       if (
+        added.length === 0 &&
         removed.length === 0 &&
         renamed.length === 0 &&
         accessChanged.length === 0
@@ -102,7 +122,7 @@ export function detectAttachedFolderChanges({
       }
 
       return ok({
-        data: { accessChanged, removed, renamed },
+        data: { accessChanged, added, removed, renamed },
         metadata: {
           createdAt: new Date(),
           id: StoreId.newPartId(),

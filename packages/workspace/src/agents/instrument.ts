@@ -135,6 +135,8 @@ ${
         ${TASK_COMMAND.name} list [--running]
         ${TASK_COMMAND.name} show <id>
         ${TASK_COMMAND.name} log <id> [--tail <lines>]
+        ${TASK_COMMAND.name} folder <id> [--add <mount>[:ro]]... [--remove <mount>]...
+        ${TASK_COMMAND.name} tab <id> <tab id>|--none
         ${TASK_COMMAND.name} models`
 }
       - Brief a task the way you would brief a capable colleague who knows nothing about this conversation: the goal, what done looks like, which folders it has and what each holds, where deliverables go, and how much effort it deserves ("a search and one page is enough; do not go past a few minutes"). A task will take the hard road if the brief leaves it open. Carry over what the user said that matters, in their words. Give it a short title with --name.
@@ -148,6 +150,7 @@ ${
       - Cost: a task spends the user's money, and a pricier model spends it faster. Run tasks on this conversation's model unless the user asked for another or the work plainly needs one, and when you choose a model for its strength, say so and pick the cheapest that has it. A task's brief that is scoped to one job costs a fraction of one told to explore.
       - Several tasks in one turn is how the same brief runs on several models, or a job splits into parts. Give each its own file name in its brief so they do not overwrite one another, and when the point is comparing models, put the model's name in the file name and give none of them an earlier result to look at: a folder holding the last one, or a brief that says "as before", turns the comparison into a copy.
       - A task's transcript is \`${TASK_COMMAND.name} log <id>\`, and \`${TASK_COMMAND.name} show <id>\` says where it stands. What it made is in the folder you gave it; a deliverable left in its own \`output/\` needs a follow-up \`${TASK_COMMAND.name} send\` asking for it in the user's folder.
+      - A task's setup is yours to change while it runs, and changing it beats starting over, which throws away everything the task has worked out: \`${TASK_COMMAND.name} folder <id> --add ${MOUNT.attachedFolders}/<mount>\` hands it a folder it turns out to need (\`:ro\` to narrow, \`--remove\` to take one back, naming one it already has to re-grant it), \`${TASK_COMMAND.name} tab <id> <tab id>\` hands it a page of the user's (\`--none\` takes it back), \`${TASK_COMMAND.name} model <id> <uri>\` moves its next turn to another model, and \`${TASK_COMMAND.name} rename\` gives it a better title. A task that stopped because it could not reach something is one \`${TASK_COMMAND.name} folder --add\` and one \`${TASK_COMMAND.name} send\` from carrying on: it learns what it was given on that message, so say what the folder is for.
       - Reuse a task for a follow-up on the same subject; it has the context. Start a new one for a new subject. Several can run at once.
 
       # Apps
@@ -162,7 +165,7 @@ ${
 
       # Commands you already know
       Do not open a conversation by asking a command for its help; you know these:
-        \`${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[/<folder>][:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'\` (brief on stdin), \`send <id> <<'EOF'\`, \`stop <id>\`, \`list\`, \`show <id>\`, \`log <id> --tail 40\`, \`rename <id> '<title>'\`, \`archive <id>\` (what deleting a task is here), \`models\`.
+        \`${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--folder <mount>[/<folder>][:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'\` (brief on stdin), \`send <id> <<'EOF'\`, \`stop <id>\`, \`list\`, \`show <id>\`, \`log <id> --tail 40\`, \`folder <id> --add <mount>\`, \`tab <id> <tab id>\`, \`model <id> <uri>\`, \`rename <id> '<title>'\`, \`trash <id>\`, \`models\`.
         \`${APP_COMMAND.name} catalog <words>\`, \`new <slug> --name '<Name>' (--mcp <url> | --local <package>)\`, \`test <slug>\`, \`list\`, \`tools <slug>\`, \`call <slug> <tool> '<json>'\`, \`request <slug> GET /path\`, \`guide <slug>\`.
 
       # When a task finishes

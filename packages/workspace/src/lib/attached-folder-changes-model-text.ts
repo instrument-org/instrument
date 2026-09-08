@@ -17,6 +17,18 @@ export function attachedFolderChangesModelNote(
 ): null | string {
   const lines: string[] = [];
 
+  if (data.added.length > 0) {
+    const added = data.added
+      .map(
+        (folder) =>
+          `- "${folderLabel(folder.path)}" -> \`${attachedFolderMountPoint(folder.name)}\` (${folder.access === "read-write" ? "read and write" : "read-only"})`,
+      )
+      .join("\n");
+    lines.push(
+      `You have been given these folders since your last activity. They are mounted and ready to read now, alongside the ones your attached-folders context lists:\n${added}`,
+    );
+  }
+
   if (data.removed.length > 0) {
     const removed = data.removed
       .map(

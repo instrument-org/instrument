@@ -8,7 +8,7 @@ import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 function changes(
   data: Partial<SessionMessageDataPart.AttachedFolderChangesDataPart>,
 ) {
-  return { accessChanged: [], removed: [], renamed: [], ...data };
+  return { accessChanged: [], added: [], removed: [], renamed: [], ...data };
 }
 
 function noteText() {
@@ -47,6 +47,26 @@ describe("AttachedFolderChangesNote", () => {
     {
       data: changes({ removed: [NOTES, PHOTOS] }),
       text: "Removed 2 folders",
+    },
+    {
+      data: changes({ added: [{ access: "read-write", ...NOTES }] }),
+      text: "Added Notes",
+    },
+    {
+      data: changes({
+        added: [
+          { access: "read-write", ...NOTES },
+          { access: "read-only", ...PHOTOS },
+        ],
+      }),
+      text: "Added 2 folders",
+    },
+    {
+      data: changes({
+        added: [{ access: "read-write", ...NOTES }],
+        removed: [PHOTOS],
+      }),
+      text: "Added Notes, removed Photos",
     },
   ])("says $text", ({ data, text }) => {
     renderWithProviders(<AttachedFolderChangesNote data={data} />);

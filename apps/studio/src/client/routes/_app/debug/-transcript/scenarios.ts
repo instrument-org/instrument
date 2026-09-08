@@ -1317,6 +1317,9 @@ done`,
             accessChanged: [
               { access: "read-only", name: "Photos", path: "/tmp/Photos" },
             ],
+            added: [
+              { access: "read-write", name: "Exports", path: "/tmp/Exports" },
+            ],
             removed: [{ name: "designs", path: "/tmp/designs" }],
             renamed: [
               {

@@ -65,3 +65,29 @@ export async function attachFolder({
   }
   return attached;
 }
+
+/**
+ * Take a folder away from a task, by the folder on disk rather than by the id
+ * the panel holds. The mirror of {@link attachFolder}, for the callers that
+ * know a path and not an attachment.
+ *
+ * The mounts left keep the names they had. A name is only meaningful against
+ * the set that assigned it, and reassigning here would move a folder the agent
+ * is midway through working in out from under the path it last read.
+ */
+export async function detachFolder({
+  path: folderPath,
+  taskId,
+}: {
+  path: string;
+  taskId: TaskId;
+}): Promise<void> {
+  const dir = taskDir(taskId);
+  const state = await getTaskState(dir);
+  const wanted = AbsolutePathSchema.parse(folderPath);
+  const remaining = Object.entries(state.attachedFolders ?? {}).filter(
+    ([, folder]) => folder.path !== wanted,
+  );
+  await setTaskState(dir, { attachedFolders: Object.fromEntries(remaining) });
+  publisher.publish("task.updated", { id: taskId });
+}

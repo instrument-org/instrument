@@ -220,6 +220,7 @@ export async function newMessage({
   // above so a rename either of them triggers this message is read as part of
   // "current" and reported now instead of lagging a turn behind.
   const folderChanges = await detectAttachedFolderChanges({
+    announced: folders?.map((folder) => folder.path),
     messageId,
     sessionId,
     taskId,

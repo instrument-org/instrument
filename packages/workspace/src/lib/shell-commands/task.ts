@@ -17,7 +17,11 @@ import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { StoreId } from "../../schemas/store-id";
 import { type Task } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
-import { type BrowserTargetId, encodeBrowserTargetId } from "../../types";
+import {
+  type BrowserTargetId,
+  decodeBrowserTargetId,
+  encodeBrowserTargetId,
+} from "../../types";
 import { absolutePathJoin } from "../absolute-path-join";
 import {
   describeConnection,
@@ -25,6 +29,7 @@ import {
   readConnection,
 } from "../apps/connection";
 import { loadApp } from "../apps/store";
+import { attachFolder, detachFolder } from "../attach-folder";
 import {
   killBackgroundProcess,
   listTaskBackgroundProcesses,
@@ -69,7 +74,12 @@ import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
-import { parseFlags, requireFoldersOnDisk, resolveFolders } from "./task-args";
+import {
+  parseFlags,
+  parseFolderSpec,
+  requireFoldersOnDisk,
+  resolveFolders,
+} from "./task-args";
 import { TASK_COMMAND } from "./task-command";
 import { searchTaskContent } from "./task-content-search";
 import {
@@ -142,6 +152,17 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       the one process named, by the id \`show\` lists (bg_1), or every one. A
       server the user is still using is theirs to keep; a scan nobody is
       waiting on is not.
+  ${TASK_COMMAND.name} folder <id> [--add <mount>[/<folder>][:rw|:ro]]... [--remove <mount>[/<folder>]]...
+      Change which folders a task already running may reach, named the way
+      \`new --folder\` names them. --add hands it one more of yours, read and
+      write unless :ro narrows it, and naming a folder it already has re-grants
+      that one at the new access instead of mounting it twice. --remove takes
+      one away; the workspace folder stays, since that is where its results go.
+      A task hears about the change on the next message you send it.
+  ${TASK_COMMAND.name} tab <id> <tab id>|--none
+      Hand a task one of the user's browser tabs after the fact, by the id the
+      note on their message gives, or take the tab back with --none, which
+      leaves the task a browser of its own again.
   ${TASK_COMMAND.name} list [--since <date>] [--until <date>] [--running] [--limit <n>] [--all]
       Your tasks, newest activity first: id, status, what it has running in the
       background when anything does, the day it was last active, how long ago
@@ -174,8 +195,8 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       right call: you are woken when it finishes anyway.
   ${TASK_COMMAND.name} rename <id> '<title>'
       Give a task a better title.
-  ${TASK_COMMAND.name} delete <id>
-      Move a finished task to the trash. \`archive\` is the same command.
+  ${TASK_COMMAND.name} trash <id>
+      Move a finished task to the trash. There is no undo.
 `;
 
 export function createTaskCommand(context: TaskCommandContext) {
@@ -193,9 +214,8 @@ export function createTaskCommand(context: TaskCommandContext) {
         case undefined: {
           return ok(USAGE);
         }
-        case "archive":
-        case "delete": {
-          return await runArchive(rest, context);
+        case "folder": {
+          return await runFolder(rest, context);
         }
         case "kill": {
           return await runKill(rest, context);
@@ -230,6 +250,12 @@ export function createTaskCommand(context: TaskCommandContext) {
         case "stop": {
           return await runStop(rest, context);
         }
+        case "tab": {
+          return await runTab(rest, context);
+        }
+        case "trash": {
+          return await runTrash(rest, context);
+        }
         case "wait": {
           return await runWait(rest, context, ctx.signal);
         }
@@ -241,6 +267,83 @@ export function createTaskCommand(context: TaskCommandContext) {
       return fail(error instanceof Error ? error.message : String(error));
     }
   });
+}
+
+/**
+ * Changes which of the user's folders a task already under way may reach.
+ *
+ * The grant `new --folder` makes, made after the fact: a task that turns out to
+ * need one more folder is handed it where it stands, rather than stopped and
+ * started again with everything it had worked out thrown away. The specs are
+ * this conversation's own, the same as on `new`, since the names a task mounts
+ * its folders under are assigned per task and mean nothing here.
+ *
+ * A task reads its folders fresh on every turn, so the mount is there the
+ * moment this returns; what waits for the next message is the *telling*, which
+ * rides it as a folder-changes note.
+ */
+export async function runFolder(args: string[], context: TaskCommandContext) {
+  const { positional, values } = parseFlags(args, {
+    flags: ["add", "remove"],
+    repeatable: ["add", "remove"],
+  });
+  const task = await requireChild(positional[0], context);
+  const askedAdds = values.get("add") ?? [];
+  const askedRemoves = values.get("remove") ?? [];
+  if (askedAdds.length === 0 && askedRemoves.length === 0) {
+    throw new Error(
+      `folder: --add or --remove is required. \`${TASK_COMMAND.name} show ${task.id}\` lists the folders it has.`,
+    );
+  }
+  const orchestratorState = await getTaskState(
+    taskDir(context.orchestratorTaskId),
+  );
+  const orchestratorFolders = orchestratorState.attachedFolders ?? {};
+  // Resolved before anything is written, so a refused spec leaves the task's
+  // folders as they were rather than half changed.
+  const adds = resolveFolders(askedAdds, orchestratorFolders);
+  await requireFoldersOnDisk(adds, askedAdds);
+  const workspace = path.resolve(outputFolderPath());
+  // Matched against the folders as they stand before any of this runs: every
+  // spec on the line names one of those, not one a later removal has moved.
+  const taskFolders = await mountsOf(task.id);
+  const removes = askedRemoves.map((spec) => {
+    const folder = matchTaskFolder(spec, orchestratorFolders, taskFolders);
+    if (!folder) {
+      throw new Error(
+        `${task.id} has no folder "${spec}". \`${TASK_COMMAND.name} show ${task.id}\` lists the ones it has.`,
+      );
+    }
+    if (path.resolve(folder.path) === workspace) {
+      throw new Error(
+        "every task keeps the workspace folder, which is where its results go when nothing else says. Hand it another folder to write to rather than taking this one away.",
+      );
+    }
+    return folder;
+  });
+
+  const lines: string[] = [];
+  // Taken away first, so `--remove <folder> --add <folder>:ro` reads as the
+  // re-grant it looks like rather than as a removal of what was just added.
+  for (const folder of removes) {
+    await detachFolder({ path: folder.path, taskId: task.id });
+    lines.push(
+      `Took ${mountPathOf(folder.path, orchestratorFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} back from ${task.id}.`,
+    );
+  }
+  for (const folder of adds) {
+    await attachFolder({
+      access: folder.access,
+      path: folder.path,
+      taskId: task.id,
+    });
+    lines.push(
+      `${task.id} now has ${mountPathOf(folder.path, orchestratorFolders) ?? folder.path} (${folder.access}).`,
+    );
+  }
+  return ok(
+    `${lines.join("\n")}\nIt learns of this on the next message you send it; say what the folder is for when it is waiting on one.\n`,
+  );
 }
 
 /**
@@ -515,6 +618,61 @@ export async function runStop(args: string[], context: TaskCommandContext) {
   );
 }
 
+/**
+ * Hands a task one of the user's browser tabs after it has started, or takes
+ * the tab back.
+ *
+ * The tab is the user's and outlives the task, so this points the task's
+ * browser at it rather than creating anything; `--none` leaves the task to open
+ * a browser of its own the next time it needs a page.
+ */
+export async function runTab(args: string[], context: TaskCommandContext) {
+  const task = await requireChild(args[0], context);
+  const wanted = args[1];
+  if (!wanted) {
+    throw new Error(
+      "tab: a tab id is required, or --none to take the tab back. The note on the user's message lists the tabs open.",
+    );
+  }
+  if (wanted === "--none") {
+    const state = await getTaskState(taskDir(task.id));
+    if (!state.browserTargetId) {
+      return ok(
+        `${task.id} has no tab of the user's; it browses on its own already.\n`,
+      );
+    }
+    await setTaskState(taskDir(task.id), { browserTargetId: undefined });
+    publisher.publish("task.stateUpdated", { id: task.id });
+    return ok(
+      `Took the tab back from ${task.id}. It opens a browser of its own from here.\n`,
+    );
+  }
+  const browserTargetId = resolveTab(wanted, context.orchestratorTaskId);
+  await setTaskState(taskDir(task.id), { browserTargetId });
+  publisher.publish("task.stateUpdated", { id: task.id });
+  return ok(
+    `${task.id} now drives tab ${wanted}, page and all. It acts on that tab from its next message.\n`,
+  );
+}
+
+/**
+ * The tab a task was handed, by the id the conversation knows it as, and
+ * whether it is still open: a tab the user has since closed leaves the task
+ * with nothing to act on, which is worth seeing before steering it at one.
+ */
+function describeHandedTab(targetId: BrowserTargetId | undefined): string {
+  if (!targetId) {
+    return "none; it browses on its own";
+  }
+  const decoded = decodeBrowserTargetId(targetId);
+  if (!decoded) {
+    return "none; it browses on its own";
+  }
+  return getWorkspaceConfig().browser.getTargetMeta(targetId)
+    ? decoded.sessionId
+    : `${decoded.sessionId} (closed since it was handed over)`;
+}
+
 function fail(message: string) {
   return {
     exitCode: 1,
@@ -562,6 +720,38 @@ async function listOutputs(taskId: TaskId): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * The folder of a task's own that a `--remove` spec names.
+ *
+ * `show` prints a task's folders in this conversation's paths where a mount of
+ * its own covers one, and in the task's own where none does, so both readings
+ * are tried here: a task can hold a folder this conversation has since given
+ * up, and that folder is still the task's to lose.
+ */
+function matchTaskFolder(
+  spec: string,
+  orchestratorFolders: Record<string, FolderAttachment.Type>,
+  taskFolders: FolderMounts,
+): undefined | { mountName: string; path: string } {
+  const held = Object.values(taskFolders);
+  let hostPath: string | undefined;
+  try {
+    hostPath = resolveFolders([spec], orchestratorFolders)[0]?.path;
+  } catch {
+    // Not a folder of this conversation's; read as one of the task's below.
+    hostPath = undefined;
+  }
+  if (hostPath !== undefined) {
+    const wanted = path.resolve(hostPath);
+    const found = held.find((folder) => path.resolve(folder.path) === wanted);
+    if (found) {
+      return found;
+    }
+  }
+  const { name, subpath } = parseFolderSpec(spec);
+  return subpath ? undefined : held.find((folder) => folder.mountName === name);
 }
 
 function ok(stdout: string) {
@@ -715,7 +905,7 @@ function resolveTab(tab: string, orchestratorTaskId: TaskId): BrowserTargetId {
   return targetId;
 }
 
-async function runArchive(args: string[], context: TaskCommandContext) {
+async function runTrash(args: string[], context: TaskCommandContext) {
   const task = await requireChild(args[0], context);
   const result = await trashTask({
     id: task.id,
@@ -725,7 +915,7 @@ async function runArchive(args: string[], context: TaskCommandContext) {
   if (result.isErr()) {
     throw result.error;
   }
-  return ok(`Archived ${task.id} ("${task.title}").\n`);
+  return ok(`Moved ${task.id} ("${task.title}") to the trash.\n`);
 }
 
 /**
@@ -961,6 +1151,8 @@ async function runShow(args: string[], context: TaskCommandContext) {
       ? undefined
       : translateMountPaths(said, taskFolders, orchestratorFolders);
 
+  const settings = await getTaskSettings(taskDir(task.id));
+  const handedApps = settings?.apps ?? [];
   const usage = await getTaskUsageSummary(task.id);
   // Its own line rather than a word in the status: the status is the turn,
   // and a turn that ended with a scan still going leaves the task idle with
@@ -978,6 +1170,8 @@ async function runShow(args: string[], context: TaskCommandContext) {
     `spent: ${ms(Math.max(1000, usage.activeMs), { long: true })} of work, ${usage.inputTokens + usage.outputTokens} tokens`,
     `model: ${state.selectedModelURI ?? "(none yet)"}`,
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,
+    `apps: ${handedApps.length > 0 ? handedApps.join(", ") : "none"}`,
+    `tab: ${describeHandedTab(state.browserTargetId)}`,
     `scratch: ${MOUNT.tasks}/${task.id}`,
     `outputs: ${outputs.length > 0 ? `\n  ${outputs.join("\n  ")}` : "none yet"}`,
     `last said: ${lastSaid ? `\n  ${lastSaid.replaceAll("\n", "\n  ")}` : "nothing yet"}`,

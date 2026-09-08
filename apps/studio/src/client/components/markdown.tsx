@@ -57,6 +57,7 @@ import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
+import { FileOpenContext } from "./file-open-context";
 import {
   INLINE_CHIP_CLASS_NAME,
   INLINE_CHIP_ICON_CLASS_NAME,
@@ -347,6 +348,7 @@ const TaskFileLink = ({
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
   const { openFiles } = useTaskPaneActions(taskId);
+  const openElsewhere = useContext(FileOpenContext);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
   // Before the guard below, so the chip that turns out not to name a task file
   // still asks in the same order every render.
@@ -360,14 +362,21 @@ const TaskFileLink = ({
     return <span className={className}>{children}</span>;
   }
 
-  const openInPanel = () => {
+  // A chip is a file the reply offers, so it goes where the surface around it
+  // sends one: the pane on the task page, and a tab of its own in a window
+  // that has no pane to open.
+  const openFile = () => {
+    if (openElsewhere) {
+      openElsewhere(filePath);
+      return;
+    }
     openFiles([filePath]);
   };
 
   const chip = (
     <button
       className={cn(INLINE_CHIP_CLASS_NAME, className)}
-      onClick={openInPanel}
+      onClick={openFile}
       title={filePath}
       type="button"
       {...dragProps}
@@ -379,7 +388,7 @@ const TaskFileLink = ({
 
   // The file-action menu needs a task id and asset origin; without the ambient
   // task context (e.g. reasoning or a previewed markdown file) the chip still
-  // left-click opens the panel, just without a right-click menu.
+  // opens the file on a left click, just without a right-click menu.
   if (!taskId || !assetBaseUrl) {
     return chip;
   }

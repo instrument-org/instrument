@@ -69,7 +69,7 @@ pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3
 
 - Runs from the repo root; no `cd` first.
 - **`--model` is required, and there is no default set.** `pnpm eval models
-  [pattern]` lists what the configured providers can run today, newest first,
+[pattern]` lists what the configured providers can run today, newest first,
   each row spelled the way `--model` takes it. Pick for the question you are
   actually asking, and say which models you ran and why when you report the
   result.

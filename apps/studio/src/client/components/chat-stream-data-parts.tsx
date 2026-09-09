@@ -1,4 +1,5 @@
 import {
+  backgroundProcessesModelNote,
   browserStatusModelNote,
   dateChangeModelNote,
   isAddressableTaskFilePath,
@@ -30,6 +31,12 @@ type DataPartVisibility = "always" | "dev" | "hidden";
 const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-attachedFolderChanges": "always",
   "data-attachments": "hidden",
+  // Deliberately not "always". This part is a persisted record of what was
+  // running when the turn began, and a card in the transcript saying "2 still
+  // running" is wrong the moment one stops -- the same staleness that kept live
+  // status out of tool results. The header pill is the live surface; this is
+  // context for the model, and a debug peek for us.
+  "data-backgroundProcesses": "dev",
   "data-browserStatus": "dev",
   // Developer-mode only, deliberately. What happens here is a rollover, not a
   // compaction: assembly stops sending the model's own earlier turns and
@@ -105,6 +112,15 @@ export function renderDataPart({
     case "data-attachments":
     case "data-projectContext": {
       return null;
+    }
+    case "data-backgroundProcesses": {
+      return (
+        <ModelContextDebugCard
+          className="mt-2"
+          key={part.metadata.id}
+          text={backgroundProcessesModelNote(part.data)}
+        />
+      );
     }
     case "data-browserStatus": {
       if (!browserStatusContextAdded) {

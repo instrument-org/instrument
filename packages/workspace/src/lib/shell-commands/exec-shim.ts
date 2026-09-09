@@ -1,5 +1,8 @@
 import { execa, type Options } from "execa";
 
+import { watchSubprocessTree } from "../subprocess-tree";
+import { collectAndForward, currentShellOutputSink } from "./output-sink";
+
 /** A finished subprocess's two output streams, kept apart. */
 export interface ShimStreams {
   stderr: string;
@@ -11,10 +14,21 @@ export interface ShimStreams {
  * they are excluded rather than merely overridden: leaving them settable would
  * let a caller ask for buffers or line arrays, and the merged output this
  * returns is a string by construction.
+ *
+ * `detached` is fixed for a different reason: `watchSubprocessTree` signals the
+ * process group named by the child's own pid, which is a group only because the
+ * child leads one. A shim that turned detaching off would leave that signal with
+ * no group to find, and a kill would report success having stopped nothing.
  */
 type ShimOptions = Omit<
   Options,
-  "all" | "buffer" | "encoding" | "lines" | "reject" | "stripFinalNewline"
+  | "all"
+  | "buffer"
+  | "detached"
+  | "encoding"
+  | "lines"
+  | "reject"
+  | "stripFinalNewline"
 >;
 
 /**
@@ -48,17 +62,37 @@ export function collapseProgress(output: string) {
  *   it runs one command's last line into the next command's first.
  * - `reject` is off so a non-zero exit arrives as an exit code, the way a shell
  *   reports it, rather than as a thrown error.
+ *
+ * When a background run has installed an output sink, a second reader of the
+ * merged stream forwards lines to it as the process writes them. execa tees
+ * that stream rather than handing it over, so buffering stays on and the split
+ * streams above remain authoritative: the sink shows the interleaving a
+ * terminal would have, and a redirection still means what it says.
  */
 export async function execShim(
   file: string,
   args: string[],
   options: ShimOptions,
 ) {
-  const result = await execa(file, args, {
-    ...options,
+  const sink = currentShellOutputSink();
+  const { cancelSignal, ...subprocessOptions } = options;
+  const subprocess = execa(file, args, {
+    ...subprocessOptions,
+    all: true,
+    cancelSignal: sink ? undefined : cancelSignal,
+    detached: sink !== undefined && process.platform !== "win32",
     reject: false,
     stripFinalNewline: false,
   });
+  const finishTreeTermination = sink
+    ? watchSubprocessTree({ pid: subprocess.pid, signal: cancelSignal })
+    : undefined;
+  const streamed = sink
+    ? collectAndForward(subprocess.readable({ from: "all" }), sink)
+    : undefined;
+  const result = await subprocess;
+  await streamed;
+  await finishTreeTermination?.();
   return {
     exitCode: result.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command

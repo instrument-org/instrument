@@ -53,6 +53,7 @@ import { base, toORPCError } from "../../base";
 import { publisher } from "../../publisher";
 import { liveTaskActivity, taskActivity } from "./activity";
 import { taskAgentStatus } from "./agent-status";
+import { taskBackgroundProcesses } from "./background-processes";
 import { taskFiles } from "./files";
 import { taskState } from "./state";
 
@@ -775,6 +776,7 @@ const liveUsageSummary = base
 export const task = {
   activity: taskActivity,
   agentStatus: taskAgentStatus,
+  backgroundProcesses: taskBackgroundProcesses,
   branch,
   byId,
   byIds,

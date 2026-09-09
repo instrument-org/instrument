@@ -1,6 +1,11 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
+import { withShellOutputSink } from "./output-sink";
 
 const runNode = (code: string) => execShim(process.execPath, ["-e", code], {});
 
@@ -29,10 +34,92 @@ describe("execShim", () => {
     expect(result.stderr).toBe("err\n");
   });
 
+  // A sink reads a tee of the merged stream rather than taking the stream over,
+  // so a watched command is still buffered and still reports its streams apart.
+  // Reading the same stream execa is consuming would have forced a choice
+  // between the live view and the redirection.
+  it("feeds a sink the merged stream and still returns the split ones", async () => {
+    const seen: string[] = [];
+    const result = await withShellOutputSink(
+      (text) => {
+        seen.push(text);
+      },
+      () =>
+        execShim(
+          process.execPath,
+          [
+            "-e",
+            "process.stdout.write('out\\n');process.stderr.write('err\\n')",
+          ],
+          {},
+        ),
+    );
+
+    expect(result.stdout).toBe("out\n");
+    expect(result.stderr).toBe("err\n");
+    expect(seen.join("")).toContain("out\n");
+    expect(seen.join("")).toContain("err\n");
+  });
+
   it("reports a non-zero exit as a code rather than throwing", async () => {
     const result = await runNode("process.exit(3)");
     expect(result.exitCode).toBe(3);
   });
+
+  it.runIf(process.platform !== "win32")(
+    "stops descendants when a streamed command is cancelled",
+    async () => {
+      const testDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), "exec-shim-tree-"),
+      );
+      const pidFile = path.join(testDir, "child.pid");
+      const controller = new AbortController();
+      let childPid: number | undefined;
+
+      try {
+        const running = withShellOutputSink(
+          () => {
+            return;
+          },
+          () =>
+            execShim(
+              process.execPath,
+              [
+                "-e",
+                [
+                  "const { spawn } = require('node:child_process');",
+                  "const fs = require('node:fs');",
+                  "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
+                  `fs.writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));`,
+                  "setInterval(() => {}, 1000);",
+                ].join(""),
+              ],
+              { cancelSignal: controller.signal },
+            ),
+        );
+
+        for (let attempt = 0; attempt < 100; attempt++) {
+          const value = await fs.readFile(pidFile, "utf8").catch(() => "");
+          if (value) {
+            childPid = Number(value);
+            break;
+          }
+          await setTimeoutPromise(20);
+        }
+        expect(childPid).toBeTypeOf("number");
+
+        controller.abort();
+        await running;
+
+        expect(childPid === undefined || !processExists(childPid)).toBe(true);
+      } finally {
+        if (childPid !== undefined && processExists(childPid)) {
+          process.kill(childPid, "SIGKILL");
+        }
+        await fs.rm(testDir, { force: true, recursive: true });
+      }
+    },
+  );
 });
 
 describe("shimOutput", () => {
@@ -104,3 +191,12 @@ describe("mapStreams", () => {
     ).toEqual({ stderr: "B", stdout: "A" });
   });
 });
+
+function processExists(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}

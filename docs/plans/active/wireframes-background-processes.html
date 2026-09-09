@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wireframe: what the agent left running</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <style type="text/tailwindcss">
+      @import "tailwindcss";
+
+      /* Studio's light theme, resolved from
+         apps/studio/src/client/styles/globals.css. Regenerate with the command
+         in SKILL.md rather than editing by hand. */
+      @theme {
+        /* sync:start */
+        --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+        --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+        --radius: 0.5rem;
+        --radius-sm: calc(var(--radius) - 4px);
+        --radius-md: calc(var(--radius) - 2px);
+        --radius-lg: var(--radius);
+        --radius-xl: calc(var(--radius) + 4px);
+
+        --shadow-sm: 0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06), 0 0 0 1px rgb(10 13 18 / 0.06);
+        --shadow-xl: 0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
+
+        --color-gray-25: #fdfdfc;
+        --color-gray-50: #fafaf9;
+        --color-gray-100: #f5f5f4;
+        --color-gray-200: #e7e5e4;
+        --color-gray-300: #d7d3d0;
+        --color-gray-400: #a9a29d;
+        --color-gray-500: #79716b;
+        --color-gray-600: #57534e;
+        --color-gray-700: #44403c;
+        --color-gray-800: #292524;
+        --color-gray-900: #1c1917;
+        --color-gray-950: #171412;
+
+        --color-brand-25: #f1f4f2;
+        --color-brand-50: #e2eae7;
+        --color-brand-100: #c5d5d0;
+        --color-brand-200: #9dbfb6;
+        --color-brand-300: #6ca89c;
+        --color-brand-400: #338c81;
+        --color-brand-500: #0e7869;
+        --color-brand-600: #0b6056;
+        --color-brand-700: #0a4a42;
+        --color-brand-800: #093a34;
+        --color-brand-900: #082c28;
+        --color-brand-950: #051b18;
+
+        --color-error-50: #fbeef0;
+        --color-error-100: #f8e4e8;
+        --color-error-300: #e197a6;
+        --color-error-500: #b4324f;
+        --color-error-700: #7a1f30;
+        --color-error-900: #3f121a;
+
+        --color-warning-50: #fffaeb;
+        --color-warning-100: #fef0c7;
+        --color-warning-300: #fec84b;
+        --color-warning-500: #f79009;
+        --color-warning-700: #b54708;
+        --color-warning-900: #7a2e0e;
+
+        --color-success-50: #e9f5eb;
+        --color-success-100: #d9f1db;
+        --color-success-300: #7dcb87;
+        --color-success-500: #29a845;
+        --color-success-700: #176229;
+        --color-success-900: #0b3216;
+
+        --color-yellow-50: #fdf6e2;
+        --color-yellow-100: #fbebc9;
+        --color-yellow-300: #f1cc8e;
+        --color-yellow-500: #d58f4f;
+        --color-yellow-700: #b26747;
+        --color-yellow-900: #59301e;
+
+        --color-brown-50: #fcfbf8;
+        --color-brown-100: #f6f4f0;
+        --color-brown-300: #e8e3da;
+        --color-brown-500: #bbaa8e;
+        --color-brown-700: #937b5b;
+        --color-brown-900: #564538;
+
+        --color-background: #fafaf9;
+        --color-foreground: #171412;
+        --color-card: #ffffff;
+        --color-popover: #ffffff;
+        --color-primary: #171412;
+        --color-primary-foreground: #ffffff;
+        --color-secondary: #f5f5f4;
+        --color-secondary-foreground: #292524;
+        --color-muted: #f5f5f4;
+        --color-muted-foreground: #79716b;
+        --color-accent: #e7e5e4;
+        --color-accent-foreground: #292524;
+        --color-destructive: #b4324f;
+        --color-border: #e7e5e4;
+        --color-input: #e7e5e4;
+        --color-ring: #a9a29d;
+        /* sync:end */
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+
+  <body class="bg-gray-100 p-10 font-sans text-sm text-foreground antialiased">
+    <h1 class="text-[17px] font-semibold">What the agent left running</h1>
+    <p class="mt-1 mb-2 max-w-3xl text-[13px] text-muted-foreground">
+      A task can end with a server or watcher still running. Today nothing says
+      so and quitting the app is the only way to stop one. Four places that
+      could carry it, then the interaction for the one worth building.
+    </p>
+    <p class="mb-8 max-w-3xl text-[13px] text-muted-foreground">
+      The word <span class="font-medium text-foreground">process</span> never
+      appears. Every frame says <span class="font-medium text-foreground">still running</span>,
+      because the audience is someone who did not ask for a server and does not
+      know they have one.
+    </p>
+
+    <h2 class="mb-3 text-[13px] font-semibold">Where it could live</h2>
+    <div class="grid max-w-[1440px] grid-cols-4 gap-6">
+      <!-- A: above the prompt input -->
+      <div>
+        <div
+          class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground"
+        >
+          <span
+            class="grid size-4.5 place-items-center rounded-full bg-brand-500 text-[11px] font-semibold text-white"
+            >A</span
+          >
+          Above the prompt input
+        </div>
+        <div
+          class="flex min-h-88 flex-col justify-end rounded-lg border border-border bg-background p-4.5"
+        >
+          <!-- tail of the transcript -->
+          <div class="mb-3 flex justify-end">
+            <div
+              class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm"
+            >
+              <div class="h-[7px] w-20 rounded-full bg-gray-300"></div>
+            </div>
+          </div>
+          <div class="mb-4 space-y-1.5 opacity-60">
+            <div class="h-[7px] w-11/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-9/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-10/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-7/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-6/12 rounded-full bg-gray-300"></div>
+          </div>
+
+          <div
+            class="flex items-center gap-2 rounded-t-lg border border-b-0 border-border bg-card px-3 py-2"
+          >
+            <span class="relative flex size-2">
+              <span
+                class="absolute inline-flex size-2 animate-ping rounded-full bg-brand-300 opacity-75"
+              ></span>
+              <span
+                class="relative inline-flex size-2 rounded-full bg-brand-500"
+              ></span>
+            </span>
+            <span class="text-[13px] font-medium">2 things still running</span>
+            <button
+              class="ml-auto rounded-sm px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            >
+              Stop all
+            </button>
+            <i class="ph ph-caret-up text-sm text-muted-foreground"></i>
+          </div>
+          <div
+            class="rounded-b-lg border border-border bg-card px-3 py-2.5 shadow-sm"
+          >
+            <div class="h-[7px] w-5/12 rounded-full bg-gray-300"></div>
+            <div class="mt-3.5 flex items-center justify-end gap-2">
+              <i class="ph ph-paperclip text-sm text-muted-foreground"></i>
+              <span class="grid size-5 place-items-center rounded-full bg-primary"
+                ><i class="ph ph-arrow-up text-[11px] text-white"></i
+              ></span>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          Sits where the user already looks before typing, and survives
+          scrolling. Costs a permanent strip of vertical space next to the one
+          control everything else defers to.
+        </p>
+      </div>
+
+      <!-- B: inline in the transcript -->
+      <div>
+        <div
+          class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground"
+        >
+          <span
+            class="grid size-4.5 place-items-center rounded-full bg-gray-300 text-[11px] font-semibold text-white"
+            >B</span
+          >
+          Inline in the transcript
+        </div>
+        <div
+          class="flex min-h-88 flex-col rounded-lg border border-border bg-background p-4.5"
+        >
+          <div class="mb-3 flex justify-end">
+            <div
+              class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm"
+            >
+              <div class="h-[7px] w-24 rounded-full bg-gray-300"></div>
+            </div>
+          </div>
+          <div class="mb-3 space-y-1.5">
+            <div class="h-[7px] w-11/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-8/12 rounded-full bg-gray-300"></div>
+          </div>
+
+          <div class="mb-3 rounded-md border border-border bg-card p-2.5">
+            <div class="flex items-center gap-2">
+              <span class="size-2 rounded-full bg-brand-500"></span>
+              <span class="text-[12px] font-medium">Still running</span>
+              <button
+                class="ml-auto rounded-sm px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/50"
+              >
+                Stop
+              </button>
+            </div>
+            <div class="mt-1.5 truncate font-mono text-[11px] text-muted-foreground">
+              node work/server.js
+            </div>
+          </div>
+
+          <div class="space-y-1.5 opacity-40">
+            <div class="h-[7px] w-10/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-7/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-9/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-5/12 rounded-full bg-gray-300"></div>
+          </div>
+          <p
+            class="mt-auto rounded-md bg-warning-50 px-2.5 py-2 text-[11px] text-warning-900"
+          >
+            Twenty minutes later this is a thousand pixels up the scroll.
+          </p>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          Truthful at the moment it is written and wrong from then on. A
+          transcript is a log, and this is live state, so it is the one place
+          the fact cannot stay correct.
+        </p>
+      </div>
+
+      <!-- C: task header -->
+      <div>
+        <div
+          class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground"
+        >
+          <span
+            class="grid size-4.5 place-items-center rounded-full bg-gray-300 text-[11px] font-semibold text-white"
+            >C</span
+          >
+          Task header
+        </div>
+        <div
+          class="flex min-h-88 flex-col rounded-lg border border-border bg-background p-4.5"
+        >
+          <div
+            class="-mx-1.5 mb-4 flex items-center gap-x-2 rounded-md bg-background px-1.5 py-1"
+          >
+            <i class="ph ph-sidebar-simple text-sm text-muted-foreground"></i>
+            <span class="truncate text-[13px] font-medium">Helsinki launch site</span>
+            <span
+              class="flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-700"
+            >
+              <span class="size-1.5 rounded-full bg-brand-500"></span>2
+            </span>
+            <div class="ml-auto flex items-center gap-1.5">
+              <i class="ph ph-folder text-sm text-muted-foreground"></i>
+              <i class="ph ph-dots-three text-sm text-muted-foreground"></i>
+            </div>
+          </div>
+          <div class="space-y-1.5 opacity-60">
+            <div class="h-[7px] w-11/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-9/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-10/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-6/12 rounded-full bg-gray-300"></div>
+          </div>
+          <div class="my-3 flex justify-end">
+            <div
+              class="inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-2 shadow-sm"
+            >
+              <div class="h-[7px] w-16 rounded-full bg-gray-300"></div>
+            </div>
+          </div>
+          <div class="space-y-1.5 opacity-60">
+            <div class="h-[7px] w-8/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-11/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-7/12 rounded-full bg-gray-300"></div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          Always visible and costs nothing when the count is zero. Also the
+          quietest thing on screen: a 2 in a pill next to a title is not a
+          sentence anyone reads.
+        </p>
+      </div>
+
+      <!-- D: sidebar -->
+      <div>
+        <div
+          class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground"
+        >
+          <span
+            class="grid size-4.5 place-items-center rounded-full bg-gray-300 text-[11px] font-semibold text-white"
+            >D</span
+          >
+          Sidebar
+        </div>
+        <div class="min-h-88 rounded-lg border border-border bg-background p-4.5">
+          <div class="space-y-0.5">
+            <div class="flex items-center gap-2 rounded-md bg-accent px-2 py-1.5">
+              <span class="truncate text-[12px] font-medium">Helsinki launch site</span>
+              <span
+                class="ml-auto flex size-4 shrink-0 items-center justify-center"
+              >
+                <span class="relative flex size-2">
+                  <span
+                    class="absolute inline-flex size-2 animate-ping rounded-full bg-brand-300 opacity-75"
+                  ></span>
+                  <span
+                    class="relative inline-flex size-2 rounded-full bg-brand-500"
+                  ></span>
+                </span>
+              </span>
+            </div>
+            <div class="flex items-center gap-2 px-2 py-1.5">
+              <div class="h-[7px] w-8/12 rounded-full bg-gray-300"></div>
+            </div>
+            <div class="flex items-center gap-2 px-2 py-1.5">
+              <div class="h-[7px] w-6/12 rounded-full bg-gray-300"></div>
+            </div>
+            <div class="flex items-center gap-2 px-2 py-1.5">
+              <div class="h-[7px] w-9/12 rounded-full bg-gray-300"></div>
+              <span class="ml-auto size-2 shrink-0 rounded-full bg-brand-500"></span>
+            </div>
+            <div class="flex items-center gap-2 px-2 py-1.5">
+              <div class="h-[7px] w-7/12 rounded-full bg-gray-300"></div>
+            </div>
+          </div>
+          <p
+            class="mt-4 rounded-md bg-brand-25 px-2.5 py-2 text-[11px] text-brand-800"
+          >
+            The only option that shows a task you are not looking at.
+          </p>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          Answers a question none of the others can: which of my other tasks
+          left something running. Too small to stop anything from, so it is a
+          companion to A, not a rival.
+        </p>
+      </div>
+    </div>
+
+    <h2 class="mt-12 mb-3 text-[13px] font-semibold">
+      A, opened and used
+    </h2>
+    <div class="grid max-w-[1100px] grid-cols-3 gap-6">
+      <div>
+        <div
+          class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground"
+        >
+          <span
+            class="grid size-4.5 place-items-center rounded-full bg-gray-300 text-[11px] font-semibold text-white"
+            >1</span
+          >
+          Resting
+        </div>
+        <div
+          class="flex min-h-64 flex-col justify-end rounded-lg border border-border bg-background p-4.5"
+        >
+          <div
+            class="flex items-center gap-2 rounded-t-lg border border-b-0 border-border bg-card px-3 py-2"
+          >
+            <span class="relative flex size-2">
+              <span
+                class="absolute inline-flex size-2 animate-ping rounded-full bg-brand-300 opacity-75"
+              ></span>
+              <span
+                class="relative inline-flex size-2 rounded-full bg-brand-500"
+              ></span>
+            </span>
+            <span class="text-[13px] font-medium">2 things still running</span>
+            <button
+              class="ml-auto rounded-sm px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            >
+              Stop all
+            </button>
+            <i class="ph ph-caret-up text-sm text-muted-foreground"></i>
+          </div>
+          <div
+            class="rounded-b-lg border border-border bg-card px-3 py-2.5 shadow-sm"
+          >
+            <div class="h-[7px] w-5/12 rounded-full bg-gray-300"></div>
+            <div class="mt-3.5 flex items-center justify-end gap-2">
+              <i class="ph ph-paperclip text-sm text-muted-foreground"></i>
+              <span class="grid size-5 place-items-center rounded-full bg-primary"
+                ><i class="ph ph-arrow-up text-[11px] text-white"></i
+              ></span>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          One line, one verb. A user who does not care can ignore it forever and
+          it never asks a question.
+        </p>
+      </div>
+
+      <div>
+        <div
+          class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground"
+        >
+          <span
+            class="grid size-4.5 place-items-center rounded-full bg-brand-500 text-[11px] font-semibold text-white"
+            >2</span
+          >
+          Opened
+        </div>
+        <div
+          class="flex min-h-64 flex-col justify-end rounded-lg border border-border bg-background p-4.5"
+        >
+          <div
+            class="rounded-t-lg border border-b-0 border-border bg-card shadow-xl"
+          >
+            <div class="flex items-center gap-2 border-b border-border px-3 py-2">
+              <span class="size-2 rounded-full bg-brand-500"></span>
+              <span class="text-[13px] font-medium">2 things still running</span>
+              <button
+                class="ml-auto rounded-sm px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+              >
+                Stop all
+              </button>
+              <i class="ph ph-caret-down text-sm text-muted-foreground"></i>
+            </div>
+            <div class="divide-y divide-border">
+              <div class="flex items-center gap-2.5 px-3 py-2">
+                <i class="ph ph-globe text-sm text-muted-foreground"></i>
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-[12px] font-medium">
+                    Web server on port 8123
+                  </div>
+                  <div class="truncate font-mono text-[11px] text-muted-foreground">
+                    node work/server.js &middot; 41m
+                  </div>
+                </div>
+                <button
+                  class="shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                >
+                  Stop
+                </button>
+              </div>
+              <div class="flex items-center gap-2.5 px-3 py-2">
+                <i class="ph ph-arrows-clockwise text-sm text-muted-foreground"></i>
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-[12px] font-medium">
+                    Rebuilding on every change
+                  </div>
+                  <div class="truncate font-mono text-[11px] text-muted-foreground">
+                    pnpm dev &middot; 41m
+                  </div>
+                </div>
+                <button
+                  class="shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                >
+                  Stop
+                </button>
+              </div>
+            </div>
+          </div>
+          <div
+            class="rounded-b-lg border border-border bg-card px-3 py-2.5 shadow-sm"
+          >
+            <div class="h-[7px] w-5/12 rounded-full bg-gray-300"></div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          A plain-language line above the command, so the user is not asked to
+          read <span class="font-mono text-[11px]">pnpm dev</span> to know what
+          they are stopping. Naming it is the only hard part of this design.
+        </p>
+      </div>
+
+      <div>
+        <div
+          class="mb-2.5 flex items-center gap-2 text-xs font-medium text-muted-foreground"
+        >
+          <span
+            class="grid size-4.5 place-items-center rounded-full bg-gray-300 text-[11px] font-semibold text-white"
+            >3</span
+          >
+          Stopped
+        </div>
+        <div
+          class="flex min-h-64 flex-col justify-end rounded-lg border border-border bg-background p-4.5"
+        >
+          <div class="mb-2 flex items-center gap-2 px-1 text-[12px] text-muted-foreground">
+            <i class="ph ph-check text-sm text-brand-500"></i>
+            Both stopped
+          </div>
+          <div class="rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm">
+            <div class="h-[7px] w-5/12 rounded-full bg-gray-300"></div>
+            <div class="mt-3.5 flex items-center justify-end gap-2">
+              <i class="ph ph-paperclip text-sm text-muted-foreground"></i>
+              <span class="grid size-5 place-items-center rounded-full bg-primary"
+                ><i class="ph ph-arrow-up text-[11px] text-white"></i
+              ></span>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          The strip is gone, not emptied. Nothing running means nothing on
+          screen, so the surface only ever exists when it has something to say.
+        </p>
+      </div>
+    </div>
+
+    <h2 class="mt-12 mb-3 text-[13px] font-semibold">
+      The two states nobody designs for
+    </h2>
+    <div class="grid max-w-[740px] grid-cols-2 gap-6">
+      <div>
+        <div class="mb-2.5 text-xs font-medium text-muted-foreground">
+          Stopped by the two-hour cap
+        </div>
+        <div
+          class="flex min-h-40 flex-col justify-end rounded-lg border border-border bg-background p-4.5"
+        >
+          <div
+            class="flex items-start gap-2 rounded-t-lg border border-b-0 border-border bg-card px-3 py-2"
+          >
+            <i class="ph ph-clock-countdown mt-px text-sm text-muted-foreground"></i>
+            <span class="text-[12px] text-muted-foreground"
+              >The web server was stopped after 2 hours. Ask to start it again
+              if you still need it.</span
+            >
+            <button class="ml-auto shrink-0 text-muted-foreground">
+              <i class="ph ph-x text-sm"></i>
+            </button>
+          </div>
+          <div class="rounded-b-lg border border-border bg-card px-3 py-2.5 shadow-sm">
+            <div class="h-[7px] w-5/12 rounded-full bg-gray-300"></div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          The cap is a good idea that looks like a bug if it happens silently.
+          Dismissible, and it says what to do next.
+        </p>
+      </div>
+
+      <div>
+        <div class="mb-2.5 text-xs font-medium text-muted-foreground">
+          Gone after a restart
+        </div>
+        <div
+          class="flex min-h-40 flex-col justify-end rounded-lg border border-border bg-background p-4.5"
+        >
+          <div class="mb-3 space-y-1.5 opacity-60">
+            <div class="h-[7px] w-10/12 rounded-full bg-gray-300"></div>
+            <div class="h-[7px] w-7/12 rounded-full bg-gray-300"></div>
+          </div>
+          <div class="rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm">
+            <div class="h-[7px] w-5/12 rounded-full bg-gray-300"></div>
+            <div class="mt-3.5 flex items-center justify-end gap-2">
+              <i class="ph ph-paperclip text-sm text-muted-foreground"></i>
+              <span class="grid size-5 place-items-center rounded-full bg-primary"
+                ><i class="ph ph-arrow-up text-[11px] text-white"></i
+              ></span>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-muted-foreground">
+          Nothing survives a quit, so the strip is simply absent. The user needs
+          no notice; the <em>agent</em> does, and that is a context problem
+          rather than a UI one.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

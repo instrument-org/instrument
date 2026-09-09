@@ -13,6 +13,13 @@ interface TranscriptGroupValue {
    * there is one thing moving per group.
    */
   isHead: boolean;
+  /**
+   * How many commands started inside this group are still running. The heading
+   * shows the badge for them: a fold hides the row that would carry it, which
+   * turns "the server is still up" into something you only find by expanding a
+   * phase that looks finished.
+   */
+  runningProcessCount: number;
   toggle: () => void;
 }
 
@@ -75,6 +82,7 @@ export function TranscriptGroup({
   className,
   isExpanded,
   onToggle,
+  runningProcessCount = 0,
 }: {
   canExpand: boolean;
   children: ReactNode;
@@ -82,10 +90,17 @@ export function TranscriptGroup({
   className?: string;
   isExpanded: boolean;
   onToggle: () => void;
+  runningProcessCount?: number;
 }) {
   return (
     <TranscriptGroupContext.Provider
-      value={{ canExpand, isExpanded, isHead: false, toggle: onToggle }}
+      value={{
+        canExpand,
+        isExpanded,
+        isHead: false,
+        runningProcessCount,
+        toggle: onToggle,
+      }}
     >
       <div className={cn(STEP_RUN, className)}>{children}</div>
     </TranscriptGroupContext.Provider>

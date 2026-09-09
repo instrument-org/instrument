@@ -276,7 +276,12 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
 export async function fetchOpenRouterCatalog(
   modelURIs: string[],
 ): Promise<OpenRouterCatalog> {
-  const slugs = modelURIs.map((uri) => uri.split("?")[0] ?? uri);
+  // Only the models actually running through OpenRouter. Several Workers AI ids
+  // are also OpenRouter slugs (`openai/gpt-oss-120b`, `zai-org/glm-5.3`), so
+  // pricing them off this list bills a free run at another provider's rate.
+  const slugs = modelURIs
+    .filter((uri) => uri.includes("provider=openrouter"))
+    .map((uri) => uri.split("?")[0] ?? uri);
   if (slugs.length === 0) {
     return emptyOpenRouterCatalog;
   }

@@ -750,8 +750,8 @@ function OrchestratorLayout() {
     <OrchestratorContext value={screens}>
       {/* Main-pane links navigate in place; the conversation overrides these openers. */}
       <FileOpenContext
-        value={(filePath) => {
-          openNamedPath(filePath);
+        value={(filePath, options) => {
+          openNamedPath(filePath, options);
         }}
       >
         <PageOpenContext value={openPage}>

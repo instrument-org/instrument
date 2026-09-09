@@ -54,6 +54,7 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
+  Menu,
   nativeImage,
   shell,
 } from "electron";
@@ -257,6 +258,66 @@ const openExternalLink = base
     if (!success) {
       throw errors.INVALID_URL();
     }
+  });
+
+/**
+ * Draws a menu where the pointer is, in the OS's own chrome, and says which row
+ * was chosen.
+ *
+ * The renderer is the only side that knows what sits under a pointer -- a page,
+ * a file, a folder, a screen of the app -- and what can be done with each; the
+ * OS is the only side that knows how a menu should look and where it fits on
+ * the display. This is the seam between them: rows in, the id of the row picked
+ * out, and nothing about what any row means crosses over.
+ *
+ * A menu drawn here rather than in the page is also a menu that does not have
+ * to be told about the app's zoom, which every floating thing the renderer
+ * draws has to be.
+ */
+const showContextMenu = base
+  .input(
+    z.object({
+      items: z.array(
+        z.object({
+          enabled: z.boolean().optional(),
+          id: z.string().optional(),
+          label: z.string().optional(),
+          separator: z.boolean().optional(),
+        }),
+      ),
+    }),
+  )
+  .output(z.object({ id: z.string().nullable() }))
+  .handler(async ({ input }) => {
+    // Held in an object so the close callback below reads what a click wrote:
+    // read back off a plain binding, the compiler has it as the initial value.
+    const picked: { id: null | string } = { id: null };
+    const menu = Menu.buildFromTemplate(
+      input.items.map((item) =>
+        item.separator
+          ? { type: "separator" as const }
+          : {
+              click: () => {
+                picked.id = item.id ?? null;
+              },
+              enabled: item.enabled ?? true,
+              label: item.label ?? "",
+            },
+      ),
+    );
+    const window = BrowserWindow.getFocusedWindow();
+    await new Promise<void>((resolve) => {
+      menu.popup({
+        // Deferred by a tick: a row's own handler and the close callback are
+        // both fired around the menu closing, and their order is not promised
+        // across platforms. A tick is enough for the click to have landed.
+        callback: () => {
+          setImmediate(resolve);
+        },
+        ...(window ? { window } : {}),
+      });
+    });
+    return picked;
   });
 
 const openTaskIn = base
@@ -897,6 +958,7 @@ export const utils = {
   prepareTaskFileDrag,
   readDiagnosticLog,
   saveDiagnosticLog,
+  showContextMenu,
   showFileInFolder,
   showFolderPicker,
   showProjectInFolder,

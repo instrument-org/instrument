@@ -29,23 +29,35 @@ export function useOpenInTaskBrowser({
   sessionId,
   taskId,
 }: {
-  sessionId: StoreId.Session;
-  taskId: TaskId;
+  sessionId?: StoreId.Session;
+  taskId?: TaskId;
 }) {
   // A window without a task pane says where a page goes instead.
   const openPage = useContext(PageOpenContext);
   const { selectTab } = useTaskPaneActions(taskId);
-  const { mutate: openBrowser } = useMutation(
-    rpcClient.workspace.browser.open.mutationOptions({
-      onError: () => {
-        toast.error(`Unable to open the link in ${APP_NAME}`);
-      },
-    }),
-  );
+  // The call is reached inside the mutation rather than through the client's
+  // own options builder, which reads the route at render: this hook now runs
+  // over every link in the app, including the ones drawn where the task half of
+  // the client is not there to be read.
+  const { mutate: openBrowser } = useMutation({
+    mutationFn: (input: {
+      id: TaskId;
+      sessionId: StoreId.Session;
+      url: string;
+    }) => rpcClient.workspace.browser.open.call(input),
+    onError: () => {
+      toast.error(`Unable to open the link in ${APP_NAME}`);
+    },
+  });
 
   return (url: string) => {
     if (openPage) {
       openPage(url);
+      return;
+    }
+    // Outside a task and outside a window that says where pages go, there is
+    // nowhere in the app to put one; the caller offers the OS browser instead.
+    if (!taskId || !sessionId) {
       return;
     }
     selectTab(BROWSER_TAB_KEY);

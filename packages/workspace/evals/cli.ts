@@ -14,7 +14,7 @@ import {
   DEFAULT_MAX_RUN_SECONDS,
   DEFAULT_MAX_RUN_TOKENS,
   defineEval,
-  MODELS,
+  HOUSE_FLOOR,
   runEvals,
 } from "./harness";
 import { generateReport } from "./report";
@@ -23,6 +23,8 @@ import {
   formatCost,
   formatNumber,
   isPaidModel,
+  listConfiguredModels,
+  modelFlagFor,
   modelURI,
   setHumanOutputStream,
   write,
@@ -119,25 +121,40 @@ const reasoningEffort = values.effort
  * OpenRouter slug, and a full model URI pins any configured provider. The last
  * two are metered, and metered needs `--paid`.
  */
-const models =
-  values.model && values.model.length > 0
-    ? values.model.map((model) => {
-        if (model.includes("?")) {
-          return model;
-        }
-        if (model.startsWith("cf:")) {
-          return modelURI.workersAi(model.slice(3).replace(/^@cf\//, ""));
-        }
-        return modelURI.openRouter(model);
-      })
-    : MODELS;
+const models = (values.model ?? []).map((model) => {
+  if (model.includes("?")) {
+    return model;
+  }
+  if (model.startsWith("cf:")) {
+    return modelURI.workersAi(model.slice(3).replace(/^@cf\//, ""));
+  }
+  return modelURI.openRouter(model);
+});
+
+/**
+ * No model, no run. There is no default set to fall back on, because a default
+ * is what an unattended agent takes, and a list in a source file goes stale
+ * between the day it was written and the day it decides what a change was
+ * tested against.
+ */
+if (subcommand === "run" && models.length === 0) {
+  write(`${c.red}--model is required.${c.reset}\n\n`);
+  write(
+    `\`pnpm eval models\` lists what the configured providers can run right now, newest first.\nPick for the question being asked and say which you picked and why.\n\n`,
+  );
+  write(
+    `Workers AI carries this project's credits, so it is where to start: pass one as\n\`--model cf:<id>\`, e.g. \`--model cf:${HOUSE_FLOOR}\`, the model this project is\nusually tested against. Everything else is metered and needs --paid.\n`,
+  );
+  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+  process.exit(1);
+}
 
 /**
  * Metered models are opt-in, one flag, every time.
  *
  * Not a warning: a warning is read after the money is gone. Agents run this
  * harness unattended and a suite is one case times one model list, so the
- * difference between a default that spends and a default that does not is the
+ * difference between spending by accident and spending on purpose is the
  * difference between a free run and a bill nobody chose.
  */
 const paidModels = models.filter((model) => isPaidModel(model));
@@ -149,7 +166,7 @@ if (paidModels.length > 0 && !values.paid) {
     write(`  ${model.split("?")[0]}\n`);
   }
   write(
-    `\nWorkers AI carries this project's credits: pass it as \`--model cf:<id>\`, or drop --model\nentirely for the default set (${MODELS.map((model) => model.split("?")[0]).join(", ")}).\nPass --paid when the question is specifically about a frontier model.\n`,
+    `\nWorkers AI carries this project's credits: pass one as \`--model cf:<id>\`, or\n\`pnpm eval models\` to see what is there. Pass --paid when the question is\nspecifically about a model only another provider has.\n`,
   );
   // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(1);
@@ -170,8 +187,15 @@ const adHocEval = values.prompt
     })
   : undefined;
 
-if (subcommand !== "run" && subcommand !== "report" && subcommand !== "list") {
-  process.stderr.write("Usage: tsx evals/run.ts <run|report|list> [options]\n");
+if (
+  subcommand !== "run" &&
+  subcommand !== "report" &&
+  subcommand !== "list" &&
+  subcommand !== "models"
+) {
+  process.stderr.write(
+    "Usage: tsx evals/run.ts <run|report|list|models> [options]\n",
+  );
   process.stderr.write(
     "  run [pattern...] Run evals matching any name pattern, then generate report\n",
   );
@@ -200,6 +224,9 @@ if (subcommand !== "run" && subcommand !== "report" && subcommand !== "list") {
     "  report <dir>     Generate report from an existing workspace dir\n",
   );
   process.stderr.write("  list [pattern]   List available evals\n");
+  process.stderr.write(
+    "  models [pattern] List what the configured providers can run right now\n",
+  );
   throw new Error(`Unknown subcommand: "${subcommand ?? "(none)"}"`);
 }
 
@@ -346,7 +373,8 @@ function provenanceLines(provenance: Rollup["provenance"]): string[] {
   ];
 }
 
-if (subcommand === "list") {
+switch (subcommand) {
+  case "list": {
   const filtered = EVALS.filter((e) => matchesPattern(e.name));
 
   if (filtered.length === 0) {
@@ -363,7 +391,56 @@ if (subcommand === "list") {
       "",
     ].join("\n"),
   );
-} else if (subcommand === "report") {
+    break;
+  }
+  case "models": {
+  const rows = await listConfiguredModels(patternLabel);
+  if (rows.length === 0) {
+    process.stderr.write(
+      patternLabel
+        ? `No models matched pattern: "${patternLabel}"\n`
+        : "No models. Check the provider keys in packages/workspace/.env\n",
+    );
+    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+    process.exit(1);
+  }
+  // Split by what running one costs, since that is the first thing the choice
+  // turns on, and each row carries the spelling that runs it.
+  const section = (title: string, models: typeof rows) => {
+    if (models.length === 0) return [];
+    const cells = models.map((model) => [
+      modelFlagFor(model.uri),
+      model.releasedAt ?? "",
+      model.name,
+    ]);
+    const width = Math.max(...cells.map(([flag]) => (flag ?? "").length));
+    return [
+      "",
+      `${c.dim}${title}${c.reset}`,
+      ...cells.map(
+        ([flag, released, name]) =>
+          `  ${(flag ?? "").padEnd(width)}  ${c.dim}${released}  ${name}${c.reset}`,
+      ),
+    ];
+  };
+  write(
+    [
+      ...section(
+        "Free, on this project's Cloudflare credits:",
+        rows.filter((model) => !isPaidModel(model.uri)),
+      ),
+      ...section(
+        "Metered, refused without --paid:",
+        rows.filter((model) => isPaidModel(model.uri)),
+      ),
+      "",
+      `${c.dim}Newest first. Pick for the question being asked, and say which you picked and why.${c.reset}`,
+      "",
+    ].join("\n"),
+  );
+    break;
+  }
+  case "report": {
   const workspaceRootDir = positionals[1];
 
   if (!workspaceRootDir) {
@@ -391,7 +468,9 @@ if (subcommand === "list") {
   }
   // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(exitCodeFor(rollup));
-} else {
+    break;
+  }
+  default: {
   const filteredEvals = adHocEval
     ? [adHocEval]
     : EVALS.filter((e) => matchesPattern(e.name));
@@ -483,6 +562,7 @@ if (subcommand === "list") {
     }
     // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
     process.exit(exitCodeFor(rollup));
+  }
   }
 }
 

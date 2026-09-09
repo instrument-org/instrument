@@ -1,6 +1,8 @@
 import {
+  type AIGatewayModel,
   AIGatewayModelURI,
   type AIGatewayProviderConfig,
+  fetchModelResultsForProviders,
   noopModelCache,
 } from "@instrument-org/ai-gateway";
 import {
@@ -142,6 +144,52 @@ const PROVIDER_MAP: {
   { envKey: "APP_CEREBRAS_API_KEY", type: "cerebras" },
   { envKey: "APP_GROQ_API_KEY", type: "groq" },
 ];
+
+/**
+ * Every model the configured providers can actually run, newest first.
+ *
+ * Asked live rather than kept in a list here, because the point of the listing
+ * is to be current: a model this project would want to test against today is
+ * one that shipped after whatever a constant in this repo was last edited. A
+ * restricted model is one this account cannot run, so it is left out rather
+ * than offered to a run that would fail on its first request.
+ */
+export async function listConfiguredModels(
+  pattern?: string,
+): Promise<AIGatewayModel.Type[]> {
+  const results = await fetchModelResultsForProviders(buildProviderConfigs(), {
+    captureException: () => {
+      return;
+    },
+    modelCache: noopModelCache,
+  });
+  const needle = pattern?.toLowerCase();
+  return results
+    .flatMap((result) => (result.ok ? result.value : []))
+    .filter((model) => model.restricted === undefined)
+    .filter(
+      (model) =>
+        !needle || `${model.uri} ${model.name}`.toLowerCase().includes(needle),
+    )
+    .toSorted(
+      (a, b) =>
+        (b.releasedAt ?? "").localeCompare(a.releasedAt ?? "") ||
+        a.name.localeCompare(b.name),
+    );
+}
+
+/**
+ * How this model is spelled on the command line: the string that goes after
+ * `--model`, ready to copy. A listing whose ids have to be translated before
+ * they can be run is a listing nobody uses.
+ */
+export function modelFlagFor(uri: string): string {
+  const canonicalId = uri.split("?")[0] ?? uri;
+  if (uri.includes(`providerConfigId=${WORKERS_AI_CONFIG_ID}`)) {
+    return `cf:${canonicalId}`;
+  }
+  return uri.includes("provider=openrouter") ? canonicalId : uri;
+}
 
 function providerConfigId(type: AIGatewayProviderConfig.Type["type"]): string {
   return `${type}-config-id`;

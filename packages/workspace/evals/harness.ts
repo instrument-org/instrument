@@ -47,7 +47,6 @@ import {
   fetchOpenRouterCatalog,
   formatCost,
   formatNumber,
-  modelURI,
   resolveRegistryDir,
   write,
 } from "./utils";
@@ -68,27 +67,24 @@ function evalPrefix(name: string): string {
 }
 
 /**
- * What a change is validated against by default: four families on Workers AI,
- * because a harness affordance that only one family finds is not built yet.
+ * There is no default model set, on purpose.
  *
- * All four are free against the Cloudflare credits this project holds, which is
- * the point. A default that spends metered credits spends them on every run an
- * agent starts without thinking about it, and the bill arrives without anyone
- * having decided to run the experiment.
+ * A list living in this file is a list nobody re-reads: it goes stale as
+ * providers ship, and it answers the question it was written for rather than
+ * the one being asked now. Worse, a default is what an unattended agent takes,
+ * so the models a change is validated against end up chosen by whoever last
+ * edited a constant, months ago, for something else.
  *
- * What that costs in signal is worth stating: these are open-weights models,
- * and a frontier model finds an affordance they miss. That makes them the right
- * default for the question this harness is usually asked -- does the prompt make
- * the thing findable at all -- and the wrong tool for "how does the model our
- * users actually get behave", which is a `--paid` run against the frontier and a
- * decision someone makes on purpose.
+ * So `--model` is required, and `eval models` lists what the configured
+ * providers can actually run today. Whoever runs the harness picks from that
+ * and says why they picked it.
+ *
+ * The one hint: this is the model the project is usually tested against, named
+ * in the error a bare `run` produces so the cheapest reasonable choice is one
+ * copy away. Nothing reads it otherwise, so it going stale costs a sentence in
+ * an error message rather than a run against a model nobody chose.
  */
-export const MODELS = [
-  modelURI.workersAi("zai-org/glm-5.3"),
-  modelURI.workersAi("openai/gpt-oss-120b"),
-  modelURI.workersAi("moonshotai/kimi-k2.6"),
-  modelURI.workersAi("deepseek-ai/deepseek-v4-pro-0813"),
-];
+export const HOUSE_FLOOR = "zai-org/glm-5.3-flash";
 
 export interface CompletedRun {
   /** Every task this run's task started, however deep. Empty unless it delegated. */
@@ -259,7 +255,7 @@ export async function runEvals(
     dryRun = false,
     maxRunSeconds = DEFAULT_MAX_RUN_SECONDS,
     maxRunTokens = DEFAULT_MAX_RUN_TOKENS,
-    models = MODELS,
+    models,
     reasoningEffort,
     repeat = 1,
   }: {
@@ -267,11 +263,11 @@ export async function runEvals(
     dryRun?: boolean;
     maxRunSeconds?: number;
     maxRunTokens?: number;
-    models?: string[];
+    models: string[];
     /** Asked of every task this run creates, the conversation's own included. */
     reasoningEffort?: ReasoningEffort;
     repeat?: number;
-  } = {},
+  },
 ): Promise<{ runs: CompletedRun[]; workspaceRootDir: string }> {
   const workspaceRootDir = path.join(
     os.tmpdir(),

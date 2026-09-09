@@ -68,12 +68,17 @@ pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3
 ```
 
 - Runs from the repo root; no `cd` first.
-- **Workers AI unless the question needs a frontier model.** This project holds
-  Cloudflare credits and pays per token everywhere else, so `cf:<id>` is the
-  spelling to reach for, and no `--model` at all runs the free default set.
-  Anything metered is refused until `--paid` is passed: "does a model find this
-  affordance" is answered by the cheap models, and answering it on a frontier
-  model spends real money on a question that did not need one.
+- **`--model` is required, and there is no default set.** `pnpm eval models
+  [pattern]` lists what the configured providers can run today, newest first,
+  each row spelled the way `--model` takes it. Pick for the question you are
+  actually asking, and say which models you ran and why when you report the
+  result.
+- **Workers AI unless the question needs a model only another provider has.**
+  This project holds Cloudflare credits and pays per token everywhere else, so
+  `cf:<id>` is the spelling to reach for, and anything metered is refused until
+  `--paid` is passed. "Does a model find this affordance" is answered by the
+  cheap models; answering it on a frontier model spends real money on a question
+  that did not need one.
 - `--model` repeats to build a case x model matrix. Different models fail
   differently; one model succeeding is weak evidence. `--repeat` samples the
   same model more than once, which is what a nondeterministic result needs.

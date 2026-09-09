@@ -31,17 +31,18 @@ runs a throwaway one.
 `pnpm eval` also exists at the repo root, so none of these need a `cd` first.
 
 ```bash
-pnpm eval list                      # committed cases
-pnpm eval run [pattern]             # run them
-pnpm eval run --yes --prompt "..."  # one ad-hoc case
-pnpm eval report <workspace-dir>    # re-report a past run, at no cost
+pnpm eval models [pattern]                        # what the providers can run today
+pnpm eval list                                    # committed cases
+pnpm eval run [pattern] --model cf:<id>           # run them
+pnpm eval run --yes --prompt "..." --model cf:<id> # one ad-hoc case
+pnpm eval report <workspace-dir>                  # re-report a past run, at no cost
 ```
 
-Flags: `--model` (repeatable; `cf:<id>` means Workers AI, bare slug means
-OpenRouter, full model URI pins any configured provider), `--paid` (required
-before any metered model runs), `--effort` (`none|low|medium|high|max`, recorded
-on every task the run creates), `--name`, `--repeat`, `--concurrency`,
-`--dry-run`, `--include-context`, `--json`.
+Flags: `--model` (**required** for `run`, repeatable; `cf:<id>` means Workers AI,
+bare slug means OpenRouter, full model URI pins any configured provider),
+`--paid` (required before any metered model runs), `--effort`
+(`none|low|medium|high|max`, recorded on every task the run creates), `--name`,
+`--repeat`, `--concurrency`, `--dry-run`, `--include-context`, `--json`.
 
 `run` and `report` exit non-zero when an assertion failed or a model request was
 refused, so a failed suite is visible without reading the output. `--json` prints
@@ -65,18 +66,26 @@ read-write on your actual files. Both folders derive from one `$HOME` for the
 whole process, so orchestrator cases want `--concurrency 1` and a separate
 process per model when two runs must not see each other's output.
 
-With no `--model`, a case runs against `MODELS` in `harness.ts`: four families on
-Workers AI, so an affordance only one family finds shows up as a failure.
+**There is no default model set, and `--model` is required.** A list of models
+living in a source file is one nobody re-reads: it goes stale as providers ship,
+and it answers whatever question it was written for rather than the one being
+asked now. A default is also what an unattended agent takes, which is how a
+change ends up validated against models chosen by whoever last edited a
+constant. `pnpm eval models [pattern]` asks the configured providers what they
+can run today, newest first, with each row spelled the way `--model` takes it.
 
-**Workers AI is the default and the answer almost every time.** This project has
-Cloudflare credits sitting unused and pays per token everywhere else, so a run
-that spends belongs to a question that specifically needs a frontier model:
-whether the model users actually get behaves a certain way, or whether a
-capability exists at all above the open-weights line. "Is this findable in the
-prompt" and "does the tool work" are not those questions, and they are most of
-what this harness is asked. A metered model is refused without `--paid`, which
-exists because the cost of a suite is one case times one model list and lands
-long after the command that started it.
+So the choice is yours to make per question, and yours to report: **say which
+models you ran and why you picked them**, in the same breath as the result. A
+result that does not name its models is not a result anyone can weigh.
+
+**Workers AI is where to start.** This project has Cloudflare credits sitting
+unused and pays per token everywhere else, so a run that spends belongs to a
+question that specifically needs a model only another provider has. A metered
+model is refused without `--paid`, because the cost of a suite is one case times
+one model list and lands long after the command that started it.
+`zai-org/glm-5.3-flash` is the model this project is usually tested against,
+named in the error a bare `run` produces; it is a hint rather than a default,
+and nothing runs it unless someone passes it.
 
 The harness prints what each model resolved to and records it as
 `resolvedModelId` in the run's `eval-case.json`, which matters for a `--paid`

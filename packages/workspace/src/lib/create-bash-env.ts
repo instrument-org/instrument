@@ -81,8 +81,29 @@ import {
   type WorkspaceFsMount,
 } from "./workspace-fs-layout";
 
-/** FS reads, HTTP bodies, maxStringLength/maxOutputSize; maxHeredocSize unchanged (64 MiB). */
+/** FS reads, HTTP bodies, maxStringLength; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
+
+/**
+ * What one command may build as output, which is a different question from how
+ * large a file the agent may work on. A broad walk over an attached folder
+ * produces a string the size of the tree and every byte of it is allocated on
+ * the thread that paints the window: one unfiltered `rg --files` over a home
+ * folder measures 185 MiB and stalls the window for 25 seconds without
+ * exceeding anything. Bounding this leaves the file sizes alone.
+ */
+const SANDBOX_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Operations and entries one traversal may spend, both 1,000,000 by default.
+ * A home folder reaches that after about twenty seconds and returns nothing to
+ * show for it, since a pipeline stage buffers rather than streams. This is the
+ * backstop rather than the fix, so it is set to give up while the user is still
+ * watching without failing work a task legitimately does: a whole monorepo
+ * checkout with its `node_modules`, the heaviest tree a task holds, is about
+ * 107,000 files, and traversal charges upwards of one unit each.
+ */
+const SANDBOX_MAX_TRAVERSAL = 300_000;
 
 function stubCommand(
   name: string,
@@ -563,8 +584,10 @@ export async function createBashEnv({
     ],
     cwd: MOUNT.task,
     executionLimits: {
-      maxOutputSize: SANDBOX_MAX_BYTES,
+      maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
       maxStringLength: SANDBOX_MAX_BYTES,
+      maxTraversalEntries: SANDBOX_MAX_TRAVERSAL,
+      maxTraversalWork: SANDBOX_MAX_TRAVERSAL,
     },
     network: {
       // No per-domain allow-list to maintain; the agent legitimately fetches

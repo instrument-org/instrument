@@ -32,7 +32,11 @@ import {
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
 import { ViewChip } from "@/client/components/orchestrator/conversation-chrome";
-import { fileHref } from "@/client/components/orchestrator/file-tabs";
+import {
+  fileHref,
+  folderHref,
+  hostPathOfMount,
+} from "@/client/components/orchestrator/file-tabs";
 import { NewChannelDialog } from "@/client/components/orchestrator/new-channel-dialog";
 import {
   screenLocation,
@@ -81,6 +85,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  isFolderPath,
   pathsNamedInMessage,
   StoreId,
   type TaskId,
@@ -103,6 +108,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 
 // The panel that turns Instrument 2.0 off again, in the window it turns off:
 // loaded only where developer mode already put it.
@@ -425,6 +431,34 @@ function OrchestratorLayout() {
       windowTabs.openOrFocusScreen(href);
     }
   };
+  /**
+   * Opens a path a reply named: a file in its viewer, a folder as the folder
+   * view standing in it.
+   *
+   * A file is addressed by the mount the conversation reaches it through and
+   * the view resolves the rest; a folder is addressed by where it sits on the
+   * Mac, so the translation happens here, against the conversation's own
+   * folders and the folders of the tasks it started. A folder under neither is
+   * one this window cannot stand in, and saying so beats a tab rooted nowhere.
+   */
+  const openNamedPath = (path: string) => {
+    if (!isFolderPath(path)) {
+      openScreen(fileHref(path));
+      return;
+    }
+    const hostPath = hostPathOfMount(
+      path.slice(0, -1),
+      state.data?.attachedFolders ?? {},
+      new Map(children.data?.map((child) => [child.id, child.dir])),
+    );
+    if (hostPath === undefined) {
+      toast(`Nothing at “${path}”`, {
+        description: "Not a folder Instrument can reach.",
+      });
+      return;
+    }
+    openScreen(folderHref(hostPath));
+  };
 
   // Back and forward, which belong to the tab on screen and to nothing else.
   // A page hands them to its guest, which is the thing that has the history;
@@ -714,10 +748,11 @@ function OrchestratorLayout() {
 
   return (
     <OrchestratorContext value={screens}>
-      {/* A file the conversation offers opens in a tab of its own. */}
+      {/* A file the conversation offers opens in a tab of its own; a folder
+        opens as the folder view standing in it. */}
       <FileOpenContext
         value={(filePath) => {
-          openScreen(fileHref(filePath));
+          openNamedPath(filePath);
         }}
       >
         <PageOpenContext value={openPage}>

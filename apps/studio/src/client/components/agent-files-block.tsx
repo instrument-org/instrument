@@ -9,19 +9,25 @@ import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import {
   isAddressableTaskFilePath,
+  isFolderPath,
+  nameOfPath,
   parseFilesBlock,
 } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
+import { fork } from "radashi";
 import { useContext } from "react";
 
 import { FileIcon } from "./file-icon";
 import { FilesGrid } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
+import { MacFolderIcon } from "./icons/mac-folder";
 import { MarkdownTaskContext } from "./markdown-task-context";
+import { PreviewListItem } from "./preview-list-item";
 
 /**
  * Renders a ```files fence: the files the agent chose to show, in the order it
- * listed them.
+ * listed them. A line ending in a slash is a folder, which is how a reply
+ * hands over a set of files at once rather than a set of lines.
  *
  * This is the agent's own presentation, so it is not the change list. It shows
  * what the agent named and nothing it did not, wherever the file lives -- which
@@ -102,8 +108,8 @@ export function FilePathsGrid({
     return null;
   }
 
-  const files = paths.map<TaskFileViewerFile>((filePath) => ({
-    filename: filePath.split("/").at(-1) ?? filePath,
+  const fileOf = (filePath: string): TaskFileViewerFile => ({
+    filename: nameOfPath(filePath),
     filePath,
     taskId,
     url: getAssetUrl({
@@ -111,32 +117,86 @@ export function FilePathsGrid({
       filePath,
       version: assetVersion,
     }),
-  }));
+  });
+  const [folderPaths, filePaths] = fork(paths, isFolderPath);
 
+  // Folders and files interleave here, because a line is a line and the order
+  // is the reply's. The grid below cannot: it lays its files out by shape, so
+  // the folders take a row of their own above them.
   if (layout === "list") {
     return (
       <div className="not-prose my-2 flex flex-col gap-1">
-        {files.map((file) => (
-          <FileLine
-            file={file}
-            key={file.filePath}
-            onClick={() => {
-              showTaskFile(file.filePath);
-            }}
-          />
-        ))}
+        {paths.map((path) =>
+          isFolderPath(path) ? (
+            <FolderLine
+              key={path}
+              onClick={() => {
+                showTaskFile(path);
+              }}
+              path={path}
+            />
+          ) : (
+            <FileLine
+              file={fileOf(path)}
+              key={path}
+              onClick={() => {
+                showTaskFile(path);
+              }}
+            />
+          ),
+        )}
       </div>
     );
   }
 
   return (
-    <div className="not-prose my-4">
+    <div className="not-prose my-4 flex flex-col gap-2">
+      {folderPaths.length > 0 && (
+        <div className="flex flex-wrap items-start gap-2">
+          {folderPaths.map((path) => (
+            <div className="h-12 max-w-48 min-w-0" key={path}>
+              <PreviewListItem
+                icon={<MacFolderIcon className="size-5 shrink-0" />}
+                label={nameOfPath(path)}
+                onClick={() => {
+                  showTaskFile(path);
+                }}
+                tooltipContent={path}
+              />
+            </div>
+          ))}
+        </div>
+      )}
       <FilesGrid
-        files={files}
+        files={filePaths.map(fileOf)}
         pendingFilePath={pendingFilePath}
         preserveOrder
       />
     </div>
+  );
+}
+
+/**
+ * One folder as a line, beside the files of the same fence: the mark a folder
+ * wears everywhere else in the app, its name, and the word for what it is
+ * where a file says its kind.
+ *
+ * The origin is not asked. It serves files, so a folder has no answer there,
+ * and the answer it gives instead is a 404 -- which is a line reading "Missing"
+ * over a folder that is sitting right where the reply said it was.
+ */
+function FolderLine({ onClick, path }: { onClick: () => void; path: string }) {
+  return (
+    <button
+      className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs hover:bg-accent/50"
+      onClick={onClick}
+      type="button"
+    >
+      <MacFolderIcon className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{nameOfPath(path)}</span>
+      <span className="shrink-0 text-[10px] text-muted-foreground">Folder</span>
+      <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
+    </button>
   );
 }
 

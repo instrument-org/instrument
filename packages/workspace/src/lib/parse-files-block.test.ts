@@ -46,6 +46,18 @@ describe("parseFilesBlock", () => {
     `);
   });
 
+  // The slash is the whole of what says folder, so it survives the wrappers
+  // and markers a path picks up on its way through Markdown.
+  it("keeps the trailing slash that names a folder", () => {
+    expect(parseFilesBlock("- `/mnt/Photos/holiday/`\noutput/a.png"))
+      .toMatchInlineSnapshot(`
+        [
+          "/mnt/Photos/holiday/",
+          "output/a.png",
+        ]
+      `);
+  });
+
   it("keeps prose lines, which fail to resolve rather than parse", () => {
     expect(parseFilesBlock("Here are your files:\noutput/a.png"))
       .toMatchInlineSnapshot(`

@@ -121,6 +121,18 @@ describe("AgentFilesBlock", () => {
     `);
   });
 
+  // A trailing slash names a folder, and a folder is not a file the grid can
+  // draw a preview of: asked for one, the asset origin answers 404, which is a
+  // card reading "Missing" over a folder sitting where the reply said it was.
+  it("keeps a folder out of the grid and names it beside", () => {
+    renderBlock("/mnt/Instrument/backups/\n/mnt/Instrument/report.html");
+
+    expect(shownFiles()).toEqual([
+      "/mnt/Instrument/report.html @ http://assets.a-task.localhost:1234/mnt/Instrument/report.html",
+    ]);
+    expect(screen.getByRole("button").textContent).toBe("backups");
+  });
+
   it("takes the grid's folder bucketing off, which drops anything outside the task folder", () => {
     renderBlock("output/chart.png");
 

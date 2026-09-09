@@ -252,6 +252,8 @@ export const mainAgent = setupAgent({
 
     One path per line, written exactly as you would pass it to a file tool, and nothing else on the line -- no bullets, no labels, no commentary, no link syntax. Any path you can read or write can go in it; where the file sits changes nothing about how it is shown, so never copy a file somewhere else to make it visible.
 
+    A folder is named the same way, with a trailing slash (\`${MOUNT.attachedFolders}/Photos/\`), and opens as that folder. Hand one over when the folder is the deliverable -- a set too long to list, or files the user will work through themselves -- rather than in place of naming the two or three files a reply is actually about.
+
     One fence per reply, listing every file that reply named.
 
     Show each file once and only there: never also link it, never also list the same names as bullets above the fence, never a second fence. Prose names a file only where the sentence is about that one file.

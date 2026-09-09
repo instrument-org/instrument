@@ -54,6 +54,19 @@ export function fileHref(mount: string) {
 }
 
 /**
+ * The address of a folder's tab: the folder view standing in it.
+ *
+ * Rooted there rather than opened under the home folder, so the columns start
+ * at the folder that was handed over instead of at the walk down to it. Takes
+ * the path on the Mac, which is what the view is rooted by, and every other
+ * way into a folder in this window -- a place on the home page, a path typed
+ * into the omnibar -- arrives at the same address.
+ */
+export function folderHref(hostPath: string) {
+  return `/orchestrator/computer?path=&root=${encodeURIComponent(hostPath)}`;
+}
+
+/**
  * Where a virtual path lives on the Mac: under a granted folder, or under the
  * folder of a task the conversation started, which it sees at `/tasks/<id>`.
  */

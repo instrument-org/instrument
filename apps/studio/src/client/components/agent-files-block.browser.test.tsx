@@ -132,6 +132,22 @@ test("says a file is missing, keeps its line where the reply put it, and offers 
     .toBeDisabled();
 });
 
+test("draws a folder as a folder, in the place the fence gave it", async () => {
+  // The origin serves files, so it has no answer for a folder but a 404 -- the
+  // answer a file gives when it is gone. A folder drawn as a file is therefore
+  // a line reading "Missing", with nothing where the name should be, since the
+  // slash it ends in leaves the last segment empty.
+  originAnswering(404);
+  const { getByRole, getByText } = await drawFence(
+    "/mnt/Instrument/notes.md\n/mnt/Instrument/backups/",
+    { layout: "list" },
+  );
+
+  await expect.element(getByText("backups")).toBeInTheDocument();
+  await expect.element(getByText("Folder")).toBeInTheDocument();
+  await expect.element(getByRole("button", { name: /backups/ })).toBeEnabled();
+});
+
 test("names a file's kind beside it the way the row cards do", async () => {
   // The line's right-hand text used to be the extension upper-cased, which is
   // the filename said twice; it is the kind the row cards say.

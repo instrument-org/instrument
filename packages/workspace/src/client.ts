@@ -25,7 +25,11 @@ export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
 export { isTaskFileHref, taskFilePathFromHref } from "./lib/task-file-href";
-export { isAddressableTaskFilePath } from "./lib/task-file-path";
+export {
+  isAddressableTaskFilePath,
+  isFolderPath,
+  nameOfPath,
+} from "./lib/task-file-path";
 export {
   getUsageSummaryFromMessages,
   type UsageSummary,

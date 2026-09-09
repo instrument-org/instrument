@@ -177,30 +177,6 @@ export function FilePathsGrid({
 }
 
 /**
- * One folder as a line, beside the files of the same fence: the mark a folder
- * wears everywhere else in the app, its name, and the word for what it is
- * where a file says its kind.
- *
- * The origin is not asked. It serves files, so a folder has no answer there,
- * and the answer it gives instead is a 404 -- which is a line reading "Missing"
- * over a folder that is sitting right where the reply said it was.
- */
-function FolderLine({ onClick, path }: { onClick: () => void; path: string }) {
-  return (
-    <button
-      className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs hover:bg-accent/50"
-      onClick={onClick}
-      type="button"
-    >
-      <MacFolderIcon className="size-4 shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{nameOfPath(path)}</span>
-      <span className="shrink-0 text-[10px] text-muted-foreground">Folder</span>
-      <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
-    </button>
-  );
-}
-
-/**
  * One file as a line: the shape a fence takes in the conversation's narrow
  * column. The kind beside the name is the one the row cards say ("Text file",
  * "Markdown"), and a file the origin no longer has says so in its place, the
@@ -235,6 +211,30 @@ function FileLine({
       {!isMissing && (
         <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
       )}
+    </button>
+  );
+}
+
+/**
+ * One folder as a line, beside the files of the same fence: the mark a folder
+ * wears everywhere else in the app, its name, and the word for what it is
+ * where a file says its kind.
+ *
+ * The origin is not asked. It serves files, so a folder has no answer there,
+ * and the answer it gives instead is a 404 -- which is a line reading "Missing"
+ * over a folder that is sitting right where the reply said it was.
+ */
+function FolderLine({ onClick, path }: { onClick: () => void; path: string }) {
+  return (
+    <button
+      className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs hover:bg-accent/50"
+      onClick={onClick}
+      type="button"
+    >
+      <MacFolderIcon className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{nameOfPath(path)}</span>
+      <span className="shrink-0 text-[10px] text-muted-foreground">Folder</span>
+      <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
     </button>
   );
 }

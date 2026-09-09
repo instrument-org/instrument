@@ -9,6 +9,12 @@ import {
 import { app, type BrowserWindow } from "electron";
 import { debounce } from "radashi";
 
+export function isWindowNormal(window: BrowserWindow) {
+  return (
+    !window.isMaximized() && !window.isMinimized() && !window.isFullScreen()
+  );
+}
+
 /**
  * Keeps the size and place a window comes back to.
  *
@@ -95,10 +101,4 @@ export function trackWindowBounds(
     /** Record it once the window has settled. */
     saveSoon,
   };
-}
-
-export function isWindowNormal(window: BrowserWindow) {
-  return (
-    !window.isMaximized() && !window.isMinimized() && !window.isFullScreen()
-  );
 }

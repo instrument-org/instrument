@@ -1,8 +1,8 @@
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { rpcClient } from "@/client/rpc/client";
-import { safe } from "@orpc/client";
 import { isFolderPath, type TaskId } from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
 import { useContext } from "react";
 import { toast } from "sonner";
 

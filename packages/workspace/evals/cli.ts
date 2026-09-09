@@ -151,6 +151,7 @@ if (paidModels.length > 0 && !values.paid) {
   write(
     `\nWorkers AI carries this project's credits: pass it as \`--model cf:<id>\`, or drop --model\nentirely for the default set (${MODELS.map((model) => model.split("?")[0]).join(", ")}).\nPass --paid when the question is specifically about a frontier model.\n`,
   );
+  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(1);
 }
 

@@ -114,13 +114,20 @@ async function strip(
 }
 
 // What each tab the strip drew came out at, and what it had room to draw.
+//
+// The fixed tab is read as its state alone. Its width is the word in it rather
+// than a share of the row, so it is the one number here that comes from text
+// measurement, and text measures a pixel differently from one machine to the
+// next -- a difference this test says nothing about and was failing over.
 async function widths(fileCount: number, width: number) {
   const { tabs } = await strip(fileCount, width);
 
   return Object.fromEntries(
     tabs.map((tab) => [
       tab.title,
-      `${tab.dataset.density ?? "unmeasured"} (${tab.offsetWidth}px)`,
+      tab.title === "Browser"
+        ? (tab.dataset.density ?? "unmeasured")
+        : `${tab.dataset.density ?? "unmeasured"} (${tab.offsetWidth}px)`,
     ]),
   );
 }
@@ -134,7 +141,7 @@ test("compresses the row together, and holds the tab being read out of it", asyn
     {
       "six": {
         "narrow": {
-          "Browser": "icon (28px)",
+          "Browser": "icon",
           "chart.png": "icon (31px)",
           "data.csv": "icon (31px)",
           "notes.md": "icon (31px)",
@@ -143,7 +150,7 @@ test("compresses the row together, and holds the tab being read out of it", asyn
           "summary.docx": "icon (31px)",
         },
         "wide": {
-          "Browser": "icon (28px)",
+          "Browser": "icon",
           "chart.png": "full (80px)",
           "data.csv": "compact (61px)",
           "notes.md": "compact (61px)",
@@ -154,13 +161,13 @@ test("compresses the row together, and holds the tab being read out of it", asyn
       },
       "three": {
         "narrow": {
-          "Browser": "icon (28px)",
+          "Browser": "icon",
           "chart.png": "full (80px)",
           "notes.md": "icon (58px)",
           "quarterly-report-2026.pdf": "icon (58px)",
         },
         "wide": {
-          "Browser": "full (86px)",
+          "Browser": "full",
           "chart.png": "full (113px)",
           "notes.md": "full (113px)",
           "quarterly-report-2026.pdf": "full (113px)",
@@ -168,12 +175,12 @@ test("compresses the row together, and holds the tab being read out of it", asyn
       },
       "two": {
         "narrow": {
-          "Browser": "icon (28px)",
+          "Browser": "icon",
           "chart.png": "full (100px)",
           "quarterly-report-2026.pdf": "full (100px)",
         },
         "wide": {
-          "Browser": "full (86px)",
+          "Browser": "full",
           "chart.png": "full (171px)",
           "quarterly-report-2026.pdf": "full (171px)",
         },
@@ -485,9 +492,12 @@ test("holds a closing tab in the row, collapsed, and then drops it", async () =>
       minWidth: collapsed.minWidth,
       opacity: collapsed.opacity,
     },
-    // Which the row has taken: three even tabs are two.
+    // Which the row has taken: three even tabs are two. The fixed tab is named
+    // without its width, which is the word in it rather than a share of the
+    // row and measures a pixel differently from one machine to the next.
     widths: [...list.querySelectorAll<HTMLElement>('[role="tab"]')].map(
-      (tab) => `${tab.title}:${tab.offsetWidth}`,
+      (tab) =>
+        tab.title === "Browser" ? tab.title : `${tab.title}:${tab.offsetWidth}`,
     ),
   }).toMatchInlineSnapshot(`
     {
@@ -503,7 +513,7 @@ test("holds a closing tab in the row, collapsed, and then drops it", async () =>
         "opacity": "0",
       },
       "widths": [
-        "Browser:86",
+        "Browser",
         "quarterly-report-2026.pdf:0",
         "chart.png:171",
         "notes.md:171",

@@ -53,5 +53,5 @@ export function isFolderPath(path: string): boolean {
  * is what that costs.
  */
 export function nameOfPath(path: string): string {
-  return path.split("/").filter(Boolean).at(-1) ?? path;
+  return path.split("/").findLast(Boolean) ?? path;
 }

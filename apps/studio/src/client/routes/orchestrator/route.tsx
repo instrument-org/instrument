@@ -515,9 +515,9 @@ function OrchestratorLayout() {
     }
   };
 
-  // What the conversation asks to open, as it asks: a page as a tab, a file
-  // of the user's as a file tab. The openers are read at the moment of each
-  // ask, since they close over the tabs as they are then.
+  // What the conversation asks to open, as it asks: a page as a tab, a path
+  // of the user's as the tab that shows it. The openers are read at the moment
+  // of each ask, since they close over the tabs as they are then.
   const appsBySlug = useAppsBySlug();
   // The address says what kind of place this is; the screen itself says where
   // it is on the Mac, since only it has resolved a mount to a real path.
@@ -537,9 +537,9 @@ function OrchestratorLayout() {
     return fromTab;
   })();
 
-  const openers = useRef({ openPage, openScreen });
+  const openers = useRef({ openNamedPath, openPage });
   useEffect(() => {
-    openers.current = { openPage, openScreen };
+    openers.current = { openNamedPath, openPage };
   });
   useEffect(() => {
     if (!ids) {
@@ -566,7 +566,7 @@ function OrchestratorLayout() {
               });
             }
           } else {
-            openers.current.openScreen(fileHref(target.mount));
+            openers.current.openNamedPath(target.mount);
           }
         }
       } catch {

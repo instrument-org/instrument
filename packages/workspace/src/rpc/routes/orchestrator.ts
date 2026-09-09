@@ -264,7 +264,7 @@ const open = base
           requestId: z.string(),
           url: z.string(),
         }),
-        z.object({ kind: z.literal("file"), mount: z.string() }),
+        z.object({ kind: z.literal("path"), mount: z.string() }),
       ]),
     ),
   )

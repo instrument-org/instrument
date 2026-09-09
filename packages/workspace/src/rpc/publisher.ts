@@ -55,14 +55,16 @@ export const publisher = new EventPublisher<{
   };
   /**
    * The conversation asking its window to put something on screen: a page as
-   * a browser tab, or a file of the user's as a file tab. A page carries a
-   * request id, which the tab the window makes for it is announced under.
+   * a browser tab, or a path of the user's as a tab showing it -- a file in
+   * its viewer, a folder (which the path says with a trailing slash) as the
+   * folder view. A page carries a request id, which the tab the window makes
+   * for it is announced under.
    */
   "orchestrator.open": {
     id: TaskId;
     target:
-      | { kind: "file"; mount: string }
-      | { kind: "page"; requestId: string; url: string };
+      | { kind: "page"; requestId: string; url: string }
+      | { kind: "path"; mount: string };
   };
   /**
    * The window answering: the tab it opened for a page, by the id a task can

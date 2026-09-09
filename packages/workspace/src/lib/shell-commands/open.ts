@@ -9,7 +9,7 @@ import { isUnder } from "../path-containment";
 const OPEN_NAME = "open";
 
 export const OPEN_COMMAND = {
-  description: `Put a page or a file on the user's screen, as a tab of the window: \`${OPEN_NAME} https://...\` opens the page in a tab of its own and prints the tab's id, which a task takes with --tab; \`${OPEN_NAME} ${MOUNT.attachedFolders}/<folder>/report.md\` or \`${OPEN_NAME} ${MOUNT.tasks}/<id>/output/report.md\` opens the file. Several arguments open several tabs. It opens nothing in the user's own applications and downloads nothing.`,
+  description: `Put a page, a file, or a folder on the user's screen, as a tab of the window: \`${OPEN_NAME} https://...\` opens the page in a tab of its own and prints the tab's id, which a task takes with --tab; \`${OPEN_NAME} ${MOUNT.attachedFolders}/<folder>/report.md\` or \`${OPEN_NAME} ${MOUNT.tasks}/<id>/output/report.md\` opens the file; \`${OPEN_NAME} ${MOUNT.attachedFolders}/<folder>\` opens the folder itself, the way it does in a terminal. Several arguments open several tabs. It opens nothing in the user's own applications and downloads nothing.`,
   name: OPEN_NAME,
 } as const;
 
@@ -23,11 +23,15 @@ const TAB_ID_TIMEOUT_MS = 2000;
 /**
  * The conversation's way of putting something in front of the user: the
  * window listens for what it asks to open and makes the tab. The command
- * itself only checks that a path names a file the window can show, under the
- * user's folders or a task's, and says so for each argument. For a page it
- * also waits for the window to say which tab it made, since the id is what a
- * task needs to be handed the tab, and the next message's note is otherwise
- * the first place the conversation could learn it.
+ * itself only checks that a path is one the window can show, under the user's
+ * folders or a task's, and says so for each argument. For a page it also waits
+ * for the window to say which tab it made, since the id is what a task needs
+ * to be handed the tab, and the next message's note is otherwise the first
+ * place the conversation could learn it.
+ *
+ * A folder is handed on with the trailing slash that names one everywhere
+ * else a path reaches the user, so the window has a single opener to answer
+ * with rather than one per kind of thing a path can be.
  */
 export function createOpenCommand({
   tabIdTimeoutMs = TAB_ID_TIMEOUT_MS,
@@ -62,7 +66,7 @@ export function createOpenCommand({
         !isUnder(MOUNT.tasks, virtualPath)
       ) {
         failures.push(
-          `${OPEN_NAME}: "${arg}" is not a page, and not a file under ${MOUNT.attachedFolders} or ${MOUNT.tasks}, which are the files the window can show.`,
+          `${OPEN_NAME}: "${arg}" is not a page, and not under ${MOUNT.attachedFolders} or ${MOUNT.tasks}, which are the files and folders the window can show.`,
         );
         continue;
       }
@@ -73,19 +77,16 @@ export function createOpenCommand({
         failures.push(`${OPEN_NAME}: "${arg}" does not exist.`);
         continue;
       }
-      if (!stat.isFile) {
-        failures.push(
-          stat.isDirectory
-            ? `${OPEN_NAME}: "${arg}" is a folder; name a file inside it.`
-            : `${OPEN_NAME}: "${arg}" is not a file.`,
-        );
+      if (!stat.isFile && !stat.isDirectory) {
+        failures.push(`${OPEN_NAME}: "${arg}" is not a file or a folder.`);
         continue;
       }
+      const mount = stat.isDirectory ? `${virtualPath}/` : virtualPath;
       publisher.publish("orchestrator.open", {
         id: taskId,
-        target: { kind: "file", mount: virtualPath },
+        target: { kind: "path", mount },
       });
-      opened.push(virtualPath);
+      opened.push(mount);
     }
     return {
       exitCode: failures.length > 0 || opened.length === 0 ? 1 : 0,

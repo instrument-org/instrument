@@ -64,6 +64,25 @@ describe("open", () => {
     expect(result.stdout).toBe("Opened https://example.com/\n");
   });
 
+  // A terminal's `open` stands you in a folder, and so does this one. The
+  // slash is how the window is told which of the two it was handed.
+  it("opens a folder, named with the slash that says it is one", async () => {
+    const asked: string[] = [];
+    const unsubscribe = publisher.subscribe("orchestrator.open", (ask) => {
+      if (ask.target.kind === "path") {
+        asked.push(ask.target.mount);
+      }
+    });
+    try {
+      const result = await run({ tabIdTimeoutMs: 20 }, "/mnt/Instrument");
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toBe("Opened /mnt/Instrument/\n");
+      expect(asked).toEqual(["/mnt/Instrument/"]);
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it("opens a file under a mount without asking for a tab id", async () => {
     const result = await run(
       { tabIdTimeoutMs: 20 },

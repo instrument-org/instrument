@@ -1,14 +1,7 @@
-import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { useTaskSession } from "@/client/hooks/use-task-session";
+import { useOpenDestinations } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
-import { useCallback } from "react";
 
 import { TaskExternalLink } from "./task-external-link";
-
-// Only a web page has two places it could go. `mailto:` and every other scheme
-// the OS resolves to an app has exactly one, and offering the task's browser
-// for those would be offering to open a page that does not exist.
-const isWebPage = (href: string) => /^https?:\/\//i.test(href);
 
 export function ExternalLink(
   props: React.ComponentProps<"a"> & {
@@ -16,26 +9,24 @@ export function ExternalLink(
   },
 ) {
   const { addReferral = true, className, href, onClick, ...rest } = props;
-
-  const { sessionId, taskId } = useTaskSession();
-  const openExternalLink = useOpenExternalLink();
-
-  const handleClick = useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>) => {
-      event.preventDefault();
-      if (href) {
-        openExternalLink(href, { addReferral });
-      }
-      onClick?.(event);
-    },
-    [addReferral, onClick, openExternalLink, href],
+  const destinations = useOpenDestinations(
+    { kind: "page", url: href ?? "" },
+    { addReferral },
+  );
+  // Somewhere in the app this page could go, as opposed to the OS browser
+  // being the whole of the answer. What decides it is the surface -- a window
+  // with tabs, a task with a browser -- rather than which provider happens to
+  // be overhead, which is what left a link in a Markdown file leaving the app
+  // while the same link in a reply asked.
+  const opensInApp = destinations.some(
+    (destination) =>
+      destination.id !== "copy" && destination.id !== "openBrowser",
   );
 
-  // Inside a task a web page has two places it can go, and which one is wanted
-  // follows from what the reader is doing at that moment rather than from a
-  // setting picked once, so the click asks. Everywhere else in the app -- and
-  // for anything that is not a web page -- there is only the one answer.
-  if (href && taskId && sessionId && isWebPage(href)) {
+  // Where a page has two places it could go, which one is wanted follows from
+  // what the reader is doing at that moment rather than from a setting picked
+  // once, so the click asks. Where it has one, the click is the answer.
+  if (href && opensInApp) {
     return (
       <TaskExternalLink
         {...rest}
@@ -43,8 +34,6 @@ export function ExternalLink(
         className={className}
         href={href}
         onClick={onClick}
-        sessionId={sessionId}
-        taskId={taskId}
       />
     );
   }
@@ -55,7 +44,11 @@ export function ExternalLink(
       {...rest}
       className={cn("cursor-pointer!", className)}
       href={href}
-      onClick={handleClick}
+      onClick={(event) => {
+        event.preventDefault();
+        destinations[0]?.run();
+        onClick?.(event);
+      }}
     />
   );
 }

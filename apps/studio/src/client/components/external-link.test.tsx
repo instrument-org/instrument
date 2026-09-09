@@ -178,7 +178,7 @@ describe("ExternalLink", () => {
     );
     renderWithProviders(element);
     fireEvent.click(screen.getByText("A page"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Open in new tab" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open in New Tab" }));
     expect(openPage).toHaveBeenCalledWith("https://example.com/page", {
       newTab: true,
     });
@@ -197,7 +197,7 @@ describe("ExternalLink", () => {
       screen.getByRole("menuitem", { name: "Open in Instrument" }),
     ).toBeTruthy();
     expect(
-      screen.queryByRole("menuitem", { name: "Open in new tab" }),
+      screen.queryByRole("menuitem", { name: "Open in New Tab" }),
     ).toBeNull();
   });
   it("leaves for the OS browser outside a task, where there is nowhere else", () => {

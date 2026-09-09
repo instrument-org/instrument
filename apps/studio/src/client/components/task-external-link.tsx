@@ -1,20 +1,17 @@
 import { zoomAtom } from "@/client/atoms/zoom";
-import { OrchestratorContext } from "@/client/components/orchestrator/context";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { useOpenInTaskBrowser } from "@/client/hooks/use-open-in-task-browser";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
-import { APP_NAME } from "@instrument-org/shared";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useAtomValue } from "jotai";
-import { useContext, useState } from "react";
+import { useState } from "react";
 
 // The menu straddles the click rather than hanging below the link, so both
 // destinations are a short move from where the pointer already is. Radix
@@ -33,17 +30,25 @@ const FIRST_ROW_HEIGHT = 36;
  *  on the row's icon rather than outside its rounded left edge. */
 const ICON_COLUMN_WIDTH = 28;
 
-/** The middle button, which asks for a tab everywhere a link is drawn. */
-const MIDDLE_BUTTON = 1;
+/** The mark each destination wears, in the menu the left click raises. */
+const DESTINATION_ICONS = {
+  copy: CopyIcon,
+  open: GlobeIcon,
+  openBrowser: ArrowSquareOutIcon,
+  openNewTab: GlobeIcon,
+};
 
 /**
- * A link in a task, which has somewhere to go besides the OS browser.
+ * A link with somewhere to go besides the OS browser.
  *
- * The task's own browser is the same guest the agent drives, so a page opened
- * there is a page the agent can be asked about. That is worth a question on
- * every click, and worth asking it without a remembered answer: which one the
- * user wants follows from what they are doing at that moment, not from a
- * setting they picked once.
+ * The app's browser is the same guest the agent drives, so a page opened there
+ * is a page the agent can be asked about. That is worth a question on every
+ * click, and worth asking it without a remembered answer: which one the user
+ * wants follows from what they are doing at that moment, not from a setting
+ * they picked once.
+ *
+ * The rows the question offers, the rows the right-click menu offers, and where
+ * a middle click lands are one list, read three ways -- see `useOpenGestures`.
  */
 export function TaskExternalLink({
   addReferral = true,
@@ -51,22 +56,18 @@ export function TaskExternalLink({
   className,
   href,
   onClick,
-  sessionId,
-  taskId,
   ...rest
 }: React.ComponentProps<"a"> & {
   addReferral?: boolean;
   href: string;
-  sessionId: StoreId.Session;
-  taskId: TaskId;
 }) {
   const [open, setOpen] = useState(false);
   const [offset, setOffset] = useState({ align: 0, side: 0 });
   const zoom = useAtomValue(zoomAtom);
-
-  const openInTaskBrowser = useOpenInTaskBrowser({ sessionId, taskId });
-  const openExternalLink = useOpenExternalLink();
-  const orchestrator = useContext(OrchestratorContext);
+  const { destinations, onAuxClick, onContextMenu, separate } = useOpenGestures(
+    { kind: "page", url: href },
+    { addReferral },
+  );
 
   return (
     <DropdownMenu onOpenChange={setOpen} open={open}>
@@ -75,37 +76,31 @@ export function TaskExternalLink({
         <a
           {...rest}
           className={cn("cursor-pointer!", className)}
+          // A link is draggable by default, and a drag started from the press
+          // this refuses is a drag the menu never recovers from.
+          draggable={false}
           href={href}
-          onAuxClick={(event) => {
-            // The middle button asks for a page to open away from this one
-            // without asking anything else, and Chromium answers it by handing
-            // the address to the window, which sends it out to the OS browser.
-            // Taken here instead, so the gesture lands where the link's other
-            // destinations do: a tab of the window that has tabs, and the
-            // task's own browser in the window that does not.
-            if (event.button !== MIDDLE_BUTTON) {
-              return;
-            }
-            event.preventDefault();
-            if (orchestrator) {
-              orchestrator.openPage(href, { newTab: true });
-            } else {
-              openInTaskBrowser(href);
-            }
-          }}
+          onAuxClick={onAuxClick}
           onClick={(event) => {
             // The anchor keeps its href so the URL is inspectable and
             // copyable; the navigation it would do belongs to the menu.
             event.preventDefault();
-            if (orchestrator && wantsNewTab(event)) {
-              orchestrator.openPage(href, { newTab: true });
+            if (separate && wantsNewTab(event)) {
+              separate.run();
               onClick?.(event);
               return;
             }
             setOpen(true);
             onClick?.(event);
           }}
+          onContextMenu={onContextMenu}
           onPointerDown={(event) => {
+            // The primary button alone. A right click belongs to the menu the
+            // OS draws, and refusing its press is what left the link's own text
+            // selected under it; a middle click is answered on the release.
+            if (event.button !== 0) {
+              return;
+            }
             // Runs before the trigger's own handler, so the offsets are in
             // place for the menu's first render rather than a frame after it.
             const rect = event.currentTarget.getBoundingClientRect();
@@ -134,42 +129,27 @@ export function TaskExternalLink({
         side="bottom"
         sideOffset={offset.side}
       >
-        <DropdownMenuItem
-          onSelect={() => {
-            openInTaskBrowser(href);
-          }}
-        >
-          <GlobeIcon />
-          Open in {APP_NAME}
-        </DropdownMenuItem>
-        {/* Only where the row above means somewhere else. On a surface whose
-          own opener already makes a tab, the two would be one destination
-          written twice. */}
-        {orchestrator && !orchestrator.opensNewTab ? (
-          <DropdownMenuItem
-            onSelect={() => {
-              orchestrator.openPage(href, { newTab: true });
-            }}
-          >
-            <GlobeIcon />
-            Open in new tab
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem
-          onSelect={() => {
-            openExternalLink(href, { addReferral });
-          }}
-        >
-          <ArrowSquareOutIcon />
-          Open in your browser
-        </DropdownMenuItem>
+        {destinations.map((destination) => {
+          const Icon = DESTINATION_ICONS[destination.id];
+          return (
+            <DropdownMenuItem
+              key={destination.id}
+              onSelect={() => {
+                destination.run();
+              }}
+            >
+              <Icon />
+              {destination.label}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
 /**
- * Whether a click is asking for a tab of its own rather than for the menu.
+ * Whether a click is asking for a place of its own rather than for the menu.
  *
  * One modifier, the one the platform means it by: on macOS Ctrl and a click is
  * the secondary click, so answering it with a tab would take the gesture away

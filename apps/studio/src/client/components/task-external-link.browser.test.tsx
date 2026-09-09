@@ -13,6 +13,7 @@ import { describe, expect, it, vi } from "vitest";
 // error type.
 import { renderInBrowser } from "../../tests/render-browser";
 import { zoomAtom } from "../atoms/zoom";
+import { TaskSessionProvider } from "../hooks/use-task-session";
 import { TaskExternalLink } from "./task-external-link";
 
 const openInTaskBrowser = vi.fn();
@@ -83,11 +84,13 @@ async function renderLink({ zoom = 1 }: { zoom?: number } = {}) {
   const result = await renderInBrowser(
     // Pushed off the window's edges so the menu has room on every side and
     // floating-ui's collision handling never becomes the thing under test.
-    <div style={{ padding: 200, zoom }}>
-      <TaskExternalLink href={HREF} sessionId={SESSION_ID} taskId={TASK_ID}>
-        Page domain reference
-      </TaskExternalLink>
-    </div>,
+    // The task is what gives the link its in-app destination, and the menu
+    // this measures is the one that has two.
+    <TaskSessionProvider sessionId={SESSION_ID} taskId={TASK_ID}>
+      <div style={{ padding: 200, zoom }}>
+        <TaskExternalLink href={HREF}>Page domain reference</TaskExternalLink>
+      </div>
+    </TaskSessionProvider>,
     { store },
   );
 

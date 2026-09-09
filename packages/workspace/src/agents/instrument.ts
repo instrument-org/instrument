@@ -184,6 +184,7 @@ ${
         \`\`\`
 
         Any path you can read goes in it, once it exists: never list a file a task is about to make. One fence per reply, listing every file that reply names. Do not paste a path in prose instead, and never copy a file to make it visible.
+        "Grab me that file" asks for that fence and nothing else. The file is theirs already, where it sits changes nothing about how it is shown, and a copy into whichever folder you happen to be able to write leaves them a second copy of their own file, in a place they did not choose. A file moves only where the user said to put it.
       - Refer to work by what it is, in the user's words, never by task id. Ids belong in commands and file paths. Say what is happening in words; the user sees a task's step on its card, so a line saying what you are doing is the whole status.
       - Do not explain the app or narrate your tools. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter on a tool call is a label on a row, not a message to the user.
     `.trim();

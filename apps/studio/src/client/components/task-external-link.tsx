@@ -8,12 +8,11 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { useOpenInTaskBrowser } from "@/client/hooks/use-open-in-task-browser";
-import { cn } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useContext, useState } from "react";
 
@@ -33,6 +32,9 @@ const FIRST_ROW_HEIGHT = 36;
 /** Layout px. `px-3` plus a `size-4` icon: far enough in that the pointer lands
  *  on the row's icon rather than outside its rounded left edge. */
 const ICON_COLUMN_WIDTH = 28;
+
+/** The middle button, which asks for a tab everywhere a link is drawn. */
+const MIDDLE_BUTTON = 1;
 
 /**
  * A link in a task, which has somewhere to go besides the OS browser.
@@ -64,18 +66,7 @@ export function TaskExternalLink({
 
   const openInTaskBrowser = useOpenInTaskBrowser({ sessionId, taskId });
   const openExternalLink = useOpenExternalLink();
-  // In the orchestrator window the page the user can see is the window's own
-  // Browser screen, not the task's pane, which that window never draws.
   const orchestrator = useContext(OrchestratorContext);
-  const navigate = useNavigate();
-  const openInApp = (url: string) => {
-    if (orchestrator?.browser) {
-      orchestrator.browser.open(url);
-      void navigate({ to: "/orchestrator/browser" });
-    } else {
-      openInTaskBrowser(url);
-    }
-  };
 
   return (
     <DropdownMenu onOpenChange={setOpen} open={open}>
@@ -85,10 +76,26 @@ export function TaskExternalLink({
           {...rest}
           className={cn("cursor-pointer!", className)}
           href={href}
+          onAuxClick={(event) => {
+            // The middle button asks for a tab without asking anything else,
+            // and Chromium answers it by handing the address to the window,
+            // which sends it out to the OS browser. Taken here instead, so
+            // the gesture lands where the link's other destinations do.
+            if (event.button !== MIDDLE_BUTTON) {
+              return;
+            }
+            event.preventDefault();
+            orchestrator?.openPage(href, { newTab: true });
+          }}
           onClick={(event) => {
             // The anchor keeps its href so the URL is inspectable and
             // copyable; the navigation it would do belongs to the menu.
             event.preventDefault();
+            if (orchestrator && wantsNewTab(event)) {
+              orchestrator.openPage(href, { newTab: true });
+              onClick?.(event);
+              return;
+            }
             setOpen(true);
             onClick?.(event);
           }}
@@ -123,12 +130,25 @@ export function TaskExternalLink({
       >
         <DropdownMenuItem
           onSelect={() => {
-            openInApp(href);
+            openInTaskBrowser(href);
           }}
         >
           <GlobeIcon />
           Open in {APP_NAME}
         </DropdownMenuItem>
+        {/* Only where the row above means somewhere else. On a surface whose
+          own opener already makes a tab, the two would be one destination
+          written twice. */}
+        {orchestrator && !orchestrator.opensNewTab ? (
+          <DropdownMenuItem
+            onSelect={() => {
+              orchestrator.openPage(href, { newTab: true });
+            }}
+          >
+            <GlobeIcon />
+            Open in new tab
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           onSelect={() => {
             openExternalLink(href, { addReferral });
@@ -140,4 +160,15 @@ export function TaskExternalLink({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/**
+ * Whether a click is asking for a tab of its own rather than for the menu.
+ *
+ * One modifier, the one the platform means it by: on macOS Ctrl and a click is
+ * the secondary click, so answering it with a tab would take the gesture away
+ * from the menu it belongs to.
+ */
+function wantsNewTab(event: { ctrlKey: boolean; metaKey: boolean }) {
+  return isMacOS() ? event.metaKey : event.ctrlKey;
 }

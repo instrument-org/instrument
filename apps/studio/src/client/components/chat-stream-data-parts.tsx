@@ -4,6 +4,7 @@ import {
   dateChangeModelNote,
   isAddressableTaskFilePath,
   maxStepsModelNote,
+  messageGapModelNote,
   paneTabsModelNote,
   type SessionMessagePart,
   TASK_FOLDER_NAMES,
@@ -60,6 +61,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-fileChanges": "always",
   "data-intent": "dev",
   "data-maxSteps": "dev",
+  // The same treatment the date correction gets, and for the same reason: a
+  // note telling the model how long the user was away, which the user knows
+  // better than the model does.
+  "data-messageGap": "dev",
   // Shown to everyone, unlike the rollover above it. The model a task runs on
   // is the user's own choice, so naming the moment it changed describes
   // something they did rather than something our assembly did.
@@ -222,6 +227,16 @@ export function renderDataPart({
           compact={compact}
           key={part.metadata.id}
           text={maxStepsModelNote(part.data)}
+        />
+      );
+    }
+    case "data-messageGap": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={messageGapModelNote(part.data)}
         />
       );
     }

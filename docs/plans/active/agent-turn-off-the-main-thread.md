@@ -26,6 +26,8 @@ The open harnesses supply the cancellation model, and they converge on it indepe
 
 One caution from the same source, which we should not learn the expensive way: do not carry payloads as JSON or Base64 over Electron IPC. It expands every body, builds large strings in both processes, and double-encodes image bytes that are already Base64 inside the RPC envelope.
 
+The boundary is also worth more than the mitigations are. A pipeline stage buffers its whole output as one string, so a native walk still hands main a result the size of the tree; the finding measures 185 MiB for one unglobbed `rg --files` over a home folder. No command fix removes that, and the interpreter change that would is upstream. Moving the actor does remove it, because the string is then allocated somewhere the window does not live.
+
 ## What makes this cheaper than it looks
 
 **The workspace package imports Electron nowhere.** Zero files under `packages/workspace/src` import `electron`. Every Electron dependency is already injected through the actor's input, and the renderer is already barred from the package by an ESLint rule. The discipline that makes a utility process possible is accidentally already in place. The build guard above would make it permanent rather than a happy accident.
@@ -72,7 +74,7 @@ Subprocess containment. A process boundary alone does not kill the agent's tool 
 
 Each step is meant to be shippable and reversible on its own.
 
-1. **Mitigations, no process work.** Give the file walk the native treatment ripgrep already has, through the existing read-only host path seam and the obligations it carries. Lower the traversal budget and the output ceiling from the upstream maximum. This is the largest improvement per unit of risk and it is independent of everything below.
+1. **Mitigations, no process work.** Lower the two traversal budgets and the output ceiling in `create-bash-env.ts` first: a few lines, and it bounds both stall shapes at once. Then give the file walk the native treatment ripgrep already has, through the existing read-only host path seam and the obligations it carries; that removes the syscall storm and leaves the buffered pipeline result, so it is the larger job for the smaller share of the stall. Both are independent of everything below.
 2. **The stall sampler.** A heartbeat worker that reports main-thread stalls, so the rest of this plan can be measured rather than believed. It is also the regression test for step 1.
 3. **The transport, hosting nothing.** Fork a utility process, establish the port handshake, prove crash detection, bounded restart, and quit teardown against a child that does no real work. Behavior unchanged.
 4. **The build guard.** Fail the build if the workspace package or anything it pulls in imports Electron. Cheap now, and it protects every step after this one.

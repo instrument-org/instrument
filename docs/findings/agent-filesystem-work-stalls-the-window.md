@@ -44,6 +44,38 @@ Real ripgrep searched an entire home directory for 222 seconds with the event lo
 
 A native binary that runs for minutes costs the window nothing. A JavaScript builtin that finishes in seconds costs it everything. Anyone optimizing for wall-clock time will pick the wrong one.
 
+## Going native moves the cost rather than removing it
+
+The walk is only the first half. What the walk returns crosses back into the main process, and just-bash pipelines do not stream: each stage runs to completion and its entire stdout is buffered as one JavaScript string before the next stage starts.
+
+So `rg --files /mnt/Home | awk '...'` stalls the window for about as long as the JavaScript `find` above, for a different reason. The walk is free, in ripgrep's own process. Then main allocates one string holding every path, and a JavaScript `awk` visits every line of it. Measured against a real home directory:
+
+```
+rg --files ~   →  1,478,220 lines   194,036,698 bytes   (185 MiB)
+```
+
+That is 74% of the 256 MiB `maxOutputSize` in `create-bash-env.ts`, so nothing errors. The command succeeds and the window stops painting for 25 seconds. One more attached folder and the same call becomes a hard failure instead of a slow one.
+
+Two consequences worth keeping separate:
+
+- **Making the file walk native is a partial fix, not the fix.** It removes the syscall storm and leaves the string. The pipeline is an interpreter change, not a command change.
+- **The prompt steers the agent into this path.** The attached-folders text tells the model to reach for `rg` on a large folder, which is correct advice about the walk and silent about the output. Anything that tells the model to prefer `rg` has to tell it to bound the result in the same breath.
+
+## The budgets, and which one you are looking at
+
+There are two, both defaulting to 1,000,000, with different messages that are easy to confuse:
+
+| limit | what it counts | message |
+| --- | --- | --- |
+| `maxTraversalWork` | operations, charged 1 each by `checkpoint()` and `count` at once by `discover()` | `filesystem traversal work limit exceeded` |
+| `maxTraversalEntries` | entries visited | a distinct entry-limit message |
+
+Neither is set by us, so both are the upstream default; `maxTraversalDepth` exists and is unset too. A `find` over an attached home directory reaches the work limit in about 20 seconds and returns nothing, because the stage buffers rather than streams, so there is no partial output to show for it.
+
+The output ceiling is ours and was raised deliberately: it went from just-bash's 10 MB default to 256 MiB to fix agent work that needed the headroom. Lowering it is therefore a partial revert, and wants to know what needed 256 MiB before picking a smaller number.
+
+One more lever on the mechanism above: `allowSymlinks: true` would drop the per-operation cost from a `realpathSync` plus an `lstatSync` to one call. It also gives up the no-symlink-escape guarantee the sandbox rests on, so it is a threat-model decision rather than a free win.
+
 ## The negative result worth keeping
 
 Raising the libuv thread pool does essentially nothing, so do not spend a day on it.
@@ -105,7 +137,7 @@ Two traps in the harness itself. `find` over a folder containing any unreadable 
 
 Nothing in process. The work has to leave the thread, which is [the plan](../plans/active/agent-turn-off-the-main-thread.md).
 
-Two cheaper mitigations are real but partial, and both are worth doing regardless because they shrink the exposure before the boundary lands. Giving the file walk the native treatment `rg` already has removes the largest single source, using the `resolveReadOnlyHostPath` seam and the obligations that come with it. Lowering the traversal budget and the output ceiling, currently the upstream maximum of 256 MiB, bounds what a single call can cost.
+Two cheaper mitigations are real but partial, and both are worth doing regardless because they shrink the exposure before the boundary lands. Lowering the two traversal budgets and the output ceiling bounds what a single call can cost, and is a few lines in `create-bash-env.ts`. Giving the file walk the native treatment `rg` already has removes the syscall storm, using the `resolveReadOnlyHostPath` seam and the obligations that come with it, but leaves the buffered result above, so it is the larger piece of work for the smaller share of the stall.
 
 ## Related
 

@@ -8,9 +8,20 @@ export interface WindowBounds {
   y: number;
 }
 
+/**
+ * Which window a remembered size belongs to. Each top-level window is its own
+ * record: they are different windows of different shapes, open at the same
+ * time, and one record between them is each window resizing the other.
+ */
+export type WindowStateName = "main" | "orchestrator";
+
 interface StoredWindowState {
-  bounds?: Partial<WindowBounds>;
-  isMaximized?: boolean;
+  windows?: Partial<
+    Record<
+      WindowStateName,
+      { bounds?: Partial<WindowBounds>; isMaximized?: boolean }
+    >
+  >;
   zoom?: number;
 }
 
@@ -55,22 +66,30 @@ export function getAppZoom() {
     : 1;
 }
 
-export function getWindowState() {
-  const stored = store.store;
-  const defaults = getDefaultState();
+/**
+ * The size and place a window comes back to, or where it opens when nothing
+ * was ever remembered for it. `size` is what that window opens at the first
+ * time, which is its own rather than one number for every window.
+ */
+export function getWindowState(
+  name: WindowStateName,
+  size?: { height: number; width: number },
+) {
+  const stored = store.store.windows?.[name];
+  const defaults = getDefaultState(size);
 
   // Merge stored state with defaults to handle partial/corrupted data
   const merged: WindowState = {
     bounds: {
-      height: stored.bounds?.height ?? defaults.bounds.height,
-      width: stored.bounds?.width ?? defaults.bounds.width,
-      x: stored.bounds?.x ?? defaults.bounds.x,
-      y: stored.bounds?.y ?? defaults.bounds.y,
+      height: stored?.bounds?.height ?? defaults.bounds.height,
+      width: stored?.bounds?.width ?? defaults.bounds.width,
+      x: stored?.bounds?.x ?? defaults.bounds.x,
+      y: stored?.bounds?.y ?? defaults.bounds.y,
     },
-    isMaximized: stored.isMaximized ?? defaults.isMaximized,
+    isMaximized: stored?.isMaximized ?? defaults.isMaximized,
   };
 
-  return keepBelowAutoMaximize(ensureWindowVisible(merged));
+  return keepBelowAutoMaximize(ensureWindowVisible(merged, size));
 }
 
 export function isWindowBoundsVisible(bounds: WindowBounds) {
@@ -99,8 +118,8 @@ export function setAppZoom(zoom: number) {
   store.set("zoom", zoom);
 }
 
-export function setWindowState(value: WindowState) {
-  store.set(value);
+export function setWindowState(name: WindowStateName, value: WindowState) {
+  store.set({ windows: { ...store.store.windows, [name]: value } });
 }
 
 /**
@@ -130,9 +149,12 @@ export function shrinkBelowAutoMaximize(bounds: WindowBounds) {
   };
 }
 
-function ensureWindowVisible(state: WindowState) {
+function ensureWindowVisible(
+  state: WindowState,
+  size?: { height: number; width: number },
+) {
   if (!isWindowBoundsVisible(state.bounds)) {
-    const defaultState = getDefaultState();
+    const defaultState = getDefaultState(size);
     // Handles unplugged/rearranged monitors by moving only the origin while
     // preserving the user's saved window size.
     return {
@@ -149,18 +171,23 @@ function ensureWindowVisible(state: WindowState) {
   return state;
 }
 
-function getDefaultState(): WindowState {
+function getDefaultState(size?: {
+  height: number;
+  width: number;
+}): WindowState {
   const primaryDisplay = screen.getPrimaryDisplay();
+  const height = size?.height ?? DEFAULT_HEIGHT;
+  const width = size?.width ?? DEFAULT_WIDTH;
   return {
     bounds: {
-      height: DEFAULT_HEIGHT,
-      width: DEFAULT_WIDTH,
+      height,
+      width,
       x:
         primaryDisplay.bounds.x +
-        Math.round((primaryDisplay.bounds.width - DEFAULT_WIDTH) / 2),
+        Math.round((primaryDisplay.bounds.width - width) / 2),
       y:
         primaryDisplay.bounds.y +
-        Math.round((primaryDisplay.bounds.height - DEFAULT_HEIGHT) / 2),
+        Math.round((primaryDisplay.bounds.height - height) / 2),
     },
     isMaximized: false,
   };

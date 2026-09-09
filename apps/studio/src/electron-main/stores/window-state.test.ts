@@ -71,15 +71,17 @@ afterEach(() => {
   setPlatform(originalPlatform);
 });
 
+/** What the store holds once one window has been sized. */
+const savedFor = (name: string, bounds: typeof almostMaximized) => ({
+  windows: { [name]: { bounds, isMaximized: false } },
+});
+
 describe("getWindowState", () => {
   it("restores a saved size that GNOME leaves alone", () => {
-    stored = {
-      bounds: { height: 576, width: 1085, x: 66, y: 95 },
-      isMaximized: false,
-    };
+    stored = savedFor("main", { height: 576, width: 1085, x: 66, y: 95 });
     setPlatform("linux");
 
-    expect(windowState.getWindowState().bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("main").bounds).toMatchInlineSnapshot(`
       {
         "height": 576,
         "width": 1085,
@@ -90,10 +92,10 @@ describe("getWindowState", () => {
   });
 
   it("shrinks a saved size GNOME would auto-maximize, keeping its shape", () => {
-    stored = { bounds: almostMaximized, isMaximized: false };
+    stored = savedFor("main", almostMaximized);
     setPlatform("linux");
 
-    expect(windowState.getWindowState().bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("main").bounds).toMatchInlineSnapshot(`
       {
         "height": 688,
         "width": 1082,
@@ -104,11 +106,11 @@ describe("getWindowState", () => {
   });
 
   it("cannot see the line while the display reports no struts", () => {
-    stored = { bounds: almostMaximized, isMaximized: false };
+    stored = savedFor("main", almostMaximized);
     currentDisplay = waylandDisplay;
     setPlatform("linux");
 
-    expect(windowState.getWindowState().bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("main").bounds).toMatchInlineSnapshot(`
       {
         "height": 690,
         "width": 1085,
@@ -119,13 +121,13 @@ describe("getWindowState", () => {
   });
 
   it("sees it once a maximized window has measured the work area", () => {
-    stored = { bounds: almostMaximized, isMaximized: false };
+    stored = savedFor("main", almostMaximized);
     currentDisplay = waylandDisplay;
     setPlatform("linux");
 
     windowState.rememberWorkAreaFromMaximized(maximizedBounds);
 
-    expect(windowState.getWindowState().bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("main").bounds).toMatchInlineSnapshot(`
       {
         "height": 688,
         "width": 1082,
@@ -136,15 +138,65 @@ describe("getWindowState", () => {
   });
 
   it("leaves an oversized saved size alone off Linux", () => {
-    stored = { bounds: almostMaximized, isMaximized: false };
+    stored = savedFor("main", almostMaximized);
     setPlatform("darwin");
 
-    expect(windowState.getWindowState().bounds).toMatchInlineSnapshot(`
+    expect(windowState.getWindowState("main").bounds).toMatchInlineSnapshot(`
       {
         "height": 690,
         "width": 1085,
         "x": 90,
         "y": 60,
+      }
+    `);
+  });
+
+  // Two windows of different shapes are open at once, so one record between
+  // them is each window resizing the other on every launch.
+  it("keeps each window's size to itself", () => {
+    stored = savedFor("main", { height: 576, width: 1085, x: 66, y: 95 });
+    setPlatform("darwin");
+
+    windowState.setWindowState("orchestrator", {
+      bounds: { height: 700, width: 900, x: 10, y: 20 },
+      isMaximized: false,
+    });
+
+    expect({
+      main: windowState.getWindowState("main").bounds,
+      orchestrator: windowState.getWindowState("orchestrator").bounds,
+    }).toMatchInlineSnapshot(`
+      {
+        "main": {
+          "height": 576,
+          "width": 1085,
+          "x": 66,
+          "y": 95,
+        },
+        "orchestrator": {
+          "height": 700,
+          "width": 900,
+          "x": 10,
+          "y": 20,
+        },
+      }
+    `);
+  });
+
+  // A window nobody has sized yet opens at the shape it was written for,
+  // rather than at one size shared by every window in the app.
+  it("opens an unsized window at the shape it asks for", () => {
+    setPlatform("darwin");
+
+    expect(
+      windowState.getWindowState("orchestrator", { height: 600, width: 900 })
+        .bounds,
+    ).toMatchInlineSnapshot(`
+      {
+        "height": 600,
+        "width": 900,
+        "x": 190,
+        "y": 100,
       }
     `);
   });

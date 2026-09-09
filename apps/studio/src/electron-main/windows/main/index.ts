@@ -16,10 +16,6 @@ import {
   getAppZoom,
   getWindowState,
   isWindowBoundsVisible,
-  rememberWorkAreaFromMaximized,
-  setWindowState,
-  shrinkBelowAutoMaximize,
-  type WindowBounds,
 } from "@/electron-main/stores/window-state";
 import {
   focusMainContents,
@@ -33,8 +29,12 @@ import {
   setMainWindow,
 } from "@/electron-main/windows/main/instance";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
+import {
+  isWindowNormal,
+  trackWindowBounds,
+} from "@/electron-main/windows/window-bounds";
 import { is } from "@electron-toolkit/utils";
-import { app, type BaseWindow, BrowserWindow } from "electron";
+import { type BaseWindow, BrowserWindow } from "electron";
 import path from "node:path";
 import { debounce } from "radashi";
 
@@ -102,7 +102,7 @@ async function createMainWindowInstance() {
   }
 
   const mainWindow = new BrowserWindow({
-    ...getWindowState().bounds,
+    ...getWindowState("main").bounds,
     minHeight: 480,
     minWidth: 720,
     show: false,
@@ -140,59 +140,7 @@ async function createMainWindowInstance() {
   // webContents so the main process can grab guest WebContents (for CDP) as
   // the renderer pool mounts them.
   getBrowserViewManager()?.bindHost(mainWindow.webContents, "main");
-  // The size and position to come back to, which is the window's own only
-  // while it is normal: maximize, fullscreen, minimize and bogus cross-display
-  // move events all report bounds that would be useless to restore.
-  let lastVisibleBounds: WindowBounds = mainWindow.getBounds();
-
-  const saveState = () => {
-    try {
-      // A minimized window reports neither usable bounds nor, on Windows and
-      // Linux, the maximized state it will come back to, so leave the state the
-      // user last saw alone.
-      if (mainWindow.isMinimized()) {
-        return;
-      }
-
-      const isMaximized = mainWindow.isMaximized();
-      const bounds = mainWindow.getBounds();
-      if (isMaximized) {
-        rememberWorkAreaFromMaximized(bounds);
-      }
-
-      // Sampled once the window has settled rather than from each resize event
-      // it passes through: a maximize animates, and the frames along the way
-      // are reported as ordinary resizes of a normal window, so reading them
-      // records a nearly-maximized size as the one to come back to.
-      if (isWindowNormal(mainWindow) && isWindowBoundsVisible(bounds)) {
-        lastVisibleBounds = bounds;
-      }
-
-      setWindowState({
-        bounds: shrinkBelowAutoMaximize(lastVisibleBounds),
-        isMaximized,
-      });
-    } catch {
-      // Window may be destroyed
-    }
-  };
-
-  const debouncedSaveState = debounce({ delay: 500 }, saveState);
-
-  mainWindow.on("close", () => {
-    debouncedSaveState.cancel();
-    saveState();
-  });
-
-  // Quitting never reaches the handler above: the quit teardown ends in
-  // `app.exit`, which destroys windows instead of closing them. Without this,
-  // a quit persists only what the debounce happened to have written, so the
-  // last half second of moving, resizing, or unmaximizing is lost.
-  const saveStateBeforeQuit = () => {
-    debouncedSaveState.cancel();
-    saveState();
-  };
-  app.on("before-quit", saveStateBeforeQuit);
+  const remembered = trackWindowBounds(mainWindow, "main");
 
   // Closing the last window quits the app (see `window-all-closed`), so the
   // running-agent warning has to happen here, while the window still exists.
@@ -211,9 +159,6 @@ async function createMainWindowInstance() {
   });
 
   mainWindow.on("closed", () => {
-    app.off("before-quit", saveStateBeforeQuit);
-    debouncedSaveState.cancel();
-    saveState();
     clearMainWindow(mainWindow);
   });
 
@@ -248,7 +193,7 @@ async function createMainWindowInstance() {
   // URL, and the root path distinguishes it from the onboarding window.
   loadWindowURL(mainWindow.webContents, studioURL("/"));
 
-  hasMaximizedRestoreToApply = getWindowState().isMaximized;
+  hasMaximizedRestoreToApply = getWindowState("main").isMaximized;
 
   setupWindowEventListeners({
     mainWindow,
@@ -258,11 +203,11 @@ async function createMainWindowInstance() {
         !isWindowBoundsVisible(mainWindow.getBounds())
       ) {
         // Mission Control can briefly report an invalid post-drop position.
-        mainWindow.setBounds(lastVisibleBounds);
+        mainWindow.setBounds(remembered.lastVisibleBounds);
         return;
       }
 
-      debouncedSaveState();
+      remembered.saveSoon();
     },
   });
 
@@ -282,14 +227,6 @@ async function createMainWindowInstance() {
 // own `close` is being handled, so the last one sees a count of 1.
 function isLastWindow() {
   return BrowserWindow.getAllWindows().length <= 1;
-}
-
-function isWindowNormal(mainWindow: BrowserWindow) {
-  return (
-    !mainWindow.isMaximized() &&
-    !mainWindow.isMinimized() &&
-    !mainWindow.isFullScreen()
-  );
 }
 
 function setupWindowEventListeners({

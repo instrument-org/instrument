@@ -10,11 +10,16 @@ import {
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getAppZoom } from "@/electron-main/stores/window-state";
+import {
+  getAppZoom,
+  getWindowState,
+} from "@/electron-main/stores/window-state";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
+import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
 import { app, BrowserWindow } from "electron";
 import path from "node:path";
 
+/** The shape this window takes the first time, before it has been sized. */
 const ORCHESTRATOR_WIDTH = 1240;
 const ORCHESTRATOR_HEIGHT = 840;
 
@@ -39,9 +44,14 @@ export function openOrchestratorWindow(): BrowserWindow {
     return orchestratorWindow;
   }
 
-  orchestratorWindow = new BrowserWindow({
-    backgroundColor: getBackgroundColor(),
+  const remembered = getWindowState("orchestrator", {
     height: ORCHESTRATOR_HEIGHT,
+    width: ORCHESTRATOR_WIDTH,
+  });
+
+  orchestratorWindow = new BrowserWindow({
+    ...remembered.bounds,
+    backgroundColor: getBackgroundColor(),
     minHeight: 520,
     minWidth: 900,
     show: false,
@@ -55,8 +65,20 @@ export function openOrchestratorWindow(): BrowserWindow {
       // The Browser tab is a renderer-hosted `<webview>`, like a task's browser.
       webviewTag: true,
     },
-    width: ORCHESTRATOR_WIDTH,
   });
+
+  const tracked = trackWindowBounds(orchestratorWindow, "orchestrator");
+  // Every way this window changes shape. `will-resize` and `move` are here
+  // because macOS does not report a resize the user did not drive (a tiling
+  // manager) and Linux does not reliably report maximize on its own.
+  const sized = () => {
+    tracked.saveSoon();
+  };
+  orchestratorWindow.on("will-resize", sized);
+  orchestratorWindow.on("resize", sized);
+  orchestratorWindow.on("move", sized);
+  orchestratorWindow.on("maximize", sized);
+  orchestratorWindow.on("unmaximize", sized);
 
   // Center the lights in the window bar for the zoom the renderer last
   // reported, so they are in place for the first paint instead of jumping once
@@ -66,6 +88,12 @@ export function openOrchestratorWindow(): BrowserWindow {
   setTrafficLightForZoom(orchestratorWindow, getAppZoom());
 
   orchestratorWindow.once("ready-to-show", () => {
+    // Maximized only once there is a window to maximize: on Windows and Linux
+    // maximizing one that has not been shown is itself what shows it, which
+    // would put this window up before its first paint.
+    if (remembered.isMaximized) {
+      orchestratorWindow?.maximize();
+    }
     orchestratorWindow?.show();
   });
 

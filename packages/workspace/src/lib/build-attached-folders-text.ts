@@ -95,7 +95,7 @@ export function buildAttachedFoldersText({
         ]
       : [
           `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
-          `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory. On a large folder reach for \`rg\` first: \`rg --files -g '<glob>'\` lists and \`rg -l\` searches a whole home folder in seconds, where \`find\` takes minutes over the same tree.`,
+          `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory. On a large folder \`rg\` is the one that finishes: \`rg --files -g '<glob>'\` lists and \`rg -l\` searches a whole home folder in seconds, where \`find\` stops part way with a traversal limit and returns nothing. Narrow it to a glob or a subdirectory either way, since an unfiltered \`rg --files\` over a home folder is millions of lines.`,
           writable
             ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
             : null,
@@ -105,7 +105,7 @@ export function buildAttachedFoldersText({
           process.platform === "darwin"
             ? `\`EPERM\` or "Operation not permitted" inside one of these means macOS refused ${APP_NAME} the folder when it asked the user. Stop and say so rather than trying again; they can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders.`
             : null,
-          `A real subprocess (python, node, ffmpeg, pnpm, git) cannot see a mount at all. Copy into the task first and work on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
+          `\`cp\`, \`mv\`, and the file tools reach a mount directly, one mount to another included, so reading a file or putting one where it belongs takes no copy through the task. A real subprocess (python, node, ffmpeg, pnpm, git) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
           `That includes \`git\`: copy the whole repository (\`cp -R '<mount path>' work/\`), not just \`.git\`, which without a working tree beside it reports every file as deleted.`,
         ]
   )

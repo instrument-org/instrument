@@ -71,12 +71,23 @@ describe("stat -c format directives", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  it("prints permission bits, a literal percent, and ? for the rest", async () => {
+  it("prints the mode, a literal percent, and ? for the rest", async () => {
     const result = await run(
-      "stat -c 'mode=%a pct=%% unknown=%q pad=[%6s]' work/note.md",
+      "stat -c 'mode=%a raw=%f pct=%% unknown=%q pad=[%6s]' work/note.md",
     );
 
-    expect(result.stdout).toBe("mode=644 pct=% unknown=? pad=[     8]\n");
+    expect(result.stdout).toBe(
+      "mode=644 raw=81a4 pct=% unknown=? pad=[     8]\n",
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("leaves the timestamps it does not record unanswered", async () => {
+    const result = await run(
+      "stat -c '[%x] [%X] [%z] [%Z] [%w] [%W]' work/note.md",
+    );
+
+    expect(result.stdout).toBe("[?] [?] [?] [?] [-] [0]\n");
     expect(result.exitCode).toBe(0);
   });
 });

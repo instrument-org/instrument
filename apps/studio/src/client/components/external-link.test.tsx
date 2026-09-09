@@ -154,6 +154,24 @@ describe("ExternalLink", () => {
     });
   });
 
+  // Refusing the gesture and answering nothing would be a dead click where it
+  // used to at least reach the OS browser.
+  it("sends a middle click to the task's browser where there are no window tabs", () => {
+    renderWithProviders(
+      inTask(
+        <ExternalLink href="https://example.com/page">A page</ExternalLink>,
+      ),
+    );
+    const event = new MouseEvent("auxclick", {
+      bubbles: true,
+      button: 1,
+      cancelable: true,
+    });
+    fireEvent(screen.getByText("A page"), event);
+    expect(openInTaskBrowser).toHaveBeenCalledWith("https://example.com/page");
+    expect(event.defaultPrevented).toBe(true);
+  });
+
   it("offers an explicit new-tab action", () => {
     const { element, openPage } = inOrchestrator(
       <ExternalLink href="https://example.com/page">A page</ExternalLink>,

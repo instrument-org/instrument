@@ -77,15 +77,21 @@ export function TaskExternalLink({
           className={cn("cursor-pointer!", className)}
           href={href}
           onAuxClick={(event) => {
-            // The middle button asks for a tab without asking anything else,
-            // and Chromium answers it by handing the address to the window,
-            // which sends it out to the OS browser. Taken here instead, so
-            // the gesture lands where the link's other destinations do.
+            // The middle button asks for a page to open away from this one
+            // without asking anything else, and Chromium answers it by handing
+            // the address to the window, which sends it out to the OS browser.
+            // Taken here instead, so the gesture lands where the link's other
+            // destinations do: a tab of the window that has tabs, and the
+            // task's own browser in the window that does not.
             if (event.button !== MIDDLE_BUTTON) {
               return;
             }
             event.preventDefault();
-            orchestrator?.openPage(href, { newTab: true });
+            if (orchestrator) {
+              orchestrator.openPage(href, { newTab: true });
+            } else {
+              openInTaskBrowser(href);
+            }
           }}
           onClick={(event) => {
             // The anchor keeps its href so the URL is inspectable and

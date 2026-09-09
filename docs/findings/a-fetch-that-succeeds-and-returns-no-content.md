@@ -6,13 +6,27 @@ A user pointed the conversation's agent at a skill kept in a public repository, 
 
 ## What comes back
 
-A hosting service's directory page is an application, not a document. Fetched without a browser it answers **HTTP 200**, `text/html`, and a body whose real content is assembled by scripts that a plain fetch does not run. What survives into the markdown conversion is the furniture: the navigation, the file names, and, in this case, the service's own client-side error text.
+A hosting service's directory page is an application, not a document. Fetched without a browser it answers **HTTP 200**, `text/html`, and a body whose real content is assembled by scripts a plain fetch does not run. What survives the markdown conversion is furniture: navigation, sign-in links, breadcrumbs, a footer, and a table of the directory's file names. The page is inconsistent about even that much: one observation returned the service's own client-side error text (`Uh oh! There was an error while loading.`) where another returned the file table.
 
-> Uh oh! There was an error while loading. Please reload this page.
+Either way `web_fetch` sees a 200 and a textual content type, takes the success path, and returns `state: "success"`. Nothing in the result says the content was not read. The status was fine, the type was fine, the body was long, and the file names in it are real.
 
-`web_fetch` sees a 200 and a textual content type, so it takes the success path and returns `state: "success"` with that markdown as the page. Nothing in the result says the page was not read. The status was fine, the content type was fine, the body was non-empty, and the file names in it are real.
+The failure is not that this looks like nothing. It is that **it looks like progress**. A listing that correctly names `SKILL.md`, `idea.json`, and `starter.html` is genuinely informative, and an agent that receives one has no reason to think it has been stopped.
 
-That is the worst shape a failure can take. There is no error to report, no retry to attempt, and no gap for the agent to notice. **An agent does not reach for a fallback when it believes it already succeeded**, which is the whole finding.
+## What the agent actually did with it
+
+From the task transcript, which is the part worth reading twice.
+
+It reached for the skill deliberately: *"I should load the comparison matrix skill since it's specifically mentioned. I'll begin by fetching the provided URL."* It fetched the directory page. It read the listing correctly and noticed the link to the file it wanted:
+
+> *"I see there's a relative link to GitHub, and I can use the absolute URL for accuracy, even if it's not directly shown."*
+
+Then it never fetched it. The next tool call writes the report, built from the columns the brief had named, in Markdown. The skill's actual contract, one self-contained HTML page, was never read and never met.
+
+So the agent was one hop from the content, said so in its own reasoning, and stopped. Two things plausibly account for that, and they are both upstream of the fetch tool.
+
+**The brief made the second hop optional.** The orchestrator had paraphrased the skill into the brief, naming the exact columns to use. The matrix the task produced matches that list verbatim. With a complete followable spec already in hand, opening `SKILL.md` buys nothing the agent can see. This half is fixed: the conversation agent's prompt now passes a link as the user wrote it and puts nothing of its own in its place.
+
+**The prompt may forbid the hop it needed.** `main.ts` carries `IMPORTANT: You must NEVER invent, guess, or construct a URL`, qualified by *"Use only URLs you actually have: ... present on a page you opened"*. A relative `href` on a page it opened is such a URL, but resolving it against the origin is construction, and the agent's own words flag exactly that tension: *"even if it's not directly shown."* That is inference rather than proof, but the reasoning trace raises the rule's precise condition and then abandons the fetch. A rule written against phishing may be suppressing ordinary link-following.
 
 ## The fallbacks were there the whole time
 
@@ -42,21 +56,20 @@ The failing pages do not produce *too little* text. They produce ten to fifteen 
 
 Worth noting from the same measurement: the `Accept: text/markdown;q=1.0` header already earns `text/markdown` or `text/plain` from docs sites that offer it, at 100% yield. That path is working.
 
-## Why nobody noticed
+## What it cost
 
-Two failures compounded, and either alone would have been survivable.
-
-The silent fetch removed the agent's reason to look for another route. And the brief removed its reason to care: the conversation's agent cannot open a link, so what it believes is behind one is a guess, and it had put that guess into the brief alongside the link. The guess was a complete, followable instruction. The task followed it, never opened the link, and produced something that satisfied the brief.
-
-Measured on a real session: a skill whose entire output contract is one self-contained HTML page produced three Markdown reports, because the paraphrase described a table and said nothing about the format. The user found it by noticing the missing HTML, several turns and roughly four million task tokens later.
-
-The brief half is fixed, in the conversation agent's prompt: a link is passed as the user wrote it, nothing written stands in for what is behind it, and a link the task could not read is reported rather than worked around.
+A skill whose entire output contract is one self-contained HTML page produced three Markdown reports across three tasks, because the paraphrase in each brief described a table and said nothing about the format. The user found it by noticing the missing HTML, several turns and roughly four million task tokens later.
 
 ## The open question
 
-What should the result say? The tool holds facts it currently discards: the source byte count against the converted character count, and the standing fact that it never runs scripts. Saying either costs tokens on every fetch and neither is certain to change behavior.
+Where the fix belongs is now narrower than it first looked. The agent was not missing a capability, was not blocked by a tool, and did not fail to notice the page. It declined a second hop it had already identified.
 
-That is an empirical question and this repo can answer it. `pnpm eval run --prompt ... --orchestrator` across models, scoring whether the agent notices and reroutes, is worth more than another round of prompt reasoning. Do not ship a heuristic without that measurement.
+So the candidates worth testing are the two above, not a smarter fetch:
+
+- Whether the URL-construction rule in `main.ts` should say plainly that resolving a relative link found on a page you opened is following a link, not constructing one.
+- Whether `web_fetch` should say what it holds and currently discards, chiefly that it never runs scripts, so a page that reads as navigation can be recognized as one.
+
+Both are prompt-shaped, both cost tokens on every call, and neither is demonstrated to change behavior. This repo can settle that: `pnpm eval run --orchestrator` across models, scoring whether the agent takes the second hop. Do not ship either on reasoning alone.
 
 ## Checking it
 

@@ -10,7 +10,10 @@ import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
-import { useOpenFileTab } from "@/client/components/orchestrator/file-tabs";
+import {
+  folderHref,
+  useOpenFileTab,
+} from "@/client/components/orchestrator/file-tabs";
 import {
   folderOf,
   homeRelative,
@@ -21,6 +24,11 @@ import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { RelativeTime } from "@/client/components/relative-time";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import {
+  useGesturesFor,
+  useOpenGestures,
+} from "@/client/hooks/use-open-target";
+import { type OpenTarget } from "@/client/lib/open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -95,15 +103,21 @@ function Door({
   icon,
   name,
   onOpen,
+  target,
 }: {
   icon: ReactNode;
   name: string;
   onOpen: () => void;
+  /** What the door leads to, for the gestures that ask for it somewhere else. */
+  target: OpenTarget;
 }) {
+  const { onAuxClick, onContextMenu } = useOpenGestures(target);
   return (
     <button
       className="group flex w-18 shrink-0 flex-col items-start gap-1.5 text-left"
+      onAuxClick={onAuxClick}
       onClick={onOpen}
+      onContextMenu={onContextMenu}
       type="button"
     >
       <span className="-m-1 rounded-xl p-1 group-hover:bg-foreground/8 group-focus-visible:bg-foreground/8">
@@ -197,6 +211,10 @@ function HomeRoute() {
                   to: "/orchestrator/apps/$slug",
                 });
               }}
+              target={{
+                href: `/orchestrator/apps/${app.slug}`,
+                kind: "screen",
+              }}
             />
           ))}
           <Door
@@ -209,6 +227,7 @@ function HomeRoute() {
             onOpen={() => {
               void navigate({ to: "/orchestrator/apps" });
             }}
+            target={{ href: "/orchestrator/apps", kind: "screen" }}
           />
         </div>
       </section>
@@ -239,6 +258,7 @@ function HomeRoute() {
                 onOpen={() => {
                   void navigate({ to: "/orchestrator/tasks" });
                 }}
+                target={{ href: "/orchestrator/tasks", kind: "screen" }}
               />
             )}
             {pins.slice(0, PINS_SHOWN).map((pin) => (
@@ -263,6 +283,11 @@ function HomeRoute() {
                     openScreen(pin.target);
                   }
                 }}
+                target={
+                  pin.kind === "page"
+                    ? { kind: "page", url: pin.target }
+                    : { href: pin.target, kind: "screen" }
+                }
               />
             ))}
           </div>
@@ -286,6 +311,7 @@ function HomeRoute() {
             onOpen={() => {
               openFolder("~");
             }}
+            target={{ href: folderHref("~"), kind: "screen" }}
           />
           {folders.map((place) => (
             <Door
@@ -299,6 +325,7 @@ function HomeRoute() {
               onOpen={() => {
                 openFolder(place.path);
               }}
+              target={{ href: folderHref(place.path), kind: "screen" }}
             />
           ))}
         </div>
@@ -379,6 +406,8 @@ function RecentFiles({
   quickLookOpen: boolean;
   total?: number;
 }) {
+  // Read once for the whole list; each row asks it about its own file.
+  const gesturesFor = useGesturesFor();
   // The row the keyboard is on, by place; nothing until a row takes it.
   const [selected, setSelected] = useState<null | number>(null);
   // Where the keyboard lands when the panel hands it back: the row the arrows
@@ -468,54 +497,65 @@ function RecentFiles({
       }}
       role="listbox"
     >
-      {files.map((file, index) => (
-        <li aria-selected={index === selected} key={file.path} role="option">
-          <button
-            className={cn(
-              "flex w-full items-center gap-3 px-3 py-2 text-left text-sm outline-none hover:bg-accent/40",
-              index === selected && "bg-accent/60",
-            )}
-            data-index={index}
-            onClick={() => {
-              onOpen(file);
-            }}
-            onFocus={(event) => {
-              const target = landOn.current;
-              landOn.current = null;
-              if (target !== null && target !== index) {
-                const list = event.currentTarget.closest("ul");
-                if (list) {
-                  focusRow(list, target);
-                  return;
+      {files.map((file, index) => {
+        // A file the agent can reach has a tab it opens in, and so has the
+        // gestures that ask for one; a file outside its reach opens in the
+        // Mac's own app and has only that.
+        const tab = fileTabOf(file);
+        const gestures = tab
+          ? gesturesFor({ kind: "path", path: tab.mount })
+          : undefined;
+        return (
+          <li aria-selected={index === selected} key={file.path} role="option">
+            <button
+              className={cn(
+                "flex w-full items-center gap-3 px-3 py-2 text-left text-sm outline-none hover:bg-accent/40",
+                index === selected && "bg-accent/60",
+              )}
+              data-index={index}
+              onAuxClick={gestures?.onAuxClick}
+              onClick={() => {
+                onOpen(file);
+              }}
+              onContextMenu={gestures?.onContextMenu}
+              onFocus={(event) => {
+                const target = landOn.current;
+                landOn.current = null;
+                if (target !== null && target !== index) {
+                  const list = event.currentTarget.closest("ul");
+                  if (list) {
+                    focusRow(list, target);
+                    return;
+                  }
                 }
-              }
-              setSelected(index);
-            }}
-            // One stop for the whole list: Tab lands on the row the keyboard
-            // was on, or the first, and the arrows do the rest.
-            tabIndex={(selected ?? 0) === index ? 0 : -1}
-            type="button"
-          >
-            <FileIcon
-              className="size-5 shrink-0"
-              filename={file.name}
-              mimeType={file.mimeType}
-            />
-            <span className="min-w-0 flex-1 truncate">{file.name}</span>
-            {/* Where it lives, the home folder as `~`: the one thing about a
+                setSelected(index);
+              }}
+              // One stop for the whole list: Tab lands on the row the keyboard
+              // was on, or the first, and the arrows do the rest.
+              tabIndex={(selected ?? 0) === index ? 0 : -1}
+              type="button"
+            >
+              <FileIcon
+                className="size-5 shrink-0"
+                filename={file.name}
+                mimeType={file.mimeType}
+              />
+              <span className="min-w-0 flex-1 truncate">{file.name}</span>
+              {/* Where it lives, the home folder as `~`: the one thing about a
                 file its name does not say. */}
-            <span className="max-w-2/5 min-w-0 truncate text-xs text-muted-foreground">
-              {homeRelative(folderOf(file.path), homePath)}
-            </span>
-            <RelativeTime
-              className="w-14 shrink-0 text-right text-xs text-muted-foreground"
-              compact
-              date={new Date(file.shownAt)}
-              tooltip={false}
-            />
-          </button>
-        </li>
-      ))}
+              <span className="max-w-2/5 min-w-0 truncate text-xs text-muted-foreground">
+                {homeRelative(folderOf(file.path), homePath)}
+              </span>
+              <RelativeTime
+                className="w-14 shrink-0 text-right text-xs text-muted-foreground"
+                compact
+                date={new Date(file.shownAt)}
+                tooltip={false}
+              />
+            </button>
+          </li>
+        );
+      })}
       {onOpenAll ? (
         <li>
           <button

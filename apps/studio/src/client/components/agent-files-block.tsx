@@ -3,6 +3,7 @@ import {
   FILE_MISSING_LABEL,
   useFilePresence,
 } from "@/client/hooks/use-file-presence";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
@@ -142,6 +143,7 @@ export function FilePathsGrid({
               onClick={() => {
                 showTaskFile(path);
               }}
+              path={path}
             />
           ),
         )}
@@ -185,11 +187,14 @@ export function FilePathsGrid({
 function FileLine({
   file,
   onClick,
+  path,
 }: {
   file: TaskFileViewerFile;
   onClick: () => void;
+  path: string;
 }) {
   const { isMissing, ref } = useFilePresence<HTMLButtonElement>(file.url);
+  const { onAuxClick, onContextMenu } = useOpenGestures({ kind: "path", path });
   // A missing file opens nothing, so the line stops being a control: a press
   // that could only end in an error is not offered.
   return (
@@ -199,7 +204,9 @@ function FileLine({
         isMissing ? "opacity-60" : "hover:bg-accent/50",
       )}
       disabled={isMissing}
+      onAuxClick={onAuxClick}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       ref={ref}
       type="button"
     >
@@ -225,10 +232,13 @@ function FileLine({
  * over a folder that is sitting right where the reply said it was.
  */
 function FolderLine({ onClick, path }: { onClick: () => void; path: string }) {
+  const { onAuxClick, onContextMenu } = useOpenGestures({ kind: "path", path });
   return (
     <button
       className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs hover:bg-accent/50"
+      onAuxClick={onAuxClick}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       type="button"
     >
       <MacFolderIcon className="size-4 shrink-0" />

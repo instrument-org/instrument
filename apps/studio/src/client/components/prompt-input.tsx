@@ -131,6 +131,7 @@ interface PromptInputProps {
    */
   alwaysOpen?: boolean;
   autoFocus?: boolean;
+  /** Where the box stops growing and the draft starts scrolling. Defaults by variant. */
   autoResizeMaxHeight?: number;
   // Extra action rendered in the button row beside the plus button (e.g. the
   // task page's browser-panel toggle). The host owns it so this stays generic.
@@ -227,7 +228,7 @@ export const PromptInput = ({
   allowWorkInProject = false,
   alwaysOpen,
   autoFocus = false,
-  autoResizeMaxHeight = 400,
+  autoResizeMaxHeight,
   className,
   disabled = false,
   draftKey,
@@ -652,6 +653,11 @@ export const PromptInput = ({
       menuView !== null ||
       value.trim().length > 0 ||
       attachedItems.length > 0);
+
+  // A pill stands beside the work in a column it shares with the conversation
+  // it is part of, so it gives way to that conversation sooner than a block on
+  // a page of its own does: a handful of lines, then the draft scrolls.
+  const maxHeight = autoResizeMaxHeight ?? (variant === "pill" ? 200 : 400);
 
   const modelProblem =
     variant === "pill"
@@ -1143,7 +1149,7 @@ export const PromptInput = ({
             </div>
           ) : undefined
         }
-        maxHeight={autoResizeMaxHeight}
+        maxHeight={maxHeight}
         onBlur={
           variant === "pill"
             ? (event) => {

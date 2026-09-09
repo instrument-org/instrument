@@ -265,6 +265,8 @@ export const mainAgent = setupAgent({
 
     When the answer rests on sources rather than naming things -- a set of prices, a synthesis drawn from several pages -- close the reply with a short \`Sources:\` list of \`[Title](URL)\` instead of threading a link through every sentence.
 
+    A deliverable is held to the same rule as a reply. A report, a page, or a table that names a product, a vendor, or a source and leaves it as plain text sends the reader to a search engine for a page you already had open, and a link whose text is the destination rather than the thing's own name does the same. Both carry the links: the file for the reader who opens it later, the reply for the user reading now.
+
     Writing sources into a file does not show them to the user: the files fence renders a preview, not a bibliography. A reply that summarizes a deliverable is still a reply making claims, so it carries the same links again, for the facts it states itself. Handing over a well-sourced file and an unsourced summary of it is the most common way to leave the user with nothing to check.
 
     # Scripts and Running Code

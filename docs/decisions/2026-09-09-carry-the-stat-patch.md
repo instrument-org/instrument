@@ -14,7 +14,7 @@ Nothing is blocked outright, which is the honest limit of the case: plain `stat`
 
 ## Options weighed
 
-**Wait for the release.** The fix is offered upstream. `minimumReleaseAge` puts any release carrying it at least a week out, and none of our other upstream PRs have merged yet.
+**Wait for the release.** The fix is [vercel-labs/just-bash#420](https://github.com/vercel-labs/just-bash/pull/420). `minimumReleaseAge` puts any release carrying it at least a week out, and none of our other upstream PRs have merged yet.
 
 **Amend the prompt line instead.** The `<system_info>` sentence could say plain `stat` is the way to a timestamp and `stat -c` has no time format. Rejected as the whole fix: it is a workaround built to outlive its bug, in the register the architecture doc keeps precisely because those get forgotten, and it spends prompt on steering a model away from the spelling it knows rather than making that spelling work.
 
@@ -24,4 +24,4 @@ Nothing is blocked outright, which is the honest limit of the case: plain `stat`
 
 ## Decision
 
-Carry the `stat` half of `patches/just-bash@3.4.1.patch` until the upstream `stat -c` fix is in the version we install, then drop it with the `find` half. `create-bash-env-stat.test.ts` fails the moment the patch stops applying, so a version bump cannot lose it quietly.
+Carry the `stat` half of `patches/just-bash@3.4.1.patch` until #420 is in the version we install, then drop it with the `find` half. `create-bash-env-stat.test.ts` fails the moment the patch stops applying, so a version bump cannot lose it quietly.

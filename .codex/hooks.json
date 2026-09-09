@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/worktree-setup.sh\"",
+            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/worktree-setup.sh\" >&2; printf '{}'",
             "timeout": 600,
             "statusMessage": "Bootstrapping worktree"
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/worktree-setup.sh\"",
+            "command": "bash \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.claude/hooks/worktree-setup.sh\" >&2; printf '{}'",
             "timeout": 600,
             "statusMessage": "Bootstrapping worktree"
           }

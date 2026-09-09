@@ -59,3 +59,12 @@ export function truncateWithoutSplitting(text: string, maxLength: number) {
     last !== undefined && last >= 0xd8_00 && last <= 0xdb_ff;
   return endsMidCharacter ? cut.slice(0, -1) : cut;
 }
+
+/** Keep whole whitespace-delimited words, falling back to a character boundary when the first word cannot fit. */
+export function truncateAtWordBoundary(text: string, maxLength: number) {
+  const cut = truncateWithoutSplitting(text, maxLength);
+  if (cut.length === text.length || /\s/u.test(text[cut.length] ?? "")) {
+    return cut.trimEnd();
+  }
+  return cut.replace(/\s+\S*$/u, "").trimEnd();
+}

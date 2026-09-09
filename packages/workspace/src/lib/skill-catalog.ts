@@ -1,6 +1,7 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { sum } from "radashi";
 
+import { truncateAtWordBoundary } from "./sanitize-model-text";
 import { type SkillInfo, type SkillSourceKind } from "./skills";
 
 const CATALOG_TAGS = {
@@ -220,5 +221,5 @@ function trimDescriptionToEscapedLength(value: string, cap: number) {
     remaining -= cost;
     rawLength += char.length;
   }
-  return value.slice(0, rawLength).trimEnd();
+  return truncateAtWordBoundary(value, rawLength);
 }

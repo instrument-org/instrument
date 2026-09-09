@@ -103,6 +103,26 @@ describe("renderSkillCatalog", () => {
     ]);
   });
 
+  it.each([
+    ["Choose among products", 16, "Choose among"],
+    ["Choose among products", 12, "Choose among"],
+    ["Use A&B products", 12, "Use A&B"],
+    ["Use <tags> carefully", 16, "Use <tags>"],
+    ["Use\nthese\tproducts", 14, "Use\nthese"],
+    ["🙈🙈🙈", 3, "🙈"],
+    ["unbroken", 3, "unb"],
+    ["Choose among products", 0, ""],
+  ])(
+    "trims %j within an escaped description budget of %i",
+    (description, cap, expected) => {
+      const budget = renderSkillCatalog([skill("a", "")]).xml.length + cap;
+      const catalog = renderSkillCatalog([skill("a", description)], budget);
+      expect(catalog.entries[0]?.description).toBe(expected);
+      expect(catalog.shortened).toBe(1);
+      expect(catalog.xml.length).toBeLessThanOrEqual(budget);
+    },
+  );
+
   it("falls back to names only, keeping the highest-priority sources", () => {
     const skills = [
       ...Array.from({ length: 40 }, (_, index) =>

@@ -155,13 +155,7 @@ function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
         )}
         <div className="flex min-h-0 flex-1">{children}</div>
         <StudioModals />
-        {/* Below the bar, which is where the window's own news belongs and, on
-          macOS, the only place a toast at the top is not partly untouchable. */}
-        <Toaster
-          mobileOffset={{ top: TOOLBAR_HEIGHT + 16 }}
-          offset={{ top: TOOLBAR_HEIGHT + 16 }}
-          position="top-center"
-        />
+        <Toaster position="bottom-right" />
         {/* No action beside it: the release notes are a screen this window has
           not got, and the version it is now on is the part worth saying. */}
         <UpdatedToast />

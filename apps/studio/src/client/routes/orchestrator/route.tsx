@@ -387,9 +387,7 @@ function OrchestratorLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
-  // And the tab on screen follows the router: a screen navigating inside
-  // itself moves its tab's address; an address reached while a page was up
-  // (a link, a command) is a screen tab of its own.
+  // Route navigation stays in this tab, including when leaving a website.
   useEffect(() => {
     if (tabs.length === 0) {
       return;
@@ -406,7 +404,7 @@ function OrchestratorLayout() {
     if (active?.kind === "screen") {
       windowTabs.setActiveHref(location.href);
     } else {
-      windowTabs.openOrFocusScreen(location.href);
+      windowTabs.navigateScreen(location.href);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.href]);
@@ -414,21 +412,28 @@ function OrchestratorLayout() {
   const isFreshNewTab =
     active?.kind === "screen" &&
     parseHref(active.href).pathname === parseHref(NEW_TAB_HREF).pathname;
-  const openPage = (url: string) => {
-    // A page opened from a new tab becomes that tab. When the page is one
-    // already open, that one is shown and the new tab goes.
-    // Always a tab of its own: a site already open elsewhere is not this
-    // request, and showing it instead left the strip pointing at nothing.
+  // A task's tab is the task's: the guest in it is the one the task is
+  // driving, and taking its place in the strip would leave the task browsing
+  // where nobody can see it. Everything else gives its place up in place.
+  const isTaskTab = active?.kind === "page" && Boolean(active.taskId);
+  const openPage = (url: string, { newTab = false } = {}) => {
+    if (!newTab && active?.kind === "page" && !active.taskId) {
+      browser?.navigate(url);
+      return active.id;
+    }
     return browser?.open(
       url,
-      isFreshNewTab ? { replacing: active } : undefined,
+      active && !isTaskTab && (!newTab || isFreshNewTab)
+        ? { replacing: active }
+        : undefined,
     );
   };
-  const openScreen = (href: string) => {
-    if (isFreshNewTab) {
-      router.history.push(href);
-    } else {
+  const openScreen = (href: string, { newTab = false } = {}) => {
+    if (newTab && !isFreshNewTab) {
       windowTabs.openOrFocusScreen(href);
+    } else {
+      windowTabs.navigateScreen(href);
+      router.history.push(href);
     }
   };
   /**
@@ -441,9 +446,9 @@ function OrchestratorLayout() {
    * folders and the folders of the tasks it started. A folder under neither is
    * one this window cannot stand in, and saying so beats a tab rooted nowhere.
    */
-  const openNamedPath = (path: string) => {
+  const openNamedPath = (path: string, options?: { newTab?: boolean }) => {
     if (!isFolderPath(path)) {
-      openScreen(fileHref(path));
+      openScreen(fileHref(path), options);
       return;
     }
     const hostPath = hostPathOfMount(
@@ -457,20 +462,17 @@ function OrchestratorLayout() {
       });
       return;
     }
-    openScreen(folderHref(hostPath));
+    openScreen(folderHref(hostPath), options);
   };
 
-  // Back and forward, which belong to the tab on screen and to nothing else.
-  // A page hands them to its guest, which is the thing that has the history;
-  // a screen walks the trail this tab has been keeping. At the start of a
-  // page there is still somewhere to go: a new tab, which is where a tab
-  // opened at a site came from and where backing out of one lands.
-  // A page can always go back: into its guest's history, or, at the first
-  // page it showed, to the new tab it started as.
-  const canGoBack = isPageOnScreen ? true : windowTabs.canStepBack;
+  // Walk the current screen or guest first, then cross into the preceding or
+  // following visit in this tab. Guests stay alive while a screen is up.
+  const canGoBack =
+    Boolean(active?.past?.length) ||
+    (isPageOnScreen ? true : windowTabs.canStepBack);
   const canGoForward = isPageOnScreen
-    ? (browser?.canGoForward ?? false)
-    : windowTabs.canStepForward;
+    ? Boolean(active.future?.length) || (browser?.canGoForward ?? false)
+    : Boolean(active?.future?.length) || windowTabs.canStepForward;
   const goBack = () => {
     if (!active) {
       return;
@@ -479,25 +481,15 @@ function OrchestratorLayout() {
       if (browser?.canGoBack) {
         browser.goBack();
       } else {
-        // Backing out of the first page in a tab leaves the tab where it
-        // started, which is a new tab, rather than leaving it nowhere.
-        // It keeps the page's place in the strip, so the strip sees the tab
-        // change rather than one leave and another arrive.
-        windowTabs.replace(active.id, {
-          at: 0,
-          href: NEW_TAB_HREF,
-          id: `screen-${crypto.randomUUID()}`,
-          kind: "screen",
-          stripKey: active.stripKey ?? active.id,
-          trail: [NEW_TAB_HREF],
-        });
-        router.history.push(NEW_TAB_HREF);
+        windowTabs.stepVisit(-1);
       }
       return;
     }
     const href = windowTabs.step(-1);
     if (href !== undefined) {
       router.history.push(href);
+    } else if (windowTabs.stepVisit(-1)) {
+      return;
     } else if (active.isOpened) {
       // Nothing behind it, and something else opened it: back is the way out
       // of a tab that exists to show one thing.
@@ -506,11 +498,17 @@ function OrchestratorLayout() {
   };
   const goForward = () => {
     if (active?.kind === "page") {
-      browser?.goForward();
+      if (active.future?.length && !active.pageBackSteps) {
+        windowTabs.stepVisit(1);
+      } else {
+        browser?.goForward();
+      }
       return;
     }
     const href = windowTabs.step(1);
-    if (href !== undefined) {
+    if (href === undefined) {
+      windowTabs.stepVisit(1);
+    } else {
       router.history.push(href);
     }
   };
@@ -554,7 +552,9 @@ function OrchestratorLayout() {
         );
         for await (const target of asks) {
           if (target.kind === "page") {
-            const tabId = openers.current.openPage(target.url);
+            const tabId = openers.current.openPage(target.url, {
+              newTab: true,
+            });
             // The tab's id goes back to the command that asked, so the
             // conversation can hand the tab to a task without waiting for
             // the next message's note to name it.
@@ -566,7 +566,7 @@ function OrchestratorLayout() {
               });
             }
           } else {
-            openers.current.openNamedPath(target.mount);
+            openers.current.openNamedPath(target.mount, { newTab: true });
           }
         }
       } catch {
@@ -748,8 +748,7 @@ function OrchestratorLayout() {
 
   return (
     <OrchestratorContext value={screens}>
-      {/* A file the conversation offers opens in a tab of its own; a folder
-        opens as the folder view standing in it. */}
+      {/* Main-pane links navigate in place; the conversation overrides these openers. */}
       <FileOpenContext
         value={(filePath) => {
           openNamedPath(filePath);
@@ -857,70 +856,98 @@ function OrchestratorLayout() {
                     {/* Names the task and session for the links inside, so a page
                       a reply names offers both the window's browser and the
                       user's, the way a link in a task does. */}
-                    <TaskSessionProvider
-                      sessionId={screens.sessionId}
-                      taskId={screens.taskId}
+                    <OrchestratorContext
+                      value={{
+                        ...screens,
+                        openPage: (url) => openPage(url, { newTab: true }),
+                        openScreen: (href) => {
+                          openScreen(href, { newTab: true });
+                        },
+                        opensNewTab: true,
+                      }}
                     >
-                      <FilesLayoutContext value="list">
-                        <TaskChat
-                          alwaysSubmittable
-                          beforeComposer={
-                            <BannerWork
-                              onOpen={(taskId) => {
-                                openScreen(`/orchestrator/tasks/${taskId}`);
-                              }}
-                              tasks={channelTasks}
-                            />
-                          }
-                          composerLead={<ViewChip />}
-                          {...(openChannel
-                            ? {
-                                composerPlaceholder: `Message ${openChannel.name}`,
-                              }
-                            : {})}
-                          navigateOnSend={false}
-                          presentation="orchestrator"
-                          promptDraft={state.data.promptDraft ?? ""}
-                          selectedModelURI={
-                            state.data.selectedModelURI ?? defaultModelURI
-                          }
-                          selectedSessionId={screens.sessionId}
-                          // What the tab on screen says it shows, plus the page's
-                          // words when that tab is a page, read at the moment of
-                          // sending; a screen that registered nothing sends nothing.
-                          sendContext={async () => {
-                            if (!screenView) {
-                              return;
-                            }
-                            const page =
-                              screenView.screen === "browser"
-                                ? await browser?.readPage()
-                                : undefined;
-                            return {
-                              ...screenView,
-                              ...(page ? { page } : {}),
-                              tabs: tabs.map((tab) =>
-                                tab.kind === "page"
+                      <FileOpenContext
+                        value={(path) => {
+                          openNamedPath(path, { newTab: true });
+                        }}
+                      >
+                        <PageOpenContext
+                          value={(url) => openPage(url, { newTab: true })}
+                        >
+                          <TaskSessionProvider
+                            sessionId={screens.sessionId}
+                            taskId={screens.taskId}
+                          >
+                            <FilesLayoutContext value="list">
+                              <TaskChat
+                                alwaysSubmittable
+                                beforeComposer={
+                                  <BannerWork
+                                    onOpen={(taskId) => {
+                                      openScreen(
+                                        `/orchestrator/tasks/${taskId}`,
+                                        { newTab: true },
+                                      );
+                                    }}
+                                    tasks={channelTasks}
+                                  />
+                                }
+                                composerLead={<ViewChip />}
+                                {...(openChannel
                                   ? {
-                                      at: tab.url ?? "about:blank",
-                                      id: tab.id,
-                                      title: tab.title || tab.url || "New tab",
+                                      composerPlaceholder: `Message ${openChannel.name}`,
                                     }
-                                  : {
-                                      at: tab.href,
-                                      title: screenPresentation(tab.href, {
-                                        appsBySlug,
-                                        childTitles,
-                                      }).title,
-                                    },
-                              ),
-                              url: location.href,
-                            };
-                          }}
-                          task={task.data}
-                        />
-                      </FilesLayoutContext>
-                    </TaskSessionProvider>
+                                  : {})}
+                                navigateOnSend={false}
+                                presentation="orchestrator"
+                                promptDraft={state.data.promptDraft ?? ""}
+                                selectedModelURI={
+                                  state.data.selectedModelURI ?? defaultModelURI
+                                }
+                                selectedSessionId={screens.sessionId}
+                                // What the tab on screen says it shows, plus the page's
+                                // words when that tab is a page, read at the moment of
+                                // sending; a screen that registered nothing sends nothing.
+                                sendContext={async () => {
+                                  if (!screenView) {
+                                    return;
+                                  }
+                                  const page =
+                                    screenView.screen === "browser"
+                                      ? await browser?.readPage()
+                                      : undefined;
+                                  return {
+                                    ...screenView,
+                                    ...(page ? { page } : {}),
+                                    tabs: tabs.map((tab) =>
+                                      tab.kind === "page"
+                                        ? {
+                                            at: tab.url ?? "about:blank",
+                                            id: tab.id,
+                                            title:
+                                              tab.title || tab.url || "New tab",
+                                          }
+                                        : {
+                                            at: tab.href,
+                                            title: screenPresentation(
+                                              tab.href,
+                                              {
+                                                appsBySlug,
+                                                childTitles,
+                                              },
+                                            ).title,
+                                          },
+                                    ),
+                                    url: location.href,
+                                  };
+                                }}
+                                task={task.data}
+                              />
+                            </FilesLayoutContext>
+                          </TaskSessionProvider>
+                        </PageOpenContext>
+                      </FileOpenContext>
+                    </OrchestratorContext>
                   </div>
                 </div>
               </div>
@@ -937,7 +964,7 @@ function OrchestratorLayout() {
                 // drawn into the row's tail by the panel that has the page.
                 {...(tabLocation.kind === "page"
                   ? {
-                      onSite: (url: string) => browser?.navigate(url),
+                      onSite: (url: string) => openPage(url),
                       trailing: (
                         <div
                           className="flex shrink-0 items-center gap-0.5"

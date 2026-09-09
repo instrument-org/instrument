@@ -1,7 +1,7 @@
 import { type FileTab } from "@/client/atoms/orchestrator";
 import { MOUNT, type TaskId } from "@instrument-org/workspace/client";
 
-import { useWindowTabs } from "./window-tabs";
+import { useOrchestrator } from "./context";
 
 /**
  * A path as a task's own reply wrote it, in the paths the conversation that
@@ -119,14 +119,11 @@ export function mountOfHostPath(
 }
 
 /**
- * Opens a file in a tab of the window and shows it. A tab already open for
- * the file is shown rather than doubled.
+ * Opens a file using the navigation policy of the surface that contains it.
  */
 export function useOpenFileTab() {
-  const { openOrFocusScreen } = useWindowTabs();
-  // Opened from somewhere else rather than asked for as a tab, so back from
-  // it puts it away rather than doing nothing.
+  const { openScreen } = useOrchestrator();
   return (tab: FileTab) => {
-    openOrFocusScreen(fileHref(tab.mount), { isOpened: true });
+    openScreen(fileHref(tab.mount));
   };
 }

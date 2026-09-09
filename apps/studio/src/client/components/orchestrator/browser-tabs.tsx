@@ -2,6 +2,7 @@ import {
   type BrowserTab,
   channelTabsAtom,
   everyTabIdAtom,
+  NEW_TAB_HREF,
   originOf,
   siteFaviconsAtom,
   VISITED_MAX,
@@ -35,6 +36,7 @@ import {
 import { z } from "zod";
 
 import { useOrchestrator } from "./context";
+import { stepTabVisit, visitInTab } from "./tab-history";
 
 export interface BrowserPage {
   favicon?: string;
@@ -218,10 +220,28 @@ export function BrowserTabs({
   // above it. Read from the guest rather than counted here: it is the thing
   // that has the history, and a redirect moves it without our being told.
   const [canStep, setCanStep] = useState({ back: false, forward: false });
+  const historySteps = useRef(new Set<string>());
   const stepGuest = (direction: "back" | "forward") => {
     const webview = activeTarget && getWebviewElement(activeTarget);
     if (!webview) {
       return;
+    }
+    if (active) {
+      historySteps.current.add(active.id);
+      setAllTabs((current) => ({
+        ...current,
+        tabs: current.tabs.map((tab) =>
+          tab.kind === "page" && tab.id === active.id && tab.future?.length
+            ? {
+                ...tab,
+                pageBackSteps: Math.max(
+                  0,
+                  (tab.pageBackSteps ?? 0) + (direction === "back" ? 1 : -1),
+                ),
+              }
+            : tab,
+        ),
+      }));
     }
     if (direction === "back") {
       webview.goBack();
@@ -262,6 +282,13 @@ export function BrowserTabs({
     if (!active || activeAttached || !activeUrl) {
       return;
     }
+    // A recreated guest has no native history from the preceding launch.
+    setAllTabs((current) => ({
+      ...current,
+      tabs: current.tabs.map((tab) =>
+        tab.id === active.id ? { ...tab, pageBackSteps: 0 } : tab,
+      ),
+    }));
     void rpcClient.workspace.browser.open.call({
       host: WINDOW_BROWSER_HOST,
       id: active.taskId ?? taskId,
@@ -381,11 +408,57 @@ export function BrowserTabs({
       }
       const onNavigate = () => {
         try {
-          setCanStep({
-            back: webview.canGoBack(),
-            forward: webview.canGoForward(),
-          });
+          if (latest.current.active?.id === id) {
+            setCanStep({
+              back: webview.canGoBack(),
+              forward: webview.canGoForward(),
+            });
+          }
           const url = webview.getURL();
+          const isHistoryStep = historySteps.current.delete(id);
+          // The pool creates guests at about:blank. Back past the first site
+          // returns to the preceding screen, keeping the site ready for Forward.
+          if (
+            isHistoryStep &&
+            url === "about:blank" &&
+            latest.current.active?.id === id &&
+            latest.current.active.past?.length &&
+            webview.canGoForward()
+          ) {
+            webview.goForward();
+            setAllTabs((current) => {
+              const tab = current.tabs.find((entry) => entry.id === id);
+              const previous =
+                tab?.kind === "page" &&
+                stepTabVisit(
+                  {
+                    ...tab,
+                    pageBackSteps: Math.max(0, (tab.pageBackSteps ?? 0) - 1),
+                  },
+                  -1,
+                );
+              return previous
+                ? {
+                    activeId: previous.id,
+                    tabs: current.tabs.map((entry) =>
+                      entry.id === id ? previous : entry,
+                    ),
+                  }
+                : current;
+            });
+            return;
+          }
+          if (
+            !isHistoryStep &&
+            url !== latest.current.tabs.find((tab) => tab.id === id)?.url
+          ) {
+            setAllTabs((current) => ({
+              ...current,
+              tabs: current.tabs.map((tab) =>
+                tab.id === id ? { ...tab, future: [], pageBackSteps: 0 } : tab,
+              ),
+            }));
+          }
           if (url && url !== "about:blank") {
             const title = webview.getTitle() || undefined;
             patch(id, { title, url });
@@ -485,11 +558,10 @@ export function BrowserTabs({
       // tab becoming the page that was typed into it.
       setAllTabs((current) => {
         const index = current.tabs.findIndex((tab) => tab.id === replacing.id);
-        const tab: WindowTab = {
+        const tab = visitInTab(replacing, {
           ...page,
           kind: "page",
-          stripKey: replacing.stripKey ?? replacing.id,
-        };
+        });
         return {
           activeId: id,
           tabs:
@@ -505,7 +577,19 @@ export function BrowserTabs({
     } else {
       setTabs((current) => ({
         activeId: id,
-        tabs: [...current.tabs, page],
+        tabs: [
+          ...current.tabs,
+          {
+            ...page,
+            past: [
+              {
+                href: NEW_TAB_HREF,
+                id: `screen-${crypto.randomUUID()}`,
+                kind: "screen",
+              },
+            ],
+          },
+        ],
       }));
     }
     void rpcClient.workspace.browser.open.call({
@@ -531,6 +615,14 @@ export function BrowserTabs({
       navigate: (url) => {
         const webview = activeTarget && getWebviewElement(activeTarget);
         if (webview) {
+          setAllTabs((current) => ({
+            ...current,
+            tabs: current.tabs.map((tab) =>
+              tab.id === current.activeId
+                ? { ...tab, future: [], pageBackSteps: 0 }
+                : tab,
+            ),
+          }));
           void webview.loadURL(url);
         }
       },
@@ -618,7 +710,13 @@ export function BrowserTabs({
   );
 
   const taskIdsWithTabs = [
-    ...new Set(tabs.flatMap((tab) => (tab.taskId ? [tab.taskId] : []))),
+    ...new Set(
+      allTabs
+        .flatMap((tab) => [tab, ...(tab.past ?? []), ...(tab.future ?? [])])
+        .flatMap((visit) =>
+          visit.kind === "page" && visit.taskId ? [visit.taskId] : [],
+        ),
+    ),
   ];
 
   return (

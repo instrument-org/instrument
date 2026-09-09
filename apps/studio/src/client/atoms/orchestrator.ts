@@ -129,29 +129,32 @@ export const tasksColumnWidthAtom = atomWithStorage<number>(
  * shows (a folder, a file, a task, the apps, a new tab), addressed by the
  * route it is at, so navigating inside it changes the tab and not the row.
  */
-export type WindowTab = TabHistory &
-  (
-    | (BrowserTab & { kind: "page" })
-    | { href: string; id: string; kind: "screen" }
-  );
+export type TabVisit =
+  | (BrowserTab & { kind: "page"; pageBackSteps?: number })
+  | { at?: number; href: string; id: string; kind: "screen"; trail?: string[] };
+
+export type WindowTab = TabHistory & TabVisit;
 
 /**
  * Where a tab has been, and whether it was opened by something else.
  *
  * History belongs to a tab rather than to the window: back never moves you to
  * a different tab, which is the thing that makes a strip of them readable. A
- * page tab keeps its guest's own history instead of a trail, since the guest
- * is already the thing that remembers.
+ * page keeps its guest's native history; past and future retain visits across
+ * the boundary between screens and pages.
  */
 interface TabHistory {
   /** Where in `trail` the tab is standing; the end of it, until back is used. */
   at?: number;
+  future?: TabVisit[];
   /**
    * True when this tab was opened from another one rather than by the user
    * asking for a tab. Back from the start of such a tab closes it, which is
    * what a tab opened to show one thing should do when you are done with it.
    */
   isOpened?: boolean;
+  /** Visits across the screen/browser boundary; each guest keeps its native history. */
+  past?: TabVisit[];
   /**
    * The strip key of the tab this one took the place of, so the strip sees
    * one tab changing rather than one leaving and another arriving: a new tab
@@ -298,7 +301,11 @@ export const everyTabIdAtom = atom(
   (get) =>
     new Set(
       Object.values(get(windowTabsByChannelAtom)).flatMap((channel) =>
-        channel.tabs.map((tab) => tab.id),
+        channel.tabs.flatMap((tab) => [
+          tab.id,
+          ...(tab.past ?? []).map((visit) => visit.id),
+          ...(tab.future ?? []).map((visit) => visit.id),
+        ]),
       ),
     ),
 );

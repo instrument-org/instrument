@@ -4,6 +4,7 @@ import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,12 +16,8 @@ import { useQuickLook } from "./quick-look";
 import { useWindowTabs } from "./window-tabs";
 
 /**
- * This Mac in a tab: the folder browser, or one file open on its own when
- * the address names one. A file opened from the folder or the conversation
- * is a tab of the window beside this one, so a file opens without the
- * folder going away and the strip is the way back. Space on a file the
- * browser has selected shows it over the whole window, the way the Finder's
- * Quick Look does; a double click opens the tab.
+ * This Mac shows a folder or file in the current tab. Back returns to the
+ * folder after opening a file; Space previews the selection in Quick Look.
  */
 export function FilesScreen({
   file,
@@ -33,7 +30,16 @@ export function FilesScreen({
   root: string;
 }) {
   const { taskId } = useOrchestrator();
-  const { closeActive } = useWindowTabs();
+  const { closeActive, step, stepVisit } = useWindowTabs();
+  const router = useRouter();
+  const leaveFile = () => {
+    const href = step(-1);
+    if (href !== undefined) {
+      router.history.push(href);
+    } else if (!stepVisit(-1)) {
+      closeActive();
+    }
+  };
   const openFile = useOpenFileTab();
   const state = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
@@ -87,9 +93,7 @@ export function FilesScreen({
 
   const assetBase = getAssetBaseUrl(taskId);
 
-  // A tab whose file is gone (renamed, moved, deleted) goes with it rather
-  // than standing as a tab that cannot load. Asked of the asset origin once
-  // the tab is up.
+  // A missing file returns to the preceding visit, or closes its dedicated tab.
   useEffect(() => {
     if (!file) {
       return;
@@ -103,7 +107,7 @@ export function FilesScreen({
         );
         if (response.status === 404 && !controller.signal.aborted) {
           toast(`${file.split("/").at(-1) ?? file} is no longer there`);
-          closeActive();
+          leaveFile();
         }
       } catch {
         // The origin is not up, or the request was cut off: not the file's
@@ -134,7 +138,7 @@ export function FilesScreen({
               className="h-full"
               file={viewerFile(activeFile)}
               key={activeFile.mount}
-              onClose={closeActive}
+              onClose={leaveFile}
             />
           </div>
         ) : (

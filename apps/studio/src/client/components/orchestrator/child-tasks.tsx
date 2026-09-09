@@ -89,8 +89,7 @@ export function ChildTranscript({ task }: { task: Task }) {
               {/* Names the task and session for the links inside, so a page
                   the task names offers its browser as well as the user's. */}
               <TaskSessionProvider sessionId={sessionId} taskId={task.id}>
-                {/* A file the task hands over opens as a tab of the window,
-                    which reads every path in the conversation's terms. */}
+                {/* Task paths are translated to the conversation's mounts before navigation. */}
                 <FileOpenContext value={openFile}>
                   <ChatStream
                     isAgentRunning={isWorking}

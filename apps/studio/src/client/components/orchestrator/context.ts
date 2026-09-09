@@ -11,10 +11,18 @@ export interface OrchestratorWindow {
   browser: BrowserTabsHandle | null;
   /** Puts the caret in the conversation's composer, for a screen handing something over to be asked about. */
   focusComposer: () => void;
-  /** Shows the page at that address in a tab: the one already there, or a new one. A fresh new tab it was picked from becomes it. */
-  openPage: (url: string) => void;
-  /** Shows a screen at that address in a tab: the one already there, or a new one. A fresh new tab it was picked from becomes it. */
-  openScreen: (href: string) => void;
+  /** Navigates this surface's tab; conversation surfaces open another tab. */
+  openPage: (url: string, options?: { newTab?: boolean }) => void;
+  /** Navigates this surface's tab; conversation surfaces open another tab. */
+  openScreen: (href: string, options?: { newTab?: boolean }) => void;
+  /**
+   * Whether the openers above already land in a tab of their own.
+   *
+   * The conversation is beside the tabs rather than in one, so what it opens
+   * has nowhere in place to go. A surface that says so here is one where a
+   * link has no second destination left to offer.
+   */
+  opensNewTab?: boolean;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }

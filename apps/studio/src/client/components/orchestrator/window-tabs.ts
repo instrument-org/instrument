@@ -6,6 +6,8 @@ import {
 } from "@/client/atoms/orchestrator";
 import { useAtom, useSetAtom } from "jotai";
 
+import { stepTabVisit, visitInTab } from "./tab-history";
+
 /** The route that shows nothing of its own: what the router is at while a page is on screen. */
 export const PAGE_ROUTE = "/orchestrator/browser";
 
@@ -90,6 +92,7 @@ export function useWindowTabs() {
         return {
           ...tab,
           at: at + 1,
+          future: [],
           href,
           trail: [...trail.slice(0, at + 1), href],
         };
@@ -103,6 +106,42 @@ export function useWindowTabs() {
       activeId: current.activeId === id ? next.id : current.activeId,
       tabs: current.tabs.map((tab) => (tab.id === id ? next : tab)),
     }));
+  };
+
+  const navigateScreen = (href: string) => {
+    if (active?.kind === "page") {
+      replace(
+        active.id,
+        visitInTab(active, {
+          at: 0,
+          href,
+          id: `screen-${crypto.randomUUID()}`,
+          kind: "screen",
+          trail: [href],
+        }),
+      );
+    } else {
+      setActiveHref(href);
+    }
+  };
+
+  const stepVisit = (direction: -1 | 1) => {
+    const from: undefined | WindowTab =
+      active?.kind === "page" && direction === -1 && !active.past?.length
+        ? {
+            ...active,
+            past: [
+              {
+                href: NEW_TAB_HREF,
+                id: `screen-${crypto.randomUUID()}`,
+                kind: "screen",
+              },
+            ],
+          }
+        : active;
+    const next = from && stepTabVisit(from, direction);
+    if (next && active) replace(active.id, next);
+    return next;
   };
 
   /**
@@ -177,6 +216,7 @@ export function useWindowTabs() {
       (atOf(active) > 0 || Boolean(active.isOpened)),
     canStepForward:
       active?.kind === "screen" && atOf(active) < trailOf(active).length - 1,
+    navigateScreen,
     openOrFocusScreen,
     openScreen,
     reorder: (keys: string[]) => {
@@ -207,6 +247,7 @@ export function useWindowTabs() {
     },
     setActiveHref,
     step,
+    stepVisit,
     tabs,
   };
 }

@@ -38,7 +38,7 @@ export const Route = createFileRoute("/orchestrator/apps/$slug")({
 
 function AppRoute() {
   const { slug } = Route.useParams();
-  const { ask, browser } = useOrchestrator();
+  const { ask, browser, openPage } = useOrchestrator();
   const navigate = useNavigate();
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
@@ -131,8 +131,7 @@ function AppRoute() {
     : (entry?.authMethods ?? []).map((method) => method.label).join(", ");
   const openHome = () => {
     if (home && browser) {
-      browser.openOrFocus(home);
-      void navigate({ to: "/orchestrator/browser" });
+      openPage(home);
     }
   };
 

@@ -6,6 +6,9 @@ import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import ms from "ms";
+import { useContext } from "react";
+
+import { OrchestratorContext } from "./context";
 
 /** How often the card re-reads where the task stands. */
 const REFRESH_MS = ms("2 seconds");
@@ -17,6 +20,7 @@ const REFRESH_MS = ms("2 seconds");
  * transcript. The conversation's view of the work it handed off.
  */
 export function CreatedTaskCard({ taskId }: { taskId: string }) {
+  const orchestrator = useContext(OrchestratorContext);
   const navigate = useNavigate();
   const id = TaskIdSchema.parse(taskId);
   const status = useQuery(
@@ -33,7 +37,11 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
         "mt-1.5 flex w-full items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-left text-sm hover:bg-accent/50",
       )}
       onClick={() => {
-        void navigate({ params: { id }, to: "/orchestrator/tasks/$id" });
+        if (orchestrator) {
+          orchestrator.openScreen(`/orchestrator/tasks/${id}`);
+        } else {
+          void navigate({ params: { id }, to: "/orchestrator/tasks/$id" });
+        }
       }}
       type="button"
     >

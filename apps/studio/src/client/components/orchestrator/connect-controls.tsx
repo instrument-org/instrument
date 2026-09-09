@@ -4,7 +4,6 @@ import { Input } from "@/client/components/ui/input";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { useContext, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -43,7 +42,6 @@ export function ConnectControls({
   slug: string;
 }) {
   const orchestrator = useContext(OrchestratorContext);
-  const navigate = useNavigate();
   const openExternalLink = useOpenExternalLink();
   const [value, setValue] = useState("");
   const [waiting, setWaiting] = useState(false);
@@ -62,8 +60,7 @@ export function ConnectControls({
 
   const openAuthorization = (url: string, where: SignInDestination) => {
     if (where === "app" && orchestrator?.browser) {
-      orchestrator.browser.open(url);
-      void navigate({ to: "/orchestrator/browser" });
+      orchestrator.openPage(url);
     } else {
       openExternalLink(url, { addReferral: false });
     }

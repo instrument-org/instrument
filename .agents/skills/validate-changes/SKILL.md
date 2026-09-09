@@ -64,16 +64,22 @@ This is the only rung that tells you whether a model finds and uses what you
 built.
 
 ```bash
-pnpm eval run --yes --prompt "<task for the agent>" --model anthropic/claude-haiku-4.5
+pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3
 ```
 
 - Runs from the repo root; no `cd` first.
+- **Workers AI unless the question needs a frontier model.** This project holds
+  Cloudflare credits and pays per token everywhere else, so `cf:<id>` is the
+  spelling to reach for, and no `--model` at all runs the free default set.
+  Anything metered is refused until `--paid` is passed: "does a model find this
+  affordance" is answered by the cheap models, and answering it on a frontier
+  model spends real money on a question that did not need one.
 - `--model` repeats to build a case x model matrix. Different models fail
   differently; one model succeeding is weak evidence. `--repeat` samples the
   same model more than once, which is what a nondeterministic result needs.
-- A bare slug reads as OpenRouter. Pass a full model URI
-  (`<model>?provider=<p>&providerConfigId=<p>-config-id`) to pin another
-  configured provider.
+- A bare slug reads as OpenRouter, and a full model URI
+  (`<model>?provider=<p>&providerConfigId=<p>-config-id`) pins any other
+  configured provider. Both are metered, so both need `--paid`.
 - Each run prints the path to a rendered `session.md`, filed under
   `<case>/<model>`. **Read it.** The tool sequence is the result; the agent's
   closing summary is not.

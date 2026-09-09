@@ -68,22 +68,26 @@ function evalPrefix(name: string): string {
 }
 
 /**
- * What a change is validated against by default: the current frontier model
- * from each closed provider, plus the strongest open-weights one, because a
- * harness affordance that only one family finds is not built yet.
+ * What a change is validated against by default: four families on Workers AI,
+ * because a harness affordance that only one family finds is not built yet.
  *
- * OpenRouter's `~author/<name>-latest` aliases move as new builds ship, so this list
- * does not need editing to stay representative -- and `runEvals` prints what
- * each one resolved to, since a result against "latest" is otherwise
- * unattributable a month later. OpenAI is the exception and stays pinned:
- * `~openai/gpt-latest` resolves to the reasoning line, not the model the app's
- * auto setting actually sends users to.
+ * All four are free against the Cloudflare credits this project holds, which is
+ * the point. A default that spends metered credits spends them on every run an
+ * agent starts without thinking about it, and the bill arrives without anyone
+ * having decided to run the experiment.
+ *
+ * What that costs in signal is worth stating: these are open-weights models,
+ * and a frontier model finds an affordance they miss. That makes them the right
+ * default for the question this harness is usually asked -- does the prompt make
+ * the thing findable at all -- and the wrong tool for "how does the model our
+ * users actually get behave", which is a `--paid` run against the frontier and a
+ * decision someone makes on purpose.
  */
 export const MODELS = [
-  modelURI.openRouter("~anthropic/claude-sonnet-latest"),
-  modelURI.openRouter("~google/gemini-pro-latest"),
-  modelURI.openRouter("openai/gpt-5.6-luna"),
-  modelURI.openRouter("~moonshotai/kimi-latest"),
+  modelURI.workersAi("zai-org/glm-5.3"),
+  modelURI.workersAi("openai/gpt-oss-120b"),
+  modelURI.workersAi("moonshotai/kimi-k2.6"),
+  modelURI.workersAi("deepseek-ai/deepseek-v4-pro-0813"),
 ];
 
 export interface CompletedRun {

@@ -37,10 +37,11 @@ pnpm eval run --yes --prompt "..."  # one ad-hoc case
 pnpm eval report <workspace-dir>    # re-report a past run, at no cost
 ```
 
-Flags: `--model` (repeatable; bare slug means OpenRouter, `cf:<id>` means
-Workers AI, full model URI pins any configured provider), `--effort`
-(`none|low|medium|high|max`, recorded on every task the run creates), `--name`,
-`--repeat`, `--concurrency`, `--dry-run`, `--include-context`, `--json`.
+Flags: `--model` (repeatable; `cf:<id>` means Workers AI, bare slug means
+OpenRouter, full model URI pins any configured provider), `--paid` (required
+before any metered model runs), `--effort` (`none|low|medium|high|max`, recorded
+on every task the run creates), `--name`, `--repeat`, `--concurrency`,
+`--dry-run`, `--include-context`, `--json`.
 
 `run` and `report` exit non-zero when an assertion failed or a model request was
 refused, so a failed suite is visible without reading the output. `--json` prints
@@ -64,15 +65,23 @@ read-write on your actual files. Both folders derive from one `$HOME` for the
 whole process, so orchestrator cases want `--concurrency 1` and a separate
 process per model when two runs must not see each other's output.
 
-With no `--model`, a case runs against `MODELS` in `harness.ts`: the current
-frontier model from each closed provider plus the strongest open-weights one, so
-an affordance only one family finds shows up as a failure. Three are OpenRouter
-`~author/<name>-latest` aliases, which move as new builds ship; the OpenAI entry
-stays a pinned slug (`~openai/gpt-latest` resolves to the reasoning line rather
-than what the app's auto setting sends users to) and is the one that needs a
-bump by hand. The harness prints what each resolved to and records it as
-`resolvedModelId` in the run's `eval-case.json`, since "latest" is not a build
-anyone can identify a month later.
+With no `--model`, a case runs against `MODELS` in `harness.ts`: four families on
+Workers AI, so an affordance only one family finds shows up as a failure.
+
+**Workers AI is the default and the answer almost every time.** This project has
+Cloudflare credits sitting unused and pays per token everywhere else, so a run
+that spends belongs to a question that specifically needs a frontier model:
+whether the model users actually get behaves a certain way, or whether a
+capability exists at all above the open-weights line. "Is this findable in the
+prompt" and "does the tool work" are not those questions, and they are most of
+what this harness is asked. A metered model is refused without `--paid`, which
+exists because the cost of a suite is one case times one model list and lands
+long after the command that started it.
+
+The harness prints what each model resolved to and records it as
+`resolvedModelId` in the run's `eval-case.json`, which matters for a `--paid`
+run against an OpenRouter `~author/<name>-latest` alias, since "latest" is not a
+build anyone can identify a month later.
 
 Results land in `eval-results.local/<timestamp>/<case>/<model>/` as `session.md`
 (the rendered transcript), `stats.json`, `errors.json`, `assertions.json`, and

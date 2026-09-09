@@ -172,6 +172,18 @@ export const modelURI = {
     ),
 };
 
+/**
+ * Whether running this model spends metered credits.
+ *
+ * Workers AI is the one provider this project has credits sitting unused on, so
+ * it is the free side of the line and everything else is the paid side. The
+ * question is asked before a run starts rather than reported after it, since a
+ * bill is not a result you can decline once it arrives.
+ */
+export function isPaidModel(uri: string): boolean {
+  return !uri.includes(`providerConfigId=${WORKERS_AI_CONFIG_ID}`);
+}
+
 export interface OpenRouterCatalog {
   /** Moving alias slug -> the build it stood for at run time. */
   aliasTargets: Map<string, string>;

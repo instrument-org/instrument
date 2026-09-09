@@ -22,6 +22,7 @@ import {
   c,
   formatCost,
   formatNumber,
+  isPaidModel,
   modelURI,
   setHumanOutputStream,
   write,
@@ -46,6 +47,7 @@ const { positionals, values } = parseArgs({
     model: { multiple: true, type: "string" },
     name: { type: "string" },
     orchestrator: { default: false, type: "boolean" },
+    paid: { default: false, type: "boolean" },
     prompt: { type: "string" },
     repeat: { default: "1", type: "string" },
     yes: { default: false, short: "y", type: "boolean" },
@@ -112,9 +114,10 @@ const reasoningEffort = values.effort
   : undefined;
 
 /**
- * A bare model name is the common case, so it is read as an OpenRouter slug; a
- * `cf:` prefix reads it as a Workers AI id (with or without its `@cf/`); pass a
- * full model URI when you need a specific provider or provider config.
+ * A `cf:` prefix reads the name as a Workers AI id (with or without its
+ * `@cf/`), which is what this project has credits on; a bare name is an
+ * OpenRouter slug, and a full model URI pins any configured provider. The last
+ * two are metered, and metered needs `--paid`.
  */
 const models =
   values.model && values.model.length > 0
@@ -128,6 +131,28 @@ const models =
         return modelURI.openRouter(model);
       })
     : MODELS;
+
+/**
+ * Metered models are opt-in, one flag, every time.
+ *
+ * Not a warning: a warning is read after the money is gone. Agents run this
+ * harness unattended and a suite is one case times one model list, so the
+ * difference between a default that spends and a default that does not is the
+ * difference between a free run and a bill nobody chose.
+ */
+const paidModels = models.filter((model) => isPaidModel(model));
+if (paidModels.length > 0 && !values.paid) {
+  write(
+    `${c.red}These models are metered and --paid was not passed:${c.reset}\n`,
+  );
+  for (const model of paidModels) {
+    write(`  ${model.split("?")[0]}\n`);
+  }
+  write(
+    `\nWorkers AI carries this project's credits: pass it as \`--model cf:<id>\`, or drop --model\nentirely for the default set (${MODELS.map((model) => model.split("?")[0]).join(", ")}).\nPass --paid when the question is specifically about a frontier model.\n`,
+  );
+  process.exit(1);
+}
 
 /**
  * An ad-hoc prompt runs the real agent against one throwaway case, which is the
@@ -160,6 +185,12 @@ if (subcommand !== "run" && subcommand !== "report" && subcommand !== "list") {
   );
   process.stderr.write(
     `                   --effort <${REASONING_EFFORTS.join("|")}> asks every task to think that hard\n`,
+  );
+  process.stderr.write(
+    "                   --model <cf:id|slug|uri>, repeatable; default is the free Workers AI set\n",
+  );
+  process.stderr.write(
+    "                   --paid allows a metered model, which is refused without it\n",
   );
   process.stderr.write(
     "                   --json prints the report as one line on stdout (see summary.json)\n",

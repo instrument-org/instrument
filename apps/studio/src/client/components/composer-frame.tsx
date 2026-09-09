@@ -110,10 +110,16 @@ export function ComposerFrame({
         <div className="flex min-h-7 w-full items-end gap-1.5">
           <div className="flex shrink-0 items-center self-end">{leading}</div>
           {/* `min-w-0`: a pasted link is one word as wide as a paragraph. */}
-          {/* One 20px line box for the words and the placeholder alike, centered
-              in the row's 28px: the editor's own paragraph height is for the
-              block, and would sit this line high by a couple of pixels. */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col self-center py-1 [--prompt-editor-line:1.25rem] [&_.prompt-editor]:min-h-5 [&_.prompt-editor]:text-[13px] [&_.prompt-editor]:leading-5">
+          {/* One 20px line box for the words and the placeholder alike, which
+              the 4px above and below center in the row's 28px: the editor's own
+              paragraph height is for the block, and would sit this line high by
+              a couple of pixels.
+
+              Stretched to the row rather than centered in it, so the editor is
+              as tall as the room the pill has and scrolls the rest. Sized to
+              its own draft it would keep growing past the cap and, centered,
+              paint out of both ends of the box. */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch py-1 [--prompt-editor-line:1.25rem] [&_.prompt-editor]:min-h-5 [&_.prompt-editor]:text-[13px] [&_.prompt-editor]:leading-5">
             {children}
           </div>
           <div

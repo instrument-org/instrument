@@ -27,14 +27,33 @@ const LONG_URL = `https://example.com/${"a".repeat(400)}`;
 
 // The 48px square an attached file renders as, and the 40px button the composer
 // sends with, without the icons and image loading either one really carries.
+// A pill ends in smaller ones: the add menu and the send button.
 const CHIP_SIZE = 48;
 const ACTION_SIZE = 40;
+const PILL_END_SIZE = 28;
 
 async function renderFrame({
   attachmentCount = 0,
   draft = "",
+  layout = "block",
   maxHeight = 400,
-}: { attachmentCount?: number; draft?: string; maxHeight?: number } = {}) {
+  withExtras = false,
+}: {
+  attachmentCount?: number;
+  draft?: string;
+  layout?: "block" | "pill";
+  maxHeight?: number;
+  withExtras?: boolean;
+} = {}) {
+  const end = (label: string) => (
+    <button
+      style={{ height: PILL_END_SIZE, width: PILL_END_SIZE }}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+
   await render(
     <div style={{ width: 480 }}>
       <ComposerFrame
@@ -55,6 +74,13 @@ async function renderFrame({
             />
           ))
         }
+        {...(withExtras
+          ? { extras: <span style={{ height: PILL_END_SIZE }}>Chip</span> }
+          : {})}
+        layout={layout}
+        {...(layout === "pill"
+          ? { leading: end("Add"), trailing: end("Send") }
+          : {})}
         maxHeight={maxHeight}
       >
         <PromptEditor
@@ -163,4 +189,38 @@ describe("ComposerFrame in a browser", () => {
     // The chip inside the row's own 8px padding.
     expect(attachments().getBoundingClientRect().height).toBe(CHIP_SIZE + 16);
   });
+});
+
+describe("ComposerFrame as a pill", () => {
+  // One 20px line in a 28px row inside the box's own 6px padding.
+  it("is one row tall with a line in it", async () => {
+    const { frame } = await renderFrame({ draft: "hello", layout: "pill" });
+
+    expect(frame.getBoundingClientRect().height).toBe(40);
+  });
+
+  // The regression: the editor took the height of the draft rather than the
+  // height the box had for it, so a long one grew past the cap and, being
+  // centered in its row, painted out of both ends of the pill. Both with and
+  // without the row above the editor, which the conversation's pill keeps open.
+  it.each([{ withExtras: false }, { withExtras: true }])(
+    "stops growing at its cap and scrolls the draft inside it, extras $withExtras",
+    async ({ withExtras }) => {
+      const { frame, scroller } = await renderFrame({
+        draft: LONG_DRAFT,
+        layout: "pill",
+        maxHeight: 200,
+        withExtras,
+      });
+
+      const box = frame.getBoundingClientRect();
+      const text = scroller.getBoundingClientRect();
+      expect(box.height).toBeLessThanOrEqual(200);
+      expect(text.top).toBeGreaterThanOrEqual(box.top);
+      expect(text.bottom).toBeLessThanOrEqual(box.bottom);
+      // The draft is long enough to fill the box: without this the assertions
+      // above would hold for a pill with nothing in it.
+      expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+    },
+  );
 });

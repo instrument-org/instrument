@@ -9,7 +9,7 @@ The failure mode this page exists to prevent is a workaround outliving the bug. 
 We are on the published npm package, not a fork.
 
 - `just-bash@^3.4.1` from npm, declared in `packages/workspace/package.json`.
-- One local patch, to `find`; see below.
+- One local patch file, carrying two changes, to `find` and to `stat`; see below.
 
 `minimumReleaseAge` in `pnpm-workspace.yaml` holds installs to releases at least seven days old, so the newest published version is routinely not the newest installable one. `minimumReleaseAgeExclude` carries the document-viewer libraries deliberately pinned to exact versions, plus `agent-browser`, which we do float onto fresh releases. It is not a general escape hatch: for anything else the way past the gate is to wait.
 
@@ -23,13 +23,14 @@ Adopt a fork build only when a gap is blocking a shipped feature, or when a merg
 
 ## Local patches
 
-One, carried under [decisions/2026-09-08-carry-the-find-patch.md](../decisions/2026-09-08-carry-the-find-patch.md).
+Two, in one patch file, carried under [decisions/2026-09-08-carry-the-find-patch.md](../decisions/2026-09-08-carry-the-find-patch.md) and [decisions/2026-09-09-carry-the-stat-patch.md](../decisions/2026-09-09-carry-the-stat-patch.md).
 
 | patch | what it does | upstream | remove when |
 | --- | --- | --- | --- |
-| `patches/just-bash@3.4.1.patch` | `find` reports a directory it cannot read on stderr and keeps going, exiting 1 at the end, instead of throwing out of the whole search | #414, the same change against `main` | #414 is merged and in the version we install; the guard is `create-bash-env-find.test.ts`, which fails the moment the patch stops applying or the behavior regresses |
+| `patches/just-bash@3.4.1.patch`, `find` half | `find` reports a directory it cannot read on stderr and keeps going, exiting 1 at the end, instead of throwing out of the whole search | #414, the same change against `main` | #414 is merged and in the version we install; the guard is `create-bash-env-find.test.ts`, which fails the moment the patch stops applying or the behavior regresses |
+| `patches/just-bash@3.4.1.patch`, `stat` half | `stat -c` expands the timestamp directives and pads to a width, `%a` is the permission bits alone, and a directive with no value prints `?` instead of its own source text | offered upstream, the same change against `main` | that change is merged and in the version we install; the guard is `create-bash-env-stat.test.ts` |
 
-The patch edits one minified chunk of `dist/bundle/`, so a version bump drops it and it has to be re-derived from the PR's source diff by hand: find the `readdirWithFileTypes` call in the chunk that holds `find`, and wrap the two `readdir` calls the way `find.ts` does on the branch. `pnpm patch just-bash@<version>` opens the copy to edit and `pnpm patch-commit` writes it back. The carried copy is the PR's first form, not its last: it recovers the same fixed table of errnos and rethrows everything else, but writes each message to stderr as the failure happens, so two unreadable directories report in the order the parallel batch settled rather than in traversal order. Cosmetic for an agent, and not worth re-deriving the larger diff for; the release replaces it.
+The patch edits minified chunks of `dist/bundle/`, so a version bump drops it and each half has to be re-derived from the PR's source diff by hand. For `find`: find the `readdirWithFileTypes` call in the chunk that holds it, and wrap the two `readdir` calls the way `find.ts` does on the branch. For `stat`: replace the `-c` branch, the one holding the `/%[nNsFaAuUgG]/g` replace, with the readable block the current patch inserts, which is self-contained apart from the chunk's own names for `formatMode` and the limit error. `pnpm patch just-bash@<version>` opens the copy to edit and `pnpm patch-commit` writes it back. The carried `find` copy is the PR's first form, not its last: it recovers the same fixed table of errnos and rethrows everything else, but writes each message to stderr as the failure happens, so two unreadable directories report in the order the parallel batch settled rather than in traversal order. Cosmetic for an agent, and not worth re-deriving the larger diff for; the release replaces it.
 
 An earlier one is gone: `patches/just-bash@3.2.0.patch` normalized the namespace of the dynamic `import("undici")` so the pinned connection owner could read `Agent` off it; without that every `curl` failed as `DNS pinning unavailable for private IP enforcement`. Upstream #339 is the same fix and shipped in 3.3.0. `create-bash-env-network.test.ts` is the guard that would catch a regression.
 

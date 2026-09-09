@@ -86,6 +86,15 @@ const ORCHESTRATOR_FILTERS = new Set([
   "uniq",
   "wc",
 ]);
+// The two filters that only ever read, so a path of their own is the same read
+// `cat` already allows. Refusing `grep <pattern> <file>` while allowing
+// `cat <file> | grep <pattern>` buys no containment and costs a turn every
+// time: measured, the conversation's agent reaches for the first form, loses
+// the read, and answers from a task's one-line summary instead of the file.
+// The rest stay downstream of a pipe because they can write from inside their
+// own arguments -- `sed -i`, and `awk 'BEGIN{print > "..."}'` -- which the
+// redirect guard above does not see.
+const ORCHESTRATOR_SEARCH = new Set(["grep", "rg"]);
 
 /**
  * The first word of every command in a script, heredoc bodies skipped, and
@@ -139,12 +148,19 @@ export function orchestratorRefusal(script: string): string | undefined {
   const outside = leadingWords(script).find(
     ({ piped, word }) =>
       !ORCHESTRATOR_COMMANDS.has(word) &&
+      !ORCHESTRATOR_SEARCH.has(word) &&
       !(piped && ORCHESTRATOR_FILTERS.has(word)),
   );
   if (outside === undefined) {
     return;
   }
-  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, \`chat\`, \`open\`, and the file commands (ls, cat, head, tail, wc, stat, file, find, cp, mv, mkdir), with a filter (${[...ORCHESTRATOR_FILTERS].join(", ")}) only after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
+  // A filter run without one is a rewrite away from working, so say the
+  // rewrite: a refusal that only names the rule leaves the agent to guess at
+  // the form, and the guess is usually another refusal.
+  if (ORCHESTRATOR_FILTERS.has(outside.word)) {
+    return `\`${outside.word}\` reads what a command before it printed, so give it one: \`cat <file> | ${outside.word} ...\`. Searching a file by its path is \`grep\` or \`rg\`, which take one.`;
+  }
+  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, \`chat\`, \`open\`, the file commands (ls, cat, head, tail, wc, stat, file, find, cp, mv, mkdir), and \`grep\`/\`rg\` on a path, with the other filters (${[...ORCHESTRATOR_FILTERS].join(", ")}) after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
 }
 
 function bashToolCallTimeoutMs(yieldMs: number) {

@@ -103,6 +103,34 @@ describe("orchestratorRefusal", () => {
       orchestratorRefusal("app call linear list_issues '{}' | jq '.[0]'"),
     ).toBeUndefined();
   });
+
+  it("names the pipe a filter is missing, rather than only the rule", () => {
+    expect(
+      orchestratorRefusal("sed -n '1,5p' /mnt/Instrument/report.md"),
+    ).toMatchInlineSnapshot(
+      `"\`sed\` reads what a command before it printed, so give it one: \`cat <file> | sed ...\`. Searching a file by its path is \`grep\` or \`rg\`, which take one."`,
+    );
+  });
+
+  it("searches a file by path, the same read cat already allows", () => {
+    expect(
+      orchestratorRefusal(
+        "grep -n -E 'Bottom line|Cost per' /mnt/Instrument/dairy-protein-comparison.md",
+      ),
+    ).toBeUndefined();
+    expect(
+      orchestratorRefusal("rg -i caffeine /mnt/Instrument/notes.md | head -5"),
+    ).toBeUndefined();
+  });
+
+  it("keeps the filters that can write from their own arguments on a pipe", () => {
+    expect(orchestratorRefusal("sed -i 's/a/b/' /mnt/Instrument/x.md")).toMatch(
+      /`sed`/,
+    );
+    expect(
+      orchestratorRefusal(`awk 'BEGIN{print "x" > "/mnt/Instrument/x.md"}'`),
+    ).toMatch(/`awk`/);
+  });
 });
 
 describe("orchestratorRefusal: writing a file", () => {

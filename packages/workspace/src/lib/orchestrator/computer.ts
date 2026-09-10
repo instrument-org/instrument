@@ -16,6 +16,7 @@ import {
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { childTaskMounts } from "./children";
+import { hiddenEntryNames } from "./hidden-entries";
 import { linkedFiles } from "./linked-files";
 import { outputFolderPath } from "./output-folder";
 
@@ -27,6 +28,12 @@ const RECENTS_MAX = 20;
 
 const ComputerEntrySchema = z.object({
   createdAt: z.number().optional(),
+  /**
+   * Whether the system hides this entry. Absent means it does not, and on the
+   * platforms where hidden-ness is a leading dot it is always absent: the name
+   * says it, and the browser is the one holding the switch.
+   */
+  hidden: z.boolean().optional(),
   kind: z.enum(["file", "folder"]),
   mimeType: z.string().optional(),
   modifiedAt: z.number().optional(),
@@ -171,13 +178,18 @@ export async function listComputerFolder({
   taskId: TaskId;
 }): Promise<ComputerListing> {
   const hostPath = expandHomePath(input);
-  const dirents = await fs.readdir(hostPath, { withFileTypes: true });
+  const [dirents, hiddenNames] = await Promise.all([
+    fs.readdir(hostPath, { withFileTypes: true }),
+    hiddenEntryNames(hostPath),
+  ]);
   const truncated = dirents.length > MAX_ENTRIES;
 
   const entries = await Promise.all(
     dirents
       .slice(0, MAX_ENTRIES)
-      .map((entry) => describeEntry(hostPath, entry.name)),
+      .map((entry) =>
+        describeEntry(hostPath, entry.name, hiddenNames.has(entry.name)),
+      ),
   );
   entries.sort((a, b) => {
     if (a.kind !== b.kind) {
@@ -286,16 +298,19 @@ async function computerAccess(
 async function describeEntry(
   folder: string,
   name: string,
+  hidden: boolean,
 ): Promise<ComputerEntry> {
   const entryPath = path.join(folder, name);
+  const isHidden = hidden ? { hidden: true } : {};
   let stats;
   try {
     stats = await fs.stat(entryPath);
   } catch {
-    return { kind: "file", name, path: entryPath };
+    return { ...isHidden, kind: "file", name, path: entryPath };
   }
   if (stats.isDirectory()) {
     return {
+      ...isHidden,
       createdAt: stats.birthtimeMs,
       kind: "folder",
       modifiedAt: stats.mtimeMs,
@@ -304,6 +319,7 @@ async function describeEntry(
     };
   }
   return {
+    ...isHidden,
     createdAt: stats.birthtimeMs,
     kind: "file",
     mimeType: getMimeType(name),

@@ -298,49 +298,57 @@ export function ComputerPage({
     if (!data) {
       return [];
     }
-    return data.entries.map((entry): FileSystemItem => {
-      const stamps = {
-        ...(entry.createdAt === undefined
-          ? {}
-          : { createdAt: new Date(entry.createdAt).toISOString() }),
-        ...(entry.modifiedAt === undefined
-          ? {}
-          : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
-      };
-      if (entry.kind === "folder") {
-        return {
-          ...stamps,
-          hasChildren: true,
-          kind: "folder",
-          metadata: { hostPath: entry.path },
-          path: `${prefix}${entry.name}/`,
-        };
-      }
-      const mount = data.access
-        ? `${data.access.mountPath}/${entry.name}`
-        : undefined;
-      const url =
-        mount === undefined
-          ? undefined
-          : getAssetUrl({
-              assetBase,
-              filePath: mount,
-              version: entry.modifiedAt,
-            });
-      return {
-        ...stamps,
-        contentType: entry.mimeType,
-        kind: "file",
-        metadata: { hostPath: entry.path, ...(mount ? { mount } : {}) },
-        path: `${prefix}${entry.name}`,
-        ...(url && entry.mimeType?.startsWith("image/")
-          ? { previewImageUrl: url, url }
-          : url
-            ? { url }
-            : {}),
-        size: entry.size,
-      };
-    });
+    return (
+      data.entries
+        // The browser hides a name that begins with a dot itself. Windows keeps
+        // the answer as a file attribute instead, which only the listing can
+        // read, so those are dropped here -- under the same switch, so one menu
+        // item still governs everything the system would rather you did not see.
+        .filter((entry) => showHiddenFiles || !entry.hidden)
+        .map((entry): FileSystemItem => {
+          const stamps = {
+            ...(entry.createdAt === undefined
+              ? {}
+              : { createdAt: new Date(entry.createdAt).toISOString() }),
+            ...(entry.modifiedAt === undefined
+              ? {}
+              : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
+          };
+          if (entry.kind === "folder") {
+            return {
+              ...stamps,
+              hasChildren: true,
+              kind: "folder",
+              metadata: { hostPath: entry.path },
+              path: `${prefix}${entry.name}/`,
+            };
+          }
+          const mount = data.access
+            ? `${data.access.mountPath}/${entry.name}`
+            : undefined;
+          const url =
+            mount === undefined
+              ? undefined
+              : getAssetUrl({
+                  assetBase,
+                  filePath: mount,
+                  version: entry.modifiedAt,
+                });
+          return {
+            ...stamps,
+            contentType: entry.mimeType,
+            kind: "file",
+            metadata: { hostPath: entry.path, ...(mount ? { mount } : {}) },
+            path: `${prefix}${entry.name}`,
+            ...(url && entry.mimeType?.startsWith("image/")
+              ? { previewImageUrl: url, url }
+              : url
+                ? { url }
+                : {}),
+            size: entry.size,
+          };
+        })
+    );
   });
   const items = isRecents ? recentItems : folderItems;
   const selectedItem =

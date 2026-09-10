@@ -22,7 +22,7 @@ Pass the command as a positional argument. The process exits with the command's 
 
 ```bash
 pnpm --silent script:run-bash -- "python -c 'import sys; print(sys.version)'"
-pnpm --silent script:run-bash -- "uv pip install numpy && python -c 'import numpy'"
+pnpm --silent script:run-bash -- "uv pip install numpy && python-native -c 'import numpy'"
 pnpm --silent script:run-bash -- "tsx --version"
 ```
 
@@ -39,7 +39,7 @@ By default, all commands run and the process exits with the first non-zero exit 
 ```bash
 pnpm --silent script:run-bash -- --bail \
   "uv pip install requests" \
-  "python -c 'import requests'"
+  "python-native -c 'import requests'"
 ```
 
 ### One-shot against an existing task dir
@@ -47,7 +47,7 @@ pnpm --silent script:run-bash -- --bail \
 Reuse a task dir to persist installed packages, created files, etc. across calls. The task ID is printed to stderr on every run.
 
 ```bash
-pnpm --silent script:run-bash -- --task TASK_ID "python -c 'import numpy'"
+pnpm --silent script:run-bash -- --task TASK_ID "python-native -c 'import numpy'"
 ```
 
 ### Attached-folder mounts
@@ -57,6 +57,7 @@ Mount host folders read-only under `/mnt/<basename>` (repeatable), the same way 
 ```bash
 pnpm --silent script:run-bash -- --attach ~/Documents/Photos \
   "ls /mnt/Photos" \
+  "python -c 'import os; print(len(os.listdir(\"/mnt/Photos\")))'" \
   "cp '/mnt/Photos/pic.jpg' attachments/"
 ```
 
@@ -65,7 +66,7 @@ pnpm --silent script:run-bash -- --attach ~/Documents/Photos \
 Pipe a newline-separated script when you need multiple commands sharing one task dir without passing `--task` explicitly:
 
 ```bash
-printf 'uv pip install requests\npython -c "import requests; print(requests.__version__)"\n' \
+printf 'uv pip install requests\npython-native -c "import requests; print(requests.__version__)"\n' \
   | pnpm --silent script:run-bash
 ```
 
@@ -96,7 +97,8 @@ Same environment as the real agent:
 - **FS**: the task dir mounts writable at `/task` (the working directory) and `--attach` folders mount read-only under `/mnt/<name>`; everything else is a read-only empty root, so there is no access to the host filesystem
 - **Network**: full internet access; private/loopback ranges blocked (SSRF guard)
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
-- **Custom shims**: `tsx`, `pnpm`, `pnx`, `npx`, `uv`, `python`/`python3`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `node`, `git`
+- **Sandboxed script runtimes**: `python`/`python3` (CPython on WebAssembly, standard library only, reads `/mnt` directly) and `js-exec` (QuickJS, built-ins only); both are just-bash's, wrapped by our shims
+- **Custom shims**: `tsx`, `pnpm`, `pnx`, `npx`, `uv`, `python-native`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `node`, `git`
 - **Stub**: `npm` -> error (use `pnpm`)
 - **Managed command**: `agent-browser` resolves to the wrapped CLI; use this runner for command availability/help checks, not real browser-session testing
 

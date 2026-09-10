@@ -28,6 +28,7 @@ Grouped by area; status is the short form of each file's own line.
 | --- | --- |
 | [Code review 2026-07 to 08](code-review-2026-07-to-08.md) — guards over real binaries and mounts that do not hold | one finding + three nits open |
 | [Private-dir masking is not a boundary](private-dir-masking-is-not-a-boundary.md) — the mask stops the shell, not native interpreters | open, known gap |
+| [The WASM Python aborts at exit on some install paths](the-wasm-python-aborts-at-exit-on-some-install-paths.md) — the worker's own path length decides whether finalization survives; pinned, with the repro to file | contained, unreported upstream |
 | [The loopback block is curl-only](loopback-block-is-curl-only.md) — same shape, different command | open, working as designed |
 | [The asset origin is open to any local reader](asset-origin-is-open-to-any-local-reader.md) — bounded today, unbounded under a user-chosen folder | open, no mitigation |
 | [macOS Command Line Tools dialog](macos-command-line-tools-dialog.md) — a Python skill popped the system installer | resolved |

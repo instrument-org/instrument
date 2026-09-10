@@ -10,6 +10,8 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-09-10 | [`python` is the sandboxed interpreter, `node` stays native, and each names the other](2026-09-10-python-is-the-sandboxed-interpreter.md) |
+| 2026-09-10 | [Carry the just-bash python worker fixes as a local patch until they are released](2026-09-10-carry-the-python-worker-patch.md) |
 | 2026-09-09 | [Carry the just-bash `stat -c` fix as a local patch until it is released](2026-09-09-carry-the-stat-patch.md) |
 | 2026-09-08 | [Carry the just-bash `find` fix as a local patch until it is released](2026-09-08-carry-the-find-patch.md) |
 | 2026-08-27 | [We carry no just-bash patches, and #365 is the one that would change that](2026-08-27-no-local-just-bash-patches.md) narrowed by 2026-09-08 and 2026-09-09 |

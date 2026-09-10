@@ -1,6 +1,17 @@
 # Plan: sandboxed script runtimes as the default
 
-Status: proposed, not started. The capability is verified to exist and the JavaScript half is verified to work; the Python half is broken in our pinned just-bash and blocks the part of the plan with the measured payoff. Written 2026-09-10 from a transcript review, with probes recorded below. A companion visual answer covers the same ground for a reader who wants the argument rather than the steps.
+Status: landed 2026-09-10, all phases, in the end state the plan recommends: `python`/`python3` are the sandboxed CPython, `python-native` is the virtualenv interpreter, `js-exec` is added beside an unchanged `node`, the skills carve-out and the three teaching failures shipped in the same change, and every prompt surface that said "copy into the task first" now says which runtime reads a mount. Phase 0 found that both Python faults below were misdiagnosed (see "What is broken, revisited") and fixed them in the fourth part of the just-bash patch rather than waiting on upstream; the upstream issue is drafted in the finding and not yet filed. Decision: [decisions/2026-09-10-python-is-the-sandboxed-interpreter.md](../../decisions/2026-09-10-python-is-the-sandboxed-interpreter.md). Written 2026-09-10 from a transcript review, with probes recorded below.
+
+## What is broken, revisited
+
+Recorded after the fact so the probes below are read against what they turned out to mean.
+
+- **Every invocation exits 1** was real but not platform-specific. The trigger is the length of the worker's own file path, which Emscripten hands CPython as its program name; a pnpm patch-hash install path is 200 characters, inside a window where `Py_FinalizeEx` aborts. Upstream CI and a short `npm install` never see it. Pinning `thisProgram` fixes it; [findings/the-wasm-python-aborts-at-exit-on-some-install-paths.md](../../findings/the-wasm-python-aborts-at-exit-on-some-install-paths.md) has the bisection.
+- **`open()` cannot reach a mount** was wrong. `open('/mnt/ro/f')` works; the probe file was 9.5 MB and the worker bridge carries 8 MB per read, and the shim reported that as ENOENT. With the patch it is `OSError: [Errno 22] File too large`, and the command appends what to do. The 8 MB limit itself is a fixed buffer in upstream's protocol and stands; it is the open question below about `SANDBOX_MAX_BYTES`, answered: no, the bridge is the bound, whatever `maxStringLength` says.
+- **`import sqlite3` fails** because the build omits the C extension, as do `ssl`, `ctypes`, `lzma`, `readline`, and `curses`; `multiprocessing` imports and fails at call time like `subprocess`. The `python` command tells all of these apart from a missing package by checking `sys.stdlib_module_names`, which is the "fourth error message" the subprocess section asks for.
+- **The 30 second timeout** is raised to 30 minutes for both runtimes; a call that outlives its `yieldMs` is promoted like any other, and the cap only bounds a runaway.
+- Also found: tracebacks named `/tmp/_jb_script.py` at a line 400 past the script's own, fixed in the same patch part by running the program through `compile()` under its own name; and the worker's errno table had `EFBIG` as Emscripten's `EINTR`, so an oversize read retried until `EMFILE`.
+- **The native Python is called `python-native`.** The placeholder held: it names the mechanism, pairs with `python`, and `pip` says it after every install.
 
 ## The bet
 

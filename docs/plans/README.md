@@ -84,6 +84,7 @@ When a plan moves, fix the links pointing at it. Sibling links inside one direct
 
 | Plan | Outcome |
 | --- | --- |
+| [Sandboxed script runtimes as the default](completed/sandboxed-script-runtimes.md) — `python` reads attached folders in place, `python-native` is the escape hatch, `js-exec` beside `node` | landed |
 | [Pane tabs and the `show` command](completed/pane-tabs-and-the-show-command.md) | landed |
 | [File references without a watcher](completed/file-references-without-a-watcher.md) | landed |
 | [Anchor the submitted turn](completed/anchor-the-submitted-turn.md) | landed |

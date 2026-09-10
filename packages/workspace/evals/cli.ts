@@ -375,194 +375,194 @@ function provenanceLines(provenance: Rollup["provenance"]): string[] {
 
 switch (subcommand) {
   case "list": {
-  const filtered = EVALS.filter((e) => matchesPattern(e.name));
+    const filtered = EVALS.filter((e) => matchesPattern(e.name));
 
-  if (filtered.length === 0) {
-    process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
-    process.exit(1);
-  }
+    if (filtered.length === 0) {
+      process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
+      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+      process.exit(1);
+    }
 
-  write(
-    [
-      "",
-      `${c.dim}Available evals (${filtered.length}):${c.reset}`,
-      ...filtered.map((e) => `  ${c.dim}-${c.reset} ${e.name}`),
-      "",
-    ].join("\n"),
-  );
+    write(
+      [
+        "",
+        `${c.dim}Available evals (${filtered.length}):${c.reset}`,
+        ...filtered.map((e) => `  ${c.dim}-${c.reset} ${e.name}`),
+        "",
+      ].join("\n"),
+    );
     break;
   }
   case "models": {
-  const rows = await listConfiguredModels(patternLabel);
-  if (rows.length === 0) {
-    process.stderr.write(
-      patternLabel
-        ? `No models matched pattern: "${patternLabel}"\n`
-        : "No models. Check the provider keys in packages/workspace/.env\n",
+    const rows = await listConfiguredModels(patternLabel);
+    if (rows.length === 0) {
+      process.stderr.write(
+        patternLabel
+          ? `No models matched pattern: "${patternLabel}"\n`
+          : "No models. Check the provider keys in packages/workspace/.env\n",
+      );
+      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+      process.exit(1);
+    }
+    // Split by what running one costs, since that is the first thing the choice
+    // turns on, and each row carries the spelling that runs it.
+    const section = (title: string, models: typeof rows) => {
+      if (models.length === 0) return [];
+      const cells = models.map((model) => [
+        modelFlagFor(model.uri),
+        model.releasedAt ?? "",
+        model.name,
+      ]);
+      const width = Math.max(...cells.map(([flag]) => (flag ?? "").length));
+      return [
+        "",
+        `${c.dim}${title}${c.reset}`,
+        ...cells.map(
+          ([flag, released, name]) =>
+            `  ${(flag ?? "").padEnd(width)}  ${c.dim}${released}  ${name}${c.reset}`,
+        ),
+      ];
+    };
+    write(
+      [
+        ...section(
+          "Free, on this project's Cloudflare credits:",
+          rows.filter((model) => !isPaidModel(model.uri)),
+        ),
+        ...section(
+          "Metered, refused without --paid:",
+          rows.filter((model) => isPaidModel(model.uri)),
+        ),
+        "",
+        `${c.dim}Newest first. Pick for the question being asked, and say which you picked and why.${c.reset}`,
+        "",
+      ].join("\n"),
     );
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
-    process.exit(1);
-  }
-  // Split by what running one costs, since that is the first thing the choice
-  // turns on, and each row carries the spelling that runs it.
-  const section = (title: string, models: typeof rows) => {
-    if (models.length === 0) return [];
-    const cells = models.map((model) => [
-      modelFlagFor(model.uri),
-      model.releasedAt ?? "",
-      model.name,
-    ]);
-    const width = Math.max(...cells.map(([flag]) => (flag ?? "").length));
-    return [
-      "",
-      `${c.dim}${title}${c.reset}`,
-      ...cells.map(
-        ([flag, released, name]) =>
-          `  ${(flag ?? "").padEnd(width)}  ${c.dim}${released}  ${name}${c.reset}`,
-      ),
-    ];
-  };
-  write(
-    [
-      ...section(
-        "Free, on this project's Cloudflare credits:",
-        rows.filter((model) => !isPaidModel(model.uri)),
-      ),
-      ...section(
-        "Metered, refused without --paid:",
-        rows.filter((model) => isPaidModel(model.uri)),
-      ),
-      "",
-      `${c.dim}Newest first. Pick for the question being asked, and say which you picked and why.${c.reset}`,
-      "",
-    ].join("\n"),
-  );
     break;
   }
   case "report": {
-  const workspaceRootDir = positionals[1];
+    const workspaceRootDir = positionals[1];
 
-  if (!workspaceRootDir) {
-    process.stderr.write(
-      "Error: report subcommand requires a workspace directory argument\n",
-    );
-    throw new Error(
-      "report subcommand requires a workspace directory argument",
-    );
-  }
-
-  const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
-  write(`Workspace: ${absoluteWorkspaceDir}\n`);
-
-  const rollup = await generateReport({
-    evalCases: EVALS,
-    includeContextMessages,
-    outputDir,
-    workspaceRootDir: absoluteWorkspaceDir,
-  });
-
-  printSummary({ outputDir, rollup, workspaceRootDir: absoluteWorkspaceDir });
-  if (values.json) {
-    emitReport(`${JSON.stringify(rollup)}\n`);
-  }
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
-  process.exit(exitCodeFor(rollup));
-    break;
-  }
-  default: {
-  const filteredEvals = adHocEval
-    ? [adHocEval]
-    : EVALS.filter((e) => matchesPattern(e.name));
-
-  if (filteredEvals.length === 0) {
-    process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
-    throw new Error(`No evals matched pattern: "${patternLabel}"`);
-  }
-
-  const totalRuns = filteredEvals.length * models.length * repeat;
-
-  write(
-    [
-      "",
-      `${c.dim}┌─ Eval Plan ─────────────────────────────────────────${c.reset}`,
-      `${c.dim}│${c.reset}  ${c.dim}Evals       :${c.reset} ${c.yellow}${filteredEvals.length}${c.reset}`,
-      `${c.dim}│${c.reset}  ${c.dim}Models      :${c.reset} ${c.yellow}${models.length}${c.reset}`,
-      ...(repeat > 1
-        ? [
-            `${c.dim}│${c.reset}  ${c.dim}Repeat      :${c.reset} ${c.yellow}${repeat}${c.reset}`,
-          ]
-        : []),
-      `${c.dim}│${c.reset}  ${c.dim}Total runs  :${c.reset} ${c.yellow}${totalRuns}${c.reset}`,
-      `${c.dim}│${c.reset}  ${c.dim}Concurrency :${c.reset} ${concurrency}`,
-      `${c.dim}│${c.reset}  ${c.dim}Dry run     :${c.reset} ${dryRun ? "yes" : "no"}`,
-      `${c.dim}│${c.reset}  ${c.dim}Token cap   :${c.reset} ${maxRunTokens > 0 ? `${formatNumber(maxRunTokens)} per run` : "none"}`,
-      `${c.dim}│${c.reset}  ${c.dim}Time cap    :${c.reset} ${maxRunSeconds > 0 ? `${maxRunSeconds}s per run` : "none"}`,
-      `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
-      ...filteredEvals.map(
-        (e) => `${c.dim}│${c.reset}  ${c.dim}-${c.reset} ${e.name}`,
-      ),
-      `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
-      ...models.map(
-        (m) =>
-          `${c.dim}│${c.reset}  ${c.dim}-${c.reset} ${c.cyan}${m}${c.reset}`,
-      ),
-      `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
-      "",
-    ].join("\n"),
-  );
-
-  // Nothing is watching a piped or backgrounded run, so a prompt there is a
-  // hang rather than a safeguard. It is worth having when a person is present
-  // and could still say no, which is exactly when stdin is a terminal.
-  if (!dryRun && !values.yes && process.stdin.isTTY) {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stderr,
-    });
-    const answer = await rl.question("Proceed? (y/N) ");
-    rl.close();
-    if (answer.toLowerCase() !== "y") {
-      write("Aborted.\n");
-      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
-      process.exit(0);
+    if (!workspaceRootDir) {
+      process.stderr.write(
+        "Error: report subcommand requires a workspace directory argument\n",
+      );
+      throw new Error(
+        "report subcommand requires a workspace directory argument",
+      );
     }
-    write("\n");
-  }
 
-  const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
-    concurrency,
-    dryRun,
-    maxRunSeconds,
-    maxRunTokens,
-    models,
-    reasoningEffort,
-    repeat,
-  });
-
-  reportStopped(runs);
-
-  if (!dryRun) {
-    write(
-      `\n${c.green}All evals complete.${c.reset} ${c.dim}Generating report...${c.reset}\n`,
-    );
+    const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
+    write(`Workspace: ${absoluteWorkspaceDir}\n`);
 
     const rollup = await generateReport({
-      evalCases: filteredEvals,
+      evalCases: EVALS,
       includeContextMessages,
       outputDir,
-      runs,
-      workspaceRootDir,
+      workspaceRootDir: absoluteWorkspaceDir,
     });
 
-    printSummary({ outputDir, rollup, workspaceRootDir });
-    printTranscripts({ outputDir, rollup });
+    printSummary({ outputDir, rollup, workspaceRootDir: absoluteWorkspaceDir });
     if (values.json) {
       emitReport(`${JSON.stringify(rollup)}\n`);
     }
     // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
     process.exit(exitCodeFor(rollup));
+    break;
   }
+  default: {
+    const filteredEvals = adHocEval
+      ? [adHocEval]
+      : EVALS.filter((e) => matchesPattern(e.name));
+
+    if (filteredEvals.length === 0) {
+      process.stderr.write(`No evals matched pattern: "${patternLabel}"\n`);
+      throw new Error(`No evals matched pattern: "${patternLabel}"`);
+    }
+
+    const totalRuns = filteredEvals.length * models.length * repeat;
+
+    write(
+      [
+        "",
+        `${c.dim}┌─ Eval Plan ─────────────────────────────────────────${c.reset}`,
+        `${c.dim}│${c.reset}  ${c.dim}Evals       :${c.reset} ${c.yellow}${filteredEvals.length}${c.reset}`,
+        `${c.dim}│${c.reset}  ${c.dim}Models      :${c.reset} ${c.yellow}${models.length}${c.reset}`,
+        ...(repeat > 1
+          ? [
+              `${c.dim}│${c.reset}  ${c.dim}Repeat      :${c.reset} ${c.yellow}${repeat}${c.reset}`,
+            ]
+          : []),
+        `${c.dim}│${c.reset}  ${c.dim}Total runs  :${c.reset} ${c.yellow}${totalRuns}${c.reset}`,
+        `${c.dim}│${c.reset}  ${c.dim}Concurrency :${c.reset} ${concurrency}`,
+        `${c.dim}│${c.reset}  ${c.dim}Dry run     :${c.reset} ${dryRun ? "yes" : "no"}`,
+        `${c.dim}│${c.reset}  ${c.dim}Token cap   :${c.reset} ${maxRunTokens > 0 ? `${formatNumber(maxRunTokens)} per run` : "none"}`,
+        `${c.dim}│${c.reset}  ${c.dim}Time cap    :${c.reset} ${maxRunSeconds > 0 ? `${maxRunSeconds}s per run` : "none"}`,
+        `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
+        ...filteredEvals.map(
+          (e) => `${c.dim}│${c.reset}  ${c.dim}-${c.reset} ${e.name}`,
+        ),
+        `${c.dim}├─────────────────────────────────────────────────────${c.reset}`,
+        ...models.map(
+          (m) =>
+            `${c.dim}│${c.reset}  ${c.dim}-${c.reset} ${c.cyan}${m}${c.reset}`,
+        ),
+        `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
+        "",
+      ].join("\n"),
+    );
+
+    // Nothing is watching a piped or backgrounded run, so a prompt there is a
+    // hang rather than a safeguard. It is worth having when a person is present
+    // and could still say no, which is exactly when stdin is a terminal.
+    if (!dryRun && !values.yes && process.stdin.isTTY) {
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stderr,
+      });
+      const answer = await rl.question("Proceed? (y/N) ");
+      rl.close();
+      if (answer.toLowerCase() !== "y") {
+        write("Aborted.\n");
+        // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+        process.exit(0);
+      }
+      write("\n");
+    }
+
+    const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
+      concurrency,
+      dryRun,
+      maxRunSeconds,
+      maxRunTokens,
+      models,
+      reasoningEffort,
+      repeat,
+    });
+
+    reportStopped(runs);
+
+    if (!dryRun) {
+      write(
+        `\n${c.green}All evals complete.${c.reset} ${c.dim}Generating report...${c.reset}\n`,
+      );
+
+      const rollup = await generateReport({
+        evalCases: filteredEvals,
+        includeContextMessages,
+        outputDir,
+        runs,
+        workspaceRootDir,
+      });
+
+      printSummary({ outputDir, rollup, workspaceRootDir });
+      printTranscripts({ outputDir, rollup });
+      if (values.json) {
+        emitReport(`${JSON.stringify(rollup)}\n`);
+      }
+      // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+      process.exit(exitCodeFor(rollup));
+    }
   }
 }
 

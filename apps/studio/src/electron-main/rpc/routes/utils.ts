@@ -690,7 +690,9 @@ const saveDiagnosticLog = base
   .output(
     z.object({ status: z.enum(["canceled", "failed", "no-log", "saved"]) }),
   )
-  .handler(() => saveLogCopy(getMainWindow() ?? undefined));
+  .handler(({ context }) =>
+    saveLogCopy(getCallingWindow(context.webContentsId) ?? undefined),
+  );
 
 const clearExceptions = base.input(z.void()).handler(() => {
   clearServerExceptions();
@@ -920,12 +922,14 @@ const showFolderPicker = base
     }),
   )
   .output(z.object({ path: z.string() }).nullable())
-  .handler(async ({ input }) => {
+  .handler(async ({ context, input }) => {
     // Pass the parent window so macOS presents a window-modal sheet, which keeps
     // the open-panel service warm across opens. Without a parent it falls back to
-    // app-modal and cold-starts the panel every time (~2-3s). The focused window
-    // first, so a picker asked for from a second window opens on that window.
-    const parentWindow = BrowserWindow.getFocusedWindow() ?? getMainWindow();
+    // app-modal and cold-starts the panel every time (~2-3s). The window that
+    // asked, so a picker opened from a second window opens on that window and
+    // never on one that is not on screen: a dialog owned by a hidden window is a
+    // question nobody can answer, and reads as the app having stopped.
+    const parentWindow = getCallingWindow(context.webContentsId);
     const options = {
       ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
       ...(input.message

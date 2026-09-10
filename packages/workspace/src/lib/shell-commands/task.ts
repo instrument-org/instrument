@@ -61,6 +61,7 @@ import {
 } from "../orchestrator/mount-paths";
 import { outputFolderPath } from "../orchestrator/output-folder";
 import { expectStop } from "../orchestrator/wake";
+import { WAKE_SUMMARY_MAX_LENGTH } from "../orchestrator/wake-summary";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
@@ -140,6 +141,9 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       \`${TASK_COMMAND.name} models\` says which levels each model takes and its default. The same
       brief at two levels is two tasks, which is how a level is compared.
       Prints the task id. You are told when it finishes a turn; do not poll it.
+      What that note carries is the first ${WAKE_SUMMARY_MAX_LENGTH} characters of its last message and
+      the files it wrote, so the brief names a file to make and a folder for
+      it, never findings or a summary to put in the reply.
   ${TASK_COMMAND.name} send <id> <<'EOF'
   <message>
   EOF

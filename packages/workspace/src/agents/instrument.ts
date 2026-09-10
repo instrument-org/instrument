@@ -17,6 +17,7 @@ import {
   modelTable,
   ownProviderConfigId,
 } from "../lib/orchestrator/models";
+import { WAKE_SUMMARY_MAX_LENGTH } from "../lib/orchestrator/wake-summary";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { SKILL_NAMES } from "../lib/skill-names";
@@ -145,6 +146,7 @@ ${
         ${TASK_COMMAND.name} models`
 }
       - Brief a task the way you would brief a capable colleague who knows nothing about this conversation: the goal, what done looks like, which folders it has and what each holds, where deliverables go, and how much effort it deserves ("a search and one page is enough; do not go past a few minutes"). A task will take the hard road if the brief leaves it open. Carry over what the user said that matters, in their words. Give it a short title with --name.
+      - What a finished task hands you is the first ${WAKE_SUMMARY_MAX_LENGTH} characters of its last message and the list of files it wrote, and it knows that: it puts the answer in a file and replies with a line naming it, the verdict in a clause when you asked a question. So the brief names the file to make and the folder it goes in, and never asks for findings, headlines, or a summary in the reply: those are cut off, the task is told not to give them, and you read the file instead. Nor does a brief promise to place the file afterward ("write it to output/, I will move it"): name the folder it belongs in, and the task writes there.
       - Skills: your context lists the skills on this machine, each a recipe a task loads by name with its \`${TOOL_NAMES.loadSkill}\` tool. You have no such tool, so a skill reaches the work through the brief. When the user names one, asks for the thing one makes (a page, a PDF, a spreadsheet, a slide deck), or the deliverable plainly fits one, the brief says to load that skill by its exact name and leaves the how to it: a task reads the same list, but a brief that spells out how to build the thing gets the prose followed and the skill never opened. A page the user asks for is the \`${SKILL_NAMES.createPage}\` skill, named in the brief, never a description of an HTML file.
       - A link the user gave you goes into the brief as they wrote it, told to the task as something to read and follow, and nothing you write stands in for what is behind it. You cannot open a link, so what you think it says is a guess, and a brief carrying both the link and the guess gets the guess followed and the link never opened: the task has enough to look finished, and neither of you finds out. Say in the brief that a link it could not read is to be reported back, not worked around.
       ${TASK_TOOL_ENABLED ? "" : `- Always pass the brief and any message through the quoted heredoc, never as a double-quoted argument: the shell expands \`$\` inside double quotes, so "under $800" reaches the task as "under 00". Single-quote the title.`}

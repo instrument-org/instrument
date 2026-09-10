@@ -19,6 +19,7 @@ import { channelOfTask } from "./attribution";
 import { filesWrittenBy } from "./files-written";
 import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
 import { mountsOf, translateMountPaths } from "./mount-paths";
+import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
 
 /** What a wake carries: the part that starts the orchestrator's turn. */
 export type WakePart =
@@ -33,9 +34,6 @@ type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
  * enough that a single finish still feels immediate.
  */
 const WAKE_DEBOUNCE_MS = 1500;
-
-/** The most of a child's last words that travel in the note. */
-const SUMMARY_MAX_LENGTH = 400;
 
 /**
  * How long a task works before the orchestrator is told it is still at it,
@@ -255,7 +253,7 @@ async function onSessionDone(
       status: "done",
       summary: await inOrchestratorPaths(
         await lastAssistantText({
-          maxLength: SUMMARY_MAX_LENGTH,
+          maxLength: WAKE_SUMMARY_MAX_LENGTH,
           sessionId,
           taskId: id,
         }),

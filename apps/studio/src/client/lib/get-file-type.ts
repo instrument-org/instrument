@@ -283,7 +283,6 @@ const NAMED_FILE_TYPES: Record<string, FileType> = {
   gnumakefile: "code",
   jenkinsfile: "code",
   justfile: "code",
-  licence: "text",
   license: "text",
   makefile: "code",
   notice: "text",

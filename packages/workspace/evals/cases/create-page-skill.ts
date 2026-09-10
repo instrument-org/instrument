@@ -18,27 +18,6 @@ import { type Session } from "../../src/schemas/session";
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
-/** The skill by its plain name or by any source-qualified spelling of it. */
-function isCreatePageName(name: unknown): boolean {
-  return (
-    typeof name === "string" &&
-    (name === SKILL_NAMES.createPage ||
-      name.endsWith(`:${SKILL_NAMES.createPage}`))
-  );
-}
-
-function isLoadCreatePagePart(part: SessionMessagePart.Type): boolean {
-  return part.type === "tool-load_skill" && isCreatePageName(part.input?.name);
-}
-
-function loadedCreatePage(sessions: Session.WithMessagesAndParts[]): boolean {
-  return sessions.some((session) =>
-    session.messages.some((message) =>
-      message.parts.some(isLoadCreatePagePart),
-    ),
-  );
-}
-
 /** Every `task new` the conversation ran, brief included. */
 function briefs(sessions: Session.WithMessagesAndParts[]): string[] {
   return sessions.flatMap((session) =>
@@ -59,6 +38,27 @@ function briefs(sessions: Session.WithMessagesAndParts[]): string[] {
 
 function fail(text: string, evidence: string): AssertionResult {
   return { evidence, passed: false, text };
+}
+
+/** The skill by its plain name or by any source-qualified spelling of it. */
+function isCreatePageName(name: unknown): boolean {
+  return (
+    typeof name === "string" &&
+    (name === SKILL_NAMES.createPage ||
+      name.endsWith(`:${SKILL_NAMES.createPage}`))
+  );
+}
+
+function isLoadCreatePagePart(part: SessionMessagePart.Type): boolean {
+  return part.type === "tool-load_skill" && isCreatePageName(part.input?.name);
+}
+
+function loadedCreatePage(sessions: Session.WithMessagesAndParts[]): boolean {
+  return sessions.some((session) =>
+    session.messages.some((message) =>
+      message.parts.some(isLoadCreatePagePart),
+    ),
+  );
 }
 
 function pass(text: string, evidence: string): AssertionResult {

@@ -1,6 +1,6 @@
 # Plan: weight the skill catalog so a named skill keeps its trigger
 
-Status: diagnosed, not started. The catalog shortens every description to one flat cap, which cuts the "use when" clause off the skills the product depends on most.
+Status: **complete for the code half.** Change 1 landed in [`skill-catalog.ts`](../../../packages/workspace/src/lib/skill-catalog.ts): the shortening step keeps every `SKILL_NAMES` skill whole while together they need at most half of what is left after the names, and falls back to the flat cap past that; `skill-catalog.test.ts` covers the reservation, the fallback, a namesake from another source, and a realistic skill count where the shortening step fires. The four eval cases live in `evals/cases/create-page-skill.ts`. Change 2, front-loading the description, is a skills-repository edit and is still open. Change 3 was a note and stays one. Two things this plan did not see: the orchestrator had no skill catalog at all and briefed tasks blind, fixed alongside; and the `<skill><name/><description/></skill>` markup costs about 71 characters per entry, so on a 54-skill machine names and markup take 63% of the budget before any description, which makes a compact entry format the next lever if the budget gets tight again.
 
 ## What goes wrong
 
@@ -16,7 +16,7 @@ The skill it replaced survived the same cut intact, because it put its trigger f
 
 ## Why it happens
 
-[`skill-catalog.ts`](../../packages/workspace/src/lib/skill-catalog.ts) degrades in three steps: every description in full, then descriptions shortened to a fair share of what is left, then names alone. The middle step is the one that fires in practice, and it applies **one cap to every skill**:
+[`skill-catalog.ts`](../../../packages/workspace/src/lib/skill-catalog.ts) degrades in three steps: every description in full, then descriptions shortened to a fair share of what is left, then names alone. The middle step is the one that fires in practice, and it applies **one cap to every skill**:
 
 ```ts
 const cap = fairShareLength(entries.map((e) => e.descriptionCost), entryBudget - nameOnlyCost);
@@ -26,7 +26,7 @@ const cap = fairShareLength(entries.map((e) => e.descriptionCost), entryBudget -
 
 The catalog already has a notion of priority. `SOURCE_PRIORITY` ranks `system` above the app's own skills above every third-party source, but it only decides sort order and which names survive the last-resort step. It has no say in how long a description may be, which is the step that actually runs.
 
-The budget is 8000 characters, deliberately, and [the finding behind it](../findings/character-budgets-are-a-token-proxy.md) explains why it is characters rather than tokens. Raising it is not the fix: the catalog is discovered from the user's machine, so its size is set by how many skills they happen to have across every agent vendor, and any ceiling gets eaten as that number grows. The problem is the allocation, not the total.
+The budget is 8000 characters, deliberately, and [the finding behind it](../../findings/character-budgets-are-a-token-proxy.md) explains why it is characters rather than tokens. Raising it is not the fix: the catalog is discovered from the user's machine, so its size is set by how many skills they happen to have across every agent vendor, and any ceiling gets eaten as that number grows. The problem is the allocation, not the total.
 
 ## What to change
 
@@ -34,7 +34,7 @@ Three independent changes, in order of leverage.
 
 ### 1. Reserve full length for skills the product names
 
-The codebase already declares which skills matter: [`SKILL_NAMES`](../../packages/workspace/src/lib/skill-names.ts) is the list of skills referenced by name from tool descriptions and agent prompts, and `skill-names.test.ts` already fails when one of them stops resolving in the registry. That list is the weighting signal, and it needs no new source of truth.
+The codebase already declares which skills matter: [`SKILL_NAMES`](../../../packages/workspace/src/lib/skill-names.ts) is the list of skills referenced by name from tool descriptions and agent prompts, and `skill-names.test.ts` already fails when one of them stops resolving in the registry. That list is the weighting signal, and it needs no new source of truth.
 
 In the shortening step, take the named skills' descriptions in full first, then fair-share what remains among everything else:
 

@@ -9,9 +9,12 @@ export const BaseInputSchema = z.object({
   // skip it when it's optional, so we keep it optional in Zod (to avoid
   // hard-failing on omissions) but advertise it as required in the JSON
   // schema we send to the model via `toolInputSchemaForLLM`.
+  // The shape alone; what the label is for and what it must never be is said
+  // once in each agent's prompt, since this description is repeated on every
+  // tool of the request.
   [TOOL_EXPLANATION_PARAM_NAME]: z.string().optional().meta({
     description:
-      "What this one call is doing, as a short phrase starting with a verb ending in -ing: 'Reading the sales spreadsheet', 'Searching the notes for the launch date'. It is a label on a row, not a sentence addressed to anyone: never write it in the first person ('I'm reading...', 'Let me check...'), never as something you are about to do, and never as a full sentence with a period. Generate this first.",
+      "A label for this call: a short phrase starting with a verb ending in -ing, e.g. 'Reading the sales spreadsheet'. Generate this first.",
   }),
 });
 

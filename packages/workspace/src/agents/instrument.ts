@@ -191,7 +191,7 @@ ${
 
         Any path you can read goes in it, once it exists: never list a file a task is about to make. A folder is named the same way, with a trailing slash (\`${MOUNT.attachedFolders}/Desktop/\`), and opens as that folder -- for when the folder is what you are handing over, not in place of naming the files a reply is about. One fence per reply, listing every file that reply names. Do not paste a path in prose instead, and never copy a file to make it visible.
       - Refer to work by what it is, in the user's words, never by task id. Ids belong in commands and file paths. Say what is happening in words; the user sees a task's step on its card, so a line saying what you are doing is the whole status.
-      - Do not explain the app or narrate your tools. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter on a tool call is a label on a row, not a message to the user.
+      - Do not explain the app or narrate your tools. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter on a tool call is a label on a row, not a message to the user: a short phrase starting with a verb ending in -ing ('Starting the hotel search'), never first person, never something you are about to do, never a full sentence with a period.
     `.trim();
 
     const systemMessage = createSystemMessage({

@@ -202,6 +202,16 @@ function emptyRecord(unreadable: boolean): TaskRecord {
   };
 }
 
+function isBusy(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error.code === "EPERM" ||
+      error.code === "EACCES" ||
+      error.code === "EBUSY")
+  );
+}
+
 function isNotFound(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
@@ -261,38 +271,6 @@ function recordWithState(
 }
 
 /**
- * Writes through a temporary file and renames it into place.
- *
- * One file now carries the title, the sort key and the draft, and the draft is
- * rewritten as the user types. Writing over the live file leaves a window where
- * a crash truncates it, and a truncated file does not read as damaged: the
- * parse fails, the task answers as though it has no settings, and it loses its
- * name and its position in the list. Rename is atomic within a directory, so a
- * reader sees the old file or the new one.
- */
-async function writeTaskRecord(
-  dir: TaskDir,
-  record: Record<string, unknown>,
-): Promise<void> {
-  const target = recordPath(dir);
-  // Named per process so two app instances sharing a workspace cannot write
-  // each other's temporary file. That is all it buys: the writes are still
-  // unordered across instances and the last rename wins. Within one process the
-  // queue orders them.
-  const temporary = `${target}.${process.pid}.tmp`;
-
-  await fs.mkdir(getTaskPrivateDir(dir), { recursive: true });
-
-  try {
-    await fs.writeFile(temporary, JSON.stringify(record, null, 2), "utf8");
-    await renameWhenAllowed(temporary, target);
-  } catch (error) {
-    await fs.rm(temporary, { force: true });
-    throw error;
-  }
-}
-
-/**
  * Renames the temporary file into place, waiting out a refusal.
  *
  * Windows fails a rename with EPERM while another process holds either file
@@ -324,12 +302,34 @@ async function renameWhenAllowed(
   }
 }
 
-function isBusy(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error.code === "EPERM" ||
-      error.code === "EACCES" ||
-      error.code === "EBUSY")
-  );
+/**
+ * Writes through a temporary file and renames it into place.
+ *
+ * One file now carries the title, the sort key and the draft, and the draft is
+ * rewritten as the user types. Writing over the live file leaves a window where
+ * a crash truncates it, and a truncated file does not read as damaged: the
+ * parse fails, the task answers as though it has no settings, and it loses its
+ * name and its position in the list. Rename is atomic within a directory, so a
+ * reader sees the old file or the new one.
+ */
+async function writeTaskRecord(
+  dir: TaskDir,
+  record: Record<string, unknown>,
+): Promise<void> {
+  const target = recordPath(dir);
+  // Named per process so two app instances sharing a workspace cannot write
+  // each other's temporary file. That is all it buys: the writes are still
+  // unordered across instances and the last rename wins. Within one process the
+  // queue orders them.
+  const temporary = `${target}.${process.pid}.tmp`;
+
+  await fs.mkdir(getTaskPrivateDir(dir), { recursive: true });
+
+  try {
+    await fs.writeFile(temporary, JSON.stringify(record, null, 2), "utf8");
+    await renameWhenAllowed(temporary, target);
+  } catch (error) {
+    await fs.rm(temporary, { force: true });
+    throw error;
+  }
 }

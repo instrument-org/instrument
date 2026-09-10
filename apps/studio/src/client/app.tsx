@@ -1,4 +1,5 @@
 import { OnboardingZoomRoot } from "@/client/components/onboarding/zoom-root";
+import { WindowBorder } from "@/client/components/window-border";
 import { resolveWorkspaceServerUrl } from "@/client/lib/asset-base-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import { queryClient, router } from "@/client/router";
@@ -19,6 +20,10 @@ export function App() {
         <OnboardingZoomRoot>
           <RouterProvider router={router} />
         </OnboardingZoomRoot>
+        {/* Outside the zoom root, so it stays a single hairline at every UI
+          zoom. The orchestrator window is the frameless one of the two this
+          root serves; onboarding keeps the system's frame and its edge. */}
+        {window.api.windowType === "orchestrator" && <WindowBorder />}
       </IconContext.Provider>
     </QueryClientProvider>
   );

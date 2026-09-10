@@ -52,11 +52,17 @@ export function openOrchestratorWindow(): BrowserWindow {
   orchestratorWindow = new BrowserWindow({
     ...remembered.bounds,
     backgroundColor: getBackgroundColor(),
+    // On macOS the native NSWindow frame is kept, since `hiddenInset` already
+    // gives the chromeless look and a frameless window cannot host modal
+    // sheets. Everywhere else the frame is what draws a title bar above this
+    // window's own bar, so it goes and the renderer draws the window controls
+    // (see WindowControls), as the classic window does.
+    frame: process.platform === "darwin",
     minHeight: 520,
     minWidth: 900,
     show: false,
     title: "Instrument",
-    titleBarStyle: "hiddenInset",
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     webPreferences: {
       additionalArguments: ["--windowType=orchestrator"],
       contextIsolation: true,

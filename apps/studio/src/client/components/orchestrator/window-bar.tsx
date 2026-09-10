@@ -4,6 +4,7 @@ import {
   type ChannelMark,
 } from "@/client/components/orchestrator/channel-rail";
 import { channelTint } from "@/client/components/orchestrator/channel-tint";
+import { WindowControls } from "@/client/components/window-controls";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
@@ -40,10 +41,12 @@ export function WindowBar({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center gap-1.5 border-b border-border pr-2 channel-tint [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
+        "flex shrink-0 items-center gap-1.5 border-b border-border channel-tint [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
         // The lights are drawn by the system over the window's top left; on
-        // the platforms that put controls elsewhere the row starts at the edge.
-        isMacOS() ? undefined : "pl-2",
+        // the platforms that put controls elsewhere the row starts at the edge
+        // and ends at the buttons it draws itself, which reach the corner the
+        // way the system's own would.
+        isMacOS() ? "pr-2" : "pl-2",
       )}
       style={{
         background: "var(--channel-tint-surface, var(--background))",
@@ -108,6 +111,9 @@ export function WindowBar({
       {trailing ? (
         <div className="flex shrink-0 items-center gap-2">{trailing}</div>
       ) : null}
+      {/* Nothing on macOS, where the system draws the buttons at the other
+        end; the row is their band on the platforms that do not. */}
+      <WindowControls />
     </div>
   );
 }

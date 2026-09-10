@@ -24,7 +24,7 @@ import { useTaskFileOpenTarget } from "@/client/hooks/use-task-file-open-target"
 import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
 import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
+import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type ComputerListing,
@@ -1018,9 +1018,11 @@ function failed(error: unknown) {
 
 /**
  * What can be done to the thing under the pointer, or to the folder itself
- * where there is nothing under it. A file the agent's folders cover opens the
- * way one opens anywhere else in the app: the Mac's own app for it, with the
- * others a submenu away.
+ * where there is nothing under it. Handing a file to another program is one
+ * row, and a submenu wherever the Mac can name the apps that read it: naming
+ * an app on the row itself makes the menu as wide as whatever app that file
+ * happens to belong to, and puts leaving the app at the top of the list of
+ * things to do with a file.
  */
 function FolderMenu({
   item,
@@ -1045,7 +1047,7 @@ function FolderMenu({
   const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
   const file = tab ? { filePath: tab.mount, taskId } : undefined;
   const openTaskFile = useOpenTaskFile();
-  const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
+  const { showOpen } = useTaskFileOpenTarget(file);
   return (
     <ContextMenuContent
       className="min-w-48"
@@ -1057,7 +1059,17 @@ function FolderMenu({
         event.preventDefault();
       }}
     >
-      {file && showOpen ? (
+      {/* The apps are listed where the Mac can be asked for them, and the
+          submenu asks only once it is opened, so the row is there from the
+          first frame rather than arriving under the pointer once a lookup has
+          answered. Elsewhere the one row hands the file to whichever program
+          the system has chosen for it. */}
+      {file && isMacOS() ? (
+        <>
+          <OpenWithMenu file={file} menuComponents={contextMenuComponents} />
+          <ContextMenuSeparator />
+        </>
+      ) : file && showOpen ? (
         <>
           <ContextMenuItem
             onClick={() => {
@@ -1065,11 +1077,8 @@ function FolderMenu({
             }}
           >
             <OpenTargetIcon className="size-4" file={file} />
-            <span>{openLabel}</span>
+            <span>Open</span>
           </ContextMenuItem>
-          {showOpenWith ? (
-            <OpenWithMenu file={file} menuComponents={contextMenuComponents} />
-          ) : null}
           <ContextMenuSeparator />
         </>
       ) : null}

@@ -222,6 +222,11 @@ function escapeXml(value: string) {
     .replaceAll(">", "&gt;");
 }
 
+/** A name sits in a quoted attribute, where a quote of its own would end it. */
+function escapeXmlAttribute(value: string) {
+  return escapeXml(value).replaceAll('"', "&quot;");
+}
+
 /**
  * Longest description every skill can be cut to without exceeding `budget`.
  *
@@ -244,11 +249,6 @@ function fairShareLength(lengths: number[], budget: number): number {
 
 function renderEntry(name: string, description: string) {
   return `  <${CATALOG_TAGS.skill} ${CATALOG_TAGS.name}="${escapeXmlAttribute(name)}">${escapeXml(description)}</${CATALOG_TAGS.skill}>`;
-}
-
-/** A name sits in a quoted attribute, where a quote of its own would end it. */
-function escapeXmlAttribute(value: string) {
-  return escapeXml(value).replaceAll('"', "&quot;");
 }
 
 function trimDescriptionToEscapedLength(value: string, cap: number) {

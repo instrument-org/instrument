@@ -25,6 +25,7 @@ export {
 } from "./lib/providers/metadata";
 export type { ImageGenerationProviderType } from "./lib/providers/metadata";
 export {
+  catalogEffort,
   REASONING_EFFORTS,
   type ReasoningEffort,
 } from "./lib/reasoning-effort";

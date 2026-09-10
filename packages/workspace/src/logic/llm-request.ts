@@ -3,13 +3,12 @@ import type { ActorRef, AnyMachineSnapshot } from "xstate";
 
 import {
   type AIGatewayModel,
+  catalogEffort,
   CLIENT_SESSION_ID_HEADER,
   fetchAISDKModel,
   findCachedModelByProviderId,
   namesSameModel,
   providerOptionsForModel,
-  REASONING_EFFORTS,
-  type ReasoningEffort,
 } from "@instrument-org/ai-gateway";
 import {
   APICallError,
@@ -945,29 +944,3 @@ export const llmRequestLogic = fromPromise<
 
   return { message: assistantMessage, parts: await getCurrentParts() };
 });
-
-/**
- * The level a model runs at when nobody chose one for the task.
- *
- * Only ever the model's own stated default, and only for a model that already
- * reasons without being asked: naming the level it was going to use anyway
- * makes it explicit, while sending one to a model whose reasoning is off by
- * default would turn it on and charge for it. Both facts come from the
- * catalog, which is also where the measurement that set the Workers AI default
- * is recorded.
- *
- * The catalog's word is a provider's, so a rung outside our ladder -- OpenAI's
- * `xhigh`, Google's `minimal` -- resolves to nothing rather than being coerced.
- */
-function catalogEffort(
-  model: AIGatewayModel.Type,
-): ReasoningEffort | undefined {
-  const reasoning = model.reasoning;
-  if (!reasoning?.enabledByDefault || reasoning.defaultEffort === undefined) {
-    return undefined;
-  }
-  const rung = REASONING_EFFORTS.find(
-    (effort) => effort === reasoning.defaultEffort,
-  );
-  return rung;
-}

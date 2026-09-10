@@ -2,7 +2,7 @@
 
 Date: 2026-08-27
 
-Narrowed by [2026-09-08-carry-the-find-patch.md](2026-09-08-carry-the-find-patch.md) and [2026-09-09-carry-the-stat-patch.md](2026-09-09-carry-the-stat-patch.md): two patches are carried, both for gaps that turned out to sit on the main path. The reasoning below still decides everything else.
+Narrowed by [2026-09-08-carry-the-find-patch.md](2026-09-08-carry-the-find-patch.md), [2026-09-09-carry-the-stat-patch.md](2026-09-09-carry-the-stat-patch.md), and [2026-09-10-carry-the-cross-mount-copy-patch.md](2026-09-10-carry-the-cross-mount-copy-patch.md): three patches are carried, each for a gap that turned out to sit on the main path. The reasoning below still decides everything else.
 
 ## Context
 

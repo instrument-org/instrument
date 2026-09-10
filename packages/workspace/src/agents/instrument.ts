@@ -229,6 +229,7 @@ ${
     const appsText = await buildAppsContextText();
     const channelsText = await channelsContextText(taskId, sessionId);
     const skillsText = await buildAvailableSkillsContext({
+      described: "ours",
       intro: `The skills installed on this machine when this session started. A task loads one with \`${TOOL_NAMES.loadSkill}\` by the exact name shown here; you cannot, so a brief names it.`,
     });
     const userMessage = createContextMessage({

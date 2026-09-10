@@ -211,9 +211,8 @@ export const mainAgent = setupAgent({
       tools; a skill saved here is immediately available to \`${agentTools.LoadSkill.name}\`.
       Skills that came from elsewhere on the machine are not under
       \`${MOUNT.skills}/\` and cannot be edited -- load them by name instead.
-      Like \`${MOUNT.attachedFolders}/\`, this is outside the task root, so native tools (python, ffmpeg,
-      scripts) cannot reach it; to run a skill's script, load the skill and run the
-      copy under \`${F.work}/${F.skills}/\`.
+      To run a skill's script, load the skill and run the copy under
+      \`${F.work}/${F.skills}/\`: a mount is out of a native tool's reach.
 
     # Tools Usage Guidance
     - Choose the fastest deterministic method that fully satisfies the requested outcome. Words such as "create," "generate," or "image" describe the deliverable, not permission to use AI image generation. Use the ${agentTools.GenerateImage.name} tool only when the user explicitly asks for AI generation or when the desired result requires learned visual synthesis or semantic image editing. For exact graphics, flat colors, shapes, text, charts, diagrams, resizing, cropping, compositing, or format conversion, use direct file writing (such as SVG or HTML) or deterministic scripts and commands.

@@ -52,7 +52,13 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
-import { folderOf, homeRelative } from "./host-path";
+import {
+  folderOf,
+  homeRelative,
+  isInside,
+  segmentsOf,
+  separatorOf,
+} from "./host-path";
 
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
@@ -746,9 +752,7 @@ export function ComputerPage({
     ? "Recents"
     : root === "~"
       ? "Home"
-      : (root.split("/").findLast(Boolean) ??
-        places.data.volumes[0]?.name ??
-        "Root");
+      : (segmentsOf(root).at(-1) ?? places.data.volumes[0]?.name ?? "Root");
   // The bar under the columns says where the folder is; at the recents, where
   // the selected file is, which is the only place that list points to.
   const pathBarHost = isRecents
@@ -993,24 +997,27 @@ export function ComputerPage({
 }
 
 /**
- * The folder's whole path on the Mac as the Finder writes it at the bottom
- * of a window: the volume, then every folder down to this one.
+ * The folder's whole path as the system writes it at the bottom of a window:
+ * the volume it is on, then every folder down to this one.
  */
 function breadcrumbs(
   hostPath: string,
   places: { volumes: { name: string; path: string }[] },
 ) {
+  const separator = separatorOf(hostPath);
   const volume =
     places.volumes.find(
       (candidate) =>
-        candidate.path !== "/" && hostPath.startsWith(`${candidate.path}/`),
+        candidate.path !== "/" && isInside(hostPath, candidate.path),
     ) ?? places.volumes.find((candidate) => candidate.path === "/");
-  const base = volume?.path ?? "/";
-  const rest = hostPath.slice(base === "/" ? 1 : base.length + 1);
+  // A volume is named by the path it is mounted at, so its own name is not one
+  // of the segments below it: `C:\` and `/Volumes/Backup` both stop here.
+  const base = volume?.path ?? separator;
+  const rest = hostPath.slice(base.length);
   const crumbs = [{ name: volume?.name ?? "Root", path: base }];
-  let at = base === "/" ? "" : base;
-  for (const segment of rest.split("/").filter(Boolean)) {
-    at = `${at}/${segment}`;
+  let at = base.replace(/[/\\]$/, "");
+  for (const segment of segmentsOf(rest)) {
+    at = `${at}${separator}${segment}`;
     crumbs.push({ name: segment, path: at });
   }
   return crumbs;

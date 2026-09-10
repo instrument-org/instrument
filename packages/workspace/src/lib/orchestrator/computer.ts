@@ -343,8 +343,17 @@ async function describeShownFile(
   };
 }
 
-/** A host path the way a person writes it: the home folder as `~`. */
+/**
+ * A host path the way a person writes it: the home folder as `~`.
+ *
+ * Only where a person would. `~` is how a Mac and a Linux desktop spell the
+ * home folder; on Windows it is a name nobody has seen a folder go by, so a
+ * path there is written out as it is.
+ */
 function displayHostPath(hostPath: string): string {
+  if (process.platform === "win32") {
+    return hostPath;
+  }
   const home = os.homedir();
   if (hostPath === home) {
     return "~";

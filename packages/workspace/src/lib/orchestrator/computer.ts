@@ -154,10 +154,14 @@ export async function computerPlaces(): Promise<ComputerPlaces> {
 }
 
 /**
- * One folder of the computer, as the Finder would show it: files and
- * subfolders, hidden ones left out, folders first. Read as the app's own user,
- * which is what the person browsing is; whether the agent may read it is a
- * separate question, answered by `access`.
+ * One folder of the computer: files and subfolders, folders first. Read as the
+ * app's own user, which is what the person browsing is; whether the agent may
+ * read it is a separate question, answered by `access`.
+ *
+ * Dotfiles are listed. Whether they are *shown* is the browser's to decide,
+ * because it is the browser that offers the switch: answering it here would mean
+ * a round trip per flip, and a folder whose children are already in hand would
+ * come back half-loaded under the new answer.
  */
 export async function listComputerFolder({
   path: input,
@@ -168,11 +172,10 @@ export async function listComputerFolder({
 }): Promise<ComputerListing> {
   const hostPath = expandHomePath(input);
   const dirents = await fs.readdir(hostPath, { withFileTypes: true });
-  const visible = dirents.filter((entry) => !entry.name.startsWith("."));
-  const truncated = visible.length > MAX_ENTRIES;
+  const truncated = dirents.length > MAX_ENTRIES;
 
   const entries = await Promise.all(
-    visible
+    dirents
       .slice(0, MAX_ENTRIES)
       .map((entry) => describeEntry(hostPath, entry.name)),
   );

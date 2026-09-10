@@ -229,6 +229,71 @@ export function getFileKindLabel({
   return fileKindLabel(getFileType({ filename, mimeType }));
 }
 
+// Files whose whole name is the type, because there is no extension to read one
+// from: a leading-dot config file, or one of the build files a project keeps at
+// its root. Both are text, and both reached the fallback card before this --
+// which in a folder listing is most of what sits beside the code.
+//
+// A named list rather than a rule. "Every dotfile is text" is the rule the
+// workspace server uses, and it is wrong often enough to matter: `.DS_Store` is
+// a binary, and so is whatever the next tool writes beside it. A name earns its
+// way on here by being a file someone opens to read.
+//
+// Prose is `text` and everything else is `code`, which is the difference between
+// the reading typeface at a measure and monospace at full width. A license or a
+// changelog is read; a Makefile's tabs and columns are load-bearing.
+const NAMED_FILE_TYPES: Record<string, FileType> = {
+  ".babelrc": "code",
+  ".bash_profile": "code",
+  ".bashrc": "code",
+  ".browserslistrc": "code",
+  ".dockerignore": "code",
+  ".editorconfig": "code",
+  ".eslintignore": "code",
+  ".eslintrc": "code",
+  ".gitattributes": "code",
+  ".gitconfig": "code",
+  ".gitignore": "code",
+  ".gitmodules": "code",
+  ".htaccess": "code",
+  ".inputrc": "code",
+  ".npmignore": "code",
+  ".npmrc": "code",
+  ".nvmrc": "code",
+  ".prettierignore": "code",
+  ".prettierrc": "code",
+  ".python-version": "code",
+  ".ruby-version": "code",
+  ".tool-versions": "code",
+  ".vimrc": "code",
+  ".yarnrc": "code",
+  ".zprofile": "code",
+  ".zshrc": "code",
+  authors: "text",
+  brewfile: "code",
+  caddyfile: "code",
+  changelog: "text",
+  codeowners: "code",
+  containerfile: "code",
+  contributing: "text",
+  contributors: "text",
+  copying: "text",
+  dockerfile: "code",
+  gemfile: "code",
+  gnumakefile: "code",
+  jenkinsfile: "code",
+  justfile: "code",
+  licence: "text",
+  license: "text",
+  makefile: "code",
+  notice: "text",
+  procfile: "code",
+  rakefile: "code",
+  readme: "text",
+  todo: "text",
+  vagrantfile: "code",
+};
+
 // Extensions each document viewer can actually parse, checked before the
 // text/code fallbacks so `.csv` does not land in the syntax highlighter.
 //
@@ -320,6 +385,13 @@ export function getFileType({
   mimeType?: string;
 }): FileType {
   const lowerFilename = filename.toLowerCase();
+
+  // Ahead of the extension, since the name of a dotfile is read as one: the
+  // extension of `.gitignore` is `gitignore`, which is nobody's extension.
+  const namedType = NAMED_FILE_TYPES[lowerFilename];
+  if (namedType) {
+    return namedType;
+  }
 
   const extensionStart = lowerFilename.lastIndexOf(".");
   const extension =

@@ -120,6 +120,24 @@ describe("resolving from the extension alone", () => {
     expect(getFileType({ filename: "main.ts" })).toBe("code");
   });
 
+  // A name with no extension in it, or one whose "extension" is the whole name.
+  // Prose reads as text and the rest as code; anything unlisted stays unknown,
+  // which is what keeps `.DS_Store` out of a text viewer.
+  it.each([
+    [".gitignore", "code"],
+    [".npmrc", "code"],
+    [".prettierrc", "code"],
+    ["Makefile", "code"],
+    ["Dockerfile", "code"],
+    ["CODEOWNERS", "code"],
+    ["LICENSE", "text"],
+    ["README", "text"],
+    ["CHANGELOG", "text"],
+    [".DS_Store", "unknown"],
+  ] as const)("resolves %s to %s", (filename, expected) => {
+    expect(getFileType({ filename })).toBe(expected);
+  });
+
   // The server labels a response's Content-Type from the same table, so a file
   // has to read the same way whether or not that label reached the client.
   it.each([

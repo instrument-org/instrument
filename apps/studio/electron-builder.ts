@@ -129,14 +129,16 @@ const config: Configuration = {
     "**/node_modules/date-fns/locale/_lib/**",
     "**/node_modules/date-fns/locale/en-US/**",
     "**/node_modules/date-fns/locale/en-US.*",
-    // just-bash declares quickjs-emscripten to back its `js-exec` command,
-    // which is absent from the command registry just-bash builds. It is
-    // required from inside the command body, so excluding it drops weight
-    // nothing can reach. turndown and the domino it pulls are packaged
-    // instead: they back `html-to-markdown`, which the agent is offered and
-    // resolves at runtime from inside the same command body.
-    "!**/node_modules/quickjs-emscripten/**",
-    "!**/node_modules/@jitl/quickjs-*/**",
+    // quickjs-emscripten backs just-bash's `js-exec`, which the workspace
+    // enables. Its index requires all four wasm variants by name, so each
+    // variant's small `index`/`ffi` entry has to ship, but a variant only
+    // loads its `emscripten-module` glue and wasm when asked for, and
+    // `getQuickJS()` asks for release-sync alone. The other three variants'
+    // modules (~5MB), the release variant's browser and Cloudflare glue, and
+    // the package's 2.3MB browser bundle are weight nothing loads.
+    "!**/node_modules/quickjs-emscripten/dist/index.global.js",
+    "!**/node_modules/@jitl/quickjs-wasmfile-{debug-sync,debug-asyncify,release-asyncify}/dist/emscripten-module.*",
+    "!**/node_modules/@jitl/quickjs-wasmfile-release-sync/dist/emscripten-module.{browser,cloudflare}.*",
     // These two are last among the node_modules rules because a later pattern
     // wins: they have to apply to whatever the package-specific rules above
     // re-included, not be undone by them.

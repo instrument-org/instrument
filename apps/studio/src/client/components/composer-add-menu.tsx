@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -142,7 +143,7 @@ export function ComposerAddMenu({
         // The corner is the composer's own rather than the menu radius every
         // other dropdown wears, since this one is read against the edge of the
         // box it hangs off.
-        className="max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] rounded-[20px]"
+        className="flex max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] flex-col rounded-[20px] p-0"
         // Everything on offer here is something the prompt is about to carry,
         // so the caret goes back to the prompt rather than to the button that
         // opened this -- including out of the project picker, which is a
@@ -168,61 +169,63 @@ export function ComposerAddMenu({
         sideOffset={sideOffset}
         style={{ width }}
       >
-        {view === "projects" && onSelectProject ? (
-          <ProjectItems
-            onSelect={(id) => {
-              chose.current = "prompt";
-              onSelectProject(id);
-              onViewChange(null);
-            }}
-            projectId={projectId ?? null}
-          />
-        ) : (
-          <>
-            {actions.map((action) => (
-              <DropdownMenuItem
-                key={action.id}
-                onSelect={(event) => {
-                  if (action.keepMenuOpen) {
-                    event.preventDefault();
+        <MenuScrollArea>
+          {view === "projects" && onSelectProject ? (
+            <ProjectItems
+              onSelect={(id) => {
+                chose.current = "prompt";
+                onSelectProject(id);
+                onViewChange(null);
+              }}
+              projectId={projectId ?? null}
+            />
+          ) : (
+            <>
+              {actions.map((action) => (
+                <DropdownMenuItem
+                  key={action.id}
+                  onSelect={(event) => {
+                    if (action.keepMenuOpen) {
+                      event.preventDefault();
+                      action.onSelect();
+                      return;
+                    }
+                    if (action.handsOff) {
+                      chose.current = "hand-off";
+                      handOff.current = action.onSelect;
+                      return;
+                    }
+                    chose.current = "prompt";
                     action.onSelect();
-                    return;
-                  }
-                  if (action.handsOff) {
-                    chose.current = "hand-off";
-                    handOff.current = action.onSelect;
-                    return;
-                  }
-                  chose.current = "prompt";
-                  action.onSelect();
-                }}
-              >
-                <action.icon className="size-4" />
-                {action.label}
-              </DropdownMenuItem>
-            ))}
-            {skills.length > 0 && (
-              <MenuGroupHeader keyHint="/" label="Skills" />
-            )}
-            {skills.map((skill) => (
-              <DropdownMenuItem
-                key={skill.id}
-                onSelect={() => {
-                  chose.current = "prompt";
-                  onSelectSkill(skill);
-                }}
-              >
-                <SkillMenuRow
-                  match={{
-                    descriptionRanges: null,
-                    nameRanges: null,
-                    skill,
                   }}
-                />
-              </DropdownMenuItem>
-            ))}
-          </>
-        )}
+                >
+                  <action.icon className="size-4" />
+                  {action.label}
+                </DropdownMenuItem>
+              ))}
+              {skills.length > 0 && (
+                <MenuGroupHeader keyHint="/" label="Skills" />
+              )}
+              {skills.map((skill) => (
+                <DropdownMenuItem
+                  key={skill.id}
+                  onSelect={() => {
+                    chose.current = "prompt";
+                    onSelectSkill(skill);
+                  }}
+                >
+                  <SkillMenuRow
+                    match={{
+                      descriptionRanges: null,
+                      nameRanges: null,
+                      skill,
+                    }}
+                  />
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
+        </MenuScrollArea>
       </DropdownMenuContent>
     </DropdownMenu>
   );

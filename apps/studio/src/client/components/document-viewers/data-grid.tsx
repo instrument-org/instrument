@@ -32,6 +32,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import { MenuScrollArea } from "../ui/menu-scroll-area";
 import { Input } from "../ui/input";
 import { toolbarClassName } from "../ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -619,22 +620,24 @@ function ColumnMenu({
         </TooltipTrigger>
         <TooltipContent>Columns</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
-        {table.getAllLeafColumns().map((column) => (
-          <DropdownMenuCheckboxItem
-            checked={column.getIsVisible()}
-            key={column.id}
-            onSelect={(event) => {
-              // Kept open so several columns can be turned off in one visit.
-              event.preventDefault();
-              column.toggleVisibility();
-            }}
-          >
-            <span className="truncate">
-              {columns[Number(column.id)]?.name ?? column.id}
-            </span>
-          </DropdownMenuCheckboxItem>
-        ))}
+      <DropdownMenuContent align="end" className="flex flex-col p-0">
+        <MenuScrollArea className="max-h-80">
+          {table.getAllLeafColumns().map((column) => (
+            <DropdownMenuCheckboxItem
+              checked={column.getIsVisible()}
+              key={column.id}
+              onSelect={(event) => {
+                // Kept open so several columns can be turned off in one visit.
+                event.preventDefault();
+                column.toggleVisibility();
+              }}
+            >
+              <span className="truncate">
+                {columns[Number(column.id)]?.name ?? column.id}
+              </span>
+            </DropdownMenuCheckboxItem>
+          ))}
+        </MenuScrollArea>
       </DropdownMenuContent>
     </DropdownMenu>
   );

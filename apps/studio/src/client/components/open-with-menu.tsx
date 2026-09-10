@@ -2,7 +2,7 @@ import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { useOpenTaskFileWith } from "@/client/hooks/use-open-task-file";
 import { useTaskFileOpenCandidates } from "@/client/hooks/use-task-file-open-target";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { type ReactElement } from "react";
+import { type ReactElement, type ReactNode } from "react";
 
 import { IconWithFallback } from "./icon-with-fallback";
 import {
@@ -28,12 +28,14 @@ export function OpenWithDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-80 min-w-52">
-        <OpenWithCandidates
-          file={file}
-          menuComponents={dropdownMenuComponents}
-          omitDefault
-        />
+      <DropdownMenuContent align="end" className="flex min-w-52 flex-col p-0">
+        <OpenWithScroller>
+          <OpenWithCandidates
+            file={file}
+            menuComponents={dropdownMenuComponents}
+            omitDefault
+          />
+        </OpenWithScroller>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -56,8 +58,10 @@ export function OpenWithMenu({
         <AppWindowIcon className="size-4" />
         <span>Open with</span>
       </SubTrigger>
-      <SubContent className="max-h-80 min-w-52 overflow-y-auto">
-        <OpenWithCandidates file={file} menuComponents={menuComponents} />
+      <SubContent className="flex min-w-52 flex-col p-0">
+        <OpenWithScroller>
+          <OpenWithCandidates file={file} menuComponents={menuComponents} />
+        </OpenWithScroller>
       </SubContent>
     </Sub>
   );
@@ -127,5 +131,27 @@ function OpenWithCandidates({
         </Item>
       ))}
     </>
+  );
+}
+
+/**
+ * The apps scroll inside the menu rather than the menu scrolling itself, so the
+ * list can carry the same edge fade every other scroller in the app has.
+ *
+ * `scroll-fade-y` is a mask, and a mask takes everything the element paints.
+ * Worn by the menu -- which is the scroller by default, and also the thing
+ * painting `bg-popover` and its shadow -- it would dissolve the menu's own
+ * surface at the bottom edge and show the window through it. One layer in, with
+ * nothing of its own to paint, it fades only the rows, onto the popover behind
+ * them; the color question answers itself.
+ *
+ * The menu stays a flex column so this shrinks under whatever cap the menu has
+ * rather than overflowing it into a second scrollbar.
+ */
+function OpenWithScroller({ children }: { children: ReactNode }) {
+  return (
+    <div className="max-h-80 min-h-0 overflow-y-auto scroll-fade-y p-1">
+      {children}
+    </div>
   );
 }

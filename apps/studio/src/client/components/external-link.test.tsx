@@ -184,6 +184,20 @@ describe("ExternalLink", () => {
     });
   });
 
+  // The click asks where the page should go. The clipboard is not a where, and
+  // the right-click menu is what takes that question.
+  it("asks about destinations alone, leaving the clipboard to the other menu", () => {
+    const { element } = inOrchestrator(
+      <ExternalLink href="https://example.com/page">A page</ExternalLink>,
+    );
+    renderWithProviders(element);
+    fireEvent.click(screen.getByText("A page"));
+    expect(
+      screen.getByRole("menuitem", { name: "Open in your browser" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Copy Link" })).toBeNull();
+  });
+
   // Where the first row already makes a tab, a second one offering a tab is
   // the same destination written twice.
   it("offers no new-tab action where the surface opens one anyway", () => {

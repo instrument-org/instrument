@@ -129,7 +129,14 @@ export function TaskExternalLink({
         side="bottom"
         sideOffset={offset.side}
       >
+        {/* Where the page should go, and only that. The click is a question
+          about destinations, and the clipboard is not one of them: a row that
+          copies is the answer to a different question, which is the one the
+          right-click menu is there to take. */}
         {destinations.map((destination) => {
+          if (destination.id === "copy") {
+            return null;
+          }
           const Icon = DESTINATION_ICONS[destination.id];
           return (
             <DropdownMenuItem

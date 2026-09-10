@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
@@ -28,8 +28,13 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await fs.rm(root, { force: true, recursive: true });
 });
+
+function heldFileError(code: string): Error {
+  return Object.assign(new Error(`${code}: held by another program`), { code });
+}
 
 function recordPath(): string {
   return path.join(getTaskPrivateDir(taskDir(taskId)), "settings.json");
@@ -250,6 +255,40 @@ describe("updateTaskRecord", () => {
     for (const content of contents) {
       expect(() => JSON.parse(content) as unknown).not.toThrow();
     }
+  });
+
+  // Windows refuses the rename with EPERM for as long as another program holds
+  // either file, which a virus scanner or a search indexer does to a file this
+  // one is rewritten as often as. Observed there as a channel that would not
+  // stay marked read.
+  it("waits out a rename another program refused", async () => {
+    const rename = fs.rename;
+    let refusals = 2;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (refusals > 0) {
+        refusals -= 1;
+        throw heldFileError("EPERM");
+      }
+      await rename(from, to);
+    });
+
+    await setTaskState(taskDir(taskId), { promptDraft: "landed" });
+
+    const record = await readTaskRecord(taskDir(taskId));
+
+    expect(record.state.promptDraft).toBe("landed");
+  });
+
+  it("reports a failure that waiting cannot clear, without waiting", async () => {
+    const rename = vi
+      .spyOn(fs, "rename")
+      .mockRejectedValue(heldFileError("EXDEV"));
+
+    await expect(
+      setTaskState(taskDir(taskId), { promptDraft: "lost" }),
+    ).rejects.toThrow(/EXDEV/);
+
+    expect(rename).toHaveBeenCalledTimes(1);
   });
 
   it("serializes overlapping updates instead of losing one", async () => {

@@ -24,6 +24,12 @@ export function homeRelative(hostPath: string, home: string | undefined) {
     : hostPath;
 }
 
+/** Whether a path is that folder or something inside it. */
+export function isInside(hostPath: string, folder: string) {
+  const base = folder.replace(/[/\\]$/, "");
+  return hostPath === base || hostPath.startsWith(base + separatorOf(hostPath));
+}
+
 /**
  * A path on the computer, extended by names below it.
  *
@@ -38,12 +44,6 @@ export function joinHostPath(base: string, ...below: string[]) {
     return base;
   }
   return [base.replace(/[/\\]+$/, ""), ...names].join(separatorOf(base));
-}
-
-/** Whether a path is that folder or something inside it. */
-export function isInside(hostPath: string, folder: string) {
-  const base = folder.replace(/[/\\]$/, "");
-  return hostPath === base || hostPath.startsWith(base + separatorOf(hostPath));
 }
 
 /** Every name along a path, in order, whichever way the path is spelled. */

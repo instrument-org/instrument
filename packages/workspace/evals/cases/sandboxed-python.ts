@@ -116,7 +116,7 @@ const followedTheSignpostToPythonNative: Assertion = {
   check: ({ sessions }) => {
     const commands = bashCommands(sessions);
     const installed = commands.findIndex((command) =>
-      /\b(?:pip3?|uv pip)\s+install\b[^|;&]*pandas/.test(command),
+      /\b(?:pip3?|uv pip)\s+install\s[^|;&]*pandas/.test(command),
     );
     const ranNative = commands.findIndex(
       (command, index) => index > installed && /python-native/.test(command),

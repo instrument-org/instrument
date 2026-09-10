@@ -797,13 +797,13 @@ describe("SessionMessage.toModelMessages", () => {
       [
         {
           id: StoreId.newMessageId(),
-          metadata: { ...messageMetadata, agentName: "instrument" },
+          metadata: messageMetadata,
           parts: [{ metadata: partMetadata, text: "hello", type: "text" }],
           role: "user",
         },
         {
           id: StoreId.newMessageId(),
-          metadata: { ...messageMetadata, agentName: "instrument" },
+          metadata: messageMetadata,
           parts: [
             attachedFoldersPart(partMetadata),
             { metadata: partMetadata, text: "summarize these", type: "text" },
@@ -812,6 +812,7 @@ describe("SessionMessage.toModelMessages", () => {
         },
       ],
       TOOLS_FOR_MODEL_OUTPUT,
+      { agentName: "instrument" },
     );
 
     const text = JSON.stringify(result);

@@ -270,6 +270,16 @@ export namespace SessionMessage {
   export async function toModelMessages(
     messages: WithParts[],
     tools: ToolSet,
+    {
+      agentName = "main",
+    }: {
+      /**
+       * Who reads the result. A note written onto a user turn is phrased for
+       * its reader, and the conversation's agent has no file tools: told
+       * about `write_file`, it goes looking for a tool it has not got.
+       */
+      agentName?: AgentName;
+    } = {},
   ): Promise<ModelMessage[]> {
     let previousBackgroundProcessesNote: string | undefined;
     let previousBrowserStatusNote: string | undefined;
@@ -383,7 +393,7 @@ export namespace SessionMessage {
             // The conversation's agent has no file tools and a shell that
             // refuses to write, so its folders are read here and written by
             // the tasks it hands them to.
-            const throughTasks = message.metadata.agentName === "instrument";
+            const throughTasks = agentName === "instrument";
             const folderAttachmentText = buildAttachedFoldersText({
               folders: userAttachedFolders.map((folder) => ({
                 access: folder.access,

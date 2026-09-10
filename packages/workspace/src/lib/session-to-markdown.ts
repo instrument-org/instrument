@@ -297,9 +297,15 @@ export async function sessionToMarkdown(
     ...alphabetical(nonContextMessages, (m) => m.id),
   ];
 
+  // The session's baseline names the agent it was written for, which is the
+  // agent every note in the transcript was phrased for.
+  const agentName = rootSession.messages.find(
+    (m): m is SessionMessage.ContextWithParts => m.role === "session-context",
+  )?.metadata.agentName;
   const modelMessages = await SessionMessage.toModelMessages(
     makeEmptyAssistantStepsVisible(orderedMessages),
     TOOLS_FOR_MODEL_OUTPUT,
+    { agentName },
   );
 
   const toolTimestamps = buildToolCallTimestampMap(rootSession);

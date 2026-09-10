@@ -46,19 +46,21 @@ export function taskEventModelNote(
     return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${summary}${files}${running}`;
   });
 
+  // What to do about a wake is the prompt's business (When a task finishes);
+  // the note says only what happened and why the turn is running.
   const overdue = data.events.every((event) => event.status === "overdue");
   if (overdue) {
     return systemNote`
       ${data.events.length === 1 ? "A task you created is taking a while:" : "Tasks you created are taking a while:"}
       ${lines.join("\n")}
-      Nothing has gone wrong that anyone has said; this is the clock. Decide: let it run and say nothing, or read \`${TASK_COMMAND.name} log <id> --tail 40\` and, if it is lost in the weeds, steer it with \`${TASK_COMMAND.name} send\` or stop it with \`${TASK_COMMAND.name} stop\` and finish another way. Tell the user only if the wait changes what they should expect. Nobody typed anything; this note is why you are awake.
+      Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
     `;
   }
 
   return systemNote`
     ${data.events.length === 1 ? "A task you created has finished:" : "Tasks you created have finished:"}
     ${lines.join("\n")}
-    Read the details with \`${TASK_COMMAND.name} log <id> --tail 60\` or \`${TASK_COMMAND.name} show <id>\` if the summary is not enough, then tell the user the outcome. If the task asked a question or stopped short, decide whether to answer it with \`${TASK_COMMAND.name} send\`, ask the user, or start over. Nobody typed anything; this note is why you are awake.
+    Nobody typed anything; this note is why you are awake.
   `;
 }
 

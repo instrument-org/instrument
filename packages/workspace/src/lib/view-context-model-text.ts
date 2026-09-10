@@ -76,7 +76,7 @@ function folderReach(data: ViewContext) {
     folder.access === "read-only"
       ? "read-only for you, so ask before promising to change anything in it"
       : "read and write for you";
-  return `You reach it at \`${folder.mount}\`, ${access}; a task that should work there gets that path with --folder, :rw when it should write.`;
+  return `You reach it at \`${folder.mount}\`, ${access}.`;
 }
 
 function folderShown(data: ViewContext) {
@@ -112,7 +112,7 @@ function pageNote(data: ViewContext) {
       ? `Other tabs open but not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id})`).join("; ")}.`
       : "No other tabs are open.";
   return systemNote`
-    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. You have no browser of your own: work on the page, of any size, goes to a task with --tab and its id, which drives this same tab in the user's sight. Answer from what is quoted here when that is enough. ${words}${focus}
+    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. ${words}${focus}
     ${tabs}
   `;
 }
@@ -122,7 +122,7 @@ function screenNote(data: ViewContext) {
     case "apps": {
       if (data.app) {
         return systemNote`
-          When the user sent this, the window showed the page of the app "${data.app.name}" (slug ${data.app.slug}), which is ${describeStanding(data.app.standing)}. "This app", "this", and "it" refer to it. A request about the service itself is answered with the app's tools or requests when it is connected; a request to connect it means writing its folder if it has none, then asking with connect_app.
+          When the user sent this, the window showed the page of the app "${data.app.name}" (slug ${data.app.slug}), which is ${describeStanding(data.app.standing)}. "This app", "this", and "it" refer to it.
         `;
       }
       return systemNote`

@@ -52,7 +52,7 @@ The marker is accepted (no 400) and changes nothing: hits arrive in runs of two 
 
 ## Why it matters beyond cost, revisited
 
-The probe's calls took 0.7 to 1.0 s end to end on a 9.6K prefix whether or not the prefix was cached, with one 9 s outlier that was not a miss. A cold prefix is therefore not what made the transcript's first chunk take 8 to 11 s; that is provider-side queueing or variance, and a caching change would not have touched it.
+The probe's calls took 0.7 to 1.0 s end to end on a 9.6K prefix whether or not the prefix was cached, with one 9 s outlier that was not a miss. A cold prefix is therefore not what made the transcript's first chunk take 8 to 11 s; that is provider-side queuing or variance, and a caching change would not have touched it.
 
 ## Why it looked like a latency finding
 

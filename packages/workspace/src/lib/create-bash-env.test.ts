@@ -7,9 +7,9 @@ describe("createBashDescription", () => {
     expect(createBashDescription()).toMatchInlineSnapshot(`
       "Execute bash commands in the task directory.
 
-      IMPORTANT: Folders the user attaches appear as mounts under \`/mnt/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. \`rg\` searches mount paths directly, but the interpreter hatches (python, node, ffmpeg, pnpm) cannot resolve one: copy the file into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
+      IMPORTANT: Folders the user attaches appear as mounts under \`/mnt/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. The shell builtins, \`rg\`, \`python\`, and \`js-exec\` read mount paths directly. The native hatches (\`python-native\`, \`node\`, \`ffmpeg\`, \`pnpm\`, \`uv\`) cannot resolve one: for those, copy the file into the task first (e.g. \`cp '/mnt/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
 
-      IMPORTANT: Python is available via the specialized \`python\`/\`python3\`/\`pip\`/\`uv\` commands below (backed by a per-task virtualenv at the task root), TypeScript/JavaScript via \`node\`, and package management via \`pnpm\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`/task/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is, and paths inside script FILES on disk are never translated.
+      IMPORTANT: Two Pythons. \`python\` (alias \`python3\`) is the default: CPython 3.13 with the whole standard library, running inside the sandbox, so it opens \`/mnt/...\` and \`/task/...\` paths exactly as written and needs no copying. It has no packages, cannot start processes, and reads a file whole (8 MB at most). \`python-native\` is the real interpreter in the task's virtualenv: it runs anything \`pip\` installed and any native binary, but sees only the task folder. Reach for \`python-native\` when a script imports a package; otherwise use \`python\`. A loaded skill's script under work/skills/ runs natively under either name. JavaScript is the other way around: \`node\` is the default (real process, task packages, task folder only) and \`js-exec\` is the sandboxed one for reading attached folders with built-ins only. Packages come from \`pip\`/\`uv\` and \`pnpm\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside code run by the native hatches, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`/task/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`/mnt/...\` never is, and paths inside script FILES on disk are never translated.
 
       IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`/task\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`/task\`, the \`/mnt\` mounts, and \`/skills\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`mktemp\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
@@ -17,9 +17,9 @@ describe("createBashDescription", () => {
       A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`jobs\`, \`fg\` and \`kill\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
       Those three are ordinary commands, so they compose: \`fg bg_1 | rg -i error\` filters before you pay for the output, \`fg bg_1 && pnpm test\` runs only on success, and \`kill bg_1 bg_2; jobs\` cleans up and confirms in one call.
       A background process is stopped once it has run for 2 hours, whatever it is doing. \`jobs\` reports that as \`stopped (2h cap)\` rather than as a failure or a kill; start it again if the work still needs it.
-      Only output written by real binaries (\`pnpm\`, \`node\`, \`python\`, \`uv\`, \`ffmpeg\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
+      Only output written by real binaries (\`pnpm\`, \`node\`, \`python-native\`, \`uv\`, \`ffmpeg\`, ...) streams while a process runs; a long shell pipeline of builtins, or a \`python\`/\`js-exec\` run, reports its output only when it finishes.
 
-      IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`node\` or \`python\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
+      IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`node\` or \`python-native\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
 
       Prefer specialized tools over shell equivalents:
         - Use the \`read_file\` tool instead of \`cat\`/\`head\`/\`tail\`.
@@ -36,7 +36,7 @@ describe("createBashDescription", () => {
 
       Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): alias, awk, base64, basename, bash, cat, chmod, clear, column, comm, cp, cut, date, diff, dirname, du, echo, egrep, env, expand, expr, false, fgrep, file, find, fold, grep, gunzip, gzip, head, help, history, hostname, html-to-markdown, join, ln, ls, md5sum, mkdir, mv, nl, od, paste, printenv, printf, pwd, readlink, rev, rm, rmdir, sed, seq, sh, sha1sum, sha256sum, sleep, sort, split, stat, strings, tac, tail, tar, tee, time, timeout, touch, tr, tree, true, unalias, unexpand, uniq, wc, whoami, xargs, zcat
 
-      IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/ffmpeg, but that path does NOT exist; ignore it. These binaries are also on PATH inside node scripts, so a script may shell out to \`ffmpeg\`/\`ffprobe\` directly.
+      IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/ffmpeg, but that path does NOT exist; ignore it. These binaries are also on PATH inside node and python-native scripts, so a script may shell out to \`ffmpeg\`/\`ffprobe\` directly.
 
       Specialized commands:
         jq - Parse and manipulate JSON
@@ -59,12 +59,14 @@ describe("createBashDescription", () => {
         ffprobe - Probe and inspect audio and video files using FFprobe.
         git - Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. Pass commit messages with -m or -F; there is no editor. A large clone that outlives the call keeps running in the background rather than failing, and leaves a partial directory to delete if it is stopped.
         mktemp - Create a uniquely named scratch file (or -d directory) in the task's temp dir and print its path.
-        node - Run a TypeScript or JavaScript file. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available.
+        node - Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "/task/..." strings are bridged; /mnt paths are not available (\`js-exec\` reads them, without packages).
+        js-exec - Run JavaScript or TypeScript (QuickJS, Node-compatible built-ins: fs, path, child_process, fetch) inside the sandbox: it reads /mnt and /task paths directly and honors read-only mounts, but resolves NO packages, not even installed ones, and cannot open a file over 8 MB. Code that imports a package runs with \`node\`. \`.ts\` files are type-stripped by extension; inline TypeScript needs \`--strip-types\`.
         pnpm - CLI tool for managing JavaScript packages. Global installs (--global / -g) are not supported; packages must be installed locally.
         pnx - Alias for pnpm dlx.
-        uv - Python package and environment manager. Also provides \`python\`, \`python3\`, and \`pip\`, backed by a per-task virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.
-        python - Run Python via the per-task virtualenv (.venv). Shares packages installed with \`pip\`. Use the \`pip\` command to install packages: \`python -m pip\` is not available.
-        pip - Install Python packages into the per-task virtualenv (.venv) via uv. Use like pip, e.g. \`pip install <package>\`.
+        uv - Python package and environment manager, backing \`python-native\` and \`pip\` with a per-task virtualenv in .venv. The very first native Python use fetches a managed interpreter (one-time); later uses are fast.
+        python - Run Python (CPython 3.13, standard library only) inside the sandbox: it reads /mnt and /task paths directly and honors read-only mounts. It cannot import an installed package, start a process, open https (no ssl; \`import jb_http\` fetches), or open a file over 8 MB; for those, run the script with \`python-native\`. A loaded skill's script under work/skills/ runs natively on its own.
+        python-native - Run Python as a real process in the per-task virtualenv (.venv), which is where \`pip install\` puts packages. Sees only the task folder: copy an attached file into the task first. Use it when a script needs an installed package, a native binary, or a file over 8 MB; otherwise \`python\` is the one that reads attached folders.
+        pip - Install Python packages into the per-task virtualenv (.venv) via uv. Use like pip, e.g. \`pip install <package>\`. What it installs runs under \`python-native\`; the sandboxed \`python\` cannot import it.
         validate-skill - Check a skill written under \`/skills/\` and report what is wrong with it.
       Errors are what the runtime already acts on: a skill that is never discovered, or one \`load_skill\` refuses. Warnings are authoring rules and context budgets.
       Run it after writing or editing a skill -- a skill with broken frontmatter fails silently, by simply never appearing anywhere.
@@ -103,9 +105,10 @@ describe("createBashDescription", () => {
     expect(createBashDescription()).not.toContain("npx");
   });
 
-  it("notes Python availability via specialized commands", () => {
+  it("tells the two Pythons apart by what each can reach", () => {
     const description = createBashDescription();
-    expect(description).toContain("Python is available");
-    expect(description).toContain("per-task virtualenv at the task root");
+    expect(description).toContain("Two Pythons");
+    expect(description).toContain("`python-native` is the real interpreter");
+    expect(description).toContain("`js-exec` is the sandboxed one");
   });
 });

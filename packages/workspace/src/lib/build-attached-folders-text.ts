@@ -116,7 +116,7 @@ export function buildAttachedFoldersText({
           process.platform === "darwin"
             ? `\`EPERM\` or "Operation not permitted" on reading or listing one of these means macOS refused ${APP_NAME} the folder when it asked the user. Stop and say so rather than trying again; they can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders.`
             : null,
-          `\`cp\`, \`mv\`, and the file tools reach a mount directly, one mount to another included, so reading a file or putting one where it belongs takes no copy through the task. A real subprocess (python, node, ffmpeg, pnpm, git) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
+          `\`cp\`, \`mv\`, the file tools, and the sandboxed script runtimes (\`python\`, \`js-exec\`) reach a mount directly, one mount to another included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through the task. A real subprocess (python-native, node, ffmpeg, pnpm, git) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
           `That includes \`git\`: copy the whole repository (\`cp -R '<mount path>' work/\`), not just \`.git\`, which without a working tree beside it reports every file as deleted.`,
         ]
   )

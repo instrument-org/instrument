@@ -16,7 +16,7 @@ import {
 
 export const UV_COMMAND = {
   description:
-    "Python package and environment manager. Also provides `python`, `python3`, and `pip`, backed by a per-task virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
+    "Python package and environment manager, backing `python-native` and `pip` with a per-task virtualenv in .venv. The very first native Python use fetches a managed interpreter (one-time); later uses are fast.",
   name: "uv",
 } as const;
 

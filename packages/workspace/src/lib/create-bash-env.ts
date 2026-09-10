@@ -40,6 +40,7 @@ import {
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
+import { createJsExecCommand, JS_EXEC_COMMAND } from "./shell-commands/js-exec";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { createOpenCommand, OPEN_COMMAND } from "./shell-commands/open";
@@ -62,8 +63,10 @@ import {
 import {
   createPython3Command,
   createPythonCommand,
+  createPythonNativeCommand,
   PYTHON3_COMMAND,
   PYTHON_COMMAND,
+  PYTHON_NATIVE_COMMAND,
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createShowCommand, SHOW_COMMAND } from "./shell-commands/show";
@@ -104,6 +107,17 @@ const SANDBOX_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
  * 107,000 files, and traversal charges upwards of one unit each.
  */
 const SANDBOX_MAX_TRAVERSAL = 300_000;
+
+/**
+ * How long one run of a sandboxed script runtime (`python`, `js-exec`) may
+ * take, against just-bash's 30 second default. Those runtimes are where a
+ * script over an attached folder runs, and a parse of a large tree is minutes
+ * of work rather than seconds. A call that outlives its `yieldMs` is promoted
+ * to a background process like any other, so the cap only has to bound a
+ * runaway; anything longer belongs to the native interpreters, which have no
+ * cap beyond the background age limit.
+ */
+const SANDBOX_SCRIPT_TIMEOUT_MS = ms("30 minutes");
 
 function stubCommand(
   name: string,
@@ -338,6 +352,12 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     listInDescription: true,
     name: NODE_COMMAND.name,
   },
+  {
+    description: JS_EXEC_COMMAND.description,
+    factory: () => createJsExecCommand(),
+    listInDescription: true,
+    name: JS_EXEC_COMMAND.name,
+  },
 
   {
     description: PNPM_COMMAND.description,
@@ -381,6 +401,12 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     // Alias of python; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PYTHON3_COMMAND.name,
+  },
+  {
+    description: PYTHON_NATIVE_COMMAND.description,
+    factory: createPythonNativeCommand,
+    listInDescription: true,
+    name: PYTHON_NATIVE_COMMAND.name,
   },
   {
     description: PIP_COMMAND.description,
@@ -436,9 +462,9 @@ export function createBashDescription({
   return dedent`
     Execute bash commands in the task directory.
 
-    IMPORTANT: Folders the user attaches appear as mounts under \`${MOUNT.attachedFolders}/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. \`rg\` searches mount paths directly, but the interpreter hatches (python, node, ffmpeg, pnpm) cannot resolve one: copy the file into the task first (e.g. \`cp '${MOUNT.attachedFolders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
+    IMPORTANT: Folders the user attaches appear as mounts under \`${MOUNT.attachedFolders}/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. The shell builtins, \`rg\`, \`${PYTHON_COMMAND.name}\`, and \`${JS_EXEC_COMMAND.name}\` read mount paths directly. The native hatches (\`${PYTHON_NATIVE_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, \`${PNPM_COMMAND.name}\`, \`${UV_COMMAND.name}\`) cannot resolve one: for those, copy the file into the task first (e.g. \`cp '${MOUNT.attachedFolders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
 
-    IMPORTANT: Python is available via the specialized \`${PYTHON_COMMAND.name}\`/\`${PYTHON3_COMMAND.name}\`/\`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` commands below (backed by a per-task virtualenv at the task root), TypeScript/JavaScript via \`${NODE_COMMAND.name}\`, and package management via \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside script code run by these commands, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.attachedFolders}/...\` never is, and paths inside script FILES on disk are never translated.
+    IMPORTANT: Two Pythons. \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the default: CPython 3.13 with the whole standard library, running inside the sandbox, so it opens \`${MOUNT.attachedFolders}/...\` and \`${MOUNT.task}/...\` paths exactly as written and needs no copying. It has no packages, cannot start processes, and reads a file whole (8 MB at most). \`${PYTHON_NATIVE_COMMAND.name}\` is the real interpreter in the task's virtualenv: it runs anything \`${PIP_COMMAND.name}\` installed and any native binary, but sees only the task folder. Reach for \`${PYTHON_NATIVE_COMMAND.name}\` when a script imports a package; otherwise use \`${PYTHON_COMMAND.name}\`. A loaded skill's script under work/skills/ runs natively under either name. JavaScript is the other way around: \`${NODE_COMMAND.name}\` is the default (real process, task packages, task folder only) and \`${JS_EXEC_COMMAND.name}\` is the sandboxed one for reading attached folders with built-ins only. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside code run by the native hatches, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.attachedFolders}/...\` never is, and paths inside script FILES on disk are never translated.
 
     IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`, \`output/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.attachedFolders}\` mounts, and \`${MOUNT.skills}\` exist; writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
@@ -446,9 +472,9 @@ export function createBashDescription({
     A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
     Those three are ordinary commands, so they compose: \`${FG_COMMAND.name} bg_1 | rg -i error\` filters before you pay for the output, \`${FG_COMMAND.name} bg_1 && ${PNPM_COMMAND.name} test\` runs only on success, and \`${KILL_COMMAND.name} bg_1 bg_2; ${JOBS_COMMAND.name}\` cleans up and confirms in one call.
     A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
-    Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
+    Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_NATIVE_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins, or a \`${PYTHON_COMMAND.name}\`/\`${JS_EXEC_COMMAND.name}\` run, reports its output only when it finishes.
 
-    IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`${NODE_COMMAND.name}\` or \`${PYTHON_COMMAND.name}\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
+    IMPORTANT: \`curl\`/\`wget\` refuse private and loopback addresses, so they cannot reach a server you started, and they fail with a bare exit 7 and no message. Make that request from a real process instead: a \`${NODE_COMMAND.name}\` or \`${PYTHON_NATIVE_COMMAND.name}\` script fetching \`http://127.0.0.1:<port>/\`. Pick an explicit port when you start the server so you know which one to call.
 
     Prefer specialized tools over shell equivalents:
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
@@ -465,7 +491,7 @@ export function createBashDescription({
 
     Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${namedOnly.join(", ")}
 
-    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
+    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_NATIVE_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
 
     Specialized commands:
     ${specializedCommands}
@@ -584,7 +610,9 @@ export async function createBashEnv({
     ],
     cwd: MOUNT.task,
     executionLimits: {
+      maxJsTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
+      maxPythonTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxStringLength: SANDBOX_MAX_BYTES,
       maxTraversalEntries: SANDBOX_MAX_TRAVERSAL,
       maxTraversalWork: SANDBOX_MAX_TRAVERSAL,
@@ -608,6 +636,15 @@ export async function createBashEnv({
       ...(process.env.PATH && { PATH: process.env.PATH }),
     },
     fs,
+    // The WebAssembly script runtimes: CPython under `python`/`python3` and
+    // QuickJS under `js-exec`, each reading the virtual filesystem above
+    // directly. The custom commands of the same names registered above wrap
+    // them (`ctx.origCommand`) to explain their failures and to route a
+    // skill's script to the native interpreter. `javascript` also registers
+    // a `node` stub, which the native `node` command shadows. The
+    // orchestrator's shell runs no scripts at all, so it gets neither.
+    javascript: orchestrator === undefined,
+    python: orchestrator === undefined,
   });
 
   // Order matters: the alias runs first so the recorded command list names

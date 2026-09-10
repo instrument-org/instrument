@@ -19,12 +19,32 @@ import {
   resolveNativeHostPath,
 } from "../workspace-fs-layout";
 
-/** Copy-first guidance for a `/mnt/...` reference; subject names the source. */
-export function attachedMountLiteralError(subject: string): string {
+/**
+ * How to reach a `/mnt/...` path a native process cannot: the sandboxed
+ * runtime that reads mounts directly when the caller has one to offer, and
+ * copying the file into the task either way.
+ */
+export interface MountAlternative {
+  /**
+   * One sentence naming the sandboxed command that reads attached folders in
+   * place, when the invocation could have used it. Absent for a command with
+   * no sandboxed twin (ffmpeg, pip) and for a skill script, which runs
+   * natively on purpose.
+   */
+  alternative?: string;
+}
+
+/** Guidance for a `/mnt/...` reference; subject names the source. */
+export function attachedMountLiteralError(
+  subject: string,
+  { alternative }: MountAlternative = {},
+): string {
   return (
     `${subject} references a ${MOUNT.attachedFolders}/... path. ` +
-    `Attached-folder mounts are only visible to the sandbox shell and file tools, ` +
-    `never to real interpreter processes. Copy the file into the task first ` +
+    `Attached-folder mounts are visible to the sandbox shell, the file tools, ` +
+    `and the sandboxed script runtimes, never to a real interpreter process. ` +
+    (alternative ? `${alternative} Otherwise copy` : `Copy`) +
+    ` the file into the task first ` +
     `(cp '${MOUNT.attachedFolders}/<folder>/<file>' attachments/) and ` +
     `reference the copy with a task-relative path (attachments/<file>).`
   );
@@ -92,9 +112,12 @@ export function bridgeInlineCodePaths(
   code: string,
   taskId: TaskId,
   taskCwd: string,
+  alternative: MountAlternative = {},
 ): { code: string } | { error: string } {
   if (quotedMountPattern(MOUNT.attachedFolders).test(code)) {
-    return { error: attachedMountLiteralError("Inline script code") };
+    return {
+      error: attachedMountLiteralError("Inline script code", alternative),
+    };
   }
 
   // The private dir is masked from the shell and file tools; block inline-code
@@ -294,6 +317,7 @@ export function resolvePathArgs(
 export async function scanScriptFileForVirtualPaths(
   taskCwd: string,
   filePath: string,
+  alternative: MountAlternative = {},
 ): Promise<string | undefined> {
   let source: string;
   try {
@@ -301,7 +325,7 @@ export async function scanScriptFileForVirtualPaths(
   } catch {
     return undefined;
   }
-  return scriptFileVirtualPathError(source);
+  return scriptFileVirtualPathError(source, alternative);
 }
 
 /**
@@ -315,9 +339,12 @@ export async function scanScriptFileForVirtualPaths(
  * best-effort, matching the inline guard: only literals right after a quote
  * match, so regex literals and paths embedded mid-string are left alone.
  */
-export function scriptFileVirtualPathError(source: string): string | undefined {
+export function scriptFileVirtualPathError(
+  source: string,
+  alternative: MountAlternative = {},
+): string | undefined {
   if (quotedMountPattern(MOUNT.attachedFolders).test(source)) {
-    return attachedMountLiteralError("This script file");
+    return attachedMountLiteralError("This script file", alternative);
   }
   if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(source)) {
     return privateDirLiteralError("This script file");
@@ -371,14 +398,17 @@ export function unreachablePathArgError(
   commandName: string,
   args: string[],
   virtualCwd: string,
+  { alternative }: MountAlternative = {},
 ): string | undefined {
   const mount = attachedMountReference(args, virtualCwd);
   if (mount !== undefined) {
     return (
       `${commandName}: ${mount} is inside an attached folder, which ` +
       `${commandName} cannot read. Attached-folder mounts are visible to the ` +
-      `sandbox shell and file tools only, never to a real subprocess. Copy the ` +
-      `file into the task first (cp '${mount}' attachments/) and run ` +
+      `sandbox shell, the file tools, and the sandboxed script runtimes, never ` +
+      `to a real subprocess. ` +
+      (alternative ? `${alternative} Otherwise copy` : `Copy`) +
+      ` the file into the task first (cp '${mount}' attachments/) and run ` +
       `${commandName} on the copy.\n`
     );
   }

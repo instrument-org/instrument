@@ -1,6 +1,7 @@
 import { defineCommand } from "just-bash";
 
 import { type TaskId } from "../../schemas/task-id";
+import { PYTHON_COMMAND, PYTHON_NATIVE_COMMAND } from "./python";
 import {
   resolveCommandContext,
   resolvePathArgs,
@@ -12,10 +13,16 @@ import { ensureTaskVenv, runUv } from "./uv";
 // task venv (.venv) without needing pip seeded into the env. `uv pip`
 // honors VIRTUAL_ENV, set by the uv env overlay.
 export const PIP_COMMAND = {
-  description:
-    "Install Python packages into the per-task virtualenv (.venv) via uv. Use like pip, e.g. `pip install <package>`.",
+  description: `Install Python packages into the per-task virtualenv (.venv) via uv. Use like pip, e.g. \`pip install <package>\`. What it installs runs under \`${PYTHON_NATIVE_COMMAND.name}\`; the sandboxed \`${PYTHON_COMMAND.name}\` cannot import it.`,
   name: "pip",
 } as const;
+
+/**
+ * Said after every successful install, because the trap is three commands
+ * downstream: `pip install requests && python -c "import requests"` fails,
+ * and the failure names the import rather than the interpreter.
+ */
+const INSTALLED_NOTE = `pip: installed into the task's virtualenv. Run code that imports it with \`${PYTHON_NATIVE_COMMAND.name}\`; the default \`${PYTHON_COMMAND.name}\` is the sandboxed interpreter and has the standard library only.\n`;
 
 export const PIP3_COMMAND = {
   description: "Alias for pip.",
@@ -71,6 +78,9 @@ function createPipCommandNamed(taskId: TaskId, name: string) {
       taskCwd,
       taskId,
     });
+    if (result.exitCode === 0 && args[0] === "install") {
+      return { ...result, stderr: result.stderr + INSTALLED_NOTE };
+    }
     return result;
   });
 }

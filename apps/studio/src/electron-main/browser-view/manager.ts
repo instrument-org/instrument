@@ -718,11 +718,18 @@ function sessionForEntry(entry: BrowserEntry) {
   // Electron auto-approves every permission request (camera, mic, geolocation,
   // notifications, ...) when no handler is set. There's no browser chrome here
   // to show a native prompt, so deny everything rather than silently granting
-  // it to whatever site the guest navigates to.
-  guestSession.setPermissionRequestHandler((_wc, _permission, callback) => {
-    callback(false);
+  // it to whatever site the guest navigates to. The one exception is writing
+  // text to the clipboard, which ordinary browsers grant without a prompt and
+  // which a page's copy button needs: `navigator.clipboard.writeText` rejects
+  // under a denial, and most pages swallow that rejection, so the button does
+  // nothing. Reading the clipboard stays denied; a page overwriting it is a
+  // click the user made, a page reading it is the user's clipboard handed over.
+  guestSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === "clipboard-sanitized-write");
   });
-  guestSession.setPermissionCheckHandler(() => false);
+  guestSession.setPermissionCheckHandler(
+    (_wc, permission) => permission === "clipboard-sanitized-write",
+  );
   // Normalize the guest's User-Agent to the shape an ordinary Chromium-derived
   // browser ships (and matching client hints) so third-party services treat it
   // like one. Branded with the app's own name because the guest's pages get the

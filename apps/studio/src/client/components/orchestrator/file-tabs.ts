@@ -2,6 +2,7 @@ import { type FileTab } from "@/client/atoms/orchestrator";
 import { MOUNT, type TaskId } from "@instrument-org/workspace/client";
 
 import { useOrchestrator } from "./context";
+import { isInside, joinHostPath, segmentsOf } from "./host-path";
 
 /**
  * A path as a task's own reply wrote it, in the paths the conversation that
@@ -81,13 +82,13 @@ export function hostPathOfMount(
     const folder = Object.values(attachedFolders).find(
       (entry) => entry.mountName === mountName,
     );
-    return folder ? [folder.path, ...rest].join("/") : undefined;
+    return folder ? joinHostPath(folder.path, ...rest) : undefined;
   }
   const tasks = `${MOUNT.tasks}/`;
   if (mount.startsWith(tasks)) {
     const [id, ...rest] = mount.slice(tasks.length).split("/");
     const dir = id ? taskDirs.get(id) : undefined;
-    return dir ? [dir, ...rest].join("/") : undefined;
+    return dir ? joinHostPath(dir, ...rest) : undefined;
   }
   return;
 }
@@ -104,18 +105,21 @@ export function mountOfHostPath(
 ): string | undefined {
   let best: undefined | { mountName: string; path: string };
   for (const folder of Object.values(attachedFolders)) {
-    const inside =
-      hostPath === folder.path || hostPath.startsWith(`${folder.path}/`);
     if (
-      inside &&
+      isInside(hostPath, folder.path) &&
       (best === undefined || folder.path.length > best.path.length)
     ) {
       best = folder;
     }
   }
-  return best
-    ? `${MOUNT.attachedFolders}/${best.mountName}${hostPath.slice(best.path.length)}`
-    : undefined;
+  if (!best) {
+    return;
+  }
+  // Back into the paths the agent works in, which are POSIX wherever the
+  // computer's own are not: the names below the grant are what carries over,
+  // never the separator they were written with.
+  const below = segmentsOf(hostPath.slice(best.path.length));
+  return [`${MOUNT.attachedFolders}/${best.mountName}`, ...below].join("/");
 }
 
 /**

@@ -56,6 +56,7 @@ import {
   folderOf,
   homeRelative,
   isInside,
+  joinHostPath,
   segmentsOf,
   separatorOf,
 } from "./host-path";
@@ -212,10 +213,10 @@ export function ComputerPage({
   // `~` names the home folder, which the workspace expands for a folder it is
   // being asked to read. Nothing else does: a path this hands to an action
   // reaches the filesystem as it is, so those pass the expanded root instead.
-  const hostPathOf = (prefix: string, base = root) => {
-    const folder = prefix.replace(/\/$/, "");
-    return folder ? `${base}/${folder}` : base;
-  };
+  // The browser's own prefixes are written with slashes whatever computer this
+  // is, so the names are taken out of one and spelled the way the root is.
+  const hostPathOf = (prefix: string, base = root) =>
+    joinHostPath(base, prefix);
 
   // What the folder's own menu is open on. Nothing means the menu came up on
   // the folder's empty space, where the only thing to do is make something.

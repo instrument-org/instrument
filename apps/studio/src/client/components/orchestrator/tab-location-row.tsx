@@ -1,24 +1,36 @@
+import { NEW_TAB_HREF } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { useGesturesFor } from "@/client/hooks/use-open-target";
+import {
+  useGesturesFor,
+  useOpenGestures,
+} from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { HouseIcon } from "@phosphor-icons/react/House";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, type ReactNode, type Ref, useEffect, useRef } from "react";
+import {
+  Fragment,
+  type MouseEventHandler,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useRef,
+} from "react";
 
 import { locationCrumbs, type TabLocation } from "./tab-location";
 
 /**
- * The row every tab wears: back, forward, and where you are.
+ * The row every tab wears: back, forward, home, and where you are.
  *
  * It spans the pane rather than the window, which is the whole point of it.
  * History belongs to a tab: an arrow in the window bar would sit beside a
@@ -56,22 +68,39 @@ export function TabLocationRow({
   /** What this page can do with itself, held at the row's right edge. */
   trailing?: ReactNode;
 }) {
+  const home = useOpenGestures({ href: NEW_TAB_HREF, kind: "screen" });
+  const openHome = home.destinations.find(
+    (destination) => destination.id === "open",
+  );
   return (
     <div
       className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
       ref={ref}
     >
-      <Arrow
+      <Control
         disabled={!canGoBack}
         icon={<CaretLeftIcon className="size-4" />}
         label="Back"
         onClick={onBack}
       />
-      <Arrow
+      <Control
         disabled={!canGoForward}
         icon={<CaretRightIcon className="size-4" />}
         label="Forward"
         onClick={onForward}
+      />
+      {/* Where a browser keeps its home button, and what this window's home
+          is: the tab back to nothing in particular, ready to be told where
+          to go next. */}
+      <Control
+        disabled={false}
+        icon={<HouseIcon className="size-4" />}
+        label="Home"
+        onAuxClick={home.onAuxClick}
+        onClick={() => {
+          openHome?.run();
+        }}
+        onContextMenu={home.onContextMenu}
       />
       {field ?? (
         // The box is the field everywhere the place itself is not: a press on
@@ -111,16 +140,22 @@ export function TabLocationRow({
   );
 }
 
-function Arrow({
+/** One of the row's own controls: a mark, what it is called, and what it does. */
+function Control({
   disabled,
   icon,
   label,
+  onAuxClick,
   onClick,
+  onContextMenu,
 }: {
   disabled: boolean;
   icon: ReactNode;
   label: string;
+  /** The gestures a control that opens a place answers, where it opens one. */
+  onAuxClick?: MouseEventHandler;
   onClick: () => void;
+  onContextMenu?: MouseEventHandler;
 }) {
   return (
     <button
@@ -132,7 +167,9 @@ function Arrow({
           : "text-foreground/60 hover:bg-foreground/8 hover:text-foreground",
       )}
       disabled={disabled}
+      onAuxClick={onAuxClick}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       title={label}
       type="button"
     >

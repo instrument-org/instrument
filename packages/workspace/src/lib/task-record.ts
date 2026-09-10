@@ -1,5 +1,6 @@
 import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
+import { sleep } from "radashi";
 
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { TaskPane } from "../schemas/task-pane";
@@ -18,6 +19,11 @@ import { TypedError } from "./errors";
 import { getTaskPrivateDir } from "./task-dir-utils";
 
 const enqueue = createWriteQueue();
+
+/** How long a rename another program is holding the file against is retried. */
+const RENAME_RETRY_MS = 1000;
+/** The first wait, and the step each further attempt adds to it. */
+const RENAME_RETRY_STEP_MS = 20;
 
 /**
  * The one file a task keeps beside its conversation, and the only writer of it.
@@ -279,9 +285,51 @@ async function writeTaskRecord(
 
   try {
     await fs.writeFile(temporary, JSON.stringify(record, null, 2), "utf8");
-    await fs.rename(temporary, target);
+    await renameWhenAllowed(temporary, target);
   } catch (error) {
     await fs.rm(temporary, { force: true });
     throw error;
   }
+}
+
+/**
+ * Renames the temporary file into place, waiting out a refusal.
+ *
+ * Windows fails a rename with EPERM while another process holds either file
+ * open, and something always does on a real machine: a virus scanner reads what
+ * was just written, a search indexer walks the directory. This file is rewritten
+ * as the user types and as the window records what it has seen, so it draws that
+ * attention more than most. The handle is held for a moment, so retrying turns a
+ * write that was lost outright into one that is late. POSIX has no such failure
+ * and loses nothing by asking again.
+ */
+async function renameWhenAllowed(
+  temporary: string,
+  target: AbsolutePath,
+): Promise<void> {
+  const deadline = Date.now() + RENAME_RETRY_MS;
+
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await fs.rename(temporary, target);
+      return;
+    } catch (error) {
+      if (!isBusy(error) || Date.now() >= deadline) {
+        throw error;
+      }
+    }
+    // Backing off rather than spinning: the handle is another program's and
+    // nothing here can shorten how long it keeps it.
+    await sleep(RENAME_RETRY_STEP_MS * attempt);
+  }
+}
+
+function isBusy(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error.code === "EPERM" ||
+      error.code === "EACCES" ||
+      error.code === "EBUSY")
+  );
 }

@@ -102,7 +102,7 @@ const ranPythonOnTheMount: Assertion = {
     return {
       evidence:
         runs.length > 0
-          ? `python ran against the mount ${runs.length}x: ${runs[0]?.slice(0, 200)}`
+          ? `python ran against the mount ${runs.length}x: ${(runs[0] ?? "").slice(0, 200)}`
           : `No python command named /mnt/Data. Commands: ${bashCommands(sessions).join(" | ").slice(0, 400)}`,
       passed: runs.length > 0,
       text: "ran python on the mounted file",
@@ -162,7 +162,7 @@ const ranTheScriptFileWithPython: Assertion = {
     return {
       evidence:
         runs.length > 0
-          ? `ran ${runs.length}x: ${runs[0]?.slice(0, 200)}`
+          ? `ran ${runs.length}x: ${(runs[0] ?? "").slice(0, 200)}`
           : `Never ran count.py with python. Commands: ${bashCommands(sessions).join(" | ").slice(0, 400)}`,
       passed: runs.length > 0,
       text: "ran the script file with python",

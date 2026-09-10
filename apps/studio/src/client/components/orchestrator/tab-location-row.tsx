@@ -216,7 +216,7 @@ function Field({ location }: { location: TabLocation }) {
       {/* The parts pulled out to the box's own edge, so the place reads from
           where it read before there was anything to press. */}
       <span
-        className="-mx-1 flex min-w-0 flex-1 items-center overflow-x-auto scrollbar-hide"
+        className="-mx-1 scrollbar-hide flex min-w-0 flex-1 items-center overflow-x-auto"
         ref={path}
       >
         {crumbs.map((crumb, index) => {

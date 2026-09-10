@@ -3,10 +3,16 @@ import { type OpenTarget } from "@/client/lib/open-target";
 import { folderHref } from "./file-tabs";
 import { homeRelative, segmentsOf, separatorOf } from "./host-path";
 
+/** One part of the place the field shows. */
+export interface LocationCrumb {
+  /** What it says: a name along a path, or the screen the place sits under. */
+  label: string;
+  /** Where a press on it goes; absent on the last, which is where the tab is. */
+  to?: OpenTarget;
+}
+
 /** What the tab on screen is showing, in the terms that page has for itself. */
 export type TabLocation =
-  | { kind: "app"; name: string; site?: string }
-  | { kind: "apps" }
   | {
       /**
        * Where the file sits on the computer, when anything knows: what makes
@@ -18,19 +24,13 @@ export type TabLocation =
       name: string;
       path: string;
     }
+  | { kind: "app"; name: string; site?: string }
+  | { kind: "apps" }
   | { kind: "folder"; path: string }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
   | { kind: "task"; title: string }
   | { kind: "tasks" };
-
-/** One part of the place the field shows. */
-export interface LocationCrumb {
-  /** What it says: a name along a path, or the screen the place sits under. */
-  label: string;
-  /** Where a press on it goes; absent on the last, which is where the tab is. */
-  to?: OpenTarget;
-}
 
 /**
  * The place the field shows, as the parts a person reads it in.
@@ -91,6 +91,13 @@ function isDrive(name: string) {
   return /^[a-z]:$/i.test(name);
 }
 
+/** The path a name goes on the end of, however the one it goes on ends. */
+function join(base: string, name: string, separator: string) {
+  return base.endsWith(separator)
+    ? `${base}${name}`
+    : `${base}${separator}${name}`;
+}
+
 /**
  * A path as its names, each above the last a way to that folder.
  *
@@ -117,13 +124,6 @@ function pathCrumbs(
       ? { label: name }
       : { label: name, to: { href: folderHref(at), kind: "screen" } };
   });
-}
-
-/** The path a name goes on the end of, however the one it goes on ends. */
-function join(base: string, name: string, separator: string) {
-  return base.endsWith(separator)
-    ? `${base}${name}`
-    : `${base}${separator}${name}`;
 }
 
 /** Where a walk down a path starts: the home folder, a volume, or the disk. */

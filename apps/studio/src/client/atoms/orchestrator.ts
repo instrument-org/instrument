@@ -214,6 +214,26 @@ export const orchestratorSidebarOpenAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 );
 
+/**
+ * Which of the file browser's layouts it opens in, and whether it lists
+ * dotfiles.
+ *
+ * Both are held here rather than inside the browser because the browser is
+ * rebuilt every time a folder is opened into it, and a preference that resets
+ * on the next folder is not one anybody sets twice.
+ */
+export const computerViewAtom = atomWithStorage<
+  "columns" | "gallery" | "icons" | "list"
+>("orchestrator.computer-view.v1", "columns", undefined, { getOnInit: true });
+
+/** Off by default, the way every file browser starts: a folder of dotfiles is a folder whose own contents are harder to find. */
+export const computerHiddenFilesAtom = atomWithStorage<boolean>(
+  "orchestrator.computer-hidden-files.v1",
+  false,
+  undefined,
+  { getOnInit: true },
+);
+
 export const PINS_HEIGHT_MIN = 40;
 const PINS_HEIGHT_DEFAULT = 96;
 

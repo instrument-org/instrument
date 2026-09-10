@@ -168,6 +168,7 @@ export type FileSystemProps = {
   /** Return on a focused item, which is how the Finder starts a rename. */
   onRenameStart?: (item: FileSystemItem) => void;
   onSelectionChange?: (item: FileSystemItem | null) => void;
+  onShowHiddenFilesChange?: (showHiddenFiles: boolean) => void;
   onViewChange?: (view: FileSystemView) => void;
   /** The item whose name is being typed over in its own row, by path. */
   renamingPath?: null | string;
@@ -190,6 +191,11 @@ export type FileSystemProps = {
    * just made or renamed, the way the Finder leaves the new thing selected.
    */
   selectedPath?: null | string;
+  /**
+   * Whether dotfiles are listed, when the caller holds the answer. Left out,
+   * the browser keeps its own, which lasts as long as this instance of it does.
+   */
+  showHiddenFiles?: boolean;
   /** Label for the root folder. */
   title?: string;
   view?: FileSystemView;
@@ -1308,6 +1314,7 @@ export function FileSystem({
   onRenameCommit,
   onRenameStart,
   onSelectionChange,
+  onShowHiddenFilesChange,
   onViewChange,
   renamingPath,
   renderFileActions,
@@ -1316,6 +1323,7 @@ export function FileSystem({
   renderHeaderLead,
   renderTrailing,
   selectedPath: selectedPathProp,
+  showHiddenFiles: showHiddenFilesProp,
   title = "Files",
   view: viewProp,
 }: FileSystemProps) {
@@ -1333,7 +1341,16 @@ export function FileSystem({
     () => (loadedItems.length > 0 ? [...items, ...loadedItems] : items),
     [items, loadedItems],
   );
-  const [showHiddenFiles, setShowHiddenFiles] = React.useState(false);
+  const [internalShowHiddenFiles, setInternalShowHiddenFiles] =
+    React.useState(false);
+  const showHiddenFiles = showHiddenFilesProp ?? internalShowHiddenFiles;
+  const setShowHiddenFiles = React.useCallback(
+    (next: boolean) => {
+      setInternalShowHiddenFiles(next);
+      onShowHiddenFilesChange?.(next);
+    },
+    [onShowHiddenFilesChange],
+  );
   // Hidden files leave before the index rather than at the point of drawing a
   // row, so one answer covers all four views, search, the selection and the
   // arrow keys. A file the browser is not showing is one it does not know.

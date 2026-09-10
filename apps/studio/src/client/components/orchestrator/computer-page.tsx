@@ -1,4 +1,8 @@
-import { type FileTab } from "@/client/atoms/orchestrator";
+import {
+  computerHiddenFilesAtom,
+  computerViewAtom,
+  type FileTab,
+} from "@/client/atoms/orchestrator";
 import {
   FileSystem,
   type FileSystemFileItem,
@@ -41,6 +45,7 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { useAtom } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -130,6 +135,12 @@ export function ComputerPage({
   const { taskId } = useOrchestrator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Held above the browser, which is rebuilt on every opening, so the layout
+  // and the dotfiles answer survive walking into the next folder.
+  const [view, setView] = useAtom(computerViewAtom);
+  const [showHiddenFiles, setShowHiddenFiles] = useAtom(
+    computerHiddenFilesAtom,
+  );
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   // The recents stand where a root folder stands, and are listed the way a
   // folder is, so everything the browser does to a folder it does to them.
@@ -827,7 +838,6 @@ export function ComputerPage({
                       },
                     }
                   : {})}
-                defaultView="columns"
                 items={items}
                 key={`${root}#${openings}`}
                 loadChildren={async ({ path: prefix }) => {
@@ -879,6 +889,8 @@ export function ComputerPage({
                 onSelectionChange={(item) => {
                   setSelectedPath(item?.path ?? null);
                 }}
+                onShowHiddenFilesChange={setShowHiddenFiles}
+                onViewChange={setView}
                 renamingPath={renamingPath}
                 renderFileStage={(file) => {
                   // Text reads as a thumbnail of the document, the way an image
@@ -930,7 +942,9 @@ export function ComputerPage({
                   </span>
                 )}
                 selectedPath={selectedPath}
+                showHiddenFiles={showHiddenFiles}
                 title={rootName}
+                view={view}
               />
             </div>
           </ContextMenuTrigger>

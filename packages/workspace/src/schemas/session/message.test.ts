@@ -709,6 +709,120 @@ describe("SessionMessage.toModelMessages", () => {
     expect(text).not.toContain("/mnt/undefined");
   });
 
+  function attachedFoldersPart(
+    partMetadata: ReturnType<typeof baseMetadata>["partMetadata"],
+  ) {
+    return SessionMessagePart.coerce({
+      data: {
+        files: [],
+        folders: [
+          {
+            access: "read-write",
+            createdAt: 1_718_198_400_000,
+            id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
+            mountName: "Reports",
+            path: "/Users/sam/Reports",
+            source: "user",
+          },
+        ],
+      },
+      metadata: partMetadata,
+      type: "data-attachments",
+    });
+  }
+
+  // A folder attached with the first message is mounted before the session's
+  // baseline is written, so the baseline already carries it with the rules for
+  // using it. The note on the message lists the folder and stops there.
+  it("lists a folder attached with the first message without repeating the rules", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [
+            attachedFoldersPart(partMetadata),
+            { metadata: partMetadata, text: "summarize these", type: "text" },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    const text = JSON.stringify(result);
+    expect(text).toContain("-> `/mnt/Reports` (read and write)");
+    expect(text).not.toContain("Read, list, and search by mount path");
+  });
+
+  // A folder attached later may be the first the session has heard of, so
+  // the rules ride with it.
+  it("carries the folder rules on a folder attached after the first message", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [{ metadata: partMetadata, text: "hello", type: "text" }],
+          role: "user",
+        },
+        {
+          id: StoreId.newMessageId(),
+          metadata: messageMetadata,
+          parts: [
+            attachedFoldersPart(partMetadata),
+            { metadata: partMetadata, text: "summarize these", type: "text" },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    const text = JSON.stringify(result);
+    expect(text).toContain("Read, list, and search by mount path");
+    expect(text).toContain("write_file");
+  });
+
+  // The conversation's agent has no file tools, so its copy of the rules says
+  // a task writes and never names a tool it has not got.
+  it("tells the conversation's agent a task writes into an attached folder", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: StoreId.newMessageId(),
+          metadata: { ...messageMetadata, agentName: "instrument" },
+          parts: [{ metadata: partMetadata, text: "hello", type: "text" }],
+          role: "user",
+        },
+        {
+          id: StoreId.newMessageId(),
+          metadata: { ...messageMetadata, agentName: "instrument" },
+          parts: [
+            attachedFoldersPart(partMetadata),
+            { metadata: partMetadata, text: "summarize these", type: "text" },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    const text = JSON.stringify(result);
+    expect(text).toContain(
+      "a task reaches one only when you pass it with --folder",
+    );
+    expect(text).toContain("hand it the folder with --folder");
+    expect(text).not.toContain("write_file");
+    expect(text).not.toContain("read_file");
+  });
+
   // A tool's output schema outgrows the sessions already recorded against it,
   // and every one of those results is mapped again on each turn and each
   // transcript render. Reading a field the record predates used to fail the

@@ -20,6 +20,7 @@ import { TASK_COMMAND } from "./shell-commands/task-command";
  */
 export function buildAttachedFoldersText({
   folders,
+  guidance = true,
   intro,
   writes = "here",
 }: {
@@ -35,6 +36,12 @@ export function buildAttachedFoldersText({
      */
     writableInside?: boolean;
   }[];
+  /**
+   * Whether the rules for reading and writing these folders follow the list.
+   * A session reads them once, under the first folders it hears of; a folder
+   * announced after that is a list entry under rules already read.
+   */
+  guidance?: boolean;
   intro: string;
   /**
    * Who writes a file's contents into a folder: the reader of this text, with
@@ -70,6 +77,15 @@ export function buildAttachedFoldersText({
     })
     .join("\n");
 
+  if (!guidance) {
+    return dedent`
+      <attached_folders>
+      ${intro}
+      ${folderList}
+      </attached_folders>
+    `;
+  }
+
   const writable = folders.some(({ access }) => access === "read-write");
   const readOnly = folders.some(
     ({ access, writableInside }) => access !== "read-write" && !writableInside,
@@ -78,7 +94,7 @@ export function buildAttachedFoldersText({
 
   // Lines, not a `- ` list: the folder list above already is one, and a second
   // list under it reads as more folders.
-  const guidance = (
+  const rules = (
     writes === "through-tasks"
       ? [
           `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
@@ -117,7 +133,7 @@ export function buildAttachedFoldersText({
     ${intro}
     ${folderList}
 
-    ${guidance}
+    ${rules}
     </attached_folders>
   `;
 }

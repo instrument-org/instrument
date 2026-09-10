@@ -287,6 +287,14 @@ export namespace SessionMessage {
       created: new Set<string>(),
       updated: new Set<string>(),
     };
+    // A folder attached with the session's first message is mounted before the
+    // session's baseline is written, so that baseline already lists it with the
+    // rules for reading and writing it. The note on the message repeats the
+    // list; a folder attached on a later message carries the rules, since the
+    // baseline may never have had a folder to explain.
+    const firstUserMessageId = messages.find(
+      (message) => message.role === "user",
+    )?.id;
 
     const uiMessages: UIMessage[] = messages.map((message) => {
       const maxStepsPart = message.parts.find(
@@ -372,13 +380,21 @@ export namespace SessionMessage {
             attachmentsPart.data.folders ?? []
           ).filter((folder) => folder.source !== "project");
           if (userAttachedFolders.length > 0) {
+            // The conversation's agent has no file tools and a shell that
+            // refuses to write, so its folders are read here and written by
+            // the tasks it hands them to.
+            const throughTasks = message.metadata.agentName === "instrument";
             const folderAttachmentText = buildAttachedFoldersText({
               folders: userAttachedFolders.map((folder) => ({
                 access: folder.access,
                 mountPoint: attachedFolderMountPoint(folder.mountName),
                 path: folder.path,
               })),
-              intro: `The user attached these external folders with this message. They are mounted in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
+              guidance: message.id !== firstUserMessageId,
+              intro: throughTasks
+                ? `The user attached these folders with this message. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder. Assume they are directly relevant to the user's request.`
+                : `The user attached these external folders with this message. They are mounted in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
+              writes: throughTasks ? "through-tasks" : "here",
             });
 
             injectedParts.push({ text: folderAttachmentText, type: "text" });

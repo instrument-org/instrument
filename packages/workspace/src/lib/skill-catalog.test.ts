@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema } from "../schemas/paths";
 import { renderSkillCatalog } from "./skill-catalog";
+import { SKILL_NAMES } from "./skill-names";
 import { type SkillInfo, type SkillSourceKind } from "./skills";
 
 const skill = (
@@ -101,6 +102,91 @@ describe("renderSkillCatalog", () => {
       { description: "short", name: "workspace:a" },
       { description: "x".repeat(105), name: "workspace:b" },
     ]);
+  });
+
+  it("keeps a skill the product names whole while the rest share what is left", () => {
+    const named = skill(SKILL_NAMES.createPage, "n".repeat(300), "instrument");
+    const others = Array.from({ length: 5 }, (_, index) =>
+      skill(`other-${index}`, "o".repeat(300), "claude"),
+    );
+    const namesOnly = renderSkillCatalog(
+      [named, ...others].map((entry) => ({ ...entry, description: "" })),
+    ).xml.length;
+    // Room for the named description whole plus 60 characters for each of the rest.
+    const catalog = renderSkillCatalog([named, ...others], namesOnly + 600);
+
+    expect(catalog.shortened).toBe(5);
+    expect(catalog.entries[0]).toEqual({
+      description: "n".repeat(300),
+      name: "instrument:create-page",
+    });
+    expect(
+      catalog.entries
+        .slice(1)
+        .every((entry) => entry.description.length === 60),
+    ).toBe(true);
+    expect(catalog.xml.length).toBeLessThanOrEqual(namesOnly + 600);
+  });
+
+  it("gives a named skill the flat cap when it would crowd the rest", () => {
+    const named = skill(SKILL_NAMES.createPage, "n".repeat(5000), "instrument");
+    const others = Array.from({ length: 5 }, (_, index) =>
+      skill(`other-${index}`, "o".repeat(300), "claude"),
+    );
+    const namesOnly = renderSkillCatalog(
+      [named, ...others].map((entry) => ({ ...entry, description: "" })),
+    ).xml.length;
+    const catalog = renderSkillCatalog([named, ...others], namesOnly + 600);
+
+    expect(catalog.shortened).toBe(6);
+    expect(
+      catalog.entries.every((entry) => entry.description.length === 100),
+    ).toBe(true);
+    expect(catalog.xml.length).toBeLessThanOrEqual(namesOnly + 600);
+  });
+
+  it("does not treat a namesake from another source as the named skill", () => {
+    const namesake = {
+      ...skill(SKILL_NAMES.createPage, "n".repeat(300), "cursor"),
+      qualifiedName: `cursor:${SKILL_NAMES.createPage}`,
+    };
+    const others = Array.from({ length: 5 }, (_, index) =>
+      skill(`other-${index}`, "o".repeat(300), "claude"),
+    );
+    const namesOnly = renderSkillCatalog(
+      [namesake, ...others].map((entry) => ({ ...entry, description: "" })),
+    ).xml.length;
+    const catalog = renderSkillCatalog([namesake, ...others], namesOnly + 600);
+
+    expect(catalog.shortened).toBe(6);
+    expect(
+      catalog.entries.every((entry) => entry.description.length === 100),
+    ).toBe(true);
+  });
+
+  it("keeps every named skill whole at a realistic skill count within the default budget", () => {
+    // The shape of a developer machine: the three named skills at their real
+    // description lengths, plus fifty from co-installed agent homes. The point
+    // is that the shortening step fires here, so a pass says the reservation
+    // survived it rather than that everything happened to fit.
+    const named = [
+      skill(SKILL_NAMES.createPage, "c".repeat(334), "instrument"),
+      skill(SKILL_NAMES.documentToMarkdown, "d".repeat(343), "instrument"),
+      skill(SKILL_NAMES.pdf, "p".repeat(562), "instrument"),
+    ];
+    const others = Array.from({ length: 50 }, (_, index) =>
+      skill(`vendor-skill-${index}`, "v".repeat(300), "claude"),
+    );
+    const catalog = renderSkillCatalog([...named, ...others]);
+
+    expect(catalog.omitted).toBe(0);
+    expect(catalog.shortened).toBe(50);
+    expect(
+      catalog.entries
+        .filter((entry) => entry.name.startsWith("instrument:"))
+        .map((entry) => entry.description.length),
+    ).toEqual([334, 343, 562]);
+    expect(catalog.xml.length).toBeLessThanOrEqual(8000);
   });
 
   it.each([

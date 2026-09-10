@@ -2,6 +2,7 @@ import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { sum } from "radashi";
 
 import { truncateAtWordBoundary } from "./sanitize-model-text";
+import { SKILL_NAMES } from "./skill-names";
 import { type SkillInfo, type SkillSourceKind } from "./skills";
 
 const CATALOG_TAGS = {
@@ -24,6 +25,28 @@ const CATALOG_TAGS = {
  */
 const CATALOG_CHAR_BUDGET = 8000;
 
+/**
+ * Share of the description budget the skills named in prompts and tool
+ * descriptions may hold in full before the reservation is given up.
+ *
+ * Those are the skills the product steers the model toward by name, and a
+ * description cut to the flat cap loses the clause saying when to reach for
+ * it, which is the one clause the steering depends on. Half leaves every other
+ * skill at least half of what the flat cap alone would have given it. On a
+ * developer machine with 54 skills across several agent homes the three named
+ * skills need about two fifths, so the reservation holds there; a named skill
+ * with a runaway description, or a machine with many more vendors installed,
+ * drops back to the flat cap rather than starving the rest.
+ */
+const NAMED_SKILL_RESERVE_SHARE = 0.5;
+
+/**
+ * Matched against `qualifiedName`, which is the plain name exactly when
+ * `load_skill` given that plain name resolves to this entry: the one the
+ * prompt's constant actually refers to, not a namesake from another source.
+ */
+const NAMED_SKILLS = new Set<string>(Object.values(SKILL_NAMES));
+
 /** The `<available_skills>` open and close tags plus the newline between them. */
 const WRAPPER_COST =
   `<${CATALOG_TAGS.availableSkills}>`.length +
@@ -31,9 +54,10 @@ const WRAPPER_COST =
   `</${CATALOG_TAGS.availableSkills}>`.length;
 
 /**
- * Order the catalog degrades in: skills we ship or the user authored here
- * outrank whatever a co-installed agent left in the home directory, so those
- * are the last to lose their descriptions and the first to be dropped.
+ * Order the catalog lists skills in, and the order the names-only step keeps
+ * them in: skills we ship or the user authored here outrank whatever a
+ * co-installed agent left in the home directory, so those are the last to be
+ * dropped. It has no say in description length; that is `NAMED_SKILLS`.
  */
 const SOURCE_PRIORITY: Record<SkillSourceKind, number> = {
   agents: 3,
@@ -65,7 +89,8 @@ interface SkillCatalog {
 /**
  * Render the agent-facing skill catalog within a character budget, degrading in
  * three steps: every description in full, then descriptions shortened to a fair
- * share of what is left, then names alone.
+ * share of what is left (the skills the product names by constant keeping
+ * theirs whole while they fit), then names alone.
  */
 export function renderSkillCatalog(
   skills: SkillInfo[],
@@ -83,6 +108,7 @@ export function renderSkillCatalog(
       // Stable identity, because catalog entries can be copied into persisted
       // messages and must not retarget when a namesake is installed later.
       name: skill.id,
+      named: NAMED_SKILLS.has(skill.qualifiedName),
       // Its own trailing newline, so the entry costs add up to `xml.length`
       // once the wrapper is accounted for.
       nameOnlyCost: renderEntry(skill.id, "").length + 1,
@@ -110,14 +136,27 @@ export function renderSkillCatalog(
 
   const nameOnlyCost = sum(entries.map((entry) => entry.nameOnlyCost));
   if (nameOnlyCost <= entryBudget) {
+    const available = entryBudget - nameOnlyCost;
+    const reserved = sum(
+      entries
+        .filter((entry) => entry.named)
+        .map((entry) => entry.descriptionCost),
+    );
+    const keepsNamedWhole = reserved <= available * NAMED_SKILL_RESERVE_SHARE;
+    const keptWhole = (entry: { named: boolean }) =>
+      keepsNamedWhole && entry.named;
     const cap = fairShareLength(
-      entries.map((entry) => entry.descriptionCost),
-      entryBudget - nameOnlyCost,
+      entries
+        .filter((entry) => !keptWhole(entry))
+        .map((entry) => entry.descriptionCost),
+      available - (keepsNamedWhole ? reserved : 0),
     );
     return build(
       entries.map((entry) => ({
         ...entry,
-        shown: trimDescriptionToEscapedLength(entry.description, cap),
+        shown: keptWhole(entry)
+          ? entry.description
+          : trimDescriptionToEscapedLength(entry.description, cap),
       })),
       0,
     );

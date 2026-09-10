@@ -202,17 +202,21 @@ function OrchestratorLayout() {
   const channelId =
     channelList.find((channel) => channel.id === selectedChannel)?.id ??
     channelList[0]?.id;
+  // No channel at all until the list is in, since there is nothing to answer
+  // with that is not a guess: the task's newest session is the last channel
+  // the user made rather than the one they left off in, and a window that
+  // answered with it put that channel's transcript on screen, marked it read,
+  // and stood ready to take a message meant for another one.
   const sessionId = channelId
     ? StoreId.SessionSchema.parse(channelId)
-    : ids?.sessionId;
-  // The tabs are kept per channel and keyed by this, so a selection that is
-  // still null while the list loads would file the first tabs opened under
-  // nothing. Written the moment the list settles rather than left implied.
+    : undefined;
+  // The tabs are kept per channel and keyed by the stored id, so the list is
+  // what settles it: left alone, an id naming no channel keeps the strip and
+  // its guests on a channel the conversation has already moved off.
   useEffect(() => {
-    // Only when nothing is chosen. A channel just made is selected by its own
-    // mutation before the list has been re-read, and writing the fallback back
-    // over it here would drop the user on the first channel instead.
-    if (!selectedChannel && channelId) {
+    // A channel just made is selected by its own mutation, which re-reads the
+    // list before it writes, so the id it chose is already one of these.
+    if (channelId && channelId !== selectedChannel) {
       setSelectedChannel(channelId);
     }
   }, [channelId, selectedChannel, setSelectedChannel]);
@@ -655,33 +659,34 @@ function OrchestratorLayout() {
     rpcClient.workspace.message.create.mutationOptions(),
   );
   const modelURI = state.data?.selectedModelURI ?? defaultModelURI;
-  const screens: null | OrchestratorWindow = ids
-    ? {
-        ask: (prompt) => {
-          if (!modelURI) {
-            return;
-          }
-          createMessage.mutate({
-            id: ids.taskId,
-            modelURI,
-            prompt,
-            sessionId: sessionId ?? ids.sessionId,
-          });
-        },
-        browser,
-        // The composer is the sidebar's, so a screen that wants the caret in
-        // it reaches through the box the conversation is drawn in.
-        focusComposer: () => {
-          conversationRef.current
-            ?.querySelector<HTMLElement>('[contenteditable="true"], textarea')
-            ?.focus();
-        },
-        openPage,
-        openScreen,
-        sessionId: sessionId ?? ids.sessionId,
-        taskId: ids.taskId,
-      }
-    : null;
+  const screens: null | OrchestratorWindow =
+    ids && sessionId
+      ? {
+          ask: (prompt) => {
+            if (!modelURI) {
+              return;
+            }
+            createMessage.mutate({
+              id: ids.taskId,
+              modelURI,
+              prompt,
+              sessionId,
+            });
+          },
+          browser,
+          // The composer is the sidebar's, so a screen that wants the caret in
+          // it reaches through the box the conversation is drawn in.
+          focusComposer: () => {
+            conversationRef.current
+              ?.querySelector<HTMLElement>('[contenteditable="true"], textarea')
+              ?.focus();
+          },
+          openPage,
+          openScreen,
+          sessionId,
+          taskId: ids.taskId,
+        }
+      : null;
 
   // Opening a channel is the user saying they want to talk in it, so the caret
   // goes to its composer. A layout effect, which runs after the newly mounted
@@ -696,11 +701,15 @@ function OrchestratorLayout() {
       ?.focus();
   }, [sessionId]);
 
-  if (ensure.error) {
+  // The channels are half of what the window opens on, so a list that cannot
+  // be read is the same dead end as a conversation that cannot: without one
+  // there is no channel to show, and the spinner below would never end.
+  const openError = ensure.error ?? channels.error;
+  if (openError) {
     return (
       <Frame>
         <p className="p-4 pt-12 text-sm text-destructive">
-          Could not open the conversation: {ensure.error.message}
+          Could not open the conversation: {openError.message}
         </p>
       </Frame>
     );

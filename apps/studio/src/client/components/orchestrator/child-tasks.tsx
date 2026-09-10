@@ -10,13 +10,12 @@ import {
   MessageScrollerViewport,
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
+import { catalogEffort } from "@instrument-org/ai-gateway/client";
 import {
   decodeBrowserTargetId,
-  type SessionMessage,
   type Task,
 } from "@instrument-org/workspace/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
@@ -57,7 +56,6 @@ export function ChildTranscript({ task }: { task: Task }) {
   );
   const isWorking = status.data?.some(hasLiveAgent) ?? false;
 
-  const isDeveloperMode = useDeveloperMode();
   const openFile = useOpenFileNamedByTask(task.id);
 
   if (!sessionId || !messages.data) {
@@ -69,9 +67,7 @@ export function ChildTranscript({ task }: { task: Task }) {
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {isDeveloperMode ? (
-        <TaskBrief messages={messages.data} taskId={task.id} />
-      ) : null}
+      <TaskBrief task={task} />
       <MessageScrollerProvider
         autoScroll={isWorking}
         defaultScrollPosition="end"
@@ -113,17 +109,103 @@ export function ChildTranscript({ task }: { task: Task }) {
   );
 }
 
-/** Lines of a brief that set a limit: effort, minutes, tokens, money. */
-const LIMIT_LINE =
-  /\b(?:effort|budget|minutes?|tokens?|no more than|at most|do not (?:go|spend)|\$\d)/i;
-
-/** One fact about the task: a label in muted type, the value beside it. */
-function Chip({ children, label }: { children: ReactNode; label: string }) {
+/**
+ * The apps this task may reach. Three states worth telling apart: a list it
+ * was handed, none at all, and the absent setting a person's own task carries,
+ * which reaches everything connected.
+ */
+function AppsChip({ apps }: { apps: string[] | undefined }) {
+  if (!apps) {
+    return (
+      <Chip label="Apps" title="Nothing narrows this task's reach">
+        every connected app
+      </Chip>
+    );
+  }
+  if (apps.length === 0) {
+    return (
+      <Chip
+        label="Apps"
+        title="The `app` command finds nothing; the orchestrator hands one over with `task app`"
+      >
+        none
+      </Chip>
+    );
+  }
   return (
-    <span className="flex max-w-64 items-center gap-1 rounded-md bg-foreground/5 px-1.5 py-0.5">
+    <Chip label="Apps" title={apps.join(", ")}>
+      {apps.join(", ")}
+    </Chip>
+  );
+}
+
+/**
+ * One fact about the task: a label in muted type, the value beside it, and an
+ * optional note for where the value came from when that is not the task's own
+ * doing.
+ */
+function Chip({
+  children,
+  label,
+  note,
+  title,
+}: {
+  children: ReactNode;
+  label: string;
+  note?: string;
+  title?: string;
+}) {
+  return (
+    <span
+      className="flex h-6 max-w-64 items-center gap-1 rounded-md bg-foreground/5 px-1.5"
+      title={title}
+    >
       <span className="text-muted-foreground">{label}</span>
       <span className="truncate font-medium">{children}</span>
+      {note ? <span className="text-muted-foreground">{note}</span> : null}
     </span>
+  );
+}
+
+/**
+ * The level this task's model thinks at, and where that level came from.
+ *
+ * Absent settings do not mean no level: the request falls back to the model's
+ * own catalog default, so the chip resolves it the same way the request does
+ * rather than reading as though nothing were set.
+ */
+function EffortChip({ task }: { task: Task }) {
+  const models = useQuery(rpcClient.gateway.models.list.queryOptions());
+  const state = useQuery(
+    rpcClient.workspace.task.state.get.queryOptions({ input: { id: task.id } }),
+  );
+  const model = models.data?.models.find(
+    (entry) => entry.uri === state.data?.selectedModelURI,
+  );
+  const fromModel = model ? catalogEffort(model) : undefined;
+  const effort = task.reasoningEffort ?? fromModel;
+  if (!effort) {
+    return (
+      <Chip
+        label="Effort"
+        title="No level is sent, so the provider's own default stands"
+      >
+        provider default
+      </Chip>
+    );
+  }
+  return (
+    <Chip
+      label="Effort"
+      title={
+        task.reasoningEffort
+          ? "The level this task was created with"
+          : "This model reasons by default; no level was chosen for the task"
+      }
+      {...(task.reasoningEffort ? {} : { note: "model default" })}
+    >
+      {effort}
+    </Chip>
   );
 }
 
@@ -149,32 +231,19 @@ function HandedTabChip({ sessionId }: { sessionId: string }) {
 }
 
 /**
- * What the orchestrator handed the task, along the top, for whoever is
- * checking its work: the model, the folders and their access, a handed tab,
- * and the lines of the brief that set a limit, as a row of labeled chips.
- * The brief itself is the first message below, so it is not repeated here;
- * the row opens to the folders' full paths.
+ * Everything that constrains the task, along the top, for whoever is checking
+ * its work: the model it runs on and the level it thinks at, the folders it
+ * reaches and whether it may write to them, the apps it may reach, and a
+ * handed tab. One chip per thing something enforces, and nothing else -- what
+ * the brief asked of the task is the first message below, in the words it was
+ * asked in, where it cannot be mistaken for a rule. Chips open to their full
+ * value on hover.
  */
-function TaskBrief({
-  messages,
-  taskId,
-}: {
-  messages: SessionMessage.WithParts[];
-  taskId: Task["id"];
-}) {
+function TaskBrief({ task }: { task: Task }) {
+  const taskId = task.id;
   const state = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
   );
-  const brief =
-    messages
-      .find((message) => message.role === "user")
-      ?.parts.flatMap((part) => (part.type === "text" ? [part.text] : []))
-      .join("\n") ?? "";
-  const limits = brief
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line && LIMIT_LINE.test(line))
-    .slice(0, 3);
   const folders = Object.values(state.data?.attachedFolders ?? {});
   const handed = state.data?.browserTargetId
     ? decodeBrowserTargetId(state.data.browserTargetId)
@@ -187,6 +256,7 @@ function TaskBrief({
       >
         <ModelPreview id={taskId} />
       </span>
+      <EffortChip task={task} />
       {folders.length === 0 ? (
         <Chip label="Folders">none</Chip>
       ) : (
@@ -204,12 +274,8 @@ function TaskBrief({
           </span>
         ))
       )}
+      <AppsChip apps={task.apps} />
       {handed ? <HandedTabChip sessionId={handed.sessionId} /> : null}
-      {limits.map((line) => (
-        <Chip key={line} label="Limit">
-          {line}
-        </Chip>
-      ))}
     </div>
   );
 }

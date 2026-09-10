@@ -7,6 +7,11 @@
     "**/*.local/**",
     ".cursor/plans/**",
     ".claude/worktrees/**",
+    // Dropped in from upstream and re-synced wholesale, so a correction here is
+    // undone by the next update. .claude/skills symlinks to .agents/skills, so
+    // it needs its own entry to cover the same files.
+    ".agents/skills/**",
+    ".claude/skills/**",
     "docs/**",
   ],
 }

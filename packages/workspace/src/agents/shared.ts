@@ -134,23 +134,6 @@ export async function getTaskLayoutContext(dir: AbsolutePath) {
   );
 }
 
-/** What a fresh task's tree renders as: the template's files and the three empty folders. */
-async function scaffoldTree() {
-  let templateFiles: string[] = [];
-  try {
-    templateFiles = await fs.readdir(
-      getWorkspaceConfig().defaultTaskTemplateDir,
-    );
-  } catch {
-    // No template to compare against reads as no scaffold, so the tree shows.
-  }
-  return generateTreeString(templateFiles, [
-    TASK_FOLDER_NAMES.attachments,
-    TASK_FOLDER_NAMES.output,
-    TASK_FOLDER_NAMES.work,
-  ]);
-}
-
 export function shouldContinueWithToolCalls({
   messages,
 }: {
@@ -169,4 +152,21 @@ export function shouldContinueWithToolCalls({
   return Promise.resolve(
     lastAssistantMessage.parts.some((part) => isToolPart(part)),
   );
+}
+
+/** What a fresh task's tree renders as: the template's files and the three empty folders. */
+async function scaffoldTree() {
+  let templateFiles: string[] = [];
+  try {
+    templateFiles = await fs.readdir(
+      getWorkspaceConfig().defaultTaskTemplateDir,
+    );
+  } catch {
+    // No template to compare against reads as no scaffold, so the tree shows.
+  }
+  return generateTreeString(templateFiles, [
+    TASK_FOLDER_NAMES.attachments,
+    TASK_FOLDER_NAMES.output,
+    TASK_FOLDER_NAMES.work,
+  ]);
 }

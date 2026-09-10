@@ -42,6 +42,7 @@ export async function buildBriefContextText(
     - Your last message is a receipt, not a report: one or two sentences saying what you made, the verdict in a clause when the brief asked a question, and anything the assistant has to act on -- a question you need answered, a thing you could not do, a judgment call you made. Never a list of findings, a summary of the file, or its sources, even when the brief asks for several: that work is already in the file, the assistant reads the file, and words here are cut at ${WAKE_SUMMARY_MAX_LENGTH} characters and told not to be passed on.
     - Name the deliverable by the path you reach it at: under \`${MOUNT.attachedFolders}/\` when the brief put it in a folder there, or \`output/<name>\` when it lives in this task, which the assistant reads through a folder of its own.
     - When the brief named a folder for the deliverable, that is where it goes, over anything this prompt says about \`output/\`.
+    - A folder, a file, or a service you were not handed is not something to ask a person for: stop, and name it in your last message. The assistant can hand it to you and send you on.
     </who_reads_you>
   `;
 }

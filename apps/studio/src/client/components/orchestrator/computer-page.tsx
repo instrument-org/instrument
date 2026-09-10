@@ -743,6 +743,12 @@ export function ComputerPage({
   const pathBarHost = isRecents
     ? recentFolder
     : (currentListing?.path ?? rootHostPath ?? root);
+  // The folder on screen, which is the only row the sidebar marks: a place
+  // walked down out of is no longer where the user is, so nothing is marked
+  // until a folder is one of the places itself.
+  const folderHostPath = isRecents
+    ? undefined
+    : (currentListing?.path ?? hostPathOf(onScreen, rootHostPath ?? root));
   return (
     <div className="flex h-full min-h-0">
       <nav
@@ -784,7 +790,7 @@ export function ComputerPage({
               ) : (
                 <FileSystemFolderGlyph className="h-3.5 w-auto" />
               ),
-            isActive: rootHostPath === place.path,
+            isActive: folderHostPath === place.path,
             name: place.name,
             path: place.path,
           }))}
@@ -796,7 +802,7 @@ export function ComputerPage({
           }}
           places={places.data.volumes.map((volume) => ({
             icon: <HardDriveIcon className="size-4 text-muted-foreground" />,
-            isActive: rootHostPath === volume.path,
+            isActive: folderHostPath === volume.path,
             name: volume.name,
             path: volume.path,
           }))}

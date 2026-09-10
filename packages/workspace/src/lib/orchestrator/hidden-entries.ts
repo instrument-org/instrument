@@ -37,7 +37,7 @@ export async function hiddenEntryNames(
 
   const token = await modifiedAt(folder);
   const cached = cache.get(folder);
-  if (cached && cached.token === token) {
+  if (cached?.token === token) {
     return cached.names;
   }
 
@@ -93,7 +93,8 @@ async function askWindows(folder: string): Promise<ReadonlySet<string>> {
 
 async function modifiedAt(folder: string): Promise<number> {
   try {
-    return (await fs.stat(folder)).mtimeMs;
+    const stats = await fs.stat(folder);
+    return stats.mtimeMs;
   } catch {
     return 0;
   }

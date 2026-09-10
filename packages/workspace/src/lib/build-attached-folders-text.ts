@@ -4,7 +4,6 @@ import { dedent } from "radashi";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { TOOL_NAMES } from "../tools/name";
 import { folderLabel, folderParentLabel } from "./folder-parent-label";
-import { TASK_COMMAND } from "./shell-commands/task-command";
 
 /**
  * The attached-folder list the model reads.
@@ -90,7 +89,6 @@ export function buildAttachedFoldersText({
   const readOnly = folders.some(
     ({ access, writableInside }) => access !== "read-write" && !writableInside,
   );
-  const writableInside = folders.some((folder) => folder.writableInside);
 
   // Lines, not a `- ` list: the folder list above already is one, and a second
   // list under it reads as more folders.
@@ -100,13 +98,10 @@ export function buildAttachedFoldersText({
           `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
           `Look inside by mount path with bash (\`ls\`, \`cat\`, \`head\`, \`find\`), like any other directory.`,
           writable
-            ? `Writing a file's contents into a read-and-write folder is a task's: hand it the folder with --folder (:rw when it should write). A finished file you put where it belongs yourself, with \`cp\` and \`mv\`, but only into a folder listed above as read and write for you: one that is read-only as a whole refuses your copy with \`EROFS\`, however writable a task finds the folder inside it. To land a file anywhere else, give the task that folder with \`${TASK_COMMAND.name} folder <id> --add <mount>\` and have it write there itself. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
+            ? `A file's contents are written by a task handed the folder with --folder; what you do yourself is \`cp\` or \`mv\` a finished file into a folder listed above as read and write for you. One that is read-only as a whole refuses that with \`EROFS\`, however writable a task finds a folder inside it. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
             : null,
           readOnly
             ? `Writing into a read-only folder fails, for you and for a task. It mirrors the user's real files and is not yours to change.`
-            : null,
-          writableInside
-            ? `A folder that is read-only as a whole keeps ${APP_NAME}'s own data somewhere inside it: you read it and never write it, and a task is handed a folder inside it (--folder <mount>/<folder>) and writes there.`
             : null,
         ]
       : [

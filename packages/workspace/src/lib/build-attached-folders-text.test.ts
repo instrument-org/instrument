@@ -146,7 +146,7 @@ describe("buildAttachedFoldersText", () => {
     expect(listOf(throughTasks)).toEqual(listOf(here));
   });
 
-  it("tells a reader without file tools how the home folder is written: inside, by a task", () => {
+  it("labels the home folder as writable inside without calling it read-only", () => {
     const text = buildAttachedFoldersText({
       folders: [
         {
@@ -165,7 +165,6 @@ describe("buildAttachedFoldersText", () => {
         "- "sam" -> \`/mnt/sam\` (read-only as a whole, read and write inside)",
       ]
     `);
-    expect(text).toContain("keeps Instrument's own data somewhere inside it");
     expect(text).not.toContain("Writing into a read-only folder fails");
   });
 

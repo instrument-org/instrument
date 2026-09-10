@@ -818,7 +818,7 @@ describe("SessionMessage.toModelMessages", () => {
     expect(text).toContain(
       "a task reaches one only when you pass it with --folder",
     );
-    expect(text).toContain("hand it the folder with --folder");
+    expect(text).toContain("written by a task handed the folder with --folder");
     expect(text).not.toContain("write_file");
     expect(text).not.toContain("read_file");
   });

@@ -63,10 +63,10 @@ import {
   ChevronRight,
   ChevronUp,
   Columns3,
-  Columns3Icon,
   FileArchiveIcon,
   Filter,
   LayoutGrid,
+  List,
   LoaderCircle,
   Search,
   X,
@@ -251,7 +251,7 @@ function LayoutThreeColumnGlyph(props: InlineRegistryIconProps) {
   return <Columns3 {...props} />;
 }
 function LeftToRightListBulletGlyph(props: InlineRegistryIconProps) {
-  return <Columns3Icon {...props} />;
+  return <List {...props} />;
 }
 function normalizeFolderPath(path: string) {
   if (!path || path === "/") return "";

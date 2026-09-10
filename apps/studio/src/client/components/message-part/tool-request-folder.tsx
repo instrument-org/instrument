@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { Button } from "../ui/button";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
+import { useHasLiveSession } from "./use-live-session";
 
 type RequestFolderPart = Extract<
   SessionMessagePart.ToolPart,
@@ -52,13 +53,15 @@ export function ToolRequestFolder({
       },
     }),
   );
+  const isWaitedOn = useHasLiveSession(part.metadata.sessionId);
 
   if (!part.input) {
     return <ToolCardEmpty message="The request has not arrived yet." />;
   }
 
   const { access, reason } = part.input;
-  const isPending = part.state === "input-available";
+  const isUnanswered = part.state === "input-available";
+  const isPending = isUnanswered && isWaitedOn;
 
   const choose = async () => {
     const picked = await rpcClient.utils.showFolderPicker.call({
@@ -121,6 +124,12 @@ export function ToolRequestFolder({
               Not now
             </Button>
           </div>
+        ) : isUnanswered ? (
+          // Nothing is waiting for this any more, so the buttons are gone:
+          // answering one would attach a folder and tell nobody.
+          <p className="mt-2 text-xs text-muted-foreground">
+            This request ended without an answer.
+          </p>
         ) : part.state === "output-available" ? (
           <p className="mt-2 text-xs text-muted-foreground">
             {part.output.status === "granted"

@@ -15,6 +15,7 @@ import {
   ToolCardHeader,
   ToolCardSection,
 } from "./tool-card";
+import { useHasLiveSession } from "./use-live-session";
 
 type ChoosePart = Extract<SessionMessagePart.ToolPart, { type: "tool-choose" }>;
 
@@ -35,6 +36,8 @@ export function ToolChoose({
     }),
   );
 
+  const isWaitedOn = useHasLiveSession(part.metadata.sessionId);
+
   if (!part.input) {
     return <ToolCardEmpty message="The question has not arrived yet." />;
   }
@@ -42,8 +45,9 @@ export function ToolChoose({
   const hasOutput = part.state === "output-available";
   const selected = hasOutput ? part.output.selectedChoice : undefined;
   // The call waits on the user until it has an output, and the rows are how
-  // they answer it.
-  const isPending = part.state === "input-available";
+  // they answer it -- for as long as anything is still listening for one.
+  const isUnanswered = part.state === "input-available";
+  const isPending = isUnanswered && isWaitedOn;
 
   return (
     <ToolCard>
@@ -100,6 +104,11 @@ export function ToolChoose({
             );
           })}
         </div>
+        {isUnanswered && !isWaitedOn ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            This question ended without an answer.
+          </p>
+        ) : null}
       </ToolCardSection>
     </ToolCard>
   );

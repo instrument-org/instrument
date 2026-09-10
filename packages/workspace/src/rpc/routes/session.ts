@@ -336,6 +336,20 @@ const answerToolCall = base
         message: `Not an answer ${input.toolName} accepts: ${z.prettifyError(parsed.error)}`,
       });
     }
+    // Nothing is waiting for the answer once the session that asked has gone,
+    // which is what an app stopped mid-turn leaves behind: the call stays
+    // unanswered on disk and the card that draws it still has its buttons. The
+    // machine drops such an answer with a line in the log, so say it here
+    // instead, where the click can be told it went nowhere.
+    const sessions =
+      context.workspaceRef
+        .getSnapshot()
+        .context.sessionRefsByTaskId.get(input.id) ?? [];
+    if (sessions.length === 0) {
+      throw new ORPCError("CONFLICT", {
+        message: "That request ended before the answer reached it.",
+      });
+    }
     // The name and the output were validated together above, which is the
     // correlation the union type carries and a lookup by name cannot express.
     const output: unknown = parsed.data;

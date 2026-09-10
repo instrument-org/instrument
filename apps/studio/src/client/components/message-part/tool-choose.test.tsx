@@ -1,4 +1,6 @@
+import { rpcClient } from "@/client/rpc/client";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../../tests/render";
@@ -45,5 +47,41 @@ describe("ToolChoose", () => {
 
     expect(container.textContent).toContain("Which one?");
     expect(container.textContent).not.toContain("has not arrived");
+  });
+
+  it("offers the choices while the session is running", () => {
+    const { container } = renderWithProviders(
+      <ToolChoose
+        part={part({ choices: ["React", "Vue"], question: "Which one?" })}
+        taskId={taskId}
+      />,
+    );
+
+    expect(container.querySelectorAll("button")).toHaveLength(2);
+    expect(container.textContent).not.toContain("ended without an answer");
+  });
+
+  // An app stopped mid-turn -- an update installing itself, a crash -- leaves
+  // the call unanswered on disk with nothing left to answer it to. Clicking a
+  // row then reads as the conversation ignoring you.
+  it("stops offering the choices once no session is left to take one", async () => {
+    const { container, queryClient } = renderWithProviders(
+      <ToolChoose
+        part={part({ choices: ["React", "Vue"], question: "Which one?" })}
+        taskId={taskId}
+      />,
+    );
+
+    queryClient.setQueryData(
+      rpcClient.workspace.task.live.activity.experimental_liveOptions()
+        .queryKey,
+      [],
+    );
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("ended without an answer");
+    });
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+    expect(container.textContent).toContain("Which one?");
   });
 });

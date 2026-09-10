@@ -27,6 +27,7 @@ import {
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
 import ms from "ms";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { noop } from "radashi";
 import { createActor } from "xstate";
@@ -67,7 +68,17 @@ const ENV_REGISTRY_DIR = import.meta.env.MAIN_VITE_APP_REGISTRY_DIR_PATH;
 
 if (ENV_REGISTRY_DIR) {
   const absolutePath = path.resolve(ENV_REGISTRY_DIR);
-  logger.info("Using custom registry directory:", absolutePath);
+  if (existsSync(absolutePath)) {
+    logger.info("Using custom registry directory:", absolutePath);
+  } else {
+    // Honor the override anyway. Someone who set it wants that registry, and a
+    // quiet fall back to the submodule reads as a working app with a registry
+    // nobody chose, which is the harder failure to spot.
+    logger.error(
+      "Custom registry directory does not exist, so no skills will load:",
+      absolutePath,
+    );
+  }
   UNPACKAGED_REGISTRY_DIR = absolutePath;
 }
 

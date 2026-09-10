@@ -513,7 +513,12 @@ export function Omnibar({
           "h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground",
           // Kept in the box while the place is shown, so a press on the box
           // has something to put the caret in; it takes the box over on focus.
-          !isEditing && resting !== undefined && "absolute inset-0 opacity-0",
+          // Out of the pointer's way while it lies over the place, so a press
+          // reaches the part of the place under it; the box hands it the caret
+          // itself for a press anywhere else.
+          !isEditing &&
+            resting !== undefined &&
+            "pointer-events-none absolute inset-0 opacity-0",
         )}
         onBlur={() => {
           if (resting !== undefined) {

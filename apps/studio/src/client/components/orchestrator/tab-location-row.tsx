@@ -4,24 +4,18 @@ import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { type ReactNode, type Ref } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Fragment, type ReactNode, type Ref, useEffect, useRef } from "react";
 
-/** What the tab on screen is showing, in the terms that page has for itself. */
-export type TabLocation =
-  | { kind: "app"; name: string; site?: string }
-  | { kind: "apps" }
-  | { kind: "file"; name: string; path: string }
-  | { kind: "folder"; path: string }
-  | { kind: "newTab" }
-  | { kind: "page"; url: string }
-  | { kind: "task"; title: string }
-  | { kind: "tasks" };
+import { locationCrumbs, type TabLocation } from "./tab-location";
 
 /**
  * The row every tab wears: back, forward, and where you are.
@@ -32,9 +26,10 @@ export type TabLocation =
  * something that could move you between tabs, which is the behavior this
  * replaces.
  *
- * The field says where you are in whatever terms the page has. It is a label
- * in most of them, since nobody types their way to an app page, and selecting
- * its text is how a path is copied without the row pretending to be a URL bar.
+ * The field says where you are in whatever terms the page has, and says it in
+ * parts: the place itself last, and every place it sits under before it, each
+ * of those a way there. So a file reaches its folder, an app page reaches Apps,
+ * and a task reaches the work, without the row pretending to be a URL bar.
  */
 export function TabLocationRow({
   canGoBack,
@@ -79,11 +74,19 @@ export function TabLocationRow({
         onClick={onForward}
       />
       {field ?? (
-        // The whole box is the field: a press anywhere on it, edge to edge,
-        // puts the caret in the input, the way a browser's address bar does.
+        // The box is the field everywhere the place itself is not: a press on
+        // one of the places you are under goes there, and a press anywhere
+        // else, edge to edge, puts the caret in the input the way a browser's
+        // address bar does.
         <div
-          className="relative mx-1 flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs shadow-sm focus-within:border-foreground/30"
+          className="group/field relative mx-1 flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs shadow-sm focus-within:border-foreground/30"
           onPointerDown={(event) => {
+            if (
+              event.target instanceof Element &&
+              event.target.closest("button")
+            ) {
+              return;
+            }
             const input = event.currentTarget.querySelector("input");
             if (input && event.target !== input) {
               event.preventDefault();
@@ -140,10 +143,53 @@ function Arrow({
 
 /** The mark and the words, which is all that changes between page types. */
 function Field({ location }: { location: TabLocation }) {
+  // The home folder, which is what a path says `~` for and the one part of one
+  // that is not a name the computer has. Asked for only where a path is on
+  // screen, and answered from the same cache the folder browser reads.
+  const places = useQuery(
+    rpcClient.workspace.computer.places.queryOptions({
+      enabled: location.kind === "file" || location.kind === "folder",
+    }),
+  );
+  const home = places.data?.favorites.find(
+    (place) => place.name === "Home",
+  )?.path;
+  const gesturesFor = useGesturesFor();
+  const crumbs = locationCrumbs(location, { home });
+  const path = useRef<HTMLSpanElement>(null);
+  // The place you are at is the part that has to be readable, so a path too
+  // long for the box keeps its end and the walk down to it scrolls off the
+  // left, the way a folder window's own path bar does. Shrinking the parts to
+  // fit instead is what turns a deep path into a row of single letters.
+  const trail = crumbs.map((crumb) => crumb.label).join("/");
+  useEffect(() => {
+    const box = path.current;
+    if (!box) {
+      return;
+    }
+    const showHere = () => {
+      const here = box.lastElementChild;
+      if (here instanceof HTMLElement) {
+        box.scrollLeft = Math.min(
+          here.offsetLeft,
+          box.scrollWidth - box.clientWidth,
+        );
+      }
+    };
+    showHere();
+    // Again whenever the box changes size, which is the pane being dragged
+    // narrower: the path that fit a moment ago has to give up its head.
+    const observer = new ResizeObserver(showHere);
+    observer.observe(box);
+    return () => {
+      observer.disconnect();
+    };
+  }, [trail]);
+
   if (location.kind === "newTab") {
     return (
       <>
-        <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        {locationMark(location)}
         <span className="min-w-0 flex-1 truncate text-muted-foreground">
           Search, open a file, or ask
         </span>
@@ -151,10 +197,12 @@ function Field({ location }: { location: TabLocation }) {
     );
   }
   if (location.kind === "page") {
+    // An address is one thing you type rather than a trail you walk, so it is
+    // said whole: the host quiet, the part of it you are reading loud.
     const { host, rest } = splitUrl(location.url);
     return (
       <>
-        <LockSimpleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        {locationMark(location)}
         <span className="min-w-0 flex-1 truncate select-text">
           <span className="text-muted-foreground">{host}</span>
           {rest}
@@ -162,36 +210,62 @@ function Field({ location }: { location: TabLocation }) {
       </>
     );
   }
-  if (location.kind === "file" || location.kind === "folder") {
-    // The path as it is on the Mac, the parent quiet and the name loud. Never
-    // a path relative to a mount: the field tells the truth about where a
-    // thing is, which is the one thing a location field is for.
-    const parts = location.path.split("/").filter(Boolean);
-    const name = location.kind === "file" ? location.name : parts.at(-1);
-    const lead = location.path.startsWith("/")
-      ? ["", ...parts.slice(0, -1)]
-      : parts.slice(0, -1);
-    return (
-      <>
-        {/* A file wears its own type's mark, the way a site wears a favicon:
-          it is the one thing about a file you can tell before opening it. */}
-        {location.kind === "file" ? (
-          <FileIcon className="size-4 shrink-0" filename={location.name} />
-        ) : (
-          <FileSystemFolderGlyph className="h-3 w-auto shrink-0" />
-        )}
-        <span className="min-w-0 flex-1 truncate select-text">
-          <span className="text-muted-foreground">
-            {lead.length > 0 ? `${lead.join("/")}/` : ""}
-          </span>
-          {name}
-        </span>
-      </>
-    );
-  }
-  if (location.kind === "app") {
-    return (
-      <>
+  return (
+    <>
+      {locationMark(location)}
+      {/* The parts pulled out to the box's own edge, so the place reads from
+          where it read before there was anything to press. */}
+      <span
+        className="-mx-1 flex min-w-0 flex-1 items-center overflow-x-auto scrollbar-hide"
+        ref={path}
+      >
+        {crumbs.map((crumb, index) => {
+          const gestures = crumb.to ? gesturesFor(crumb.to) : undefined;
+          const open = gestures?.destinations.find(
+            (destination) => destination.id === "open",
+          );
+          return (
+            <Fragment key={`${index}:${crumb.label}`}>
+              {index > 0 ? (
+                <CaretRightIcon className="size-3 shrink-0 text-muted-foreground/50" />
+              ) : null}
+              {open ? (
+                <button
+                  className="shrink-0 cursor-default rounded px-1 py-0.5 whitespace-nowrap text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground"
+                  onAuxClick={gestures?.onAuxClick}
+                  onClick={() => {
+                    open.run();
+                  }}
+                  onContextMenu={gestures?.onContextMenu}
+                  type="button"
+                >
+                  {crumb.label}
+                </button>
+              ) : (
+                <span
+                  className={cn(
+                    "shrink-0 px-1 whitespace-nowrap select-text",
+                    // A part with nowhere to go, before the last, is a place
+                    // the window cannot open: it reads as the lead it is.
+                    index < crumbs.length - 1 && "text-muted-foreground",
+                  )}
+                >
+                  {crumb.label}
+                </span>
+              )}
+            </Fragment>
+          );
+        })}
+      </span>
+    </>
+  );
+}
+
+/** What the place is drawn with, ahead of its name. */
+function locationMark(location: TabLocation): ReactNode {
+  switch (location.kind) {
+    case "app": {
+      return (
         <span className="flex size-3.5 shrink-0 items-center justify-center [&_img]:size-3.5 [&_svg]:size-3.5">
           {location.site ? (
             <AppIcon site={location.site} size="sm" />
@@ -199,43 +273,38 @@ function Field({ location }: { location: TabLocation }) {
             <SiteIcon url="" />
           )}
         </span>
-        <span className="min-w-0 flex-1 truncate">
-          <span className="text-muted-foreground">Apps / </span>
-          {location.name}
-        </span>
-      </>
-    );
-  }
-  if (location.kind === "apps") {
-    // The directory itself: the one page under Apps that is not an app, so
-    // it is named once rather than as a page of its own kind.
-    return (
-      <>
+      );
+    }
+    case "apps": {
+      return (
         <AppWindowIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate">Apps</span>
-      </>
-    );
+      );
+    }
+    case "file": {
+      // A file wears its own type's mark, the way a site wears a favicon: it
+      // is the one thing about a file you can tell before opening it.
+      return <FileIcon className="size-4 shrink-0" filename={location.name} />;
+    }
+    case "folder": {
+      return <FileSystemFolderGlyph className="h-3 w-auto shrink-0" />;
+    }
+    case "newTab": {
+      return (
+        <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
+    case "page": {
+      return (
+        <LockSimpleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
+    // The work, and one of its tasks: a task is under the list it was opened
+    // from, the way an app page is under Apps.
+    case "task":
+    case "tasks": {
+      return <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600" />;
+    }
   }
-  if (location.kind === "task") {
-    // A task under the list it was opened from, the way an app page sits
-    // under Apps: the field says which of them you are looking at, since the
-    // pane beside the list is the only thing that changed when you opened it.
-    return (
-      <>
-        <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600" />
-        <span className="min-w-0 flex-1 truncate">
-          <span className="text-muted-foreground">Tasks / </span>
-          {location.title}
-        </span>
-      </>
-    );
-  }
-  return (
-    <>
-      <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600" />
-      <span className="min-w-0 flex-1 truncate">Tasks</span>
-    </>
-  );
 }
 
 /** What the field holds when it is edited: the place, in words that can be typed over. */

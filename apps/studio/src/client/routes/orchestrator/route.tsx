@@ -42,10 +42,8 @@ import {
   screenLocation,
   screenPresentation,
 } from "@/client/components/orchestrator/screen-presentation";
-import {
-  type TabLocation,
-  TabLocationRow,
-} from "@/client/components/orchestrator/tab-location-row";
+import { type TabLocation } from "@/client/components/orchestrator/tab-location";
+import { TabLocationRow } from "@/client/components/orchestrator/tab-location-row";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
@@ -531,7 +529,14 @@ function OrchestratorLayout() {
           ? screenLocation(active.href, { appsBySlug, childTitles })
           : { kind: "newTab" };
     if (fromTab.kind === "file" && screenView?.file) {
-      return { ...fromTab, path: screenView.file.path };
+      const { mount, path } = screenView.file;
+      // Where it sits on the Mac, unless nothing could say: the screen falls
+      // back to the mount there, and a mount names no folder to walk up into.
+      return {
+        ...fromTab,
+        ...(path === mount ? {} : { hostPath: path }),
+        path,
+      };
     }
     if (fromTab.kind === "folder" && screenView?.folder) {
       return { ...fromTab, path: screenView.folder.display };

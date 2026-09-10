@@ -9,7 +9,7 @@ import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
-import { type TabLocation } from "./tab-location-row";
+import { type TabLocation } from "./tab-location";
 import { parseHref } from "./window-tabs";
 
 /** Where a screen tab is, in the terms the row above it says a place in. */

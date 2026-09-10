@@ -96,7 +96,7 @@ const ranPythonOnTheMount: Assertion = {
     const runs = bashCommands(sessions).filter(
       (command) =>
         /(?:^|[\s;&|(])python3?\s/.test(command) &&
-        !/python-native/.test(command) &&
+        !command.includes("python-native") &&
         command.includes("/mnt/Data"),
     );
     return {
@@ -119,7 +119,8 @@ const followedTheSignpostToPythonNative: Assertion = {
       /\b(?:pip3?|uv pip)\s+install\s[^|;&]*pandas/.test(command),
     );
     const ranNative = commands.findIndex(
-      (command, index) => index > installed && /python-native/.test(command),
+      (command, index) =>
+        index > installed && command.includes("python-native"),
     );
     const passed = installed !== -1 && ranNative !== -1;
     return {
@@ -139,8 +140,8 @@ const didNotRetryTheSandboxedImport: Assertion = {
     const failing = bashCommands(sessions).filter(
       (command) =>
         /(?:^|[\s;&|(])python3?\s/.test(command) &&
-        !/python-native/.test(command) &&
-        /pandas/.test(command),
+        !command.includes("python-native") &&
+        command.includes("pandas"),
     );
     return {
       evidence: `${failing.length} sandboxed python command(s) imported pandas`,
@@ -157,7 +158,7 @@ const ranTheScriptFileWithPython: Assertion = {
     const runs = bashCommands(sessions).filter(
       (command) =>
         /(?:^|[\s;&|(])python3?\s+(?:\S+\s+)*\S*count\.py\b/.test(command) &&
-        !/python-native/.test(command),
+        !command.includes("python-native"),
     );
     return {
       evidence:

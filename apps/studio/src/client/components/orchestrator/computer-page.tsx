@@ -52,14 +52,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
-import {
-  folderOf,
-  homeRelative,
-  isInside,
-  joinHostPath,
-  segmentsOf,
-  separatorOf,
-} from "./host-path";
+import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
 
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
@@ -96,8 +89,9 @@ export interface FolderOnScreen {
  * person keeps things and every volume, and the folder the browser is rooted
  * in, opened as the app's own user so every folder opens. A folder is shown
  * by showing its contents, the way the Finder's columns do, and nothing
- * beside it; a text file reads in the last column. Under the columns, the
- * folder's whole path on the Mac, each part a way back up.
+ * beside it; a text file reads in the last column. Where the folder is, and
+ * the way back up out of it, is the row above every tab rather than a bar of
+ * its own under the columns: the same path twice is one of them wrong.
  *
  * The file browser holds a flat manifest and asks for a folder's children the
  * first time it is opened. Every folder it has asked for is re-read on a
@@ -762,11 +756,6 @@ export function ComputerPage({
     : root === "~"
       ? "Home"
       : (segmentsOf(root).at(-1) ?? places.data.volumes[0]?.name ?? "Root");
-  // The bar under the columns says where the folder is; at the recents, where
-  // the selected file is, which is the only place that list points to.
-  const pathBarHost = isRecents
-    ? recentFolder
-    : (currentListing?.path ?? rootHostPath ?? root);
   // The folder on screen, which is the only row the sidebar marks: a place
   // walked down out of is no longer where the user is, so nothing is marked
   // until a folder is one of the places itself.
@@ -993,43 +982,9 @@ export function ComputerPage({
             taskId={taskId}
           />
         </ContextMenu>
-        {pathBarHost === undefined ? null : (
-          <PathBar
-            hostPath={pathBarHost}
-            onOpen={rootTo}
-            places={places.data}
-          />
-        )}
       </div>
     </div>
   );
-}
-
-/**
- * The folder's whole path as the system writes it at the bottom of a window:
- * the volume it is on, then every folder down to this one.
- */
-function breadcrumbs(
-  hostPath: string,
-  places: { volumes: { name: string; path: string }[] },
-) {
-  const separator = separatorOf(hostPath);
-  const volume =
-    places.volumes.find(
-      (candidate) =>
-        candidate.path !== "/" && isInside(hostPath, candidate.path),
-    ) ?? places.volumes.find((candidate) => candidate.path === "/");
-  // A volume is named by the path it is mounted at, so its own name is not one
-  // of the segments below it: `C:\` and `/Volumes/Backup` both stop here.
-  const base = volume?.path ?? separator;
-  const rest = hostPath.slice(base.length);
-  const crumbs = [{ name: volume?.name ?? "Root", path: base }];
-  let at = base.replace(/[/\\]$/, "");
-  for (const segment of segmentsOf(rest)) {
-    at = `${at}${separator}${segment}`;
-    crumbs.push({ name: segment, path: at });
-  }
-  return crumbs;
 }
 
 /**
@@ -1161,44 +1116,6 @@ function FolderMenu({
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";
-}
-
-/**
- * The path on the Mac as the Finder writes it at the bottom of a window: the
- * volume, then every folder down to this one, each a way there.
- */
-function PathBar({
-  hostPath,
-  onOpen,
-  places,
-}: {
-  hostPath: string;
-  /** A folder along the path, chosen. */
-  onOpen: (folder: string) => void;
-  places: { volumes: { name: string; path: string }[] };
-}) {
-  const crumbs = breadcrumbs(hostPath, places);
-  return (
-    <div className="flex h-8 shrink-0 items-center gap-0.5 overflow-x-auto border-t border-border px-2 text-xs text-muted-foreground">
-      {crumbs.map((crumb, index) => (
-        <span className="flex shrink-0 items-center gap-0.5" key={crumb.path}>
-          {index > 0 ? <CaretRightIcon className="size-3" /> : null}
-          <button
-            className={cn(
-              "rounded px-1 py-0.5 hover:bg-foreground/5 hover:text-foreground",
-              index === crumbs.length - 1 && "text-foreground",
-            )}
-            onClick={() => {
-              onOpen(crumb.path);
-            }}
-            type="button"
-          >
-            {crumb.name}
-          </button>
-        </span>
-      ))}
-    </div>
-  );
 }
 
 /** A folder prefix and every folder above it, root first: `a/b/` is `""`, `a/`, `a/b/`. */

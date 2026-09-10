@@ -112,27 +112,7 @@ export type FileSystemFileItem = {
   /** Optional if already public/presigned. Otherwise resolved via `getFileUrl`. */
   url?: string;
 };
-type FileSystemFolderItem = {
-  createdAt?: string;
-  /** Set when children exist but are not in `items` yet; enables `loadChildren`. */
-  hasChildren?: boolean;
-  kind: "folder";
-  metadata?: Record<string, string>;
-  name?: string;
-  parentPath?: string;
-  /** Folder prefix, e.g. `"invoices/2026/"`. A trailing slash is added when missing. */
-  path: string;
-  updatedAt?: string;
-};
 export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
-type FileSystemLoadChildrenArgs = {
-  cursor: null | string;
-  path: string;
-};
-type FileSystemLoadChildrenResult = {
-  items: FileSystemItem[];
-  nextCursor?: null | string;
-};
 export type FileSystemProps = {
   className?: string;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
@@ -219,10 +199,30 @@ type FileEntry = FileSystemFileItem & {
   parentPath: string;
 };
 type FileSystemEntry = FileEntry | FolderEntry;
+type FileSystemFolderItem = {
+  createdAt?: string;
+  /** Set when children exist but are not in `items` yet; enables `loadChildren`. */
+  hasChildren?: boolean;
+  kind: "folder";
+  metadata?: Record<string, string>;
+  name?: string;
+  parentPath?: string;
+  /** Folder prefix, e.g. `"invoices/2026/"`. A trailing slash is added when missing. */
+  path: string;
+  updatedAt?: string;
+};
 type FileSystemIndex = {
   children: Map<string, FileSystemEntry[]>;
   files: Map<string, FileEntry>;
   folders: Map<string, FolderEntry>;
+};
+type FileSystemLoadChildrenArgs = {
+  cursor: null | string;
+  path: string;
+};
+type FileSystemLoadChildrenResult = {
+  items: FileSystemItem[];
+  nextCursor?: null | string;
 };
 type FolderEntry = FileSystemFolderItem & {
   name: string;
@@ -562,7 +562,6 @@ const SORT_OPTIONS: Array<{
   },
 ];
 const DEFAULT_SORT: FileSystemSortState = { direction: "asc", key: "name" };
-type FileSystemFilterType = "dateCreated" | "dateModified" | "fileType";
 type FileSystemDateFilterType = Exclude<FileSystemFilterType, "fileType">;
 type FileSystemFilter = {
   id: string;
@@ -578,6 +577,7 @@ type FileSystemFilterOperator =
   | "is-any-of"
   | "is-not"
   | "not-in-range";
+type FileSystemFilterType = "dateCreated" | "dateModified" | "fileType";
 type FileTypeFilterGroup =
   | "Archives & binary"
   | "Code"

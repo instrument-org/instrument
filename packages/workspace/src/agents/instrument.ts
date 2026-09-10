@@ -7,6 +7,7 @@ import {
 } from "../constants";
 import { buildAppsContextText } from "../lib/apps/context";
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
+import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
@@ -18,6 +19,7 @@ import {
 } from "../lib/orchestrator/models";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
+import { SKILL_NAMES } from "../lib/skill-names";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-record";
 import {
@@ -28,6 +30,7 @@ import { MOUNT } from "../mount-points";
 import { type SessionMessage } from "../schemas/session/message";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS } from "../tools/all";
+import { TOOL_NAMES } from "../tools/name";
 import { setupAgent } from "./create-agent";
 import {
   createContextMessage,
@@ -142,6 +145,7 @@ ${
         ${TASK_COMMAND.name} models`
 }
       - Brief a task the way you would brief a capable colleague who knows nothing about this conversation: the goal, what done looks like, which folders it has and what each holds, where deliverables go, and how much effort it deserves ("a search and one page is enough; do not go past a few minutes"). A task will take the hard road if the brief leaves it open. Carry over what the user said that matters, in their words. Give it a short title with --name.
+      - Skills: your context lists the skills on this machine, each a recipe a task loads by name with its \`${TOOL_NAMES.loadSkill}\` tool. You have no such tool, so a skill reaches the work through the brief. When the user names one, asks for the thing one makes (a page, a PDF, a spreadsheet, a slide deck), or the deliverable plainly fits one, the brief says to load that skill by its exact name and leaves the how to it: a task reads the same list, but a brief that spells out how to build the thing gets the prose followed and the skill never opened. A page the user asks for is the \`${SKILL_NAMES.createPage}\` skill, named in the brief, never a description of an HTML file.
       - A link the user gave you goes into the brief as they wrote it, told to the task as something to read and follow, and nothing you write stands in for what is behind it. You cannot open a link, so what you think it says is a guess, and a brief carrying both the link and the guess gets the guess followed and the link never opened: the task has enough to look finished, and neither of you finds out. Say in the brief that a link it could not read is to be reported back, not worked around.
       ${TASK_TOOL_ENABLED ? "" : `- Always pass the brief and any message through the quoted heredoc, never as a double-quoted argument: the shell expands \`$\` inside double quotes, so "under $800" reaches the task as "under 00". Single-quote the title.`}
       - Folders: the user's home folder is mounted for you under \`${MOUNT.attachedFolders}/<name>\` (your context lists the mounts), and so is everything inside it: Desktop, Documents, Downloads, all of it. Whole, it is read-only, for you and for a task, since ${APP_NAME} keeps its own data inside it; a folder inside it goes to a task read and write. A task sees none of it unless you pass \`--folder\`: hand it the one folder the work needs (\`--folder ${MOUNT.attachedFolders}/<home>/Downloads\`), which is read and write for it unless you add \`:ro\`; never the whole home. ${process.platform === "darwin" ? `macOS may ask the user itself when a task is handed Desktop, Documents, Downloads or a removable volume for the first time; the task starts and waits on their answer. A folder they declined before makes \`${TASK_COMMAND.name} new\` refuse, saying so, and the fix is theirs: allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.` : `\`${TASK_COMMAND.name} new\` refuses a folder the user's account cannot read, saying so; tell them rather than trying again.`} \`${agentTools.RequestFolder.name}\` is for a folder outside your mounts, on another volume; never for one you can already reach, and never for write access to a folder inside your mounts, which \`--folder\` already gives.
@@ -222,6 +226,9 @@ ${
     const modelsText = await newestModelsText(taskId);
     const appsText = await buildAppsContextText();
     const channelsText = await channelsContextText(taskId, sessionId);
+    const skillsText = await buildAvailableSkillsContext({
+      intro: `The skills installed on this machine when this session started. A task loads one with \`${TOOL_NAMES.loadSkill}\` by the exact name shown here; you cannot, so a brief names it.`,
+    });
     const userMessage = createContextMessage({
       agentName: name,
       now,
@@ -231,6 +238,7 @@ ${
         ...(channelsText ? [channelsText] : []),
         foldersText,
         appsText,
+        skillsText,
         ...modelsText,
       ],
     });

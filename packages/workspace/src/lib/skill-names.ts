@@ -7,6 +7,7 @@
  * name a skill, rather than inlining the string.
  */
 export const SKILL_NAMES = {
+  createPage: "create-page",
   documentToMarkdown: "document-to-markdown",
   pdf: "pdf",
 } as const;

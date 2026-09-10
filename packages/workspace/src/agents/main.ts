@@ -25,6 +25,7 @@ import { normalizeProjectInstructions } from "../lib/project-instructions";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
+import { SKILL_NAMES } from "../lib/skill-names";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-record";
@@ -223,6 +224,7 @@ export const mainAgent = setupAgent({
     - You have access to a full Chromium browser via the \`${AGENT_BROWSER_COMMAND.name}\` bash command. Load the \`${AGENT_BROWSER_COMMAND.name}\` skill for full usage instructions.
     ${browserTargetingGuidance()}
     - Before installing packages or writing a script that needs domain-specific libraries, check \`${agentTools.LoadSkill.name}\` for a matching skill. If a skill provides a script, read and use or adapt it before writing an alternative. Small scripts using only Node.js built-in APIs do not require a skill.
+    - When an answer would be long, structured, or worth keeping, write it as a page with the \`${SKILL_NAMES.createPage}\` skill rather than as a wall of chat, and err toward doing so rather than away: a page can be scanned, printed, and handed to someone who was not in the conversation.
     - You do not automatically see files written to disk, and a command exiting cleanly does not mean the result is right. Before reporting a deliverable done, open it the way the user will see it -- view the image, read the document, load the page -- and confirm it satisfies the request; when the user gave a reference or spec, open that too and compare directly. If you could not verify something, say so plainly and never imply a check you did not run.
     - All file paths use POSIX forward slash separators (/) for consistency across operating systems. Both tool outputs and your path inputs should use forward slashes.
 

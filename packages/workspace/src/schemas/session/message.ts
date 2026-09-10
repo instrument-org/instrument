@@ -284,6 +284,11 @@ export namespace SessionMessage {
     let previousBackgroundProcessesNote: string | undefined;
     let previousBrowserStatusNote: string | undefined;
     let previousPaneTabsNote: string | undefined;
+    // What the user had on screen, told again only when it differs from the
+    // last time: the same page with the same words in front of it, or the
+    // same folder, is a note the agent already read and has no reason to
+    // doubt, and a page's excerpt is the longest thing a message carries.
+    let previousViewContextNote: string | undefined;
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
@@ -588,10 +593,11 @@ export namespace SessionMessage {
           } => part.type === "data-viewContext",
         );
         if (viewContextPart) {
-          injectedParts.push({
-            text: viewContextModelNote(viewContextPart.data),
-            type: "text",
-          });
+          const note = viewContextModelNote(viewContextPart.data);
+          if (note !== previousViewContextNote) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+          previousViewContextNote = note;
         }
 
         if (pendingMaxStepsNote) {

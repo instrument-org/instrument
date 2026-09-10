@@ -522,6 +522,62 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  // The same screen on two messages in a row is one note, the way the
+  // browser status and the pane's tabs are: the second message says nothing
+  // the agent has not already read, and a page's excerpt is the longest
+  // thing a message carries.
+  it("does not repeat an unchanged screen note", async () => {
+    const viewing = (metadata: ReturnType<typeof baseMetadata>) => ({
+      data: { screen: "home" as const, url: "/orchestrator/home" },
+      metadata: { ...metadata.partMetadata, id: StoreId.newPartId() },
+      type: "data-viewContext" as const,
+    });
+    const first = baseMetadata();
+    const second = baseMetadata();
+    const third = baseMetadata();
+
+    const result = await SessionMessage.toModelMessages(
+      [
+        {
+          id: first.messageId,
+          metadata: first.messageMetadata,
+          parts: [
+            { metadata: first.partMetadata, text: "one", type: "text" },
+            viewing(first),
+          ],
+          role: "user",
+        },
+        {
+          id: second.messageId,
+          metadata: second.messageMetadata,
+          parts: [
+            { metadata: second.partMetadata, text: "two", type: "text" },
+            viewing(second),
+          ],
+          role: "user",
+        },
+        {
+          id: third.messageId,
+          metadata: third.messageMetadata,
+          parts: [
+            { metadata: third.partMetadata, text: "three", type: "text" },
+            {
+              ...viewing(third),
+              data: { screen: "tasks" as const, tasks: [] },
+            },
+          ],
+          role: "user",
+        },
+      ],
+      TOOLS_FOR_MODEL_OUTPUT,
+    );
+
+    const notes = result.map((message) =>
+      JSON.stringify(message.content).includes("When the user sent this"),
+    );
+    expect(notes).toEqual([true, false, true]);
+  });
+
   it("normalizes a skill mention to /name and footnotes it", async () => {
     const { messageId, messageMetadata, partMetadata } = baseMetadata();
 

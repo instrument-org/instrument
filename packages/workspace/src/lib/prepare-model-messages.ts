@@ -42,7 +42,7 @@ import { getWorkspaceConfig } from "./workspace-config";
  * life, and the capability the release added is simply missing from every task
  * that predates it.
  */
-export const SESSION_CONTEXT_VERSION = 18;
+export const SESSION_CONTEXT_VERSION = 19;
 
 export async function prepareModelMessages({
   agent,

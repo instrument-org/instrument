@@ -10,6 +10,13 @@ import { isAnthropic } from "./is-anthropic";
 // to understand why we're placing the cache control options the way we are
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/provider/transform.ts
+//
+// The gate is the model, not the provider: the four dialects below are the
+// spellings an Anthropic model takes when reached through each of those
+// providers, not support for four providers' models. Every other model gets
+// whatever prefix caching its provider does on its own, and a marker sent
+// anyway is accepted and ignored where it was measured (Workers AI, GLM; see
+// docs/findings/non-anthropic-models-get-no-cache-breakpoints.md).
 export function addCacheControlToMessages({
   messages,
   model,

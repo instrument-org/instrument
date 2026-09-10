@@ -18,8 +18,10 @@ import {
 } from "@/client/components/ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -246,6 +248,22 @@ function fileExtension(name: string) {
 }
 function GridViewGlyph(props: InlineRegistryIconProps) {
   return <LayoutGrid {...props} />;
+}
+// Whether a path is one the Finder would keep out of sight: any segment of it
+// starting with a dot.
+//
+// Every segment, not just the last, because the index synthesizes the folders
+// its items imply -- drop `.git/config` on its name alone and `.git` comes back
+// as an empty folder built from the path of a file that is no longer there.
+//
+// The segments checked are the ones below the folder the browser was opened at.
+// Opening one at `.config` is asking to be inside it, and a rule that read the
+// root's own name would answer that by showing nothing at all.
+function isHiddenPath(path: string, rootPrefix: string) {
+  return path
+    .slice(path.startsWith(rootPrefix) ? rootPrefix.length : 0)
+    .split("/")
+    .some((segment) => segment.startsWith("."));
 }
 function LayoutThreeColumnGlyph(props: InlineRegistryIconProps) {
   return <Columns3 {...props} />;
@@ -1315,7 +1333,22 @@ export function FileSystem({
     () => (loadedItems.length > 0 ? [...items, ...loadedItems] : items),
     [items, loadedItems],
   );
-  const index = React.useMemo(() => buildFileSystemIndex(allItems), [allItems]);
+  const [showHiddenFiles, setShowHiddenFiles] = React.useState(false);
+  // Hidden files leave before the index rather than at the point of drawing a
+  // row, so one answer covers all four views, search, the selection and the
+  // arrow keys. A file the browser is not showing is one it does not know.
+  const rootPrefix = normalizeFolderPath(defaultPath);
+  const shownItems = React.useMemo(
+    () =>
+      showHiddenFiles
+        ? allItems
+        : allItems.filter((item) => !isHiddenPath(item.path, rootPrefix)),
+    [allItems, rootPrefix, showHiddenFiles],
+  );
+  const index = React.useMemo(
+    () => buildFileSystemIndex(shownItems),
+    [shownItems],
+  );
   const [history, setHistory] = React.useState(() => ({
     index: 0,
     stack: [normalizeFolderPath(defaultPath)],
@@ -2059,7 +2092,9 @@ export function FileSystem({
             filters={filters}
             onOpenCustomRange={openDateRangeDialog}
             onSelectDatePreset={setDatePresetFilter}
+            onShowHiddenFilesChange={setShowHiddenFiles}
             onToggleFileType={toggleFileTypeFilterValue}
+            showHiddenFiles={showHiddenFiles}
           />
           <FileSystemSearchField
             inputRef={searchInputRef}
@@ -2317,13 +2352,17 @@ function FileSystemFilterMenu({
   filters,
   onOpenCustomRange,
   onSelectDatePreset,
+  onShowHiddenFilesChange,
   onToggleFileType,
+  showHiddenFiles,
 }: {
   fileTypeOptions: FileTypeFilterOption[];
   filters: FileSystemFilter[];
   onOpenCustomRange: (type: FileSystemDateFilterType) => void;
   onSelectDatePreset: (type: FileSystemDateFilterType, preset: string) => void;
+  onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
   onToggleFileType: (mime: string, checked: boolean) => void;
+  showHiddenFiles: boolean;
 }) {
   const fileTypeFilter = filters.find((filter) => filter.type === "fileType");
   return (
@@ -2383,6 +2422,17 @@ function FileSystemFilterMenu({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         ))}
+        <DropdownMenuSeparator />
+        {/* The menu stays open on a toggle: watching the dotfiles arrive or
+            leave is the whole point of the item, and a menu that closes to
+            show it makes the second thought a second trip. */}
+        <DropdownMenuCheckboxItem
+          checked={showHiddenFiles}
+          onCheckedChange={onShowHiddenFilesChange}
+          onSelect={(event) => event.preventDefault()}
+        >
+          Show hidden files
+        </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

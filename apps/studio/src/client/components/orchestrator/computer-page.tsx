@@ -32,6 +32,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
@@ -423,6 +424,21 @@ export function ComputerPage({
       );
       focusBrowser();
       reread();
+    } catch (error) {
+      failed(error);
+    }
+  };
+  // Where the thing sits on the Mac, as a terminal, a Finder window or another
+  // app takes it. The browser's own path names a place inside the browser and
+  // is no use anywhere else.
+  const copyPath = async (item: FileSystemItem | undefined) => {
+    const hostPath = hostPathOfItem(item);
+    if (!hostPath) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(hostPath);
+      focusBrowser();
     } catch (error) {
       failed(error);
     }
@@ -914,6 +930,7 @@ export function ComputerPage({
           </ContextMenuTrigger>
           <FolderMenu
             item={menuItem}
+            onCopyPath={() => void copyPath(menuItem)}
             onDuplicate={() => void duplicate(menuItem)}
             // The recents are a list rather than a folder, so there is nowhere
             // there to make one.
@@ -1007,6 +1024,7 @@ function failed(error: unknown) {
  */
 function FolderMenu({
   item,
+  onCopyPath,
   onDuplicate,
   onNewFolder,
   onRename,
@@ -1015,6 +1033,7 @@ function FolderMenu({
   taskId,
 }: {
   item: FileSystemItem | undefined;
+  onCopyPath: () => void;
   onDuplicate: () => void;
   /** Left out where there is no folder to make one in. */
   onNewFolder: (() => void) | undefined;
@@ -1055,10 +1074,16 @@ function FolderMenu({
         </>
       ) : null}
       {item ? (
-        <ContextMenuItem onClick={onReveal}>
-          <RevealInFolderIcon className="size-4" />
-          <span>{getRevealInFolderLabel()}</span>
-        </ContextMenuItem>
+        <>
+          <ContextMenuItem onClick={onReveal}>
+            <RevealInFolderIcon className="size-4" />
+            <span>{getRevealInFolderLabel()}</span>
+          </ContextMenuItem>
+          <ContextMenuItem onClick={onCopyPath}>
+            <ClipboardTextIcon className="size-4" />
+            <span>Copy Path</span>
+          </ContextMenuItem>
+        </>
       ) : null}
       {onNewFolder ? (
         <ContextMenuItem onClick={onNewFolder}>

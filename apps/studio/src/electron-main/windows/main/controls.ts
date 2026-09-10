@@ -11,10 +11,6 @@ import { getMainWindow } from "@/electron-main/windows/main/instance";
 // via `webContents.setZoomLevel`, so app zoom leaves unfocused embedded web
 // content views untouched and stays independent of them.
 
-export function closeMainWindow() {
-  getMainWindow()?.close();
-}
-
 export function focusMainContents() {
   getMainWindow()?.webContents.focus();
 }
@@ -35,22 +31,6 @@ export function goForward() {
   sendAppCommand({ type: "navigateForward" });
 }
 
-export function isMainWindowFullScreen() {
-  return getMainWindow()?.isFullScreen() ?? false;
-}
-
-export function isMainWindowMaximized() {
-  return getMainWindow()?.isMaximized() ?? false;
-}
-
-// Window controls for the custom (frameless) title bar on Windows/Linux, where
-// the renderer draws its own minimize/maximize/close buttons instead of the
-// native window-controls overlay. macOS keeps its native traffic lights but can
-// still drive these (e.g. the dev force-show toggle).
-export function minimizeMainWindow() {
-  getMainWindow()?.minimize();
-}
-
 export function reload() {
   // A focused agent-browser guest reloads its own page. Otherwise the renderer
   // decides: it reloads the guest of a browser panel the user is looking at (a
@@ -66,18 +46,6 @@ export function resetZoom() {
     return;
   }
   sendAppCommand({ type: "zoomReset" });
-}
-
-export function toggleMaximizeMainWindow() {
-  const window = getMainWindow();
-  if (!window) {
-    return;
-  }
-  if (window.isMaximized()) {
-    window.unmaximize();
-  } else {
-    window.maximize();
-  }
 }
 
 export function zoomIn() {

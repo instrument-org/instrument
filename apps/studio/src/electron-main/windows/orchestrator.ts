@@ -83,8 +83,18 @@ export function openOrchestratorWindow(): BrowserWindow {
   orchestratorWindow.on("will-resize", sized);
   orchestratorWindow.on("resize", sized);
   orchestratorWindow.on("move", sized);
-  orchestratorWindow.on("maximize", sized);
-  orchestratorWindow.on("unmaximize", sized);
+  // Also told to the renderer, which draws this window's own maximize and
+  // restore glyph and, on an X11 session, the hairline that has to go when an
+  // edge sits against the screen. The OS drives these as well as the buttons
+  // do: a snap, a double click on the bar, Win+Up.
+  const changedShape = () => {
+    sized();
+    publisher.publish("window.state-changed", null);
+  };
+  orchestratorWindow.on("maximize", changedShape);
+  orchestratorWindow.on("unmaximize", changedShape);
+  orchestratorWindow.on("enter-full-screen", changedShape);
+  orchestratorWindow.on("leave-full-screen", changedShape);
 
   // Center the lights in the window bar for the zoom the renderer last
   // reported, so they are in place for the first paint instead of jumping once

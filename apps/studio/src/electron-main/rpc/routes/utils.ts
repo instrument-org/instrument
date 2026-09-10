@@ -24,13 +24,7 @@ import {
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { setAppZoom } from "@/electron-main/stores/window-state";
-import {
-  closeMainWindow,
-  isMainWindowFullScreen,
-  isMainWindowMaximized,
-  minimizeMainWindow,
-  toggleMaximizeMainWindow,
-} from "@/electron-main/windows/main/controls";
+import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { getOrchestratorWindow } from "@/electron-main/windows/orchestrator";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
@@ -717,16 +711,27 @@ const syncZoom = base
   });
 
 // Custom title-bar window controls (Windows/Linux, and macOS when force-shown).
-const minimizeWindow = base.input(z.void()).handler(() => {
-  minimizeMainWindow();
+// Each acts on the window that asked, since more than one window draws them:
+// the 2.0 window's close button has to close the 2.0 window, and not the
+// classic one it keeps open behind it to run its tasks.
+const minimizeWindow = base.input(z.void()).handler(({ context }) => {
+  getCallingWindow(context.webContentsId)?.minimize();
 });
 
-const toggleMaximizeWindow = base.input(z.void()).handler(() => {
-  toggleMaximizeMainWindow();
+const toggleMaximizeWindow = base.input(z.void()).handler(({ context }) => {
+  const window = getCallingWindow(context.webContentsId);
+  if (!window) {
+    return;
+  }
+  if (window.isMaximized()) {
+    window.unmaximize();
+  } else {
+    window.maximize();
+  }
 });
 
-const closeWindow = base.input(z.void()).handler(() => {
-  closeMainWindow();
+const closeWindow = base.input(z.void()).handler(({ context }) => {
+  getCallingWindow(context.webContentsId)?.close();
 });
 
 const events = {
@@ -780,21 +785,24 @@ const live = {
         z.object({ fullScreen: z.boolean(), maximized: z.boolean() }),
       ),
     )
-    .handler(async function* ({ signal }) {
-      yield readMainWindowState();
+    .handler(async function* ({ context, signal }) {
+      yield readWindowState(context.webContentsId);
 
       for await (const _ of publisher.subscribe("window.state-changed", {
         signal,
       })) {
-        yield readMainWindowState();
+        yield readWindowState(context.webContentsId);
       }
     }),
 };
 
-function readMainWindowState() {
+// The asking window's own state: the topic is one every window publishes on,
+// and each subscriber wants the answer for itself.
+function readWindowState(webContentsId: number) {
+  const window = getCallingWindow(webContentsId);
   return {
-    fullScreen: isMainWindowFullScreen(),
-    maximized: isMainWindowMaximized(),
+    fullScreen: window?.isFullScreen() ?? false,
+    maximized: window?.isMaximized() ?? false,
   };
 }
 

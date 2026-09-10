@@ -2086,7 +2086,7 @@ export function FileSystem({
               {VIEW_OPTIONS.map((option) => (
                 <TabsTrigger
                   aria-label={`${option.label} view`}
-                  className="h-7 grow-0 px-2.5 sm:h-7"
+                  className={VIEW_TAB_CLASSNAME}
                   key={option.value}
                   title={option.label}
                   value={option.value}
@@ -2280,6 +2280,18 @@ export function FileSystem({
     </div>
   );
 }
+// The selected layout in the view switcher, which the shared tab trigger draws
+// as a raised card: a lighter fill than the track it sits in, a shadow, and in
+// dark mode a border of its own. Against this toolbar the border and the shadow
+// read as a halo around the icon rather than as a segment being picked, and the
+// fill is barely a step off the track it is supposed to stand out from.
+//
+// The app's own pressed-toolbar treatment instead -- `accent` fill, no border,
+// no shadow -- which is what every other icon that holds a state here wears.
+// Both `dark:` and the bare variant are restated because the trigger declares
+// each separately, and only a rule of the same specificity replaces one.
+const VIEW_TAB_CLASSNAME =
+  "h-7 grow-0 px-2.5 text-muted-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none sm:h-7 dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-accent dark:data-[state=active]:text-accent-foreground";
 // Shared style for the ghost icon buttons in the toolbar.
 const TOOLBAR_ICON_BUTTON_CLASSNAME =
   "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring";

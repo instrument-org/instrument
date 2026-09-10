@@ -1,6 +1,7 @@
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
+import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { IMAGE_REGION_EVALS } from "./image-region";
 import { ORCHESTRATOR_EVALS } from "./orchestrator";
@@ -17,6 +18,7 @@ export const EVALS = [
   ...BACKGROUND_PROCESS_EVALS,
   ...BROWSER_SELECTION_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,
+  ...CREATE_PAGE_SKILL_EVALS,
   ...FILES_FENCE_EVALS,
   ...IMAGE_REGION_EVALS,
   ...ORCHESTRATOR_EVALS,

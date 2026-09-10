@@ -73,7 +73,7 @@ describe.each<FolderAttachment.Access>(["read-only", "read-write"])(
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toMatchInlineSnapshot(`
-        "cp: cannot copy '/mnt/Docs': copied all but 2 entries: EPERM: operation not permitted, symlink '/work/copy/link.txt'; EPERM: operation not permitted, symlink '/work/copy/sub/up'
+        "cp: cannot copy '/mnt/Docs': copied all but 2 entries: /mnt/Docs/link.txt: EPERM: operation not permitted, symlink '/work/copy/link.txt'; /mnt/Docs/sub/up: EPERM: operation not permitted, symlink '/work/copy/sub/up'
         "
       `);
       const copied = path.join(taskRoot, "work", "copy");

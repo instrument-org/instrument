@@ -163,7 +163,7 @@ if (paidModels.length > 0 && !values.paid) {
     `${c.red}These models are metered and --paid was not passed:${c.reset}\n`,
   );
   for (const model of paidModels) {
-    write(`  ${model.split("?")[0]}\n`);
+    write(`  ${model.split("?")[0] ?? model}\n`);
   }
   write(
     `\nWorkers AI carries this project's credits: pass one as \`--model cf:<id>\`, or\n\`pnpm eval models\` to see what is there. Pass --paid when the question is\nspecifically about a model only another provider has.\n`,
@@ -406,20 +406,20 @@ switch (subcommand) {
     }
     // Split by what running one costs, since that is the first thing the choice
     // turns on, and each row carries the spelling that runs it.
-    const section = (title: string, models: typeof rows) => {
-      if (models.length === 0) return [];
-      const cells = models.map((model) => [
+    const section = (title: string, entries: typeof rows) => {
+      if (entries.length === 0) return [];
+      const cells: [string, string, string][] = entries.map((model) => [
         modelFlagFor(model.uri),
         model.releasedAt ?? "",
         model.name,
       ]);
-      const width = Math.max(...cells.map(([flag]) => (flag ?? "").length));
+      const width = Math.max(...cells.map(([flag]) => flag.length));
       return [
         "",
         `${c.dim}${title}${c.reset}`,
         ...cells.map(
           ([flag, released, name]) =>
-            `  ${(flag ?? "").padEnd(width)}  ${c.dim}${released}  ${name}${c.reset}`,
+            `  ${flag.padEnd(width)}  ${c.dim}${released}  ${name}${c.reset}`,
         ),
       ];
     };

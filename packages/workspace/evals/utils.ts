@@ -179,6 +179,15 @@ export async function listConfiguredModels(
 }
 
 /**
+ * Workers AI is an `openai-compatible` provider whose base URL names the
+ * Cloudflare account: that is the type whose model listing knows the
+ * models/search API, and the base URL is what the gateway matches on to apply
+ * the stream repair. Its own config id keeps it apart from any other
+ * OpenAI-compatible endpoint configured at the same time.
+ */
+const WORKERS_AI_CONFIG_ID = "workers-ai-config-id";
+
+/**
  * How this model is spelled on the command line: the string that goes after
  * `--model`, ready to copy. A listing whose ids have to be translated before
  * they can be run is a listing nobody uses.
@@ -194,15 +203,6 @@ export function modelFlagFor(uri: string): string {
 function providerConfigId(type: AIGatewayProviderConfig.Type["type"]): string {
   return `${type}-config-id`;
 }
-
-/**
- * Workers AI is an `openai-compatible` provider whose base URL names the
- * Cloudflare account: that is the type whose model listing knows the
- * models/search API, and the base URL is what the gateway matches on to apply
- * the stream repair. Its own config id keeps it apart from any other
- * OpenAI-compatible endpoint configured at the same time.
- */
-const WORKERS_AI_CONFIG_ID = "workers-ai-config-id";
 
 function workersAiBaseURL(accountId: string): string {
   return `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`;

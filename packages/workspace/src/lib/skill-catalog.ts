@@ -5,9 +5,15 @@ import { truncateAtWordBoundary } from "./sanitize-model-text";
 import { SKILL_NAMES } from "./skill-names";
 import { type SkillInfo, type SkillSourceKind } from "./skills";
 
+/**
+ * One element per skill, its name as an attribute and its description as the
+ * content: `<skill name="…">…</skill>`. Every character of markup comes out of
+ * the same budget the descriptions share, and a child element for each field
+ * cost 71 characters an entry, which on a machine with fifty-odd skills was
+ * more than a third of the whole catalog before a single description.
+ */
 const CATALOG_TAGS = {
   availableSkills: "available_skills",
-  description: "description",
   name: "name",
   skill: "skill",
 } as const;
@@ -19,9 +25,8 @@ const CATALOG_TAGS = {
  * many skills they happen to have installed across every agent vendor -- an
  * unbounded list would quietly eat the context window before the task starts.
  * Characters rather than tokens because no tokenizer is right for every
- * provider we run against: this is roughly 1,700 tokens of prose, and about
- * 2,500 once the tag markup around short descriptions is counted. See
- * docs/findings/character-budgets-are-a-token-proxy.md.
+ * provider we run against: this is roughly 1,700 tokens of prose, plus the tag
+ * around each entry. See docs/findings/character-budgets-are-a-token-proxy.md.
  */
 const CATALOG_CHAR_BUDGET = 8000;
 
@@ -34,7 +39,7 @@ const CATALOG_CHAR_BUDGET = 8000;
  * it, which is the one clause the steering depends on. Half leaves every other
  * skill at least half of what the flat cap alone would have given it. On a
  * developer machine with 54 skills across several agent homes the three named
- * skills need about two fifths, so the reservation holds there; a named skill
+ * skills need about a quarter, so the reservation holds there; a named skill
  * with a runaway description, or a machine with many more vendors installed,
  * drops back to the flat cap rather than starving the rest.
  */
@@ -207,8 +212,8 @@ function escapedLength(value: string) {
  * Neutralize markup in a discovered string before it is embedded in the
  * catalog. A name or description comes from arbitrary SKILL.md frontmatter,
  * including a co-installed agent's home directory that nothing here validated,
- * so a `</description></skill>` in one would otherwise inject fabricated
- * structure into the catalog the tool description puts in the system prompt.
+ * so a `</skill><skill name="…">` in one would otherwise inject fabricated
+ * structure into the catalog the session's context message carries.
  */
 function escapeXml(value: string) {
   return value
@@ -238,12 +243,12 @@ function fairShareLength(lengths: number[], budget: number): number {
 }
 
 function renderEntry(name: string, description: string) {
-  return [
-    `  <${CATALOG_TAGS.skill}>`,
-    `    <${CATALOG_TAGS.name}>${escapeXml(name)}</${CATALOG_TAGS.name}>`,
-    `    <${CATALOG_TAGS.description}>${escapeXml(description)}</${CATALOG_TAGS.description}>`,
-    `  </${CATALOG_TAGS.skill}>`,
-  ].join("\n");
+  return `  <${CATALOG_TAGS.skill} ${CATALOG_TAGS.name}="${escapeXmlAttribute(name)}">${escapeXml(description)}</${CATALOG_TAGS.skill}>`;
+}
+
+/** A name sits in a quoted attribute, where a quote of its own would end it. */
+function escapeXmlAttribute(value: string) {
+  return escapeXml(value).replaceAll('"', "&quot;");
 }
 
 function trimDescriptionToEscapedLength(value: string, cap: number) {

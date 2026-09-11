@@ -1,6 +1,6 @@
 # The WASM Python aborts at exit on some install paths
 
-**Status:** contained 2026-09-10, not yet reported upstream. Found on `just-bash@3.4.1` (vendored CPython 3.13.2, Emscripten) while wiring the sandboxed `python`. Carried as the fourth part of `patches/just-bash@3.4.1.patch` (see `docs/decisions/2026-09-10-carry-the-python-worker-patch.md`), guarded by `create-bash-env-python.test.ts`. The repro below is what to file; the first sentence of the upstream issue should be that their CI cannot see it because the trigger is the length of the worker's own file path.
+**Status:** contained 2026-09-10, offered upstream 2026-09-11 as vercel-labs/just-bash#423 (the pin), #424 (the errnos), and #425 (the tracebacks). Found on `just-bash@3.4.1` (vendored CPython 3.13.2, Emscripten) while wiring the sandboxed `python`. Carried as the fourth part of `patches/just-bash@3.4.1.patch` (see `docs/decisions/2026-09-10-carry-the-python-worker-patch.md`), guarded by `create-bash-env-python.test.ts`, until the three ship in a version we install.
 
 Every `python3` run in this repository exited 1, including `python3 -c "print('hi')"`, with the right stdout followed by:
 

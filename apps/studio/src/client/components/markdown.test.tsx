@@ -556,6 +556,41 @@ describe("Markdown raw HTML", () => {
     expect(container.querySelector("[style]")).toBeNull();
   });
 
+  // An `<a` quoted inside a script is a tag to the HTML5 parser, and one that
+  // never closes: the recovery nests everything after it, to the end of the
+  // document, inside the link. A transcript's whole tail was coming out as one
+  // file chip -- a button that centers and clips what it holds.
+  it("unwraps a link that the recovery of a stray tag wrapped around blocks", async () => {
+    const { container } = renderMarkdown(
+      [
+        "<bash>",
+        "<command>python3 - <<'PY'",
+        "checks = {'has_matrix': '<table class=\"matrix\">' in p, 'links': p.count('<a href='), 'x': 1}",
+        "PY</command>",
+        "</bash>",
+        "",
+        "## Heading after",
+        "",
+        "A paragraph that should stand on its own.",
+      ].join("\n"),
+    );
+    // The heredoc's `<<` is text either way, so the tag the parser unwraps is
+    // what says the second render has landed.
+    await waitFor(
+      () => {
+        expect(container.textContent).not.toContain("<bash>");
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+
+    const paragraph = [...container.querySelectorAll("p")].find((p) =>
+      p.textContent.includes("stand on its own"),
+    );
+    expect(paragraph).toBeDefined();
+    expect(paragraph?.closest("a, button")).toBeNull();
+    expect(container.querySelector("h2")?.closest("a, button")).toBeNull();
+  });
+
   // A model spells a link to a file it just wrote as a `file:` URL, which the
   // allow-list a browser would apply does not know as a scheme.
   it("still opens a file: link in a document that holds HTML", async () => {
@@ -1047,23 +1082,69 @@ describe("Markdown front matter in a task's own file", () => {
     "# Notes",
   ].join("\n");
 
-  it("draws a file's front matter as a table of its properties", () => {
+  const panelOf = (container: HTMLElement) => {
+    const panel = container.querySelector<HTMLDetailsElement>(
+      "details[data-slot=front-matter]",
+    );
+    return {
+      open: panel?.open,
+      rows: [...(panel?.querySelectorAll("dt") ?? [])].map((key) => [
+        key.textContent,
+        key.nextElementSibling?.textContent,
+      ]),
+      summary: panel?.querySelector("summary")?.textContent,
+    };
+  };
+
+  // Closed, named by its title, and counted: a transcript's two dozen keys
+  // are one line until asked for.
+  it("folds a file's front matter into a panel of its properties", () => {
     const { container } = renderWithProviders(
       <Markdown documentUrl={ROOT_DOCUMENT_URL} markdown={FRONT_MATTER} />,
     );
 
-    const rows = [...container.querySelectorAll("tr")].map((row) =>
-      [...row.querySelectorAll("th, td")].map((cell) => cell.textContent),
-    );
-    expect(rows).toEqual([
-      ["Properties", ""],
-      ["title", "Field notes"],
-      ["tags", '["a","b"]'],
-      ["draft", "false"],
-    ]);
+    expect(panelOf(container)).toEqual({
+      open: false,
+      rows: [
+        ["title", "Field notes"],
+        ["tags", '["a","b"]'],
+        ["draft", "false"],
+      ],
+      summary: "Field notes3 properties",
+    });
     expect(
       [...container.querySelectorAll("h1, h2")].map((h) => h.textContent),
     ).toEqual(["Notes"]);
+  });
+
+  it("heads the panel with a count when nothing names the file", () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        documentUrl={ROOT_DOCUMENT_URL}
+        markdown={"---\nsessionId: ses_1\n---\n\nBody."}
+      />,
+    );
+
+    expect(panelOf(container).summary).toBe("Properties1 property");
+  });
+
+  // A document holding raw HTML goes through the sanitize pass, which prefixes
+  // the panel's id like any other; the panel has to come out the other side.
+  it("survives the sanitize pass a document with raw HTML goes through", async () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        documentUrl={ROOT_DOCUMENT_URL}
+        markdown={`${FRONT_MATTER}\n\n<div>raw</div>`}
+      />,
+    );
+
+    await waitFor(
+      () => {
+        expect(container.querySelector("div > div")?.textContent).toBe("raw");
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+    expect(panelOf(container).rows).toHaveLength(3);
   });
 
   it("keeps front matter that is not a mapping as the yaml it is", () => {
@@ -1074,7 +1155,7 @@ describe("Markdown front matter in a task's own file", () => {
       />,
     );
 
-    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector("details")).toBeNull();
     expect(container.querySelector("pre")?.textContent).toBe("- a\n- b");
     expect(container.querySelector("h2")).toBeNull();
   });
@@ -1084,7 +1165,7 @@ describe("Markdown front matter in a task's own file", () => {
   it("leaves a message alone", () => {
     const { container } = renderMarkdown(FRONT_MATTER);
 
-    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector("details")).toBeNull();
     expect(container.querySelector("h2")?.textContent).toContain(
       "title: Field notes",
     );

@@ -47,11 +47,12 @@ function jsonLandmarks(lines: string[]): TranscriptLandmark[] {
 /**
  * The headings `sessionToMarkdown` writes, and only those.
  *
- * Matching any `#` line instead would outline the transcript's *contents*: a
- * turn that writes a README puts that README's headings in the body verbatim,
- * unfenced, because tool inputs are rendered as XML rather than in a code
- * block. Those read as top-level sections and bury the turns among them. The
- * generator's own vocabulary is a closed set, so this asks for it directly.
+ * Matching any `#` line instead would outline the transcript's *contents*: the
+ * assistant's reply is the one part of the body written verbatim rather than
+ * fenced, and a reply that lays out its own sections puts those headings in
+ * the body, where they read as top-level sections and bury the turns among
+ * them. The generator's own vocabulary is a closed set, so this asks for it
+ * directly.
  *
  * The title is the one heading with no fixed vocabulary, since it is the task's
  * or the channel's name, so it is known by position instead: the generator

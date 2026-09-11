@@ -53,13 +53,17 @@ import {
 } from "../lib/mermaid";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
-import { remarkFrontMatterTable } from "../lib/remark-front-matter-table";
+import {
+  FRONT_MATTER_ID,
+  remarkFrontMatterPanel,
+} from "../lib/remark-front-matter-panel";
 import { splitMarkdownBlocks } from "../lib/split-markdown-blocks";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
+import { FrontMatter } from "./front-matter";
 import {
   INLINE_CHIP_CLASS_NAME,
   INLINE_CHIP_ICON_CLASS_NAME,
@@ -127,10 +131,10 @@ type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
 const emptyRemarkPluginList: RemarkPluginList = [];
 
 // The parse extension first, so the block is a `yaml` node by the time the
-// table pass looks for one.
+// panel pass looks for one.
 const fileRemarkPlugins: RemarkPluginList = [
   remarkFrontmatter,
-  remarkFrontMatterTable,
+  remarkFrontMatterPanel,
 ];
 
 type FenceNode = NonNullable<ExtraProps["node"]>;
@@ -282,6 +286,32 @@ const markdownPre: Components["pre"] = ({ children, node }) => {
       filename={fence.filename}
       language={fence.language}
     />
+  );
+};
+
+// A file's front matter arrives as the `details` the remark pass marked with
+// this id, holding the YAML as its text; see `remarkFrontMatterPanel`. The
+// sanitize pass a document with raw HTML goes through prefixes every id, so
+// both spellings name it. Any other `details` is an author's own.
+const frontMatterIds = new Set([
+  `${sanitizeSchema.clobberPrefix ?? ""}${FRONT_MATTER_ID}`,
+  FRONT_MATTER_ID,
+]);
+
+const markdownDetails: Components["details"] = ({
+  children,
+  id,
+  node,
+  ref: _ref,
+  ...props
+}) => {
+  if (id !== undefined && frontMatterIds.has(id) && node) {
+    return <FrontMatter source={node.children.map(nodeText).join("")} />;
+  }
+  return (
+    <details {...props} id={id}>
+      {children}
+    </details>
   );
 };
 
@@ -439,14 +469,53 @@ const plainText = (children: ReactNode): string => {
   return "";
 };
 
+// The elements a link written in markdown can never hold. An anchor holding one
+// came out of raw HTML, and nearly always out of the HTML5 recovery of an `<a>`
+// that was never closed -- a `<a href=` quoted inside a script, say -- which
+// nests everything after it, to the end of the document, inside the link.
+const BLOCK_TAGS = new Set([
+  "blockquote",
+  "details",
+  "div",
+  "dl",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "hr",
+  "ol",
+  "p",
+  "pre",
+  "section",
+  "table",
+  "ul",
+]);
+
+const holdsBlocks = (node: FenceNode | undefined): boolean =>
+  node?.children.some(
+    (child) => child.type === "element" && BLOCK_TAGS.has(child.tagName),
+  ) ?? false;
+
 const MarkdownLink: Components["a"] = ({
   children,
   className,
   href,
-  node: _node,
+  node,
   ...props
 }) => {
   const handleHashLinkClick = useHashLinkScroll();
+
+  // A link around blocks is the recovery case above, and every shape a link
+  // takes here is inline: the file chip is a button that centers and clips
+  // what it holds, and the web link a `nowrap` span. Drawn as one of those, a
+  // document's whole tail comes out centered on one clipped line. The blocks
+  // are what the author wrote; the anchor around them is what the parser
+  // made of a stray tag, and it goes.
+  if (holdsBlocks(node)) {
+    return children;
+  }
 
   // Whatever `urlTransform` refused arrives with its href emptied: a `file:` URL
   // that does not parse, a `javascript:` one. There is nothing left to open, and
@@ -945,6 +1014,7 @@ export const Markdown = memo(
     const components = useMemo<Components>(
       () => ({
         a: MarkdownLink,
+        details: markdownDetails,
         img: ({ alt, className, node: _node, ref: _ref, src, ...props }) => {
           const image = resolveImageSource(src, {
             assetBaseUrl,

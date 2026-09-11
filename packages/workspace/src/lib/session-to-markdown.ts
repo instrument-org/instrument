@@ -246,20 +246,12 @@ export function renderToolOutput(output: ToolResultPart["output"]): string[] {
       break;
     }
     case "error-text": {
-      const indented = output.value
-        .split("\n")
-        .map((l) => `> ${l}`)
-        .join("\n");
-      lines.push(`> **Error:**`, indented);
+      lines.push("**Error:**", fenceText(output.value, "text"));
       break;
     }
     case "execution-denied": {
       if (output.reason) {
-        const indented = output.reason
-          .split("\n")
-          .map((l) => `> ${l}`)
-          .join("\n");
-        lines.push(`*Execution denied:*`, indented);
+        lines.push(`*Execution denied:*`, fenceText(output.reason, "text"));
       } else {
         lines.push(`*Execution denied*`);
       }
@@ -496,10 +488,16 @@ function buildToolCallTimestampMap(
   return map;
 }
 
-// Wraps raw tool output in a code fence so embedded markdown (headings, lists)
-// doesn't bleed into the transcript's structure. Fence length adapts to the
-// longest backtick run inside the content so nested fences don't break out.
-// The language tag drives syntax highlighting for the fenced block.
+// Wraps content in a code fence so embedded markdown (headings, lists) and
+// embedded HTML don't bleed into the transcript's structure. Fence length
+// adapts to the longest backtick run inside the content so nested fences don't
+// break out. The language tag drives syntax highlighting for the fenced block.
+//
+// This is the transcript's contract: its structure is the generator's own
+// headings and labels, and everything else -- the model's context, the user's
+// turn, reasoning, tool input, tool output -- is fenced. The one exception is
+// the assistant's reply, which is markdown written to be rendered, and whose
+// `files` fence is what a viewer draws as file chips.
 function fenceText(text: string, language = "markdown"): string {
   const longestBacktickRun = Math.max(
     0,
@@ -541,25 +539,130 @@ function getEndedAt(metadata: Record<string, unknown>) {
   return metadata.endedAt instanceof Date ? metadata.endedAt : undefined;
 }
 
-function inputToXml(toolName: string, input: unknown): string {
+// The longest argument that still sits on its own list line. Past this, or at
+// the first line break, a value gets a fence of its own.
+const INLINE_ARGUMENT_MAX_LENGTH = 120;
+
+// Code span delimiters sized to the value, the inline counterpart of
+// `fenceText`: one more backtick than the longest run inside, and a space of
+// padding when the value starts or ends with one, which is the case where the
+// delimiters would otherwise merge with the content.
+function codeSpan(text: string): string {
+  const longestBacktickRun = Math.max(
+    0,
+    ...[...text.matchAll(/`+/g)].map((match) => match[0].length),
+  );
+  const delimiter = "`".repeat(longestBacktickRun + 1);
+  const padded =
+    text.startsWith("`") || text.endsWith("`") ? ` ${text} ` : text;
+  return `${delimiter}${padded}${delimiter}`;
+}
+
+const LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  bash: "bash",
+  c: "c",
+  cjs: "js",
+  cpp: "cpp",
+  css: "css",
+  csv: "csv",
+  go: "go",
+  h: "c",
+  htm: "html",
+  html: "html",
+  java: "java",
+  js: "js",
+  json: "json",
+  jsx: "jsx",
+  kt: "kotlin",
+  md: "markdown",
+  mjs: "js",
+  py: "python",
+  rb: "ruby",
+  rs: "rust",
+  sh: "bash",
+  sql: "sql",
+  svg: "xml",
+  swift: "swift",
+  toml: "toml",
+  ts: "ts",
+  tsx: "tsx",
+  xml: "xml",
+  yaml: "yaml",
+  yml: "yaml",
+  zsh: "bash",
+};
+
+/**
+ * A tool call's arguments, with every value held apart from the transcript's
+ * own markup.
+ *
+ * Short scalars share one list, each in a code span; anything with a line
+ * break or too long for a line gets a labeled fence, tagged with the language
+ * its key implies. What this rules out is any argument being read as
+ * structure: a `command` holding `<a href=` or a `content` holding a README's
+ * headings is content, and a renderer that saw it bare would draw the anchor
+ * and the headings -- and, for the HTML5 recovery a raw `<a>` triggers, wrap
+ * everything after it in the link.
+ *
+ * Non-object input is what a call that never finished arriving carries, its
+ * raw JSON text so far, and is shown as that.
+ */
+export function renderToolInput(input: unknown): string[] {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
-    return `<${toolName}>${JSON.stringify(input)}</${toolName}>`;
+    return [
+      fenceText(
+        typeof input === "string" ? input : JSON.stringify(input, null, 2),
+        "json",
+      ),
+    ];
   }
 
-  const entries = Object.entries(input as Record<string, unknown>);
-  if (entries.length === 0) {
-    return `<${toolName} />`;
+  const record = input as Record<string, unknown>;
+  const inline: string[] = [];
+  const blocks: string[][] = [];
+  for (const [key, value] of Object.entries(record)) {
+    if (value === undefined) {
+      continue;
+    }
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+    if (!text.includes("\n") && text.length <= INLINE_ARGUMENT_MAX_LENGTH) {
+      inline.push(
+        `- **${key}:** ${text === "" ? "*(empty)*" : codeSpan(text)}`,
+      );
+      continue;
+    }
+    const fenced =
+      typeof value === "string"
+        ? fenceText(value, argumentLanguage(key, record))
+        : fenceText(JSON.stringify(value, null, 2), "json");
+    blocks.push([`**${key}**`, "", fenced]);
   }
 
-  const inner = entries
-    .map(([key, value]) => {
-      const text =
-        typeof value === "string" ? value : JSON.stringify(value, null, 2);
-      return `<${key}>${text}</${key}>`;
-    })
-    .join("\n");
+  const groups = [...(inline.length > 0 ? [inline] : []), ...blocks];
+  if (groups.length === 0) {
+    return ["*(no arguments)*"];
+  }
+  return groups.flatMap((group, index) =>
+    index === 0 ? group : ["", ...group],
+  );
+}
 
-  return `<${toolName}>\n${inner}\n</${toolName}>`;
+// The language a fenced argument is highlighted as: a shell command is bash,
+// and text bound for a file takes the file's own language, read off the
+// `filePath` argument beside it. Everything else is prose or a path.
+function argumentLanguage(key: string, input: Record<string, unknown>): string {
+  if (key === "command") {
+    return "bash";
+  }
+  if (key === "content" || key === "newString" || key === "oldString") {
+    const filePath = input.filePath;
+    const extension =
+      typeof filePath === "string"
+        ? /\.([a-z0-9]+)$/i.exec(filePath)?.[1]?.toLowerCase()
+        : undefined;
+    return (extension && LANGUAGE_BY_EXTENSION[extension]) ?? "text";
+  }
+  return "text";
 }
 
 function isDataPart(
@@ -670,11 +773,7 @@ function renderAssistantMessage(
           break;
         }
         case "reasoning": {
-          const indented = part.text
-            .split("\n")
-            .map((l) => `> ${l}`)
-            .join("\n");
-          lines.push("", `*[Reasoning]*`, "", indented, "");
+          lines.push("", `*[Reasoning]*`, "", fenceText(part.text), "");
           break;
         }
         case "text": {
@@ -695,7 +794,7 @@ function renderAssistantMessage(
               formatTimestampRange(toolTimestamps.get(part.toolCallId)),
             ].join(""),
             "",
-            inputToXml(part.toolName, part.input),
+            ...renderToolInput(part.input),
           );
 
           const result = toolResultMap.get(part.toolCallId);
@@ -922,7 +1021,7 @@ function renderPersistedAssistantParts(
         }),
       ].join(""),
       "",
-      inputToXml(toolName, part.rawInput ?? part.input),
+      ...renderToolInput(part.rawInput ?? part.input),
       ...renderToolDiagnostics(part),
     );
   }
@@ -1055,11 +1154,11 @@ function renderSystemMessage(
   message: SystemModelMessage,
   timestamps?: MessageRenderInfo,
 ): string[] {
-  const indented = message.content
-    .split("\n")
-    .map((l) => `> ${l}`)
-    .join("\n");
-  return [`## System${formatTimestamp(timestamps)}`, "", indented];
+  return [
+    `## System${formatTimestamp(timestamps)}`,
+    "",
+    fenceText(message.content),
+  ];
 }
 
 function renderToolDiagnostics(part: SessionMessagePart.ToolPart): string[] {
@@ -1131,28 +1230,41 @@ function renderUserMessage(
 
   const content = message.content;
   if (typeof content === "string") {
-    lines.push(content);
+    lines.push(fenceText(content));
     return lines;
   }
 
+  // The message reaches the model as a run of text parts -- the wrapper, the
+  // words, the closing tag, the folder list -- which is one text to a reader,
+  // so consecutive ones share a fence rather than each taking their own.
+  let text: string[] = [];
+  const flush = () => {
+    if (text.length > 0) {
+      lines.push(fenceText(text.join("\n")));
+      text = [];
+    }
+  };
   for (const part of content) {
     switch (part.type) {
       case "file": {
+        flush();
         lines.push(
           `*[File: ${part.filename ?? "unknown"} (${part.mediaType})]*`,
         );
         break;
       }
       case "image": {
+        flush();
         lines.push(`*[Image]*`);
         break;
       }
       case "text": {
-        lines.push(part.text);
+        text.push(part.text);
         break;
       }
     }
   }
+  flush();
 
   return lines;
 }

@@ -7,6 +7,7 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import {
   buildSessionFrontMatter,
   renderAssistantMetadata,
+  renderToolInput,
   renderToolOutput,
   sessionToMarkdown,
 } from "./session-to-markdown";
@@ -31,6 +32,9 @@ const agentContextPartId = StoreId.PartSchema.parse(
   "prt_01J00000000000000000000001",
 );
 const userPartId = StoreId.PartSchema.parse("prt_01J00000000000000000000002");
+const userSecondPartId = StoreId.PartSchema.parse(
+  "prt_01J00000000000000000000008",
+);
 const stepPartId = StoreId.PartSchema.parse("prt_01J00000000000000000000003");
 const sourcePartId = StoreId.PartSchema.parse("prt_01J00000000000000000000004");
 const skillChangesPartId = StoreId.PartSchema.parse(
@@ -104,6 +108,16 @@ const session = Session.WithMessagesAndPartsSchema.parse({
             sessionId,
           },
           text: "Human question",
+          type: "text",
+        },
+        {
+          metadata: {
+            createdAt: new Date("2026-07-24T10:00:02.000Z"),
+            id: userSecondPartId,
+            messageId: userMessageId,
+            sessionId,
+          },
+          text: "<attached_folders>\n- one\n</attached_folders>",
           type: "text",
         },
       ],
@@ -229,8 +243,8 @@ describe("session diagnostics", () => {
     expect(markdown).toContain(
       "### Agent Context (task) @ 2026-07-24T10:00:01.000Z",
     );
-    expect(markdown).toContain("> Persisted system prompt");
-    expect(markdown).toContain("Persisted harness context");
+    expect(markdown).toContain("```markdown\nPersisted system prompt\n```");
+    expect(markdown).toContain("```markdown\nPersisted harness context\n```");
     expect(markdown).toContain("## User (Turn 1)");
     expect(markdown).toContain("## Assistant (User Turn 1, Step 2)");
     expect(markdown).not.toContain("## User (Turn 2)");
@@ -251,6 +265,24 @@ describe("session diagnostics", () => {
       "### Tool Call 1: bash *(incomplete: input-streaming)*",
     );
     expect(markdown).toContain('"rawInput": "{"');
+  });
+
+  // A user turn is the model's own message, XML wrapper and all, and a reader
+  // that took the wrapper for markup would lose it. The wrapper and the words
+  // reach the model as separate parts, and read as one fence.
+  it("fences the user's turn as one block", async () => {
+    const markdown = await sessionToMarkdown(session);
+    const turn = /## User \(Turn 1\)[^\n]*\n\n([\s\S]*?)\n\n## /.exec(
+      markdown,
+    )?.[1];
+    expect(turn).toMatchInlineSnapshot(`
+      "\`\`\`markdown
+      Human question
+      <attached_folders>
+      - one
+      </attached_folders>
+      \`\`\`"
+    `);
   });
 
   it("keeps empty persisted assistant steps visible", async () => {
@@ -398,7 +430,131 @@ describe("session diagnostics", () => {
   });
 });
 
+describe("renderToolInput", () => {
+  // The bash command is where HTML most often turns up bare: a heredoc writing
+  // a page, a Python string holding a tag. Fenced, `<a href=` is text.
+  it("fences a multi-line command as bash and lists the short arguments", () => {
+    expect(
+      renderToolInput({
+        command: "python3 - <<'PY'\nprint('<a href=')\nPY",
+        explanation: "Checking the page",
+        yieldMs: 30_000,
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "- **explanation:** \`Checking the page\`",
+        "- **yieldMs:** \`30000\`",
+        "",
+        "**command**",
+        "",
+        "\`\`\`bash
+      python3 - <<'PY'
+      print('<a href=')
+      PY
+      \`\`\`",
+      ]
+    `);
+  });
+
+  it("highlights file text as the file's own language", () => {
+    expect(
+      renderToolInput({
+        filePath: "/mnt/Instrument/page.html",
+        newString: '<footer class="source-footer">\n<strong>Sources.</strong>',
+        oldString: "<footer>\n<strong>Sources.</strong>",
+        replaceAll: false,
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "- **filePath:** \`/mnt/Instrument/page.html\`",
+        "- **replaceAll:** \`false\`",
+        "",
+        "**newString**",
+        "",
+        "\`\`\`html
+      <footer class="source-footer">
+      <strong>Sources.</strong>
+      \`\`\`",
+        "",
+        "**oldString**",
+        "",
+        "\`\`\`html
+      <footer>
+      <strong>Sources.</strong>
+      \`\`\`",
+      ]
+    `);
+  });
+
+  it("keeps a backtick-bearing value inside its code span", () => {
+    expect(renderToolInput({ query: "what does `rg -l` do", title: "`x`" }))
+      .toMatchInlineSnapshot(`
+      [
+        "- **query:** \`\`what does \`rg -l\` do\`\`",
+        "- **title:** \`\` \`x\` \`\`",
+      ]
+    `);
+  });
+
+  it("renders objects inline when short and as json when not", () => {
+    expect(
+      renderToolInput({
+        choices: Array.from({ length: 12 }, (_, i) => `choice number ${i}`),
+        region: { x1: 0, x2: 0, y1: 0, y2: 0 },
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "- **region:** \`{"x1":0,"x2":0,"y1":0,"y2":0}\`",
+        "",
+        "**choices**",
+        "",
+        "\`\`\`json
+      [
+        "choice number 0",
+        "choice number 1",
+        "choice number 2",
+        "choice number 3",
+        "choice number 4",
+        "choice number 5",
+        "choice number 6",
+        "choice number 7",
+        "choice number 8",
+        "choice number 9",
+        "choice number 10",
+        "choice number 11"
+      ]
+      \`\`\`",
+      ]
+    `);
+  });
+
+  it("shows the raw text of a call that never finished arriving", () => {
+    expect(renderToolInput('{"command": "ls')).toMatchInlineSnapshot(`
+      [
+        "\`\`\`json
+      {"command": "ls
+      \`\`\`",
+      ]
+    `);
+    expect(renderToolInput({})).toEqual(["*(no arguments)*"]);
+  });
+});
+
 describe("renderToolOutput", () => {
+  it("fences an error's text", () => {
+    expect(
+      renderToolOutput({ type: "error-text", value: "# not a heading\n<b>" }),
+    ).toMatchInlineSnapshot(`
+      [
+        "**Error:**",
+        "\`\`\`text
+      # not a heading
+      <b>
+      \`\`\`",
+      ]
+    `);
+  });
+
   it("records content text and media metadata without exporting media bytes", () => {
     expect(
       renderToolOutput({

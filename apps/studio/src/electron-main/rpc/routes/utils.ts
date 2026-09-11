@@ -806,6 +806,12 @@ const showFolderPicker = base
        * with it rather than leaving it behind under the sheet.
        */
       message: z.string().min(1).optional(),
+      /**
+       * Where the panel opens. Picking a folder in the system's own panel is
+       * the person's intent, which the Mac honors without its own prompt, so a
+       * panel opened at a folder it refused to read is the way to read it.
+       */
+      startingAt: HostPathSchema.optional(),
     }),
   )
   .output(z.object({ path: z.string() }).nullable())
@@ -819,6 +825,7 @@ const showFolderPicker = base
     const parentWindow = getCallingWindow(context.webContentsId);
     const options = {
       ...(input.buttonLabel ? { buttonLabel: input.buttonLabel } : {}),
+      ...(input.startingAt ? { defaultPath: input.startingAt } : {}),
       ...(input.message
         ? { message: input.message, title: input.message }
         : {}),

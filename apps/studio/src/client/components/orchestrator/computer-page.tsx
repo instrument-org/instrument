@@ -13,6 +13,7 @@ import { FileViewer } from "@/client/components/file-viewer";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenWithMenu } from "@/client/components/open-with-menu";
+import { Button } from "@/client/components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -30,6 +31,7 @@ import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ComputerListing } from "@instrument-org/workspace/client";
+import { ORPCError } from "@orpc/client";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
@@ -39,7 +41,12 @@ import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import ms from "ms";
@@ -230,9 +237,16 @@ export function ComputerPage({
   // A folder that has gone (thrown away here, moved in the Finder) is asked
   // for on the clock until it is let go of, which is a failing read every few
   // seconds for as long as the screen is up. Opening it again brings it back.
-  const goneFolder = prefixes.find(
-    (prefix, index) => prefix !== "" && listings[index]?.isError,
-  );
+  // A folder the system refused is kept: it is on the same clock, and the
+  // clock is what fills the column the moment the refusal is undone.
+  const goneFolder = prefixes.find((prefix, index) => {
+    const listing = listings[index];
+    return (
+      prefix !== "" &&
+      listing?.isError === true &&
+      !isNotPermitted(listing.error)
+    );
+  });
   useEffect(() => {
     if (goneFolder === undefined) {
       return;
@@ -468,6 +482,12 @@ export function ComputerPage({
         ? selectedPath
         : selectedPath.slice(0, selectedPath.lastIndexOf("/") + 1);
   const currentListing = listingOf(onScreen);
+  // The folder on screen is one the operating system would not let this app
+  // read. On a Mac the first read of a protected folder is the system's own
+  // ask, so this is what a declined ask looks like, and where it is undone.
+  const isCurrentNotPermitted = isNotPermitted(
+    listings[prefixes.indexOf(onScreen)]?.error,
+  );
   // Whether the folder the page is holding belongs to the root it was handed.
   // A new root arrives a render ahead of the reset that clears the folder
   // under it, and writing the address in between paired the root being opened
@@ -570,6 +590,14 @@ export function ComputerPage({
     };
   }, [onScreen, root, settled]);
 
+  // The recents are rooted nowhere, so no place in the list is the one open.
+  const rootHostPath = isRecents ? undefined : root === "~" ? homePath : root;
+  // A folder the system refused has no listing to say where it is, so where
+  // it is comes from the root and the prefix instead: the tab row and the
+  // conversation still name the folder the person is standing in.
+  const refusedHostPath = isCurrentNotPermitted
+    ? hostPathOf(onScreen, rootHostPath ?? root)
+    : undefined;
   // What the conversation is told "this folder" means. At the recents that is
   // where the selected file lives, since the list itself is nowhere; with
   // nothing selected there, there is no folder to name.
@@ -578,8 +606,11 @@ export function ComputerPage({
     : undefined;
   const display = isRecents
     ? recentFolder && homeRelative(recentFolder, homePath)
-    : currentListing?.display;
-  const hostPath = isRecents ? recentFolder : currentListing?.path;
+    : (currentListing?.display ??
+      (refusedHostPath && homeRelative(refusedHostPath, homePath)));
+  const hostPath = isRecents
+    ? recentFolder
+    : (currentListing?.path ?? refusedHostPath);
   const mount = isRecents
     ? selectedRecent?.access && folderOf(selectedRecent.access.mountPath)
     : currentListing?.access?.mountPath;
@@ -715,8 +746,6 @@ export function ComputerPage({
     );
   }
 
-  // The recents are rooted nowhere, so no place in the list is the one open.
-  const rootHostPath = isRecents ? undefined : root === "~" ? homePath : root;
   const rootName = isRecents
     ? "Recents"
     : root === "~"
@@ -790,7 +819,18 @@ export function ComputerPage({
       <div className="flex min-w-0 flex-1 flex-col">
         <ContextMenu>
           <ContextMenuTrigger asChild>
-            <div className="min-h-0 flex-1" ref={browserRef}>
+            <div className="relative min-h-0 flex-1" ref={browserRef}>
+              {isCurrentNotPermitted && folderHostPath !== undefined && (
+                <NotPermitted
+                  hostPath={folderHostPath}
+                  onGranted={(granted) => {
+                    reread();
+                    if (granted !== folderHostPath) {
+                      rootTo(granted);
+                    }
+                  }}
+                />
+              )}
               <FileSystem
                 className="h-full rounded-none border-0"
                 defaultPath={path}
@@ -958,10 +998,15 @@ export function ComputerPage({
  * the only one that can stop asking.
  */
 function combineListings(
-  results: { data: ComputerListing | undefined; isError: boolean }[],
+  results: {
+    data: ComputerListing | undefined;
+    error: unknown;
+    isError: boolean;
+  }[],
 ) {
   return results.map((result) => ({
     data: result.data,
+    error: result.error,
     isError: result.isError,
   }));
 }
@@ -1078,6 +1123,85 @@ function FolderMenu({
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";
+}
+
+/** Whether a listing failed because the operating system refused the read. */
+function isNotPermitted(error: unknown) {
+  return error instanceof ORPCError && error.code === "NOT_PERMITTED";
+}
+
+/**
+ * The folder the system would not let this app read, and the two ways to
+ * let it. The system's own panel is the graceful one: a folder picked there
+ * is the person's intent, which the Mac honors without asking again, so the
+ * panel opens at the folder itself and the answer is one press. The settings
+ * pane is where a declined ask is undone for good.
+ */
+function NotPermitted({
+  hostPath,
+  onGranted,
+}: {
+  hostPath: string;
+  /** The folder the person picked in the panel, which is usually this one. */
+  onGranted: (hostPath: string) => void;
+}) {
+  const name = segmentsOf(hostPath).at(-1) ?? hostPath;
+  const choose = useMutation({
+    mutationFn: () =>
+      rpcClient.utils.showFolderPicker.call({
+        buttonLabel: "Open",
+        message: `Instrument can’t read “${name}” until you open it here.`,
+        startingAt: hostPath,
+      }),
+    onSuccess: (picked) => {
+      if (picked) {
+        onGranted(picked.path);
+      }
+    },
+  });
+  const openSettings = useMutation(
+    rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
+  );
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-background p-8">
+      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+        <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
+        <div>
+          <p className="text-sm font-medium">
+            {isMacOS() ? "macOS" : "Your computer"} hasn’t let Instrument read “
+            {name}”
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Open the folder in the system’s own panel to read it now
+            {isMacOS()
+              ? ", or allow it under Files and Folders in System Settings."
+              : "."}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => {
+              choose.mutate();
+            }}
+            size="sm"
+          >
+            Choose the folder…
+          </Button>
+          {isMacOS() && (
+            <Button
+              onClick={() => {
+                openSettings.mutate(undefined);
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Open System Settings
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /** A folder prefix and every folder above it, root first: `a/b/` is `""`, `a/`, `a/b/`. */

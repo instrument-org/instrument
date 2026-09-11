@@ -44,6 +44,24 @@ const openAppManagementSettings = base
     return { opened: true };
   });
 
+/**
+ * The Files and Folders pane, where a folder the Mac refused this app is
+ * granted after the fact. The system asks once, at the first read of a
+ * protected folder, and never again for that folder: the pane's row is the
+ * only way back once the ask was declined.
+ */
+const openFilesAndFoldersSettings = base
+  .output(z.object({ opened: z.boolean() }))
+  .handler(async () => {
+    if (process.platform !== "darwin") {
+      return { opened: false };
+    }
+    await shell.openExternal(
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders",
+    );
+    return { opened: true };
+  });
+
 const live = {
   getAll: base.output(eventIterator(FeaturesSchema)).handler(async function* ({
     context,
@@ -63,5 +81,6 @@ export const features = {
   getAll,
   live,
   openAppManagementSettings,
+  openFilesAndFoldersSettings,
   setEnabled,
 };

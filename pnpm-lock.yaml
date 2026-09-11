@@ -75,7 +75,7 @@ patchedDependencies:
   '@parcel/watcher@2.6.0': 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
   app-builder-lib@26.15.7: c30615a9a3396ac72fd40f8b21782e0824090bd8d35989d568731abb8ffb95f4
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
-  just-bash@3.4.1: 6ce368f86967925bf1c0d39f3697e8b594cc214825825f9e8581b22dc797db4b
+  just-bash@3.4.1: 0dae0d92a1e315df5e3c56e55146103db6fc9202171deae393ec352992b7923d
   micromark-extension-gfm-table@2.1.1: df69698554d58e36e0cb8741ec0b37585066f12ddd4396b11511eb2e3d2e9d8e
   sonner@2.0.7: 22b16004d10f44d3ea7fef7bc84bfb401b07f878993d914696c7b0a1586bcb29
 
@@ -1049,7 +1049,7 @@ importers:
         version: 6.0.0
       just-bash:
         specifier: ^3.4.1
-        version: 3.4.1(patch_hash=6ce368f86967925bf1c0d39f3697e8b594cc214825825f9e8581b22dc797db4b)
+        version: 3.4.1(patch_hash=0dae0d92a1e315df5e3c56e55146103db6fc9202171deae393ec352992b7923d)
       lru-cache:
         specifier: ^11.5.2
         version: 11.5.2
@@ -17729,7 +17729,7 @@ snapshots:
       object.assign: 4.1.7
       object.values: 1.2.1
 
-  just-bash@3.4.1(patch_hash=6ce368f86967925bf1c0d39f3697e8b594cc214825825f9e8581b22dc797db4b):
+  just-bash@3.4.1(patch_hash=0dae0d92a1e315df5e3c56e55146103db6fc9202171deae393ec352992b7923d):
     dependencies:
       diff: 8.0.4
       fast-xml-parser: 5.11.0

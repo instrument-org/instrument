@@ -31,7 +31,7 @@ index 1e2ef91104afc3f7d63a1bb8f926eb5d19540d3f..f99b4a0dbd08db9f95942fd7d459ec5b
    Size: ${t.size}		Blocks: ${Math.ceil(t.size/512)}
  Access: (${a}/${i})
 diff --git a/dist/bundle/chunks/worker.js b/dist/bundle/chunks/worker.js
-index 352899ae81c5334b22ea1b1f6b0cc88a376b1399..eb8445dc7f466fb029b4302533433030b197ca64 100644
+index 352899ae81c5334b22ea1b1f6b0cc88a376b1399..5ffa24f041c05ff10eae33f454a27a43cf3e833b 100644
 --- a/dist/bundle/chunks/worker.js
 +++ b/dist/bundle/chunks/worker.js
 @@ -2300,7 +2300,7 @@ function createHOSTFS(backend, FS, PATH, configuredMaxFileSize) {
@@ -56,20 +56,19 @@ index 352899ae81c5334b22ea1b1f6b0cc88a376b1399..eb8445dc7f466fb029b4302533433030
        } else if (msg.includes("not empty")) {
          code = ERRNO_CODES.ENOTEMPTY;
        }
-@@ -2491,9 +2495,11 @@ function createHOSTFS(backend, FS, PATH, configuredMaxFileSize) {
+@@ -2491,7 +2495,10 @@ function createHOSTFS(backend, FS, PATH, configuredMaxFileSize) {
            } else {
              content = backend.readFile(path);
            }
 -        } catch (_e) {
 +        } catch (e) {
++          if (/too large/i.test(e instanceof Error ? e.message : String(e))) {
++            throw new FS.ErrnoError(ERRNO_CODES.EFBIG);
++          }
            if (isCreate && isWrite) {
              content = new Uint8Array(0);
-+          } else if (/too large/i.test(e instanceof Error ? e.message : String(e))) {
-+            throw new FS.ErrnoError(ERRNO_CODES.EFBIG);
            } else {
-             throw new FS.ErrnoError(ERRNO_CODES.ENOENT);
-           }
-@@ -3181,6 +3187,7 @@ async function runPython(input) {
+@@ -3181,6 +3188,7 @@ async function runPython(input) {
      );
      Module = await createPythonModule({
        noInitialRun: true,
@@ -77,23 +76,24 @@ index 352899ae81c5334b22ea1b1f6b0cc88a376b1399..eb8445dc7f466fb029b4302533433030
        preRun: [onPreRun],
        print: onPrint,
        printErr: onPrintErr
-@@ -3224,18 +3231,35 @@ async function runPython(input) {
+@@ -3224,18 +3232,40 @@ async function runPython(input) {
    }
    const setupCode = generateSetupCode(input);
    const httpBridgeCode = generateHttpBridgeCode();
 +  const isScriptFile = input.scriptPath !== undefined && !["-c", "-", "<stdin>"].includes(input.scriptPath) && !input.pythonCode.startsWith("import runpy; runpy.run_module(");
 +  const displayName = isScriptFile ? input.scriptPath : input.scriptPath === "-" || input.scriptPath === "<stdin>" ? "<stdin>" : "<string>";
 +  const programCode = `
-+import builtins as _jb_builtins
-+_jb_main = {'__name__': '__main__', '__builtins__': _jb_builtins, '__doc__': None, '__package__': None, '__spec__': None, '__loader__': None}
++import types as _jb_types
++_jb_main = _jb_types.ModuleType('__main__')
 +if ${isScriptFile ? "True" : "False"}:
-+    _jb_main['__file__'] = os.path.abspath(${JSON.stringify(displayName)})
-+    sys.path.insert(0, '/host' + os.path.dirname(_jb_main['__file__']))
++    _jb_main.__file__ = os.path.abspath(${JSON.stringify(displayName)})
++    sys.path.insert(0, '/host' + os.path.dirname(_jb_main.__file__))
 +else:
 +    sys.path.insert(0, '')
++sys.modules['__main__'] = _jb_main
 +_jb_code = compile(${JSON.stringify(input.pythonCode)}, ${JSON.stringify(displayName)}, 'exec')
-+del _jb_builtins
-+exec(_jb_code, _jb_main)
++del _jb_types
++exec(_jb_code, _jb_main.__dict__)
 +`;
    const wrappedCode = `
  import sys
@@ -104,14 +104,19 @@ index 352899ae81c5334b22ea1b1f6b0cc88a376b1399..eb8445dc7f466fb029b4302533433030
 -${input.pythonCode.split("\n").map((line) => `    ${line}`).join("\n")}
 +${programCode.split("\n").map((line) => `    ${line}`).join("\n")}
  except SystemExit as e:
-+    if e.code is not None and not isinstance(e.code, int):
+-    _jb_exit_code = e.code if isinstance(e.code, int) else (1 if e.code else 0)
++    if e.code is None:
++        _jb_exit_code = 0
++    elif isinstance(e.code, int):
++        _jb_exit_code = e.code
++    else:
 +        print(e.code, file=sys.stderr)
-     _jb_exit_code = e.code if isinstance(e.code, int) else (1 if e.code else 0)
++        _jb_exit_code = 1
  except Exception as e:
      import traceback
 -    traceback.print_exc()
 +    _jb_tb = e.__traceback__
-+    traceback.print_exception(type(e), e, _jb_tb.tb_next if _jb_tb is not None and _jb_tb.tb_next is not None else _jb_tb)
++    traceback.print_exception(type(e), e, None if _jb_tb is None else _jb_tb.tb_next)
      _jb_exit_code = 1
  sys.exit(_jb_exit_code)
  `;

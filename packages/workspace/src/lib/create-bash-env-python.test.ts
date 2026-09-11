@@ -196,6 +196,41 @@ describe("python inside the sandbox", () => {
     expect(result.stderr).not.toContain("No file descriptors available");
   });
 
+  it("refuses to append to a file the bridge cannot carry rather than replace it", async () => {
+    const result = await run(
+      `python -c "f = open('/mnt/Docs/big.bin', 'a'); f.write('tail'); f.close()"`,
+      "read-write",
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "OSError: [Errno 22] File too large: '/mnt/Docs/big.bin'",
+    );
+    const stat = await fs.stat(path.join(attachedDir, "big.bin"));
+    expect(stat.size).toBe(9 * 1024 * 1024);
+  });
+
+  it("prints a syntax error the way CPython does, and runs as the __main__ module", async () => {
+    const syntax = await run(`python -c "x = = 1"`);
+    expect(syntax.exitCode).toBe(1);
+    expect(syntax.stderr).toMatchInlineSnapshot(`
+      "  File "<string>", line 1
+          x = = 1
+              ^
+      SyntaxError: invalid syntax
+      "
+    `);
+
+    const main = await run(`python -c "
+import pickle, sys, __main__
+class Point:
+    def __init__(self, x):
+        self.x = x
+print(__main__ is sys.modules['__main__'], pickle.loads(pickle.dumps(Point(7))).x)
+"`);
+    expect(main).toMatchObject({ exitCode: 0, stderr: "", stdout: "True 7\n" });
+  });
+
   it("points `-m pip` at the pip command and the native interpreter", async () => {
     const result = await run("python -m pip install requests");
 

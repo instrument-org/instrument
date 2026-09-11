@@ -19,6 +19,7 @@ import { channelOfTask } from "./attribution";
 import { filesWrittenBy } from "./files-written";
 import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
 import { mountsOf, translateMountPaths } from "./mount-paths";
+import { endedWithoutWords } from "./standing";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
 
 /** What a wake carries: the part that starts the orchestrator's turn. */
@@ -240,25 +241,32 @@ async function onSessionDone(
   // Read as the turn ends rather than at delivery, a debounce later: a process
   // that exits in between was the task's own doing and is not news.
   const running = leftRunning(id);
+  const said = await lastAssistantText({
+    maxLength: WAKE_SUMMARY_MAX_LENGTH,
+    sessionId,
+    taskId: id,
+  });
+  // A turn with no words ended on a stop, the step limit, or a model error,
+  // and the note has to say which: the orchestrator continues one of those
+  // with `task send`, and leaves one the user stopped alone.
+  const ending =
+    said === undefined ? await endedWithoutWords(id, sessionId) : undefined;
   schedule(
     orchestratorId,
     {
       activeMs: usage.activeMs,
+      ...(ending ? { ended: ending.line } : {}),
       files: await filesWrittenBy({
         orchestratorTaskId: orchestratorId,
         sessionId,
         taskId: id,
       }),
       ...(running.length > 0 ? { running } : {}),
-      status: "done",
-      summary: await inOrchestratorPaths(
-        await lastAssistantText({
-          maxLength: WAKE_SUMMARY_MAX_LENGTH,
-          sessionId,
-          taskId: id,
-        }),
-        { orchestratorTaskId: orchestratorId, taskId: id },
-      ),
+      status: ending?.failed ? "error" : "done",
+      summary: await inOrchestratorPaths(said, {
+        orchestratorTaskId: orchestratorId,
+        taskId: id,
+      }),
       taskId: id,
       title: childSettings.name,
       tokens: usage.inputTokens + usage.outputTokens,

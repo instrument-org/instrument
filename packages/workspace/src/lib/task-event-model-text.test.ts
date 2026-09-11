@@ -45,6 +45,44 @@ describe("taskEventModelNote", () => {
     `);
   });
 
+  it("says how a turn ended in place of the words it did not say", () => {
+    const note = taskEventModelNote({
+      events: [
+        {
+          activeMs: 120_000,
+          ended: "Stopped while locating any bundled QuickJS runtime",
+          status: "done",
+          taskId: TASK_ID,
+          title: "Demonstrate the JavaScript runner",
+          tokens: 40_000,
+        },
+        {
+          ended: "Stopped at the 200-step limit",
+          status: "done",
+          taskId: TaskIdSchema.parse("2026-09-11-audit-the-vault"),
+          title: "Audit the vault",
+        },
+        {
+          ended: "Model is busy",
+          status: "error",
+          taskId: TaskIdSchema.parse("2026-09-11-draft-the-brief"),
+          title: "Draft the brief",
+        },
+      ],
+    });
+    expect(note).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      Tasks you created have finished:
+      - 2026-09-08-find-the-vault ("Demonstrate the JavaScript runner") was stopped while locating any bundled QuickJS runtime (2 minutes of work, 40K tokens so far).
+      - 2026-09-11-audit-the-vault ("Audit the vault") was stopped at the 200-step limit.
+      - 2026-09-11-draft-the-brief ("Draft the brief") stopped with an error, "Model is busy".
+      Nobody typed anything; this note is why you are awake.
+      </instrument-system-note>"
+    `);
+    expect(note).not.toContain("said nothing");
+  });
+
   it("says nothing about the background when nothing was left there", () => {
     const note = taskEventModelNote({
       events: [{ status: "done", taskId: TASK_ID, title: "hey" }],

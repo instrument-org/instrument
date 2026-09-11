@@ -369,6 +369,13 @@ export namespace SessionMessageDataPart {
           /** How long the child's agent has been at work in total. */
           activeMs: z.number().nonnegative().optional(),
           /**
+           * How the turn ended when it ended without words, in the line the
+           * task list shows for it: what it was stopped in the middle of, the
+           * step limit it hit, or what the model error was. Absent when the
+           * task said something, and on an overdue event.
+           */
+          ended: z.string().optional(),
+          /**
            * What the task wrote, in the paths the orchestrator can open. Read
            * from its transcript rather than from what it said, so a file it
            * made and forgot to mention still reaches the conversation.
@@ -390,8 +397,9 @@ export namespace SessionMessageDataPart {
             )
             .optional(),
           /**
-           * Done and error end a turn; overdue is a task still at work past
-           * the point the orchestrator should look, and says so once.
+           * Done and error end a turn, error being a model error rather than
+           * a stop; overdue is a task still at work past the point the
+           * orchestrator should look, and says so once.
            */
           status: z.enum(["done", "error", "overdue"]),
           /** What the child last said, shortened. Absent when it said nothing. */

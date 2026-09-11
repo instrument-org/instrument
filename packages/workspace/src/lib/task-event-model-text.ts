@@ -1,6 +1,7 @@
 import ms from "ms";
 
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { asClause } from "./as-clause";
 import { describeLeftRunning } from "./orchestrator/left-running";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
@@ -17,10 +18,12 @@ export function taskEventModelNote(
   const lines = data.events.map((event) => {
     const outcome =
       event.status === "error"
-        ? "stopped with an error"
+        ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
         : event.status === "overdue"
           ? "is still working"
-          : "finished a turn";
+          : event.ended
+            ? `was ${asClause(event.ended)}`
+            : "finished a turn";
     const spent = [
       event.activeMs === undefined
         ? undefined
@@ -30,11 +33,14 @@ export function taskEventModelNote(
         : `${formatTokens(event.tokens)} tokens so far`,
     ].filter((part) => part !== undefined);
     const cost = spent.length > 0 ? ` (${spent.join(", ")})` : "";
+    // An ending already says why there were no last words.
     const summary = event.summary
       ? event.status === "overdue"
         ? ` Its latest step: "${event.summary}"`
         : ` It last said: "${event.summary}"`
-      : " It said nothing.";
+      : event.ended
+        ? ""
+        : " It said nothing.";
     const files =
       event.files && event.files.length > 0
         ? `\n  It wrote: ${event.files.join(", ")}`

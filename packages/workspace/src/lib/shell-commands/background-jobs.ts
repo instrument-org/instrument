@@ -178,24 +178,6 @@ function describeStatus(process: BackgroundProcessInfo) {
     : `${process.status} (${process.exitCode})`;
 }
 
-/** Who a stop is attributed to, in the agent's own terms. */
-function stopper(stoppedBy: BackgroundProcessInfo["stoppedBy"]) {
-  switch (stoppedBy) {
-    case "agent": {
-      return `your \`${KILL_COMMAND.name}\``;
-    }
-    case "conversation": {
-      return "the assistant that started this task";
-    }
-    case "user": {
-      return "the user";
-    }
-    default: {
-      return "a stop nobody here asked for";
-    }
-  }
-}
-
 function fail(command: string, message: string) {
   return { exitCode: 1, stderr: `${command}: ${message}\n`, stdout: "" };
 }
@@ -349,6 +331,24 @@ function readTimeout(raw: string | undefined) {
   return raw !== undefined && raw !== "" && Number.isFinite(value)
     ? Math.min(MAX_WAIT_MS, Math.max(0, value))
     : ("invalid" as const);
+}
+
+/** Who a stop is attributed to, in the agent's own terms. */
+function stopper(stoppedBy: BackgroundProcessInfo["stoppedBy"]) {
+  switch (stoppedBy) {
+    case "agent": {
+      return `your \`${KILL_COMMAND.name}\``;
+    }
+    case "conversation": {
+      return "the assistant that started this task";
+    }
+    case "user": {
+      return "the user";
+    }
+    default: {
+      return "a stop nobody here asked for";
+    }
+  }
 }
 
 function toJson(process: BackgroundProcessInfo) {

@@ -85,14 +85,6 @@ export interface BackgroundProcessInfo {
   stoppedBy?: StoppedBy;
 }
 
-/**
- * Who asked a process to stop. The agent reads each differently: its own
- * `kill` is a step it took, the user's stop button is a decision it must not
- * undo by starting the process again, and the conversation's `task kill` is
- * the assistant that briefed it stepping in.
- */
-export type StoppedBy = "agent" | "conversation" | "user";
-
 export interface BackgroundProcessRead {
   info: BackgroundProcessInfo;
   /**
@@ -137,6 +129,14 @@ export interface BackgroundRunHandle {
   readonly startedAt: Date;
 }
 
+/**
+ * Who asked a process to stop. The agent reads each differently: its own
+ * `kill` is a step it took, the user's stop button is a decision it must not
+ * undo by starting the process again, and the conversation's `task kill` is
+ * the assistant that briefed it stepping in.
+ */
+export type StoppedBy = "agent" | "conversation" | "user";
+
 interface BackgroundProcessRecord {
   ageTimer?: NodeJS.Timeout;
   buffer: BackgroundOutputBuffer;
@@ -156,9 +156,9 @@ interface BackgroundProcessRecord {
   prePromotionOmittedBytes: number;
   startedAt: Date;
   status: BackgroundProcessStatus;
+  stoppedBy?: StoppedBy;
   /** Set once a stop was asked for, and by what, so the outcome is labeled. */
   stopReason?: StopReason;
-  stoppedBy?: StoppedBy;
   taskId: TaskId;
   waiters: Set<() => void>;
 }

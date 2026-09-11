@@ -6,6 +6,7 @@ import { z } from "zod";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
 import { getMimeType } from "../get-mime-type";
+import { pathIsWithin } from "../path-is-within";
 import { resolveExistingFilePath } from "../resolve-agent-path";
 import { taskDir } from "../task-dir-utils";
 import { resolveTaskProjectFolder } from "../task-project-folder";
@@ -93,10 +94,8 @@ export const ComputerPlacesSchema = z.object({
   favorites: ComputerPlaceSchema.array(),
   volumes: ComputerPlaceSchema.array(),
 });
-export type ComputerPlaces = z.output<typeof ComputerPlacesSchema>;
-
 /** A granted folder as a host root, with how the agent reaches what is under it. */
-interface AttachedRoot {
+export interface AttachedRoot {
   /**
    * The access the grant carries. What a folder under the root gets is judged
    * for that folder: the home folder is read-only as a whole, since the
@@ -105,6 +104,39 @@ interface AttachedRoot {
   grant: FolderAttachment.Access;
   mountPoint: string;
   root: string;
+}
+
+export type ComputerPlaces = z.output<typeof ComputerPlacesSchema>;
+
+/**
+ * The deepest granted folder a host path sits in, and the virtual path the
+ * agent reaches it by through that grant. Both paths are resolved host paths,
+ * so the walk from the root down is in the host's own separators, and the
+ * mount path it becomes is in the agent's.
+ */
+export function accessIn(
+  roots: AttachedRoot[],
+  hostPath: string,
+): ComputerAccess | undefined {
+  let best: AttachedRoot | undefined;
+  for (const candidate of roots) {
+    const { root } = candidate;
+    if (
+      pathIsWithin(hostPath, root) &&
+      (best === undefined || root.length > best.root.length)
+    ) {
+      best = candidate;
+    }
+  }
+  if (!best) {
+    return undefined;
+  }
+  const rest = path.relative(best.root, hostPath).split(path.sep).join("/");
+  return {
+    access: effectiveFolderAccess({ access: best.grant, path: hostPath }),
+    mountPath: rest === "" ? best.mountPoint : `${best.mountPoint}/${rest}`,
+    root: best.root,
+  };
 }
 
 /**
@@ -251,32 +283,6 @@ export async function recentComputerFiles({
       const access = accessIn(roots, file.path);
       return { ...file, ...(access === undefined ? {} : { access }) };
     });
-}
-
-/**
- * The deepest granted folder a host path sits in, and the virtual path the
- * agent reaches it by through that grant.
- */
-function accessIn(
-  roots: AttachedRoot[],
-  hostPath: string,
-): ComputerAccess | undefined {
-  let best: AttachedRoot | undefined;
-  for (const candidate of roots) {
-    const { root } = candidate;
-    const inside = hostPath === root || hostPath.startsWith(`${root}/`);
-    if (inside && (best === undefined || root.length > best.root.length)) {
-      best = candidate;
-    }
-  }
-  if (!best) {
-    return undefined;
-  }
-  return {
-    access: effectiveFolderAccess({ access: best.grant, path: hostPath }),
-    mountPath: `${best.mountPoint}${hostPath.slice(best.root.length)}`,
-    root: best.root,
-  };
 }
 
 /**

@@ -11,12 +11,12 @@ One agent drives this from the tag to the published notes, with nobody watching.
 
 Run from `apps/studio`:
 
-| Command                         | Produces                                       |
-| ------------------------------- | ---------------------------------------------- |
-| `pnpm tag:release:patch:beta`   | next beta on the current patch line            |
-| `pnpm tag:release:minor:beta`   | next beta on the next minor                    |
-| `pnpm tag:release:patch`        | stable patch                                   |
-| `pnpm tag:release:minor`        | stable minor                                   |
+| Command                       | Produces                            |
+| ----------------------------- | ----------------------------------- |
+| `pnpm tag:release:patch:beta` | next beta on the current patch line |
+| `pnpm tag:release:minor:beta` | next beta on the next minor         |
+| `pnpm tag:release:patch`      | stable patch                        |
+| `pnpm tag:release:minor`      | stable minor                        |
 
 **A stable release rewrites every channel's update file.** `generateUpdatesFilesForAllChannels` is on, so publishing a stable build rewrites `beta.yml` and `alpha.yml` alongside `latest.yml`. A stable and a beta cannot be in flight together. Sequence them and let the first finish before tagging the second.
 

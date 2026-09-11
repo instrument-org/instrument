@@ -93,7 +93,7 @@ const children = base
       dir: z.string(),
       /** Where it stands and the line the list says about it. */
       standing: z.object({
-        kind: z.enum(["done", "running", "waiting"]),
+        kind: z.enum(["done", "failed", "running", "waiting"]),
         line: z.string(),
       }),
     }).array(),

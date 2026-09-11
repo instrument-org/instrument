@@ -5,7 +5,7 @@ import {
 import { cn } from "@/client/lib/utils";
 
 /** Where a task stands, as the list says it. */
-export type TaskStandingKind = "done" | "running" | "waiting";
+export type TaskStandingKind = "done" | "failed" | "running" | "waiting";
 
 /**
  * One task in the list: what it is called, what became of it, where it was
@@ -52,7 +52,8 @@ export function TaskRow({
         <span
           className={cn(
             "block truncate text-[13px] font-medium",
-            standing === "done" && "text-foreground/80",
+            (standing === "done" || standing === "failed") &&
+              "text-foreground/80",
           )}
         >
           {title}
@@ -64,7 +65,9 @@ export function TaskRow({
               ? "brand-shiny-text"
               : standing === "waiting"
                 ? "text-warning-700 dark:text-warning-300"
-                : "text-muted-foreground",
+                : standing === "failed"
+                  ? "text-error-700 dark:text-error-300"
+                  : "text-muted-foreground",
           )}
         >
           {line}

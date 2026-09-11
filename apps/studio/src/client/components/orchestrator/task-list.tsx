@@ -1,5 +1,8 @@
 import { type ChannelMark } from "@/client/components/orchestrator/channel-rail";
-import { TaskRow } from "@/client/components/orchestrator/task-row";
+import {
+  TaskRow,
+  type TaskStandingKind,
+} from "@/client/components/orchestrator/task-row";
 import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
 import { type TaskId } from "@instrument-org/workspace/client";
@@ -11,7 +14,7 @@ export interface TaskListItem {
   channel?: ChannelMark & { name: string };
   id: TaskId;
   line: string;
-  standing: "done" | "running" | "waiting";
+  standing: TaskStandingKind;
   title: string;
   updatedAt: Date;
 }

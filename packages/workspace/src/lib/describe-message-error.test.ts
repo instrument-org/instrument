@@ -1,6 +1,6 @@
-import { type SessionMessage } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
+import { type SessionMessage } from "../schemas/session/message";
 import { describeMessageError } from "./describe-message-error";
 
 type MessageError = NonNullable<SessionMessage.Assistant["metadata"]["error"]>;

@@ -1,4 +1,4 @@
-import { type SessionMessage } from "@instrument-org/workspace/client";
+import { type SessionMessage } from "../schemas/session/message";
 
 type MessageError = NonNullable<SessionMessage.Assistant["metadata"]["error"]>;
 

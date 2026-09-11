@@ -2,9 +2,9 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import {
   type OutlineHeading,
   type OutlineLayout,
-  useActiveHeading,
   useMarkdownHeadings,
   useOutlineLayout,
+  useVisibleHeadings,
 } from "@/client/hooks/use-markdown-outline";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { cn } from "@/client/lib/utils";
@@ -20,6 +20,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 // Layout px left between the top of the viewer and a heading jumped to, so it
 // sits a little in from the edge rather than flush against it.
 const HEADING_SCROLL_MARGIN = 24;
+
+// Layout px a section has to show to count as on screen. More than the jump
+// margin, so the section a jump leaves a strip of above its target is not lit
+// beside the one jumped to.
+const VISIBLE_TOLERANCE = 32;
 
 // Layout px kept visible above and below the active entry when the outline
 // scrolls to keep it in view.
@@ -64,9 +69,7 @@ export function MarkdownDocument({ children }: { children: ReactNode }) {
   const [layoutElement, setLayoutElement] = useState<HTMLDivElement | null>(
     null,
   );
-  const [preference, setPreference] = useState<"column" | "rail" | null>(
-    null,
-  );
+  const [preference, setPreference] = useState<"column" | "rail" | null>(null);
   const headings = useMarkdownHeadings(scrollElement);
   const layout = useOutlineLayout(scrollElement, layoutElement);
   const wide = layout.width >= WIDE_MIN_WIDTH;
@@ -150,18 +153,18 @@ export function MarkdownOutline({
   variant: "column" | "rail";
 }) {
   const zoom = useAtomValue(zoomAtom);
-  const spied = useActiveHeading(headings, scrollElement);
-  // The entry just jumped to, held until the reader scrolls on their own. The
-  // spy alone would mark the wrong entry after a jump to a heading near the
-  // end, since a heading the document ends too soon after can never climb to
-  // the reading line.
-  const [selected, setSelected] = useState<null | number>(null);
+  const visible = useVisibleHeadings(
+    headings,
+    scrollElement,
+    // The hook measures in on-screen px.
+    VISIBLE_TOLERANCE * zoom,
+  );
   const [pinned, setPinned] = useState(false);
   // Whether the document is moving, from its first scroll event to
   // `scrollend`; the card keeps out of the way for the duration.
   const [scrolling, setScrolling] = useState(false);
   const [armed, setArmed] = useState(!armOnLeave);
-  const programmaticScroll = useRef(false);
+  const navRef = useRef<HTMLElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const railButtonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -172,13 +175,9 @@ export function MarkdownOutline({
     }
     const handleScroll = () => {
       setScrolling(true);
-      if (!programmaticScroll.current) {
-        setSelected(null);
-      }
     };
     const handleScrollEnd = () => {
       setScrolling(false);
-      programmaticScroll.current = false;
     };
     scrollElement.addEventListener("scroll", handleScroll, { passive: true });
     scrollElement.addEventListener("scrollend", handleScrollEnd);
@@ -188,19 +187,43 @@ export function MarkdownOutline({
     };
   }, [scrollElement]);
 
-  const active =
-    selected !== null && selected < headings.length ? selected : spied;
+  // A pinned card is put away by a press anywhere but on it, the way a menu
+  // is; the pointer leaving is not enough, since pinning is what a reader did
+  // to keep it past that.
+  useEffect(() => {
+    if (!pinned) {
+      return;
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !navRef.current?.contains(event.target)
+      ) {
+        setPinned(false);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [pinned]);
 
+  const inView = (index: number) =>
+    visible !== null && index >= visible.start && index <= visible.end;
+
+  // The top of the range is what the outline keeps in view: the section being
+  // read, with what follows it on screen below.
+  const first = visible?.start ?? -1;
   useEffect(() => {
     for (const container of [railRef.current, listRef.current]) {
       const item = container?.querySelector<HTMLElement>(
-        `[data-heading="${active}"]`,
+        `[data-heading="${first}"]`,
       );
       if (container && item) {
         revealWithin(container, item);
       }
     }
-  }, [active]);
+  }, [first]);
 
   const minLevel = Math.min(...headings.map((heading) => heading.level));
   const depthOf = (heading: OutlineHeading) =>
@@ -220,17 +243,11 @@ export function MarkdownOutline({
         (rect.top - viewport.top) / zoom -
         HEADING_SCROLL_MARGIN,
     );
-    setSelected(index);
     setPinned(false);
-    // A jump to where the document already is fires no scroll events, so
-    // nothing would ever clear the flag.
-    if (Math.abs(target - scrollElement.scrollTop) >= 1) {
-      programmaticScroll.current = true;
-      // Instant, not smooth: a long document is the one where an outline is
-      // worth having, and there a smooth scroll is a second or more of prose
-      // streaming past. The flash is what says where the view landed.
-      scrollElement.scrollTo({ behavior: "instant", top: target });
-    }
+    // Instant, not smooth: a long document is the one where an outline is
+    // worth having, and there a smooth scroll is a second or more of prose
+    // streaming past. The flash is what says where the view landed.
+    scrollElement.scrollTo({ behavior: "instant", top: target });
     flashJumpTarget(heading.element);
   };
 
@@ -241,13 +258,13 @@ export function MarkdownOutline({
     >
       {headings.map((heading, index) => (
         <button
-          aria-current={index === active ? "location" : undefined}
+          aria-current={inView(index) ? "location" : undefined}
           className={cn(
             "relative block w-full truncate rounded-md py-1 text-left text-xs/5 hover:bg-muted hover:text-foreground",
             // The first entry stops short of the toggle that sits beside it.
             index === 0 ? "pr-9" : "pr-2",
-            index === active
-              ? "text-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-foreground"
+            inView(index)
+              ? "text-foreground before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-foreground"
               : "text-muted-foreground",
           )}
           data-heading={index}
@@ -270,6 +287,7 @@ export function MarkdownOutline({
       <nav
         aria-label="Contents"
         className="group/column relative flex w-56 shrink-0 flex-col border-l border-border/60"
+        ref={navRef}
       >
         {list}
         {/* Beside the first entry, and only while the pointer is on the
@@ -303,6 +321,7 @@ export function MarkdownOutline({
       onPointerLeave={() => {
         setArmed(true);
       }}
+      ref={navRef}
     >
       {/* The rail: the height of the view, over the document's own gutter and
           clear of its scrollbar. */}
@@ -329,7 +348,7 @@ export function MarkdownOutline({
                 className={cn(
                   "h-0.5 shrink-0 rounded-full",
                   BAR_WIDTH_BY_DEPTH[depthOf(heading)],
-                  index === active ? "bg-foreground" : "bg-muted-foreground/35",
+                  inView(index) ? "bg-foreground" : "bg-muted-foreground/35",
                 )}
                 data-heading={index}
                 key={index}
@@ -385,6 +404,8 @@ export function MarkdownOutline({
 
 // Sits over the trailing end of the first entry's row: `top-2.5` centers a
 // 24px button on a 28px entry that starts under the list's 8px of padding.
+// Drawn on the surface it sits on, so whatever the list has scrolled under it
+// does not show through the glyph.
 function OutlineToggle({
   className,
   icon,
@@ -402,7 +423,10 @@ function OutlineToggle({
         <Button
           aria-label={label}
           className={toolbarClassName({
-            className: cn("absolute top-2.5 right-2 size-6", className),
+            className: cn(
+              "absolute top-2.5 right-2 size-6 bg-(--markdown-surface)",
+              className,
+            ),
             pressed: false,
           })}
           onClick={onClick}

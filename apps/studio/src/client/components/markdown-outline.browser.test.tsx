@@ -56,9 +56,11 @@ async function renderDocument(width: number, markdown = DOCUMENT) {
     [...document.querySelectorAll<HTMLElement>("nav [data-heading]")].filter(
       (element) => element.tagName === "BUTTON",
     );
+  // Every entry marked as on screen, in document order.
   const current = () =>
-    document.querySelector<HTMLElement>('[aria-current="location"]')
-      ?.textContent ?? null;
+    [
+      ...document.querySelectorAll<HTMLElement>('[aria-current="location"]'),
+    ].map((entry) => entry.textContent);
   // Read off computed style rather than through a role query: a hidden entry
   // is out of the accessibility tree, so a locator for it resolves to nothing
   // rather than to something invisible.
@@ -110,40 +112,47 @@ describe("MarkdownOutline", () => {
     expect(indents[2]).toBe("2rem");
   });
 
-  it("marks the section being read as the document scrolls", async () => {
+  it("marks every section on screen as the document scrolls", async () => {
     const { current, scroller } = await renderDocument(1000);
-    await expect.poll(current).toBe("Field notes");
+    // The title and whatever of the first section fits under it.
+    await expect.poll(() => current()[0]).toBe("Field notes");
+    await expect.poll(() => current().length).toBeGreaterThan(1);
 
-    // Under the reading line a quarter of the way down, then past it.
     const results = scroller.querySelector<HTMLElement>("h2:nth-of-type(3)");
     if (!results) {
       throw new Error("the Results heading did not render");
     }
+    // The Method section still shows 150px above Results, so both are lit.
     scroller.scrollTop = results.offsetTop - 150;
-    await expect.poll(current).toBe("Method");
-    scroller.scrollTop = results.offsetTop - 50;
-    await expect.poll(current).toBe("Results");
+    await expect
+      .poll(() => current().slice(0, 2))
+      .toEqual(["Method", "Results"]);
+    // A sliver of it is not enough.
+    scroller.scrollTop = results.offsetTop - 10;
+    await expect.poll(() => current()[0]).toBe("Results");
 
-    // The end of the document is the last section, however short it is.
+    // The end of the document lights everything still on screen, down to the
+    // last section however short it is.
     scroller.scrollTop = scroller.scrollHeight;
-    await expect.poll(current).toBe("Discussion");
+    await expect.poll(() => current().at(-1)).toBe("Discussion");
+    expect(current()).toContain("Caveats");
   });
 
-  it("jumps to a heading and holds it as current", async () => {
+  it("jumps to a heading, which marks it as the first on screen", async () => {
     const { current, headingTop, scroller } = await renderDocument(1000);
 
     await page.getByRole("button", { name: "Results" }).click();
 
     await expect.poll(() => Math.round(headingTop("Results"))).toBe(24);
-    expect(current()).toBe("Results");
+    expect(current()[0]).toBe("Results");
 
-    // A heading the document ends too soon after never reaches the reading
-    // line on its own; the jump is what marks it, until the reader scrolls.
+    // A heading the document ends too soon after cannot reach the top, but it
+    // is on screen, which is all being marked takes.
     await page.getByRole("button", { name: "Caveats" }).click();
     await expect
       .poll(() => scroller.scrollTop + scroller.clientHeight)
       .toBeGreaterThanOrEqual(scroller.scrollHeight - 1);
-    expect(current()).toBe("Caveats");
+    expect(current()).toContain("Caveats");
   });
 
   it("opens the list over a narrow document only while the rail is hovered", async () => {
@@ -155,9 +164,12 @@ describe("MarkdownOutline", () => {
     // arrives, and a hit-target check then finds an entry where it expected
     // the rail. That is the design: from here on the pointer is on an entry,
     // and a click is a jump rather than anything to do with the rail.
-    await userEvent.hover(page.getByRole("button", { exact: true, name: "Contents" }), {
-      force: true,
-    });
+    await userEvent.hover(
+      page.getByRole("button", { exact: true, name: "Contents" }),
+      {
+        force: true,
+      },
+    );
     await expect.poll(entryVisibility).toBe("visible");
     await page.getByRole("button", { name: "Results" }).click();
     await parkPointer();
@@ -166,9 +178,12 @@ describe("MarkdownOutline", () => {
 
   it("keeps the card closed while the document is moving", async () => {
     const { entryVisibility, scroller } = await renderDocument(480);
-    await userEvent.hover(page.getByRole("button", { exact: true, name: "Contents" }), {
-      force: true,
-    });
+    await userEvent.hover(
+      page.getByRole("button", { exact: true, name: "Contents" }),
+      {
+        force: true,
+      },
+    );
     await expect.poll(entryVisibility).toBe("visible");
 
     // Synthetic, because a real scroll's `scrollend` follows too closely to
@@ -177,6 +192,25 @@ describe("MarkdownOutline", () => {
     await expect.poll(entryVisibility).toBe("hidden");
     scroller.dispatchEvent(new Event("scrollend"));
     await expect.poll(entryVisibility).toBe("visible");
+  });
+
+  it("puts a pinned card away on a press outside it", async () => {
+    const { entryVisibility, scroller } = await renderDocument(480);
+    await parkPointer();
+
+    // A press on the bare rail pins the card. The rail is bare while the
+    // document is moving; without that the card, which opens without delay
+    // here, would be under the pointer first and take the press as a jump.
+    scroller.dispatchEvent(new Event("scroll"));
+    await page
+      .getByRole("button", { exact: true, name: "Contents" })
+      .click({ force: true });
+    scroller.dispatchEvent(new Event("scrollend"));
+    await parkPointer();
+    await expect.poll(entryVisibility).toBe("visible");
+
+    await page.getByRole("heading", { name: "Field notes" }).click();
+    await expect.poll(entryVisibility).toBe("hidden");
   });
 
   it("holds the list open from the keyboard until an entry is picked or Escape", async () => {
@@ -248,7 +282,9 @@ describe("MarkdownOutline", () => {
 
   it("hangs the rail in the gutter, clear of the scrollbar", async () => {
     const { scroller } = await renderDocument(480);
-    const rail = page.getByRole("button", { exact: true, name: "Contents" }).element();
+    const rail = page
+      .getByRole("button", { exact: true, name: "Contents" })
+      .element();
     const strip = rail.parentElement;
     if (!strip) {
       throw new Error("the rail did not render");

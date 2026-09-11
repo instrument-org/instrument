@@ -118,7 +118,7 @@ export function TaskFileViewerModal() {
     // from what opened the viewer.
     <TaskSessionProvider
       sessionId={state.sessionId}
-      taskId={currentFile.taskId}
+      taskId={currentFile.taskFile?.taskId}
     >
       <DialogPrimitive.Root
         onOpenChange={(open) => {

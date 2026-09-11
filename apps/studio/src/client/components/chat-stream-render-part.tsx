@@ -20,7 +20,6 @@ import { UnknownPart } from "./unknown-part";
 import { UserMessage } from "./user-message";
 
 export interface RenderPartContext {
-  assetBaseUrl: string;
   isAgentRunning: boolean;
   isDeveloperMode: boolean;
   isToolStreaming: (
@@ -73,7 +72,6 @@ export function renderChatPart({
       case "assistant": {
         return (
           <AssistantMessage
-            assetBaseUrl={ctx.assetBaseUrl}
             key={part.metadata.id}
             part={part}
             taskId={ctx.task.id}
@@ -142,7 +140,6 @@ export function renderChatPart({
     // stream's, not this row's.
     return (
       <ToolCall
-        assetBaseUrl={ctx.assetBaseUrl}
         isActivityRunning={isGroupWorking && ctx.isAgentRunning}
         isDeveloperMode={ctx.isDeveloperMode}
         // A part can carry a start with no end long after the run that wrote it

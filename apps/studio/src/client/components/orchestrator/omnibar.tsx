@@ -9,14 +9,10 @@ import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
-import {
-  fileHref,
-  mountOfHostPath,
-} from "@/client/components/orchestrator/file-tabs";
+import { fileHref } from "@/client/components/orchestrator/file-tabs";
 import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
-import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
@@ -178,9 +174,9 @@ export function Omnibar({
   /**
    * Opens a typed path where the field is: the folder in this tab, rooted
    * where the tab already is when the folder is under it, so the columns keep
-   * their place; a file as its tab when a granted folder covers it. Whether
-   * it is a folder is learned by asking for it as one, which is the read the
-   * folder view is about to make anyway.
+   * their place; a file as its tab. Whether it is a folder is learned by
+   * asking for it as one, which is the read the folder view is about to make
+   * anyway.
    */
   const openPath = async (written: string) => {
     const places = await queryClient.fetchQuery(
@@ -196,23 +192,15 @@ export function Omnibar({
         }),
       );
     } catch {
-      const state = await queryClient.fetchQuery(
-        rpcClient.workspace.task.state.get.queryOptions({
-          input: { id: taskId },
-        }),
-      );
-      const mount = mountOfHostPath(host, state.attachedFolders ?? {});
-      // Not a folder: a file, if one is there. Asked of the asset origin
-      // first, since opening a tab on nothing would close the tab this field
-      // sits in once the viewer found the file missing.
-      if (mount && (await fileExists(getAssetBaseUrl(taskId), mount))) {
-        router.history.push(fileHref(mount));
+      // Not a folder: a file, if one is there. Asked of the channel first,
+      // since opening a tab on nothing would close the tab this field sits in
+      // once the viewer found the file missing.
+      if (await fileExists(host)) {
+        router.history.push(fileHref(host));
         return;
       }
       toast(`Nothing at “${written}”`, {
-        description: mount
-          ? "No folder or file there."
-          : "Not a folder, and not a file in a folder Instrument can reach.",
+        description: "No folder or file there.",
       });
       return;
     }
@@ -628,13 +616,13 @@ function expandHome(path: string, home: string | undefined) {
 }
 
 /**
- * Whether the asset origin has a file at a virtual path. An origin that is
- * not up, or a request cut off, is not the file's absence, so those count as
+ * Whether there is a file at a path on the computer. A channel that is not
+ * up, or a request cut off, is not the file's absence, so those count as
  * present and the viewer says what it finds.
  */
-async function fileExists(assetBase: string, mount: string) {
+async function fileExists(hostPath: string) {
   try {
-    const response = await fetch(getAssetUrl({ assetBase, filePath: mount }), {
+    const response = await fetch(getComputerFileUrl({ hostPath }), {
       headers: { Range: "bytes=0-0" },
     });
     return response.status !== 404;

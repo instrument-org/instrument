@@ -72,6 +72,8 @@ const INTERNAL_IGNORE_PATTERNS = GitignorePatternsSchema.parse(
 const TaskFileSchema = z.object({
   filename: z.string(),
   filePath: RelativePathSchema,
+  /** Where the file is on the computer, which is what a viewer reads it by. */
+  hostPath: z.string(),
   mimeType: z.string(),
   modifiedAt: z.number(),
   size: z.number(),
@@ -270,12 +272,13 @@ export async function getTaskFileIndex(
 }
 
 export async function getTaskFiles(taskId: TaskId) {
-  const indexResult = await getTaskFileIndex(taskDir(taskId));
+  const dir = taskDir(taskId);
+  const indexResult = await getTaskFileIndex(dir);
   if (indexResult.isErr()) {
     return err(indexResult.error);
   }
 
-  return ok(taskFilesFromIndex(indexResult.value));
+  return ok(taskFilesFromIndex(dir, indexResult.value));
 }
 
 // The class of a throw carrying no errno, for the message above. Not the
@@ -309,15 +312,12 @@ function isIgnoredTaskPath(ignore: TaskFileIgnore, relativePath: string) {
   return ignore.ignores(relativePath) || ignore.ignores(`${relativePath}/`);
 }
 
-function taskFilesFromIndex(index: TaskFileIndex): TaskFile[] {
+function taskFilesFromIndex(dir: TaskDir, index: TaskFileIndex): TaskFile[] {
   return [...index.values()]
-    .map(toTaskFile)
+    .map(({ mtimeMs, ...file }) => ({
+      ...file,
+      hostPath: absolutePathJoin(dir, file.filePath),
+      modifiedAt: mtimeMs,
+    }))
     .sort((a, b) => a.filePath.localeCompare(b.filePath));
-}
-
-function toTaskFile({ mtimeMs, ...file }: TaskFileEntry): TaskFile {
-  return {
-    ...file,
-    modifiedAt: mtimeMs,
-  };
 }

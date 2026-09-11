@@ -1,4 +1,4 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
@@ -11,8 +11,8 @@ import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOut
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { useOpenTaskFile } from "../hooks/use-open-task-file";
-import { useTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
+import { useFileOpenTarget } from "../hooks/use-file-open-target";
+import { useOpenFile } from "../hooks/use-open-file";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { getRevealInFolderLabel } from "../lib/utils";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
@@ -34,12 +34,12 @@ export function FileActionsMenu({
   onAddToChat,
   variant = "ghost",
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   onAddToChat?: () => void;
   variant?: ButtonVariant;
 }) {
   const fileActions = useFileActionVisibility(file);
-  const { showOpen } = useTaskFileOpenTarget(file);
+  const { showOpen } = useFileOpenTarget(file);
 
   if (
     !onAddToChat &&
@@ -86,18 +86,18 @@ export function FileActionsMenuItems({
   // (e.g. a TIFF Chromium can't render) even though the file's mime type would
   // otherwise mark it copyable.
   canCopy?: boolean;
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   menuComponents: MenuComponents;
   onAddToChat?: () => void;
 }) {
   const { Item, Separator } = menuComponents;
   const fileActions = useFileActionVisibility(file);
   const showCopy = fileActions.showCopy && canCopy;
-  const openTaskFile = useOpenTaskFile();
-  const { openLabel, showOpen, showOpenWith } = useTaskFileOpenTarget(file);
+  const openFile = useOpenFile();
+  const { openLabel, showOpen, showOpenWith } = useFileOpenTarget(file);
 
-  const showTaskFileInFolderMutation = useMutation(
-    rpcClient.utils.showTaskFileInFolder.mutationOptions({
+  const showFileInFolderMutation = useMutation(
+    rpcClient.utils.showFileInFolder.mutationOptions({
       onError: (error) => {
         const label = getRevealInFolderLabel();
         const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
@@ -113,8 +113,7 @@ export function FileActionsMenuItems({
   const handleCopy = async () => {
     try {
       await copyFileToClipboard({
-        filePath: file.filePath,
-        id: file.taskId,
+        hostPath: file.hostPath,
         // A hint only: the main process sniffs the bytes it just read and
         // treats this as the answer to "image or text" for a file that really
         // is binary.
@@ -131,10 +130,7 @@ export function FileActionsMenuItems({
   };
 
   const handleRevealInFolder = () => {
-    showTaskFileInFolderMutation.mutate({
-      filePath: file.filePath,
-      id: file.taskId,
-    });
+    showFileInFolderMutation.mutate({ filepath: file.hostPath });
   };
 
   const hasFileActions =
@@ -150,7 +146,7 @@ export function FileActionsMenuItems({
         <>
           <Item
             onClick={() => {
-              openTaskFile(file);
+              openFile(file);
             }}
           >
             <OpenTargetIcon className="size-4" file={file} />

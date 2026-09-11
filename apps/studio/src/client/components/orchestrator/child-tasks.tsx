@@ -16,16 +16,19 @@ import { rpcClient } from "@/client/rpc/client";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
 import {
   decodeBrowserTargetId,
+  isFolderPath,
   type Task,
 } from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import ms from "ms";
-import { type ReactNode, useContext } from "react";
+import { type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { TabIcon } from "./browser-tabs";
 import { useOrchestrator } from "./context";
-import { conversationPathOfTaskPath } from "./file-tabs";
+import { fileHref, folderHref } from "./file-tabs";
 import { useNewestSessionId } from "./newest-session";
 
 /** How often a task's sessions and standing are re-read while it is open. */
@@ -85,7 +88,7 @@ export function ChildTranscript({ task }: { task: Task }) {
               {/* Names the task and session for the links inside, so a page
                   the task names offers its browser as well as the user's. */}
               <TaskSessionProvider sessionId={sessionId} taskId={task.id}>
-                {/* Task paths are translated to the conversation's mounts before navigation. */}
+                {/* Task paths are placed on the computer through the task's own layout before navigation. */}
                 <FileOpenContext value={openFile}>
                   <ChatStream
                     isAgentRunning={isWorking}
@@ -285,33 +288,31 @@ function TaskBrief({ task }: { task: Task }) {
  *
  * A reply writes the paths the task works in, which is the whole of what it
  * knows: `output/report.md` is its own folder, and a folder it was handed
- * wears the name it was mounted under there. The window has neither -- it
- * shows a file through the conversation, whose mounts are its own -- so the
- * path is translated before a tab is asked for it. Untranslated, a card in a
- * task's reply opens a tab reporting a file that was never in the
- * conversation's folder.
+ * wears the name it was mounted under there. The window addresses a tab by
+ * where the file is on the computer, so the path is placed there through the
+ * task's own layout before a tab is asked for it. A path the task cannot
+ * reach opens nothing, and says so.
  */
 function useOpenFileNamedByTask(taskId: Task["id"]) {
-  const orchestrator = useOrchestrator();
-  // The window's own opener, which this stands in front of rather than
-  // replaces: where a file opens is the window's business either way.
-  const openInWindow = useContext(FileOpenContext);
-  const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
-  );
-  const conversation = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({
-      input: { id: orchestrator.taskId },
-    }),
-  );
-  return (filePath: string) => {
-    openInWindow?.(
-      conversationPathOfTaskPath({
-        attachedFolders: state.data?.attachedFolders ?? {},
-        conversationFolders: conversation.data?.attachedFolders ?? {},
-        path: filePath,
-        taskId,
-      }),
-    );
+  const { openScreen } = useOrchestrator();
+  return (filePath: string, options?: { newTab?: boolean }) => {
+    const isFolder = isFolderPath(filePath);
+    const bare = isFolder ? filePath.slice(0, -1) : filePath;
+    void (async () => {
+      const [error, hostPaths] = await safe(
+        rpcClient.workspace.task.files.hostPaths.call({
+          filePaths: [bare],
+          taskId,
+        }),
+      );
+      const hostPath = hostPaths?.[bare];
+      if (error || !hostPath) {
+        toast(`Nothing at “${filePath}”`, {
+          description: "Not a path the task can reach.",
+        });
+        return;
+      }
+      openScreen(isFolder ? folderHref(hostPath) : fileHref(hostPath), options);
+    })();
   };
 }

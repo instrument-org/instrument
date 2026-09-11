@@ -7,6 +7,22 @@ import { AgentFilesBlock } from "./agent-files-block";
 import { FilesLayoutContext } from "./files-layout-context";
 import { MarkdownTaskContext } from "./markdown-task-context";
 
+// Where the task's files are, answered without a task: every path under one
+// folder, so the fence has somewhere to read a file from.
+vi.mock("@/client/hooks/use-host-paths", () => ({
+  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+    Object.fromEntries(
+      filePaths.map((filePath) => [
+        filePath,
+        `/Users/casey/tasks/quarterly-numbers/${filePath}`,
+      ]),
+    ),
+}));
+vi.mock("@/client/lib/computer-file-url", () => ({
+  getComputerFileUrl: ({ hostPath }: { hostPath: string }) =>
+    `http://files.example.test${hostPath}`,
+}));
+
 /**
  * What a ```files fence lays out, which jsdom cannot answer: with no layout
  * engine every tile is zero by zero and the numbers below are all the same
@@ -42,7 +58,6 @@ function drawFence(
     <div style={{ width }}>
       <MarkdownTaskContext
         value={{
-          assetBaseUrl: "http://assets.example.test",
           isStreaming,
           taskId: TaskIdSchema.parse("quarterly-numbers"),
         }}

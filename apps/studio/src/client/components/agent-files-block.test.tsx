@@ -1,4 +1,4 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { renderWithProviders } from "@/tests/render";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
@@ -15,7 +15,7 @@ vi.mock("./files-grid", () => ({
     pendingFilePath,
     preserveOrder,
   }: {
-    files: TaskFileViewerFile[];
+    files: ViewerFile[];
     pendingFilePath?: string;
     preserveOrder?: boolean;
   }) => (
@@ -24,28 +24,50 @@ vi.mock("./files-grid", () => ({
       data-preserve-order={String(preserveOrder)}
     >
       {files.map((file) => (
-        <li key={file.filePath}>{`${file.filePath} @ ${file.url}`}</li>
+        <li key={file.hostPath}>
+          {`${file.taskFile?.filePath ?? "?"} @ ${file.hostPath} @ ${file.url}`}
+        </li>
       ))}
     </ul>
   ),
 }));
 
-// A fence draws from its paths and asks the server nothing, so any call at all
-// is the failure. Every case below runs against this, which is what makes them
-// evidence for that rule rather than just for their own output.
+// A fence asks the task's layout where its files are and nothing else, so the
+// one thing it may reach is the resolver, answered here from the task's
+// folder and the user's shared folders. Every other call is the failure.
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: new Proxy(
     {},
     {
       get() {
-        throw new Error("a rendering fence resolved a file over the network");
+        throw new Error("a rendering fence reached the server");
       },
     },
   ),
 }));
+vi.mock("@/client/hooks/use-host-paths", () => ({
+  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+    Object.fromEntries(
+      filePaths.map((filePath) => [
+        filePath,
+        filePath.startsWith("/mnt/")
+          ? `/Users/casey/${filePath.slice("/mnt/".length)}`
+          : `/Users/casey/tasks/a-task/${filePath}`,
+      ]),
+    ),
+}));
+vi.mock("@/client/lib/computer-file-url", () => ({
+  getComputerFileUrl: ({
+    hostPath,
+    version,
+  }: {
+    hostPath: string;
+    version?: string;
+  }) =>
+    `instrument://computer-test${hostPath}${version === undefined ? "" : `?version=${version}`}`,
+}));
 
 const TASK_ID = TaskIdSchema.parse("a-task");
-const ASSET_BASE = "http://assets.a-task.localhost:1234";
 
 function renderBlock(
   content: string,
@@ -64,7 +86,6 @@ function renderBlock(
       value={
         inTask
           ? {
-              assetBaseUrl: ASSET_BASE,
               assetVersion,
               isStreaming,
               taskId: TASK_ID,
@@ -86,8 +107,8 @@ describe("AgentFilesBlock", () => {
 
     expect(shownFiles()).toMatchInlineSnapshot(`
       [
-        "output/notes.md @ http://assets.a-task.localhost:1234/output/notes.md",
-        "output/chart.png @ http://assets.a-task.localhost:1234/output/chart.png",
+        "output/notes.md @ /Users/casey/tasks/a-task/output/notes.md @ instrument://computer-test/Users/casey/tasks/a-task/output/notes.md",
+        "output/chart.png @ /Users/casey/tasks/a-task/output/chart.png @ instrument://computer-test/Users/casey/tasks/a-task/output/chart.png",
       ]
     `);
   });
@@ -104,7 +125,7 @@ describe("AgentFilesBlock", () => {
 
     expect(both.filter((file) => !first.includes(file))).toMatchInlineSnapshot(`
       [
-        "output/chart.png @ http://assets.a-task.localhost:1234/output/chart.png?version=prt_second",
+        "output/chart.png @ /Users/casey/tasks/a-task/output/chart.png @ instrument://computer-test/Users/casey/tasks/a-task/output/chart.png?version=prt_second",
       ]
     `);
   });
@@ -116,20 +137,22 @@ describe("AgentFilesBlock", () => {
 
     expect(shownFiles()).toMatchInlineSnapshot(`
       [
-        "/mnt/Photos/cat.png @ http://assets.a-task.localhost:1234/mnt/Photos/cat.png",
+        "/mnt/Photos/cat.png @ /Users/casey/Photos/cat.png @ instrument://computer-test/Users/casey/Photos/cat.png",
       ]
     `);
   });
 
   // A trailing slash names a folder, and a folder is not a file the grid can
-  // draw a preview of: asked for one, the asset origin answers 404, which is a
+  // draw a preview of: asked for one, the channel answers 404, which is a
   // card reading "Missing" over a folder sitting where the reply said it was.
   it("keeps a folder out of the grid and names it beside", () => {
     renderBlock("/mnt/Instrument/backups/\n/mnt/Instrument/report.html");
 
-    expect(shownFiles()).toEqual([
-      "/mnt/Instrument/report.html @ http://assets.a-task.localhost:1234/mnt/Instrument/report.html",
-    ]);
+    expect(shownFiles()).toMatchInlineSnapshot(`
+      [
+        "/mnt/Instrument/report.html @ /Users/casey/Instrument/report.html @ instrument://computer-test/Users/casey/Instrument/report.html",
+      ]
+    `);
     expect(screen.getByRole("button").textContent).toBe("backups");
   });
 
@@ -145,9 +168,11 @@ describe("AgentFilesBlock", () => {
   it("draws a card for a path with nothing behind it", () => {
     renderBlock("output/gone.png");
 
-    expect(shownFiles()).toEqual([
-      "output/gone.png @ http://assets.a-task.localhost:1234/output/gone.png",
-    ]);
+    expect(shownFiles()).toMatchInlineSnapshot(`
+      [
+        "output/gone.png @ /Users/casey/tasks/a-task/output/gone.png @ instrument://computer-test/Users/casey/tasks/a-task/output/gone.png",
+      ]
+    `);
   });
 
   // The paths come from model output, so a host path can turn up among them.
@@ -166,9 +191,11 @@ describe("AgentFilesBlock", () => {
   it("draws only the lines a streaming fence has finished", () => {
     renderBlock("output/chart.png\noutput/gon", { isStreaming: true });
 
-    expect(shownFiles()).toEqual([
-      "output/chart.png @ http://assets.a-task.localhost:1234/output/chart.png",
-    ]);
+    expect(shownFiles()).toMatchInlineSnapshot(`
+      [
+        "output/chart.png @ /Users/casey/tasks/a-task/output/chart.png @ instrument://computer-test/Users/casey/tasks/a-task/output/chart.png",
+      ]
+    `);
   });
 
   // Not drawn, but not ignored either: the grid holds the room the card will
@@ -209,9 +236,11 @@ describe("AgentFilesBlock", () => {
   it("ignores a stray line that was never meant as a path", () => {
     renderBlock("Here are your files\noutput/chart.png");
 
-    expect(shownFiles()).toEqual([
-      "output/chart.png @ http://assets.a-task.localhost:1234/output/chart.png",
-    ]);
+    expect(shownFiles()).toMatchInlineSnapshot(`
+      [
+        "output/chart.png @ /Users/casey/tasks/a-task/output/chart.png @ instrument://computer-test/Users/casey/tasks/a-task/output/chart.png",
+      ]
+    `);
     expect(screen.queryByText(/Here are your files/u)).toBeNull();
   });
 

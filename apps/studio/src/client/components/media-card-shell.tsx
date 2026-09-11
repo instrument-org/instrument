@@ -1,4 +1,4 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -49,7 +49,7 @@ export function MediaCardShell({
    * menu, none of the hover chrome that promises one.
    */
   disabled?: boolean;
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
   onClick: () => void;
@@ -181,7 +181,7 @@ export function MediaCardShell({
           <div className="pointer-events-none absolute inset-0" />
         </TooltipTrigger>
         <TooltipContent>
-          <span className="break-all">{file.filePath}</span>
+          <span className="break-all">{file.hostPath}</span>
         </TooltipContent>
       </Tooltip>
     </div>

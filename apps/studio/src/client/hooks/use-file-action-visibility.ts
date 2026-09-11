@@ -1,4 +1,4 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { isFileDownloadable } from "@/client/lib/file-actions";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 
@@ -37,7 +37,7 @@ const IS_TEXT_LIKE: Record<FileType, boolean> = {
 // URL, not from whether it is on disk: an action that turns out to have no file
 // behind it says so when it runs, which is both accurate and later than any
 // check made while drawing the menu could be.
-export function useFileActionVisibility(file: TaskFileViewerFile) {
+export function useFileActionVisibility(file: ViewerFile) {
   const fileType = getFileType(file);
   const isDownloadable = isFileDownloadable(file.url);
   // The clipboard takes an image natively and text as a paste. Nothing else has

@@ -1,9 +1,8 @@
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { FolderAttachmentRow } from "@/client/components/folder-attachment-row";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
-import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
-import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { getFileKindLabel } from "@/client/lib/get-file-type";
 import { shouldFilterTaskFile } from "@/client/lib/task-file-groups";
 import { cn } from "@/client/lib/utils";
@@ -23,6 +22,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+
+/** A file of the task's own folder: always the task's, so its own path is certain. */
+export type TaskTreeFile = Required<Pick<ViewerFile, "taskFile">> & ViewerFile;
 
 import { FileActionsMenuItems } from "../file-actions-menu";
 import { FileThumbnail } from "../file-thumbnail";
@@ -60,7 +62,7 @@ type AttachedFolder = NonNullable<
 
 type FileTreeNode =
   | { children: FileTreeNode[]; kind: "dir"; name: string }
-  | { file: TaskFileViewerFile; kind: "file" };
+  | { file: TaskTreeFile; kind: "file" };
 
 /**
  * How often the list re-walks the task directory while it is on screen.
@@ -81,7 +83,7 @@ export function TaskFiles({
 }: {
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
-  onFileSelect: (file: TaskFileViewerFile) => void;
+  onFileSelect: (file: TaskTreeFile) => void;
   task: Task;
 }) {
   const { data: files, error } = useQuery(
@@ -90,25 +92,25 @@ export function TaskFiles({
       refetchInterval: REFETCH_INTERVAL_MS,
     }),
   );
-  const assetBaseUrl = getAssetBaseUrl(task.id);
-
   const computed = useMemo(() => {
     if (!files) {
       return null;
     }
 
-    const toViewerFile = (f: (typeof files)[number]): TaskFileViewerFile => ({
-      ...f,
-      taskId: task.id,
-      url: getAssetUrl({
-        assetBase: assetBaseUrl,
-        filePath: f.filePath,
+    const toViewerFile = (f: (typeof files)[number]): TaskTreeFile => ({
+      filename: f.filename,
+      hostPath: f.hostPath,
+      mimeType: f.mimeType,
+      modifiedAt: f.modifiedAt,
+      taskFile: { filePath: f.filePath, taskId: task.id },
+      url: getComputerFileUrl({
+        hostPath: f.hostPath,
         version: f.modifiedAt,
       }),
     });
 
-    const visibleFiles: TaskFileViewerFile[] = [];
-    const hiddenFiles: TaskFileViewerFile[] = [];
+    const visibleFiles: TaskTreeFile[] = [];
+    const hiddenFiles: TaskTreeFile[] = [];
 
     for (const f of files) {
       if (shouldFilterTaskFile(f.filePath)) {
@@ -127,7 +129,7 @@ export function TaskFiles({
       tree: buildTree(visibleFiles),
       visibleFiles,
     };
-  }, [files, task.id, assetBaseUrl]);
+  }, [files, task.id]);
 
   if (!computed) {
     // A failed poll leaves the last list on screen, so this is the first read
@@ -212,7 +214,7 @@ export function TaskFiles({
           <SidebarMenuItem>
             <CollapsibleTreeSection
               forceOpen={computed.hiddenFiles.some(
-                (f) => f.filePath === activeFilePath,
+                (f) => f.taskFile.filePath === activeFilePath,
               )}
               label="Other files"
               labelClassName="text-muted-foreground/60"
@@ -279,11 +281,11 @@ function AttachedFolderRow({
   );
 }
 
-function buildTree(files: TaskFileViewerFile[]): FileTreeNode[] {
+function buildTree(files: TaskTreeFile[]): FileTreeNode[] {
   const root: FileTreeNode[] = [];
 
   for (const file of files) {
-    const parts = file.filePath.split("/");
+    const parts = file.taskFile.filePath.split("/");
     let nodes = root;
 
     for (let i = 0; i < parts.length - 1; i++) {
@@ -325,7 +327,7 @@ function FileRow({
   isActive,
   onClick,
 }: {
-  file: TaskFileViewerFile;
+  file: TaskTreeFile;
   isActive: boolean;
   onClick: () => void;
 }) {
@@ -334,8 +336,8 @@ function FileRow({
 
   const handleAddToChat = () => {
     appendToPrompt({
-      key: { scope: "task", taskId: file.taskId },
-      update: file.filePath,
+      key: { scope: "task", taskId: file.taskFile.taskId },
+      update: file.taskFile.filePath,
     });
   };
 
@@ -469,7 +471,7 @@ function dirContainsActive(
   }
   for (const child of node.children) {
     if (child.kind === "file") {
-      if (child.file.filePath === activeFilePath) {
+      if (child.file.taskFile.filePath === activeFilePath) {
         return true;
       }
     } else if (dirContainsActive(child, activeFilePath)) {
@@ -493,14 +495,14 @@ function TreeNode({
   activeFilePath: null | string;
   defaultOpen?: boolean;
   node: FileTreeNode;
-  onFileClick: (file: TaskFileViewerFile) => void;
+  onFileClick: (file: TaskTreeFile) => void;
   treeDepth?: number;
 }) {
   if (node.kind === "file") {
     return (
       <FileRow
         file={node.file}
-        isActive={node.file.filePath === activeFilePath}
+        isActive={node.file.taskFile.filePath === activeFilePath}
         onClick={() => {
           onFileClick(node.file);
         }}

@@ -1,5 +1,5 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useTaskFileOpenTarget } from "@/client/hooks/use-task-file-open-target";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 
 import { FileIcon } from "./file-icon";
 import { IconWithFallback } from "./icon-with-fallback";
@@ -11,10 +11,10 @@ export function OpenTargetIcon({
   file,
 }: {
   className?: string;
-  file: Pick<TaskFileViewerFile, "filePath" | "taskId">;
+  file: Pick<ViewerFile, "hostPath">;
 }) {
-  const { iconUrl } = useTaskFileOpenTarget(file);
-  const filename = file.filePath.split("/").pop() ?? file.filePath;
+  const { iconUrl } = useFileOpenTarget(file);
+  const filename = file.hostPath.split(/[/\\]/).pop() ?? file.hostPath;
 
   return (
     <IconWithFallback

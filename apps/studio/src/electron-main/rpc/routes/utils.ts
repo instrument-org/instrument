@@ -35,12 +35,9 @@ import {
 } from "@/shared/schemas/editors";
 import {
   ProjectIdSchema,
-  readTaskFile,
   resolveProjectDir,
-  resolveWorkspaceFilePath,
   taskDir,
   TaskIdSchema,
-  WorkspaceFilePathSchema,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator } from "@orpc/server";
@@ -354,59 +351,18 @@ const openTaskIn = base
     }
   });
 
-const openTaskFile = base
+/** A path on this computer, which is how the renderer names every file it shows. */
+const HostPathSchema = z
+  .string()
+  .refine((val) => path.isAbsolute(val), "Path must be absolute");
+
+const openFileWith = base
   .errors({
     ERROR_OPENING_FILE: {
       message: "Error opening file",
     },
     FILE_NOT_FOUND: {
       message: "File not found",
-    },
-    INVALID_PATH: {
-      message: "Invalid file path",
-    },
-  })
-  .input(
-    z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
-    });
-    if (!fullPath) {
-      throw errors.INVALID_PATH();
-    }
-
-    try {
-      await fs.access(fullPath);
-    } catch {
-      throw errors.FILE_NOT_FOUND();
-    }
-
-    // openPath resolves with "" on success and an error string on failure
-    // (e.g. no app is associated with the type). That's an expected
-    // user-environment outcome, not an app bug, so it's surfaced to the client
-    // as a typed error and skipped by the RPC exception capture.
-    const errorMessage = await shell.openPath(fullPath);
-    if (errorMessage) {
-      throw errors.ERROR_OPENING_FILE({ message: errorMessage });
-    }
-  });
-
-const openTaskFileWith = base
-  .errors({
-    ERROR_OPENING_FILE: {
-      message: "Error opening file",
-    },
-    FILE_NOT_FOUND: {
-      message: "File not found",
-    },
-    INVALID_PATH: {
-      message: "Invalid file path",
     },
     UNSUPPORTED_PLATFORM: {
       message: "Choosing an app is only supported on macOS",
@@ -415,8 +371,7 @@ const openTaskFileWith = base
   .input(
     z.object({
       appPath: z.string().refine((val) => path.isAbsolute(val)),
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
+      filePath: HostPathSchema,
     }),
   )
   .handler(async ({ errors, input }) => {
@@ -424,28 +379,20 @@ const openTaskFileWith = base
       throw errors.UNSUPPORTED_PLATFORM();
     }
 
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
-    });
-    if (!fullPath) {
-      throw errors.INVALID_PATH();
-    }
-
     try {
-      await fs.access(fullPath);
+      await fs.access(input.filePath);
     } catch {
       throw errors.FILE_NOT_FOUND();
     }
 
     try {
-      const candidates = await getFileOpenCandidates(fullPath);
+      const candidates = await getFileOpenCandidates(input.filePath);
       if (!candidates.some(({ appPath }) => appPath === input.appPath)) {
         throw errors.ERROR_OPENING_FILE();
       }
       // execFile (not a shell) so the app path and file path can't be
       // interpreted as shell syntax.
-      await execFileAsync("open", ["-a", input.appPath, fullPath]);
+      await execFileAsync("open", ["-a", input.appPath, input.filePath]);
     } catch (error) {
       throw errors.ERROR_OPENING_FILE({
         message: error instanceof Error ? error.message : undefined,
@@ -455,40 +402,21 @@ const openTaskFileWith = base
 
 // Default-app name and icon for "Open in {app}" affordances. Fields are null
 // when the platform can't resolve them; callers fall back to generic ones.
-const getTaskFileOpenTarget = base
-  .input(
-    z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
-    }),
-  )
+const fileOpenTarget = base
+  .input(z.object({ filePath: HostPathSchema }))
   .output(
     z.object({
       appName: z.string().nullable(),
       iconUrl: z.string().nullable(),
     }),
   )
-  .handler(async ({ input }) => {
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
-    });
-    if (!fullPath) {
-      return { appName: null, iconUrl: null };
-    }
-    return await getFileOpenTarget(fullPath);
-  });
+  .handler(({ input }) => getFileOpenTarget(input.filePath));
 
 // Every app that can open the file, for an "Open with" picker. The system's own
 // choice carries `isDefault`; its position in the list is not meaningful.
 // Empty on non-macOS platforms, which lack a portable enumeration.
-const getTaskFileOpenCandidates = base
-  .input(
-    z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
-    }),
-  )
+const fileOpenCandidates = base
+  .input(z.object({ filePath: HostPathSchema }))
   .output(
     z.object({
       apps: z.array(
@@ -501,16 +429,9 @@ const getTaskFileOpenCandidates = base
       ),
     }),
   )
-  .handler(async ({ input }) => {
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
-    });
-    if (!fullPath) {
-      return { apps: [] };
-    }
-    return { apps: await getFileOpenCandidates(fullPath) };
-  });
+  .handler(async ({ input }) => ({
+    apps: await getFileOpenCandidates(input.filePath),
+  }));
 
 /** Open a file or folder of the computer in the app the Mac would use. */
 const openPath = base
@@ -550,38 +471,6 @@ const showFileInFolder = base
     try {
       await fs.access(input.filepath);
       shell.showItemInFolder(input.filepath);
-    } catch {
-      throw errors.FILE_NOT_FOUND();
-    }
-  });
-
-const showTaskFileInFolder = base
-  .errors({
-    FILE_NOT_FOUND: {
-      message: "File not found",
-    },
-    INVALID_PATH: {
-      message: "Invalid file path",
-    },
-  })
-  .input(
-    z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
-    }),
-  )
-  .handler(async ({ errors, input }) => {
-    const fullPath = await resolveWorkspaceFilePath({
-      filePath: input.filePath,
-      taskId: input.id,
-    });
-    if (!fullPath) {
-      throw errors.INVALID_PATH();
-    }
-
-    try {
-      await fs.access(fullPath);
-      shell.showItemInFolder(fullPath);
     } catch {
       throw errors.FILE_NOT_FOUND();
     }
@@ -874,19 +763,15 @@ const copyFileToClipboard = base
   })
   .input(
     z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
+      filePath: HostPathSchema,
       isImage: z.boolean(),
     }),
   )
-  .handler(async ({ errors, input, signal }) => {
-    const buffer = await readTaskFile({
-      filePath: input.filePath,
-      signal,
-      taskId: input.id,
-    });
-
-    if (!buffer) {
+  .handler(async ({ errors, input }) => {
+    let buffer: Buffer;
+    try {
+      buffer = await fs.readFile(input.filePath);
+    } catch {
       throw errors.FILE_NOT_FOUND();
     }
 
@@ -903,19 +788,11 @@ const copyFileToClipboard = base
   });
 
 // Warms what a native drag of this file will need. Separate from starting the
-// drag, which cannot wait on anything: see electron-main/lib/file-drag. Says
-// nothing about whether the file resolved, because there is nothing useful for
-// the caller to do about it -- a drag with nothing behind it simply does not
-// start.
-const prepareTaskFileDrag = base
-  .input(
-    z.object({
-      filePath: WorkspaceFilePathSchema,
-      id: TaskIdSchema,
-    }),
-  )
+// drag, which cannot wait on anything: see electron-main/lib/file-drag.
+const prepareDrag = base
+  .input(z.object({ filePath: HostPathSchema }))
   .handler(async ({ input }) => {
-    await prepareFileDrag({ filePath: input.filePath, taskId: input.id });
+    await prepareFileDrag({ filePath: input.filePath });
   });
 
 const showFolderPicker = base
@@ -967,25 +844,23 @@ export const utils = {
   displayProtocol,
   events,
   exportZip,
+  fileOpenCandidates,
+  fileOpenTarget,
   getSupportedEditors,
-  getTaskFileOpenCandidates,
-  getTaskFileOpenTarget,
   live,
   minimizeWindow,
   openExternalLink,
+  openFileWith,
   openFolder,
   openPath,
-  openTaskFile,
-  openTaskFileWith,
   openTaskIn,
-  prepareTaskFileDrag,
+  prepareDrag,
   readDiagnosticLog,
   saveDiagnosticLog,
   showContextMenu,
   showFileInFolder,
   showFolderPicker,
   showProjectInFolder,
-  showTaskFileInFolder,
   syncZoom,
   toggleMaximizeWindow,
 };

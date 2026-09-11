@@ -27,21 +27,41 @@ export async function resolveWorkspaceFilePath({
   filePath: WorkspaceFilePath;
   taskId: TaskId;
 }): Promise<AbsolutePath | null> {
+  const resolved = await resolveWorkspaceFilePaths({
+    filePaths: [filePath],
+    taskId,
+  });
+  return resolved.get(filePath) ?? null;
+}
+
+/**
+ * The same, for every path a surface is about to show at once, against one
+ * reading of the task's layout: a transcript names many files and each
+ * would otherwise cost a read of the task's record and settings.
+ */
+export async function resolveWorkspaceFilePaths({
+  filePaths,
+  taskId,
+}: {
+  filePaths: readonly WorkspaceFilePath[];
+  taskId: TaskId;
+}): Promise<Map<WorkspaceFilePath, AbsolutePath | null>> {
   const taskHostRoot = taskDir(taskId);
   const taskState = await getTaskState(taskHostRoot);
   const settings = await getTaskSettings(taskHostRoot);
-  const resolved = resolveExistingFilePath({
-    inputPath: filePath,
-    layout: buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      extraMounts:
-        settings?.kind === "orchestrator"
-          ? await childTaskMounts(taskId)
-          : undefined,
-      projectFolderName: await resolveTaskProjectFolder(taskId),
-      taskHostRoot,
-    }),
+  const layout = buildWorkspaceFsLayout({
+    attachedFolders: taskState.attachedFolders,
+    extraMounts:
+      settings?.kind === "orchestrator"
+        ? await childTaskMounts(taskId)
+        : undefined,
+    projectFolderName: await resolveTaskProjectFolder(taskId),
+    taskHostRoot,
   });
-
-  return resolved.isErr() ? null : resolved.value.absolutePath;
+  return new Map(
+    filePaths.map((filePath) => {
+      const resolved = resolveExistingFilePath({ inputPath: filePath, layout });
+      return [filePath, resolved.isErr() ? null : resolved.value.absolutePath];
+    }),
+  );
 }

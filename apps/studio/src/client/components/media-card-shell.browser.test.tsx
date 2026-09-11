@@ -1,5 +1,4 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { type TaskId } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 
 // Every assertion here is about what the pointer can reach, which is a question
@@ -8,10 +7,9 @@ import { MediaCardShell } from "./media-card-shell";
 
 const FILE = {
   filename: "clip.mp4",
-  filePath: "/task/clip.mp4",
+  hostPath: "/Users/casey/tasks/task_1/clip.mp4",
   mimeType: "video/mp4",
   modifiedAt: 0,
-  taskId: "task_1" as TaskId,
   url: "blob:none",
 };
 

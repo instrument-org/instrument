@@ -1,13 +1,13 @@
 import type { RefObject } from "react";
 
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
+import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
 import {
   FILE_MISSING_LABEL,
   useFilePresence,
 } from "@/client/hooks/use-file-presence";
-import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
@@ -17,7 +17,7 @@ import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PlayIcon } from "@phosphor-icons/react/Play";
 import { useRef, useState } from "react";
 
-import { usePrefetchTaskFileOpenTarget } from "../hooks/use-task-file-open-target";
+import { usePrefetchFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
@@ -41,7 +41,7 @@ export function FilePreviewCard({
   onClick,
   shape,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   hideActionsMenu?: boolean;
   isSelected?: boolean;
   onClick: () => void;
@@ -146,13 +146,13 @@ function FileRowCard({
   isSelected,
   onClick,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   hideActionsMenu?: boolean;
   isMissing?: boolean;
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, filePath } = file;
+  const { filename, hostPath } = file;
   const dragProps = useFileDrag(file);
   const fileActions = useFileActionVisibility(file);
   const hasFileActions =
@@ -160,7 +160,7 @@ function FileRowCard({
     fileActions.showDownload ||
     fileActions.showOpen ||
     fileActions.showReveal;
-  const prefetchOpenTarget = usePrefetchTaskFileOpenTarget();
+  const prefetchOpenTarget = usePrefetchFileOpenTarget();
 
   const row = (
     <div
@@ -205,7 +205,7 @@ function FileRowCard({
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            <span className="break-all">{filePath}</span>
+            <span className="break-all">{hostPath}</span>
           </TooltipContent>
         </Tooltip>
         <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
@@ -256,7 +256,7 @@ function ImagePreviewCard({
   onClick,
   shape,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   hideActionsMenu?: boolean;
   isMissing?: boolean;
   isSelected?: boolean;
@@ -267,17 +267,14 @@ function ImagePreviewCard({
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
-  const openControl = useTaskFileOpenControl(
-    resolveOpenTarget ? file : undefined,
-  );
+  const openControl = useFileOpenControl(resolveOpenTarget ? file : undefined);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
   const showCopy = fileActions.showCopy && !imageLoadError;
 
   const handleCopy = async () => {
     try {
       await copyFileToClipboard({
-        filePath: file.filePath,
-        id: file.taskId,
+        hostPath: file.hostPath,
         isImage: getFileType(file) === "image",
       });
       triggerCopied();
@@ -397,7 +394,7 @@ function VideoPreviewCard({
   videoProgress,
   videoRef,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   handleMouseEnter: () => void;
   handleMouseLeave: () => void;
   hideActionsMenu?: boolean;
@@ -416,9 +413,7 @@ function VideoPreviewCard({
   const { url } = file;
   const fileActions = useFileActionVisibility(file);
   const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
-  const openControl = useTaskFileOpenControl(
-    resolveOpenTarget ? file : undefined,
-  );
+  const openControl = useFileOpenControl(resolveOpenTarget ? file : undefined);
 
   const hasActions =
     !hideActionsMenu && (fileActions.showDownload || openControl.showOpen);

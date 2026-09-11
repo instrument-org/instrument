@@ -9,6 +9,7 @@ import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
+import { segmentsOf } from "./host-path";
 import { type TabLocation } from "./tab-location";
 import { parseHref } from "./window-tabs";
 
@@ -30,7 +31,11 @@ export function screenLocation(
   if (pathname === "/orchestrator/computer") {
     const file = search.get("file");
     if (file) {
-      return { kind: "file", name: file.split("/").at(-1) ?? file, path: file };
+      return {
+        kind: "file",
+        name: segmentsOf(file).at(-1) ?? file,
+        path: file,
+      };
     }
     return { kind: "folder", path: search.get("path") ?? "" };
   }
@@ -76,7 +81,7 @@ export function screenPresentation(
   if (pathname === "/orchestrator/computer") {
     const file = search.get("file");
     if (file) {
-      const name = file.split("/").at(-1) ?? file;
+      const name = segmentsOf(file).at(-1) ?? file;
       return {
         icon: <FileIcon className="size-4" filename={name} />,
         title: name,

@@ -35,7 +35,6 @@ import { ViewChip } from "@/client/components/orchestrator/conversation-chrome";
 import {
   fileHref,
   folderHref,
-  hostPathOfMount,
 } from "@/client/components/orchestrator/file-tabs";
 import { NewChannelDialog } from "@/client/components/orchestrator/new-channel-dialog";
 import {
@@ -88,6 +87,7 @@ import {
   StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { safe } from "@orpc/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -442,29 +442,36 @@ function OrchestratorLayout() {
    * Opens a path a reply named: a file in its viewer, a folder as the folder
    * view standing in it.
    *
-   * A file is addressed by the mount the conversation reaches it through and
-   * the view resolves the rest; a folder is addressed by where it sits on the
-   * Mac, so the translation happens here, against the conversation's own
-   * folders and the folders of the tasks it started. A folder under neither is
-   * one this window cannot stand in, and saying so beats a tab rooted nowhere.
+   * A reply names a path the way the conversation reaches it, and both tabs
+   * are addressed by where the thing sits on the computer, so the translation
+   * happens here, against the conversation's own layout. A path under nothing
+   * the conversation has is one this window cannot stand in, and saying so
+   * beats a tab rooted nowhere.
    */
   const openNamedPath = (path: string, options?: { newTab?: boolean }) => {
-    if (!isFolderPath(path)) {
-      openScreen(fileHref(path), options);
+    if (!ids) {
       return;
     }
-    const hostPath = hostPathOfMount(
-      path.slice(0, -1),
-      state.data?.attachedFolders ?? {},
-      new Map(children.data?.map((child) => [child.id, child.dir])),
-    );
-    if (hostPath === undefined) {
-      toast(`Nothing at “${path}”`, {
-        description: "Not a folder Instrument can reach.",
-      });
-      return;
-    }
-    openScreen(folderHref(hostPath), options);
+    const isFolder = isFolderPath(path);
+    const filePath = isFolder ? path.slice(0, -1) : path;
+    void (async () => {
+      const [error, hostPaths] = await safe(
+        rpcClient.workspace.task.files.hostPaths.call({
+          filePaths: [filePath],
+          taskId: ids.taskId,
+        }),
+      );
+      const hostPath = hostPaths?.[filePath];
+      if (error || !hostPath) {
+        toast(`Nothing at “${path}”`, {
+          description: isFolder
+            ? "Not a folder Instrument can reach."
+            : "Not a file Instrument can reach.",
+        });
+        return;
+      }
+      openScreen(isFolder ? folderHref(hostPath) : fileHref(hostPath), options);
+    })();
   };
 
   // Walk the current screen or guest first, then cross into the preceding or
@@ -519,8 +526,9 @@ function OrchestratorLayout() {
   // of the user's as the tab that shows it. The openers are read at the moment
   // of each ask, since they close over the tabs as they are then.
   const appsBySlug = useAppsBySlug();
-  // The address says what kind of place this is; the screen itself says where
-  // it is on the Mac, since only it has resolved a mount to a real path.
+  // The address says what kind of place this is and, for a file, where it is
+  // on the computer; the folder screen itself says where it stands, since it
+  // is the one that expanded the root.
   const tabLocation: TabLocation = (() => {
     const fromTab: TabLocation =
       active?.kind === "page"
@@ -528,16 +536,6 @@ function OrchestratorLayout() {
         : active?.kind === "screen"
           ? screenLocation(active.href, { appsBySlug, childTitles })
           : { kind: "newTab" };
-    if (fromTab.kind === "file" && screenView?.file) {
-      const { mount, path } = screenView.file;
-      // Where it sits on the Mac, unless nothing could say: the screen falls
-      // back to the mount there, and a mount names no folder to walk up into.
-      return {
-        ...fromTab,
-        ...(path === mount ? {} : { hostPath: path }),
-        path,
-      };
-    }
     if (fromTab.kind === "folder" && screenView?.folder) {
       return { ...fromTab, path: screenView.folder.display };
     }

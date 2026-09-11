@@ -1,4 +1,4 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { trackSelfFileDrag } from "@/client/lib/self-file-drag";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -12,12 +12,11 @@ import {
 
 export type FileDragProps = ReturnType<typeof useFileDrag>;
 
-type FileRef = Pick<TaskFileViewerFile, "filePath" | "taskId">;
+type FileRef = Pick<ViewerFile, "hostPath">;
 
-// Starting a drag cannot wait on anything, so the main process resolves the
-// file and renders its drag image before the gesture (see
-// electron-main/lib/file-drag). Deduped only while a request is open, not by
-// result: the point of asking again on press is that the answer is current.
+// Starting a drag cannot wait on anything, so the main process renders the
+// file's drag image before the gesture (see electron-main/lib/file-drag).
+// Deduped only while a request is open, not by result.
 const preparing = new Map<string, Promise<unknown>>();
 
 // How far the pointer travels before a press is read as a drag. Blink's own
@@ -74,9 +73,7 @@ export function useFileDrag(file: FileRef | undefined) {
     // enough to beat the OS still finds them.
     trackSelfFileDrag();
     draggedRef.current = true;
-    window.api.startFileDrag?.([
-      { filePath: file.filePath, taskId: file.taskId },
-    ]);
+    window.api.startFileDrag?.([file.hostPath]);
   };
 
   return {
@@ -159,17 +156,14 @@ function prepare(file: FileRef | undefined) {
     return;
   }
 
-  const key = `${file.taskId} ${file.filePath}`;
+  const key = file.hostPath;
   const open = preparing.get(key);
   if (open) {
     return open;
   }
 
   const request = safe(
-    rpcClient.utils.prepareTaskFileDrag.call({
-      filePath: file.filePath,
-      id: file.taskId,
-    }),
+    rpcClient.utils.prepareDrag.call({ filePath: file.hostPath }),
   ).finally(() => {
     preparing.delete(key);
   });

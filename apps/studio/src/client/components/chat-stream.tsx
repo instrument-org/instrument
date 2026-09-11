@@ -11,7 +11,6 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
-import { getAssetBaseUrl } from "../lib/asset-base-url";
 import { cn } from "../lib/utils";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
@@ -175,7 +174,6 @@ export function ChatStream({
   renderAsItems = false,
   task,
 }: ChatStreamProps) {
-  const assetBaseUrl = getAssetBaseUrl(task.id);
   const releaseAutoScroll = useReleaseAutoScroll();
   const holdRowInPlace = useHoldRowInPlace();
 
@@ -359,7 +357,6 @@ export function ChatStream({
   };
 
   const renderCtx: RenderPartContext = {
-    assetBaseUrl,
     isAgentRunning,
     isDeveloperMode,
     isToolStreaming,
@@ -631,7 +628,6 @@ export function ChatStream({
         if (files.length > 0) {
           messageElements.unshift(
             <AttachmentsCard
-              assetBaseUrl={assetBaseUrl}
               files={files}
               key={`attachments-${message.id}`}
               taskId={task.id}

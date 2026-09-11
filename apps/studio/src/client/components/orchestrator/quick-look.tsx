@@ -5,12 +5,9 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
-import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { type ReactNode, useRef, useState } from "react";
-
-import { useOrchestrator } from "./context";
 
 /**
  * Space on a selected file, showing it over the whole window the way the
@@ -36,12 +33,10 @@ export function useQuickLook({
     quickLookOpen: boolean;
   };
 } {
-  const { taskId } = useOrchestrator();
   const [file, setFile] = useState<FileTab | null>(null);
   // Where the keyboard was when the panel opened, so closing it puts the
   // keyboard back on the row rather than at the top of the screen.
   const origin = useRef<HTMLElement | null>(null);
-  const assetBase = getAssetBaseUrl(taskId);
 
   return {
     dialog: (
@@ -88,11 +83,10 @@ export function useQuickLook({
               className="h-full"
               file={{
                 filename: file.name,
-                filePath: file.mount,
-                taskId,
-                url: getAssetUrl({ assetBase, filePath: file.mount }),
+                hostPath: file.hostPath,
+                url: getComputerFileUrl({ hostPath: file.hostPath }),
               }}
-              key={file.mount}
+              key={file.hostPath}
               onClose={() => {
                 setFile(null);
               }}
@@ -111,7 +105,7 @@ export function useQuickLook({
           origin.current = document.activeElement;
         }
         // The same file again puts the panel away, the way Space does twice.
-        setFile((current) => (current?.mount === tab.mount ? null : tab));
+        setFile((current) => (current?.hostPath === tab.hostPath ? null : tab));
       },
       onQuickLookFollow: setFile,
       quickLookOpen: file !== null,

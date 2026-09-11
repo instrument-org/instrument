@@ -19,7 +19,7 @@ export interface OrchestratorRecent {
 export const RECENTS_MAX = 15;
 
 export const orchestratorRecentsAtom = atomWithStorage<OrchestratorRecent[]>(
-  "orchestrator.recents.v2",
+  "orchestrator.recents.v3",
   [],
   undefined,
   { getOnInit: true },
@@ -103,12 +103,9 @@ export function originOf(url: string | undefined): string | undefined {
 
 export const linkedFilesAtom = atom<LinkedFile[]>([]);
 
-/** A file the window can open in a tab: where the viewer reaches it, and where it is on the Mac when known. */
+/** A file the window can open in a tab: where it is on the computer, which is the tab's identity. */
 export interface FileTab {
-  /** Where it is on the Mac, when known: as the person writes it. */
-  hostPath?: string;
-  /** The virtual path the viewer and the agent reach it by; the tab's identity. */
-  mount: string;
+  hostPath: string;
   name: string;
 }
 
@@ -185,7 +182,7 @@ const NO_TABS: ChannelTabs = { activeId: null, tabs: [] };
  * browsing in a channel the user is not looking at.
  */
 const windowTabsByChannelAtom = atomWithStorage<Record<string, ChannelTabs>>(
-  "orchestrator.tabs.v2",
+  "orchestrator.tabs.v3",
   {},
   undefined,
   { getOnInit: true },

@@ -1,6 +1,5 @@
 import { ariaSnapshot } from "@/tests/aria-snapshot";
 import { renderInBrowser } from "@/tests/render-browser";
-import { type TaskId } from "@instrument-org/workspace/client";
 import { expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -18,10 +17,9 @@ import { FilePreviewCard } from "./file-preview-card";
 
 const FILE = {
   filename: "notes.md",
-  filePath: "/task/notes.md",
+  hostPath: "/Users/casey/tasks/task_1/notes.md",
   mimeType: "text/markdown",
   modifiedAt: 0,
-  taskId: "task_1" as TaskId,
   url: "blob:none",
 };
 

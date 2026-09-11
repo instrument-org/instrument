@@ -11,6 +11,7 @@ import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import {
+  fileHref,
   folderHref,
   useOpenFileTab,
 } from "@/client/components/orchestrator/file-tabs";
@@ -39,7 +40,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import ms from "ms";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 
 /**
  * A new tab: the apps this workspace reaches, the places the user kept, the
@@ -130,11 +130,9 @@ function Door({
   );
 }
 
-/** The tab a shown file opens in, when a granted folder covers it. */
-function fileTabOf(file: RecentFile): FileTab | undefined {
-  return file.access
-    ? { hostPath: file.path, mount: file.access.mountPath, name: file.name }
-    : undefined;
+/** The tab a shown file opens in: the file by where it is on the computer. */
+function fileTabOf(file: RecentFile): FileTab {
+  return { hostPath: file.path, name: file.name };
 }
 
 /** Puts the keyboard on one row of the list, by place. */
@@ -346,21 +344,7 @@ function HomeRoute() {
             files={recents.data.slice(0, RECENTS_SHOWN)}
             homePath={homePath}
             onOpen={(file) => {
-              const tab = fileTabOf(file);
-              if (tab) {
-                openFileTab(tab);
-                return;
-              }
-              // Out of the agent's reach, so the viewer cannot show it; the
-              // Mac's own app for it can.
-              rpcClient.utils.openPath
-                .call({ filepath: file.path })
-                .catch((error: unknown) => {
-                  toast.error("Could not open the file", {
-                    description:
-                      error instanceof Error ? error.message : String(error),
-                  });
-                });
+              openFileTab(fileTabOf(file));
             }}
             {...(recents.data.length > RECENTS_SHOWN
               ? {
@@ -439,9 +423,8 @@ function RecentFiles({
       const next = step(event.key === "ArrowDown" ? 1 : -1);
       setSelected(next);
       const file = files[next];
-      const tab = file && fileTabOf(file);
-      if (tab) {
-        onQuickLookFollow(tab);
+      if (file) {
+        onQuickLookFollow(fileTabOf(file));
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -472,10 +455,9 @@ function RecentFiles({
         switch (event.key) {
           case " ": {
             const file = selected === null ? undefined : files[selected];
-            const tab = file && fileTabOf(file);
-            if (tab) {
+            if (file) {
               event.preventDefault();
-              onQuickLook(tab);
+              onQuickLook(fileTabOf(file));
             }
             break;
           }
@@ -498,13 +480,12 @@ function RecentFiles({
       role="listbox"
     >
       {files.map((file, index) => {
-        // A file the agent can reach has a tab it opens in, and so has the
-        // gestures that ask for one; a file outside its reach opens in the
-        // Mac's own app and has only that.
-        const tab = fileTabOf(file);
-        const gestures = tab
-          ? gesturesFor({ kind: "path", path: tab.mount })
-          : undefined;
+        // Every file has a tab it opens in, and so has the gestures that ask
+        // for one there or in a tab of its own.
+        const gestures = gesturesFor({
+          href: fileHref(fileTabOf(file).hostPath),
+          kind: "screen",
+        });
         return (
           <li aria-selected={index === selected} key={file.path} role="option">
             <button
@@ -513,11 +494,11 @@ function RecentFiles({
                 index === selected && "bg-accent/60",
               )}
               data-index={index}
-              onAuxClick={gestures?.onAuxClick}
+              onAuxClick={gestures.onAuxClick}
               onClick={() => {
                 onOpen(file);
               }}
-              onContextMenu={gestures?.onContextMenu}
+              onContextMenu={gestures.onContextMenu}
               onFocus={(event) => {
                 const target = landOn.current;
                 landOn.current = null;

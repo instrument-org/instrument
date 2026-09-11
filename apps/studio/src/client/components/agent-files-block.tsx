@@ -1,11 +1,12 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import {
   FILE_MISSING_LABEL,
   useFilePresence,
 } from "@/client/hooks/use-file-presence";
+import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
-import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import {
@@ -96,30 +97,34 @@ export function FilePathsGrid({
   paths: string[];
   pendingFilePath?: string;
 }) {
-  const { assetBaseUrl, assetVersion, taskId } =
-    useContext(MarkdownTaskContext);
+  const { assetVersion, taskId } = useContext(MarkdownTaskContext);
   const layout = useContext(FilesLayoutContext);
   const showTaskFile = useShowTaskFile(taskId);
+  const [folderPaths, filePaths] = fork(paths, isFolderPath);
+  // The reply names files as the task knows them; the screen shows them by
+  // where they are. A file the task cannot reach, or one not yet translated,
+  // is drawn as its line and nothing more.
+  const hostPaths = useHostPaths(taskId, filePaths);
 
   if (
     taskId === undefined ||
-    assetBaseUrl === undefined ||
     (paths.length === 0 && pendingFilePath === undefined)
   ) {
     return null;
   }
 
-  const fileOf = (filePath: string): TaskFileViewerFile => ({
-    filename: nameOfPath(filePath),
-    filePath,
-    taskId,
-    url: getAssetUrl({
-      assetBase: assetBaseUrl,
-      filePath,
-      version: assetVersion,
-    }),
-  });
-  const [folderPaths, filePaths] = fork(paths, isFolderPath);
+  const fileOf = (filePath: string): undefined | ViewerFile => {
+    const hostPath = hostPaths[filePath];
+    if (!hostPath) {
+      return;
+    }
+    return {
+      filename: nameOfPath(filePath),
+      hostPath,
+      taskFile: { filePath, taskId },
+      url: getComputerFileUrl({ hostPath, version: assetVersion }),
+    };
+  };
 
   // Folders and files interleave here, because a line is a line and the order
   // is the reply's. The grid below cannot: it lays its files out by shape, so
@@ -170,7 +175,7 @@ export function FilePathsGrid({
         </div>
       )}
       <FilesGrid
-        files={filePaths.map(fileOf)}
+        files={filePaths.map(fileOf).filter((file) => file !== undefined)}
         pendingFilePath={pendingFilePath}
         preserveOrder
       />
@@ -181,19 +186,21 @@ export function FilePathsGrid({
 /**
  * One file as a line: the shape a fence takes in the conversation's narrow
  * column. The kind beside the name is the one the row cards say ("Text file",
- * "Markdown"), and a file the origin no longer has says so in its place, the
- * line staying where the reply put it.
+ * "Markdown"), and a file that is no longer there says so in its place, the
+ * line staying where the reply put it. A file with no place on the computer
+ * yet is the line alone, since there is nothing to ask after.
  */
 function FileLine({
   file,
   onClick,
   path,
 }: {
-  file: TaskFileViewerFile;
+  file: undefined | ViewerFile;
   onClick: () => void;
   path: string;
 }) {
-  const { isMissing, ref } = useFilePresence<HTMLButtonElement>(file.url);
+  const filename = nameOfPath(path);
+  const { isMissing, ref } = useFilePresence<HTMLButtonElement>(file?.url);
   const { onAuxClick, onContextMenu } = useOpenGestures({ kind: "path", path });
   // A missing file opens nothing, so the line stops being a control: a press
   // that could only end in an error is not offered.
@@ -210,10 +217,10 @@ function FileLine({
       ref={ref}
       type="button"
     >
-      <FileIcon className="size-4 shrink-0" filename={file.filename} />
-      <span className="min-w-0 flex-1 truncate">{file.filename}</span>
+      <FileIcon className="size-4 shrink-0" filename={filename} />
+      <span className="min-w-0 flex-1 truncate">{filename}</span>
       <span className="shrink-0 text-[10px] text-muted-foreground">
-        {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
+        {isMissing ? FILE_MISSING_LABEL : getFileKindLabel({ filename })}
       </span>
       {!isMissing && (
         <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />

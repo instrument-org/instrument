@@ -1,10 +1,10 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { TaskChat } from "@/client/components/task/chat";
 import { type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type Task } from "@instrument-org/workspace/client";
 import { type ComponentProps } from "react";
 
+import { type TaskTreeFile } from "./task-files";
 import { TaskToolbar } from "./toolbar";
 
 export function TaskSidebar({
@@ -18,7 +18,7 @@ export function TaskSidebar({
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
   chatProps: ComponentProps<typeof TaskChat>;
-  onFileSelect: (file: TaskFileViewerFile) => void;
+  onFileSelect: (file: TaskTreeFile) => void;
   selectedSessionId?: StoreId.Session;
   task: Task;
 }) {

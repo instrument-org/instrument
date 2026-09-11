@@ -54,11 +54,23 @@ describe("getCurrentFileInfo", () => {
   });
 
   it.each([
-    ["notes.txt", "notes.txt", "text/plain", () => taskModifiedAt],
-    ["/mnt/Photos/cat.png", "cat.png", "image/png", () => mountedModifiedAt],
+    [
+      "notes.txt",
+      "notes.txt",
+      "text/plain",
+      () => taskModifiedAt,
+      () => path.join(root, "tasks", "file-info-task", "notes.txt"),
+    ],
+    [
+      "/mnt/Photos/cat.png",
+      "cat.png",
+      "image/png",
+      () => mountedModifiedAt,
+      () => path.join(root, "Photos", "cat.png"),
+    ],
   ] as const)(
-    "returns live metadata for %s",
-    async (filePath, filename, mimeType, expectedModifiedAt) => {
+    "returns live metadata for %s, and where it is",
+    async (filePath, filename, mimeType, expectedModifiedAt, hostPath) => {
       const result = await getCurrentFileInfo({
         filePath: WorkspaceFilePathSchema.parse(filePath),
         taskId,
@@ -67,6 +79,7 @@ describe("getCurrentFileInfo", () => {
       expect(result._unsafeUnwrap()).toEqual({
         filename,
         filePath,
+        hostPath: hostPath(),
         mimeType,
         modifiedAt: expectedModifiedAt(),
       });

@@ -1,7 +1,8 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
+import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
 import {
   AGENT_FILES_LANGUAGE,
@@ -39,7 +40,7 @@ import remend from "remend";
 
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { useOpenExternalLink } from "../hooks/use-open-external-link";
-import { getAssetUrl } from "../lib/get-asset-url";
+import { getComputerFileUrl } from "../lib/computer-file-url";
 import {
   classifyImageSource,
   type ImageSourceKind,
@@ -81,7 +82,6 @@ import { contextMenuComponents } from "./ui/menu-components";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface MarkdownProps {
-  assetBaseUrl?: string;
   // Which bytes this text's file references are about; see
   // `MarkdownTaskContext`.
   assetVersion?: string;
@@ -383,20 +383,21 @@ const TaskFileLink = ({
   className?: string;
   href: string;
 }) => {
-  const { assetBaseUrl, taskId } = useContext(MarkdownTaskContext);
+  const { taskId } = useContext(MarkdownTaskContext);
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
   const showTaskFile = useShowTaskFile(taskId);
   const appendToPrompt = useSetAtom(appendToPromptAtom);
+  // Where the file is on the computer, which the drag and the menu act on.
   // Before the guard below, so the chip that turns out not to name a task file
   // still asks in the same order every render.
-  const dragProps = useFileDrag(
-    taskId && isAddressableTaskFilePath(filePath)
-      ? { filePath, taskId }
-      : undefined,
-  );
+  const isAddressable = isAddressableTaskFilePath(filePath);
+  const hostPath = useHostPaths(taskId, isAddressable ? [filePath] : [])[
+    filePath
+  ];
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
 
-  if (!isAddressableTaskFilePath(filePath)) {
+  if (!isAddressable) {
     return <span className={className}>{children}</span>;
   }
 
@@ -415,18 +416,19 @@ const TaskFileLink = ({
     </button>
   );
 
-  // The file-action menu needs a task id and asset origin; without the ambient
-  // task context (e.g. reasoning or a previewed markdown file) the chip still
-  // opens the file on a left click, just without a right-click menu.
-  if (!taskId || !assetBaseUrl) {
+  // The file-action menu needs the task and where the file is; without the
+  // ambient task context (e.g. reasoning or a previewed markdown file), or
+  // before the place is known, the chip still opens the file on a left click,
+  // just without a right-click menu.
+  if (!taskId || !hostPath) {
     return chip;
   }
 
-  const viewerFile: TaskFileViewerFile = {
+  const viewerFile: ViewerFile = {
     filename,
-    filePath,
-    taskId,
-    url: getAssetUrl({ assetBase: assetBaseUrl, filePath }),
+    hostPath,
+    taskFile: { filePath, taskId },
+    url: getComputerFileUrl({ hostPath }),
   };
 
   return (
@@ -701,23 +703,46 @@ const MarkdownImage = ({
   alt,
   className,
   filePath,
+  onClick,
   src,
   ...props
-}: React.ImgHTMLAttributes<HTMLImageElement> & {
-  // The task-relative path behind `src`, when there is one. An embed can just
-  // as well point at a real URL, which names no file to hand anyone.
+}: Omit<React.ImgHTMLAttributes<HTMLImageElement>, "onClick"> & {
+  // The task-relative path behind the embed, when there is one: the picture
+  // is then read from where that file is on the computer, once known. An
+  // embed can just as well point at a real URL, which names no file to hand
+  // anyone, and arrives as `src` alone.
   filePath?: string;
+  onClick?: (
+    event: React.MouseEvent<HTMLImageElement>,
+    hostPath?: string,
+  ) => void;
 }) => {
-  const { isStreaming, taskId } = useContext(MarkdownTaskContext);
+  const { assetVersion, isStreaming, taskId } = useContext(MarkdownTaskContext);
   const [failedSrc, setFailedSrc] = useState<null | string>(null);
-  const dragProps = useFileDrag(
-    filePath && taskId ? { filePath, taskId } : undefined,
-  );
+  const hostPath = useHostPaths(taskId, filePath ? [filePath] : [])[
+    filePath ?? ""
+  ];
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
+  const resolvedSrc =
+    filePath === undefined
+      ? src
+      : hostPath
+        ? getComputerFileUrl({ hostPath, version: assetVersion })
+        : undefined;
 
-  if (src !== undefined && src === failedSrc) {
+  if (resolvedSrc === undefined) {
+    // A task path not yet placed on the computer, or one the task cannot
+    // reach: nothing to draw yet, and nothing to fail on.
+    return null;
+  }
+  if (resolvedSrc === failedSrc) {
     // Half a URL fails the same way a missing file does, and until the text
-    // settles there is no telling which this is.
-    return isStreaming ? null : <BlockedImage alt={alt} failed src={src} />;
+    // settles there is no telling which this is. Named by the path the reply
+    // wrote where there is one: the channel's own address says nothing a
+    // person would recognize.
+    return isStreaming ? null : (
+      <BlockedImage alt={alt} failed src={filePath ?? resolvedSrc} />
+    );
   }
 
   return (
@@ -725,10 +750,13 @@ const MarkdownImage = ({
       {...props}
       alt={alt}
       className={cn("max-w-full cursor-pointer! rounded-md", className)}
-      onError={() => {
-        setFailedSrc(src ?? null);
+      onClick={(event) => {
+        onClick?.(event, hostPath ?? undefined);
       }}
-      src={src}
+      onError={() => {
+        setFailedSrc(resolvedSrc);
+      }}
+      src={resolvedSrc}
       {...dragProps}
     />
   );
@@ -743,8 +771,10 @@ const isAbsoluteImageSrc = (src: string) =>
 // Resolution cannot leave the origin on its own, and the check is there for the
 // spellings that are not the path they look like: the URL parser reads a
 // leading backslash as the start of an authority, so `\evil.test/p.png` against
-// an http base is that host. Comparing the origin that comes out covers every
-// such spelling at once, where a list of them would have to stay complete.
+// an http base is that host. Comparing the scheme and host that come out
+// covers every such spelling at once, where a list of them would have to stay
+// complete. Scheme and host rather than `origin`, which the parser gives as
+// `null` for every URL on the app's own scheme, where a document is read from.
 const resolveAgainstDocument = (
   src: string,
   documentUrl: string,
@@ -752,7 +782,9 @@ const resolveAgainstDocument = (
   try {
     const base = new URL(documentUrl);
     const resolved = new URL(src, base);
-    return resolved.origin === base.origin ? resolved.href : undefined;
+    return resolved.protocol === base.protocol && resolved.host === base.host
+      ? resolved.href
+      : undefined;
   } catch {
     return undefined;
   }
@@ -779,11 +811,7 @@ const resolveAgainstDocument = (
  */
 const resolveImageSource = (
   src: string | undefined,
-  {
-    assetBaseUrl,
-    assetVersion,
-    documentUrl,
-  }: Pick<MarkdownProps, "assetBaseUrl" | "assetVersion" | "documentUrl">,
+  { documentUrl }: Pick<MarkdownProps, "documentUrl">,
 ): { kind: ImageSourceKind; src: string | undefined } => {
   if (!src || isAbsoluteImageSrc(src)) {
     return { kind: classifyImageSource(src), src };
@@ -794,15 +822,10 @@ const resolveImageSource = (
       ? { kind: "task-relative", src: resolved }
       : { kind: "rejected", src };
   }
-  if (!assetBaseUrl) {
-    return { kind: classifyImageSource(src), src };
-  }
-  const resolved = getAssetUrl({
-    assetBase: assetBaseUrl,
-    filePath: src,
-    version: assetVersion,
-  });
-  return { kind: classifyImageSource(resolved), src: resolved };
+  // A message's path is left as the path, a bare `output/chart.png` included:
+  // the image places it on the computer itself, once the task's layout has
+  // said where that is.
+  return { kind: "task-relative", src };
 };
 
 /**
@@ -862,7 +885,6 @@ const MarkdownBlock = memo(function MarkdownBlock({
 
 export const Markdown = memo(
   ({
-    assetBaseUrl,
     assetVersion,
     documentUrl,
     hideImages,
@@ -909,17 +931,17 @@ export const Markdown = memo(
     const needsMermaid = containsMermaidFence(markdown);
 
     const handleImageClick = useCallback(
-      (event: React.MouseEvent<HTMLImageElement>, filePath?: string) => {
+      (event: React.MouseEvent<HTMLImageElement>, hostPath?: string) => {
         const src = event.currentTarget.src;
         const alt = event.currentTarget.alt || "image";
         if (src) {
-          // The path rides along so the expanded view can act on the file and
-          // not just draw it. Absent for an embed pointing at a real URL, where
-          // there is no file to act on.
-          openFilePreview({ filename: alt, filePath, taskId, url: src });
+          // Where the file is rides along so the expanded view can act on it
+          // and not just draw it. Absent for an embed pointing at a real URL,
+          // where there is no file to act on.
+          openFilePreview({ filename: alt, hostPath, url: src });
         }
       },
-      [openFilePreview, taskId],
+      [openFilePreview],
     );
 
     useEffect(() => {
@@ -1016,11 +1038,7 @@ export const Markdown = memo(
         a: MarkdownLink,
         details: markdownDetails,
         img: ({ alt, className, node: _node, ref: _ref, src, ...props }) => {
-          const image = resolveImageSource(src, {
-            assetBaseUrl,
-            assetVersion,
-            documentUrl,
-          });
+          const image = resolveImageSource(src, { documentUrl });
           if (!isImageKindAllowed(image.kind, imageKinds)) {
             return hideImages ? null : (
               <BlockedImage alt={alt} src={image.src} />
@@ -1038,9 +1056,7 @@ export const Markdown = memo(
               alt={alt}
               className={className}
               filePath={filePath}
-              onClick={(event) => {
-                handleImageClick(event, filePath);
-              }}
+              onClick={handleImageClick}
               src={image.src}
             />
           );
@@ -1050,14 +1066,7 @@ export const Markdown = memo(
         pre: markdownPre,
         table: MarkdownTable,
       }),
-      [
-        assetBaseUrl,
-        assetVersion,
-        documentUrl,
-        handleImageClick,
-        hideImages,
-        imageKinds,
-      ],
+      [documentUrl, handleImageClick, hideImages, imageKinds],
     );
 
     // Front matter is a thing files have and messages do not: a model's reply
@@ -1074,9 +1083,7 @@ export const Markdown = memo(
     );
 
     return (
-      <MarkdownTaskContext
-        value={{ assetBaseUrl, assetVersion, isStreaming, taskId }}
-      >
+      <MarkdownTaskContext value={{ assetVersion, isStreaming, taskId }}>
         {blocks === undefined ? (
           <MarkdownBlock
             components={components}

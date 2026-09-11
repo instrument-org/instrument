@@ -1,6 +1,6 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useOpenTaskFileWith } from "@/client/hooks/use-open-task-file";
-import { useTaskFileOpenCandidates } from "@/client/hooks/use-task-file-open-target";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { useFileOpenCandidates } from "@/client/hooks/use-file-open-target";
+import { useOpenFileWith } from "@/client/hooks/use-open-file";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { type ReactElement } from "react";
 
@@ -17,7 +17,7 @@ import {
 import { MenuScrollArea } from "./ui/menu-scroll-area";
 import { Spinner } from "./ui/spinner";
 
-type FileRef = Pick<TaskFileViewerFile, "filePath" | "taskId">;
+type FileRef = Pick<ViewerFile, "hostPath">;
 
 export function OpenWithDropdown({
   children,
@@ -78,10 +78,10 @@ function OpenWithCandidates({
   omitDefault?: boolean;
 }) {
   const { Item } = menuComponents;
-  const { apps, isError, isPending } = useTaskFileOpenCandidates(file, {
+  const { apps, isError, isPending } = useFileOpenCandidates(file, {
     enabled: true,
   });
-  const openWith = useOpenTaskFileWith();
+  const openWith = useOpenFileWith();
   // The split button already launches the default app, so its menu lists only
   // the alternatives. Match on the flag rather than on position: the resolver
   // orders by Launch Services preference, which is not a guarantee.

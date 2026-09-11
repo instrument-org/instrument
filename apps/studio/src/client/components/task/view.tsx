@@ -1,6 +1,6 @@
 import {
   openFileViewerAtom,
-  type TaskFileViewerFile,
+  type ViewerFile,
 } from "@/client/atoms/task-file-viewer";
 import {
   FileViewer,
@@ -11,9 +11,8 @@ import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import { useTaskPaneActions } from "@/client/hooks/use-task-pane";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
-import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
+import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { registerForegroundTaskPane } from "@/client/lib/foreground-task-pane-registry";
-import { getAssetUrl } from "@/client/lib/get-asset-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
@@ -32,6 +31,7 @@ import { TaskBrowserPanel } from "./browser-panel";
 import { TaskPaneSplit } from "./pane-split";
 import { PaneTabs } from "./pane-tabs";
 import { TaskSidebar } from "./sidebar";
+import { type TaskTreeFile } from "./task-files";
 
 // The pane is the card. Whatever it is showing sits inside this, so the tab
 // strip, a viewer's title row and a viewer's own toolbar stack as one band.
@@ -60,7 +60,6 @@ export function TaskView({
   task: Task;
 }) {
   const openFileViewer = useSetAtom(openFileViewerAtom);
-  const assetBaseUrl = getAssetBaseUrl(task.id);
   const { close, closeTab, openFiles, reorderTabs, selectTab, toggle } =
     useTaskPaneActions(task.id);
 
@@ -128,13 +127,15 @@ export function TaskView({
     }),
   );
 
-  const currentFile: null | TaskFileViewerFile = watchedFile
+  const currentFile: null | ViewerFile = watchedFile
     ? {
-        ...watchedFile,
-        taskId: task.id,
-        url: getAssetUrl({
-          assetBase: assetBaseUrl,
-          filePath: watchedFile.filePath,
+        filename: watchedFile.filename,
+        hostPath: watchedFile.hostPath,
+        mimeType: watchedFile.mimeType,
+        modifiedAt: watchedFile.modifiedAt,
+        taskFile: { filePath: watchedFile.filePath, taskId: task.id },
+        url: getComputerFileUrl({
+          hostPath: watchedFile.hostPath,
           version: watchedFile.modifiedAt,
         }),
       }
@@ -151,8 +152,8 @@ export function TaskView({
   // the missing state to every file on its way in.
   const isResolvingFile = dataUpdatedAt === 0;
 
-  const handleFileSelect = (file: TaskFileViewerFile) => {
-    openFiles([file.filePath]);
+  const handleFileSelect = (file: TaskTreeFile) => {
+    openFiles([file.taskFile.filePath]);
   };
 
   const chatProps = {
@@ -223,7 +224,7 @@ export function TaskView({
                       // file the user is watching precisely because it keeps
                       // changing. A remount is for a different file; new bytes of
                       // the same one are a content change.
-                      key={currentFile.filePath}
+                      key={currentFile.hostPath}
                       onExpand={() => {
                         openFileViewer({
                           files: [currentFile],
@@ -278,7 +279,7 @@ function ArtifactPanelShell({
       {/* No mime type: that is part of what the panel is still waiting on.
           Every format whose viewer opens a toolbar is identified by its
           extension anyway, so the chrome band lays out the same either way. */}
-      <FileViewerHeader filename={filename} filePath={filePath} />
+      <FileViewerHeader filename={filename} path={filePath} />
       {children}
     </div>
   );

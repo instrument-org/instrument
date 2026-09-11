@@ -6,6 +6,7 @@ import {
   getCurrentFileInfo,
 } from "../../../lib/get-file-info";
 import { getTaskFiles, TaskFilesSchema } from "../../../lib/get-task-files";
+import { resolveWorkspaceFilePaths } from "../../../lib/resolve-workspace-file-path";
 import { WatchedFileSchema, watchFileInfo } from "../../../lib/watch-file-info";
 import { WorkspaceFilePathSchema } from "../../../schemas/paths";
 import { TaskIdSchema } from "../../../schemas/task-id";
@@ -49,7 +50,27 @@ const info = base
     return result.value;
   });
 
+/**
+ * Where the files a task named sit on the computer, by the path the task
+ * wrote. The person's side of the window works in those paths: a viewer
+ * reads the bytes by one, a tab is addressed by one, and the agent's own
+ * paths are translated once, here, on their way to the screen. Null for a
+ * path outside everything the task can reach.
+ */
+const hostPaths = base
+  .input(
+    z.object({
+      filePaths: z.array(WorkspaceFilePathSchema),
+      taskId: TaskIdSchema,
+    }),
+  )
+  .output(z.record(z.string(), z.string().nullable()))
+  .handler(async ({ input: { filePaths, taskId } }) =>
+    Object.fromEntries(await resolveWorkspaceFilePaths({ filePaths, taskId })),
+  );
+
 export const taskFiles = {
+  hostPaths,
   info,
   list,
   live: {

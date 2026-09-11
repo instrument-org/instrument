@@ -5,7 +5,7 @@ import { z } from "zod";
 export const Route = createFileRoute("/orchestrator/computer")({
   component: ComputerRoute,
   validateSearch: z.object({
-    /** A file open in a tab beside the folder, by its virtual path. */
+    /** A file open in a tab beside the folder, by where it is on the computer. */
     file: z.string().optional(),
     /** The folder open under the root, as a prefix: `Documents/Instrument/`. */
     path: z.string().default(""),

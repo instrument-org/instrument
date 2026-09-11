@@ -1,57 +1,12 @@
 import { type FileTab } from "@/client/atoms/orchestrator";
-import { MOUNT, type TaskId } from "@instrument-org/workspace/client";
+import { MOUNT } from "@instrument-org/workspace/client";
 
 import { useOrchestrator } from "./context";
-import { isInside, joinHostPath, segmentsOf } from "./host-path";
+import { isInside, segmentsOf } from "./host-path";
 
-/**
- * A path as a task's own reply wrote it, in the paths the conversation that
- * started it reaches the same file by.
- *
- * A task names its own folder (`output/report.md`), which means nothing
- * outside it, and the conversation reads that folder at `/tasks/<id>`. A
- * folder the task was handed is one folder under two names, since the
- * conversation granted it from a mount of its own, so where it sits on the
- * Mac is what the two agree on.
- *
- * Every screen of this window reads a path in the conversation's terms -- the
- * asset origin it loads a file from, the note telling the conversation what is
- * on screen -- so a path from a task is translated once, here, on its way in.
- */
-export function conversationPathOfTaskPath({
-  attachedFolders,
-  conversationFolders,
-  path,
-  taskId,
-}: {
-  /** The task's own mounts, which its paths are written in. */
-  attachedFolders: Record<string, { mountName: string; path: string }>;
-  /** The conversation's mounts, which this window's paths are written in. */
-  conversationFolders: Record<string, { mountName: string; path: string }>;
-  path: string;
-  taskId: TaskId;
-}): string {
-  if (path.startsWith(`${MOUNT.attachedFolders}/`)) {
-    const hostPath = hostPathOfMount(path, attachedFolders);
-    const inConversation =
-      hostPath === undefined
-        ? undefined
-        : mountOfHostPath(hostPath, conversationFolders);
-    // A folder granted to the task alone is one the conversation has no path
-    // for, and the task's own is then the nearest thing to an address.
-    return inConversation ?? path;
-  }
-  const own = `${MOUNT.task}/`;
-  const inTask = path.startsWith(own) ? path.slice(own.length) : path;
-  // Only the task's own folder is renamed. Any other absolute path is under a
-  // mount the conversation knows by the same name or cannot reach at all, and
-  // neither is this function's to rewrite.
-  return inTask.startsWith("/") ? inTask : `${MOUNT.tasks}/${taskId}/${inTask}`;
-}
-
-/** The address of a file's tab: the folder view with the file open in it. */
-export function fileHref(mount: string) {
-  return `/orchestrator/computer?file=${encodeURIComponent(mount)}&path=&root=~`;
+/** The address of a file's tab: the folder view with the file open in it, by where the file is on the computer. */
+export function fileHref(hostPath: string) {
+  return `/orchestrator/computer?file=${encodeURIComponent(hostPath)}&path=&root=~`;
 }
 
 /**
@@ -68,36 +23,10 @@ export function folderHref(hostPath: string) {
 }
 
 /**
- * Where a virtual path lives on the Mac: under a granted folder, or under the
- * folder of a task the conversation started, which it sees at `/tasks/<id>`.
- */
-export function hostPathOfMount(
-  mount: string,
-  attachedFolders: Record<string, { mountName: string; path: string }>,
-  taskDirs: ReadonlyMap<string, string> = new Map(),
-): string | undefined {
-  const attached = `${MOUNT.attachedFolders}/`;
-  if (mount.startsWith(attached)) {
-    const [mountName, ...rest] = mount.slice(attached.length).split("/");
-    const folder = Object.values(attachedFolders).find(
-      (entry) => entry.mountName === mountName,
-    );
-    return folder ? joinHostPath(folder.path, ...rest) : undefined;
-  }
-  const tasks = `${MOUNT.tasks}/`;
-  if (mount.startsWith(tasks)) {
-    const [id, ...rest] = mount.slice(tasks.length).split("/");
-    const dir = id ? taskDirs.get(id) : undefined;
-    return dir ? joinHostPath(dir, ...rest) : undefined;
-  }
-  return;
-}
-
-/**
  * The virtual path the agent reaches a path on the Mac by, when a granted
- * folder covers it: through the deepest such folder. The other way round from
- * {@link hostPathOfMount}, for a path the user typed rather than one a reply
- * named.
+ * folder covers it: through the deepest such folder. What the screen tells
+ * the conversation about a file the person has open, and nothing the person
+ * sees.
  */
 export function mountOfHostPath(
   hostPath: string,
@@ -128,6 +57,6 @@ export function mountOfHostPath(
 export function useOpenFileTab() {
   const { openScreen } = useOrchestrator();
   return (tab: FileTab) => {
-    openScreen(fileHref(tab.mount));
+    openScreen(fileHref(tab.hostPath));
   };
 }

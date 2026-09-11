@@ -62,9 +62,8 @@ const api: Window["api"] = {
   },
   // Sent, not invoked: the main process has to hand the drag to the OS while
   // the pointer is still down, and awaiting a reply here would put the round
-  // trip inside the gesture. Everything the drag needs was resolved ahead of
-  // it (see electron-main/lib/file-drag), so this carries only the reference
-  // the renderer already had.
+  // trip inside the gesture. The drag image was rendered ahead of it (see
+  // electron-main/lib/file-drag), so this carries only the paths.
   startFileDrag: (files) => {
     ipcRenderer.send(START_FILE_DRAG_CHANNEL, { files });
   },

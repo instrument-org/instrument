@@ -1,6 +1,6 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
-import { useTaskFileOpenControl } from "@/client/hooks/use-task-file-open-control";
+import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { type ReactNode } from "react";
 
@@ -22,11 +22,11 @@ export function FilePreviewFallback({
   onDownload,
 }: {
   fallbackExtension?: string;
-  file?: TaskFileViewerFile;
+  file?: ViewerFile;
   filename: string;
   onDownload?: () => void;
 }) {
-  const openControl = useTaskFileOpenControl(file);
+  const openControl = useFileOpenControl(file);
   // Without a resolved app association, opening could dead-end in an OS
   // error, so only promote open over save-as when an app is known.
   const canOpen = openControl.showOpen;
@@ -84,7 +84,7 @@ function FilePreviewFallbackContextMenu({
   file,
 }: {
   children: ReactNode;
-  file: TaskFileViewerFile;
+  file: ViewerFile;
 }) {
   const fileActions = useFileActionVisibility(file);
   const hasFileActions = fileActions.showDownload || fileActions.showReveal;

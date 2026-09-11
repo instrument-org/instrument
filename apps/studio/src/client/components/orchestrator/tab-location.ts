@@ -13,19 +13,14 @@ export interface LocationCrumb {
 
 /** What the tab on screen is showing, in the terms that page has for itself. */
 export type TabLocation =
-  | {
-      /**
-       * Where the file sits on the computer, when anything knows: what makes
-       * the folders above it places the tab can go. Absent for a file the
-       * window reaches only through a mount.
-       */
-      hostPath?: string;
-      kind: "file";
-      name: string;
-      path: string;
-    }
   | { kind: "app"; name: string; site?: string }
   | { kind: "apps" }
+  | {
+      kind: "file";
+      name: string;
+      /** Where the file sits on the computer, which makes the folders above it places the tab can go. */
+      path: string;
+    }
   | { kind: "folder"; path: string }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
@@ -58,17 +53,9 @@ export function locationCrumbs(
     // A path is read the way a person writes one, whichever screen said it:
     // the folder browser hands over a path with the home folder already as
     // `~`, and a file arrives as it sits on the disk.
-    case "file": {
-      return pathCrumbs(homeRelative(location.path, home), {
-        home,
-        reachable: location.hostPath !== undefined,
-      });
-    }
+    case "file":
     case "folder": {
-      return pathCrumbs(homeRelative(location.path, home), {
-        home,
-        reachable: true,
-      });
+      return pathCrumbs(homeRelative(location.path, home), { home });
     }
     case "newTab":
     case "page": {
@@ -103,12 +90,12 @@ function join(base: string, name: string, separator: string) {
  *
  * The names read as the field writes them, `~` and all, while where one goes is
  * the path the computer knows, so the home folder is written back out there. A
- * path that names no place on the computer -- a file under a mount the window
- * cannot resolve, a prefix under a root -- is names alone with nowhere to go.
+ * path that names no place on the computer -- a prefix under a root -- is
+ * names alone with nowhere to go.
  */
 function pathCrumbs(
   shown: string,
-  { home, reachable }: { home: string | undefined; reachable: boolean },
+  { home }: { home: string | undefined },
 ): LocationCrumb[] {
   const separator = separatorOf(shown);
   const names = segmentsOf(shown);
@@ -120,7 +107,7 @@ function pathCrumbs(
       index === 0
         ? startOf(name, { home, separator })
         : join(at, name, separator);
-    return !rooted || !reachable || index === names.length - 1
+    return !rooted || index === names.length - 1
       ? { label: name }
       : { label: name, to: { href: folderHref(at), kind: "screen" } };
   });

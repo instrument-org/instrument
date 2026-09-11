@@ -23,17 +23,13 @@ import {
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { useOpenTaskFile } from "@/client/hooks/use-open-task-file";
-import { useTaskFileOpenTarget } from "@/client/hooks/use-task-file-open-target";
-import { getAssetBaseUrl } from "@/client/lib/asset-base-url";
-import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
+import { useOpenFile } from "@/client/hooks/use-open-file";
+import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type ComputerListing,
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { type ComputerListing } from "@instrument-org/workspace/client";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
@@ -248,38 +244,27 @@ export function ComputerPage({
       ),
     }));
   }, [goneFolder]);
-  const assetBase = getAssetBaseUrl(taskId);
   // The recents as a folder's worth of files: named where they live, and flat,
   // since a list of what was shown is not a tree.
   const recentEntries = recents.data ?? [];
   const recentKeys = recentPaths(recentEntries);
   const recentItems = recentEntries.map((entry, index): FileSystemItem => {
-    const mount = entry.access?.mountPath;
-    const url =
-      mount === undefined
-        ? undefined
-        : getAssetUrl({
-            assetBase,
-            filePath: mount,
-            version: entry.modifiedAt,
-          });
+    const url = getComputerFileUrl({
+      hostPath: entry.path,
+      version: entry.modifiedAt,
+    });
     return {
       contentType: entry.mimeType,
       ...(entry.createdAt === undefined
         ? {}
         : { createdAt: new Date(entry.createdAt).toISOString() }),
       kind: "file",
-      metadata: {
-        hostPath: entry.path,
-        ...(mount === undefined ? {} : { mount }),
-      },
+      metadata: { hostPath: entry.path },
       name: entry.name,
       path: recentKeys[index] ?? entry.name,
-      ...(url && entry.mimeType?.startsWith("image/")
+      ...(entry.mimeType?.startsWith("image/")
         ? { previewImageUrl: url, url }
-        : url
-          ? { url }
-          : {}),
+        : { url }),
       shownAt: new Date(entry.shownAt).toISOString(),
       size: entry.size,
       ...(entry.modifiedAt === undefined
@@ -317,28 +302,21 @@ export function ComputerPage({
               path: `${prefix}${entry.name}/`,
             };
           }
-          const mount = data.access
-            ? `${data.access.mountPath}/${entry.name}`
-            : undefined;
-          const url =
-            mount === undefined
-              ? undefined
-              : getAssetUrl({
-                  assetBase,
-                  filePath: mount,
-                  version: entry.modifiedAt,
-                });
+          // Read by where it is, as the listing was: whatever the column can
+          // list, the viewer can show, whether or not the agent can reach it.
+          const url = getComputerFileUrl({
+            hostPath: entry.path,
+            version: entry.modifiedAt,
+          });
           return {
             ...stamps,
             contentType: entry.mimeType,
             kind: "file",
-            metadata: { hostPath: entry.path, ...(mount ? { mount } : {}) },
+            metadata: { hostPath: entry.path },
             path: `${prefix}${entry.name}`,
-            ...(url && entry.mimeType?.startsWith("image/")
+            ...(entry.mimeType?.startsWith("image/")
               ? { previewImageUrl: url, url }
-              : url
-                ? { url }
-                : {}),
+              : { url }),
             size: entry.size,
           };
         })
@@ -625,29 +603,17 @@ export function ComputerPage({
     });
   }, [access, display, hostPath, mount, onFolderChange, selectedName]);
 
-  const openFile = async (file: FileSystemFileItem) => {
+  const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
     if (tab) {
       onOpenFile(tab);
-      return;
-    }
-    const filepath = file.metadata?.hostPath;
-    if (typeof filepath !== "string") {
-      return;
-    }
-    try {
-      await rpcClient.utils.openPath.call({ filepath });
-    } catch (error) {
-      toast.error("Could not open the file", {
-        description: error instanceof Error ? error.message : String(error),
-      });
     }
   };
 
   // Space on a selected file, the way the Finder shows one over everything.
   const selectedFile = selectedItem?.kind === "file" ? selectedItem : undefined;
   const quickLookTab = selectedFile ? fileTabOf(selectedFile) : undefined;
-  const quickLookKey = quickLookTab?.mount;
+  const quickLookKey = quickLookTab?.hostPath;
   useEffect(() => {
     // No panel to show one in, no key taken from the rest of the page.
     if (!quickLookTab || !onQuickLook) {
@@ -871,9 +837,7 @@ export function ComputerPage({
                 // the keyboard itself: a row taking it back would be taking it
                 // out of the panel the user is looking at.
                 moveFocusWithSelection={!quickLookOpen}
-                onFileOpen={(file) => {
-                  void openFile(file);
-                }}
+                onFileOpen={openFile}
                 onItemContextMenu={(item) => {
                   setMenuItem(item ?? undefined);
                 }}
@@ -902,14 +866,15 @@ export function ComputerPage({
                     return null;
                   }
                   return (
-                    <DocumentThumbnail key={tab.mount}>
+                    <DocumentThumbnail key={tab.hostPath}>
                       <FileViewer
                         className="h-full"
                         file={{
                           filename: tab.name,
-                          filePath: tab.mount,
-                          taskId,
-                          url: getAssetUrl({ assetBase, filePath: tab.mount }),
+                          hostPath: tab.hostPath,
+                          url:
+                            file.url ??
+                            getComputerFileUrl({ hostPath: tab.hostPath }),
                         }}
                       />
                     </DocumentThumbnail>
@@ -979,7 +944,6 @@ export function ComputerPage({
                 .catch(failed)
             }
             onTrash={() => void trash(menuItem)}
-            taskId={taskId}
           />
         </ContextMenu>
       </div>
@@ -1023,7 +987,6 @@ function FolderMenu({
   onRename,
   onReveal,
   onTrash,
-  taskId,
 }: {
   item: FileSystemItem | undefined;
   onCopyPath: () => void;
@@ -1033,12 +996,11 @@ function FolderMenu({
   onRename: () => void;
   onReveal: () => void;
   onTrash: () => void;
-  taskId: TaskId;
 }) {
   const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
-  const file = tab ? { filePath: tab.mount, taskId } : undefined;
-  const openTaskFile = useOpenTaskFile();
-  const { showOpen } = useTaskFileOpenTarget(file);
+  const file = tab ? { hostPath: tab.hostPath } : undefined;
+  const openFile = useOpenFile();
+  const { showOpen } = useFileOpenTarget(file);
   return (
     <ContextMenuContent
       className="min-w-48"
@@ -1064,7 +1026,7 @@ function FolderMenu({
         <>
           <ContextMenuItem
             onClick={() => {
-              openTaskFile(file);
+              openFile(file);
             }}
           >
             <OpenTargetIcon className="size-4" file={file} />
@@ -1210,16 +1172,14 @@ const TEXT_EXTENSIONS = new Set([
   "yml",
 ]);
 
-/** The tab a file opens in, when a granted folder covers it. */
+/** The tab a file opens in: the file by where it is on the computer. */
 function fileTabOf(file: FileSystemFileItem): FileTab | undefined {
-  const mounted = file.metadata?.mount;
-  if (typeof mounted !== "string") {
+  const hostPath = file.metadata?.hostPath;
+  if (typeof hostPath !== "string") {
     return;
   }
-  const hostFile = file.metadata?.hostPath;
   return {
-    ...(typeof hostFile === "string" ? { hostPath: hostFile } : {}),
-    mount: mounted,
+    hostPath,
     // A recents row carries its own name: what it is called where it lives,
     // rather than what the list knows it by.
     name: file.name ?? file.path.split("/").at(-1) ?? file.path,

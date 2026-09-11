@@ -1,27 +1,27 @@
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { renderWithProviders } from "@/tests/render";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
-// Preparing a drag asks the main process to resolve the file. Nothing here is
-// about that round trip, and a rendering surface must not make one.
+// Preparing a drag asks the main process to render the file's drag image.
+// Nothing here is about that round trip, and a rendering surface must not
+// make one.
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     utils: {
-      prepareTaskFileDrag: { call: vi.fn(() => Promise.resolve()) },
+      prepareDrag: { call: vi.fn(() => Promise.resolve()) },
     },
   },
 }));
 
-const TASK_ID = TaskIdSchema.parse("a-task");
+const HOST_PATH = "/Users/casey/tasks/a-task/output/a.png";
 
 /**
  * The shape every draggable file surface has: the drag props on the box, and
  * something inside it that opens the file when clicked.
  */
 function Card({ onOpen }: { onOpen: () => void }) {
-  const dragProps = useFileDrag({ filePath: "output/a.png", taskId: TASK_ID });
+  const dragProps = useFileDrag({ hostPath: HOST_PATH });
 
   return (
     <div {...dragProps}>
@@ -86,9 +86,7 @@ describe("the distance a press has to travel", () => {
     fireEvent.pointerMove(window, { clientX: 40, clientY: 30 });
 
     expect(startFileDrag).toHaveBeenCalledTimes(1);
-    expect(startFileDrag).toHaveBeenCalledWith([
-      { filePath: "output/a.png", taskId: TASK_ID },
-    ]);
+    expect(startFileDrag).toHaveBeenCalledWith([HOST_PATH]);
   });
 
   it("never starts a drag from a press Blink did not read as one", () => {

@@ -23,10 +23,14 @@ vi.mock("@tanstack/react-router", () => ({
 // with its own tests. All that is being asked here is which component the fence
 // reached.
 vi.mock("./files-grid", () => ({
-  FilesGrid: ({ files }: { files: { filePath: string }[] }) => (
+  FilesGrid: ({
+    files,
+  }: {
+    files: { hostPath: string; taskFile?: { filePath: string } }[];
+  }) => (
     <ul>
       {files.map((file) => (
-        <li key={file.filePath}>{file.filePath}</li>
+        <li key={file.hostPath}>{file.taskFile?.filePath}</li>
       ))}
     </ul>
   ),
@@ -63,6 +67,28 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
+// The channel a person's viewers read a file through, hoisted for the mock
+// below it: a `vi.mock` factory runs before the module's own bindings exist.
+const FILE_BASE = vi.hoisted(() => "instrument://computer-test");
+
+// Where the task's files are, answered without a task: every path under the
+// task's own folder, which is what a message's image needs to be drawn at all.
+vi.mock("@/client/hooks/use-host-paths", () => ({
+  useHostPaths: (taskId: unknown, filePaths: readonly string[]) =>
+    taskId === undefined
+      ? {}
+      : Object.fromEntries(
+          filePaths.map((filePath) => [
+            filePath,
+            `/Users/casey/tasks/a-task/${filePath}`,
+          ]),
+        ),
+}));
+vi.mock("@/client/lib/computer-file-url", () => ({
+  getComputerFileUrl: ({ hostPath }: { hostPath: string }) =>
+    `${FILE_BASE}${hostPath}`,
+}));
+
 // The first document in a run that carries HTML pays to load the parser behind
 // `rehype-raw`, which is the largest thing this component fetches. Under a full
 // suite that outlasts `waitFor`'s default, and the test reads the render from
@@ -70,12 +96,9 @@ vi.mock("@/client/rpc/client", () => ({
 const RAW_HTML_TIMEOUT = 10_000;
 
 const TASK_ID = TaskIdSchema.parse("a-task");
-const ASSET_BASE = "http://assets.a-task.localhost:1234";
 
 function renderMarkdown(markdown: string) {
-  return renderWithProviders(
-    <Markdown assetBaseUrl={ASSET_BASE} markdown={markdown} taskId={TASK_ID} />,
-  );
+  return renderWithProviders(<Markdown markdown={markdown} taskId={TASK_ID} />);
 }
 
 /**
@@ -352,7 +375,7 @@ describe("Markdown images", () => {
 
     expect(container.querySelector("img")).toBeNull();
     expect(screen.getByText("The chart")).toBeTruthy();
-    expect(screen.getByText("assets.a-task.localhost")).toBeTruthy();
+    expect(screen.getByText("output/chart.png")).toBeTruthy();
     // A failed image is a fact rather than an offer, so the chip is no button.
     expect(screen.queryByRole("button", { name: /The chart/ })).toBeNull();
   });
@@ -362,7 +385,6 @@ describe("Markdown images", () => {
   it("says nothing of an image the reply has not finished writing", () => {
     renderWithProviders(
       <Markdown
-        assetBaseUrl={ASSET_BASE}
         isStreaming
         markdown="![The chart](output/chart.png)"
         taskId={TASK_ID}
@@ -410,12 +432,7 @@ describe("Markdown half-written constructs", () => {
 describe("Markdown streaming words", () => {
   const streamingWords = (markdown: string) => {
     const { container } = renderWithProviders(
-      <Markdown
-        assetBaseUrl={ASSET_BASE}
-        isStreaming
-        markdown={markdown}
-        taskId={TASK_ID}
-      />,
+      <Markdown isStreaming markdown={markdown} taskId={TASK_ID} />,
     );
     return [...container.querySelectorAll("[data-stream-word]")].map(
       (word) => word.textContent,
@@ -721,14 +738,10 @@ describe("Markdown image sources", () => {
     ]);
   });
 
-  // A bare `output/plot.png` is deliberately not here: without an
-  // `assetBaseUrl` there is nothing to resolve it against, so it stays a bare
-  // word and the allow-list rejects it. Only an explicit `./` or `/` reads as
-  // a path on sight.
-  it("renders a path relative to the task", () => {
-    expect(imageSources("![a](./output/plot.png)")).toEqual([
-      "./output/plot.png",
-    ]);
+  // A path in a task's terms names a file only through that task's layout, so
+  // outside a task there is nowhere to read it from and nothing is drawn.
+  it("draws nothing for a path relative to a task it is not in", () => {
+    expect(imageSources("![a](./output/plot.png)")).toEqual([]);
   });
 
   it("renders an image from an allowed host", () => {
@@ -850,16 +863,17 @@ function taskFileImageSources(markdown: string, documentUrl: string): string[] {
 }
 
 // A report the agent wrote at the top of the task, and one it wrote in the
-// folder it put its output in. The second is what tells the two joins apart.
-const ROOT_DOCUMENT_URL = `${ASSET_BASE}/report.md`;
-const NESTED_DOCUMENT_URL = `${ASSET_BASE}/output/report.md`;
+// folder it put its output in, each read from where it is on the computer.
+// The second is what tells the two joins apart.
+const TASK_ROOT = `${FILE_BASE}/Users/casey/tasks/a-task`;
+const ROOT_DOCUMENT_URL = `${TASK_ROOT}/report.md`;
+const NESTED_DOCUMENT_URL = `${TASK_ROOT}/output/report.md`;
 
 describe("Markdown images in a task's own file", () => {
   it.each([
-    ["a bare name", "chart.png", `${ASSET_BASE}/chart.png`],
-    ["an explicit ./", "./chart.png", `${ASSET_BASE}/chart.png`],
-    ["a subfolder", "figures/chart.png", `${ASSET_BASE}/figures/chart.png`],
-    ["the task root", "/output/chart.png", `${ASSET_BASE}/output/chart.png`],
+    ["a bare name", "chart.png", `${TASK_ROOT}/chart.png`],
+    ["an explicit ./", "./chart.png", `${TASK_ROOT}/chart.png`],
+    ["a subfolder", "figures/chart.png", `${TASK_ROOT}/figures/chart.png`],
   ])("resolves %s beside a file at the task root", (_case, src, resolved) => {
     expect(taskFileImageSources(`![a](${src})`, ROOT_DOCUMENT_URL)).toEqual([
       resolved,
@@ -867,39 +881,40 @@ describe("Markdown images in a task's own file", () => {
   });
 
   it.each([
-    ["a bare name", "chart.png", `${ASSET_BASE}/output/chart.png`],
-    ["an explicit ./", "./chart.png", `${ASSET_BASE}/output/chart.png`],
+    ["a bare name", "chart.png", `${TASK_ROOT}/output/chart.png`],
+    ["an explicit ./", "./chart.png", `${TASK_ROOT}/output/chart.png`],
     [
       "a bare subfolder",
       "charts/plot.png",
-      `${ASSET_BASE}/output/charts/plot.png`,
+      `${TASK_ROOT}/output/charts/plot.png`,
     ],
     [
       "an explicit ./ subfolder",
       "./charts/plot.png",
-      `${ASSET_BASE}/output/charts/plot.png`,
+      `${TASK_ROOT}/output/charts/plot.png`,
     ],
     [
       "a climb to a sibling",
       "../figures/chart.png",
-      `${ASSET_BASE}/figures/chart.png`,
+      `${TASK_ROOT}/figures/chart.png`,
     ],
-    ["the task root", "/chart.png", `${ASSET_BASE}/chart.png`],
   ])("resolves %s beside a file in a subfolder", (_case, src, resolved) => {
     expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
       resolved,
     ]);
   });
 
-  // A climb runs out at the origin's own root rather than walking past it, so
-  // the deepest `../` chain a file can carry still names a file in the task.
-  it("cannot climb out of the task", () => {
+  // A climb runs out at the disk's own root rather than walking past it, and
+  // however deep the `../` chain, what comes out is still a file on this
+  // computer read through the same channel: a picture the reader is shown,
+  // never bytes the document gets to read.
+  it("cannot climb off the channel", () => {
     expect(
       taskFileImageSources(
-        "![a](../../../../etc/passwd.png)",
+        "![a](../../../../../../../etc/passwd.png)",
         NESTED_DOCUMENT_URL,
       ),
-    ).toEqual([`${ASSET_BASE}/etc/passwd.png`]);
+    ).toEqual([`${FILE_BASE}/etc/passwd.png`]);
   });
 
   // A source spelled with backslashes is the one that does not resolve to the
@@ -913,12 +928,12 @@ describe("Markdown images in a task's own file", () => {
     [
       "a leading backslash",
       "\\evil.test/p.png",
-      `${ASSET_BASE}/output/%5Cevil.test/p.png`,
+      `${TASK_ROOT}/output/%5Cevil.test/p.png`,
     ],
     [
       "a backslash after a slash",
       "/\\evil.test/p.png",
-      `${ASSET_BASE}/%5Cevil.test/p.png`,
+      `${FILE_BASE}/%5Cevil.test/p.png`,
     ],
   ])("keeps %s on the file's own origin", (_case, src, resolved) => {
     expect(taskFileImageSources(`![a](${src})`, NESTED_DOCUMENT_URL)).toEqual([
@@ -946,13 +961,13 @@ describe("Markdown images in a task's own file", () => {
     expect(screen.getByRole("button", { name: host })).toBeTruthy();
   });
 
-  // A message sits in no directory, so its relative sources keep joining from
-  // the task root -- the paths the rest of the app names a file by.
-  it("joins a message's relative source from the task root", () => {
+  // A message sits in no directory, so its relative source is a path in the
+  // task's terms, placed on the computer through the task's own layout.
+  it("places a message's relative source through the task", () => {
     const { container } = renderMarkdown("![a](./output/chart.png)");
 
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
-      `${ASSET_BASE}/output/chart.png`,
+      `${TASK_ROOT}/./output/chart.png`,
     );
   });
 });

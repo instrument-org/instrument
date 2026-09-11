@@ -1,27 +1,27 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
-import { useOpenTaskFile } from "@/client/hooks/use-open-task-file";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { useOpenFile } from "@/client/hooks/use-open-file";
 import { isMacOS } from "@/client/lib/utils";
 
 import {
-  useTaskFileOpenCandidates,
-  useTaskFileOpenTarget,
-} from "./use-task-file-open-target";
+  useFileOpenCandidates,
+  useFileOpenTarget,
+} from "./use-file-open-target";
 
-export type TaskFileOpenControl = ReturnType<typeof useTaskFileOpenControl>;
+export type FileOpenControl = ReturnType<typeof useFileOpenControl>;
 
-type FileRef = Pick<TaskFileViewerFile, "filePath" | "taskId">;
+type FileRef = Pick<ViewerFile, "hostPath">;
 
-export function useTaskFileOpenControl(
+export function useFileOpenControl(
   file: FileRef | undefined,
   { loadCandidates = true }: { loadCandidates?: boolean } = {},
 ) {
-  const openTaskFile = useOpenTaskFile();
-  const target = useTaskFileOpenTarget(file);
+  const openFile = useOpenFile();
+  const target = useFileOpenTarget(file);
   const {
     apps,
     isError: didCandidatesFail,
     isPending: areCandidatesPending,
-  } = useTaskFileOpenCandidates(file, {
+  } = useFileOpenCandidates(file, {
     enabled: file != null && loadCandidates && isMacOS(),
   });
   // Keep the trigger on a failed lookup: hiding it is indistinguishable from
@@ -34,7 +34,7 @@ export function useTaskFileOpenControl(
     ...target,
     open: () => {
       if (file) {
-        openTaskFile(file);
+        openFile(file);
       }
     },
     showOpenWithDropdown,

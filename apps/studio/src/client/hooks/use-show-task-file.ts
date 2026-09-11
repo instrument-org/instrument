@@ -53,13 +53,24 @@ export function useShowTaskFile(taskId: TaskId | undefined) {
  * is anything to ask.
  */
 async function openInFinder(folderPath: string, taskId: TaskId) {
-  const [error] = await safe(
-    rpcClient.utils.openTaskFile.call({
-      // Without the trailing slash: what the main process resolves is a path,
-      // and a folder is not a different one for wearing it.
-      filePath: folderPath.slice(0, -1),
-      id: taskId,
+  // Without the trailing slash: what is resolved is a path, and a folder is
+  // not a different one for wearing it.
+  const filePath = folderPath.slice(0, -1);
+  const [resolveError, hostPaths] = await safe(
+    rpcClient.workspace.task.files.hostPaths.call({
+      filePaths: [filePath],
+      taskId,
     }),
+  );
+  const hostPath = hostPaths?.[filePath];
+  if (resolveError || !hostPath) {
+    toast.error("Failed to open folder", {
+      description: resolveError?.message ?? "Not a folder the task can reach.",
+    });
+    return;
+  }
+  const [error] = await safe(
+    rpcClient.utils.openPath.call({ filepath: hostPath }),
   );
   if (error) {
     toast.error("Failed to open folder", { description: error.message });

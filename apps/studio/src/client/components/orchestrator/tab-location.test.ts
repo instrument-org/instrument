@@ -61,7 +61,6 @@ describe("locationCrumbs", () => {
   it("takes a file to the folders it sits in, from the home folder", () => {
     expect(
       readable({
-        hostPath: "/Users/casey/Downloads/lisbon.md",
         kind: "file",
         name: "lisbon.md",
         path: "/Users/casey/Downloads/lisbon.md",
@@ -78,7 +77,6 @@ describe("locationCrumbs", () => {
   it("takes a file outside the home folder up from the disk", () => {
     expect(
       readable({
-        hostPath: "/Volumes/Backup/lisbon.md",
         kind: "file",
         name: "lisbon.md",
         path: "/Volumes/Backup/lisbon.md",
@@ -88,22 +86,6 @@ describe("locationCrumbs", () => {
         "Volumes -> /orchestrator/computer?path=&root=%2FVolumes",
         "Backup -> /orchestrator/computer?path=&root=%2FVolumes%2FBackup",
         "lisbon.md",
-      ]
-    `);
-  });
-
-  it("leaves a file nothing knows the place of as words alone", () => {
-    expect(
-      readable({
-        kind: "file",
-        name: "report.md",
-        path: "/tasks/pelican-news/report.md",
-      }),
-    ).toMatchInlineSnapshot(`
-      [
-        "tasks",
-        "pelican-news",
-        "report.md",
       ]
     `);
   });

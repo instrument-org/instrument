@@ -28,7 +28,6 @@ import { ToolWebSearch } from "./tool-web-search";
 import { ToolWriteFile } from "./tool-write-file";
 
 export function ToolCall({
-  assetBaseUrl,
   isActivityRunning,
   isDeveloperMode,
   isRunning,
@@ -37,7 +36,6 @@ export function ToolCall({
   part,
   task,
 }: {
-  assetBaseUrl: string;
   isActivityRunning: boolean;
   isDeveloperMode: boolean;
   isRunning: boolean;
@@ -80,19 +78,14 @@ export function ToolCall({
       isStreaming={isStreaming}
     >
       <ToolCallSummary
-        assetBaseUrl={assetBaseUrl}
         isDeadDevMode={isDeadDevMode}
         part={part}
+        taskId={task.id}
       >
         {isDeadDevMode ? (
           <DeadDevModeBody part={part} />
         ) : (
-          <ToolCallBody
-            assetBaseUrl={assetBaseUrl}
-            onRetry={onRetry}
-            part={part}
-            task={task}
-          />
+          <ToolCallBody onRetry={onRetry} part={part} task={task} />
         )}
       </ToolCallSummary>
     </ToolCallSessionProvider>
@@ -117,12 +110,10 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
 }
 
 function ToolCallBody({
-  assetBaseUrl,
   onRetry,
   part,
   task,
 }: {
-  assetBaseUrl: string;
   onRetry: (prompt: string) => void;
   // Activities are drawn by their caller, so the switch below stays exhaustive
   // over the calls that have a body at all.
@@ -147,14 +138,7 @@ function ToolCallBody({
       return <ToolEditFile id={task.id} part={part} />;
     }
     case "tool-generate_image": {
-      return (
-        <ToolGenerateImage
-          assetBaseUrl={assetBaseUrl}
-          id={task.id}
-          onRetry={onRetry}
-          part={part}
-        />
-      );
+      return <ToolGenerateImage id={task.id} onRetry={onRetry} part={part} />;
     }
     case "tool-load_skill": {
       return <ToolLoadSkill part={part} />;

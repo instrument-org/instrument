@@ -1,4 +1,5 @@
-import { getAssetUrl } from "@/client/lib/get-asset-url";
+import { useHostPaths } from "@/client/hooks/use-host-paths";
+import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import {
   type SessionMessageDataPart,
   TASK_FOLDER_NAMES,
@@ -16,31 +17,34 @@ import { FilesGrid } from "./files-grid";
 const LEGACY_ATTACHMENT_DIR_PREFIXES = ["user-provided/", "agent-retrieved/"];
 
 interface FileAttachmentsCardProps {
-  assetBaseUrl: string;
   files: SessionMessageDataPart.FileAttachmentDataPart[];
   taskId: TaskId;
 }
 
-export function AttachmentsCard({
-  assetBaseUrl,
-  files,
-  taskId,
-}: FileAttachmentsCardProps) {
-  const fileItems = files.map((file) => {
-    const filePath = normalizeAttachmentFilePath(file.filePath);
-    return {
-      filename: file.filename,
-      filePath,
-      mimeType: file.mimeType,
-      modifiedAt: file.modifiedAt,
-      size: file.size,
-      taskId,
-      url: getAssetUrl({
-        assetBase: assetBaseUrl,
-        filePath,
-        version: file.modifiedAt,
-      }),
-    };
+export function AttachmentsCard({ files, taskId }: FileAttachmentsCardProps) {
+  const attachments = files.map((file) => ({
+    ...file,
+    filePath: normalizeAttachmentFilePath(file.filePath),
+  }));
+  const hostPaths = useHostPaths(
+    taskId,
+    attachments.map((file) => file.filePath),
+  );
+  const fileItems = attachments.flatMap((file) => {
+    const hostPath = hostPaths[file.filePath];
+    if (!hostPath) {
+      return [];
+    }
+    return [
+      {
+        filename: file.filename,
+        hostPath,
+        mimeType: file.mimeType,
+        modifiedAt: file.modifiedAt,
+        taskFile: { filePath: file.filePath, taskId },
+        url: getComputerFileUrl({ hostPath, version: file.modifiedAt }),
+      },
+    ];
   });
 
   // In attach order, not bucketed: this is the set the user picked, and a file

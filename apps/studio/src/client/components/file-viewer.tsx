@@ -1,5 +1,5 @@
 import { fileViewerWrapLinesAtom } from "@/client/atoms/file-viewer-wrap-lines";
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import {
   LazyArchiveViewer,
   LazyCsvViewer,
@@ -19,7 +19,6 @@ import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { UNTRUSTED_TASK_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -38,8 +37,8 @@ import { toast } from "sonner";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
 import { useFileDrag } from "../hooks/use-file-drag";
+import { useFileOpenControl } from "../hooks/use-file-open-control";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
-import { useTaskFileOpenControl } from "../hooks/use-task-file-open-control";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
@@ -264,7 +263,7 @@ export const fileViewerClassName =
 
 interface ViewerContext {
   fallback: ReactNode;
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   htmlReloadNonce: number;
   imageLoadError: boolean;
   onImageError: () => void;
@@ -307,7 +306,7 @@ const VIEWERS = {
   archive: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyArchiveViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -320,7 +319,7 @@ const VIEWERS = {
         <audio
           className="w-full max-w-2xl"
           controls
-          key={file.filePath}
+          key={file.hostPath}
           onError={() => {
             onMediaError("mp3");
           }}
@@ -334,7 +333,7 @@ const VIEWERS = {
   csv: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyCsvViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -343,7 +342,7 @@ const VIEWERS = {
   docx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyDocxViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -376,7 +375,7 @@ const VIEWERS = {
           <ContextMenuTrigger className="size-full">
             <ImageViewer
               file={file}
-              key={file.filePath}
+              key={file.hostPath}
               onError={onImageError}
             />
           </ContextMenuTrigger>
@@ -393,7 +392,7 @@ const VIEWERS = {
   iwork: {
     hasToolbar: false,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyIWorkViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -402,7 +401,7 @@ const VIEWERS = {
   jsonl: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyJsonlViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -419,9 +418,7 @@ const VIEWERS = {
           {renderCode(context)}
         </div>
       ) : (
-        <MarkdownDocument
-          key={`${context.file.taskId}:${context.file.filePath}`}
-        >
+        <MarkdownDocument key={context.file.hostPath}>
           <MarkdownPreview url={context.file.url} />
         </MarkdownDocument>
       ),
@@ -439,7 +436,7 @@ const VIEWERS = {
   parquet: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyParquetViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -449,7 +446,7 @@ const VIEWERS = {
   pptx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyPptxViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -458,7 +455,7 @@ const VIEWERS = {
   sqlite: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazySqliteViewer url={file.url} />
       </ViewerSurface>
     ),
@@ -492,7 +489,7 @@ const VIEWERS = {
             autoPlay
             className="size-full object-contain"
             controls
-            key={file.filePath}
+            key={file.hostPath}
             muted
             onError={() => {
               onMediaError("mp4");
@@ -514,7 +511,7 @@ const VIEWERS = {
   xlsx: {
     hasToolbar: true,
     render: ({ fallback, file }) => (
-      <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+      <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
         <LazyXlsxViewer filename={file.filename} url={file.url} />
       </ViewerSurface>
     ),
@@ -530,7 +527,7 @@ function renderCode({ file, wrapLines }: ViewerContext) {
 
 function renderPdf({ fallback, file }: ViewerContext) {
   return (
-    <ViewerSurface fallback={fallback} resetKey={file.filePath}>
+    <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
       <LazyPdfViewer filename={file.filename} url={file.url} />
     </ViewerSurface>
   );
@@ -574,11 +571,11 @@ export function FileViewer({
   // Set by a caller that already draws the surface this sits in, so the viewer
   // can drop its own card and fill the frame instead of nesting inside it.
   className?: string;
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   onClose?: () => void;
   onExpand?: () => void;
 }) {
-  const { filename, filePath, mimeType, taskId, url } = file;
+  const { filename, hostPath, mimeType, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
   const [wrapLines, setWrapLines] = useAtom(fileViewerWrapLinesAtom);
   // Remounts the sandboxed HTML iframe back to its entry page. The iframe is a
@@ -591,9 +588,9 @@ export function FileViewer({
   const imageLoadError = imageErrorUrl === url;
   const contentRef = useRef<HTMLDivElement>(null);
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
-  const openControl = useTaskFileOpenControl(file);
+  const openControl = useFileOpenControl(file);
   const revealFileMutation = useMutation(
-    rpcClient.utils.showTaskFileInFolder.mutationOptions({
+    rpcClient.utils.showFileInFolder.mutationOptions({
       onError: (error) => {
         const label = getRevealInFolderLabel();
         const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
@@ -634,8 +631,7 @@ export function FileViewer({
   const handleCopy = async () => {
     try {
       await copyFileToClipboard({
-        filePath,
-        id: taskId,
+        hostPath,
         isImage: fileType === "image",
       });
       triggerCopied();
@@ -651,10 +647,7 @@ export function FileViewer({
   };
 
   const handleRevealInFolder = () => {
-    revealFileMutation.mutate({
-      filePath,
-      id: taskId,
-    });
+    revealFileMutation.mutate({ filepath: hostPath });
   };
 
   const viewer: ViewerEntry = VIEWERS[fileType];
@@ -818,10 +811,10 @@ export function FileViewer({
           </>
         }
         filename={filename}
-        filePath={filePath}
+        hostPath={hostPath}
         mimeType={mimeType}
         onClose={onClose}
-        taskId={taskId}
+        path={hostPath}
       />
 
       {mediaLoadError ? (
@@ -865,27 +858,28 @@ export function FileViewer({
 export function FileViewerHeader({
   actions,
   filename,
-  filePath,
+  hostPath,
   mimeType,
   onClose,
-  taskId,
+  path,
 }: {
   actions?: ReactNode;
   filename: string;
-  filePath: string;
+  // Absent while the panel is still resolving what it is about to show, where
+  // there is no file to hand anyone yet.
+  hostPath?: string;
   mimeType?: string;
   // Absent in the pane, where the tab strip owns closing. Present in the
   // expanded modal, whose close is a collapse back to the pane.
   onClose?: () => void;
-  // Absent while the panel is still resolving what it is about to show, where
-  // there is no file to hand anyone yet.
-  taskId?: TaskId;
+  /** What the name stands for, in full: the path the tooltip says. */
+  path: string;
 }) {
   // The filename, not the viewer below it, is what drags the file out. Every
   // viewer's surface already answers to a gesture -- an image pans, a PDF and a
   // table select, an HTML preview is a sandboxed iframe whose events never
   // reach us -- and the one row that is chrome in all of them is this one.
-  const dragProps = useFileDrag(taskId ? { filePath, taskId } : undefined);
+  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
 
   return (
     // `h-10 px-2` matches `ViewerToolbar`, which some viewers render right
@@ -918,7 +912,7 @@ export function FileViewerHeader({
             collisionPadding={10}
             maxWidth="500px"
           >
-            {filePath}
+            {path}
           </TooltipContent>
         </Tooltip>
       </div>

@@ -1,4 +1,4 @@
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import {
@@ -26,11 +26,11 @@ export function FilePreviewListItem({
   isSelected = false,
   onClick,
 }: {
-  file: TaskFileViewerFile;
+  file: ViewerFile;
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, filePath, mimeType } = file;
+  const { filename, hostPath, mimeType } = file;
   const fileType = getFileType(file);
   const { url } = file;
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -84,7 +84,7 @@ export function FilePreviewListItem({
           collisionPadding={10}
           maxWidth="500px"
         >
-          {isMissing ? `${FILE_MISSING_LABEL}: ${filePath}` : filePath}
+          {isMissing ? `${FILE_MISSING_LABEL}: ${hostPath}` : hostPath}
         </TooltipContent>
       </Tooltip>
     ) : (
@@ -110,7 +110,7 @@ export function FilePreviewListItem({
             </span>
           ) : undefined
         }
-        tooltipContent={filePath}
+        tooltipContent={hostPath}
       />
     );
 

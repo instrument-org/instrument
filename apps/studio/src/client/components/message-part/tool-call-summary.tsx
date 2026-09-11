@@ -2,6 +2,7 @@ import { featuresAtom } from "@/client/atoms/features";
 import {
   getToolNameByType,
   type SessionMessagePart,
+  type TaskId,
 } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
@@ -34,15 +35,15 @@ import { WebSearchChip } from "./tool-web-search";
 import { TRANSCRIPT_ROW, useTranscriptGroup } from "./transcript-group";
 
 export function ToolCallSummary({
-  assetBaseUrl,
   children,
   isDeadDevMode = false,
   part,
+  taskId,
 }: {
-  assetBaseUrl: string;
   children?: ReactNode;
   isDeadDevMode?: boolean;
   part: SessionMessagePart.ToolPart;
+  taskId: TaskId;
 }) {
   const features = useAtomValue(featuresAtom);
   const { backgroundProcess, isRunning, isStreaming } = useToolCallSession();
@@ -163,7 +164,7 @@ export function ToolCallSummary({
         )
       )}
       <WebSearchChip part={part} />
-      <SourceImagesChip assetBaseUrl={assetBaseUrl} part={part} />
+      <SourceImagesChip id={taskId} part={part} />
       <FileChip part={part} />
       <RunRowChevron
         isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}

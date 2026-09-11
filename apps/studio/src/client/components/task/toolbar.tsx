@@ -1,5 +1,4 @@
 import { openDeleteTask } from "@/client/atoms/delete-task-modal";
-import { type TaskFileViewerFile } from "@/client/atoms/task-file-viewer";
 import { TaskSettingsDialog } from "@/client/components/task/settings-dialog";
 import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
@@ -21,7 +20,7 @@ import { TaskActionsMenu, TaskActionsMenuItems } from "./actions-menu";
 import { PaneToggle } from "./pane-toggle";
 import { TaskBackgroundProcesses } from "./task-background-processes";
 import { TaskBreadcrumb } from "./task-breadcrumb";
-import { TaskFiles } from "./task-files";
+import { TaskFiles, type TaskTreeFile } from "./task-files";
 import { TaskTranscriptViewer } from "./transcript-viewer";
 import { TaskUsageSummary } from "./usage-summary";
 
@@ -34,7 +33,7 @@ export function TaskToolbar({
 }: {
   activeFilePath: null | string;
   attachedFolders: RPCOutput["workspace"]["task"]["state"]["get"]["attachedFolders"];
-  onFileSelect: (file: TaskFileViewerFile) => void;
+  onFileSelect: (file: TaskTreeFile) => void;
   selectedSessionId?: StoreId.Session;
   task: Task;
 }) {

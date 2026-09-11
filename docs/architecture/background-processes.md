@@ -105,10 +105,14 @@ The registry is keyed by **session**, not task ([`recordsBySession`](../../packa
 | Running per task | 8 | Refusing the ninth names the eight that are live |
 | Pending output per process | 256 KB | Held in memory between reads |
 | Process log | 16 MB | On disk at `.tool-output/bg_N.log` |
-| One `fg` wait | the call's remaining `yieldMs`, 10 min ceiling | A wait that outlived its call would promote the call itself, answering with a second id instead of output. An explicit `--timeout` can only lower it |
+| One `fg` wait | the call's remaining `yieldMs`, 10 min ceiling | A wait that outlived its call would promote the call itself, answering with a second id instead of output. An explicit `--timeout` can only lower it. A message arriving for the session ends the wait early (`lib/wait-interrupts.ts`), since a steer is heard at the next step and a step spent waiting would hold it for the whole window |
 | `yieldMs` | 250 ms – 10 min, default 30 s | Tool-call timeout is `yieldMs + 30 s` so promotion always wins |
 | Kill escalation | SIGTERM → 1 s → SIGKILL → 4 s | Then `uncertain` |
 | Finished records kept | 32 per session | A late poll still finds its exit code |
+
+## Who stopped it
+
+A stop carries who asked for it (`stoppedBy`: the agent's own `kill`, the user's stop button, or the conversation's `task kill`), and `fg` and `jobs` say so rather than printing the interpreter's abort code. A stop the agent did not make is a decision it must not undo, and the text tells it not to start the process again unless asked; "finished with exit code 124" read as the command failing on its own.
 
 ## Two Unix metaphors we sit on
 

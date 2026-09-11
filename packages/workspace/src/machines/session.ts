@@ -23,6 +23,7 @@ import {
   type SpawnAgentResult,
 } from "../lib/spawn-agent";
 import { Store } from "../lib/store";
+import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type SessionMessage } from "../schemas/session/message";
@@ -438,6 +439,8 @@ export const sessionMachine = setup({
             type: "steer",
             value: event.value,
           });
+          // The next step may be minutes away inside a wait; end it.
+          interruptWaits(context.sessionId);
         }),
       ],
     },

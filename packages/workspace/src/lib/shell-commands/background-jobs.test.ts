@@ -14,6 +14,7 @@ import {
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
 } from "../background-processes";
+import { interruptWaits } from "../wait-interrupts";
 
 const model = createMockAIGatewayModel();
 
@@ -208,5 +209,23 @@ describe("background job commands", () => {
     const listed = await bash("jobs");
     expect(listed.output).toContain("stopped by the user");
     expect(listed.output).toContain("stopped by your `kill`");
+  }, 30_000);
+
+  // A message for the session is heard at the agent's next step, and a step
+  // that is a long wait would hold it for the whole window.
+  it("ends a wait early when a message arrives for the session", async () => {
+    const processId = await startTicker();
+
+    const started = performance.now();
+    const waiting = bash(`fg ${processId}`, 20_000);
+    setTimeout(() => {
+      interruptWaits(sessionId);
+    }, 300);
+    const waited = await waiting;
+
+    expect(performance.now() - started).toBeLessThan(5000);
+    expect(waited.output).toContain(`${processId} is still running`);
+    expect(waited.output).toContain("A message arrived for you");
+    expect(waited.exitCode).toBe(0);
   }, 30_000);
 });

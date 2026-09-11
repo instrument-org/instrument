@@ -8,6 +8,7 @@ import {
   listBackgroundProcesses,
   readBackgroundProcess,
 } from "../background-processes";
+import { interruptibleWait } from "../wait-interrupts";
 import {
   FG_COMMAND,
   JOBS_COMMAND,
@@ -72,25 +73,42 @@ export function createFgCommand({
     // The exit code is the last one foregrounded, which is what a shell's `fg`
     // reports and what makes `fg bg_1 && ...` mean what it looks like.
     let exitCode = 0;
-    for (const argument of targets) {
-      const id = normalizeId(argument);
-      const read = id
-        ? await readBackgroundProcess({
-            id,
-            sessionId,
-            signal: ctx.signal,
-            waitMs: timeoutMs,
-          })
-        : undefined;
-      if (!read) {
-        failed = true;
-        sections.push(
-          `${FG_COMMAND.name}: no background process "${argument}".`,
-        );
-        continue;
+    // A message for this session ends the wait: it is heard at the next step,
+    // and a step spent waiting would hold it for the whole window.
+    const interrupt = interruptibleWait(sessionId);
+    try {
+      for (const argument of targets) {
+        const id = normalizeId(argument);
+        const read = id
+          ? await readBackgroundProcess({
+              id,
+              sessionId,
+              signal: ctx.signal
+                ? AbortSignal.any([ctx.signal, interrupt.signal])
+                : interrupt.signal,
+              waitMs: timeoutMs,
+            })
+          : undefined;
+        if (!read) {
+          failed = true;
+          sections.push(
+            `${FG_COMMAND.name}: no background process "${argument}".`,
+          );
+          continue;
+        }
+        sections.push(formatRead(read));
+        exitCode = foregroundExitCode(read.info);
+        if (interrupt.signal.aborted) {
+          break;
+        }
       }
-      sections.push(formatRead(read));
-      exitCode = foregroundExitCode(read.info);
+    } finally {
+      interrupt.release();
+    }
+    if (interrupt.signal.aborted) {
+      sections.push(
+        "[A message arrived for you, so this wait ended early; it follows this result. The process is still running.]",
+      );
     }
 
     const text = `${sections.join("\n\n")}\n`;

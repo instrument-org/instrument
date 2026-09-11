@@ -81,7 +81,17 @@ export interface BackgroundProcessInfo {
   logWriteError?: string;
   startedAt: Date;
   status: BackgroundProcessStatus;
+  /** Who asked for the stop, for a process that was stopped rather than ended. */
+  stoppedBy?: StoppedBy;
 }
+
+/**
+ * Who asked a process to stop. The agent reads each differently: its own
+ * `kill` is a step it took, the user's stop button is a decision it must not
+ * undo by starting the process again, and the conversation's `task kill` is
+ * the assistant that briefed it stepping in.
+ */
+export type StoppedBy = "agent" | "conversation" | "user";
 
 export interface BackgroundProcessRead {
   info: BackgroundProcessInfo;
@@ -148,6 +158,7 @@ interface BackgroundProcessRecord {
   status: BackgroundProcessStatus;
   /** Set once a stop was asked for, and by what, so the outcome is labeled. */
   stopReason?: StopReason;
+  stoppedBy?: StoppedBy;
   taskId: TaskId;
   waiters: Set<() => void>;
 }
@@ -208,9 +219,11 @@ export async function killAllBackgroundProcesses(): Promise<void> {
 }
 
 export async function killBackgroundProcess({
+  by,
   id,
   sessionId,
 }: {
+  by: StoppedBy;
   id: string;
   sessionId: StoreId.Session;
 }): Promise<
@@ -230,7 +243,7 @@ export async function killBackgroundProcess({
   // had already stopped is a small lie that compounds.
   const stoppedByThisCall = record.status === "running";
   if (stoppedByThisCall) {
-    await stopRecord(record);
+    await stopRecord(record, { by });
   }
   // This result points the agent at the log file, so it has to be complete.
   await record.logClosed;
@@ -245,6 +258,9 @@ export async function killBackgroundProcess({
  * Kills everything one session started, without touching another session's
  * processes even when they belong to the same task. For a subagent session
  * ending, since nothing will poll it again. The id counter is left alone.
+ *
+ * Attributed to the user: every caller is the user removing a session, a task,
+ * or the app, and nothing reads the record afterwards in any case.
  */
 export function killSessionBackgroundProcesses(
   sessionId: StoreId.Session,
@@ -264,7 +280,7 @@ export function killSessionBackgroundProcesses(
         (record) => record.status === "running",
       );
       const confirmed = await Promise.all(
-        running.map((record) => stopRecord(record)),
+        running.map((record) => stopRecord(record, { by: "user" })),
       );
       // Only what this call tried to stop. A record left `termination-uncertain`
       // by an earlier kill is not running now and cannot be stopped again, so
@@ -434,7 +450,7 @@ export function promoteBackgroundProcess({
       (getCurrentDate().getTime() - handle.startedAt.getTime()),
   );
   record.ageTimer = setTimeout(() => {
-    void stopRecord(record, "expired");
+    void stopRecord(record, { reason: "expired" });
   }, ageRemaining);
   record.ageTimer.unref();
 
@@ -891,12 +907,15 @@ function stoppedStatus(
  */
 async function stopRecord(
   record: BackgroundProcessRecord,
-  reason: StopReason = "requested",
+  { by, reason = "requested" }: { by?: StoppedBy; reason?: StopReason },
 ) {
   if (record.status !== "running") {
     return record.status !== "termination-uncertain";
   }
   record.stopReason = reason;
+  if (by !== undefined) {
+    record.stoppedBy = by;
+  }
   record.handle.abort();
 
   const settled = await Promise.race([
@@ -938,6 +957,7 @@ function toInfo(record: BackgroundProcessRecord): BackgroundProcessInfo {
       : {}),
     startedAt: record.startedAt,
     status: record.status,
+    ...(record.stoppedBy === undefined ? {} : { stoppedBy: record.stoppedBy }),
   };
 }
 

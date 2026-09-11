@@ -53,6 +53,7 @@ const stop = base
       return { stopped: false };
     }
     const killed = await killBackgroundProcess({
+      by: "user",
       id: process.id,
       sessionId: process.sessionId,
     });
@@ -68,7 +69,11 @@ const stopAll = base
     );
     const results = await Promise.all(
       running.map((process) =>
-        killBackgroundProcess({ id: process.id, sessionId: process.sessionId }),
+        killBackgroundProcess({
+          by: "user",
+          id: process.id,
+          sessionId: process.sessionId,
+        }),
       ),
     );
     return {

@@ -457,6 +457,7 @@ export async function runKill(args: string[], context: TaskCommandContext) {
         runningForMs: now - process.startedAt.getTime(),
       });
       const killed = await killBackgroundProcess({
+        by: "conversation",
         id: process.id,
         sessionId: process.sessionId,
       });

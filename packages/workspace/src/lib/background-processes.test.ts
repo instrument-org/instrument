@@ -234,6 +234,7 @@ describe("background processes", () => {
     const { controllable, info } = promote(owner, "node work/server.js");
 
     const killed = await killBackgroundProcess({
+      by: "agent",
       id: info.id,
       sessionId: owner.sessionId,
     });
@@ -243,6 +244,7 @@ describe("background processes", () => {
 
     // A second kill is harmless, but must not claim it stopped anything.
     const again = await killBackgroundProcess({
+      by: "agent",
       id: info.id,
       sessionId: owner.sessionId,
     });
@@ -259,6 +261,7 @@ describe("background processes", () => {
     // Nothing settles, so the stop gives up and says so rather than claiming a
     // process it could not confirm was gone.
     const killed = await killBackgroundProcess({
+      by: "agent",
       id: info.id,
       sessionId: owner.sessionId,
     });
@@ -348,7 +351,11 @@ describe("background processes", () => {
       }),
     ).toBeUndefined();
     expect(
-      await killBackgroundProcess({ id: "bg_99", sessionId: owner.sessionId }),
+      await killBackgroundProcess({
+        by: "agent",
+        id: "bg_99",
+        sessionId: owner.sessionId,
+      }),
     ).toBeUndefined();
   });
 
@@ -888,6 +895,7 @@ describe("background processes", () => {
     }
 
     const killed = await killBackgroundProcess({
+      by: "agent",
       id: promoted.info.id,
       sessionId: owner.sessionId,
     });
@@ -926,6 +934,7 @@ describe("background processes", () => {
       throw new Error(promoted.error);
     }
     await killBackgroundProcess({
+      by: "agent",
       id: promoted.info.id,
       sessionId: owner.sessionId,
     });

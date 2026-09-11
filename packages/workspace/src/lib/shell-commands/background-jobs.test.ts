@@ -9,7 +9,11 @@ import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-mod
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { runTool } from "../../test/helpers/run-tool";
 import { BashTool } from "../../tools/bash";
-import { killSessionBackgroundProcesses } from "../background-processes";
+import {
+  killBackgroundProcess,
+  killSessionBackgroundProcesses,
+  listBackgroundProcesses,
+} from "../background-processes";
 
 const model = createMockAIGatewayModel();
 
@@ -176,5 +180,33 @@ describe("background job commands", () => {
 
     const chained = await bash(`fg ${processId} && echo reached`);
     expect(chained.output).not.toContain("reached");
+  }, 30_000);
+
+  // The interpreter leaves exit 124 behind when a run is aborted, and "finished
+  // with exit code 124" read as the command failing on its own. Who asked for
+  // the stop is what the agent needs, since the user's stop button is a
+  // decision it must not undo.
+  it("says who stopped a process rather than reporting an exit code", async () => {
+    const processId = await startTicker();
+    const [running] = listBackgroundProcesses(sessionId);
+    await killBackgroundProcess({ by: "user", id: processId, sessionId });
+    expect(running?.status).toBe("running");
+
+    const waited = await bash(`fg ${processId}`);
+    expect(waited.output).toContain(
+      `${processId} was stopped by the user after`,
+    );
+    expect(waited.output).toContain("Do not start it again unless asked to.");
+    expect(waited.output).not.toContain("finished with exit code");
+
+    const own = await startTicker();
+    await bash(`kill ${own}`);
+    const ownWait = await bash(`fg ${own}`);
+    expect(ownWait.output).toContain(`${own} was stopped by your \`kill\``);
+    expect(ownWait.output).not.toContain("Do not start it again");
+
+    const listed = await bash("jobs");
+    expect(listed.output).toContain("stopped by the user");
+    expect(listed.output).toContain("stopped by your `kill`");
   }, 30_000);
 });

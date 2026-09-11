@@ -128,7 +128,11 @@ export function createKillCommand({ sessionId }: SessionCommandContext) {
         );
         continue;
       }
-      const killed = await killBackgroundProcess({ id, sessionId });
+      const killed = await killBackgroundProcess({
+        by: "agent",
+        id,
+        sessionId,
+      });
       if (!killed) {
         failed = true;
         lines.push(`${KILL_COMMAND.name}: no background process "${id}".`);
@@ -167,11 +171,29 @@ function describeStatus(process: BackgroundProcessInfo) {
   // abort code rather than anything the command chose, so printing it invites
   // the reader to diagnose an exit that never happened.
   if (process.status === "killed") {
-    return "killed";
+    return `stopped by ${stopper(process.stoppedBy)}`;
   }
   return process.exitCode === undefined
     ? process.status
     : `${process.status} (${process.exitCode})`;
+}
+
+/** Who a stop is attributed to, in the agent's own terms. */
+function stopper(stoppedBy: BackgroundProcessInfo["stoppedBy"]) {
+  switch (stoppedBy) {
+    case "agent": {
+      return `your \`${KILL_COMMAND.name}\``;
+    }
+    case "conversation": {
+      return "the assistant that started this task";
+    }
+    case "user": {
+      return "the user";
+    }
+    default: {
+      return "a stop nobody here asked for";
+    }
+  }
 }
 
 function fail(command: string, message: string) {
@@ -208,9 +230,14 @@ function formatRead(read: {
         ? `${read.info.id} did not confirm termination after ${elapsed}; it may still be running.`
         : read.info.status === "expired"
           ? `${read.info.id} was stopped after ${elapsed} because a background process may run for at most ${ms(MAX_RUNNING_AGE_MS, { long: true })}. Nobody asked for it to stop and it did not fail; start it again if the work still needs it.`
-          : read.info.exitCode === undefined
-            ? `${read.info.id} is no longer running (${read.info.status}) after ${elapsed}.`
-            : `${read.info.id} finished with exit code ${read.info.exitCode} after ${elapsed}.`;
+          : // Before the exit code: a stopped process carries the interpreter's
+            // abort code, and "finished with exit code 124" reads as the command
+            // failing on its own when somebody ended it.
+            read.info.status === "killed"
+            ? `${read.info.id} was stopped by ${stopper(read.info.stoppedBy)} after ${elapsed}; it did not finish.${read.info.stoppedBy === "agent" ? "" : " Do not start it again unless asked to."}`
+            : read.info.exitCode === undefined
+              ? `${read.info.id} is no longer running (${read.info.status}) after ${elapsed}.`
+              : `${read.info.id} finished with exit code ${read.info.exitCode} after ${elapsed}.`;
 
   const notices: string[] = [];
   if (read.omittedBytes > 0) {

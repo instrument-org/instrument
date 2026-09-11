@@ -55,14 +55,6 @@ export const PORTS = {
     prod: 47_893,
   },
   electronDebug: 48_160,
-  // Starting port for PortManager, which increments upward (up to 1000 attempts)
-  // to assign a port to each running user app.
-  runtimeBase: {
-    dev: 48_400,
-    prod: 48_200,
-    test: 48_600,
-  },
-  shimClient: 48_350,
 } as const;
 
 const OUR_MODELS_GROUP_ID = "instrument";

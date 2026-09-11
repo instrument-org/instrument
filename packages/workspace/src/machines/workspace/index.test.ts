@@ -29,7 +29,6 @@ const stubActor: AnyActorLogic = fromCallback(noop);
 // logic type, which a no-op stub can't. Cast the override map so the stub can
 // stand in for every child; the test only needs spawnable, stoppable children.
 const stubActors = {
-  runtimeMachine: stubActor,
   sessionMachine: stubActor,
   taskBrowserMachine: stubActor,
   workspaceServerLogic: stubActor,
@@ -55,7 +54,6 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
       preparedSkillsDir: "/tmp/prepared-skills",
       registryDir: MOCK_WORKSPACE_DIRS.registry,
       rootDir,
-      shimClientDir: "dev-server",
       systemSkillsDir: MOCK_WORKSPACE_DIRS.systemSkills,
       trashItem: () => Promise.resolve(),
       uvBinPath: "/tmp/uv",
@@ -64,6 +62,46 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
     },
   });
 }
+
+const buildUserMessage = (): SessionMessage.UserWithParts => {
+  const sessionId = StoreId.newSessionId();
+  const messageId = StoreId.newMessageId();
+  return {
+    id: messageId,
+    metadata: { createdAt: new Date(0), sessionId },
+    parts: [
+      {
+        metadata: {
+          createdAt: new Date(0),
+          id: StoreId.newPartId(),
+          messageId,
+          sessionId,
+        },
+        text: "hi",
+        type: "text",
+      },
+    ],
+    role: "user",
+  };
+};
+
+const spawnSession = (
+  actor: ReturnType<typeof createWorkspaceActor>,
+  taskId: TaskId,
+  parentSessionId?: StoreId.Session,
+) => {
+  actor.send({
+    type: "internal.spawnSession",
+    value: {
+      agentName: "main",
+      message: buildUserMessage(),
+      model: createMockAIGatewayModel(),
+      parentSessionId,
+      sessionId: StoreId.newSessionId(),
+      taskId,
+    },
+  });
+};
 
 describe("workspaceMachine task trashing", () => {
   it("trashing a task does not stop a sibling whose id contains the trashed id", () => {
@@ -74,35 +112,40 @@ describe("workspaceMachine task trashing", () => {
     const actor = createWorkspaceActor();
     actor.start();
 
-    actor.send({ type: "spawnRuntime", value: { taskId: trashedId } });
-    actor.send({ type: "spawnRuntime", value: { taskId: siblingId } });
+    spawnSession(actor, trashedId);
+    spawnSession(actor, siblingId);
 
-    const siblingRef = actor.getSnapshot().context.runtimeRefs.get(siblingId);
+    const siblingRef = actor
+      .getSnapshot()
+      .context.sessionRefsByTaskId.get(siblingId)?.[0];
     expect(siblingRef).toBeDefined();
 
     actor.send({ type: "prepareToTrashTask", value: { id: trashedId } });
 
-    const { runtimeRefs } = actor.getSnapshot().context;
-    expect(runtimeRefs.has(trashedId)).toBe(false);
-    expect(runtimeRefs.has(siblingId)).toBe(true);
+    const { sessionRefsByTaskId, tasksBeingTrashed } =
+      actor.getSnapshot().context;
+    expect(tasksBeingTrashed).toEqual([trashedId]);
+    expect(sessionRefsByTaskId.has(siblingId)).toBe(true);
     expect(siblingRef?.getSnapshot().status).toBe("active");
 
     actor.stop();
   });
 
-  it("spawning a runtime whose id ends with a trashed id is not blocked", () => {
+  it("spawning a session whose task id ends with a trashed id is not blocked", () => {
     const trashedId = TaskIdSchema.parse("task");
-    // New id has the trashed id as a suffix; the old endsWith guard wrongly
-    // treated it as a child of the task being trashed.
+    // New id has the trashed id as a suffix; an endsWith guard would wrongly
+    // treat it as a child of the task being trashed.
     const newId = TaskIdSchema.parse("my-task");
 
     const actor = createWorkspaceActor();
     actor.start();
 
     actor.send({ type: "prepareToTrashTask", value: { id: trashedId } });
-    actor.send({ type: "spawnRuntime", value: { taskId: newId } });
+    spawnSession(actor, newId);
 
-    expect(actor.getSnapshot().context.runtimeRefs.has(newId)).toBe(true);
+    expect(actor.getSnapshot().context.sessionRefsByTaskId.has(newId)).toBe(
+      true,
+    );
 
     actor.stop();
   });
@@ -163,46 +206,6 @@ describe("workspaceMachine unread indicators", () => {
 });
 
 describe("workspaceMachine session ref lifecycle", () => {
-  const buildUserMessage = (): SessionMessage.UserWithParts => {
-    const sessionId = StoreId.newSessionId();
-    const messageId = StoreId.newMessageId();
-    return {
-      id: messageId,
-      metadata: { createdAt: new Date(0), sessionId },
-      parts: [
-        {
-          metadata: {
-            createdAt: new Date(0),
-            id: StoreId.newPartId(),
-            messageId,
-            sessionId,
-          },
-          text: "hi",
-          type: "text",
-        },
-      ],
-      role: "user",
-    };
-  };
-
-  const spawnSession = (
-    actor: ReturnType<typeof createWorkspaceActor>,
-    taskId: TaskId,
-    parentSessionId?: StoreId.Session,
-  ) => {
-    actor.send({
-      type: "internal.spawnSession",
-      value: {
-        agentName: "main",
-        message: buildUserMessage(),
-        model: createMockAIGatewayModel(),
-        parentSessionId,
-        sessionId: StoreId.newSessionId(),
-        taskId,
-      },
-    });
-  };
-
   it("drops a session ref when that session finishes", () => {
     const taskId = TaskIdSchema.parse("gc-task");
 

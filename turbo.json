@@ -53,12 +53,7 @@
       ],
       "outputs": ["dist/**", "out/**"]
     },
-    "@instrument-org/shim-client#build": {
-      "inputs": ["$TURBO_DEFAULT$"],
-      "outputs": ["dist/**"]
-    },
     "build:vite": {
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "env": [
         "CI",
         "MAIN_VITE_APP_API_BASE_URL",
@@ -73,34 +68,28 @@
     "build:env:unsigned": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:dev": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:local": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:mac:unsigned": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:win:unsigned": {
       "cache": false,
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "build:windows:dev": {
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "outputs": ["dist/**", "out/**"]
     },
     "smoke-test": {
@@ -112,7 +101,6 @@
         "VITE_POSTHOG_API_KEY"
       ],
       "cache": false,
-      "dependsOn": ["@instrument-org/shim-client#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "smoke-test.spec.ts",

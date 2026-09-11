@@ -6,7 +6,6 @@ pnpm monorepo for the Instrument desktop app platform.
 - `packages/workspace`: Core AI agents, workflow logic, and workspace management
 - `packages/ai-gateway`: Model proxy (Hono app the workspace server mounts) plus the model discovery/identity library
 - `packages/shared`: Types, constants, and utilities used everywhere
-- `packages/shim-client`: Client-side runtime injected into user apps
 - `packages/eslint-config`, `packages/typescript-config`: Shared tool config
 
 ## Product terminology

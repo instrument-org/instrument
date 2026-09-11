@@ -11,7 +11,7 @@ The workspace server ([`server/index.ts`](../../packages/workspace/src/logic/ser
 | Host                                    | Origin   | Serves                                     |
 | --------------------------------------- | -------- | ------------------------------------------ |
 | `assets.<taskId>.localhost:<port>`      | `assets` | The task's files, statically               |
-| `<taskId>.localhost:<port>`             | `app`    | The app-runtime proxy (no UI navigates here) |
+| `<taskId>.localhost:<port>`             | `app`    | Nothing; a bare task host is parsed and not served |
 
 `lvh.me` is accepted alongside `localhost` for browsers that will not resolve `*.localhost`. `assetsRoute` claims its origin before any other route sees the request, so the two origins never contend.
 

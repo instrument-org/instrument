@@ -1,7 +1,6 @@
 import { type WorkspaceServerActorRef } from "../../logic/server";
 import { type TaskId } from "../../schemas/task-id";
 import { type WorkspaceConfig } from "../../types";
-import { type RuntimeActorRef } from "../runtime";
 import { type SessionActorRef } from "../session";
 import { type TaskBrowserActorRef } from "../task-browser";
 
@@ -14,7 +13,6 @@ export interface WorkspaceContext {
   // taskBrowser.stopped event arrives (or immediately if no machine
   // existed when prepareToTrashTask ran).
   pendingBrowserReapResolvers: Map<TaskId, (() => void)[]>;
-  runtimeRefs: Map<TaskId, RuntimeActorRef>;
   sessionRefsByTaskId: Map<TaskId, SessionActorRef[]>;
   // One taskBrowser actor per task id with browser activity or an
   // active task-page presence subscription. Spawned lazily and reaped on

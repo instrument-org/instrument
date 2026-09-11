@@ -1,6 +1,5 @@
 import { type ActorRef, type MachineSnapshot } from "xstate";
 
-import { type RuntimeActorRef } from "../../machines/runtime";
 import { type WorkspaceContext } from "../../machines/workspace/types";
 import { type AbsolutePath } from "../../schemas/paths";
 import { type StoreId } from "../../schemas/store-id";
@@ -9,9 +8,7 @@ import { type BrowserTargetId, type WorkspaceConfig } from "../../types";
 
 export interface WorkspaceServerEnv {
   Variables: {
-    getRuntimeRef: (id: TaskId) => RuntimeActorRef | undefined;
     parentRef: WorkspaceServerParentRef;
-    shimClientDir: "dev-server" | AbsolutePath;
     workspaceConfig: WorkspaceConfig;
   };
 }
@@ -28,14 +25,6 @@ export type WorkspaceServerParentEvent =
   // agent-browser. Acts as the agent-activity heartbeat that resets the
   // taskBrowser machine's idle timer.
   | { type: "workspaceServer.error"; value: { error: Error } }
-  | {
-      type: "workspaceServer.heartbeat";
-      value: {
-        createdAt: number;
-        shouldCreate: boolean;
-        taskId: TaskId;
-      };
-    }
   | { type: "workspaceServer.started"; value: { port: number } }
   | {
       type: "workspaceServer.updateCdpHeartbeat";

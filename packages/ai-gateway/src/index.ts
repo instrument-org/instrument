@@ -2,10 +2,6 @@ export type { AIGatewayApp } from "./app";
 export { aiGatewayApp } from "./app";
 export { CLIENT_SESSION_ID_HEADER } from "./constants";
 export { providerOptionsForModel } from "./lib/ai-sdk-provider-options";
-export {
-  envForProviderConfig,
-  envForProviderConfigs,
-} from "./lib/env-for-provider-configs";
 export type { TypedError as AIGatewayTypedError } from "./lib/errors";
 export * from "./lib/fetch-ai-sdk-model";
 export * from "./lib/fetch-model";

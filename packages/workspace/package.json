@@ -15,7 +15,6 @@
   "exports": {
     "./client": "./src/client.ts",
     "./electron": "./src/electron.ts",
-    "./for-shim": "./src/for-shim.ts",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -45,7 +44,6 @@
     "@instrument-org/ai-gateway": "workspace:*",
     "@instrument-org/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@netlify/build-info": "^10.0.9",
     "@orpc/server": "catalog:",
     "@parcel/watcher": "2.6.0",
     "@types/ws": "^8.18.1",
@@ -55,7 +53,6 @@
     "ai": "catalog:",
     "date-fns": "^4.1.0",
     "db0": "^0.3.1",
-    "detect-port": "^2.1.0",
     "diff": "^8.0.3",
     "dugite": "3.0.0-rc11",
     "execa": "^9.6.0",
@@ -72,7 +69,6 @@
     "neverthrow": "^8.1.1",
     "node-html-markdown": "^2.0.0",
     "radashi": "^12.6.0",
-    "read-pkg": "^9.0.1",
     "superjson": "^2.2.2",
     "tiny-invariant": "^1.3.3",
     "tokenx": "^1.3.0",

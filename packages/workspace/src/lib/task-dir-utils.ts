@@ -1,4 +1,3 @@
-import fs from "node:fs/promises";
 import path from "node:path";
 
 import { TASK_DB_FILE_NAME, TASK_FOLDER_NAMES } from "../constants";
@@ -72,13 +71,6 @@ export function getTaskTmpDir(dir: TaskDir): AbsolutePath {
 // walking up to the root like anything else in the task.
 export function getTaskWorkDir(dir: TaskDir): AbsolutePath {
   return absolutePathJoin(dir, TASK_FOLDER_NAMES.work);
-}
-
-export function isRunnable(dir: TaskDir): Promise<boolean> {
-  return fs
-    .access(path.join(dir, "package.json"))
-    .then(() => true)
-    .catch(() => false);
 }
 
 export function sessionStorePath(dir: TaskDir): AbsolutePath {

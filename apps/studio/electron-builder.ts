@@ -100,10 +100,6 @@ const config: Configuration = {
       from: "../../packages/workspace/system-skills",
       to: "system-skills",
     },
-    {
-      from: "../../packages/shim-client/dist",
-      to: "shim-client",
-    },
   ],
   files: [
     "out/**/*",

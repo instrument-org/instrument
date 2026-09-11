@@ -163,14 +163,6 @@ export function createWorkspaceActor({
         ? path.join(process.resourcesPath, REGISTRY_DIR_NAME)
         : UNPACKAGED_REGISTRY_DIR,
       rootDir,
-      shimClientDir: app.isPackaged
-        ? path.resolve(process.resourcesPath, "shim-client")
-        : import.meta.env.MAIN_VITE_USE_BUILT_SHIM_CLIENT
-          ? path.resolve(
-              import.meta.dirname,
-              "../../../../packages/shim-client/dist",
-            )
-          : "dev-server",
       systemSkillsDir: app.isPackaged
         ? path.join(process.resourcesPath, SYSTEM_SKILLS_DIR_NAME)
         : UNPACKAGED_SYSTEM_SKILLS_DIR,

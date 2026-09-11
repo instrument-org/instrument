@@ -9,61 +9,45 @@ import {
   listenWithPortFallback,
 } from "@instrument-org/shared";
 import { Hono } from "hono";
-import invariant from "tiny-invariant";
 import { type ActorRefFrom, type AnyEventObject, fromCallback } from "xstate";
 
-import { type AbsolutePath } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
 import { type WorkspaceConfig } from "../../types";
 import { DEFAULT_APPS_SERVER_PORT, LOOPBACK_HOST } from "./constants";
-import { allProxyRoute } from "./routes/all-proxy";
 import { assetsRoute } from "./routes/assets";
 import { cdpBridgeRoute, setupCdpWebSocketBridge } from "./routes/cdp-bridge";
-import { heartbeatRoute } from "./routes/heartbeat";
-import { redirectRoute } from "./routes/redirect";
-import { shimIFrameRoute } from "./routes/shim-iframe";
-import { shimScriptRoute } from "./routes/shim-script";
 import {
   type WorkspaceServerEnv,
   type WorkspaceServerParentRef,
 } from "./types";
 import { setWorkspaceServerPort } from "./url";
-import { setupWebSocketProxy } from "./websocket-proxy";
 
+/**
+ * The loopback server: the per-task asset origin the agent's browser opens a
+ * task's files on, the CDP bridge agent-browser drives a guest through, and
+ * the model proxy every in-process model call is pointed at, which is where
+ * provider credentials are added. The person's own viewers read files by
+ * another road entirely.
+ */
 export const workspaceServerLogic = fromCallback<
   AnyEventObject,
   {
     aiGatewayApp?: AIGatewayApp;
     parentRef: WorkspaceServerParentRef;
-    shimClientDir: "dev-server" | AbsolutePath;
     workspaceConfig: WorkspaceConfig;
   }
 >(({ input }) => {
   const app = new Hono<WorkspaceServerEnv>();
 
   app.use(async (c, next) => {
-    function getRuntimeRef(id: TaskId) {
-      const snapshot = input.parentRef.getSnapshot();
-      invariant(snapshot, "Workspace not found");
-      return snapshot.context.runtimeRefs.get(id);
-    }
     c.set("parentRef", input.parentRef);
     c.set("workspaceConfig", input.workspaceConfig);
-    c.set("getRuntimeRef", getRuntimeRef);
-    c.set("shimClientDir", input.shimClientDir);
     await next();
   });
 
-  // Asset origins own their entire root, so claim them before app-runtime and
-  // infrastructure routes inspect the request.
+  // Asset origins own their entire root, so they are claimed before the
+  // infrastructure route inspects the request.
   app.route("/", assetsRoute);
-  app.route("/", shimScriptRoute);
-  app.route("/", shimIFrameRoute);
-  app.route("/", heartbeatRoute);
-  app.route("/", redirectRoute);
   app.route("/", cdpBridgeRoute);
-  // Note: Must be after all app-specific routes
-  app.route("/", allProxyRoute);
   if (input.aiGatewayApp) {
     app.use<string, AIGatewayEnv>(
       `${AI_GATEWAY_API_PATH}/*`,
@@ -110,7 +94,6 @@ export const workspaceServerLogic = fromCallback<
         );
       });
 
-      setupWebSocketProxy(startedServer, input.parentRef);
       setupCdpWebSocketBridge(
         startedServer,
         input.workspaceConfig,

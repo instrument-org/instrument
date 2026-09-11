@@ -6,8 +6,6 @@ import { orchestrator } from "./routes/orchestrator";
 import { pin } from "./routes/pin";
 import { project } from "./routes/project";
 import { replay } from "./routes/replay";
-import { runtime } from "./routes/runtime";
-import { server } from "./routes/server";
 import { session } from "./routes/session";
 import { skill } from "./routes/skill";
 import { storage } from "./routes/storage";
@@ -22,8 +20,6 @@ export const router = {
   pin,
   project,
   replay,
-  runtime,
-  server,
   session,
   skill,
   storage,

@@ -9,19 +9,18 @@ Instrument is an Electron desktop app. The user works in **tasks**; an AI agent 
 Dependencies point downward; nothing lower imports anything higher.
 
 ```
-        studio (Electron app)        shim-client (injected runtime)
-             \                       /
-              workspace (agents, tools, server, runtimes)
-                          |
-                     ai-gateway (model proxy + model library)
-                          |
-                       shared (types, constants, utils)
+        studio (Electron app)
+             |
+        workspace (agents, tools, server)
+             |
+        ai-gateway (model proxy + model library)
+             |
+        shared (types, constants, utils)
 ```
 
 - **`packages/shared`** — types, constants (e.g. `AI_GATEWAY_API_PATH`, `APP_NAME`), and utilities used everywhere.
 - **`packages/ai-gateway`** — model access. A mounted Hono app that proxies provider API calls with injected credentials, plus a library for model discovery, identity, and image/web-search model construction. See [ai-gateway.md](ai-gateway.md).
-- **`packages/workspace`** — the core: agents, tools, RPC, XState machines, the workspace HTTP server, and per-task runtimes. See [`packages/workspace/AGENTS.md`](../../packages/workspace/AGENTS.md).
-- **`packages/shim-client`** — a separately built runtime injected into the user's app so Instrument can observe and drive it. Not yet mapped in its own doc; entry points are `packages/shim-client/src/{client,iframe}`, and the workspace server serves it (`shim-script` / `shim-iframe` routes).
+- **`packages/workspace`** — the core: agents, tools, RPC, XState machines, and the workspace HTTP server. See [`packages/workspace/AGENTS.md`](../../packages/workspace/AGENTS.md).
 - **`apps/studio`** — the Electron app (main process + React renderer) that hosts everything and is the product UI. See [`apps/studio/AGENTS.md`](../../apps/studio/AGENTS.md).
 
 ## Runtime topology
@@ -34,18 +33,18 @@ Two OS processes matter: Electron **main** and the **renderer**. Almost all serv
  main process (Electron)
     |-- Studio RPC routes + workspaceRouter
     |-- workspaceMachine (XState actor)
-    |     |-- workspace HTTP server (Hono / @hono/node-server)
-    |     |     |-- shim script + iframe, assets, heartbeat, CDP bridge
-    |     |     |-- proxy of the user's app traffic
-    |     |     `-- ai-gateway app mounted at AI_GATEWAY_API_PATH
-    |     `-- per-task runtimes (runtimeRefs, keyed by TaskId)
-    `-- browser view manager (embedded Chromium for the user's app)
+    |     `-- workspace HTTP server (Hono / @hono/node-server)
+    |           |-- per-task asset origin, CDP bridge
+    |           `-- ai-gateway app mounted at AI_GATEWAY_API_PATH
+    |-- file channel (instrument://computer-<token>, the renderer's own read of any file on the computer)
+    `-- browser view manager (embedded Chromium guests the agent and the person browse in)
 ```
 
 - **Renderer ↔ main** is [oRPC](../../apps/studio/AGENTS.md) over a `MessageChannel`; the UI never calls remote services directly, only through main-process RPC. Main hosts Studio's own routes (`apps/studio/src/electron-main/rpc/routes/`) plus the workspace router (`workspaceRouter` from `@instrument-org/workspace/electron`).
-- **Boot** happens in [`create-workspace-actor.ts`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts): it starts `workspaceMachine`, injecting `aiGatewayApp`, `shimClientDir`, the browser manager, `getAIProviderConfigs`, the on-disk model cache, the registry / system-skills / task-template directories, the bundled `pnpm` and `uv` binary paths (plus uv's data dir), the `external_browser` flag getter, and the web-search client.
-- **Workspace server** is a Hono app served in-process via `@hono/node-server` ([`server/index.ts`](../../packages/workspace/src/logic/server/index.ts)). It serves task files from a dedicated `assets.<task>.<host>` origin ([asset-origin.md](asset-origin.md)), plus the shim, heartbeat, CDP bridge, and ai-gateway app. The bare task origin retains the app-runtime proxy, runtime machine, and spawn path for future full-stack app viewing, but no current Studio UI navigates to it. The port falls back to a free one, so multiple dev instances can coexist.
-- **Per-task runtimes** are XState actors the workspace machine supervises (`runtimeRefs`, keyed by `TaskId`); session/agent machines (`packages/workspace/src/machines/`) drive an agent turn within a task.
+- **Boot** happens in [`create-workspace-actor.ts`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts): it starts `workspaceMachine`, injecting `aiGatewayApp`, the browser manager, `getAIProviderConfigs`, the on-disk model cache, the registry / system-skills / task-template directories, the bundled `pnpm` and `uv` binary paths (plus uv's data dir), the `external_browser` flag getter, and the web-search client.
+- **Workspace server** is a Hono app served in-process via `@hono/node-server` ([`server/index.ts`](../../packages/workspace/src/logic/server/index.ts)), and everything on it is for the agent: the `assets.<task>.<host>` origin its browser opens a task's files on ([asset-origin.md](asset-origin.md)), the CDP bridge `agent-browser` drives a guest through, and the ai-gateway app every in-process model call is pointed at. The port falls back to a free one, so multiple dev instances can coexist.
+- **The file channel** is how the person's own viewers read a file: `instrument://computer-<token>/<host path>`, an app-scheme handler in main ([`computer-files.ts`](../../apps/studio/src/electron-main/lib/computer-files.ts)) that serves any file the app's user can read, by its real path. It is registered on the app's own session only, so no browser guest can name it, and the host carries a per-launch token the renderer learns over RPC, so agent-authored HTML in the artifact preview cannot either.
+- **Session and agent machines** (`packages/workspace/src/machines/`) drive an agent turn within a task; the workspace machine supervises them per task.
 - **Sandboxing** of what the agent's tools can touch is a userland concern implemented inside each tool, not OS isolation. See [agent-sandbox.md](agent-sandbox.md).
 
 ## On-disk layout

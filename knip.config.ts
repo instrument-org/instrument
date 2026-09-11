@@ -73,9 +73,6 @@ const config: KnipConfig = {
     "packages/eslint-config": {
       ignore: ["ignore.ts"],
     },
-    "packages/shim-client": {
-      entry: ["src/client/index.ts!"],
-    },
     "packages/typescript-config": {},
     "packages/workspace": {
       // The eval and script trees are reached through package.json scripts, which

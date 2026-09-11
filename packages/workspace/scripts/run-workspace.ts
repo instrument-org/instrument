@@ -133,9 +133,6 @@ const actor = createActor(workspaceMachine, {
     registryDir,
     // Sibling directory to monorepo to avoid using same pnpm and git
     rootDir: path.resolve("../../../workspace.local"),
-    // Uncomment to test built shim
-    // shimClientDir: path.resolve("../shim-client/dist"),
-    shimClientDir: "dev-server",
     systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
     trashItem: () => Promise.reject(new Error("Not implemented")),
     uvBinPath: await execa({ reject: false })`which uv`.then(

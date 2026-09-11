@@ -318,7 +318,6 @@ export async function runEvals(
       preparedSkillsDir: path.join(workspaceRootDir, "prepared-skills"),
       registryDir,
       rootDir: workspaceRootDir,
-      shimClientDir: "dev-server",
       systemSkillsDir: path.resolve(import.meta.dirname, "../system-skills"),
       trashItem: () => Promise.reject(new Error("Not implemented")),
       uvBinPath: await execa({ reject: false })`which uv`.then(

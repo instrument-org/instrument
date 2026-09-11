@@ -1,19 +1,31 @@
 import { defineCommand } from "just-bash";
 import path from "node:path";
 
+import { MOUNT } from "../../mount-points";
+import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { gitBinaryPath } from "../git";
 import { taskDir } from "../task-dir-utils";
+import {
+  buildWorkspaceFsLayout,
+  hostPathEscapesMount,
+  isMaskedPrivatePath,
+  nonTaskMounts,
+  resolveHostPath,
+  type WorkspaceFsLayout,
+  type WorkspaceFsMount,
+} from "../workspace-fs-layout";
 import {
   collapseProgress,
   execShim,
   mapStreams,
   shimOutput,
 } from "./exec-shim";
+import { virtualizeOutput } from "./rg";
 import {
-  attachedMountReference,
   bridgeFlagValuePath,
+  privateDirLiteralError,
   resolveCommandContext,
   resolvePathArgs,
   subprocessStdin,
@@ -24,6 +36,7 @@ import {
 export const GIT_COMMAND = {
   description:
     `Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. ` +
+    `Works in an attached folder by its mount path (\`git -C ${MOUNT.attachedFolders}/<folder> log\`, or \`cd\` there first); in a read-only one it may only read (log, show, diff, blame, status), and committing there needs the folder attached read and write. ` +
     `No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. ` +
     `Pass commit messages with -m or -F; there is no editor. ` +
     `A large clone that outlives the call keeps running in the background rather than failing, and leaves a partial directory to delete if it is stopped.`,
@@ -120,78 +133,157 @@ const PATH_VALUE_FLAGS = new Set([
  */
 const BLOCKED_CONFIG_SCOPES = new Set(["--global", "--system"]);
 
-export function createGitCommand(taskId: TaskId) {
+/**
+ * Subcommands that read a repository and write nothing into it, which is all
+ * of git that a read-only mount permits. `status` and `diff` refresh the index
+ * as a side effect, which `--no-optional-locks` (forced whenever a read-only
+ * mount is involved) turns off. Anything not here, and any listing subcommand
+ * given something to act on, is a write on the user's folder.
+ */
+const READ_SUBCOMMANDS = new Set([
+  "archive",
+  "blame",
+  "cat-file",
+  "check-ignore",
+  "count-objects",
+  "describe",
+  "diff",
+  "diff-tree",
+  "for-each-ref",
+  "grep",
+  "help",
+  "log",
+  "ls-files",
+  "ls-remote",
+  "ls-tree",
+  "merge-base",
+  "name-rev",
+  "rev-list",
+  "rev-parse",
+  "shortlog",
+  "show",
+  "show-ref",
+  "status",
+  "var",
+  "version",
+  "whatchanged",
+]);
+
+/**
+ * Flags that turn `branch`, `tag`, and `remote` from a listing into a write
+ * even with no name after them: `--unset-upstream` acts on the current
+ * branch, `--edit-description` opens the editor on it.
+ */
+const LISTING_WRITE_FLAGS = new Set([
+  "--copy",
+  "--delete",
+  "--edit-description",
+  "--force",
+  "--move",
+  "--set-upstream-to",
+  "--unset-upstream",
+  "-C",
+  "-c",
+  "-D",
+  "-d",
+  "-f",
+  "-M",
+  "-m",
+  "-u",
+]);
+
+/** `git config` flags that only read; anything else on `config` writes. */
+const CONFIG_READ_FLAGS = new Set([
+  "--get",
+  "--get-all",
+  "--get-regexp",
+  "--list",
+  "-l",
+]);
+
+export function createGitCommand({
+  attachedFolders,
+  projectFolderName,
+  taskId,
+}: {
+  attachedFolders?: Record<string, FolderAttachment.Type>;
+  projectFolderName?: string;
+  taskId: TaskId;
+}) {
   return defineCommand(GIT_COMMAND.name, async (args, ctx) => {
     const rejection = rejectUnsafeArgs(args);
     if (rejection) {
-      return {
-        exitCode: 1,
-        stderr: `${GIT_COMMAND.name}: ${rejection}\n`,
-        stdout: "",
-      };
+      return fail(rejection);
     }
 
-    // git is a real subprocess, so an attached-folder mount is not a place it
-    // can be pointed at -- not with -C, not with --git-dir, and not by being
-    // launched with one as its working directory. Answering here names the
-    // mount the agent asked for; letting it through instead reports the
-    // quarantined path the mount resolves to, which reads as the sandbox
-    // mangling the path rather than refusing to cross the boundary.
-    const mountReference = attachedMountReference(
-      args,
-      ctx.fs.resolvePath(ctx.cwd, "."),
-    );
-    if (mountReference) {
-      return {
-        exitCode: 1,
-        stderr:
-          `${GIT_COMMAND.name}: ${mountReference} is an attached folder, which git cannot read. ` +
-          `Attached-folder mounts are visible to the sandbox shell and file tools only, never to a ` +
-          `real subprocess. To work with the history of a repository there, copy it into the task ` +
-          `first (cp -R '${mountReference}' work/) and run git on the copy; a copy of .git alone ` +
-          `reports every file as deleted, because it has no working tree beside it.\n`,
-        stdout: "",
-      };
-    }
-
+    const layout = buildWorkspaceFsLayout({
+      attachedFolders,
+      projectFolderName,
+      taskHostRoot: taskDir(taskId),
+    });
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
-    // resolvePathArgs only rewrites arguments that start with `/`, so bridge
-    // the inline `--git-dir=/task/...` form first. Without this it reaches the
-    // containment check as a literal `/task/...` and is reported as escaping,
-    // while the space-separated spelling of the same thing works.
-    const resolvedArgs = resolvePathArgs(
-      args.map((arg) =>
-        PATH_VALUE_FLAGS.has(arg.slice(0, arg.indexOf("=")))
-          ? bridgeFlagValuePath(arg, taskId, taskCwd, (p) =>
-              ctx.fs.resolvePath(ctx.cwd, p),
-            )
-          : arg,
-      ),
-      taskId,
-      ctx,
+    const resolveVirtual = (p: string) => ctx.fs.resolvePath(ctx.cwd, p);
+
+    // Where git runs. A mount is a real directory the user attached, so unlike
+    // the other native hatches git is handed its host path, both as a working
+    // directory (`cd /mnt/repo && git log`) and in arguments (`-C /mnt/repo`,
+    // `--git-dir=/mnt/repo/.git`). What the mount's access level still decides
+    // is what git may do there; see `readsOnly`.
+    const cwdMount = resolveMountPath(layout, resolveVirtual("."));
+    if (cwdMount && "error" in cwdMount) {
+      return fail(cwdMount.error);
+    }
+    const hostCwd = cwdMount?.hostPath ?? taskCwd;
+    const touchedMounts = new Set<WorkspaceFsMount>(
+      cwdMount ? [cwdMount.mount] : [],
     );
 
-    const escape = findEscapingPathValue(
-      resolvedArgs,
-      taskCwd,
-      taskDir(taskId),
-    );
+    const resolvedArgs: string[] = [];
+    for (const arg of args) {
+      const bridged = bridgeArg(arg, {
+        ctx,
+        layout,
+        resolveVirtual,
+        taskCwd,
+        taskId,
+      });
+      if ("error" in bridged) {
+        return fail(bridged.error);
+      }
+      if (bridged.mount) {
+        touchedMounts.add(bridged.mount);
+      }
+      resolvedArgs.push(bridged.arg);
+    }
+
+    const readOnly = [...touchedMounts].find((mount) => mount.readOnly);
+    if (readOnly && !readsOnly(args)) {
+      return fail(
+        `${readOnly.mountPoint} is attached read-only, so git may only read there ` +
+          `(log, show, diff, blame, status, and the other commands that write nothing). ` +
+          `Committing or changing files in it needs the folder attached read and write; ` +
+          `say so if the work needs that.`,
+      );
+    }
+
+    const escape = findEscapingPathValue(resolvedArgs, hostCwd, layout);
     if (escape) {
-      return {
-        exitCode: 1,
-        stderr:
-          `${GIT_COMMAND.name}: ${escape} points outside the task directory. ` +
-          `git can only operate on repositories inside the task.\n`,
-        stdout: "",
-      };
+      return fail(
+        `${escape} points outside the task directory and every attached folder. ` +
+          `git can only operate on repositories inside those.`,
+      );
     }
 
     const result = await execShim(
       gitBinaryPath(),
-      [...FORCED_CONFIG.flatMap((entry) => ["-c", entry]), ...resolvedArgs],
+      [
+        ...FORCED_CONFIG.flatMap((entry) => ["-c", entry]),
+        ...(readOnly ? ["--no-optional-locks"] : []),
+        ...resolvedArgs,
+      ],
       {
         cancelSignal: ctx.signal,
-        cwd: taskCwd,
+        cwd: hostCwd,
         // Isolation from the user's git config and credentials comes from
         // gitSubprocessEnv, which resolveCommandContext applies to every hatch.
         env,
@@ -199,8 +291,14 @@ export function createGitCommand(taskId: TaskId) {
       },
     );
 
+    // Mount roots back to mount points before the task-dir and home redaction,
+    // the order every shim that reaches a mount uses: the home fold would
+    // otherwise turn a mount under `~` into a path the agent cannot open.
     const streams = mapStreams(shimOutput(result, GIT_COMMAND.name), (text) =>
-      filterShellOutput(collapseProgress(text), taskDir(taskId)),
+      filterShellOutput(
+        collapseProgress(virtualizeOutput(text, layout)),
+        taskDir(taskId),
+      ),
     );
     return {
       exitCode: result.exitCode ?? 1,
@@ -210,9 +308,73 @@ export function createGitCommand(taskId: TaskId) {
 }
 
 /**
- * Report the first argument naming a path outside the task. `resolvePathArgs`
- * already quarantines sandbox-absolute paths, so what is left is relative
- * traversal, which resolves against the real host directory the task lives in.
+ * One argument as git receives it: a mount path becomes its host path, a
+ * `/task/...` path its host path relative to the working directory, and any
+ * other absolute path a quarantined one. The `--flag=value` spelling is bridged
+ * through its value, so `--git-dir=/mnt/repo/.git` and `--git-dir /mnt/repo/.git`
+ * land in the same place.
+ */
+function bridgeArg(
+  arg: string,
+  {
+    ctx,
+    layout,
+    resolveVirtual,
+    taskCwd,
+    taskId,
+  }: {
+    ctx: {
+      cwd: string;
+      fs: { resolvePath(cwd: string, path: string): string };
+    };
+    layout: WorkspaceFsLayout;
+    resolveVirtual: (p: string) => string;
+    taskCwd: string;
+    taskId: TaskId;
+  },
+): { arg: string; mount?: WorkspaceFsMount } | { error: string } {
+  const eqIndex = arg.indexOf("=");
+  const flag = eqIndex > 0 ? arg.slice(0, eqIndex) : undefined;
+  const inline = flag !== undefined && PATH_VALUE_FLAGS.has(flag);
+  const value = inline ? arg.slice(eqIndex + 1) : arg;
+  if (!value.startsWith("/")) {
+    return { arg };
+  }
+
+  const mountPath = resolveMountPath(layout, resolveVirtual(value));
+  if (mountPath && "error" in mountPath) {
+    return mountPath;
+  }
+  if (mountPath) {
+    return {
+      arg: inline ? `${flag}=${mountPath.hostPath}` : mountPath.hostPath,
+      mount: mountPath.mount,
+    };
+  }
+
+  // resolvePathArgs only rewrites arguments that start with `/`, so the inline
+  // form is bridged through its value first. Without this it reaches the
+  // containment check as a literal `/task/...` and is reported as escaping,
+  // while the space-separated spelling of the same thing works.
+  const [bridged] = inline
+    ? [bridgeFlagValuePath(arg, taskId, taskCwd, resolveVirtual)]
+    : resolvePathArgs([arg], taskId, ctx);
+  return { arg: bridged ?? arg };
+}
+
+function fail(message: string) {
+  return {
+    exitCode: 1,
+    stderr: `${GIT_COMMAND.name}: ${message}\n`,
+    stdout: "",
+  };
+}
+
+/**
+ * Report the first argument naming a path outside the task and every mount.
+ * Absolute virtual paths were already bridged or quarantined, so what is left
+ * is relative traversal, which resolves against the real host directory git
+ * runs in.
  *
  * Repeated `-C` is why this folds rather than checking each value on its own:
  * git resolves each non-absolute `-C` relative to the preceding one, so
@@ -222,15 +384,22 @@ export function createGitCommand(taskId: TaskId) {
  */
 function findEscapingPathValue(
   args: string[],
-  taskCwd: string,
-  taskRoot: string,
+  hostCwd: string,
+  layout: WorkspaceFsLayout,
 ): string | undefined {
+  const roots = [
+    layout.task.hostRoot,
+    ...nonTaskMounts(layout).map((mount) => mount.hostRoot),
+  ];
   const escapes = (value: string, from: string) => {
-    const relative = path.relative(taskRoot, path.resolve(from, value));
-    return relative.startsWith("..") || path.isAbsolute(relative);
+    const resolved = path.resolve(from, value);
+    return !roots.some((root) => {
+      const relative = path.relative(root, resolved);
+      return !relative.startsWith("..") && !path.isAbsolute(relative);
+    });
   };
 
-  let cwd = taskCwd;
+  let cwd = hostCwd;
   for (const [index, arg] of args.entries()) {
     const eqIndex = arg.indexOf("=");
     const [flag, value] =
@@ -282,6 +451,94 @@ function parseConfigKey(args: string[], index: number): string | undefined {
   return attached === undefined
     ? undefined
     : arg.slice(attached.length).split("=")[0];
+}
+
+/**
+ * Whether an invocation only reads the repository it is pointed at. Judged on
+ * the subcommand and, for the ones that list by default and write when given
+ * something to act on, on what follows it.
+ */
+function readsOnly(args: string[]): boolean {
+  const subcommand = findSubcommand(args);
+  if (!subcommand) {
+    // Bare `git`, or global options alone: prints usage.
+    return true;
+  }
+  const rest = args.slice(subcommand.index + 1);
+  const positional = rest.filter((arg) => !arg.startsWith("-"));
+  const flagNames = rest
+    .filter((arg) => arg.startsWith("-"))
+    .map((arg) => (arg.includes("=") ? arg.slice(0, arg.indexOf("=")) : arg));
+  switch (subcommand.name) {
+    case "branch":
+    case "remote":
+    case "tag": {
+      const listing =
+        subcommand.name === "remote"
+          ? positional.length === 0 ||
+            positional[0] === "show" ||
+            positional[0] === "get-url"
+          : positional.length === 0;
+      return (
+        listing && !flagNames.some((flag) => LISTING_WRITE_FLAGS.has(flag))
+      );
+    }
+    case "config": {
+      return (
+        flagNames.some((flag) => CONFIG_READ_FLAGS.has(flag)) &&
+        flagNames.every(
+          (flag) => CONFIG_READ_FLAGS.has(flag) || !flag.startsWith("--"),
+        )
+      );
+    }
+    case "notes":
+    case "stash": {
+      return positional[0] === "list" || positional[0] === "show";
+    }
+    case "reflog": {
+      return positional.length === 0 || positional[0] === "show";
+    }
+    case "submodule": {
+      return positional[0] === "status";
+    }
+    case "worktree": {
+      return positional[0] === "list";
+    }
+    default: {
+      return READ_SUBCOMMANDS.has(subcommand.name);
+    }
+  }
+}
+
+/**
+ * The host path a virtual path names when it lies in a mount other than the
+ * task, refused when it names the mount's masked private dir or leaves the
+ * mount through a symlink, and absent for anything else (task paths, device
+ * paths, and paths outside every mount keep their existing bridging).
+ *
+ * A read-write mount gets the same two checks as a read-only one. The access
+ * level decides which subcommands run, not whether the binary may be pointed
+ * at the folder's own internals or through a link out of it.
+ */
+function resolveMountPath(
+  layout: WorkspaceFsLayout,
+  virtualAbsPath: string,
+):
+  | undefined
+  | { error: string }
+  | { hostPath: string; mount: WorkspaceFsMount } {
+  const resolved = resolveHostPath(layout, virtualAbsPath);
+  if (resolved === null || resolved.mount === layout.task) {
+    return undefined;
+  }
+  const { hostPath, mount } = resolved;
+  if (isMaskedPrivatePath(mount, virtualAbsPath)) {
+    return { error: privateDirLiteralError(`"${virtualAbsPath}"`) };
+  }
+  if (hostPathEscapesMount(hostPath, mount.hostRoot)) {
+    return { error: `${virtualAbsPath}: path is not accessible` };
+  }
+  return { hostPath, mount };
 }
 
 /** Global options whose value is the next argv token, so it is not a subcommand. */

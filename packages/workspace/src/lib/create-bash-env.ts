@@ -285,9 +285,20 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
   yq: "Parse and manipulate YAML (like jq but for YAML; e.g. `yq '.key' file.yaml`)",
 };
 
+/**
+ * What a custom command is built from. Most take the task id alone; `git`
+ * takes the whole layout, since it reaches attached folders by their host
+ * paths the way `rg` does.
+ */
+interface CustomCommandContext {
+  attachedFolders?: Record<string, FolderAttachment.Type>;
+  projectFolderName?: string;
+  taskId: TaskId;
+}
+
 interface CustomCommandDef {
   description: string;
-  factory: (taskId: TaskId) => ReturnType<typeof defineCommand>;
+  factory: (context: CustomCommandContext) => ReturnType<typeof defineCommand>;
   // When false, the command is available (including via `which`) but omitted
   // from the agent-facing description to discourage its use.
   listInDescription: boolean;
@@ -324,13 +335,13 @@ const SESSION_COMMAND_DEFS: {
 const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     description: FFMPEG_COMMAND.description,
-    factory: createFfmpegCommand,
+    factory: ({ taskId }) => createFfmpegCommand(taskId),
     listInDescription: true,
     name: FFMPEG_COMMAND.name,
   },
   {
     description: FFPROBE_COMMAND.description,
-    factory: createFfprobeCommand,
+    factory: ({ taskId }) => createFfprobeCommand(taskId),
     listInDescription: true,
     name: FFPROBE_COMMAND.name,
   },
@@ -342,13 +353,13 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
   {
     description: MKTEMP_COMMAND.description,
-    factory: createMktempCommand,
+    factory: () => createMktempCommand(),
     listInDescription: true,
     name: MKTEMP_COMMAND.name,
   },
   {
     description: NODE_COMMAND.description,
-    factory: createNodeCommand,
+    factory: ({ taskId }) => createNodeCommand(taskId),
     listInDescription: true,
     name: NODE_COMMAND.name,
   },
@@ -361,69 +372,69 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 
   {
     description: PNPM_COMMAND.description,
-    factory: createPnpmCommand,
+    factory: ({ taskId }) => createPnpmCommand(taskId),
     listInDescription: true,
     name: PNPM_COMMAND.name,
   },
   {
     description: NPX_COMMAND.description,
-    factory: createNpxCommand,
+    factory: ({ taskId }) => createNpxCommand(taskId),
     listInDescription: false,
     name: NPX_COMMAND.name,
   },
   {
     description: PNPX_COMMAND.description,
-    factory: createPnpxCommand,
+    factory: ({ taskId }) => createPnpxCommand(taskId),
     listInDescription: false,
     name: PNPX_COMMAND.name,
   },
   {
     description: PNX_COMMAND.description,
-    factory: createPnxCommand,
+    factory: ({ taskId }) => createPnxCommand(taskId),
     listInDescription: true,
     name: PNX_COMMAND.name,
   },
   {
     description: UV_COMMAND.description,
-    factory: createUvCommand,
+    factory: ({ taskId }) => createUvCommand(taskId),
     listInDescription: true,
     name: UV_COMMAND.name,
   },
   {
     description: PYTHON_COMMAND.description,
-    factory: createPythonCommand,
+    factory: ({ taskId }) => createPythonCommand(taskId),
     listInDescription: true,
     name: PYTHON_COMMAND.name,
   },
   {
     description: PYTHON3_COMMAND.description,
-    factory: createPython3Command,
+    factory: ({ taskId }) => createPython3Command(taskId),
     // Alias of python; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PYTHON3_COMMAND.name,
   },
   {
     description: PYTHON_NATIVE_COMMAND.description,
-    factory: createPythonNativeCommand,
+    factory: ({ taskId }) => createPythonNativeCommand(taskId),
     listInDescription: true,
     name: PYTHON_NATIVE_COMMAND.name,
   },
   {
     description: PIP_COMMAND.description,
-    factory: createPipCommand,
+    factory: ({ taskId }) => createPipCommand(taskId),
     listInDescription: true,
     name: PIP_COMMAND.name,
   },
   {
     description: PIP3_COMMAND.description,
-    factory: createPip3Command,
+    factory: ({ taskId }) => createPip3Command(taskId),
     // Alias of pip; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PIP3_COMMAND.name,
   },
   {
     description: VALIDATE_SKILL_COMMAND.description,
-    factory: createValidateSkillCommand,
+    factory: () => createValidateSkillCommand(),
     listInDescription: true,
     name: VALIDATE_SKILL_COMMAND.name,
   },
@@ -560,7 +571,9 @@ export async function createBashEnv({
     : [
         createShowCommand({ sessionId, taskId }),
         createAppCommand({ taskId }),
-        ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.factory(taskId)),
+        ...CUSTOM_COMMAND_DEFS.map((cmd) =>
+          cmd.factory({ attachedFolders, projectFolderName, taskId }),
+        ),
       ];
   const specializedCommandNames = orchestrator
     ? [

@@ -164,6 +164,21 @@ describe("MarkdownOutline", () => {
     await expect.poll(entryVisibility).toBe("hidden");
   });
 
+  it("keeps the card closed while the document is moving", async () => {
+    const { entryVisibility, scroller } = await renderDocument(480);
+    await userEvent.hover(page.getByRole("button", { name: "Contents" }), {
+      force: true,
+    });
+    await expect.poll(entryVisibility).toBe("visible");
+
+    // Synthetic, because a real scroll's `scrollend` follows too closely to
+    // observe the window between them.
+    scroller.dispatchEvent(new Event("scroll"));
+    await expect.poll(entryVisibility).toBe("hidden");
+    scroller.dispatchEvent(new Event("scrollend"));
+    await expect.poll(entryVisibility).toBe("visible");
+  });
+
   it("holds the list open from the keyboard until an entry is picked or Escape", async () => {
     const { entryVisibility } = await renderDocument(480);
     const rail = page.getByRole("button", { name: "Contents" });
@@ -185,6 +200,56 @@ describe("MarkdownOutline", () => {
     await userEvent.tab();
     await userEvent.keyboard("{Enter}");
     await expect.poll(entryVisibility).toBe("hidden");
+  });
+
+  it("collapses the wide column to a rail and brings it back from the card", async () => {
+    const { entryVisibility } = await renderDocument(1000);
+    await expect.poll(entryVisibility).toBe("visible");
+
+    await page.getByRole("button", { name: "Hide contents" }).click();
+    await expect.poll(entryVisibility).toBe("hidden");
+    const rail = page.getByRole("button", { name: "Contents" });
+    await expect.element(rail).toBeInTheDocument();
+
+    // The way back is in the card, and only where a column would fit.
+    await userEvent.hover(rail, { force: true });
+    await expect.poll(entryVisibility).toBe("visible");
+    await page.getByRole("button", { name: "Show contents" }).click();
+    await parkPointer();
+    await expect.poll(entryVisibility).toBe("visible");
+    await expect
+      .element(page.getByRole("button", { name: "Hide contents" }))
+      .toBeInTheDocument();
+    expect(document.querySelector('button[aria-label="Contents"]')).toBeNull();
+  });
+
+  it("offers no column below the width for one", async () => {
+    const { entryVisibility } = await renderDocument(480);
+
+    await userEvent.hover(page.getByRole("button", { name: "Contents" }), {
+      force: true,
+    });
+    await expect.poll(entryVisibility).toBe("visible");
+    expect(
+      document.querySelector('button[aria-label="Show contents"]'),
+    ).toBeNull();
+  });
+
+  it("hangs the rail in the gutter, clear of the scrollbar", async () => {
+    const { scroller } = await renderDocument(480);
+    const rail = page.getByRole("button", { name: "Contents" }).element();
+    const strip = rail.parentElement;
+    if (!strip) {
+      throw new Error("the rail did not render");
+    }
+
+    // Inside the scroll container, so a wheel over it scrolls the document.
+    expect(scroller.contains(strip)).toBe(true);
+    const scrollbar = scroller.offsetWidth - scroller.clientWidth;
+    await expect.poll(() => strip.style.right).toBe(`${scrollbar + 12}px`);
+    await expect
+      .poll(() => strip.getBoundingClientRect().height)
+      .toBe(scroller.clientHeight);
   });
 
   it("draws nothing for a document with a single heading", async () => {

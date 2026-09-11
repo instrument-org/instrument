@@ -8,6 +8,18 @@ export interface OutlineHeading {
 
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
+export interface OutlineLayout {
+  /** The scroll container's visible height. */
+  height: number;
+  /**
+   * How much of the scroll container's box its own scrollbar takes: a classic
+   * scrollbar's width, or 0 for one drawn over the content.
+   */
+  scrollbarWidth: number;
+  /** The width of the layout the outline shares with the document. */
+  width: number;
+}
+
 /**
  * Which heading the reader is in, from each heading's top edge in document
  * order and the reading line: the last heading at or above the line, or the
@@ -144,6 +156,73 @@ export function useMarkdownHeadings(scrollElement: HTMLElement | null) {
   }, [scrollElement]);
 
   return headings;
+}
+
+/**
+ * The sizes the outline lays itself out against, all in layout px so they hold
+ * under the app zoom: read off `offsetWidth` and `clientHeight` rather than a
+ * bounding rect, which is on-screen px.
+ *
+ * `width` is the row's rather than the scroll container's, since the column
+ * the answer decides on takes its share of the latter -- measured there, a
+ * column would open and close on its own width.
+ */
+export function useOutlineLayout(
+  scrollElement: HTMLElement | null,
+  layoutElement: HTMLElement | null,
+): OutlineLayout {
+  const [layout, setLayout] = useState<OutlineLayout>({
+    height: 0,
+    scrollbarWidth: 0,
+    width: 0,
+  });
+
+  useEffect(() => {
+    if (!scrollElement || !layoutElement) {
+      return;
+    }
+
+    const measure = () => {
+      const next: OutlineLayout = {
+        height: scrollElement.clientHeight,
+        scrollbarWidth: scrollElement.offsetWidth - scrollElement.clientWidth,
+        width: layoutElement.offsetWidth,
+      };
+      setLayout((current) =>
+        current.height === next.height &&
+        current.scrollbarWidth === next.scrollbarWidth &&
+        current.width === next.width
+          ? current
+          : next,
+      );
+    };
+    const observer = new ResizeObserver(measure);
+    // A classic scrollbar appears when the content outgrows the box, which
+    // resizes the content and not the box; the content is observed for that,
+    // and re-observed as the document swaps what it holds.
+    const observeContent = () => {
+      for (const child of scrollElement.children) {
+        observer.observe(child);
+      }
+    };
+    const content = new MutationObserver(() => {
+      observeContent();
+      measure();
+    });
+
+    measure();
+    observer.observe(scrollElement);
+    observer.observe(layoutElement);
+    observeContent();
+    content.observe(scrollElement, { childList: true });
+
+    return () => {
+      observer.disconnect();
+      content.disconnect();
+    };
+  }, [layoutElement, scrollElement]);
+
+  return layout;
 }
 
 /**

@@ -8,7 +8,8 @@ import {
 } from "@/client/hooks/use-markdown-outline";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { cn } from "@/client/lib/utils";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
+import { CaretLineLeftIcon } from "@phosphor-icons/react/CaretLineLeft";
+import { CaretLineRightIcon } from "@phosphor-icons/react/CaretLineRight";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
@@ -44,14 +45,17 @@ const SCROLLBAR_CLEARANCE = 12;
  * in the DOM.
  *
  * Where the outline goes is decided here, because the two answers are two
- * places in the tree. Wide, it is a column beside the scroll container, which
- * the reader can collapse. Narrow, or collapsed, it is a rail over the
- * document's own gutter, and it lives inside the scroll container for that:
- * a wheel over the rail then scrolls the document, as a wheel over the gutter
- * always has, where a sibling laid over the same pixels would swallow it.
+ * places in the tree. A column beside the scroll container, or a rail over the
+ * document's own gutter; the rail lives inside the scroll container for that,
+ * so a wheel over it scrolls the document, as a wheel over the gutter always
+ * has, where a sibling laid over the same pixels would swallow it.
  *
- * The collapse is remembered for this document and no longer; the next file
- * opens with its column back.
+ * Which of the two is the width's call until the reader makes it theirs: a
+ * wide layout opens with the column, a narrow one with the rail, and either
+ * can be turned into the other from a control on it -- a narrow pane can pin
+ * the column in place at the cost of prose width, a wide one can put it away.
+ * The choice is remembered for this document and no longer; the next file
+ * opens on the width's answer again.
  */
 export function MarkdownDocument({ children }: { children: ReactNode }) {
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
@@ -60,14 +64,17 @@ export function MarkdownDocument({ children }: { children: ReactNode }) {
   const [layoutElement, setLayoutElement] = useState<HTMLDivElement | null>(
     null,
   );
-  const [collapsed, setCollapsed] = useState(false);
+  const [preference, setPreference] = useState<"column" | "rail" | null>(
+    null,
+  );
   const headings = useMarkdownHeadings(scrollElement);
   const layout = useOutlineLayout(scrollElement, layoutElement);
   const wide = layout.width >= WIDE_MIN_WIDTH;
   // Nothing at all for a document with fewer than two headings, where there
   // is nowhere to jump to.
   const hasOutline = headings.length >= 2;
-  const column = hasOutline && wide && !collapsed;
+  const column =
+    hasOutline && (preference === "column" || (preference === null && wide));
 
   return (
     <div
@@ -80,15 +87,14 @@ export function MarkdownDocument({ children }: { children: ReactNode }) {
       >
         {hasOutline && !column && (
           <MarkdownOutline
+            // A rail the reader just made out of the column has the pointer
+            // sitting on it, right where the column's control was.
+            armOnLeave={preference === "rail"}
             headings={headings}
             layout={layout}
-            onExpand={
-              wide
-                ? () => {
-                    setCollapsed(false);
-                  }
-                : undefined
-            }
+            onToggle={() => {
+              setPreference("column");
+            }}
             scrollElement={scrollElement}
             variant="rail"
           />
@@ -99,8 +105,8 @@ export function MarkdownDocument({ children }: { children: ReactNode }) {
         <MarkdownOutline
           headings={headings}
           layout={layout}
-          onCollapse={() => {
-            setCollapsed(true);
+          onToggle={() => {
+            setPreference("rail");
           }}
           scrollElement={scrollElement}
           variant="column"
@@ -122,19 +128,24 @@ export function MarkdownDocument({ children }: { children: ReactNode }) {
  * card open instead.
  */
 export function MarkdownOutline({
+  armOnLeave = false,
   headings,
   layout,
-  onCollapse,
-  onExpand,
+  onToggle,
   scrollElement,
   variant,
 }: {
+  /**
+   * Rail only: keep the card from opening on hover until the pointer has left
+   * the rail once. For a rail that appears under a pointer that was just
+   * clicking the column away; opened at once, the card would be back before
+   * the click had finished.
+   */
+  armOnLeave?: boolean;
   headings: OutlineHeading[];
   layout: OutlineLayout;
-  /** Column only: hands the outline back to a rail. */
-  onCollapse?: () => void;
-  /** Rail only, and only where a column would fit: brings the column back. */
-  onExpand?: () => void;
+  /** Turns the column into a rail, or the rail into a column. */
+  onToggle: () => void;
   scrollElement: HTMLElement | null;
   variant: "column" | "rail";
 }) {
@@ -149,6 +160,7 @@ export function MarkdownOutline({
   // Whether the document is moving, from its first scroll event to
   // `scrollend`; the card keeps out of the way for the duration.
   const [scrolling, setScrolling] = useState(false);
+  const [armed, setArmed] = useState(!armOnLeave);
   const programmaticScroll = useRef(false);
   const railRef = useRef<HTMLDivElement>(null);
   const railButtonRef = useRef<HTMLButtonElement>(null);
@@ -231,7 +243,9 @@ export function MarkdownOutline({
         <button
           aria-current={index === active ? "location" : undefined}
           className={cn(
-            "relative block w-full truncate rounded-md py-1 pr-2 text-left text-xs/5 hover:bg-muted hover:text-foreground",
+            "relative block w-full truncate rounded-md py-1 text-left text-xs/5 hover:bg-muted hover:text-foreground",
+            // The first entry stops short of the toggle that sits beside it.
+            index === 0 ? "pr-9" : "pr-2",
             index === active
               ? "text-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-foreground"
               : "text-muted-foreground",
@@ -255,15 +269,19 @@ export function MarkdownOutline({
     return (
       <nav
         aria-label="Contents"
-        className="flex w-56 shrink-0 flex-col border-l border-border/60"
+        className="group/column relative flex w-56 shrink-0 flex-col border-l border-border/60"
       >
-        {/* At the column's leading edge rather than its trailing one, where
-            the rail is about to be: collapsed from there, the pointer would
-            land on the rail and the card would open under it at once. */}
-        <div className="flex px-1.5 pt-1.5">
-          <OutlineToggle label="Hide contents" onClick={onCollapse} />
-        </div>
         {list}
+        {/* Beside the first entry, and only while the pointer is on the
+            column or the keyboard is on it: a row of its own would cost every
+            document a line of outline for a control used once. Anchored to the
+            column rather than the list so it stays put as the list scrolls. */}
+        <OutlineToggle
+          className="opacity-0 group-hover/column:opacity-100 focus-visible:opacity-100"
+          icon={<CaretLineRightIcon className="size-4" />}
+          label="Hide contents"
+          onClick={onToggle}
+        />
       </nav>
     );
   }
@@ -281,6 +299,9 @@ export function MarkdownOutline({
           setPinned(false);
           railButtonRef.current?.focus();
         }
+      }}
+      onPointerLeave={() => {
+        setArmed(true);
       }}
     >
       {/* The rail: the height of the view, over the document's own gutter and
@@ -344,41 +365,51 @@ export function MarkdownOutline({
             pinned && "visible translate-x-0 scale-100 opacity-100",
             !pinned &&
               !scrolling &&
+              armed &&
               "group-hover/outline:visible group-hover/outline:translate-x-0 group-hover/outline:scale-100 group-hover/outline:opacity-100 group-hover/outline:delay-100",
           )}
         >
-          {onExpand && (
-            <div className="flex justify-end px-1.5 pt-1.5">
-              <OutlineToggle label="Show contents" onClick={onExpand} />
-            </div>
-          )}
           {list}
+          {/* Offered at every width: where a column would not fit on its own,
+              this is how a reader pins one in place anyway. */}
+          <OutlineToggle
+            icon={<CaretLineLeftIcon className="size-4" />}
+            label="Show contents"
+            onClick={onToggle}
+          />
         </div>
       </div>
     </nav>
   );
 }
 
-// Rotated, because the icon draws a left-hand sidebar and the column is on the
-// right.
+// Sits over the trailing end of the first entry's row: `top-2.5` centers a
+// 24px button on a 28px entry that starts under the list's 8px of padding.
 function OutlineToggle({
+  className,
+  icon,
   label,
   onClick,
 }: {
+  className?: string;
+  icon: ReactNode;
   label: string;
-  onClick?: () => void;
+  onClick: () => void;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           aria-label={label}
-          className={toolbarClassName({ className: "size-7", pressed: false })}
+          className={toolbarClassName({
+            className: cn("absolute top-2.5 right-2 size-6", className),
+            pressed: false,
+          })}
           onClick={onClick}
           size="icon-sm"
           variant="ghost"
         >
-          <SidebarSimpleIcon className="size-4 rotate-180" />
+          {icon}
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

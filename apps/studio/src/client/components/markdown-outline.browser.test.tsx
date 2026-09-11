@@ -155,7 +155,7 @@ describe("MarkdownOutline", () => {
     // arrives, and a hit-target check then finds an entry where it expected
     // the rail. That is the design: from here on the pointer is on an entry,
     // and a click is a jump rather than anything to do with the rail.
-    await userEvent.hover(page.getByRole("button", { name: "Contents" }), {
+    await userEvent.hover(page.getByRole("button", { exact: true, name: "Contents" }), {
       force: true,
     });
     await expect.poll(entryVisibility).toBe("visible");
@@ -166,7 +166,7 @@ describe("MarkdownOutline", () => {
 
   it("keeps the card closed while the document is moving", async () => {
     const { entryVisibility, scroller } = await renderDocument(480);
-    await userEvent.hover(page.getByRole("button", { name: "Contents" }), {
+    await userEvent.hover(page.getByRole("button", { exact: true, name: "Contents" }), {
       force: true,
     });
     await expect.poll(entryVisibility).toBe("visible");
@@ -181,7 +181,7 @@ describe("MarkdownOutline", () => {
 
   it("holds the list open from the keyboard until an entry is picked or Escape", async () => {
     const { entryVisibility } = await renderDocument(480);
-    const rail = page.getByRole("button", { name: "Contents" });
+    const rail = page.getByRole("button", { exact: true, name: "Contents" });
     // The pointer is wherever the last test left it, and over the rail it
     // would hold the list open on its own.
     await parkPointer();
@@ -207,11 +207,16 @@ describe("MarkdownOutline", () => {
     await expect.poll(entryVisibility).toBe("visible");
 
     await page.getByRole("button", { name: "Hide contents" }).click();
+    // The pointer is now on the rail, and the card stays closed for it until
+    // the pointer has been away once.
     await expect.poll(entryVisibility).toBe("hidden");
-    const rail = page.getByRole("button", { name: "Contents" });
+    const rail = page.getByRole("button", { exact: true, name: "Contents" });
     await expect.element(rail).toBeInTheDocument();
+    await userEvent.hover(rail, { force: true });
+    await expect.poll(entryVisibility).toBe("hidden");
+    await parkPointer();
 
-    // The way back is in the card, and only where a column would fit.
+    // The way back is in the card.
     await userEvent.hover(rail, { force: true });
     await expect.poll(entryVisibility).toBe("visible");
     await page.getByRole("button", { name: "Show contents" }).click();
@@ -223,21 +228,27 @@ describe("MarkdownOutline", () => {
     expect(document.querySelector('button[aria-label="Contents"]')).toBeNull();
   });
 
-  it("offers no column below the width for one", async () => {
+  it("pins a column into a narrow pane from the card", async () => {
     const { entryVisibility } = await renderDocument(480);
 
-    await userEvent.hover(page.getByRole("button", { name: "Contents" }), {
-      force: true,
-    });
+    await userEvent.hover(
+      page.getByRole("button", { exact: true, name: "Contents" }),
+      { force: true },
+    );
     await expect.poll(entryVisibility).toBe("visible");
-    expect(
-      document.querySelector('button[aria-label="Show contents"]'),
-    ).toBeNull();
+    await page.getByRole("button", { name: "Show contents" }).click();
+    await parkPointer();
+
+    await expect.poll(entryVisibility).toBe("visible");
+    await expect
+      .element(page.getByRole("button", { name: "Hide contents" }))
+      .toBeInTheDocument();
+    expect(document.querySelector('button[aria-label="Contents"]')).toBeNull();
   });
 
   it("hangs the rail in the gutter, clear of the scrollbar", async () => {
     const { scroller } = await renderDocument(480);
-    const rail = page.getByRole("button", { name: "Contents" }).element();
+    const rail = page.getByRole("button", { exact: true, name: "Contents" }).element();
     const strip = rail.parentElement;
     if (!strip) {
       throw new Error("the rail did not render");

@@ -194,10 +194,10 @@ function Field({ location }: { location: TabLocation }) {
   const gesturesFor = useGesturesFor();
   const crumbs = locationCrumbs(location, { home });
   const path = useRef<HTMLSpanElement>(null);
-  // The place you are at is the part that has to be readable, so a path too
-  // long for the box keeps its end and the walk down to it scrolls off the
-  // left, the way a folder window's own path bar does. Shrinking the parts to
-  // fit instead is what turns a deep path into a row of single letters.
+  // Past the point where even shortened names fit, the end of the path is
+  // what stays in view and its head scrolls off to the left: the place you
+  // are at is the part that has to be readable. Offsets are read against the
+  // box itself, which is why it is the positioned one.
   const trail = crumbs.map((crumb) => crumb.label).join("/");
   useEffect(() => {
     const box = path.current;
@@ -253,7 +253,7 @@ function Field({ location }: { location: TabLocation }) {
       {/* The parts pulled out to the box's own edge, so the place reads from
           where it read before there was anything to press. */}
       <span
-        className="-mx-1 scrollbar-hide flex min-w-0 flex-1 items-center overflow-x-auto"
+        className="scrollbar-hide relative -mx-1 flex min-w-0 flex-1 items-center overflow-x-auto"
         ref={path}
       >
         {crumbs.map((crumb, index) => {
@@ -261,6 +261,16 @@ function Field({ location }: { location: TabLocation }) {
           const open = gestures?.destinations.find(
             (destination) => destination.id === "open",
           );
+          const isHere = index === crumbs.length - 1;
+          // Where you are keeps its whole name. The walk down to it gives its
+          // letters up as the box narrows, each part on its own: an equal
+          // share of what is left over, never more than its name needs and
+          // never narrower than the mark saying a name was cut. So the short
+          // names stay whole while the long ones shorten, which is the shape a
+          // folder window's path takes and the one a person reads a path by.
+          const size = isHere
+            ? "max-w-full shrink-0 truncate"
+            : "min-w-6 max-w-max flex-1 truncate";
           return (
             <Fragment key={`${index}:${crumb.label}`}>
               {index > 0 ? (
@@ -268,7 +278,10 @@ function Field({ location }: { location: TabLocation }) {
               ) : null}
               {open ? (
                 <button
-                  className="shrink-0 cursor-default rounded px-1 py-0.5 whitespace-nowrap text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground"
+                  className={cn(
+                    "cursor-default rounded px-1 py-0.5 text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground",
+                    size,
+                  )}
                   onAuxClick={gestures?.onAuxClick}
                   onClick={() => {
                     open.run();
@@ -281,10 +294,11 @@ function Field({ location }: { location: TabLocation }) {
               ) : (
                 <span
                   className={cn(
-                    "shrink-0 px-1 whitespace-nowrap select-text",
+                    "px-1 select-text",
+                    size,
                     // A part with nowhere to go, before the last, is a place
                     // the window cannot open: it reads as the lead it is.
-                    index < crumbs.length - 1 && "text-muted-foreground",
+                    !isHere && "text-muted-foreground",
                   )}
                 >
                   {crumb.label}

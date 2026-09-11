@@ -193,17 +193,25 @@ export function MarkdownOutline({
       </div>
       <div
         className={cn(
-          "absolute inset-y-0 right-0 z-10 w-64 max-w-[80cqw] border-l border-border/60 bg-(--markdown-surface) shadow-lg @min-[896px]/markdown:visible @min-[896px]/markdown:static @min-[896px]/markdown:w-full @min-[896px]/markdown:max-w-none @min-[896px]/markdown:border-l-0 @min-[896px]/markdown:shadow-none",
-          pinned ? "visible" : "invisible group-hover/outline:visible",
+          // Narrow: a card beside the rail, centered on it the way the bars
+          // are, no taller than most of the viewer, easing in from the rail's
+          // edge. A full-height sidebar snapping open over the prose reads as
+          // the layout changing; a card sliding out reads as a control.
+          "invisible absolute top-1/2 right-1 z-10 flex max-h-[70%] w-64 max-w-[80cqw] translate-x-1.5 -translate-y-1/2 scale-[0.98] flex-col rounded-lg border border-border/60 bg-(--markdown-surface) opacity-0 shadow-lg transition-[opacity,translate,scale,visibility] duration-150 ease-out",
+          pinned
+            ? "visible translate-x-0 scale-100 opacity-100"
+            : "group-hover/outline:visible group-hover/outline:translate-x-0 group-hover/outline:scale-100 group-hover/outline:opacity-100",
+          // Wide: the column itself.
+          "@min-[896px]/markdown:visible @min-[896px]/markdown:static @min-[896px]/markdown:h-full @min-[896px]/markdown:max-h-none @min-[896px]/markdown:w-full @min-[896px]/markdown:max-w-none @min-[896px]/markdown:translate-x-0 @min-[896px]/markdown:translate-y-0 @min-[896px]/markdown:scale-100 @min-[896px]/markdown:rounded-none @min-[896px]/markdown:border-0 @min-[896px]/markdown:opacity-100 @min-[896px]/markdown:shadow-none @min-[896px]/markdown:transition-none",
         )}
       >
+        <div className="px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground">
+          Contents
+        </div>
         <div
-          className="relative h-full overflow-y-auto py-4 pr-2 pl-2"
+          className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-2"
           ref={listRef}
         >
-          <div className="px-2 pb-2 text-xs font-medium text-muted-foreground">
-            Contents
-          </div>
           {headings.map((heading, index) => (
             <button
               aria-current={index === active ? "location" : undefined}

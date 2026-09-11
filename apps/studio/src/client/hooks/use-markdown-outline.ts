@@ -8,13 +8,6 @@ export interface OutlineHeading {
 
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
-export interface HeadingRange {
-  /** Index of the heading whose section holds the top of the view. */
-  end: number;
-  /** Index of the last heading above the bottom of the view. */
-  start: number;
-}
-
 export interface OutlineLayout {
   /** The scroll container's visible height. */
   height: number;
@@ -28,40 +21,103 @@ export interface OutlineLayout {
 }
 
 /**
- * Which headings' sections are on screen, from each heading's top edge in
- * document order and the edges of the view: the section holding the top edge
- * through the last heading that has climbed above the bottom edge.
+ * Which heading the reader is in, from each heading's top edge in document
+ * order and the top of the view: the last heading at or above the top, whose
+ * section is the one holding that edge, or the first when none has reached it
+ * yet, since a preamble is the first heading's to claim.
  *
- * A section holds the top edge once its heading has passed it, so the range
- * starts at the last heading at or above the top; before any has, the reader
- * is in the preamble, which is the first heading's to claim. The range ends at
- * the last heading above the bottom, and never before it starts.
+ * `tolerance` is how much of the previous section may still show before the
+ * new one counts. A section is on screen by a sliver for the first pixels
+ * after its successor's heading passes the top, and the reader is not in it.
  *
- * `tolerance` is how much of a section has to show for it to count. The
- * previous section is still on screen by a sliver for the first pixels after
- * its successor's heading passes the top, and a heading a pixel above the
- * bottom edge is a line of text nobody is reading yet; neither should light.
+ * `atEnd` overrides all of that for a document scrolled to its end. The last
+ * sections are usually too short to reach the top, so without it they could
+ * never be reached by scrolling and the outline would stall one short.
  */
-export function pickVisibleHeadings(
+export function pickActiveHeading(
   tops: readonly number[],
   viewportTop: number,
-  viewportBottom: number,
   tolerance: number,
-): HeadingRange | null {
+  atEnd: boolean,
+): number {
   if (tops.length === 0) {
-    return null;
+    return -1;
   }
-  let start = 0;
-  let end = 0;
+  if (atEnd) {
+    return tops.length - 1;
+  }
+  let active = 0;
   for (const [index, top] of tops.entries()) {
-    if (top <= viewportTop + tolerance) {
-      start = index;
+    if (top > viewportTop + tolerance) {
+      break;
     }
-    if (top < viewportBottom - tolerance) {
-      end = index;
-    }
+    active = index;
   }
-  return { end: Math.max(start, end), start };
+  return active;
+}
+
+/**
+ * The index into `headings` of the section being read, tracked as
+ * `scrollElement` scrolls and as its contents move; -1 while there are none.
+ * `tolerance` is in on-screen px, like everything measured here.
+ */
+export function useActiveHeading(
+  headings: OutlineHeading[],
+  scrollElement: HTMLElement | null,
+  tolerance: number,
+) {
+  const [active, setActive] = useState(-1);
+
+  useEffect(() => {
+    if (!scrollElement) {
+      return;
+    }
+
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const viewport = scrollElement.getBoundingClientRect();
+      // A document that fits without scrolling is not "at its end": there the
+      // first section is the one being read, not the last.
+      const atEnd =
+        scrollElement.scrollTop > 0 &&
+        scrollElement.scrollTop + scrollElement.clientHeight >=
+          scrollElement.scrollHeight - 1;
+      setActive(
+        pickActiveHeading(
+          headings.map(
+            (heading) => heading.element.getBoundingClientRect().top,
+          ),
+          viewport.top,
+          tolerance,
+          atEnd,
+        ),
+      );
+    };
+    const schedule = () => {
+      frame ||= requestAnimationFrame(measure);
+    };
+
+    measure();
+    scrollElement.addEventListener("scroll", schedule, { passive: true });
+    // A narrower viewer reflows the prose and moves every heading, and so does
+    // anything that changes height in place -- a code block unfolding, an
+    // image arriving -- which the document's own box reports and no scroll
+    // event does.
+    const observer = new ResizeObserver(schedule);
+    observer.observe(scrollElement);
+    for (const child of scrollElement.children) {
+      observer.observe(child);
+    }
+
+    return () => {
+      cancelAnimationFrame(frame);
+      scrollElement.removeEventListener("scroll", schedule);
+      observer.disconnect();
+    };
+  }, [headings, scrollElement, tolerance]);
+
+  return active;
 }
 
 /** The headings inside `scrollElement`, kept current as the document redraws. */
@@ -167,67 +223,6 @@ export function useOutlineLayout(
   }, [layoutElement, scrollElement]);
 
   return layout;
-}
-
-/**
- * The range of `headings` whose sections are in view, tracked as
- * `scrollElement` scrolls and as its contents move; null while there are none.
- * `tolerance` is in on-screen px, like everything measured here.
- */
-export function useVisibleHeadings(
-  headings: OutlineHeading[],
-  scrollElement: HTMLElement | null,
-  tolerance: number,
-) {
-  const [range, setRange] = useState<HeadingRange | null>(null);
-
-  useEffect(() => {
-    if (!scrollElement) {
-      return;
-    }
-
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const viewport = scrollElement.getBoundingClientRect();
-      // Every value here is on-screen px, so the ratio survives the app zoom
-      // without correction.
-      const next = pickVisibleHeadings(
-        headings.map((heading) => heading.element.getBoundingClientRect().top),
-        viewport.top,
-        viewport.bottom,
-        tolerance,
-      );
-      setRange((current) =>
-        current?.start === next?.start && current?.end === next?.end
-          ? current
-          : next,
-      );
-    };
-    const schedule = () => {
-      frame ||= requestAnimationFrame(measure);
-    };
-
-    measure();
-    scrollElement.addEventListener("scroll", schedule, { passive: true });
-    // A narrower viewer reflows the prose and moves every heading, and so does
-    // anything that changes height in place -- a code block unfolding, an
-    // image arriving -- which the document's own box reports and no scroll
-    // event does.
-    const observer = new ResizeObserver(schedule);
-    observer.observe(scrollElement);
-    for (const child of scrollElement.children) {
-      observer.observe(child);
-    }
-
-    return () => {
-      cancelAnimationFrame(frame);
-      scrollElement.removeEventListener("scroll", schedule);
-      observer.disconnect();
-    };
-  }, [headings, scrollElement, tolerance]);
-
-  return range;
 }
 
 /**

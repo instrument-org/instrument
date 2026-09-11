@@ -56,11 +56,9 @@ async function renderDocument(width: number, markdown = DOCUMENT) {
     [...document.querySelectorAll<HTMLElement>("nav [data-heading]")].filter(
       (element) => element.tagName === "BUTTON",
     );
-  // Every entry marked as on screen, in document order.
   const current = () =>
-    [
-      ...document.querySelectorAll<HTMLElement>('[aria-current="location"]'),
-    ].map((entry) => entry.textContent);
+    document.querySelector<HTMLElement>('[aria-current="location"]')
+      ?.textContent ?? null;
   // Read off computed style rather than through a role query: a hidden entry
   // is out of the accessibility tree, so a locator for it resolves to nothing
   // rather than to something invisible.
@@ -112,47 +110,42 @@ describe("MarkdownOutline", () => {
     expect(indents[2]).toBe("2rem");
   });
 
-  it("marks every section on screen as the document scrolls", async () => {
+  it("marks the section being read as the document scrolls", async () => {
     const { current, scroller } = await renderDocument(1000);
-    // The title and whatever of the first section fits under it.
-    await expect.poll(() => current()[0]).toBe("Field notes");
-    await expect.poll(() => current().length).toBeGreaterThan(1);
+    await expect.poll(current).toBe("Field notes");
 
     const results = scroller.querySelector<HTMLElement>("h2:nth-of-type(3)");
     if (!results) {
       throw new Error("the Results heading did not render");
     }
-    // The Method section still shows 150px above Results, so both are lit.
+    // The Method section still holds the top edge 150px above Results.
     scroller.scrollTop = results.offsetTop - 150;
-    await expect
-      .poll(() => current().slice(0, 2))
-      .toEqual(["Method", "Results"]);
-    // A sliver of it is not enough.
+    await expect.poll(current).toBe("Method");
+    // A sliver of it under the tolerance does not.
     scroller.scrollTop = results.offsetTop - 10;
-    await expect.poll(() => current()[0]).toBe("Results");
+    await expect.poll(current).toBe("Results");
 
-    // The end of the document lights everything still on screen, down to the
-    // last section however short it is.
+    // The end of the document is the last section, however short it is.
     scroller.scrollTop = scroller.scrollHeight;
-    await expect.poll(() => current().at(-1)).toBe("Discussion");
-    expect(current()).toContain("Caveats");
+    await expect.poll(current).toBe("Discussion");
   });
 
-  it("jumps to a heading, which marks it as the first on screen", async () => {
+  it("jumps to a heading and holds it as current", async () => {
     const { current, headingTop, scroller } = await renderDocument(1000);
 
     await page.getByRole("button", { name: "Results" }).click();
 
     await expect.poll(() => Math.round(headingTop("Results"))).toBe(24);
-    expect(current()[0]).toBe("Results");
+    expect(current()).toBe("Results");
 
-    // A heading the document ends too soon after cannot reach the top, but it
-    // is on screen, which is all being marked takes.
+    // A heading the document ends too soon after never reaches the top on its
+    // own, and at the end the last heading is the one read; the jump is what
+    // marks it, until the reader scrolls.
     await page.getByRole("button", { name: "Caveats" }).click();
     await expect
       .poll(() => scroller.scrollTop + scroller.clientHeight)
       .toBeGreaterThanOrEqual(scroller.scrollHeight - 1);
-    expect(current()).toContain("Caveats");
+    expect(current()).toBe("Caveats");
   });
 
   it("opens the list over a narrow document only while the rail is hovered", async () => {

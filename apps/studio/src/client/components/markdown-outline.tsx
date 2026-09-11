@@ -2,9 +2,9 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import {
   type OutlineHeading,
   type OutlineLayout,
+  useActiveHeading,
   useMarkdownHeadings,
   useOutlineLayout,
-  useVisibleHeadings,
 } from "@/client/hooks/use-markdown-outline";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { cn } from "@/client/lib/utils";
@@ -21,10 +21,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 // sits a little in from the edge rather than flush against it.
 const HEADING_SCROLL_MARGIN = 24;
 
-// Layout px a section has to show to count as on screen. More than the jump
-// margin, so the section a jump leaves a strip of above its target is not lit
-// beside the one jumped to.
-const VISIBLE_TOLERANCE = 32;
+// Layout px of the previous section that may still show above a heading
+// before the heading's own section counts as the one being read. More than the
+// jump margin, so a jump marks its target and not the section it left a strip
+// of above it.
+const ACTIVE_TOLERANCE = 32;
 
 // Layout px kept visible above and below the active entry when the outline
 // scrolls to keep it in view.
@@ -153,17 +154,23 @@ export function MarkdownOutline({
   variant: "column" | "rail";
 }) {
   const zoom = useAtomValue(zoomAtom);
-  const visible = useVisibleHeadings(
+  const spied = useActiveHeading(
     headings,
     scrollElement,
     // The hook measures in on-screen px.
-    VISIBLE_TOLERANCE * zoom,
+    ACTIVE_TOLERANCE * zoom,
   );
+  // The entry just jumped to, held until the reader scrolls on their own. The
+  // spy alone would mark the wrong entry after a jump to a heading near the
+  // end: the document ends before that heading can reach the top, and at the
+  // end the last heading is the one marked.
+  const [selected, setSelected] = useState<null | number>(null);
   const [pinned, setPinned] = useState(false);
   // Whether the document is moving, from its first scroll event to
   // `scrollend`; the card keeps out of the way for the duration.
   const [scrolling, setScrolling] = useState(false);
   const [armed, setArmed] = useState(!armOnLeave);
+  const programmaticScroll = useRef(false);
   const navRef = useRef<HTMLElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
   const railButtonRef = useRef<HTMLButtonElement>(null);
@@ -175,9 +182,13 @@ export function MarkdownOutline({
     }
     const handleScroll = () => {
       setScrolling(true);
+      if (!programmaticScroll.current) {
+        setSelected(null);
+      }
     };
     const handleScrollEnd = () => {
       setScrolling(false);
+      programmaticScroll.current = false;
     };
     scrollElement.addEventListener("scroll", handleScroll, { passive: true });
     scrollElement.addEventListener("scrollend", handleScrollEnd);
@@ -208,22 +219,19 @@ export function MarkdownOutline({
     };
   }, [pinned]);
 
-  const inView = (index: number) =>
-    visible !== null && index >= visible.start && index <= visible.end;
+  const active =
+    selected !== null && selected < headings.length ? selected : spied;
 
-  // The top of the range is what the outline keeps in view: the section being
-  // read, with what follows it on screen below.
-  const first = visible?.start ?? -1;
   useEffect(() => {
     for (const container of [railRef.current, listRef.current]) {
       const item = container?.querySelector<HTMLElement>(
-        `[data-heading="${first}"]`,
+        `[data-heading="${active}"]`,
       );
       if (container && item) {
         revealWithin(container, item);
       }
     }
-  }, [first]);
+  }, [active]);
 
   const minLevel = Math.min(...headings.map((heading) => heading.level));
   const depthOf = (heading: OutlineHeading) =>
@@ -243,11 +251,17 @@ export function MarkdownOutline({
         (rect.top - viewport.top) / zoom -
         HEADING_SCROLL_MARGIN,
     );
+    setSelected(index);
     setPinned(false);
-    // Instant, not smooth: a long document is the one where an outline is
-    // worth having, and there a smooth scroll is a second or more of prose
-    // streaming past. The flash is what says where the view landed.
-    scrollElement.scrollTo({ behavior: "instant", top: target });
+    // A jump to where the document already is fires no scroll events, so
+    // nothing would ever clear the flag.
+    if (Math.abs(target - scrollElement.scrollTop) >= 1) {
+      programmaticScroll.current = true;
+      // Instant, not smooth: a long document is the one where an outline is
+      // worth having, and there a smooth scroll is a second or more of prose
+      // streaming past. The flash is what says where the view landed.
+      scrollElement.scrollTo({ behavior: "instant", top: target });
+    }
     flashJumpTarget(heading.element);
   };
 
@@ -258,14 +272,12 @@ export function MarkdownOutline({
     >
       {headings.map((heading, index) => (
         <button
-          aria-current={inView(index) ? "location" : undefined}
+          aria-current={index === active ? "location" : undefined}
           className={cn(
-            "relative block w-full truncate rounded-md py-1 text-left text-xs/5 hover:bg-muted hover:text-foreground",
+            "block w-full truncate rounded-md py-1 text-left text-xs/5 hover:bg-muted hover:text-foreground",
             // The first entry stops short of the toggle that sits beside it.
             index === 0 ? "pr-9" : "pr-2",
-            inView(index)
-              ? "text-foreground before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-foreground"
-              : "text-muted-foreground",
+            index === active ? "text-foreground" : "text-muted-foreground",
           )}
           data-heading={index}
           key={index}
@@ -348,7 +360,7 @@ export function MarkdownOutline({
                 className={cn(
                   "h-0.5 shrink-0 rounded-full",
                   BAR_WIDTH_BY_DEPTH[depthOf(heading)],
-                  inView(index) ? "bg-foreground" : "bg-muted-foreground/35",
+                  index === active ? "bg-foreground" : "bg-muted-foreground/35",
                 )}
                 data-heading={index}
                 key={index}

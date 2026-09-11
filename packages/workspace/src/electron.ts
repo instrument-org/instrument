@@ -60,6 +60,7 @@ export { resolveWorkspaceFilePath } from "./lib/resolve-workspace-file-path";
 export { taskDir } from "./lib/task-dir-utils";
 export { getTaskSettings } from "./lib/task-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
+export { serveStaticFile } from "./logic/server/serve-static";
 export {
   type WorkspaceActorRef,
   type WorkspaceEvent,

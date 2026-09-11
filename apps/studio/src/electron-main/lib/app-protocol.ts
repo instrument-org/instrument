@@ -4,6 +4,10 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import {
+  handleComputerFileRequest,
+  isComputerFileHost,
+} from "./computer-files";
 import { getResourcePath } from "./resource-path";
 
 const FILE_OPEN_ICON_HOST = "file-open-icon";
@@ -37,6 +41,10 @@ export function registerAppProtocol() {
         return handleVendorRequest({ request, url });
       }
       default: {
+        // The person's file channel, whose host carries a per-launch token.
+        if (isComputerFileHost(url.hostname)) {
+          return handleComputerFileRequest(request);
+        }
         return new Response(null, { status: 404 });
       }
     }

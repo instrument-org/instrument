@@ -6,6 +6,7 @@ import type {
 
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { computerFileBase as computerFileBaseUrl } from "@/electron-main/lib/computer-files";
 import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
 import { prepareFileDrag } from "@/electron-main/lib/file-drag";
 import {
@@ -660,6 +661,15 @@ const displayProtocol = base
   });
 
 /**
+ * The origin the renderer reads files on this computer through, token and all.
+ * Only the top frame can open the RPC port, so only the app's own code learns
+ * it; constant for the life of the process.
+ */
+const computerFileBase = base
+  .output(z.string())
+  .handler(() => computerFileBaseUrl());
+
+/**
  * The end of the log, so someone can read what they are about to send.
  *
  * Null rather than an error when there is no log yet, which is ordinary on a
@@ -950,6 +960,7 @@ const showFolderPicker = base
 export const utils = {
   clearExceptions,
   closeWindow,
+  computerFileBase,
   copyFileToClipboard,
   copyProjectPathToClipboard,
   copyTaskPathToClipboard,

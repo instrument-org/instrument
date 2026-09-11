@@ -21,7 +21,11 @@ import { hiddenEntryNames } from "./hidden-entries";
 import { linkedFiles } from "./linked-files";
 import { outputFolderPath } from "./output-folder";
 
-/** How many entries one listing carries. A folder past this shows the first. */
+/**
+ * How many entries one listing carries. A folder past this shows the first in
+ * the order the browser shows them, so what is missing is the end of the list
+ * rather than a scattering through it.
+ */
 const MAX_ENTRIES = 2000;
 
 /** How many of the files the conversation showed the recents list carries. */
@@ -216,6 +220,15 @@ export async function listComputerFolder({
   ]);
   const truncated = dirents.length > MAX_ENTRIES;
 
+  // Ordered before the cut so the cut is the one the browser would make. A
+  // link to a folder reads as a file here and as a folder once followed, which
+  // is why the described entries are ordered again below.
+  dirents.sort((a, b) =>
+    compareEntries(
+      { kind: a.isDirectory() ? "folder" : "file", name: a.name },
+      { kind: b.isDirectory() ? "folder" : "file", name: b.name },
+    ),
+  );
   const entries = await Promise.all(
     dirents
       .slice(0, MAX_ENTRIES)
@@ -223,12 +236,7 @@ export async function listComputerFolder({
         describeEntry(hostPath, entry.name, hiddenNames.has(entry.name)),
       ),
   );
-  entries.sort((a, b) => {
-    if (a.kind !== b.kind) {
-      return a.kind === "folder" ? -1 : 1;
-    }
-    return a.name.localeCompare(b.name, undefined, { numeric: true });
-  });
+  entries.sort(compareEntries);
 
   return {
     access: await computerAccess(taskId, hostPath),
@@ -283,6 +291,17 @@ export async function recentComputerFiles({
       const access = accessIn(roots, file.path);
       return { ...file, ...(access === undefined ? {} : { access }) };
     });
+}
+
+/** Folders first, then by name as a person reads one: `file 2` before `file 10`. */
+function compareEntries(
+  a: Pick<ComputerEntry, "kind" | "name">,
+  b: Pick<ComputerEntry, "kind" | "name">,
+): number {
+  if (a.kind !== b.kind) {
+    return a.kind === "folder" ? -1 : 1;
+  }
+  return a.name.localeCompare(b.name, undefined, { numeric: true });
 }
 
 /**

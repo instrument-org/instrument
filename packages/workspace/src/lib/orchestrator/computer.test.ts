@@ -1,7 +1,11 @@
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { accessIn, type AttachedRoot } from "./computer";
+import { TaskIdSchema } from "../../schemas/task-id";
+import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { accessIn, type AttachedRoot, listComputerFolder } from "./computer";
 
 // Host paths in the running platform's own separators, which is what the
 // listing and the grants both carry: a Windows grant is `C:\Users\casey\Documents`
@@ -57,5 +61,37 @@ describe("accessIn", () => {
     expect(
       accessIn(roots, path.resolve(path.sep, "Users", "other", "a.txt")),
     ).toBeUndefined();
+  });
+});
+
+describe("listComputerFolder", () => {
+  const taskId = createMockTaskConfig(TaskIdSchema.parse("computer-listing"));
+  let folder: string | undefined;
+
+  afterEach(async () => {
+    if (folder) {
+      await fs.rm(folder, { force: true, recursive: true });
+    }
+  });
+
+  it("cuts a folder past the cap at the end of the order it is shown in", async () => {
+    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
+    // One past the cap, named so the filesystem's own order is no help: a
+    // folder that sorts to the front by kind and to the back by name, and files
+    // whose numeric order is not their character order.
+    await fs.mkdir(path.join(folder, "zzz"));
+    await Promise.all(
+      Array.from({ length: 2000 }, (_, index) =>
+        fs.writeFile(path.join(folder ?? "", `file ${index + 1}`), ""),
+      ),
+    );
+
+    const listing = await listComputerFolder({ path: folder, taskId });
+
+    expect(listing.truncated).toBe(true);
+    expect(listing.entries).toHaveLength(2000);
+    expect(listing.entries[0]).toMatchObject({ kind: "folder", name: "zzz" });
+    expect(listing.entries[1]?.name).toBe("file 1");
+    expect(listing.entries.at(-1)?.name).toBe("file 1999");
   });
 });

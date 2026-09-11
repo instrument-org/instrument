@@ -4,6 +4,7 @@ import {
   useActiveHeading,
   useMarkdownHeadings,
 } from "@/client/hooks/use-markdown-outline";
+import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { cn } from "@/client/lib/utils";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -139,8 +140,12 @@ export function MarkdownOutline({
     // nothing would ever clear the flag.
     if (Math.abs(target - scrollElement.scrollTop) >= 1) {
       programmaticScroll.current = true;
-      scrollElement.scrollTo({ behavior: "smooth", top: target });
+      // Instant, not smooth: a long document is the one where an outline is
+      // worth having, and there a smooth scroll is a second or more of prose
+      // streaming past. The flash is what says where the view landed.
+      scrollElement.scrollTo({ behavior: "instant", top: target });
     }
+    flashJumpTarget(heading.element);
   };
 
   // Above `@min-[896px]/markdown` the outline is a column of its own beside
@@ -166,7 +171,9 @@ export function MarkdownOutline({
           className="scrollbar-hide flex h-full flex-col overflow-y-auto py-4"
           ref={railRef}
         >
-          <div className="my-auto flex flex-col items-start gap-1 pl-1">
+          {/* Flush on the right and ragged on the left, so the column reads as
+              a scrollbar with structure rather than a list without words. */}
+          <div className="my-auto flex flex-col items-end gap-1 pr-1">
             {headings.map((heading, index) => (
               <span
                 className={cn(

@@ -1074,6 +1074,33 @@ a.cursor-pointer {
   }
 }
 
+/* A heading the reader just jumped to; see `flashJumpTarget`, which puts the
+ * class there and takes it off when the animation ends.
+ *
+ * Held lit for the first third and faded over the rest: the hold is what makes
+ * it a mark rather than a flicker, and the fade is what keeps it from reading as
+ * a state the heading is now in. The fill reaches a few pixels past the box
+ * through the shadow, so a heading flush with the left edge of the prose is lit
+ * as a row and not clipped to its glyphs; a shadow rather than padding because
+ * padding would move the text. A tint of the foreground rather than a color of
+ * its own, so it is the same mark on both themes. */
+.jump-flash {
+  animation: jump-flash 1.2s ease-out both;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes jump-flash {
+  0%,
+  33% {
+    background-color: --alpha(var(--primary) / 12%);
+    box-shadow: 0 0 0 6px --alpha(var(--primary) / 12%);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
 /* A task's name arriving in place of the one before it; see `useTitleArrival`,
  * which puts the class there and only for a name the reader did not type.
  *

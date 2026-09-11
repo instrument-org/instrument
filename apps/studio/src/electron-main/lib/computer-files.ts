@@ -1,5 +1,4 @@
-import { APP_PROTOCOL } from "@instrument-org/shared";
-import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { APP_PROTOCOL, TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import { serveStaticFile } from "@instrument-org/workspace/electron";
 import { Hono } from "hono";
 import { randomBytes } from "node:crypto";
@@ -18,16 +17,16 @@ import path from "node:path";
  *   windows. Every browser guest runs in a partition of its own where the
  *   scheme does not exist, so a page the agent visits cannot name a host path
  *   at all, and no other process on the machine can speak the scheme.
- * - The host carries a token minted once per launch. The artifact preview
- *   runs agent-authored HTML inside the app's session, in a sandboxed frame
- *   whose opaque origin serializes as `null`, and so does the packaged
- *   renderer's own `file://` origin, so an allow-list of origins could not
- *   tell the two apart. The token can: the renderer learns it over the RPC
- *   bridge, which only the top frame can open, and an opaque frame cannot read
- *   its parent's document to find it. Agent-authored HTML is never loaded from
- *   this channel as a document either, since a document can read its own
- *   location. The check is unconditional so development exercises the same
- *   path the packaged build does.
+ * - The host carries a token minted once per launch. The packaged renderer's
+ *   own `file://` origin serializes as `null`, as any sandboxed frame's opaque
+ *   origin does, so an allow-list of origins could never tell the app from
+ *   content it did not write. The token can: the renderer learns it over the
+ *   RPC bridge, which only the top frame can open, and it is the renderer's
+ *   own code that builds every URL on this host. Nothing the agent wrote is
+ *   ever loaded from this channel as a document, since a document can read
+ *   its own location: a page's file is shown in a browser guest at its
+ *   `file://` address instead. The check is unconditional so development
+ *   exercises the same path the packaged build does.
  * - The task's private directory is refused as a segment anywhere, the way the
  *   asset origin refuses it, and only GET and HEAD are answered.
  */
@@ -39,7 +38,7 @@ const token = randomBytes(16).toString("hex");
 const UNSAFE_PATH_SEGMENT_REGEX = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
 
 const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
-  `(?:^|/)${TASK_FOLDER_NAMES.private.replace(".", "\\.")}(?:/|$)`,
+  `(?:^|/)${TASK_PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:/|$)`,
   "i",
 );
 
@@ -48,11 +47,6 @@ const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;
 /** The origin the renderer builds file URLs on; the token is the whole secret. */
 export function computerFileBase() {
   return `${APP_PROTOCOL}://${HOST_PREFIX}${token}`;
-}
-
-/** Whether a request on the app scheme is for this channel, whatever its token. */
-export function isComputerFileHost(hostname: string) {
-  return hostname.startsWith(HOST_PREFIX);
 }
 
 /**
@@ -83,11 +77,16 @@ export function hostPathOfComputerFileUrl(
   if (PRIVATE_DIR_SEGMENT_REGEX.test(decoded)) {
     return;
   }
-  const hostPath = /^\/[A-Za-z]:\//.test(decoded) ? decoded.slice(1) : decoded;
+  const hostPath = /^\/[A-Z]:\//i.test(decoded) ? decoded.slice(1) : decoded;
   if (!path.isAbsolute(hostPath)) {
     return;
   }
   return path.resolve(hostPath);
+}
+
+/** Whether a request on the app scheme is for this channel, whatever its token. */
+export function isComputerFileHost(hostname: string) {
+  return hostname.startsWith(HOST_PREFIX);
 }
 
 const app = new Hono();

@@ -1,6 +1,8 @@
 import { type FileTab } from "@/client/atoms/orchestrator";
 import { FileViewer } from "@/client/components/file-viewer";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
+import { fileUrlOf } from "@/client/lib/file-url";
+import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
@@ -18,18 +20,26 @@ import { useWindowTabs } from "./window-tabs";
 /**
  * This Mac shows a folder or file in the current tab. Back returns to the
  * folder after opening a file; Space previews the selection in Quick Look.
+ *
+ * A page's file (HTML) is not shown here at all: it is what a browser is for,
+ * so this tab becomes a page tab showing the file at its `file://` address,
+ * with the browser's own semantics for a local file. Asked for its source,
+ * the tab keeps the file and shows its text.
  */
 export function FilesScreen({
   file,
   path,
   root,
+  source,
 }: {
   /** The file this tab shows, by where it is on the computer; the folder when absent. */
   file: string | undefined;
   path: string;
   root: string;
+  /** Whether a page's file is shown as its text rather than as the page. */
+  source: boolean;
 }) {
-  const { taskId } = useOrchestrator();
+  const { browser, openPage, taskId } = useOrchestrator();
   const { closeActive, step, stepVisit } = useWindowTabs();
   const router = useRouter();
   const leaveFile = () => {
@@ -49,6 +59,24 @@ export function FilesScreen({
   const activeFile: FileTab | undefined = file
     ? { hostPath: file, name: segmentsOf(file).at(-1) ?? file }
     : undefined;
+  const pageFile =
+    activeFile !== undefined &&
+    !source &&
+    getFileType({ filename: activeFile.name }) === "html"
+      ? activeFile.hostPath
+      : undefined;
+  const opensAsPage = pageFile !== undefined;
+  // The browser is mounted by the layout and may arrive after this screen
+  // does, as it does when the window opens on a file: the page is asked for
+  // once there is a browser to show it.
+  const hasBrowser = browser !== null;
+  useEffect(() => {
+    if (pageFile !== undefined && hasBrowser) {
+      openPage(fileUrlOf(pageFile));
+    }
+    // Once per file the tab arrives at; the page takes the tab over from here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageFile, hasBrowser]);
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile
@@ -110,6 +138,10 @@ export function FilesScreen({
     hostPath: tab.hostPath,
     url: getComputerFileUrl({ hostPath: tab.hostPath }),
   });
+
+  if (opensAsPage) {
+    return null;
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">

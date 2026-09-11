@@ -3,7 +3,9 @@ import {
   channelTabsAtom,
   everyTabIdAtom,
   NEW_TAB_HREF,
+  orchestratorRecentsAtom,
   originOf,
+  RECENTS_MAX,
   siteFaviconsAtom,
   VISITED_MAX,
   visitedPagesAtom,
@@ -11,10 +13,12 @@ import {
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
 import { Favicon } from "@/client/components/favicon";
+import { FileIcon } from "@/client/components/file-icon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
+import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type BrowserTargetId,
@@ -36,6 +40,8 @@ import {
 import { z } from "zod";
 
 import { useOrchestrator } from "./context";
+import { fileHref } from "./file-tabs";
+import { segmentsOf } from "./host-path";
 import { stepTabVisit, visitInTab } from "./tab-history";
 
 export interface BrowserPage {
@@ -191,6 +197,7 @@ export function BrowserTabs({
   };
   const setSiteFavicons = useSetAtom(siteFaviconsAtom);
   const setVisited = useSetAtom(visitedPagesAtom);
+  const setRecents = useSetAtom(orchestratorRecentsAtom);
   const attached = useBrowserTargets();
 
   // Holds every tab's guest for as long as the window is open, the way the
@@ -462,13 +469,32 @@ export function BrowserTabs({
           if (url && url !== "about:blank") {
             const title = webview.getTitle() || undefined;
             patch(id, { title, url });
-            // The new-tab page lists where the browser has been.
-            setVisited((current) =>
-              [
-                { at: Date.now(), title: title ?? "", url },
-                ...current.filter((page) => page.url !== url),
-              ].slice(0, VISITED_MAX),
-            );
+            const filePath = hostPathOfFileUrl(url);
+            if (filePath === undefined) {
+              // The new-tab page lists where the browser has been.
+              setVisited((current) =>
+                [
+                  { at: Date.now(), title: title ?? "", url },
+                  ...current.filter((page) => page.url !== url),
+                ].slice(0, VISITED_MAX),
+              );
+            } else {
+              // A file shown as a page was a file the user opened, and it
+              // comes back as one: by the address a file tab opens at, which
+              // shows it as a page again.
+              const href = fileHref(filePath);
+              setRecents((current) =>
+                [
+                  {
+                    at: Date.now(),
+                    href,
+                    kind: "file" as const,
+                    title: segmentsOf(filePath).at(-1) ?? filePath,
+                  },
+                  ...current.filter((recent) => recent.href !== href),
+                ].slice(0, RECENTS_MAX),
+              );
+            }
           }
         } catch {
           // Not attached yet; the events that follow attachment re-run this.
@@ -531,7 +557,15 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [attached, setAllTabs, setSiteFavicons, setVisited, tabIds, taskId]);
+  }, [
+    attached,
+    setAllTabs,
+    setRecents,
+    setSiteFavicons,
+    setVisited,
+    tabIds,
+    taskId,
+  ]);
 
   const activePage: BrowserPage | undefined = active?.url
     ? {
@@ -766,6 +800,15 @@ export function TabIcon({
   }
   if (url && /^https?:/.test(url)) {
     return <Favicon className="size-3.5 rounded-xs" url={url} />;
+  }
+  const filePath = hostPathOfFileUrl(url);
+  if (filePath !== undefined) {
+    return (
+      <FileIcon
+        className="size-3.5"
+        filename={segmentsOf(filePath).at(-1) ?? filePath}
+      />
+    );
   }
   return <GlobeIcon className="size-3.5" />;
 }

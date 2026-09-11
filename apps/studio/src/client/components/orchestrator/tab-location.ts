@@ -13,14 +13,16 @@ export interface LocationCrumb {
 
 /** What the tab on screen is showing, in the terms that page has for itself. */
 export type TabLocation =
-  | { kind: "app"; name: string; site?: string }
-  | { kind: "apps" }
   | {
+      /** Shown as a page in a guest rather than in a viewer, so its source is the other way to look at it. */
+      asPage?: boolean;
       kind: "file";
       name: string;
       /** Where the file sits on the computer, which makes the folders above it places the tab can go. */
       path: string;
     }
+  | { kind: "app"; name: string; site?: string }
+  | { kind: "apps" }
   | { kind: "folder"; path: string }
   | { kind: "newTab" }
   | { kind: "page"; url: string }

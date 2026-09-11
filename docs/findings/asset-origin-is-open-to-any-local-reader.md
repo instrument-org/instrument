@@ -22,9 +22,9 @@ Today an attacker who wins this reads the task directory plus whatever folders t
 Two in-flight changes remove both bounds, and neither does it alone:
 
 - **[user-chosen-working-folder](../plans/active/user-chosen-working-folder.md)** makes the origin's root a folder the user picked — plausibly a source repository with `.env`, deploy keys, and customer data, or a whole documents directory. The reader no longer gets our scratch; it gets the user's real files.
-- **Moving HTML artifacts from the sandboxed iframe into a `<webview>` guest** ([html-artifact-iframe-navigation](html-artifact-iframe-navigation.md)) loads agent-authored HTML as a **real origin** on that host, with network access, in place of today's opaque origin. Under the folder plan that page is same-origin with the entire working folder, so `fetch("/.env")` needs no CORS grant at all, and the fetch-then-POST pair runs the next time a human opens a preview. The HTML that does it need not be something the agent intended to write: a prompt-injected instruction in a `/mnt` source is enough.
+- **An HTML file the person opens is a `<webview>` guest page** ([in-app-browser.md](../architecture/in-app-browser.md)), loaded at its `file://` address rather than on this origin, and confined by `local-file-policy.ts` to reading its own folder. That keeps agent-authored HTML off this origin as a real origin; had it been loaded here, under the folder plan the page would be same-origin with the entire working folder, so `fetch("/.env")` would need no CORS grant at all, and the fetch-then-POST pair would run the next time a human opened a preview. The HTML that does it need not be something the agent intended to write: a prompt-injected instruction in a `/mnt` source is enough. The agent's own browser still loads this origin as a real origin, which is the exposure that remains.
 
-The combination is the thing to notice. Each plan is individually defensible against its own threat model.
+Nothing the person looks at reads this origin any more: their viewers read a file by its real path over Studio's own tokened `instrument://computer-<token>` channel, which no guest and no other process can name. What is left open is the agent's side, and the folder plan is what makes it load-bearing.
 
 ## What would close it
 

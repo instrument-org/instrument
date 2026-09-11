@@ -36,13 +36,9 @@ Directory requests resolve to `index.html` ([`serve-static.ts`](../../packages/w
 
 ## Who builds the URLs
 
-Three builders, one shape, and they must agree:
+One builder: **the agent's browser.** [`agent-browser-asset-url.ts`](../../packages/workspace/src/lib/shell-commands/agent-browser-asset-url.ts) rewrites a navigation argument naming a sandbox path onto this origin, so `agent-browser goto output/report.html` loads a real page rather than a `file://` path that does not exist in the sandbox. Its `assetPathForVirtualPath` is the inverse of the route's root rewrite, and the pair has to stay in step.
 
-- **The renderer.** [`asset-base-url.ts`](../../apps/studio/src/client/lib/asset-base-url.ts) resolves the server origin once at boot so `getAssetBaseUrl(taskId)` is synchronous everywhere; [`get-asset-url.ts`](../../apps/studio/src/client/lib/get-asset-url.ts) joins a stored file path onto it and appends the caller's `?version=` (see Caching). Consumers are the chat stream's file cards and image embeds, the file sidebar, and the file viewer.
-- **The agent's browser.** [`agent-browser-asset-url.ts`](../../packages/workspace/src/lib/shell-commands/agent-browser-asset-url.ts) rewrites a navigation argument naming a sandbox path onto the same origin, so `agent-browser goto output/report.html` loads a real page rather than a `file://` path that does not exist on the host. Its `assetPathForVirtualPath` is the inverse of the route's root rewrite, and the pair has to stay in step.
-- **The artifact preview.** Renders `getAssetUrl`'s output in a sandboxed `<iframe>` (`sandboxed-html-iframe.tsx`) with `allow-same-origin` withheld, so agent-authored HTML runs at an **opaque origin** with no storage or cookies — and no readable location, which is part of why it has no navigation chrome. See [the finding](../findings/html-artifact-iframe-navigation.md); routing artifacts through the `<webview>` pool instead is future work. The agent's own browser, by contrast, loads this origin as a real origin in a `<webview>` guest ([in-app-browser.md](in-app-browser.md)).
-
-The agent and the human therefore load the same URL for the same file, which is what lets the agent's own screenshot count as evidence about what the user will see.
+Nothing the person looks at is served from here. Their viewers read a file by its real path over Studio's own `instrument://computer-<token>` channel ([system-overview.md](system-overview.md)), and an HTML file they open is shown in a `<webview>` guest at its `file://` address, confined to its own folder ([in-app-browser.md](in-app-browser.md)). So the agent's screenshot of a page it wrote is evidence about the same bytes the person will see, on a different origin: a page that leans on the origin (a `fetch` of a sibling, an absolute `/mnt/...` reference) behaves differently for the two, which is why the agent is told to write relative references and to serve a page that needs data.
 
 ## Caching
 

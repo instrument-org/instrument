@@ -25,7 +25,8 @@ beforeAll(async () => {
   await fs.writeFile(file, "hello, computer");
   await fs.mkdir(path.join(folder, ".instrument"));
   await fs.writeFile(path.join(folder, ".instrument", "task.db"), "secret");
-  mtimeMs = (await fs.stat(file)).mtimeMs;
+  const stats = await fs.stat(file);
+  mtimeMs = stats.mtimeMs;
 });
 
 afterAll(async () => {
@@ -119,39 +120,52 @@ describe("hostPathOfComputerFileUrl", () => {
 
 /**
  * The token is what keeps the channel the person's, and it rests on two facts
- * that are true only by absence: agent-authored HTML runs in a frame with no
- * origin of its own, and the preload bridge that hands the renderer the token
- * loads in the top frame alone. Either one flipped for an unrelated reason
- * hands the token to agent HTML with nothing else failing, so they are pinned
- * here, beside the channel they protect.
+ * that are true only by absence: no frame in the app's own session grants
+ * content it did not write an origin, and the preload bridge that hands the
+ * renderer the token loads in the top frame alone. Either one flipped for an
+ * unrelated reason hands the token to agent HTML with nothing else failing,
+ * so they are pinned here, beside the channel they protect.
  */
 describe("what the token rests on", () => {
-  const studioSrc = path.resolve(__dirname, "../..");
+  const studioSrc = path.resolve(import.meta.dirname, "../..");
 
-  it("the artifact preview never grants agent HTML an origin", async () => {
-    const source = await fs.readFile(
-      path.join(studioSrc, "client/components/sandboxed-html-iframe.tsx"),
-      "utf8",
+  it("no frame in the renderer grants embedded content an origin", async () => {
+    const offenders = await filesMatching(
+      path.join(studioSrc, "client"),
+      /allow-same-origin/,
     );
-    expect(source).not.toContain("allow-same-origin");
+    expect(offenders).toEqual([]);
   });
 
   it("no window loads the preload bridge into sub-frames", async () => {
-    const entries = await fs.readdir(path.join(studioSrc, "electron-main"), {
+    const offenders = await filesMatching(
+      path.join(studioSrc, "electron-main"),
+      /nodeIntegrationInSubFrames\s*:\s*true/,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  /** Source files under a tree, minus tests, whose text matches. */
+  async function filesMatching(root: string, pattern: RegExp) {
+    const entries = await fs.readdir(root, {
       recursive: true,
       withFileTypes: true,
     });
     const offenders: string[] = [];
     for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(".ts")) {
+      if (
+        !entry.isFile() ||
+        !/\.tsx?$/.test(entry.name) ||
+        /\.test\.tsx?$/.test(entry.name)
+      ) {
         continue;
       }
       const filePath = path.join(entry.parentPath, entry.name);
       const source = await fs.readFile(filePath, "utf8");
-      if (/nodeIntegrationInSubFrames\s*:\s*true/.test(source)) {
+      if (pattern.test(source)) {
         offenders.push(path.relative(studioSrc, filePath));
       }
     }
-    expect(offenders).toEqual([]);
-  });
+    return offenders;
+  }
 });

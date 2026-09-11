@@ -1,12 +1,17 @@
 import { type FileTab } from "@/client/atoms/orchestrator";
+import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { MOUNT } from "@instrument-org/workspace/client";
 
 import { useOrchestrator } from "./context";
 import { isInside, segmentsOf } from "./host-path";
 
-/** The address of a file's tab: the folder view with the file open in it, by where the file is on the computer. */
-export function fileHref(hostPath: string) {
-  return `/orchestrator/computer?file=${encodeURIComponent(hostPath)}&path=&root=~`;
+/**
+ * The address of a file's tab: the folder view with the file open in it, by
+ * where the file is on the computer. A page's file is shown as the page, and
+ * `source` asks for its text instead.
+ */
+export function fileHref(hostPath: string, { source = false } = {}) {
+  return `/orchestrator/computer?file=${encodeURIComponent(hostPath)}&path=&root=~${source ? "&source=true" : ""}`;
 }
 
 /**
@@ -49,6 +54,21 @@ export function mountOfHostPath(
   // never the separator they were written with.
   const below = segmentsOf(hostPath.slice(best.path.length));
   return [`${MOUNT.attachedFolders}/${best.mountName}`, ...below].join("/");
+}
+
+/**
+ * What a page tab is called when the page has not said: its address, or for
+ * a file shown as a page, the file's name, since its address is a path only
+ * this window opens.
+ */
+export function pageTabTitle(tab: { title?: string; url?: string }) {
+  if (tab.title) {
+    return tab.title;
+  }
+  const filePath = hostPathOfFileUrl(tab.url);
+  return filePath === undefined
+    ? tab.url
+    : (segmentsOf(filePath).at(-1) ?? filePath);
 }
 
 /**

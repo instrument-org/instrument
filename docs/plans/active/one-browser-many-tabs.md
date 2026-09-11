@@ -137,8 +137,9 @@ Each phase is independently landable and independently useful.
    surface.
 4. **Tab strip.** Foreground tab shown, `openedBy` and `agentControl` surfaced,
    blank tabs suppressed via `navigated`.
-5. **HTML artifacts as tabs.** The artifact preview becomes "open this file in a
-   tab". Retires the sandboxed iframe and both reload nonces.
+5. **HTML artifacts as tabs.** Done: an HTML file the person opens is a guest
+   tab at its `file://` address, and the sandboxed iframe and its reload nonce
+   are gone (`docs/architecture/in-app-browser.md`).
 6. **Open in its own window**, then **popups as tabs** on that host.
 
 ## What this retires
@@ -146,7 +147,6 @@ Each phase is independently landable and independently useful.
 - The `Target.*` interception table in the CDP bridge.
 - `isBrowserFreeRead`, `browserFreeReadEnv`, the `-read` daemon session, and the
   `INFO_ONLY_FLAGS` special case.
-- The artifact iframe, `SandboxedHtmlIframe`, and both HTML reload nonces.
 - The redaction in the agent's browser instructions telling it not to use tabs.
 
 ## Risks

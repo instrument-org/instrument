@@ -537,7 +537,9 @@ export async function runNew(
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const tab = values.get("tab")?.[0];
   const browserTargetId =
-    tab === undefined ? undefined : resolveTab(tab, context.orchestratorTaskId);
+    tab === undefined
+      ? undefined
+      : await resolveTab(tab, context.orchestratorTaskId);
   const apps = await resolveApps(values.get("app") ?? []);
   requireAppsNamedInBrief(prompt, apps);
 
@@ -744,7 +746,7 @@ export async function runTab(args: string[], context: TaskCommandContext) {
       `Took the tab back from ${task.id}. It opens a browser of its own from here.\n`,
     );
   }
-  const browserTargetId = resolveTab(wanted, context.orchestratorTaskId);
+  const browserTargetId = await resolveTab(wanted, context.orchestratorTaskId);
   await setTaskState(taskDir(task.id), { browserTargetId });
   publisher.publish("task.stateUpdated", { id: task.id });
   return ok(
@@ -1063,9 +1065,15 @@ async function resolveModel(rawURI: string) {
 /**
  * A tab id from the note on the user's message is the session half of one of
  * the orchestrator's own browser targets; the target has to exist, since the
- * task connects to it rather than creating anything.
+ * task connects to it rather than creating anything. A tab showing a file on
+ * the computer is not handed over: its address is a path only the window
+ * opens, and a task reaches a file through its folders, never through a
+ * browser standing on one.
  */
-function resolveTab(tab: string, orchestratorTaskId: TaskId): BrowserTargetId {
+async function resolveTab(
+  tab: string,
+  orchestratorTaskId: TaskId,
+): Promise<BrowserTargetId> {
   const sessionId = StoreId.SessionSchema.safeParse(tab);
   if (!sessionId.success) {
     throw new Error(
@@ -1073,8 +1081,16 @@ function resolveTab(tab: string, orchestratorTaskId: TaskId): BrowserTargetId {
     );
   }
   const targetId = encodeBrowserTargetId(orchestratorTaskId, sessionId.data);
-  if (!getWorkspaceConfig().browser.getTargetMeta(targetId)) {
+  const { browser } = getWorkspaceConfig();
+  if (!browser.getTargetMeta(targetId)) {
     throw new Error(`Tab ${tab} is not open any more.`);
+  }
+  const targets = await browser.listTargets(orchestratorTaskId);
+  const target = targets.find((candidate) => candidate.id === targetId);
+  if (target && /^file:/i.test(target.url)) {
+    throw new Error(
+      `Tab ${tab} shows a file on this computer, which a task is not handed; give the task the folder the file is in instead.`,
+    );
   }
   return targetId;
 }

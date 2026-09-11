@@ -14,6 +14,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { useOrchestrator } from "./context";
+import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { TabStrip } from "./tab-strip";
 
@@ -84,7 +85,7 @@ export function WindowTabStrip({
     if (!target) return;
     const title =
       tab.kind === "page"
-        ? tab.title || target
+        ? pageTabTitle(tab) || target
         : screenPresentation(tab.href, { appsBySlug, childTitles }).title;
     setPins((pins) =>
       pins.some((pinned) => pinned.target === target)
@@ -192,7 +193,7 @@ export function WindowTabStrip({
                 title:
                   tab.title ||
                   (tab.taskId && childTitles.get(tab.taskId)) ||
-                  tab.url ||
+                  pageTabTitle(tab) ||
                   "New tab",
               }
             : screenPresentation(tab.href, { appsBySlug, childTitles })),

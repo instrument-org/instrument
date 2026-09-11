@@ -35,7 +35,9 @@ import { ViewChip } from "@/client/components/orchestrator/conversation-chrome";
 import {
   fileHref,
   folderHref,
+  mountOfHostPath,
 } from "@/client/components/orchestrator/file-tabs";
+import { segmentsOf } from "@/client/components/orchestrator/host-path";
 import { NewChannelDialog } from "@/client/components/orchestrator/new-channel-dialog";
 import {
   screenLocation,
@@ -77,6 +79,7 @@ import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
+import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
@@ -88,6 +91,7 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
+import { CodeIcon } from "@phosphor-icons/react/Code";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -530,9 +534,20 @@ function OrchestratorLayout() {
   // on the computer; the folder screen itself says where it stands, since it
   // is the one that expanded the root.
   const tabLocation: TabLocation = (() => {
+    const activeFilePath =
+      active?.kind === "page" ? hostPathOfFileUrl(active.url) : undefined;
     const fromTab: TabLocation =
       active?.kind === "page"
-        ? { kind: "page", url: active.url ?? "" }
+        ? activeFilePath === undefined
+          ? { kind: "page", url: active.url ?? "" }
+          : // A file shown as a page is still the file: the place it is at,
+            // with the folders above it, rather than its address.
+            {
+              asPage: true,
+              kind: "file",
+              name: segmentsOf(activeFilePath).at(-1) ?? activeFilePath,
+              path: activeFilePath,
+            }
         : active?.kind === "screen"
           ? screenLocation(active.href, { appsBySlug, childTitles })
           : { kind: "newTab" };
@@ -924,15 +939,63 @@ function OrchestratorLayout() {
                                   if (!screenView) {
                                     return;
                                   }
+                                  // A file shown as a page is the file to the
+                                  // conversation: where it is, and how the agent
+                                  // reaches it when a granted folder covers it,
+                                  // rather than an address only this window can open.
+                                  const activeFilePath =
+                                    screenView.screen === "browser" &&
+                                    active?.kind === "page"
+                                      ? hostPathOfFileUrl(active.url)
+                                      : undefined;
                                   const page =
-                                    screenView.screen === "browser"
+                                    screenView.screen === "browser" &&
+                                    activeFilePath === undefined
                                       ? await browser?.readPage()
                                       : undefined;
+                                  const activeMount =
+                                    activeFilePath === undefined
+                                      ? undefined
+                                      : mountOfHostPath(
+                                          activeFilePath,
+                                          state.data.attachedFolders ?? {},
+                                        );
+                                  const shown =
+                                    activeFilePath === undefined
+                                      ? screenView
+                                      : {
+                                          file: {
+                                            ...(activeMount === undefined
+                                              ? {}
+                                              : { mount: activeMount }),
+                                            name:
+                                              segmentsOf(activeFilePath).at(
+                                                -1,
+                                              ) ?? activeFilePath,
+                                            path: activeFilePath,
+                                          },
+                                          screen: "file" as const,
+                                        };
                                   return {
-                                    ...screenView,
+                                    ...shown,
                                     ...(page ? { page } : {}),
-                                    tabs: tabs.map((tab) =>
-                                      tab.kind === "page"
+                                    tabs: tabs.map((tab) => {
+                                      if (tab.kind !== "page") {
+                                        return {
+                                          at: tab.href,
+                                          title: screenPresentation(tab.href, {
+                                            appsBySlug,
+                                            childTitles,
+                                          }).title,
+                                        };
+                                      }
+                                      // A file page has no id to hand a task: a
+                                      // task is pointed at sites, never at a file
+                                      // on this computer.
+                                      const filePath = hostPathOfFileUrl(
+                                        tab.url,
+                                      );
+                                      return filePath === undefined
                                         ? {
                                             at: tab.url ?? "about:blank",
                                             id: tab.id,
@@ -940,16 +1003,12 @@ function OrchestratorLayout() {
                                               tab.title || tab.url || "New tab",
                                           }
                                         : {
-                                            at: tab.href,
-                                            title: screenPresentation(
-                                              tab.href,
-                                              {
-                                                appsBySlug,
-                                                childTitles,
-                                              },
-                                            ).title,
-                                          },
-                                    ),
+                                            at: filePath,
+                                            title:
+                                              segmentsOf(filePath).at(-1) ??
+                                              filePath,
+                                          };
+                                    }),
                                     url: location.href,
                                   };
                                 }}
@@ -973,15 +1032,35 @@ function OrchestratorLayout() {
                 ref={locationRef}
                 // On a page the field sends the tab's own guest somewhere,
                 // and the page's controls (reload, the way out, the menu) are
-                // drawn into the row's tail by the panel that has the page.
-                {...(tabLocation.kind === "page"
+                // drawn into the row's tail by the panel that has the page. A
+                // file shown as a page is one too, with its source beside them.
+                {...(tabLocation.kind === "page" ||
+                (tabLocation.kind === "file" && tabLocation.asPage)
                   ? {
                       onSite: (url: string) => openPage(url),
                       trailing: (
-                        <div
-                          className="flex shrink-0 items-center gap-0.5"
-                          ref={setChromeSlot}
-                        />
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          {tabLocation.kind === "file" && (
+                            <button
+                              aria-label="View source"
+                              className="grid size-7 shrink-0 place-items-center rounded-md text-foreground/60 hover:bg-foreground/8 hover:text-foreground"
+                              onClick={() => {
+                                openScreen(
+                                  fileHref(tabLocation.path, { source: true }),
+                                  { newTab: true },
+                                );
+                              }}
+                              title="View source"
+                              type="button"
+                            >
+                              <CodeIcon className="size-4" />
+                            </button>
+                          )}
+                          <div
+                            className="flex shrink-0 items-center gap-0.5"
+                            ref={setChromeSlot}
+                          />
+                        </div>
                       ),
                     }
                   : {})}

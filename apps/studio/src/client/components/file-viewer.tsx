@@ -19,7 +19,6 @@ import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { UNTRUSTED_TASK_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -48,7 +47,6 @@ import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
 import { MarkdownDocument } from "./markdown-outline";
 import { OpenTaskFileButton } from "./open-task-file-button";
-import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -264,7 +262,6 @@ export const fileViewerClassName =
 interface ViewerContext {
   fallback: ReactNode;
   file: ViewerFile;
-  htmlReloadNonce: number;
   imageLoadError: boolean;
   onImageError: () => void;
   onMediaError: (fallbackExtension: string) => void;
@@ -348,19 +345,11 @@ const VIEWERS = {
     ),
     scrolls: "self",
   },
+  // A page is what a browser is for, and a file tab shows one in a guest;
+  // here the file is read as the text it is.
   html: {
     hasToolbar: false,
-    render: (context) =>
-      context.viewMode === "raw" ? (
-        renderCode(context)
-      ) : (
-        <SandboxedHtmlIframe
-          className="absolute inset-0 size-full border-0"
-          key={context.htmlReloadNonce}
-          src={context.file.url}
-          title={context.file.filename}
-        />
-      ),
+    render: renderCode,
     scrolls: "container",
   },
   image: {
@@ -578,10 +567,6 @@ export function FileViewer({
   const { filename, hostPath, mimeType, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
   const [wrapLines, setWrapLines] = useAtom(fileViewerWrapLinesAtom);
-  // Remounts the sandboxed HTML iframe back to its entry page. The iframe is a
-  // cross-origin, opaque-origin sandbox, so we can't read or drive its history;
-  // reloading `src` is the only way to escape an in-page link navigation.
-  const [htmlReloadNonce, setHtmlReloadNonce] = useState(0);
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
@@ -606,13 +591,14 @@ export function FileViewer({
   }, [viewMode]);
 
   const fileType = getFileType(file);
-  const hasPreview = fileType === "markdown" || fileType === "html";
+  const hasPreview = fileType === "markdown";
   // What is on screen is the file's own text, so the wrap preference governs
-  // it: the code and plain text viewers always, a markdown or HTML file only
+  // it: the code, plain text and HTML viewers always, a markdown file only
   // while its own view mode is showing the source.
   const showsFileText =
     fileType === "code" ||
     fileType === "text" ||
+    fileType === "html" ||
     (hasPreview && viewMode === "raw");
   const fileActions = useFileActionVisibility(file);
   const hasHeaderMenuActions =
@@ -665,7 +651,6 @@ export function FileViewer({
       />
     ),
     file,
-    htmlReloadNonce,
     imageLoadError,
     onImageError: () => {
       setImageErrorUrl(url);
@@ -693,24 +678,6 @@ export function FileViewer({
               size="sm"
               variant="ghost"
             />
-            {fileType === "html" && viewMode === "preview" && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    aria-label="Reload"
-                    className={fileViewerHeaderIconActionClassName}
-                    onClick={() => {
-                      setHtmlReloadNonce((nonce) => nonce + 1);
-                    }}
-                    size="icon-sm"
-                    variant="ghost"
-                  >
-                    <ArrowClockwiseIcon className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Reload</TooltipContent>
-              </Tooltip>
-            )}
             {fileActions.showCopy && !imageLoadError && (
               <Button
                 className={fileViewerHeaderActionClassName}
@@ -877,8 +844,7 @@ export function FileViewerHeader({
 }) {
   // The filename, not the viewer below it, is what drags the file out. Every
   // viewer's surface already answers to a gesture -- an image pans, a PDF and a
-  // table select, an HTML preview is a sandboxed iframe whose events never
-  // reach us -- and the one row that is chrome in all of them is this one.
+  // table select -- and the one row that is chrome in all of them is this one.
   const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
 
   return (

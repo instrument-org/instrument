@@ -218,6 +218,23 @@ function handleCdpClient(
       return;
     }
 
+    // A file on the computer is not a page the agent may point a guest at:
+    // the guest can show one, since the person's own files open there at
+    // their `file://` address, and that is exactly why the agent is refused
+    // the address. Its own files reach it through the asset origin.
+    const navigatedTo = navigationTargetOf(method, params);
+    if (navigatedTo !== undefined && /^file:/i.test(navigatedTo)) {
+      send({
+        error: {
+          code: -32_000,
+          message:
+            "A file:// address is not a page the browser opens for you. Open a task file by its sandbox path (agent-browser open output/page.html) instead.",
+        },
+        id,
+      });
+      return;
+    }
+
     // Intercept Target.* commands that would otherwise leak all Electron
     // targets through the browser-level debugger.
     if (INTERCEPTED_TARGET_COMMANDS.has(method)) {
@@ -411,4 +428,13 @@ function handleInterceptedTargetCommand(
       send({ error: { code: -32_601, message: "Method not found" }, id });
     }
   }
+}
+
+/** The address a command asks the guest to load, for the commands that carry one. */
+function navigationTargetOf(method: string, params: unknown) {
+  if (method !== "Page.navigate" && method !== "Target.createTarget") {
+    return;
+  }
+  const url = (params as undefined | { url?: unknown })?.url;
+  return typeof url === "string" ? url : undefined;
 }

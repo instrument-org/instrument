@@ -47,6 +47,7 @@ import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
+import { MarkdownDocument } from "./markdown-outline";
 import { OpenTaskFileButton } from "./open-task-file-button";
 import { SandboxedHtmlIframe } from "./sandboxed-html-iframe";
 import { SessionMarkdown } from "./session-markdown";
@@ -409,13 +410,22 @@ const VIEWERS = {
   },
   markdown: {
     hasToolbar: false,
+    // Keyed on the file rather than its URL: the URL carries the mtime, so a
+    // save of the file being read would reset its scroll position, while a
+    // different file should start at the top with an outline of its own.
     render: (context) =>
       context.viewMode === "raw" ? (
-        renderCode(context)
+        <div className="min-h-0 flex-1 overflow-auto">
+          {renderCode(context)}
+        </div>
       ) : (
-        <MarkdownPreview url={context.file.url} />
+        <MarkdownDocument
+          key={`${context.file.taskId}:${context.file.filePath}`}
+        >
+          <MarkdownPreview url={context.file.url} />
+        </MarkdownDocument>
       ),
-    scrolls: "container",
+    scrolls: "self",
   },
   notebook: {
     hasToolbar: true,

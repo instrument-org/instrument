@@ -33,6 +33,7 @@ import ReactMarkdown, {
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import remarkBreaks from "remark-breaks";
+import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remend from "remend";
 
@@ -52,6 +53,7 @@ import {
 } from "../lib/mermaid";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
+import { remarkFrontMatterTable } from "../lib/remark-front-matter-table";
 import { splitMarkdownBlocks } from "../lib/split-markdown-blocks";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
@@ -123,6 +125,13 @@ type PluginList = NonNullable<Options["rehypePlugins"]>;
 type RemarkPluginList = NonNullable<Options["remarkPlugins"]>;
 
 const emptyRemarkPluginList: RemarkPluginList = [];
+
+// The parse extension first, so the block is a `yaml` node by the time the
+// table pass looks for one.
+const fileRemarkPlugins: RemarkPluginList = [
+  remarkFrontmatter,
+  remarkFrontMatterTable,
+];
 
 type FenceNode = NonNullable<ExtraProps["node"]>;
 
@@ -981,9 +990,17 @@ export const Markdown = memo(
       ],
     );
 
+    // Front matter is a thing files have and messages do not: a model's reply
+    // that opens with a rule is a reply that opens with a rule.
     const remarkPluginList = useMemo(
-      () => [remarkGfm, remarkBreaks, remarkDropBreakAfterBr, ...remarkPlugins],
-      [remarkPlugins],
+      () => [
+        remarkGfm,
+        remarkBreaks,
+        remarkDropBreakAfterBr,
+        ...(documentUrl ? fileRemarkPlugins : emptyRemarkPluginList),
+        ...remarkPlugins,
+      ],
+      [documentUrl, remarkPlugins],
     );
 
     return (

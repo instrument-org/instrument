@@ -1031,3 +1031,62 @@ describe("Markdown while a message is still arriving", () => {
     ).toBeNull();
   });
 });
+
+/**
+ * A file's YAML front matter, which without a parser for it reads as markdown:
+ * the closing `---` underlines every line above it into one heading.
+ */
+describe("Markdown front matter in a task's own file", () => {
+  const FRONT_MATTER = [
+    "---",
+    "title: Field notes",
+    "tags: [a, b]",
+    "draft: false",
+    "---",
+    "",
+    "# Notes",
+  ].join("\n");
+
+  it("draws a file's front matter as a table of its properties", () => {
+    const { container } = renderWithProviders(
+      <Markdown documentUrl={ROOT_DOCUMENT_URL} markdown={FRONT_MATTER} />,
+    );
+
+    const rows = [...container.querySelectorAll("tr")].map((row) =>
+      [...row.querySelectorAll("th, td")].map((cell) => cell.textContent),
+    );
+    expect(rows).toEqual([
+      ["Properties", ""],
+      ["title", "Field notes"],
+      ["tags", '["a","b"]'],
+      ["draft", "false"],
+    ]);
+    expect(
+      [...container.querySelectorAll("h1, h2")].map((h) => h.textContent),
+    ).toEqual(["Notes"]);
+  });
+
+  it("keeps front matter that is not a mapping as the yaml it is", () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        documentUrl={ROOT_DOCUMENT_URL}
+        markdown={"---\n- a\n- b\n---\n\nBody."}
+      />,
+    );
+
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector("pre")?.textContent).toBe("- a\n- b");
+    expect(container.querySelector("h2")).toBeNull();
+  });
+
+  // A reply that opens with a rule is a reply that opens with a rule; only a
+  // file has front matter.
+  it("leaves a message alone", () => {
+    const { container } = renderMarkdown(FRONT_MATTER);
+
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector("h2")?.textContent).toContain(
+      "title: Field notes",
+    );
+  });
+});

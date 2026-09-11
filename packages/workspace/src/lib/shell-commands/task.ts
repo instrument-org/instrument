@@ -60,7 +60,8 @@ import {
   translateMountPaths,
 } from "../orchestrator/mount-paths";
 import { outputFolderPath } from "../orchestrator/output-folder";
-import { expectStop } from "../orchestrator/wake";
+import { renderSteps, sessionSteps } from "../orchestrator/steps";
+import { askWake, cancelAskedWake, expectStop } from "../orchestrator/wake";
 import { WAKE_SUMMARY_MAX_LENGTH } from "../orchestrator/wake-summary";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
@@ -76,6 +77,7 @@ import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
 import {
+  parseDelay,
   parseFlags,
   parseFolderSpec,
   requireFoldersOnDisk,
@@ -113,6 +115,13 @@ export interface TaskCommandContext {
 }
 
 const DEFAULT_LOG_TAIL_LINES = 120;
+
+/**
+ * The longest a conversation may put off looking at a task. Past this the
+ * clock is the better judge, since a task that has run for hours is one the
+ * user has stopped watching.
+ */
+const MAX_ASKED_WAKE_MS = ms("2 hours");
 const LOG_MAX_BYTES = 24 * 1024;
 const OUTPUT_LISTING_MAX = 30;
 const SHOW_SUMMARY_MAX_LENGTH = 600;
@@ -191,8 +200,9 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       what is opened before the search runs.
   ${TASK_COMMAND.name} show <id>
       Status, model, folders, output files, and what it last said.
-  ${TASK_COMMAND.name} log <id> [--tail <lines>]
+  ${TASK_COMMAND.name} log <id> [--steps] [--tail <lines>]
       Its transcript, last ${DEFAULT_LOG_TAIL_LINES} lines by default. Composes: \`${TASK_COMMAND.name} log <id> | rg error\`.
+      \`--steps\` is the outline instead: what it set out to do, each call and how it ended, what it said, one line each and no tool output. Read this first to see what a task is doing; the transcript's tail is whatever printed last.
   ${TASK_COMMAND.name} model <id> <uri>
       The model its next turn runs on, named from the list \`models\` gives.
   ${TASK_COMMAND.name} models [--author <name>]
@@ -203,6 +213,14 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
   ${TASK_COMMAND.name} wait <id> [--timeout <ms>]
       Block until it finishes or the timeout, whichever comes first. Rarely the
       right call: you are woken when it finishes anyway.
+  ${TASK_COMMAND.name} wake <id> --in <duration>|--cancel
+      Be woken about a task after a delay you choose (30s, 5m, 1h), with where it
+      stands then: its steps this turn, what it has written, what it has spent.
+      For a task whose brief says how long it should take, so you look when it
+      matters rather than when the clock does; the clock's own note stays quiet
+      for that task until then. Asking again moves the wake, --cancel forgets
+      it, and a task that finishes first wakes you as usual. Your turn ends; the
+      note starts a new one.
   ${TASK_COMMAND.name} rename <id> '<title>'
       Give a task a better title.
   ${TASK_COMMAND.name} trash <id>
@@ -271,6 +289,9 @@ export function createTaskCommand(context: TaskCommandContext) {
         }
         case "wait": {
           return await runWait(rest, context, ctx.signal);
+        }
+        case "wake": {
+          return await runWake(rest, context);
         }
         default: {
           return fail(`unknown subcommand "${subcommand}".\n\n${USAGE}`);
@@ -732,6 +753,53 @@ export async function runTab(args: string[], context: TaskCommandContext) {
 }
 
 /**
+ * Schedules the note the conversation asked for about one of its tasks. A
+ * timer rather than a wait: the turn ends, and the note starts another one
+ * when the time comes, the same way a finish does.
+ */
+export async function runWake(args: string[], context: TaskCommandContext) {
+  const { positional, values } = parseFlags(args, {
+    boolean: ["cancel"],
+    flags: ["in"],
+    repeatable: [],
+  });
+  const task = await requireChild(positional[0], context);
+  if (values.has("cancel")) {
+    return ok(
+      cancelAskedWake(task.id)
+        ? `Forgot the wake you asked for about ${task.id}; the clock takes over again.\n`
+        : `No wake was pending for ${task.id}.\n`,
+    );
+  }
+  const raw = values.get("in")?.[0];
+  const afterMs = raw === undefined ? undefined : parseDelay(raw);
+  if (afterMs === undefined) {
+    throw new Error(
+      "wake: --in takes a delay such as 30s, 5m, or 1h (or --cancel).",
+    );
+  }
+  if (afterMs > MAX_ASKED_WAKE_MS) {
+    throw new Error(
+      `wake: --in may be at most ${ms(MAX_ASKED_WAKE_MS, { long: true })}.`,
+    );
+  }
+  if (!isWorking(task.id)) {
+    return ok(
+      `${task.id} is not running, so there is nothing to wake you about; you are told when it next finishes a turn.\n`,
+    );
+  }
+  askWake({
+    afterMs,
+    orchestratorId: context.orchestratorTaskId,
+    taskId: task.id,
+    workspaceRef: getWorkspaceActorRef(),
+  });
+  return ok(
+    `You will be woken about ${task.id} in ${ms(afterMs, { long: true })} if it is still working; sooner if it finishes. End your turn.\n`,
+  );
+}
+
+/**
  * The tab a task was handed, by the id the conversation knows it as, and
  * whether it is still open: a tab the user has since closed leaves the task
  * with nothing to act on, which is worth seeing before steering it at one.
@@ -830,6 +898,27 @@ function matchTaskFolder(
   return subpath ? undefined : held.find((folder) => folder.mountName === name);
 }
 
+/**
+ * The child whose id shares the most words with a mistyped one, when it
+ * shares more than half of them. Words rather than characters, because an id
+ * is the date plus the brief's first words, and a guess from the title gets
+ * the words right and their order or their tail wrong.
+ */
+function nearestChildId(rawId: string, children: Task[]): string | undefined {
+  const words = new Set(rawId.split("-").filter((word) => word.length > 2));
+  if (words.size === 0) {
+    return undefined;
+  }
+  let best: undefined | { id: string; shared: number };
+  for (const child of children) {
+    const shared = child.id.split("-").filter((word) => words.has(word)).length;
+    if (shared > (best?.shared ?? 0)) {
+      best = { id: child.id, shared };
+    }
+  }
+  return best && best.shared * 2 > words.size ? best.id : undefined;
+}
+
 function ok(stdout: string) {
   return { exitCode: 0, stderr: "", stdout };
 }
@@ -880,7 +969,16 @@ async function requireChild(
   }
   const task = await getTask(parsed.data, getWorkspaceConfig());
   if (task.isErr() || task.value.parentTaskId !== orchestratorTaskId) {
-    throw new Error(`no task "${rawId}" of yours. See \`task list\`.`);
+    // An id is most often mistyped from the title it was given rather than
+    // copied from what `new` printed, so the nearest of the orchestrator's own
+    // tasks is offered in the same reply, where `task list` costs a turn.
+    const nearest = nearestChildId(
+      rawId,
+      await listChildTasks(orchestratorTaskId),
+    );
+    throw new Error(
+      `no task "${rawId}" of yours.${nearest ? ` Did you mean "${nearest}"?` : ""} See \`task list\`.`,
+    );
   }
   return task.value;
 }
@@ -1035,6 +1133,24 @@ function listRowsOf(tasks: Task[]): TaskListRow[] {
   }));
 }
 
+async function renderTranscript({
+  sessionId,
+  taskId,
+}: {
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}) {
+  // Loaded here rather than at the top: the renderer imports the tool registry,
+  // which imports the bash tool, which imports this command, so a static import
+  // would close a cycle that leaves the registry half-built when it is read.
+  const { getSessionMarkdown } = await import("../session-to-markdown");
+  return getSessionMarkdown({
+    includeContextMessages: false,
+    sessionId,
+    taskId,
+  });
+}
+
 async function runList(args: string[], context: TaskCommandContext) {
   const query = listQueryFrom(args);
   const children = await listChildTasks(context.orchestratorTaskId);
@@ -1055,6 +1171,7 @@ async function runList(args: string[], context: TaskCommandContext) {
 
 async function runLog(args: string[], context: TaskCommandContext) {
   const { positional, values } = parseFlags(args, {
+    boolean: ["steps"],
     flags: ["tail"],
     repeatable: [],
   });
@@ -1074,16 +1191,16 @@ async function runLog(args: string[], context: TaskCommandContext) {
   if (!sessionId.value) {
     return ok(`${task.id} has no transcript yet.\n`);
   }
-  // Loaded here rather than at the top: the renderer imports the tool registry,
-  // which imports the bash tool, which imports this command, so a static import
-  // would close a cycle that leaves the registry half-built when it is read.
-  const { getSessionMarkdown } = await import("../session-to-markdown");
-  const markdown = await getSessionMarkdown({
-    includeContextMessages: false,
-    sessionId: sessionId.value,
-    taskId: task.id,
-  });
-  const lines = markdown.trimEnd().split("\n");
+  const rendered = values.has("steps")
+    ? // The outline rather than the transcript: one line per thing the task
+      // set out to do or called, with tool output left out. The transcript's
+      // tail is whatever printed last, which for a wide search is a page of
+      // paths that says nothing about what the task is doing.
+      renderSteps(
+        await sessionSteps({ sessionId: sessionId.value, taskId: task.id }),
+      )
+    : await renderTranscript({ sessionId: sessionId.value, taskId: task.id });
+  const lines = rendered.trimEnd().split("\n");
   const omitted = Math.max(0, lines.length - tail);
   let text = lines.slice(-tail).join("\n");
   if (text.length > LOG_MAX_BYTES) {

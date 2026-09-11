@@ -140,4 +140,15 @@ describe("task kill", () => {
       }),
     ).rejects.toThrow(/no task "find-the-vault" of yours/);
   });
+
+  // An id guessed from a task's title gets most of the words right, and the
+  // miss cost a turn and two more minutes of the process it meant to stop.
+  it("offers the nearest of its own tasks for a mistyped id", async () => {
+    await expect(runKill(["find-the-vaults"], context)).rejects.toThrow(
+      'no task "find-the-vaults" of yours. Did you mean "find-the-vault"? See `task list`.',
+    );
+    await expect(runKill(["draft-a-brief"], context)).rejects.toThrow(
+      'no task "draft-a-brief" of yours. See `task list`.',
+    );
+  });
 });

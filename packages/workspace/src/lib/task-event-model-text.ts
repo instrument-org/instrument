@@ -24,38 +24,66 @@ export function taskEventModelNote(
           : event.ended
             ? `was ${asClause(event.ended)}`
             : "finished a turn";
+    // Cache reads are named beside the total because they are most of a long
+    // task's tokens and cost a fraction of the rest; the bare total reads as
+    // money spent at full price, and a task stopped for its bill was measured
+    // on a number that overstated it tenfold.
+    const cached =
+      event.cachedTokens !== undefined &&
+      event.tokens !== undefined &&
+      event.tokens > 0
+        ? `, ${Math.round((100 * event.cachedTokens) / event.tokens)}% of them cached reads`
+        : "";
     const spent = [
       event.activeMs === undefined
         ? undefined
         : `${ms(Math.max(1000, event.activeMs), { long: true })} of work`,
       event.tokens === undefined
         ? undefined
-        : `${formatTokens(event.tokens)} tokens so far`,
+        : `${formatTokens(event.tokens)} tokens so far${cached}`,
     ].filter((part) => part !== undefined);
     const cost = spent.length > 0 ? ` (${spent.join(", ")})` : "";
+    // The turn's activities in order say where a task is going; its latest
+    // step alone is the fallback for a turn that set none.
+    const steps =
+      event.steps && event.steps.length > 0
+        ? ` Its steps this turn, latest last: ${event.steps.map((step) => `"${step}"`).join(", ")}.`
+        : "";
     // An ending already says why there were no last words.
     const summary = event.summary
       ? event.status === "overdue"
-        ? ` Its latest step: "${event.summary}"`
+        ? steps
+          ? ""
+          : ` Its latest step: "${event.summary}"`
         : ` It last said: "${event.summary}"`
-      : event.ended
+      : event.ended || event.status === "overdue"
         ? ""
         : " It said nothing.";
     const files =
       event.files && event.files.length > 0
-        ? `\n  It wrote: ${event.files.join(", ")}`
-        : "";
+        ? `\n  It ${event.status === "overdue" ? "has written so far" : "wrote"}: ${event.files.join(", ")}`
+        : event.status === "overdue"
+          ? "\n  It has written nothing yet."
+          : "";
     const running =
       event.running && event.running.length > 0
         ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} kill ${event.taskId} <bg id>\`, or all of it with \`${TASK_COMMAND.name} kill ${event.taskId}\`; a server they are using stays.`
         : "";
-    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${summary}${files}${running}`;
+    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${files}${running}`;
   });
 
   // What to do about a wake is the prompt's business (When a task finishes);
   // the note says only what happened and why the turn is running.
   const overdue = data.events.every((event) => event.status === "overdue");
   if (overdue) {
+    const asked = data.events.find((event) => event.askedAfterMs !== undefined);
+    if (asked?.askedAfterMs !== undefined && data.events.length === 1) {
+      return systemNote`
+        You asked to look at a task after ${ms(asked.askedAfterMs, { long: true })}, and it is still at work:
+        ${lines.join("\n")}
+        Nothing has gone wrong that anyone has said. Nobody typed anything; this note is why you are awake.
+      `;
+    }
     return systemNote`
       ${data.events.length === 1 ? "A task you created is taking a while:" : "Tasks you created are taking a while:"}
       ${lines.join("\n")}

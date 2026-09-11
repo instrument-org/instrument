@@ -9,6 +9,7 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
+  parseDelay,
   parseFlags,
   parseFolderSpec,
   requireFoldersOnDisk,
@@ -50,6 +51,34 @@ describe("parseFlags", () => {
     expect(() =>
       parseFlags(["--tail"], { flags: ["tail"], repeatable: [] }),
     ).toThrow("--tail needs a value.");
+  });
+
+  it("reads a switch without taking the next token as its value", () => {
+    const { positional, values } = parseFlags(["--steps", "task-1"], {
+      boolean: ["steps"],
+      flags: ["tail"],
+      repeatable: [],
+    });
+    expect(positional).toEqual(["task-1"]);
+    expect(values.has("steps")).toBe(true);
+  });
+});
+
+describe("parseDelay", () => {
+  it.each([
+    ["30s", 30_000],
+    ["5m", 300_000],
+    ["1h", 3_600_000],
+    ["90 sec", 90_000],
+    ["2 hours", 7_200_000],
+    ["1.5m", 90_000],
+    ["45", 45_000],
+  ])("reads %s", (raw, expected) => {
+    expect(parseDelay(raw)).toBe(expected);
+  });
+
+  it.each([["0"], ["soon"], ["5 days"], [""], ["-5m"]])("refuses %s", (raw) => {
+    expect(parseDelay(raw)).toBeUndefined();
   });
 });
 

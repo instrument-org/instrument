@@ -369,6 +369,18 @@ export namespace SessionMessageDataPart {
           /** How long the child's agent has been at work in total. */
           activeMs: z.number().nonnegative().optional(),
           /**
+           * Set when the orchestrator asked to be woken about this task after
+           * a delay of its own, rather than the clock deciding. The delay it
+           * asked for, so the note can say so.
+           */
+          askedAfterMs: z.number().nonnegative().optional(),
+          /**
+           * How many of the input tokens were cache reads, which cost a
+           * fraction of the rest. Without it a long task's total reads as
+           * money spent at full price.
+           */
+          cachedTokens: z.number().nonnegative().optional(),
+          /**
            * How the turn ended when it ended without words, in the line the
            * task list shows for it: what it was stopped in the middle of, the
            * step limit it hit, or what the model error was. Absent when the
@@ -402,6 +414,12 @@ export namespace SessionMessageDataPart {
            * orchestrator should look, and says so once.
            */
           status: z.enum(["done", "error", "overdue"]),
+          /**
+           * The activities the child's agent set this turn, oldest first and
+           * capped to the latest few. On an overdue event, so the conversation
+           * reads where the task has been going rather than one snapshot.
+           */
+          steps: z.array(z.string()).optional(),
           /** What the child last said, shortened. Absent when it said nothing. */
           summary: z.string().optional(),
           taskId: TaskIdSchema,

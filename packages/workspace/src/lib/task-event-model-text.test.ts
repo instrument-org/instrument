@@ -89,4 +89,58 @@ describe("taskEventModelNote", () => {
     });
     expect(note).not.toContain("background");
   });
+
+  // An overdue note is read to decide whether to stop the task, so it carries
+  // where the turn has been going and what it has to show, and names the
+  // cache share of a total that would otherwise read as full-price spend.
+  it("gives an overdue task's steps, files, and cache share", () => {
+    const note = taskEventModelNote({
+      events: [
+        {
+          activeMs: 409_602,
+          cachedTokens: 2_950_000,
+          files: [],
+          status: "overdue",
+          steps: [
+            "Scoping commits without running runtime tests",
+            "Tracing runtime commits, entry points, and policy",
+            "Checking whether the shell exposes worker cleanup",
+          ],
+          summary: "Checking whether the shell exposes worker cleanup",
+          taskId: TASK_ID,
+          title: "Audit execution environment changes",
+          tokens: 3_271_239,
+        },
+      ],
+    });
+    expect(note).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      A task you created is taking a while:
+      - 2026-09-08-find-the-vault ("Audit execution environment changes") is still working (7 minutes of work, 3271K tokens so far, 90% of them cached reads). Its steps this turn, latest last: "Scoping commits without running runtime tests", "Tracing runtime commits, entry points, and policy", "Checking whether the shell exposes worker cleanup".
+        It has written nothing yet.
+      Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
+      </instrument-system-note>"
+    `);
+  });
+
+  it("falls back to the latest step for an overdue turn that set no activity", () => {
+    const note = taskEventModelNote({
+      events: [
+        {
+          files: ["/mnt/Instrument/runtime-audit.md"],
+          status: "overdue",
+          summary: "Reading the sandbox environment factory",
+          taskId: TASK_ID,
+          title: "Audit",
+        },
+      ],
+    });
+    expect(note).toContain(
+      'Its latest step: "Reading the sandbox environment factory"',
+    );
+    expect(note).toContain(
+      "It has written so far: /mnt/Instrument/runtime-audit.md",
+    );
+  });
 });

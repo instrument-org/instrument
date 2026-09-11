@@ -17,9 +17,14 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { channelOfTask } from "./attribution";
 import { filesWrittenBy } from "./files-written";
-import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
+import {
+  lastAssistantText,
+  latestOrNewSessionId,
+  latestSessionId,
+} from "./latest-session";
 import { mountsOf, translateMountPaths } from "./mount-paths";
 import { endedWithoutWords } from "./standing";
+import { activitiesSince } from "./steps";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
 
 /** What a wake carries: the part that starts the orchestrator's turn. */
@@ -45,8 +50,21 @@ const WAKE_DEBOUNCE_MS = 1500;
 const OVERDUE_AFTER_MS = ms("4 minutes");
 const OVERDUE_CHECK_MS = ms("30 seconds");
 
+/** How many of a turn's activities an overdue note carries, latest last. */
+const OVERDUE_STEPS = 6;
+
 /** When each child was last reported overdue, so the note comes once per stretch. */
 const overdueReportedAt = new Map<TaskId, number>();
+
+/**
+ * Wakes the conversation asked for itself, one per child: a timer, and what
+ * it was told to wait. A task with one pending is off the clock above, since
+ * the conversation has said when it wants to look.
+ */
+const askedWakes = new Map<
+  TaskId,
+  { afterMs: number; timer: NodeJS.Timeout }
+>();
 
 /**
  * Children the orchestrator itself told to stop. The turn that ends is the
@@ -54,6 +72,46 @@ const overdueReportedAt = new Map<TaskId, number>();
  * that is news again.
  */
 const stoppedByOrchestrator = new Set<TaskId>();
+
+/**
+ * Wakes the conversation about one of its tasks after a delay of its choosing,
+ * with the same note the clock sends. One per task: asking again moves the
+ * wake. Dropped when the task finishes first, since the finish is the news.
+ */
+export function askWake({
+  afterMs,
+  orchestratorId,
+  taskId,
+  workspaceRef,
+}: {
+  afterMs: number;
+  orchestratorId: TaskId;
+  taskId: TaskId;
+  workspaceRef: WorkspaceActorRef;
+}) {
+  cancelAskedWake(taskId);
+  const timer = setTimeout(() => {
+    askedWakes.delete(taskId);
+    deliverAskedWake({ afterMs, orchestratorId, taskId }, workspaceRef).catch(
+      (error: unknown) => {
+        getWorkspaceConfig().captureException(error);
+      },
+    );
+  }, afterMs);
+  timer.unref();
+  askedWakes.set(taskId, { afterMs, timer });
+}
+
+/** Forgets a wake the conversation asked for; true when there was one. */
+export function cancelAskedWake(taskId: TaskId): boolean {
+  const asked = askedWakes.get(taskId);
+  if (!asked) {
+    return false;
+  }
+  clearTimeout(asked.timer);
+  askedWakes.delete(taskId);
+  return true;
+}
 
 export function expectStop(taskId: TaskId) {
   stoppedByOrchestrator.add(taskId);
@@ -129,28 +187,25 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
       overdueReportedAt.delete(task.id);
       continue;
     }
+    // The conversation said when it wants to look; the clock stays quiet.
+    if (askedWakes.has(task.id)) {
+      continue;
+    }
     const reportedAt = overdueReportedAt.get(task.id);
-    const turnStart =
-      reportedAt === undefined ? await turnStartedAt(task.id) : undefined;
+    const turnStart = await turnStartedAt(task.id);
     const startedAt = reportedAt ?? turnStart?.getTime();
     if (startedAt === undefined || now - startedAt < OVERDUE_AFTER_MS) {
       continue;
     }
-    const usage = await getTaskUsageSummary(task.id);
     overdueReportedAt.set(task.id, now);
     schedule(
       parentTaskId,
-      {
-        activeMs: usage.activeMs,
-        status: "overdue",
-        summary: await inOrchestratorPaths(await latestStep(task.id), {
-          orchestratorTaskId: parentTaskId,
-          taskId: task.id,
-        }),
+      await stillWorkingEvent({
+        orchestratorId: parentTaskId,
         taskId: task.id,
         title: task.title,
-        tokens: usage.inputTokens + usage.outputTokens,
-      },
+        turnStart,
+      }),
       workspaceRef,
     );
   }
@@ -183,6 +238,40 @@ async function deliver(
       sessions.get(key),
     );
   }
+}
+
+/**
+ * The note the conversation asked for, if the task is still at work when the
+ * time comes. A task that finished first already woke it; one it stopped
+ * itself is not news either. The clock starts over from here, so the asked
+ * wake is not followed by the clock's own note a moment later.
+ */
+async function deliverAskedWake(
+  {
+    afterMs,
+    orchestratorId,
+    taskId,
+  }: { afterMs: number; orchestratorId: TaskId; taskId: TaskId },
+  workspaceRef: WorkspaceActorRef,
+) {
+  if (!isWorking(taskId)) {
+    return;
+  }
+  const settings = await getTaskSettings(taskDir(taskId));
+  overdueReportedAt.set(taskId, Date.now());
+  schedule(
+    orchestratorId,
+    {
+      ...(await stillWorkingEvent({
+        orchestratorId,
+        taskId,
+        title: settings?.name ?? taskId,
+        turnStart: await turnStartedAt(taskId),
+      })),
+      askedAfterMs: afterMs,
+    },
+    workspaceRef,
+  );
 }
 
 /**
@@ -233,6 +322,7 @@ async function onSessionDone(
   if (orchestratorSettings?.kind !== "orchestrator") {
     return;
   }
+  cancelAskedWake(id);
   if (stoppedByOrchestrator.delete(id)) {
     return;
   }
@@ -295,6 +385,48 @@ function schedule(
     );
   }, WAKE_DEBOUNCE_MS);
   pending.set(orchestratorId, { events, timer });
+}
+
+/**
+ * Where a working task stands: how long and how much so far, the activities
+ * it set this turn, and what it has written. The two things that tell a task
+ * doing deep work apart from one that is lost, which its latest step alone
+ * does not.
+ */
+async function stillWorkingEvent({
+  orchestratorId,
+  taskId,
+  title,
+  turnStart,
+}: {
+  orchestratorId: TaskId;
+  taskId: TaskId;
+  title: string;
+  turnStart: Date | undefined;
+}): Promise<TaskEvent> {
+  const usage = await getTaskUsageSummary(taskId);
+  const paths = { orchestratorTaskId: orchestratorId, taskId };
+  const activities = await activitiesSince(taskId, turnStart ?? new Date());
+  const steps = await Promise.all(
+    activities
+      .slice(-OVERDUE_STEPS)
+      .map((step) => inOrchestratorPaths(step, paths)),
+  );
+  const sessionId = await latestSessionId(taskId);
+  return {
+    activeMs: usage.activeMs,
+    cachedTokens: usage.inputTokenDetails.cacheReadTokens,
+    files:
+      sessionId.isOk() && sessionId.value
+        ? await filesWrittenBy({ ...paths, sessionId: sessionId.value })
+        : [],
+    status: "overdue",
+    steps: steps.filter((step) => step !== undefined),
+    summary: await inOrchestratorPaths(await latestStep(taskId), paths),
+    taskId,
+    title,
+    tokens: usage.inputTokens + usage.outputTokens,
+  };
 }
 
 async function wakeWith(

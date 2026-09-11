@@ -17,7 +17,11 @@ import {
  */
 export function parseFlags(
   args: string[],
-  { flags, repeatable }: { flags: string[]; repeatable: string[] },
+  {
+    boolean = [],
+    flags,
+    repeatable,
+  }: { boolean?: string[]; flags: string[]; repeatable: string[] },
 ) {
   const values = new Map<string, string[]>();
   const positional: string[] = [];
@@ -25,6 +29,11 @@ export function parseFlags(
     const argument = args[index] ?? "";
     const inline = /^--([a-z-]+)=(.*)$/.exec(argument);
     const name = inline?.[1] ?? argument.replace(/^--/, "");
+    // A switch takes no value: present or absent, and never the next token.
+    if (argument.startsWith("--") && !inline && boolean.includes(name)) {
+      values.set(name, []);
+      continue;
+    }
     if (argument.startsWith("--") && flags.includes(name)) {
       const value = inline ? inline[2] : args[++index];
       if (value === undefined) {
@@ -159,6 +168,29 @@ export function resolveFolders(
  * microseconds; one that is refused answers as fast.
  */
 const LOOK_INSIDE_MS = 750;
+
+/**
+ * A delay the way the conversation writes one: `30s`, `5m`, `1h`, `90 sec`,
+ * `2 hours`, or bare seconds. Undefined for anything else, and for zero.
+ */
+export function parseDelay(raw: string): number | undefined {
+  const match =
+    /^(\d+(?:\.\d+)?)\s*([smh]|sec|secs|second|seconds|min|mins|minute|minutes|hr|hrs|hour|hours)?$/i.exec(
+      raw.trim(),
+    );
+  if (!match?.[1]) {
+    return undefined;
+  }
+  const amount = Number(match[1]);
+  const unit = (match[2] ?? "s").toLowerCase();
+  const perUnit = unit.startsWith("h")
+    ? 3_600_000
+    : unit.startsWith("m")
+      ? 60_000
+      : 1000;
+  const delay = amount * perUnit;
+  return delay > 0 ? Math.round(delay) : undefined;
+}
 
 /**
  * A look inside the folder, which is what the operating system gates where a

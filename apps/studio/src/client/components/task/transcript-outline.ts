@@ -52,9 +52,12 @@ function jsonLandmarks(lines: string[]): TranscriptLandmark[] {
  * unfenced, because tool inputs are rendered as XML rather than in a code
  * block. Those read as top-level sections and bury the turns among them. The
  * generator's own vocabulary is a closed set, so this asks for it directly.
+ *
+ * The title is the one heading with no fixed vocabulary, since it is the task's
+ * or the channel's name, so it is known by position instead: the generator
+ * writes it first, and every `#` line after a turn has begun is content.
  */
 const HEADINGS: { depth: number; pattern: RegExp }[] = [
-  { depth: 0, pattern: /^# Session: / },
   {
     depth: 1,
     pattern:
@@ -90,7 +93,10 @@ function markdownLandmarks(lines: string[]): TranscriptLandmark[] {
       continue;
     }
 
-    const heading = HEADINGS.find(({ pattern }) => pattern.test(text));
+    const heading =
+      landmarks.length === 0 && text.startsWith("# ")
+        ? { depth: 0 }
+        : HEADINGS.find(({ pattern }) => pattern.test(text));
     if (heading) {
       landmarks.push({
         depth: heading.depth,

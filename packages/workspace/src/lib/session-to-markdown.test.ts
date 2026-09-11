@@ -202,6 +202,24 @@ const session = Session.WithMessagesAndPartsSchema.parse({
 });
 
 describe("session diagnostics", () => {
+  it.each([
+    ["Debug session", "Fix the modal", "# Debug session"],
+    ["Untitled chat", "Fix the modal", "# Fix the modal"],
+    ["Untitled chat 2", "Fix the modal", "# Fix the modal"],
+    ["Untitled chat", undefined, "# Untitled chat"],
+  ])(
+    "heads a session titled %j in a task named %j with %j",
+    async (title, taskName, heading) => {
+      const markdown = await sessionToMarkdown(
+        { ...session, title },
+        { taskName },
+      );
+      expect(markdown.split("\n").find((line) => line.startsWith("# "))).toBe(
+        heading,
+      );
+    },
+  );
+
   it("includes persisted system context by default", async () => {
     const markdown = await sessionToMarkdown(session);
     expect(markdown).toContain("## Latest Persisted Context Snapshot");

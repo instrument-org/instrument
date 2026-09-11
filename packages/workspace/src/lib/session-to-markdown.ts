@@ -23,9 +23,12 @@ import {
   projectFoldersIntro,
 } from "./build-project-context-text";
 import { getEffectiveProjectContext } from "./effective-project-context";
+import { isUntitledChatSessionTitle } from "./generate-session-title";
 import { isToolPart } from "./is-tool-part";
 import { normalizeProjectInstructions } from "./project-instructions";
 import { Store } from "./store";
+import { taskDir } from "./task-dir-utils";
+import { getTaskSettings } from "./task-settings";
 import { getUsageSummaryFromMessages } from "./usage-summary-compute";
 
 interface MessageRenderInfo {
@@ -132,10 +135,12 @@ export async function getSessionMarkdown({
   if (result.isErr()) {
     throw new Error(`Session ${sessionId} not found`);
   }
+  const settings = await getTaskSettings(taskDir(taskId));
 
   return sessionToMarkdown(result.value, {
     frontMatter,
     includeContextMessages,
+    taskName: settings?.name,
   });
 }
 
@@ -278,9 +283,18 @@ export async function sessionToMarkdown(
   {
     frontMatter,
     includeContextMessages = true,
+    taskName,
   }: {
     frontMatter?: Record<string, unknown>;
     includeContextMessages?: boolean;
+    /**
+     * What the transcript is headed with when the session has no name of its
+     * own. A session's title names it among the task's other sessions (a
+     * channel's name, a later chat's), and a session that is the task's only
+     * one keeps the placeholder it was created with, so the task's name is
+     * the one a reader knows it by.
+     */
+    taskName?: string;
   } = {},
 ): Promise<string> {
   const contextMessages = rootSession.messages.filter(
@@ -311,7 +325,11 @@ export async function sessionToMarkdown(
   const toolTimestamps = buildToolCallTimestampMap(rootSession);
   const messageTimestamps = buildMessageTimestampQueues(orderedMessages);
 
-  const parts: string[] = [`# Session: ${rootSession.title}`, ""];
+  const heading =
+    isUntitledChatSessionTitle(rootSession.title) && taskName
+      ? taskName
+      : rootSession.title;
+  const parts: string[] = [`# ${heading}`, ""];
 
   if (includeContextMessages && contextMessages.length > 0) {
     parts.push(

@@ -5,7 +5,7 @@ import { transcriptLandmarks } from "./transcript-outline";
 describe("markdown landmarks", () => {
   it("outlines a transcript's turns and tool calls", () => {
     const markdown = [
-      "# Session: Fix the modal",
+      "# Fix the modal",
       "",
       "## User (Turn 1) @ 2026-08-12T09:00:00.000Z",
       "",
@@ -22,7 +22,7 @@ describe("markdown landmarks", () => {
       [
         {
           "depth": 0,
-          "label": "Session: Fix the modal",
+          "label": "Fix the modal",
           "line": 0,
         },
         {
@@ -75,7 +75,8 @@ describe("markdown landmarks", () => {
 
   // A tool call's input is rendered as XML, not fenced, so a turn that writes a
   // markdown file puts that file's headings straight into the body. They are
-  // the transcript's contents rather than its structure.
+  // the transcript's contents rather than its structure, and a `#` line among
+  // them is not the title either, since that came first.
   it("ignores headings in an unfenced tool input", () => {
     const markdown = [
       "### Tool Call 4: write_file",
@@ -83,6 +84,8 @@ describe("markdown landmarks", () => {
       "<write_file>",
       "<path>/task/SKILL.md</path>",
       "<content># Frowny",
+      "",
+      "# Frowny",
       "",
       "## Usage",
       "</content>",

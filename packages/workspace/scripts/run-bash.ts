@@ -187,6 +187,16 @@ process.stderr.write(
   `task dir: ${taskDir}\ntask: ${taskId}  session: ${sessionId}\n\n`,
 );
 
+// js-exec keeps its QuickJS worker for reuse past the end of a command, and
+// the port behind it holds the process open, so the exit has to be explicit,
+// once both pipes (asynchronous on macOS) have drained.
+function exit(exitCode: number) {
+  process.stdout.write("", () => {
+    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+    process.stderr.write("", () => process.exit(exitCode));
+  });
+}
+
 async function runCommand(cmd: string) {
   const started = performance.now();
   let result;
@@ -236,7 +246,7 @@ async function runCommands(commands: string[], { bail }: { bail: boolean }) {
 }
 
 if (args.commands.length > 0) {
-  process.exitCode = await runCommands(args.commands, { bail: args.bail });
+  exit(await runCommands(args.commands, { bail: args.bail }));
 } else {
   const isInteractive = process.stdin.isTTY;
   const rl = readline.createInterface({
@@ -276,5 +286,5 @@ if (args.commands.length > 0) {
   }
 
   rl.close();
-  process.exitCode = exitCode;
+  exit(exitCode);
 }

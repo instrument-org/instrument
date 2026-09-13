@@ -41,6 +41,7 @@ import {
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
 import { createJsExecCommand, JS_EXEC_COMMAND } from "./shell-commands/js-exec";
+import { JS_EXEC_BOOTSTRAP } from "./shell-commands/js-exec-bootstrap";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { createOpenCommand, OPEN_COMMAND } from "./shell-commands/open";
@@ -654,9 +655,11 @@ export async function createBashEnv({
     // directly. The custom commands of the same names registered above wrap
     // them (`ctx.origCommand`) to explain their failures and to route a
     // skill's script to the native interpreter. `javascript` also registers
-    // a `node` stub, which the native `node` command shadows. The
-    // orchestrator's shell runs no scripts at all, so it gets neither.
-    javascript: orchestrator === undefined,
+    // a `node` stub, which the native `node` command shadows, and runs the
+    // bootstrap inside QuickJS before every script to give its Node shims
+    // Node's shapes. The orchestrator's shell runs no scripts at all, so it
+    // gets neither.
+    javascript: orchestrator === undefined && { bootstrap: JS_EXEC_BOOTSTRAP },
     python: orchestrator === undefined,
   });
 

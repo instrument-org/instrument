@@ -12,10 +12,10 @@ import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
- * The sandboxed script runtimes, `python` and `js-exec`, as the agent meets
- * them: reading an attached folder in place, refusing to write a read-only
- * one, and explaining the limits of a WebAssembly interpreter in terms of the
- * native one that has none of them.
+ * The sandboxed `python` as the agent meets it: reading an attached folder in
+ * place, refusing to write a read-only one, and explaining the limits of a
+ * WebAssembly interpreter in terms of the native one that has none of them.
+ * `create-bash-env-js-exec.test.ts` is the same for `js-exec`.
  *
  * Also the guard for the fourth part of the local just-bash patch, carried
  * until upstream ships the equivalent: without it every python run exits 1 in
@@ -283,43 +283,6 @@ describe("python-native", () => {
     );
     expect(result.stderr).toContain(
       "Run it with `python` instead, which reads attached folders directly, if the script needs no installed package. Otherwise copy the file into the task first (cp '/mnt/Docs/readme.txt' attachments/) and run python-native on the copy.",
-    );
-  });
-});
-
-describe("js-exec inside the sandbox", () => {
-  it("reads an attached folder in place and refuses to write a read-only one", async () => {
-    const read = await run(
-      `js-exec -c "const fs = require('fs'); console.log(fs.readFileSync('/mnt/Docs/readme.txt', 'utf8').trim())"`,
-    );
-    expect(read).toMatchObject({ exitCode: 0, stdout: "hello docs\n" });
-
-    const write = await run(
-      `js-exec -c "require('fs').writeFileSync('/mnt/Docs/new.txt', 'x')"`,
-    );
-    expect(write.exitCode).toBe(1);
-    expect(write.stderr).toContain("EROFS: read-only file system");
-  });
-
-  it("sends a missing package to pnpm and node", async () => {
-    const result = await run(`js-exec -c "require('csv-parse')"`);
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Cannot find module 'csv-parse'");
-    expect(result.stderr).toContain(
-      "js-exec: js-exec has Node's built-in modules (see `js-exec --help`) and relative files only, never a package, installed or not. Code that needs 'csv-parse' runs with `node` after `pnpm add csv-parse`",
-    );
-  });
-
-  it("reports a file the bridge cannot carry", async () => {
-    const result = await run(
-      `js-exec -c "console.log(require('fs').readFileSync('/mnt/Docs/big.bin').length)"`,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Result too large");
-    expect(result.stderr).toContain(
-      "js-exec: js-exec reads a file whole through an 8 MB bridge",
     );
   });
 });

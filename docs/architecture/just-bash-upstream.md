@@ -51,7 +51,7 @@ Text we put in front of the model, or commands we withhold from it, because of a
 
 ## Open upstream pull requests
 
-Ours, all against `vercel-labs/just-bash`. Volatile by nature; the point of listing them is that a merged-and-released one usually retires a row from a register above. None had merged as of 3.4.1, nor in 3.4.2, a packaging-only release (#381).
+Ours, all against `vercel-labs/just-bash`. Volatile by nature; the point of listing them is that a merged-and-released one usually retires a row from a register above. None had merged as of 3.4.1, nor in 3.4.2, a packaging-only release (#381); #365 merged to `main` after 3.4.2 and waits on a release. Two more are drafted on the fork for the `js-exec` rows above and not yet opened: `feat/js-exec-node-inline-options` (`-e`/`-p`, `argv`) and `feat/js-exec-node-fs-shapes` (`Stats`, `Dirent`, `withFileTypes`/`recursive`, errno errors, `fs/promises`).
 
 | PR | what | affects us |
 | --- | --- | --- |

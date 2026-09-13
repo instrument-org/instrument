@@ -2,6 +2,7 @@ import { type OpenTarget } from "@/client/lib/open-target";
 
 import { folderHref } from "./file-tabs";
 import { homeRelative, segmentsOf, separatorOf } from "./host-path";
+import { IDEAS_HREF } from "./ideas";
 
 /** One part of the place the field shows. */
 export interface LocationCrumb {
@@ -24,6 +25,8 @@ export type TabLocation =
   | { kind: "app"; name: string; site?: string }
   | { kind: "apps" }
   | { kind: "folder"; path: string }
+  | { kind: "idea"; title: string }
+  | { kind: "ideas" }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
   | { kind: "task"; title: string }
@@ -58,6 +61,15 @@ export function locationCrumbs(
     case "file":
     case "folder": {
       return pathCrumbs(homeRelative(location.path, home), { home });
+    }
+    case "idea": {
+      return [
+        { label: "Ideas", to: { href: IDEAS_HREF, kind: "screen" } },
+        { label: location.title },
+      ];
+    }
+    case "ideas": {
+      return [{ label: "Ideas" }];
     }
     case "newTab":
     case "page": {

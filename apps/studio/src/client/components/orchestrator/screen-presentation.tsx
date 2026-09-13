@@ -4,12 +4,14 @@ import { FileIcon } from "@/client/components/file-icon";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
 import { segmentsOf } from "./host-path";
+import { IDEAS_HREF, ideaTitleOf } from "./ideas";
 import { type TabLocation } from "./tab-location";
 import { parseHref } from "./window-tabs";
 
@@ -50,6 +52,15 @@ export function screenLocation(
   }
   if (pathname === "/orchestrator/apps") {
     return { kind: "apps" };
+  }
+  if (pathname.startsWith(`${IDEAS_HREF}/`)) {
+    return {
+      kind: "idea",
+      title: ideaTitleOf(pathname.slice(IDEAS_HREF.length + 1)),
+    };
+  }
+  if (pathname === IDEAS_HREF) {
+    return { kind: "ideas" };
   }
   if (pathname.startsWith("/orchestrator/tasks/")) {
     const id = pathname.slice("/orchestrator/tasks/".length) as TaskId;
@@ -120,6 +131,15 @@ export function screenPresentation(
   }
   if (pathname === "/orchestrator/apps") {
     return { icon: <AppWindowIcon className="size-3.5" />, title: "Apps" };
+  }
+  if (pathname.startsWith(`${IDEAS_HREF}/`)) {
+    return {
+      icon: <CompassIcon className="size-3.5" />,
+      title: ideaTitleOf(pathname.slice(IDEAS_HREF.length + 1)),
+    };
+  }
+  if (pathname === IDEAS_HREF) {
+    return { icon: <CompassIcon className="size-3.5" />, title: "Ideas" };
   }
   return { icon: <MagnifyingGlassIcon className="size-3.5" />, title: "Tab" };
 }

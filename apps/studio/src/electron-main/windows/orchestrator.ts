@@ -25,10 +25,37 @@ const ORCHESTRATOR_HEIGHT = 840;
 
 let orchestratorWindow: BrowserWindow | null = null;
 
+/**
+ * A screen asked for before the window was there to show it. The window's
+ * command stream starts empty at subscribe time, so a command published while
+ * the renderer is still loading is lost; the layout asks for this once it is
+ * up instead.
+ */
+let pendingScreen: null | string = null;
+
 export function getOrchestratorWindow(): BrowserWindow | null {
   return orchestratorWindow && !orchestratorWindow.isDestroyed()
     ? orchestratorWindow
     : null;
+}
+
+/**
+ * Puts a screen of the window up, by its route: in the window that is open,
+ * or in the one this opens. What a link from outside the app asks for.
+ */
+export function openOrchestratorScreen(href: string) {
+  const window = getOrchestratorWindow();
+  if (window) {
+    window.focus();
+    publisher.publish("orchestrator.command", { href, type: "openScreen" });
+    return;
+  }
+  pendingScreen = href;
+  // A link that launched the app arrives before it is ready to make a window;
+  // boot opens this one itself, and the screen waits for it.
+  if (app.isReady()) {
+    openOrchestratorWindow();
+  }
 }
 
 /**
@@ -181,6 +208,13 @@ export function openOrchestratorWindow(): BrowserWindow {
   createContextMenu({ browserWindow: orchestratorWindow });
 
   return orchestratorWindow;
+}
+
+/** The screen a link asked for while the window was opening, once, then nothing. */
+export function takePendingOrchestratorScreen(): null | string {
+  const href = pendingScreen;
+  pendingScreen = null;
+  return href;
 }
 
 export function updateOrchestratorWindowBackgroundColor() {

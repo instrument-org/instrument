@@ -14,6 +14,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -339,6 +340,14 @@ function locationMark(location: TabLocation): ReactNode {
     case "folder": {
       return <FileSystemFolderGlyph className="h-3 w-auto shrink-0" />;
     }
+    // The catalog, and one kind of page in it: an idea is under Ideas the
+    // way an app page is under Apps.
+    case "idea":
+    case "ideas": {
+      return (
+        <CompassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
     case "newTab": {
       return (
         <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -370,6 +379,12 @@ function locationText(location: TabLocation) {
     case "file":
     case "folder": {
       return location.path;
+    }
+    case "idea": {
+      return location.title;
+    }
+    case "ideas": {
+      return "Ideas";
     }
     case "newTab": {
       return "";

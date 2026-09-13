@@ -35,9 +35,10 @@ interface PublisherEvents {
   "browser.targets-changed": null;
   "debug.browser-view-manager.updated": null;
   "features.updated": null;
-  // Asked of the orchestrator window by a swipe, a thumb button, or a menu
-  // chord, which reach the main process rather than the page: history either
-  // way, the close of the tab on screen, or the caret in the window's field.
+  // Asked of the orchestrator window by a swipe, a thumb button, a menu
+  // chord, or a link from outside the app, all of which reach the main process
+  // rather than the page: history either way, the close of the tab on screen,
+  // the caret in the window's field, or a screen to put up.
   "orchestrator.command":
     | "back"
     | "closeTab"
@@ -48,6 +49,7 @@ interface PublisherEvents {
     | "previousTab"
     | "reopenTab"
     | "search"
+    | { href: string; type: "openScreen" }
     | { index: number; type: "selectTab" };
   "preferences.updated": null;
   "provider-config.updated": null;

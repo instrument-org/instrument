@@ -557,10 +557,27 @@ function OrchestratorLayout() {
     return fromTab;
   })();
 
-  const openers = useRef({ openNamedPath, openPage });
+  const openers = useRef({ openNamedPath, openPage, openScreen });
   useEffect(() => {
-    openers.current = { openNamedPath, openPage };
+    openers.current = { openNamedPath, openPage, openScreen };
   });
+  // A screen a link from outside asked for while this window was opening:
+  // the command stream below could not carry it to a renderer not yet
+  // listening, so it is asked for once the window can show it.
+  const isReady = ids !== undefined && sessionId !== undefined;
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+    void (async () => {
+      const [, href] = await safe(
+        rpcClient.orchestrator.takePendingScreen.call(),
+      );
+      if (href) {
+        openers.current.openScreen(href, { newTab: true });
+      }
+    })();
+  }, [isReady]);
   useEffect(() => {
     if (!ids) {
       return;
@@ -655,6 +672,9 @@ function OrchestratorLayout() {
     forward: goForward,
     newTab: () => {
       windowTabs.openScreen(NEW_TAB_HREF);
+    },
+    openScreen: (href) => {
+      openScreen(href, { newTab: true });
     },
     reopenTab: () => {
       const tab = popClosed();
@@ -1278,7 +1298,8 @@ function useRecordRecents({
 /**
  * What the main process asks of the window: back and forward from a trackpad
  * swipe, a thumb button or the History menu, the tab chords (close, new,
- * reopen, next and previous, one by number), and the caret into the field.
+ * reopen, next and previous, one by number), the caret into the field, and a
+ * screen a link from outside the app named.
  * On a Mac the thumb buttons reach the page as mouse events, so they are
  * answered here; elsewhere they arrive through the main process. Chromium
  * walks the renderer's own history on the same mouseup unless the page
@@ -1291,6 +1312,8 @@ function useWindowCommands(handlers: {
   closeTab: () => void;
   forward: () => void;
   newTab: () => void;
+  /** A screen by its route, in a tab of its own, since what asked is not in any tab. */
+  openScreen: (href: string) => void;
   reopenTab: () => void;
   /** The caret into the window's field, wherever it was. */
   search: () => void;
@@ -1356,7 +1379,11 @@ function useWindowCommands(handlers: {
         );
         for await (const command of commands) {
           if (typeof command === "object") {
-            latest.current.selectTab(command.index);
+            if (command.type === "selectTab") {
+              latest.current.selectTab(command.index);
+            } else {
+              latest.current.openScreen(command.href);
+            }
             continue;
           }
           switch (command) {

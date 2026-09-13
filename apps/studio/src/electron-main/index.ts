@@ -23,6 +23,7 @@ import {
 } from "@/electron-main/windows/onboarding";
 import {
   getOrchestratorWindow,
+  openOrchestratorScreen,
   openOrchestratorWindow,
   updateOrchestratorWindowBackgroundColor,
 } from "@/electron-main/windows/orchestrator";
@@ -316,8 +317,38 @@ function focusForegroundWindow() {
   void ensureForegroundWindowVisible();
 }
 
-function handleDeepLink(_url: string) {
+function handleDeepLink(url: string) {
   focusForegroundWindow();
+  const screen = screenOfDeepLink(url);
+  // The screens a link can name are the 2.0 window's; with it off, the link
+  // has brought the app forward, which is all the classic window can do.
+  if (screen && isFeatureEnabled("instrument_2")) {
+    openOrchestratorScreen(screen);
+  }
+}
+
+/**
+ * The screen of the 2.0 window a link names, as its route: the website's
+ * `instrument://discover` is the Ideas screen and `instrument://discover/<idea>`
+ * one idea's page, which is what its "Try in Instrument" opens. Discover is
+ * the site's word for the section and stays in the link; the screen is Ideas.
+ * Any other link names no screen.
+ */
+function screenOfDeepLink(url: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return;
+  }
+  if (parsed.host !== "discover") {
+    return;
+  }
+  const idea = parsed.pathname.split("/").find(Boolean);
+  // A template's folder name, which is all an idea is addressed by.
+  return idea && /^[a-z0-9-]+$/.test(idea)
+    ? `/orchestrator/ideas/${idea}`
+    : "/orchestrator/ideas";
 }
 
 function shouldShowOnboarding(): boolean {

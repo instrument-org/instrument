@@ -8,6 +8,7 @@ import { debug } from "./debug";
 import { features } from "./features";
 import { files } from "./files";
 import { gateway } from "./gateway";
+import { ideas } from "./ideas";
 import { onboarding } from "./onboarding";
 import { orchestrator } from "./orchestrator";
 import { plans } from "./plans";
@@ -31,6 +32,7 @@ export const router = {
   features,
   files,
   gateway,
+  ideas,
   onboarding,
   orchestrator,
   plans,

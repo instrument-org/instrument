@@ -20,6 +20,7 @@ import { rpcClient } from "@/client/rpc/client";
 import uFuzzy from "@leeoniya/ufuzzy";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
+import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GearIcon } from "@phosphor-icons/react/Gear";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
@@ -57,6 +58,11 @@ const SCREENS: {
     icon: AppWindowIcon,
     name: "Apps",
     open: (navigate) => void navigate({ to: "/orchestrator/apps" }),
+  },
+  {
+    icon: CompassIcon,
+    name: "Ideas",
+    open: (navigate) => void navigate({ to: "/orchestrator/ideas" }),
   },
 ];
 

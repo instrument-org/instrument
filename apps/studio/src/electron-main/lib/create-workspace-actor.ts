@@ -27,7 +27,6 @@ import {
 import { call } from "@orpc/server";
 import { app, dialog, shell } from "electron";
 import ms from "ms";
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { noop } from "radashi";
 import { createActor } from "xstate";
@@ -39,9 +38,9 @@ import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
+import { getRegistryDir } from "./registry-dir";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
-const REGISTRY_DIR_NAME = "registry";
 const DEFAULT_TASK_TEMPLATE_DIR_NAME = "default-task-template";
 const SYSTEM_SKILLS_DIR_NAME = "system-skills";
 
@@ -51,10 +50,6 @@ const SYSTEM_SKILLS_DIR_NAME = "system-skills";
  * whole grace period does not spend the other two's budget as well.
  */
 const QUIT_TEARDOWN_SLACK_MS = ms("2 seconds");
-let UNPACKAGED_REGISTRY_DIR = path.resolve(
-  import.meta.dirname,
-  `../../../../${REGISTRY_DIR_NAME}`,
-);
 const UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/templates/default",
@@ -63,24 +58,6 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
 );
-
-const ENV_REGISTRY_DIR = import.meta.env.MAIN_VITE_APP_REGISTRY_DIR_PATH;
-
-if (ENV_REGISTRY_DIR) {
-  const absolutePath = path.resolve(ENV_REGISTRY_DIR);
-  if (existsSync(absolutePath)) {
-    logger.info("Using custom registry directory:", absolutePath);
-  } else {
-    // Honor the override anyway. Someone who set it wants that registry, and a
-    // quiet fall back to the submodule reads as a working app with a registry
-    // nobody chose, which is the harder failure to spot.
-    logger.error(
-      "Custom registry directory does not exist, so no skills will load:",
-      absolutePath,
-    );
-  }
-  UNPACKAGED_REGISTRY_DIR = absolutePath;
-}
 
 export function createWorkspaceActor({
   isQuitAlreadyConfirmed,
@@ -159,9 +136,7 @@ export function createWorkspaceActor({
       // set is prepared per machine, so several workspaces or a workspace the
       // user moves all source from one copy of it.
       preparedSkillsDir: path.join(app.getPath("userData"), "skills"),
-      registryDir: app.isPackaged
-        ? path.join(process.resourcesPath, REGISTRY_DIR_NAME)
-        : UNPACKAGED_REGISTRY_DIR,
+      registryDir: getRegistryDir(),
       rootDir,
       systemSkillsDir: app.isPackaged
         ? path.join(process.resourcesPath, SYSTEM_SKILLS_DIR_NAME)

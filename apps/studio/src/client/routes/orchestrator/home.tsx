@@ -172,7 +172,7 @@ function HomeRoute() {
           title="Tasks"
         >
           {children.data === undefined ? (
-            <TileSkeletons />
+            <TileSkeletons count={TASKS_SHOWN} />
           ) : tasks.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Tasks Instrument starts for you will appear here.
@@ -287,7 +287,7 @@ function HomeRoute() {
           title="Apps"
         >
           {appList.data === undefined ? (
-            <TileSkeletons />
+            <TileSkeletons count={APPS_SHOWN} />
           ) : appList.data.apps.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Connect a service and it becomes a place here.
@@ -331,7 +331,7 @@ function HomeRoute() {
           title={computerName()}
         >
           {places.data === undefined ? (
-            <TileSkeletons />
+            <TileSkeletons count={PLACES_SHOWN} />
           ) : (
             <Tiles>
               {folders.slice(0, PLACES_SHOWN).map((place) => (
@@ -362,7 +362,7 @@ function HomeRoute() {
           title="Ideas"
         >
           {ideas.data === undefined ? (
-            <TileSkeletons />
+            <TileSkeletons count={IDEAS_SHOWN} />
           ) : (
             <Tiles>
               {ideas.data.slice(0, IDEAS_SHOWN).map((idea) => (
@@ -610,7 +610,7 @@ function RecentFiles({
 function RowSkeletons() {
   return (
     <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
-      {[0, 1, 2].map((index) => (
+      {Array.from({ length: RECENTS_SHOWN }, (_, index) => (
         <div className="flex items-center gap-3 px-3 py-2.5" key={index}>
           <Skeleton className="size-10 rounded-lg" />
           <span className="min-w-0 flex-1 space-y-1.5">
@@ -709,14 +709,15 @@ function Tiles({ children }: { children: ReactNode }) {
 }
 
 /**
- * A row of tiles holding the section's place while its things are still on
- * their way, so the page lays out once rather than growing as each section
- * answers. One row, since that is what most sections come to.
+ * Tiles holding the section's place while its things are still on their way,
+ * so the page lays out once rather than growing as each section answers. As
+ * many as the section shows when it is full, since a page that has been used
+ * for a while fills every section.
  */
-function TileSkeletons() {
+function TileSkeletons({ count }: { count: number }) {
   return (
     <Tiles>
-      {[0, 1].map((index) => (
+      {Array.from({ length: count }, (_, index) => (
         <div
           className="flex h-16 items-center gap-3 rounded-2xl border border-border bg-card px-3 shadow-xs"
           key={index}

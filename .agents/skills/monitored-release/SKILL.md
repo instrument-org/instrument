@@ -59,6 +59,8 @@ The script bumps `apps/studio/package.json`, commits `release: vX.Y.Z`, and crea
 
 A pushed tag cannot be moved. A mistake costs the next version number.
 
+The script runs `git fetch origin --tags` without `--force` before it bumps anything, so a clone whose local tags disagree with origin's dies there with a wall of `would clobber existing tag` lines and no version change. Every such tag so far has been a leftover of a history rewrite: same tree, date, and message as origin's, a different sha, and not on `origin/main`. Confirm it on one tag: `git ls-remote origin refs/tags/<tag>` for origin's sha, then `git rev-parse <tag>^{tree} <sha>^{tree}` should print the same tree twice. Then `git show-ref --tags > <backup>` and `git fetch origin --tags --force`, and rerun. Tag refs live in the common git dir, so the force-fetch reaches every worktree of the clone.
+
 ## Watching
 
 ```bash

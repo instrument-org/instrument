@@ -110,6 +110,17 @@ describe("js-exec takes Node's options", () => {
     ["--eval", `js-exec --eval 'console.log(1 + 2)'`, "3\n"],
     ["--eval=", `js-exec --eval='console.log(1 + 2)'`, "3\n"],
     ["-p", `js-exec -p '1 + 2;'`, "3\n"],
+    ["-p with a trailing comment", `js-exec -p '1 + 2; // three'`, "3\n"],
+    [
+      "-p with a // inside a string",
+      `js-exec -p '"http://x" // url'`,
+      "http://x\n",
+    ],
+    ["-p of nothing", `js-exec -p ''`, "undefined\n"],
+    ["-p of a regular expression", `js-exec -p '/x/g'`, "/x/g\n"],
+    ["-p of a symbol", `js-exec -p 'Symbol("x")'`, "Symbol(x)\n"],
+    ["-p of a function", `js-exec -p '(function f() {})'`, "[Function: f]\n"],
+    ["-p of an object", `js-exec -p '({ a: [1, 2] })'`, `{"a":[1,2]}\n`],
     ["--print", `js-exec --print 'process.argv.slice(1)' a b`, `["a","b"]\n`],
     [
       "-e after -m and --strip-types",
@@ -119,6 +130,12 @@ describe("js-exec takes Node's options", () => {
   ])("%s", async (_name, command, stdout) => {
     const result = await run(command);
     expect(result).toMatchObject({ exitCode: 0, stderr: "", stdout });
+  });
+
+  it("reports an error in -p code on line 1, past the wrapper's opening", async () => {
+    const result = await run(`js-exec -p 'nope.x'`);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("at <eval> (-c:1:12): 'nope' is not defined\n");
   });
 
   it("wants an argument after -e", async () => {
@@ -184,7 +201,7 @@ describe("js-exec gives its Node shims Node's shapes", () => {
 
   it("answers statSync with methods and Date fields", async () => {
     const result = await run(
-      `js-exec -e 'const s = fs.statSync("/mnt/Docs/readme.txt"); const d = fs.lstatSync("/mnt/Docs/sub"); console.log(s.isFile(), s.isDirectory(), d.isDirectory(), d.isSymbolicLink(), s.size, s.mtime instanceof Date, typeof s.mtimeMs, s.mtime.getTime() === s.mtimeMs, s.birthtime instanceof Date)'`,
+      `js-exec -e 'const s = fs.statSync("/mnt/Docs/readme.txt"); const d = fs.lstatSync("/mnt/Docs/sub"); s.atime.setTime(0); console.log(s.isFile(), s.isDirectory(), d.isDirectory(), d.isSymbolicLink(), s.size, s.mtime instanceof Date, typeof s.mtimeMs, s.mtime.getTime() === s.mtimeMs, s.birthtime instanceof Date)'`,
     );
     expect(result).toMatchObject({
       exitCode: 0,
@@ -240,6 +257,17 @@ describe("js-exec gives its Node shims Node's shapes", () => {
     expect(caught).toMatchObject({
       exitCode: 0,
       stdout: `{"code":"ENOENT","errno":-2,"syscall":"open","path":"/mnt/Docs/nope.txt","message":"ENOENT: no such file or directory, open '/mnt/Docs/nope.txt'"}\n`,
+    });
+
+    await fs.writeFile(
+      path.join(taskRoot, "work", "apostrophe.js"),
+      'try { fs.readFileSync("/mnt/Docs/don\'t.txt") } catch (e) { console.log(e.code, e.path); console.log(e.message) }\n',
+    );
+    const apostrophe = await run("js-exec work/apostrophe.js");
+    expect(apostrophe).toMatchObject({
+      exitCode: 0,
+      stdout:
+        "ENOENT /mnt/Docs/don't.txt\nENOENT: no such file or directory, open '/mnt/Docs/don't.txt'\n",
     });
 
     const rename = await run(

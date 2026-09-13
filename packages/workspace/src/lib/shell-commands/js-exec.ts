@@ -57,13 +57,59 @@ export function createJsExecCommand() {
 }
 
 /**
+ * Whether every quote in `code` is closed, so that a `//` or a `/*` at its
+ * end is a comment rather than the inside of a string.
+ */
+function quotesBalanced(code: string): boolean {
+  let open: string | undefined;
+  for (let index = 0; index < code.length; index++) {
+    const char = code[index];
+    if (open === undefined) {
+      if (char === "'" || char === '"' || char === "`") open = char;
+    } else if (char === "\\") {
+      index++;
+    } else if (char === open) {
+      open = undefined;
+    }
+  }
+  return open === undefined;
+}
+
+/**
+ * The program without the trailing semicolons and comments that end a typed
+ * expression (`1; // two`), so it can sit in an expression position.
+ */
+function trailingExpression(code: string): string {
+  let expression = code;
+  for (;;) {
+    const trimmed = expression.trimEnd();
+    let next = trimmed;
+    if (trimmed.endsWith(";")) {
+      next = trimmed.slice(0, -1);
+    } else if (trimmed.endsWith("*/")) {
+      const start = trimmed.lastIndexOf("/*");
+      if (start !== -1 && quotesBalanced(trimmed.slice(0, start))) {
+        next = trimmed.slice(0, start);
+      }
+    } else {
+      let commentStart = trimmed.indexOf("//", trimmed.lastIndexOf("\n") + 1);
+      while (
+        commentStart !== -1 &&
+        !quotesBalanced(trimmed.slice(0, commentStart))
+      ) {
+        commentStart = trimmed.indexOf("//", commentStart + 2);
+      }
+      if (commentStart !== -1) next = trimmed.slice(0, commentStart);
+    }
+    if (next === expression) return expression;
+    expression = next;
+  }
+}
+
+/**
  * Accept Node's inline-code options in front of the runtime's `-c`. An agent
  * reaches for `node -e` by reflex, and the runtime answers `unrecognized
  * option '-e'`, which costs a turn to read `--help` and retry.
- *
- * `-p` prints the value of one expression, as Node does for the last
- * expression statement. A multi-statement program under `-p` is a syntax
- * error here, which the runtime reports as such.
  */
 function translateNodeOptions(
   args: string[],
@@ -98,14 +144,38 @@ function translateNodeOptions(
         };
       }
     }
-    if (print !== null) {
-      // The newline keeps a trailing line comment from swallowing the
-      // closing parenthesis.
-      code = `console.log((${code.replace(/[\s;]+$/, "")}\n))`;
-    }
-    return { args: [...args.slice(0, index), "-c", code, ...rest] };
+    return {
+      args: [
+        ...args.slice(0, index),
+        "-c",
+        print === null ? code : printSource(code),
+        ...rest,
+      ],
+    };
   }
   return { args };
+}
+
+/**
+ * How `-p` prints a value: a string as it is, and the rest the way Node
+ * inspects them where the runtime's `console.log` (JSON) would lose them: a
+ * RegExp as `{}`, a Symbol or a function as nothing. Objects and arrays stay
+ * JSON, as `console.log` prints them everywhere in this runtime. A
+ * declaration, so it hoists above the expression and the expression keeps
+ * its place on line 1.
+ */
+const PRINT_VALUE = `function __jbPrint(v) { console.log(typeof v === 'string' ? v : typeof v === 'symbol' ? v.toString() : typeof v === 'bigint' ? v + 'n' : typeof v === 'function' ? (v.name ? '[Function: ' + v.name + ']' : '[Function (anonymous)]') : v instanceof RegExp ? String(v) : v instanceof Date ? v.toISOString() : v instanceof Error ? String(v) + (v.stack ? '\\n' + v.stack : '') : v === undefined || v === null || typeof v === 'number' || typeof v === 'boolean' ? String(v) : (function () { try { return JSON.stringify(v); } catch (_) { return String(v); } })()); }`;
+
+/**
+ * `-p` prints the value of one expression, which is what Node prints for a
+ * single expression statement; an empty program prints `undefined`, as Node
+ * does. A program of several statements is a syntax error here, which the
+ * runtime reports as such. The newline after the expression keeps a comment
+ * inside it from swallowing the closing parenthesis.
+ */
+function printSource(code: string): string {
+  const expression = trailingExpression(code);
+  return `__jbPrint((${expression === "" ? "undefined" : expression}\n));\n${PRINT_VALUE}`;
 }
 
 /**

@@ -80,7 +80,7 @@ export const JS_EXEC_BOOTSTRAP = `(function () {
     EISDIR: -21, ELOOP: -40, EMFILE: -24, ENAMETOOLONG: -36, ENOENT: -2,
     ENOSPC: -28, ENOTDIR: -20, ENOTEMPTY: -39, EPERM: -1, EROFS: -30, EXDEV: -18,
   };
-  var ERRNO_MESSAGE = /^(E[A-Z0-9]+): (.*?)(?:, [a-z]+ '[^']*'(?: -> '[^']*')?)?$/;
+  var ERRNO_MESSAGE = /^(E[A-Z0-9]+): (.*?)(?:, [a-z]+ '.*')?$/;
   // An uncaught error is reported at its innermost frame, which the shims
   // here, the runtime's own, and the apply() between them would otherwise be.
   var SHIM_FRAME = /\\((?:bootstrap\\.js|<compat>):\\d+|\\(native\\)/;
@@ -139,7 +139,10 @@ export const JS_EXEC_BOOTSTRAP = `(function () {
     this.size = raw.size;
     this.blocks = Math.ceil(raw.size / 512);
     this.atimeMs = this.mtimeMs = this.ctimeMs = this.birthtimeMs = mtime.getTime();
-    this.atime = this.mtime = this.ctime = this.birthtime = mtime;
+    this.atime = new Date(mtime);
+    this.mtime = mtime;
+    this.ctime = new Date(mtime);
+    this.birthtime = new Date(mtime);
     Object.defineProperty(this, "_kind", { value: { dir: raw.isDirectory === true, file: raw.isFile === true, link: raw.isSymbolicLink === true } });
   }
   Stats.prototype.isFile = function () { return this._kind.file; };

@@ -77,6 +77,39 @@ const STDLIB_MODULE_NAMES = new Set(
   ),
 );
 
+function createSandboxedPythonCommand(taskId: TaskId, name: string) {
+  return defineCommand(name, async (args, ctx) => {
+    if (args[0] === "-m" && args[1] === "pip") {
+      return {
+        exitCode: 1,
+        stderr: `\`${name} -m pip\` is not available. Use the \`pip\` command instead, e.g. \`pip install <package>\`; what it installs runs under \`${PYTHON_NATIVE_COMMAND.name}\`.\n`,
+        stdout: "",
+      };
+    }
+
+    if (isSkillScriptInvocation(args, ctx)) {
+      return runNativePython(taskId, name, args, ctx, { skillScript: true });
+    }
+
+    // The bundled interpreter this command shadows. Absent only if the shell
+    // was built without `python: true`, which no caller does; the message is
+    // for the day someone does.
+    if (ctx.origCommand === undefined) {
+      return {
+        exitCode: 1,
+        stderr: `${name}: the sandboxed interpreter is not registered in this shell.\n`,
+        stdout: "",
+      };
+    }
+
+    const result = await ctx.origCommand(args);
+    return {
+      ...result,
+      stderr: explainSandboxedPythonFailure(result.stderr),
+    };
+  });
+}
+
 /**
  * Explain a failure the sandboxed interpreter reports in its own terms, which
  * would otherwise send the agent looking in the wrong place.
@@ -86,7 +119,7 @@ const STDLIB_MODULE_NAMES = new Set(
  * value: an agent that reads `No module named 'numpy'` with nothing beside it
  * will try `pip install numpy` and run the same command again.
  */
-export function explainSandboxedPythonFailure(stderr: string): string {
+function explainSandboxedPythonFailure(stderr: string): string {
   let text = stderr
     // The interpreter mounts the virtual filesystem at /host and its own
     // shims prefix paths with it, so an error names '/host/mnt/...' for a
@@ -160,7 +193,7 @@ export function explainSandboxedPythonFailure(stderr: string): string {
  * test is what the mount guard reads, since a script that is carved out here
  * has no sandboxed run to be redirected to.
  */
-export function isSkillScriptInvocation(
+function isSkillScriptInvocation(
   args: string[],
   ctx: { cwd: string; fs: { resolvePath(cwd: string, path: string): string } },
 ): boolean {
@@ -173,39 +206,6 @@ export function isSkillScriptInvocation(
     return false;
   }
   return isAtOrUnder(SKILL_COPIES_DIR, ctx.fs.resolvePath(ctx.cwd, script));
-}
-
-function createSandboxedPythonCommand(taskId: TaskId, name: string) {
-  return defineCommand(name, async (args, ctx) => {
-    if (args[0] === "-m" && args[1] === "pip") {
-      return {
-        exitCode: 1,
-        stderr: `\`${name} -m pip\` is not available. Use the \`pip\` command instead, e.g. \`pip install <package>\`; what it installs runs under \`${PYTHON_NATIVE_COMMAND.name}\`.\n`,
-        stdout: "",
-      };
-    }
-
-    if (isSkillScriptInvocation(args, ctx)) {
-      return runNativePython(taskId, name, args, ctx, { skillScript: true });
-    }
-
-    // The bundled interpreter this command shadows. Absent only if the shell
-    // was built without `python: true`, which no caller does; the message is
-    // for the day someone does.
-    if (ctx.origCommand === undefined) {
-      return {
-        exitCode: 1,
-        stderr: `${name}: the sandboxed interpreter is not registered in this shell.\n`,
-        stdout: "",
-      };
-    }
-
-    const result = await ctx.origCommand(args);
-    return {
-      ...result,
-      stderr: explainSandboxedPythonFailure(result.stderr),
-    };
-  });
 }
 
 /**

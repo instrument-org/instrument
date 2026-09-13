@@ -32,10 +32,3 @@ export const sidebarWidthAtom = atomWithStorage<number>(
   undefined,
   { getOnInit: true },
 );
-
-export function clampSidebarWidth(value: number) {
-  return Math.min(
-    SIDEBAR_WIDTH_MAX,
-    Math.max(SIDEBAR_WIDTH_MIN, Math.round(value)),
-  );
-}

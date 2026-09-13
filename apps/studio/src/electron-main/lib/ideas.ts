@@ -42,7 +42,7 @@ export type Idea = z.output<typeof IdeaMetaSchema> & {
   name: string;
 };
 
-export interface IdeaExample {
+interface IdeaExample {
   /** The picture of the page, when the registry carries one. */
   capture?: { path: string; version: number };
   /** The page itself, on this computer, to open as a page. */

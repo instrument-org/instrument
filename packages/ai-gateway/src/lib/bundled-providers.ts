@@ -162,7 +162,13 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
   },
 };
 
-export function getAISDKProviderInfo(
+export function getPackageForProviderType(
+  providerType: AIGatewayProviderConfig.Type["type"],
+): BundledProviderPackage {
+  return getAISDKProviderInfo(providerType).package;
+}
+
+function getAISDKProviderInfo(
   providerType: AIGatewayProviderConfig.Type["type"],
 ): AISDKProviderInfo {
   return (
@@ -175,10 +181,4 @@ export function getAISDKProviderInfo(
       package: "@ai-sdk/openai-compatible",
     }
   );
-}
-
-export function getPackageForProviderType(
-  providerType: AIGatewayProviderConfig.Type["type"],
-): BundledProviderPackage {
-  return getAISDKProviderInfo(providerType).package;
 }

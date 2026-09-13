@@ -10,7 +10,6 @@ import {
 } from "@instrument-org/shared";
 import { z } from "zod";
 
-import { type TASK_STATUSES } from "./constants";
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
@@ -78,8 +77,6 @@ export interface BrowserTarget {
   type: "page";
   url: string;
 }
-
-export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 // The bridge routing key for a single browser view: a (id, sessionId)
 // tuple encoded as `${id}/${sessionId}`. The schema delegates to the

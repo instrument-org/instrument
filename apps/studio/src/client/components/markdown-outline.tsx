@@ -131,7 +131,7 @@ export function MarkdownDocument({ children }: { children: ReactNode }) {
  * rail itself is a button for the keyboard, which has no hover and so pins the
  * card open instead.
  */
-export function MarkdownOutline({
+function MarkdownOutline({
   armOnLeave = false,
   headings,
   layout,

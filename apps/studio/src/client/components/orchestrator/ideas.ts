@@ -19,7 +19,7 @@ export function ideaHref(name: string) {
  * already on their desk. The same list the website's Discover section uses;
  * a tag with no heading here lands its idea under More.
  */
-export const IDEA_GROUPS: { label: string; tag: string }[] = [
+const IDEA_GROUPS: { label: string; tag: string }[] = [
   { label: "A decision to make", tag: "decide" },
   { label: "A topic to explain", tag: "explain" },
   { label: "A case to make", tag: "persuade" },

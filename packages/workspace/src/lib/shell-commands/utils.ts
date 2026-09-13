@@ -51,31 +51,6 @@ export function attachedMountLiteralError(
 }
 
 /**
- * The first attached-folder path a shim was pointed at, whether through an
- * argument or through the working directory it inherited, or undefined.
- *
- * `resolveNativeHostPath` quarantines a `/mnt/...` path to a non-existent
- * location inside the task, which is the containment working as designed --
- * but the resulting failure describes the quarantined path, not the mount the
- * agent actually named, so the report reads like a path bug in the sandbox
- * rather than the boundary it is. Callers use this to answer with the mount
- * the agent asked for before spawning anything.
- */
-export function attachedMountReference(
-  args: string[],
-  virtualCwd: string,
-): string | undefined {
-  if (isUnderAttachedMount(normalizePath(virtualCwd))) {
-    return normalizePath(virtualCwd);
-  }
-  // Slicing past an `=` covers `--git-dir=/mnt/x` and leaves a bare `/mnt/x`
-  // whole, since indexOf returns -1 when there is no `=`.
-  return args
-    .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
-    .find((value) => isUnderAttachedMount(value));
-}
-
-/**
  * Rewrite the value of a `--flag=<path>` token that points at a
  * sandbox-virtual absolute path (`--env-file=/task/work/.env`) so the real
  * subprocess resolves it, relative to taskCwd so the host dir stays hidden.
@@ -430,6 +405,31 @@ export function unreachablePathArgError(
     `(work/scratch.txt, output/report.pdf); scratch files belong under work/, ` +
     `which is where mktemp puts them.\n`
   );
+}
+
+/**
+ * The first attached-folder path a shim was pointed at, whether through an
+ * argument or through the working directory it inherited, or undefined.
+ *
+ * `resolveNativeHostPath` quarantines a `/mnt/...` path to a non-existent
+ * location inside the task, which is the containment working as designed --
+ * but the resulting failure describes the quarantined path, not the mount the
+ * agent actually named, so the report reads like a path bug in the sandbox
+ * rather than the boundary it is. Callers use this to answer with the mount
+ * the agent asked for before spawning anything.
+ */
+function attachedMountReference(
+  args: string[],
+  virtualCwd: string,
+): string | undefined {
+  if (isUnderAttachedMount(normalizePath(virtualCwd))) {
+    return normalizePath(virtualCwd);
+  }
+  // Slicing past an `=` covers `--git-dir=/mnt/x` and leaves a bare `/mnt/x`
+  // whole, since indexOf returns -1 when there is no `=`.
+  return args
+    .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
+    .find((value) => isUnderAttachedMount(value));
 }
 
 function isOptionToken(token: { kind: string }): token is {

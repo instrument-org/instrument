@@ -25,8 +25,84 @@ export interface OpenDestination {
   run: () => void;
 }
 
+/** The same gestures, for a list whose rows each name a different target. */
+export function useGesturesFor() {
+  const destinationsFor = useDestinationsFor();
+  return (target: OpenTarget, options?: { addReferral?: boolean }) => {
+    const destinations = destinationsFor(target, options);
+    const primary = destinations.find(
+      (destination) => destination.id === "open",
+    );
+    const separate =
+      destinations.find((destination) => destination.id === "openNewTab") ??
+      primary;
+
+    return {
+      onAuxClick: (event: React.MouseEvent) => {
+        if (event.button !== MIDDLE_BUTTON || !separate) {
+          return;
+        }
+        // Left alone, Chromium answers a middle click by handing the address to
+        // the window, whose open handler sends it out to the OS browser -- the
+        // one destination the gesture cannot have meant.
+        event.preventDefault();
+        separate.run();
+      },
+      onContextMenu: (event: React.MouseEvent) => {
+        if (destinations.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        void showOpenMenu(destinations);
+      },
+      /** The rows, for a surface that draws its own menu rather than the OS's. */
+      destinations,
+      separate,
+    };
+  };
+}
+
+/**
+ * Everywhere this target can be opened from where it is drawn, in the order a
+ * menu should list them, the first being what a plain click does.
+ *
+ * The single answer to "what can be done with this thing", so the menu a right
+ * click raises, the menu a left click raises on a link, and what a middle click
+ * does are three readings of one list rather than three implementations that
+ * drift. What is on the list is decided by the surface rather than by the
+ * component: a window with tabs offers a tab, a task offers its browser, and
+ * anything drawn outside both offers only the places outside the app.
+ */
+export function useOpenDestinations(
+  target: OpenTarget,
+  options?: { addReferral?: boolean },
+): OpenDestination[] {
+  return useDestinationsFor()(target, options);
+}
+
+/**
+ * The three gestures every openable thing answers, bound once.
+ *
+ * A plain click opens where the surface says; a middle or modified click asks
+ * for a place of its own; a right click raises the whole list in the OS's own
+ * menu. Spread onto an anchor, a button, or a row -- what the thing is drawn as
+ * is the surface's business, and what a gesture over it means is not.
+ *
+ * The right-click menu is the OS's rather than one drawn in the page, which is
+ * what keeps it identical over a link, a file card and a row of a list, and out
+ * of the way of the app's zoom. Refusing the event is also what keeps the
+ * generic menu -- "Save Image As" over an icon, and nothing at all over a
+ * button -- from answering in its place.
+ */
+export function useOpenGestures(
+  target: OpenTarget,
+  options?: { addReferral?: boolean },
+) {
+  return useGesturesFor()(target, options);
+}
+
 /** Raises the destinations as the OS's own menu, and runs what was picked. */
-export async function showOpenMenu(destinations: OpenDestination[]) {
+async function showOpenMenu(destinations: OpenDestination[]) {
   const rows: RPCInput["utils"]["showContextMenu"]["items"] =
     destinations.flatMap((destination, index) => [
       // The places a thing opens, then the clipboard, are two groups.
@@ -43,7 +119,7 @@ export async function showOpenMenu(destinations: OpenDestination[]) {
  * A row cannot call a hook of its own, so the surface reads what it is once and
  * asks per row. Everything conditional lives past this line.
  */
-export function useDestinationsFor(): (
+function useDestinationsFor(): (
   target: OpenTarget,
   options?: { addReferral?: boolean },
 ) => OpenDestination[] {
@@ -180,80 +256,4 @@ export function useDestinationsFor(): (
           ]),
     ];
   };
-}
-
-/** The same gestures, for a list whose rows each name a different target. */
-export function useGesturesFor() {
-  const destinationsFor = useDestinationsFor();
-  return (target: OpenTarget, options?: { addReferral?: boolean }) => {
-    const destinations = destinationsFor(target, options);
-    const primary = destinations.find(
-      (destination) => destination.id === "open",
-    );
-    const separate =
-      destinations.find((destination) => destination.id === "openNewTab") ??
-      primary;
-
-    return {
-      onAuxClick: (event: React.MouseEvent) => {
-        if (event.button !== MIDDLE_BUTTON || !separate) {
-          return;
-        }
-        // Left alone, Chromium answers a middle click by handing the address to
-        // the window, whose open handler sends it out to the OS browser -- the
-        // one destination the gesture cannot have meant.
-        event.preventDefault();
-        separate.run();
-      },
-      onContextMenu: (event: React.MouseEvent) => {
-        if (destinations.length === 0) {
-          return;
-        }
-        event.preventDefault();
-        void showOpenMenu(destinations);
-      },
-      /** The rows, for a surface that draws its own menu rather than the OS's. */
-      destinations,
-      separate,
-    };
-  };
-}
-
-/**
- * Everywhere this target can be opened from where it is drawn, in the order a
- * menu should list them, the first being what a plain click does.
- *
- * The single answer to "what can be done with this thing", so the menu a right
- * click raises, the menu a left click raises on a link, and what a middle click
- * does are three readings of one list rather than three implementations that
- * drift. What is on the list is decided by the surface rather than by the
- * component: a window with tabs offers a tab, a task offers its browser, and
- * anything drawn outside both offers only the places outside the app.
- */
-export function useOpenDestinations(
-  target: OpenTarget,
-  options?: { addReferral?: boolean },
-): OpenDestination[] {
-  return useDestinationsFor()(target, options);
-}
-
-/**
- * The three gestures every openable thing answers, bound once.
- *
- * A plain click opens where the surface says; a middle or modified click asks
- * for a place of its own; a right click raises the whole list in the OS's own
- * menu. Spread onto an anchor, a button, or a row -- what the thing is drawn as
- * is the surface's business, and what a gesture over it means is not.
- *
- * The right-click menu is the OS's rather than one drawn in the page, which is
- * what keeps it identical over a link, a file card and a row of a list, and out
- * of the way of the app's zoom. Refusing the event is also what keeps the
- * generic menu -- "Save Image As" over an icon, and nothing at all over a
- * button -- from answering in its place.
- */
-export function useOpenGestures(
-  target: OpenTarget,
-  options?: { addReferral?: boolean },
-) {
-  return useGesturesFor()(target, options);
 }

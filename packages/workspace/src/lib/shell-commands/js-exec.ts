@@ -38,7 +38,7 @@ export function createJsExecCommand() {
  * the one that misleads: `Cannot find module 'csv-parse'` reads as a package
  * to install, and the runtime cannot load it once installed either.
  */
-export function explainJsExecFailure(stderr: string): string {
+function explainJsExecFailure(stderr: string): string {
   const notes: string[] = [];
 
   const missing = /Cannot find module '([^']+)'/.exec(stderr)?.[1];

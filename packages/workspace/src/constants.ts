@@ -42,16 +42,6 @@ export const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
 export const TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
 
-export const TASK_STATUSES = [
-  "error",
-  "loading",
-  "not-found",
-  "ready",
-  "stopped",
-  "not-runnable",
-  "unknown",
-] as const;
-
 /**
  * Info string of the fenced block an agent writes to show the user a set of
  * files: one workspace path per line. Shared because it is a contract between

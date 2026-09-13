@@ -87,15 +87,6 @@ export function channelName(raw: string): string {
     .slice(0, CHANNEL_NAME_MAX);
 }
 
-/** The channel a session belongs to, or none when the session is not one. */
-export async function channelOfSession(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-): Promise<Channel | undefined> {
-  const channels = await listChannels(taskId);
-  return channels.find((channel) => channel.id === sessionId);
-}
-
 /**
  * What the conversation is told about its channels: which one this message
  * came from, and what the others are called, so a reply about "the reddit

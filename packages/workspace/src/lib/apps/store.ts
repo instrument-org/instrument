@@ -6,7 +6,6 @@ import path from "node:path";
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
 import { APP_COMMAND } from "../shell-commands/app-command";
-import { getWorkspaceConfig } from "../workspace-config";
 import {
   APP_GUIDE_FILE_NAME,
   APP_MANIFEST_FILE_NAME,
@@ -27,11 +26,6 @@ export interface AppInfo {
 interface AppLoadError {
   message: string;
   reason: "invalid-manifest" | "invalid-slug" | "not-found";
-}
-
-/** The workspace's own `apps/` directory, where every app folder lives. */
-export function getWorkspaceAppsDir(): AbsolutePath {
-  return getWorkspaceConfig().appsDir;
 }
 
 /**

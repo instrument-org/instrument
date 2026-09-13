@@ -231,17 +231,6 @@ export const computerHiddenFilesAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 );
 
-export const PINS_HEIGHT_MIN = 40;
-const PINS_HEIGHT_DEFAULT = 96;
-
-/** The height of the pinned area above the conversation, in CSS px, dragged by the divider under it. */
-export const orchestratorPinsHeightAtom = atomWithStorage<number>(
-  "orchestrator.pins-height.v1",
-  PINS_HEIGHT_DEFAULT,
-  undefined,
-  { getOnInit: true },
-);
-
 /** A thing the user pinned to the sidebar: a page by its address, or a screen by its route. */
 export interface Pin {
   favicon?: string;

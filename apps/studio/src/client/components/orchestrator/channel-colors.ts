@@ -7,7 +7,7 @@
  * The color the channel the conversation started in is drawn in: the app's
  * own, so its room reads as the app's rather than as one more workspace.
  */
-export const HOME_CHANNEL_COLOR = "#0b6056";
+const HOME_CHANNEL_COLOR = "#0b6056";
 
 /**
  * The palette, as eight hues in two tiers. Only a color's hue and its tier

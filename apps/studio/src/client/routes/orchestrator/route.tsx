@@ -45,6 +45,7 @@ import {
 } from "@/client/components/orchestrator/screen-presentation";
 import { type TabLocation } from "@/client/components/orchestrator/tab-location";
 import { TabLocationRow } from "@/client/components/orchestrator/tab-location-row";
+import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
@@ -92,7 +93,12 @@ import {
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { CodeIcon } from "@phosphor-icons/react/Code";
-import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   createFileRoute,
   Outlet,
@@ -578,6 +584,27 @@ function OrchestratorLayout() {
       }
     })();
   }, [isReady]);
+  // What a new tab shows, asked for as the window comes up rather than as the
+  // tab mounts, so the page lays out from the cache instead of growing a
+  // section at a time as each answer lands. The tab's own queries keep them
+  // fresh from there.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!ids) {
+      return;
+    }
+    const input = { id: ids.taskId };
+    void queryClient.prefetchQuery(
+      rpcClient.workspace.orchestrator.children.queryOptions({ input }),
+    );
+    void queryClient.prefetchQuery(
+      rpcClient.workspace.computer.recents.queryOptions({ input }),
+    );
+    void queryClient.prefetchQuery(
+      rpcClient.workspace.computer.places.queryOptions(),
+    );
+    void queryClient.prefetchQuery(ideasQueryOptions());
+  }, [ids, queryClient]);
   useEffect(() => {
     if (!ids) {
       return;

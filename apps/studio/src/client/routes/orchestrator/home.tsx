@@ -25,6 +25,7 @@ import { type TaskStandingKind } from "@/client/components/orchestrator/task-row
 import { useIdeas } from "@/client/components/orchestrator/use-ideas";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { RelativeTime } from "@/client/components/relative-time";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import {
   useGesturesFor,
@@ -170,7 +171,9 @@ function HomeRoute() {
           }}
           title="Tasks"
         >
-          {children.data === undefined ? null : tasks.length === 0 ? (
+          {children.data === undefined ? (
+            <TileSkeletons />
+          ) : tasks.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Tasks Instrument starts for you will appear here.
             </p>
@@ -283,13 +286,15 @@ function HomeRoute() {
           }}
           title="Apps"
         >
-          {(appList.data?.apps.length ?? 0) === 0 ? (
+          {appList.data === undefined ? (
+            <TileSkeletons />
+          ) : appList.data.apps.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Connect a service and it becomes a place here.
             </p>
           ) : (
             <Tiles>
-              {(appList.data?.apps ?? []).slice(0, APPS_SHOWN).map((app) => (
+              {appList.data.apps.slice(0, APPS_SHOWN).map((app) => (
                 <Tile
                   icon={<AppIcon site={app.site} size="lg" />}
                   key={app.slug}
@@ -325,19 +330,23 @@ function HomeRoute() {
           }}
           title={computerName()}
         >
-          <Tiles>
-            {folders.slice(0, PLACES_SHOWN).map((place) => (
-              <Tile
-                icon={<FileSystemFolderGlyph className="h-9 w-auto" />}
-                key={place.path}
-                name={place.name}
-                onOpen={() => {
-                  openFolder(place.path);
-                }}
-                target={{ href: folderHref(place.path), kind: "screen" }}
-              />
-            ))}
-          </Tiles>
+          {places.data === undefined ? (
+            <TileSkeletons />
+          ) : (
+            <Tiles>
+              {folders.slice(0, PLACES_SHOWN).map((place) => (
+                <Tile
+                  icon={<FileSystemFolderGlyph className="h-9 w-auto" />}
+                  key={place.path}
+                  name={place.name}
+                  onOpen={() => {
+                    openFolder(place.path);
+                  }}
+                  target={{ href: folderHref(place.path), kind: "screen" }}
+                />
+              ))}
+            </Tiles>
+          )}
         </Section>
 
         {/* The kinds of page Instrument can make, each the sketch of its
@@ -352,27 +361,31 @@ function HomeRoute() {
           }}
           title="Ideas"
         >
-          <Tiles>
-            {(ideas.data ?? []).slice(0, IDEAS_SHOWN).map((idea) => (
-              <Tile
-                icon={
-                  <IdeaSketch
-                    className="h-11 w-auto rotate-3 drop-shadow-sm"
-                    rows={idea.sketch ?? []}
-                  />
-                }
-                key={idea.name}
-                name={idea.title}
-                onOpen={() => {
-                  void navigate({
-                    params: { idea: idea.name },
-                    to: "/orchestrator/ideas/$idea",
-                  });
-                }}
-                target={{ href: ideaHref(idea.name), kind: "screen" }}
-              />
-            ))}
-          </Tiles>
+          {ideas.data === undefined ? (
+            <TileSkeletons />
+          ) : (
+            <Tiles>
+              {ideas.data.slice(0, IDEAS_SHOWN).map((idea) => (
+                <Tile
+                  icon={
+                    <IdeaSketch
+                      className="h-11 w-auto rotate-3 drop-shadow-sm"
+                      rows={idea.sketch ?? []}
+                    />
+                  }
+                  key={idea.name}
+                  name={idea.title}
+                  onOpen={() => {
+                    void navigate({
+                      params: { idea: idea.name },
+                      to: "/orchestrator/ideas/$idea",
+                    });
+                  }}
+                  target={{ href: ideaHref(idea.name), kind: "screen" }}
+                />
+              ))}
+            </Tiles>
+          )}
         </Section>
 
         {/* The files the conversation has put in front of the user, newest
@@ -393,7 +406,9 @@ function HomeRoute() {
             : {})}
           title="Recent files"
         >
-          {recents.data === undefined ? null : recents.data.length === 0 ? (
+          {recents.data === undefined ? (
+            <RowSkeletons />
+          ) : recents.data.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Files Instrument shows you in the conversation will appear here.
             </p>
@@ -591,6 +606,24 @@ function RecentFiles({
   );
 }
 
+/** The recent files' place, as rows, until the list is in. */
+function RowSkeletons() {
+  return (
+    <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+      {[0, 1, 2].map((index) => (
+        <div className="flex items-center gap-3 px-3 py-2.5" key={index}>
+          <Skeleton className="size-10 rounded-lg" />
+          <span className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-3 w-1/2" />
+          </span>
+          <Skeleton className="h-3 w-10" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * A section: what it is called, in the quiet weight the page reads its heads
  * in, and beside it the one way to the rest of what it holds.
@@ -672,5 +705,28 @@ function Tiles({ children }: { children: ReactNode }) {
     <div className="grid grid-cols-1 gap-3 @lg/home:grid-cols-2">
       {children}
     </div>
+  );
+}
+
+/**
+ * A row of tiles holding the section's place while its things are still on
+ * their way, so the page lays out once rather than growing as each section
+ * answers. One row, since that is what most sections come to.
+ */
+function TileSkeletons() {
+  return (
+    <Tiles>
+      {[0, 1].map((index) => (
+        <div
+          className="flex h-16 items-center gap-3 rounded-2xl border border-border bg-card px-3 shadow-xs"
+          key={index}
+        >
+          <span className="grid size-12 shrink-0 place-items-center">
+            <Skeleton className="size-11 rounded-xl" />
+          </span>
+          <Skeleton className="h-4 w-2/5" />
+        </div>
+      ))}
+    </Tiles>
   );
 }

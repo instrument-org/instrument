@@ -185,6 +185,8 @@ export const JS_EXEC_BOOTSTRAP = `(function () {
     var withFileTypes = options !== null && typeof options === "object" && options.withFileTypes === true;
     var recursive = options !== null && typeof options === "object" && options.recursive === true;
     if (!withFileTypes && !recursive) return rawReaddir(dir);
+    // The runtime's readdir answers [] for a file; Node refuses it.
+    if (!fs.statSync(dir).isDirectory()) throw describe(new Error("ENOTDIR: not a directory"), "scandir", dir);
     var out = [];
     (function walk(parent, prefix) {
       var names = rawReaddir(parent);

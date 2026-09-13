@@ -92,12 +92,15 @@ function trailingExpression(code: string): string {
         next = trimmed.slice(0, start);
       }
     } else {
+      // A `//` inside a string, or one whose first slash is escaped (the
+      // end of a regex like /https:\/\//), is not a comment.
       let commentStart = trimmed.indexOf("//", trimmed.lastIndexOf("\n") + 1);
       while (
         commentStart !== -1 &&
-        !quotesBalanced(trimmed.slice(0, commentStart))
+        (trimmed[commentStart - 1] === "\\" ||
+          !quotesBalanced(trimmed.slice(0, commentStart)))
       ) {
-        commentStart = trimmed.indexOf("//", commentStart + 2);
+        commentStart = trimmed.indexOf("//", commentStart + 1);
       }
       if (commentStart !== -1) next = trimmed.slice(0, commentStart);
     }

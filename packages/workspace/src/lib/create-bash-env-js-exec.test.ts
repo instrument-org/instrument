@@ -118,6 +118,11 @@ describe("js-exec takes Node's options", () => {
     ],
     ["-p of nothing", `js-exec -p ''`, "undefined\n"],
     ["-p of a regular expression", `js-exec -p '/x/g'`, "/x/g\n"],
+    [
+      "-p of a regular expression ending in an escaped slash",
+      `js-exec -p '/https:\\/\\//'`,
+      "/https:\\/\\//\n",
+    ],
     ["-p of a symbol", `js-exec -p 'Symbol("x")'`, "Symbol(x)\n"],
     ["-p of a function", `js-exec -p '(function f() {})'`, "[Function: f]\n"],
     ["-p of an object", `js-exec -p '({ a: [1, 2] })'`, `{"a":[1,2]}\n`],
@@ -238,6 +243,14 @@ describe("js-exec gives its Node shims Node's shapes", () => {
       `js-exec -e 'console.log(JSON.stringify(fs.readdirSync("/mnt/Docs/sub")))'`,
     );
     expect(plain).toMatchObject({ exitCode: 0, stdout: `["b.txt","deep"]\n` });
+
+    const file = await run(
+      `js-exec -e 'try { fs.readdirSync("/mnt/Docs/readme.txt", { recursive: true }) } catch (e) { console.log(e.code, e.syscall, e.path) }'`,
+    );
+    expect(file).toMatchObject({
+      exitCode: 0,
+      stdout: "ENOTDIR scandir /mnt/Docs/readme.txt\n",
+    });
   });
 
   it("routes fs.promises and require('fs/promises') through the same shapes", async () => {

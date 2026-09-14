@@ -1,12 +1,10 @@
 import type { Protocol } from "devtools-protocol";
 import type { DownloadItem, Session, WebContents } from "electron";
 
+import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
-import {
-  type BrowserTargetId,
-  getDownloadsDir,
-  taskDir,
-} from "@instrument-org/workspace/electron";
+import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -38,8 +36,8 @@ export function applyDownloadBehavior(
 // there under the GUID as filename (what agent-browser's `download` command
 // expects from "allowAndName"), with a fresh GUID when no downloadWillBegin
 // captured one. Without one, the download is the person's own, from a click in
-// the browser panel, and lands in the task's downloads folder under its own
-// name. Only a download from a guest no entry owns is canceled.
+// the browser panel, and lands in their Downloads folder under its own name.
+// Only a download from a guest no entry owns is canceled.
 export function attachDownloadHandler({
   entries,
   session,
@@ -94,6 +92,15 @@ function availableFilename(dir: string, filename: string): string {
   return `${stem}-${suffix}${ext}`;
 }
 
+// The folder as the toast shows it, with the home directory collapsed the
+// way the app shows every path of the person's.
+function displayFolder(dir: string): string {
+  const home = app.getPath("home");
+  return dir === home || dir.startsWith(home + path.sep)
+    ? `~${dir.slice(home.length)}`
+    : dir;
+}
+
 // By the guest's identity rather than a captured target id: the entry map is
 // keyed by target, and the download event names only the WebContents it came
 // from. Matched on id, which is stable for the life of a live guest.
@@ -107,6 +114,33 @@ function findEntryByWebContents(
     }
   }
   return undefined;
+}
+
+// The person's own Downloads folder, proved writable before it is chosen.
+// Writing there is the first thing that can fail: macOS asks once before an
+// app may touch Downloads and remembers a refusal, and a platform can have no
+// Downloads folder at all. Proving it by writing and removing a file is also
+// what raises the system's question at the moment it makes sense, on the
+// click. The workspace's own downloads folder stands in when Downloads does
+// not take a file; null when nothing does.
+function personDownloadsDir(): null | string {
+  const candidates = [
+    () => app.getPath("downloads"),
+    () => path.join(getWorkspaceFolder(), "downloads"),
+  ];
+  for (const candidate of candidates) {
+    try {
+      const dir = candidate();
+      fs.mkdirSync(dir, { recursive: true });
+      const probe = path.join(dir, `.instrument-write-probe-${process.pid}`);
+      fs.writeFileSync(probe, "");
+      fs.unlinkSync(probe);
+      return dir;
+    } catch {
+      // On to the next.
+    }
+  }
+  return null;
 }
 
 function saveForAgent(
@@ -157,23 +191,37 @@ function saveForAgent(
   });
 }
 
-// Into the task's own downloads folder, beside what the agent downloads, so
-// the file is in the task on disk and in the agent's view of it, and the
-// renderer is told where it landed so the window can say so. A name already
-// taken gets the `-2`, `-3` suffix the rest of the app gives a copy, rather
-// than overwriting, which is what an explicit save path otherwise does.
+// Where a download from any other browser goes, without a chooser: the
+// person's Downloads folder, and the renderer is told where it landed so the
+// window can say so. A name already taken gets the `-2`, `-3` suffix the rest
+// of the app gives a copy, rather than overwriting, which is what an explicit
+// save path otherwise does.
 function saveForPerson(entry: BrowserEntry, item: DownloadItem) {
-  const dir = getDownloadsDir(taskDir(entry.id));
-  const savePath = path.join(dir, availableFilename(dir, item.getFilename()));
+  const filename = item.getFilename();
+  const report = (
+    completed: boolean,
+    saved: null | { dir: string; savePath: string },
+  ) => {
+    publisher.publish("browser.download-finished", {
+      completed,
+      filename: saved ? path.basename(saved.savePath) : filename,
+      folder: saved ? displayFolder(saved.dir) : null,
+      host: entry.host,
+      path: saved?.savePath ?? null,
+      targetId: entry.targetId,
+    });
+  };
+
+  const dir = personDownloadsDir();
+  if (!dir) {
+    item.cancel();
+    report(false, null);
+    return;
+  }
+  const savePath = path.join(dir, availableFilename(dir, filename));
   item.setSavePath(savePath);
 
   item.once("done", (_doneEvent, state) => {
-    publisher.publish("browser.download-finished", {
-      completed: state === "completed",
-      filename: path.basename(savePath),
-      host: entry.host,
-      path: savePath,
-      targetId: entry.targetId,
-    });
+    report(state === "completed", { dir, savePath });
   });
 }

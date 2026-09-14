@@ -18,14 +18,17 @@ interface PublisherEvents {
   "auth.login-success": {
     success: true;
   };
-  // A download a person started in a task's browser panel has ended, in the
-  // task's downloads folder or not at all. The window hosting the guest says
-  // so; the agent's own downloads report through agent-browser instead.
+  // A download a person started in a task's browser panel has ended, in their
+  // Downloads folder or not at all. The window hosting the guest says so; the
+  // agent's own downloads report through agent-browser instead. `folder` is
+  // the directory as the person should read it, home collapsed; both it and
+  // `path` are null when no folder would take the file.
   "browser.download-finished": {
     completed: boolean;
     filename: string;
+    folder: null | string;
     host: BrowserHost;
-    path: string;
+    path: null | string;
     targetId: BrowserTargetId;
   };
   // Ask the renderer to put keyboard focus on a guest before agent keyboard

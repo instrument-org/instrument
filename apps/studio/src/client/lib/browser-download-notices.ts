@@ -15,7 +15,7 @@ const RECONNECT_DELAY_MS = 500;
  *
  * The guest is a `<webview>`, so a click on a download link in it shows
  * nothing of its own: no bar, no sheet, no badge. The main process saves the
- * file into the task's downloads folder and reports it here, and the window
+ * file into the person's Downloads folder and reports it here, and the window
  * hosting that guest is the one to say so, since it is the window the click
  * happened in.
  */
@@ -37,7 +37,8 @@ export function initBrowserDownloadNotices(): () => void {
           if (download.host !== WINDOW_BROWSER_HOST) {
             continue;
           }
-          if (!download.completed) {
+          const { folder, path } = download;
+          if (!download.completed || path === null || folder === null) {
             toast.error(`Couldn't download ${download.filename}`);
             continue;
           }
@@ -45,10 +46,10 @@ export function initBrowserDownloadNotices(): () => void {
             action: {
               label: getRevealInFolderLabel(),
               onClick: () => {
-                void reveal(download.path);
+                void reveal(path);
               },
             },
-            description: "Saved in this task's downloads folder",
+            description: `Saved in ${folder}`,
           });
         }
       } catch (error) {

@@ -57,7 +57,7 @@ export { attachOrchestrator } from "./lib/orchestrator/attach";
 export { clearOrphanedProjectRefs, resolveProjectDir } from "./lib/project";
 export { readTaskFile } from "./lib/read-task-file";
 export { resolveWorkspaceFilePath } from "./lib/resolve-workspace-file-path";
-export { getDownloadsDir, taskDir } from "./lib/task-dir-utils";
+export { taskDir } from "./lib/task-dir-utils";
 export { getTaskSettings } from "./lib/task-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
 export { serveStaticFile } from "./logic/server/serve-static";
@@ -72,7 +72,6 @@ export { publisher as workspacePublisher } from "./rpc/publisher";
 export {
   type AbsolutePath,
   RelativePathSchema,
-  TaskDirSchema,
   WorkspaceFilePathSchema,
 } from "./schemas/paths";
 export { type ProjectId, ProjectIdSchema } from "./schemas/project-id";

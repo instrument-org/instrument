@@ -23,31 +23,44 @@ import {
 } from "./downloads";
 import { type BrowserEntry, createEntry } from "./entry";
 
-// A person's download lands in the task's folder, which is resolved against
-// the workspace; a temp directory stands in for it here.
-const tasksRoot = vi.hoisted(() => ({ dir: "" }));
-vi.mock(
-  import("@instrument-org/workspace/electron"),
-  async (importOriginal) => {
-    const original = await importOriginal();
-    return {
-      ...original,
-      taskDir: (id: string) =>
-        original.TaskDirSchema.parse(path.join(tasksRoot.dir, id)),
-    };
+// A person's download lands in their Downloads folder, or the workspace's
+// when that one takes no file. A temp home stands in for both, laid out as
+// `home/Downloads` and `home/workspace/downloads`; a test that wants a folder
+// to refuse the file points its path at a file instead.
+const home = vi.hoisted(() => ({
+  dir: "",
+  downloads: "",
+  workspace: "",
+}));
+vi.mock("electron", () => ({
+  app: {
+    getPath: (name: string) => {
+      if (name === "downloads") {
+        return home.downloads;
+      }
+      if (name === "home") {
+        return home.dir;
+      }
+      throw new Error(`unexpected path ${name}`);
+    },
   },
-);
+}));
+vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
+  getWorkspaceFolder: () => home.workspace,
+}));
 
 const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
 const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
 
 beforeEach(() => {
-  tasksRoot.dir = fs.mkdtempSync(path.join(os.tmpdir(), "downloads-test-"));
+  home.dir = fs.mkdtempSync(path.join(os.tmpdir(), "downloads-test-"));
+  home.downloads = path.join(home.dir, "Downloads");
+  home.workspace = path.join(home.dir, "workspace");
 });
 
 afterEach(() => {
-  fs.rmSync(tasksRoot.dir, { force: true, recursive: true });
+  fs.rmSync(home.dir, { force: true, recursive: true });
   vi.restoreAllMocks();
 });
 
@@ -60,8 +73,11 @@ interface FakeItem extends EventEmitter {
   setSavePath: ReturnType<typeof vi.fn>;
 }
 
-function downloadsDir() {
-  return path.join(tasksRoot.dir, SUBDOMAIN, "downloads");
+// A path no folder can be made at: its parent is a file.
+function unwritableDir() {
+  const blocker = path.join(home.dir, "blocker");
+  fs.writeFileSync(blocker, "");
+  return path.join(blocker, "downloads");
 }
 
 let webContentsCounter = 0;
@@ -171,7 +187,7 @@ function makeSession() {
 
 describe("attachDownloadHandler", () => {
   describe("a download the person started", () => {
-    it("lands in the task's downloads folder under its own name", () => {
+    it("lands in their Downloads folder under its own name", () => {
       const entries = new Map<BrowserTargetId, BrowserEntry>();
       const entry = makeEntry();
       entries.set(TARGET_ID, entry);
@@ -183,14 +199,26 @@ describe("attachDownloadHandler", () => {
 
       expect(item.cancel).not.toHaveBeenCalled();
       expect(item.setSavePath).toHaveBeenCalledWith(
-        path.join(downloadsDir(), "report.pdf"),
+        path.join(home.downloads, "report.pdf"),
       );
     });
 
+    it("leaves nothing behind from proving the folder writable", () => {
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      attachDownloadHandler({ entries, session });
+
+      trigger(makeFakeItem(), entry);
+
+      expect(fs.readdirSync(home.downloads)).toEqual([]);
+    });
+
     it("takes a numbered name when the folder already holds one", () => {
-      fs.mkdirSync(downloadsDir(), { recursive: true });
-      fs.writeFileSync(path.join(downloadsDir(), "report.pdf"), "");
-      fs.writeFileSync(path.join(downloadsDir(), "report-2.pdf"), "");
+      fs.mkdirSync(home.downloads, { recursive: true });
+      fs.writeFileSync(path.join(home.downloads, "report.pdf"), "");
+      fs.writeFileSync(path.join(home.downloads, "report-2.pdf"), "");
       const entries = new Map<BrowserTargetId, BrowserEntry>();
       const entry = makeEntry();
       entries.set(TARGET_ID, entry);
@@ -201,8 +229,50 @@ describe("attachDownloadHandler", () => {
       trigger(item, entry);
 
       expect(item.setSavePath).toHaveBeenCalledWith(
-        path.join(downloadsDir(), "report-3.pdf"),
+        path.join(home.downloads, "report-3.pdf"),
       );
+    });
+
+    it("falls back to the workspace's downloads folder when Downloads takes no file", () => {
+      home.downloads = unwritableDir();
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      attachDownloadHandler({ entries, session });
+
+      const item = makeFakeItem();
+      trigger(item, entry);
+
+      expect(item.cancel).not.toHaveBeenCalled();
+      expect(item.setSavePath).toHaveBeenCalledWith(
+        path.join(home.workspace, "downloads", "report.pdf"),
+      );
+    });
+
+    it("cancels and says so when no folder takes the file", () => {
+      const publish = vi.spyOn(publisher, "publish");
+      home.downloads = unwritableDir();
+      home.workspace = home.downloads;
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      attachDownloadHandler({ entries, session });
+
+      const item = makeFakeItem();
+      trigger(item, entry);
+
+      expect(item.cancel).toHaveBeenCalledOnce();
+      expect(item.setSavePath).not.toHaveBeenCalled();
+      expect(publish).toHaveBeenCalledWith("browser.download-finished", {
+        completed: false,
+        filename: "report.pdf",
+        folder: null,
+        host: "main",
+        path: null,
+        targetId: TARGET_ID,
+      });
     });
 
     it.each([
@@ -226,8 +296,9 @@ describe("attachDownloadHandler", () => {
         expect(publish).toHaveBeenCalledWith("browser.download-finished", {
           completed,
           filename: "report.pdf",
+          folder: "~/Downloads",
           host: "main",
-          path: path.join(downloadsDir(), "report.pdf"),
+          path: path.join(home.downloads, "report.pdf"),
           targetId: TARGET_ID,
         });
       },
@@ -299,7 +370,7 @@ describe("attachDownloadHandler", () => {
     trigger(fromOther, other);
     expect(fromOther.cancel).not.toHaveBeenCalled();
     expect(fromOther.setSavePath).toHaveBeenCalledWith(
-      path.join(downloadsDir(), "report.pdf"),
+      path.join(home.downloads, "report.pdf"),
     );
     expect(authorizedEvents).toHaveBeenCalledOnce();
     expect(otherEvents).not.toHaveBeenCalled();
@@ -425,7 +496,7 @@ describe("attachDownloadHandler", () => {
 
     expect(entry.authorizedDownloadPath).toBeNull();
     expect(personItem.setSavePath).toHaveBeenCalledWith(
-      path.join(downloadsDir(), "report.pdf"),
+      path.join(home.downloads, "report.pdf"),
     );
   });
 

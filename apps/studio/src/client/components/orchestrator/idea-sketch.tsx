@@ -146,6 +146,23 @@ const MARKS: Record<string, () => ReactNode> = {
       </g>
     )),
 
+  /** Playground: one thing on a stage, and the dials for it beside it. */
+  dials: () => (
+    <>
+      {box("stage", PAD, TOP, 52, H, "white", EDGE, 4)}
+      {box("thing", PAD + 12, TOP + 31, 28, 36, BRAND, undefined, 6)}
+      {[0.7, 0.3, 0.55].map((at, i) => {
+        const y = TOP + 14 + i * 33;
+        return (
+          <g key={i}>
+            {box(`t${i}`, PAD + 60, y, 36, 5, BOX, undefined, 2.5)}
+            <circle cx={PAD + 60 + 36 * at} cy={y + 2.5} fill={BRAND} r={5.5} />
+          </g>
+        );
+      })}
+    </>
+  ),
+
   /** Explainer: this, then this, then that. */
   flow: () => (
     <>

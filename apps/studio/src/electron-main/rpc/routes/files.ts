@@ -1,5 +1,7 @@
 import { capturePageThumbnail } from "@/electron-main/lib/page-thumbnail";
+import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
+import { eventIterator } from "@orpc/server";
 import { shell } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -162,8 +164,19 @@ const pageThumbnail = base
     }
   });
 
+const live = {
+  /** One file on this computer, watched while something is looking at it: when it was last written, or null while it is not there. */
+  info: base
+    .input(z.object({ path: HostPathSchema }))
+    .output(eventIterator(z.object({ modifiedAt: z.number() }).nullable()))
+    .handler(async function* ({ input, signal }) {
+      yield* watchHostFile({ path: input.path, signal });
+    }),
+};
+
 export const files = {
   duplicate,
+  live,
   newFolder,
   pageThumbnail,
   rename,

@@ -55,7 +55,9 @@ Downloads split the same way in [`downloads.ts`](../../apps/studio/src/electron-
 
 ## A file on the computer is a page the person opens, never the agent
 
-An HTML file the person opens (from This Mac, a reply's card, the omnibar, or the conversation's `open`) is shown in a guest of the orchestrator window at its `file://` address, which is what their own browser would do with the file: relative links resolve, and the tab row shows the file's place on the computer rather than the address. The file's text is a step away ("View source" opens it in the file viewer as code). The tab strip names the tab by the page's own title, or the filename when it has none.
+An HTML file the person opens (from This Mac, a reply's card, the omnibar, or the conversation's `open`) is shown in a guest of the orchestrator window at its `file://` address, which is what their own browser would do with the file: relative links resolve, and the tab row shows the file's place on the computer rather than the address. The file's text is a step away ("View source" in the page's menu opens it in the file viewer as code). The tab strip names the tab by the page's own title, or the filename when it has none. The file is watched while its tab is open (`files.live.info`, a stat on an interval by host path), and the guest reloads when it is written, so an agent's edit shows the way it would in a viewer of the file.
+
+The file browser's preview column shows such a file as its page too, as a picture: [`page-thumbnail.ts`](../../apps/studio/src/electron-main/lib/page-thumbnail.ts) loads the file in a window nobody sees and photographs it (`files.pageThumbnail`), cached by the file's mtime. A picture rather than a frame in the renderer because the person's file channel must never load a page as a document (a page can read its own address, token and all) and a `file://` frame in the app's own session would read the whole disk; the hidden window runs in a session of its own under the same local-page rule as the guests, with no input, popups, navigation of its own, or sound.
 
 Two rules keep that from being a way to read the disk:
 

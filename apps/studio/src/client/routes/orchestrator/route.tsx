@@ -92,7 +92,6 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { CodeIcon } from "@phosphor-icons/react/Code";
 import {
   skipToken,
   useMutation,
@@ -1080,34 +1079,16 @@ function OrchestratorLayout() {
                 // On a page the field sends the tab's own guest somewhere,
                 // and the page's controls (reload, the way out, the menu) are
                 // drawn into the row's tail by the panel that has the page. A
-                // file shown as a page is one too, with its source beside them.
+                // file shown as a page is one too.
                 {...(tabLocation.kind === "page" ||
                 (tabLocation.kind === "file" && tabLocation.asPage)
                   ? {
                       onSite: (url: string) => openPage(url),
                       trailing: (
-                        <div className="flex shrink-0 items-center gap-0.5">
-                          {tabLocation.kind === "file" && (
-                            <button
-                              aria-label="View source"
-                              className="grid size-7 shrink-0 place-items-center rounded-md text-foreground/60 hover:bg-foreground/8 hover:text-foreground"
-                              onClick={() => {
-                                openScreen(
-                                  fileHref(tabLocation.path, { source: true }),
-                                  { newTab: true },
-                                );
-                              }}
-                              title="View source"
-                              type="button"
-                            >
-                              <CodeIcon className="size-4" />
-                            </button>
-                          )}
-                          <div
-                            className="flex shrink-0 items-center gap-0.5"
-                            ref={setChromeSlot}
-                          />
-                        </div>
+                        <div
+                          className="flex shrink-0 items-center gap-0.5"
+                          ref={setChromeSlot}
+                        />
                       ),
                     }
                   : {})}

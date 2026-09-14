@@ -175,7 +175,7 @@ export function BrowserTabs({
   onPageChange?: (page: BrowserPage | undefined) => void;
   ref: Ref<BrowserTabsHandle>;
 }) {
-  const { taskId } = useOrchestrator();
+  const { openScreen, taskId } = useOrchestrator();
   const [{ activeId, tabs: allTabs }, setAllTabs] = useAtom(windowTabsAtom);
   const everyTabId = useAtomValue(everyTabIdAtom);
   const setChannelTabs = useSetAtom(channelTabsAtom);
@@ -761,17 +761,42 @@ export function BrowserTabs({
     ),
   ];
 
+  // A file shown as a page has its text a step away, which the page's menu
+  // offers; a site's page has nothing here to show that way.
+  const activeFilePath = hostPathOfFileUrl(active?.url);
+
   return (
     <div className="relative h-full min-h-0">
       {taskIdsWithTabs.map((id) => (
         <BrowserHold key={id} taskId={id} />
       ))}
+      {tabs.flatMap((tab) => {
+        const filePath = hostPathOfFileUrl(tab.url);
+        return filePath === undefined
+          ? []
+          : [
+              <FilePageReload
+                key={tab.id}
+                path={filePath}
+                target={targetOf(tab)}
+              />,
+            ];
+      })}
       {active ? (
         <TaskBrowserPanel
           active={attached.has(targetOf(active))}
           chrome={{ into: chromeInto ?? null }}
           className="h-full"
           key={active.id}
+          {...(activeFilePath === undefined
+            ? {}
+            : {
+                onViewSource: () => {
+                  openScreen(fileHref(activeFilePath, { source: true }), {
+                    newTab: true,
+                  });
+                },
+              })}
           sessionId={StoreId.SessionSchema.parse(active.id)}
           taskId={active.taskId ?? taskId}
         />
@@ -837,6 +862,39 @@ function BrowserHold({ taskId }: { taskId: TaskId }) {
       input: { id: taskId, level: "visible" },
     }),
   );
+  return null;
+}
+
+/**
+ * Keeps a page tab showing a file on this computer at the file as it is: the
+ * file is watched for as long as the tab is open, and the guest reloads when
+ * it is written, so an edit landing in the file shows the way it would in a
+ * viewer of it rather than waiting for the person to reload.
+ */
+function FilePageReload({
+  path,
+  target,
+}: {
+  path: string;
+  target: BrowserTargetId;
+}) {
+  const watched = useQuery(
+    rpcClient.files.live.info.experimental_liveOptions({ input: { path } }),
+  );
+  const modifiedAt = watched.data?.modifiedAt;
+  // The version the guest is showing. The first the watch reports is taken as
+  // that one, since the guest loaded the file on its own; a missing file is
+  // left as it was shown, so a save that replaces the file is one reload.
+  const shown = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (modifiedAt === undefined) {
+      return;
+    }
+    if (shown.current !== undefined && shown.current !== modifiedAt) {
+      getWebviewElement(target)?.reload();
+    }
+    shown.current = modifiedAt;
+  }, [modifiedAt, target]);
   return null;
 }
 

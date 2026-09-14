@@ -145,8 +145,9 @@ export async function capturePageThumbnail(
     }
     return capture(hostPath, stats.mtimeMs);
   });
-  // The queue moves on whether or not this one drew.
-  queue = turn.catch(() => {});
+  queue = turn.catch(() => {
+    // The queue moves on whether or not this one drew.
+  });
   return turn;
 }
 
@@ -154,9 +155,10 @@ async function capture(hostPath: string, modifiedAt: number) {
   const contents = windowForCapture().webContents;
   try {
     const load = contents.loadURL(pathToFileURL(hostPath).href);
-    // A load still going when the picture is taken can fail after it, with
-    // nothing waiting to hear so.
-    load.catch(() => {});
+    load.catch(() => {
+      // A load still going when the picture is taken can fail after it, with
+      // nothing waiting to hear so.
+    });
     const loaded = await Promise.race([
       load.then(() => true),
       sleep(LOAD_TIMEOUT_MS).then(() => false),
@@ -166,7 +168,9 @@ async function capture(hostPath: string, modifiedAt: number) {
     // again.
     if (loaded) {
       await Promise.race([
-        contents.executeJavaScript(SETTLE_SCRIPT, true).catch(() => {}),
+        contents.executeJavaScript(SETTLE_SCRIPT, true).catch(() => {
+          // A page that refuses the script is photographed as it is.
+        }),
         sleep(SETTLE_TIMEOUT_MS),
       ]);
       await sleep(SETTLE_MS);
@@ -193,7 +197,9 @@ async function capture(hostPath: string, modifiedAt: number) {
   } finally {
     // Let the page go rather than leave its scripts running unseen.
     if (!contents.isDestroyed()) {
-      void contents.loadURL("about:blank").catch(() => {});
+      void contents.loadURL("about:blank").catch(() => {
+        // The window may be on its way out, which is the same end.
+      });
     }
     releaseWindowLater();
   }

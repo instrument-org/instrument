@@ -265,6 +265,8 @@ interface ViewerContext {
   imageLoadError: boolean;
   onImageError: () => void;
   onMediaError: (fallbackExtension: string) => void;
+  /** A page's file drawn as its page, when the surface around the viewer can draw one. */
+  page?: ReactNode;
   viewMode: "preview" | "raw";
   wrapLines: boolean;
 }
@@ -345,11 +347,16 @@ const VIEWERS = {
     ),
     scrolls: "self",
   },
-  // A page is what a browser is for, and a file tab shows one in a guest;
-  // here the file is read as the text it is.
+  // A page is what a browser is for, and a file tab shows one in a guest.
+  // Here the file is read as the text it is, unless the surface around the
+  // viewer hands over the page drawn, which is then the preview and the text
+  // the other view mode.
   html: {
     hasToolbar: false,
-    render: renderCode,
+    render: (context) =>
+      context.viewMode === "preview" && context.page !== undefined
+        ? context.page
+        : renderCode(context),
     scrolls: "container",
   },
   image: {
@@ -556,6 +563,7 @@ export function FileViewer({
   file,
   onClose,
   onExpand,
+  page,
 }: {
   // Set by a caller that already draws the surface this sits in, so the viewer
   // can drop its own card and fill the frame instead of nesting inside it.
@@ -563,6 +571,12 @@ export function FileViewer({
   file: ViewerFile;
   onClose?: () => void;
   onExpand?: () => void;
+  /**
+   * A page's file drawn as its page, from a surface that can draw one; the
+   * viewer shows it as the preview and offers the text as the other view
+   * mode. Consulted for an HTML file alone.
+   */
+  page?: ReactNode;
 }) {
   const { filename, hostPath, mimeType, url } = file;
   const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
@@ -591,14 +605,16 @@ export function FileViewer({
   }, [viewMode]);
 
   const fileType = getFileType(file);
-  const hasPreview = fileType === "markdown";
+  const hasPreview =
+    fileType === "markdown" || (fileType === "html" && page !== undefined);
   // What is on screen is the file's own text, so the wrap preference governs
-  // it: the code, plain text and HTML viewers always, a markdown file only
-  // while its own view mode is showing the source.
+  // it: the code and plain text viewers always, an HTML file with no page
+  // drawn for it, and a markdown file or a drawn page only while its own view
+  // mode is showing the source.
   const showsFileText =
     fileType === "code" ||
     fileType === "text" ||
-    fileType === "html" ||
+    (fileType === "html" && !hasPreview) ||
     (hasPreview && viewMode === "raw");
   const fileActions = useFileActionVisibility(file);
   const hasHeaderMenuActions =
@@ -659,6 +675,7 @@ export function FileViewer({
       setMediaLoadError(true);
       setMediaErrorType(fallbackExtension);
     },
+    ...(page === undefined ? {} : { page }),
     viewMode,
     wrapLines,
   };

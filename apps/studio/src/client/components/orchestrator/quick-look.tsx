@@ -6,8 +6,11 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
+import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { type ReactNode, useRef, useState } from "react";
+
+import { PageLook } from "./page-look";
 
 /**
  * Space on a selected file, showing it over the whole window the way the
@@ -94,6 +97,11 @@ export function useQuickLook({
                 setFile(null);
                 openFile(file);
               }}
+              // A page's file is looked at as the page, the way the system's
+              // Quick Look shows one; opening it is the tab, which is live.
+              {...(getFileType({ filename: file.name }) === "html"
+                ? { page: <PageLook hostPath={file.hostPath} /> }
+                : {})}
             />
           ) : null}
         </DialogContent>
@@ -112,3 +120,4 @@ export function useQuickLook({
     },
   };
 }
+

@@ -43,7 +43,6 @@ import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
-  keepPreviousData,
   useMutation,
   useQueries,
   useQuery,
@@ -58,6 +57,7 @@ import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
 import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
+import { usePagePicture } from "./page-picture";
 
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
@@ -1305,11 +1305,9 @@ function DocumentThumbnail({ children }: { children: ReactNode }) {
 }
 
 /**
- * A page's file at thumbnail size: the page as a browser draws it,
- * photographed in a window nobody sees, in the box a document's text is
- * drawn in. The picture is asked for again when the listing notices the file
- * written, and the last one stays up until the next arrives, so a page being
- * edited changes in place rather than blinking.
+ * A page's file at thumbnail size: the page as a browser draws it, in the box
+ * a document's text is drawn in, asked for again when the listing notices the
+ * file written.
  */
 function PageThumbnail({
   fallback,
@@ -1322,14 +1320,7 @@ function PageThumbnail({
   /** When the file was last written, as listed; a new value is a new picture. */
   version: string | undefined;
 }) {
-  const thumbnail = useQuery({
-    ...rpcClient.files.pageThumbnail.queryOptions({
-      input: { path: hostPath, ...(version === undefined ? {} : { version }) },
-    }),
-    placeholderData: keepPreviousData,
-    retry: false,
-    staleTime: Infinity,
-  });
+  const thumbnail = usePagePicture({ hostPath, version });
   if (thumbnail.isError) {
     return fallback;
   }

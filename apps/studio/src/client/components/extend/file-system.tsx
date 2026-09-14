@@ -1,4 +1,7 @@
-import { FileThumbnail } from "@/client/components/extend/file-thumbnail";
+import {
+  FileThumbnail,
+  useNaturalAspectRatio,
+} from "@/client/components/extend/file-thumbnail";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -45,6 +48,7 @@ import {
   SelectValue,
 } from "@/client/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
+import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
 import {
   createFileTreeIconResolver,
@@ -88,7 +92,11 @@ export type FileSystemFileItem = {
   parentPath?: string;
   /** Display/canonical path, e.g. `"invoices/2026/jan.pdf"`. */
   path: string;
-  /** Thumbnail aspect ratio (width / height). Defaults to a portrait page. */
+  /**
+   * Thumbnail aspect ratio (width / height). Left out, a preview image is
+   * drawn in its own shape once it has loaded, and a portrait page until then
+   * or when there is no image.
+   */
   previewAspectRatio?: number;
   /** Externally generated thumbnail. The component never renders documents itself. */
   previewImageUrl?: null | string;
@@ -117,6 +125,12 @@ export type FileSystemFileItem = {
 export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
 export type FileSystemProps = {
   className?: string;
+  /**
+   * How wide the columns view's columns are, in px, when the caller holds
+   * it. Left out, the browser keeps its own, which lasts as long as this
+   * instance of it does.
+   */
+  columnWidth?: number;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
   defaultPath?: string;
   /** The order the browser opens in, when name ascending is the wrong one. */
@@ -124,6 +138,12 @@ export type FileSystemProps = {
   defaultView?: FileSystemView;
   /** Resolve a URL (e.g. presigned) for a file without one. */
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
+  /**
+   * Where an item lives on this computer, for dragging it out of the window
+   * and into another app the way a row in the Finder drags. Left out, nothing
+   * drags; an item it names nothing for does not either.
+   */
+  getHostPath?: (item: FileSystemItem) => string | undefined;
   /** Flat manifest. Folders are optional; missing prefixes are inferred from file paths. */
   items: FileSystemItem[];
   /** Lazily fetch children for folders with `hasChildren` and no loaded entries. */
@@ -144,6 +164,7 @@ export type FileSystemProps = {
    * rows never pull focus out of it.
    */
   moveFocusWithSelection?: boolean;
+  onColumnWidthChange?: (columnWidth: number) => void;
   /**
    * Called on file open (double-click), replacing the built-in behavior. By
    * default PDF, DOCX, PPTX, XLSX, and image files open in a viewer dialog and
@@ -169,6 +190,7 @@ export type FileSystemProps = {
   onRenameStart?: (item: FileSystemItem) => void;
   onSelectionChange?: (item: FileSystemItem | null) => void;
   onShowHiddenFilesChange?: (showHiddenFiles: boolean) => void;
+  onSortChange?: (sort: FileSystemSortState) => void;
   onViewChange?: (view: FileSystemView) => void;
   /** The item whose name is being typed over in its own row, by path. */
   renamingPath?: null | string;
@@ -196,6 +218,11 @@ export type FileSystemProps = {
    * the browser keeps its own, which lasts as long as this instance of it does.
    */
   showHiddenFiles?: boolean;
+  /**
+   * The order the rows are in, when the caller holds it. Left out, the
+   * browser keeps its own, opening in `defaultSort`.
+   */
+  sort?: FileSystemSortState;
   /** Label for the root folder. */
   title?: string;
   view?: FileSystemView;
@@ -1044,6 +1071,7 @@ function FileVisual({
   previewAspectRatio,
   previewClassName,
   renderFilePreview,
+  style,
 }: {
   className?: string;
   file: FileEntry;
@@ -1058,9 +1086,15 @@ function FileVisual({
    * (gallery stage, columns preview) are reused by every other instance.
    */
   pageUrlCache?: Map<string, string>;
+  /**
+   * The shape to draw the preview in, width over height, when neither the
+   * file nor the loaded image says. A file's own `previewAspectRatio` wins;
+   * failing that, an image that has loaded is drawn in its own shape.
+   */
   previewAspectRatio?: number;
   previewClassName?: string;
   renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
+  style?: React.CSSProperties;
 }) {
   const previewUrls = filePreviewUrls(file);
   const canLoadLazily = pageable && Boolean(loadPreviewImageUrl);
@@ -1078,7 +1112,9 @@ function FileVisual({
     lazyPageUrls[clampedPageIndex] ??
     pageUrlCache?.get(`${file.path}#${clampedPageIndex}`) ??
     null;
-  const resolvedAspectRatio = file.previewAspectRatio ?? previewAspectRatio;
+  const naturalAspectRatio = useNaturalAspectRatio(previewUrl);
+  const resolvedAspectRatio =
+    file.previewAspectRatio ?? naturalAspectRatio ?? previewAspectRatio;
   const isLazyPagePending =
     canLoadLazily && !previewUrl && clampedPageIndex < totalPages;
   const fileRef = React.useRef(file);
@@ -1135,11 +1171,12 @@ function FileVisual({
           : (customPreview ?? <FileGenericPreview file={file} />)
       }
       previewImageUrl={previewUrl ?? undefined}
+      style={showPager ? undefined : style}
     />
   );
   if (!showPager) return thumbnail;
   return (
-    <div className={cn("group/pager relative", className)}>
+    <div className={cn("group/pager relative", className)} style={style}>
       {thumbnail}
       <div className="absolute inset-x-0 bottom-1.5 flex items-center justify-center gap-1 opacity-0 transition-opacity group-focus-within/pager:opacity-100 group-hover/pager:opacity-100">
         <button
@@ -1175,6 +1212,61 @@ function FileVisual({
         </button>
       </div>
     </div>
+  );
+}
+/**
+ * The shape a file's thumbnail is known to have, width over height: what the
+ * manifest says, or what its cover image turned out to be once it loaded.
+ * Undefined for a file that has said nothing yet, which is drawn as a page.
+ */
+function useFileAspectRatio(file: FileEntry) {
+  const naturalAspectRatio = useNaturalAspectRatio(filePreviewUrls(file)[0]);
+  return file.previewAspectRatio ?? naturalAspectRatio;
+}
+/**
+ * The width, in rem, of a thumbnail of a known shape drawn inside a box: as
+ * wide as the box, unless it would run out of height first.
+ */
+function fittedWidth(
+  aspectRatio: number,
+  box: { height: number; width: number },
+) {
+  return `${Math.min(box.width, box.height * aspectRatio)}rem`;
+}
+/**
+ * A thumbnail sized to the file's own shape inside a box: a photo keeps its
+ * proportions rather than being cut down to a page. Until the shape is known,
+ * or for a file with no picture at all, `pageClassName` gives it a page's
+ * width, which the page's proportions turn into a height.
+ */
+function FittedFileVisual({
+  box,
+  className,
+  file,
+  pageClassName,
+  renderFilePreview,
+}: {
+  /** The room the thumbnail has, in rem. */
+  box: { height: number; width: number };
+  className?: string;
+  file: FileEntry;
+  /** The width of a thumbnail drawn as a page. */
+  pageClassName: string;
+  renderFilePreview?: (file: FileSystemFileItem) => React.ReactNode;
+}) {
+  const aspectRatio = useFileAspectRatio(file);
+  return (
+    <FileVisual
+      className={cn(className, aspectRatio === undefined && pageClassName)}
+      file={file}
+      previewAspectRatio={0.78}
+      renderFilePreview={renderFilePreview}
+      style={
+        aspectRatio === undefined
+          ? undefined
+          : { width: fittedWidth(aspectRatio, box) }
+      }
+    />
   );
 }
 // Mirrors @pierre/trees' query normalization so the toolbar search filters
@@ -1299,14 +1391,17 @@ const VIEW_OPTIONS: Array<{
 ];
 export function FileSystem({
   className,
+  columnWidth: columnWidthProp,
   defaultPath = "",
   defaultSort,
   defaultView = "icons",
   getFileUrl,
+  getHostPath,
   items,
   loadChildren,
   loadPreviewImageUrl,
   moveFocusWithSelection = true,
+  onColumnWidthChange,
   onFileOpen,
   onItemContextMenu,
   onPathChange,
@@ -1315,6 +1410,7 @@ export function FileSystem({
   onRenameStart,
   onSelectionChange,
   onShowHiddenFilesChange,
+  onSortChange,
   onViewChange,
   renamingPath,
   renderFileActions,
@@ -1324,6 +1420,7 @@ export function FileSystem({
   renderTrailing,
   selectedPath: selectedPathProp,
   showHiddenFiles: showHiddenFilesProp,
+  sort: sortProp,
   title = "Files",
   view: viewProp,
 }: FileSystemProps) {
@@ -1390,7 +1487,14 @@ export function FileSystem({
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
   const searchQuery = normalizeSearchQuery(searchInput);
   const isSearching = searchQuery.length > 0;
-  const [sort, setSort] = React.useState(defaultSort ?? DEFAULT_SORT);
+  const [internalSort, setInternalSort] = React.useState(
+    defaultSort ?? DEFAULT_SORT,
+  );
+  const sort = sortProp ?? internalSort;
+  const setSort = (next: FileSystemSortState) => {
+    setInternalSort(next);
+    onSortChange?.(next);
+  };
   const [filters, setFilters] = React.useState<FileSystemFilter[]>([]);
   const hasActiveFilters = filters.length > 0;
   // Files must pass every active filter; folders stay visible through
@@ -1480,6 +1584,40 @@ export function FileSystem({
     },
     [onItemContextMenu],
   );
+  // The row a press or a hover landed on, whichever view drew it. The tree's
+  // rows are in a shadow root and name themselves by a path relative to the
+  // folder on screen; the other views' rows carry the whole path. Found along
+  // the event's composed path, which is the one walk that sees both.
+  const entryFromEventPath = (event: React.SyntheticEvent) => {
+    for (const target of event.nativeEvent.composedPath()) {
+      if (!(target instanceof HTMLElement)) continue;
+      const path = target.dataset.fileSystemItem;
+      if (path !== undefined) {
+        return index.files.get(path) ?? index.folders.get(path) ?? null;
+      }
+      const relativePath = target.dataset.itemPath;
+      if (relativePath !== undefined) {
+        const absolutePath = `${currentPath}${relativePath}`;
+        return (
+          index.files.get(absolutePath) ??
+          index.folders.get(normalizeFolderPath(absolutePath)) ??
+          null
+        );
+      }
+    }
+    return null;
+  };
+  // Dragging a row out of the window, to the desktop or another app. One
+  // gesture for every view, on the browser itself; the rows say they drag.
+  const dragArea = useFileDragArea(
+    getHostPath
+      ? (event) => {
+          const entry = entryFromEventPath(event);
+          const hostPath = entry ? getHostPath(entry) : undefined;
+          return hostPath ? { hostPath } : undefined;
+        }
+      : undefined,
+  );
   const selectedPathRef = React.useRef<null | string>(null);
   // A caller holding the selection can move it without going through the
   // callback, and a row the mirror still calls selected would answer no click.
@@ -1502,22 +1640,20 @@ export function FileSystem({
     if (!visiblePaths || !selectedPath) return;
     if (!visiblePaths.has(selectedPath)) selectEntry(null);
   }, [selectEntry, selectedPath, visiblePaths]);
-  const applySortKey = React.useCallback((key: FileSystemSortKey) => {
-    setSort((previous) =>
-      previous.key === key
-        ? previous
-        : { direction: defaultSortDirection(key), key },
-    );
-  }, []);
+  const applySortKey = (key: FileSystemSortKey) => {
+    if (sort.key !== key) {
+      setSort({ direction: defaultSortDirection(key), key });
+    }
+  };
   // Column headers toggle the direction when the column is already active,
   // like Finder.
-  const toggleSortColumn = React.useCallback((key: FileSystemSortKey) => {
-    setSort((previous) =>
-      previous.key === key
-        ? { direction: previous.direction === "asc" ? "desc" : "asc", key }
+  const toggleSortColumn = (key: FileSystemSortKey) => {
+    setSort(
+      sort.key === key
+        ? { direction: sort.direction === "asc" ? "desc" : "asc", key }
         : { direction: defaultSortDirection(key), key },
     );
-  }, []);
+  };
   // Distinct MIME types across the loaded manifest, labeled for the filter
   // menu; the first file seen per type lends its name to the option icon.
   const fileTypeOptions = React.useMemo(() => {
@@ -1934,7 +2070,9 @@ export function FileSystem({
   const treeExpansionRef = React.useRef(new Map<string, readonly string[]>());
   const viewProps: FileSystemViewProps = {
     attachedStagePaths,
+    columnWidth: columnWidthProp,
     currentPath,
+    draggable: dragArea.draggable,
     entries: currentEntries,
     fileFilter,
     getFileUrl,
@@ -1942,6 +2080,7 @@ export function FileSystem({
     loadingFolders,
     loadPreviewImageUrl,
     moveFocusWithSelection,
+    onColumnWidthChange,
     onItemContextMenu: onItemContextMenu ? claimContextMenu : undefined,
     onOpen: openEntry,
     onRenameCancel,
@@ -1986,12 +2125,14 @@ export function FileSystem({
         className,
       )}
       data-slot="file-system"
+      onClickCapture={dragArea.onClickCapture}
       onContextMenu={(event) => {
         if (claimedContextMenu.current === event.nativeEvent) {
           return;
         }
         onItemContextMenu?.(null, event);
       }}
+      onDragStart={dragArea.onDragStart}
       onKeyDown={(event) => {
         // ⌘F focuses the toolbar search while focus is inside the component.
         if ((event.metaKey || event.ctrlKey) && event.key === "f") {
@@ -2034,6 +2175,8 @@ export function FileSystem({
           }),
         );
       }}
+      onPointerDown={dragArea.onPointerDown}
+      onPointerOver={dragArea.onPointerOver}
       ref={rootRef}
       tabIndex={-1}
     >
@@ -2810,7 +2953,14 @@ const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 type FileSystemViewProps = {
   /** Pooled paths currently attached to the DOM (reveal instantly). */
   attachedStagePaths: string[];
+  columnWidth?: number;
   currentPath: string;
+  /**
+   * Whether a row drags out of the window. The gesture is on the browser
+   * itself; a row only has to say it is a thing that drags, and name itself
+   * by its path so the gesture can find what was picked up.
+   */
+  draggable: boolean;
   entries: FileSystemEntry[];
   fileFilter: ((file: FileEntry) => boolean) | null;
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
@@ -2821,6 +2971,7 @@ type FileSystemViewProps = {
     pageIndex: number,
   ) => Promise<null | string>;
   moveFocusWithSelection: boolean;
+  onColumnWidthChange?: (columnWidth: number) => void;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onOpen: (entry: FileSystemEntry) => void;
   onRenameCancel?: () => void;
@@ -3428,6 +3579,7 @@ const ICON_TILE_HEIGHT = 102; // h-16 glyph box + gap-1.5 + two text-xs lines
 const ICON_ROW_GAP = 12; // gap-y-3
 const ICON_ROW_STRIDE = ICON_TILE_HEIGHT + ICON_ROW_GAP;
 function FileSystemIconsView({
+  draggable,
   entries,
   moveFocusWithSelection,
   onItemContextMenu,
@@ -3590,17 +3742,13 @@ function FileSystemIconsView({
                 {entry.kind === "folder" ? (
                   <FileSystemFolderGlyph className="h-13 w-auto drop-shadow-sm" />
                 ) : (
-                  <FileVisual
-                    className={cn(
-                      "rounded-sm shadow-xs",
-                      // Landscape thumbnails get extra width so they fill
-                      // the tile instead of rendering as a short sliver.
-                      (entry.previewAspectRatio ?? 0.78) > 1.2
-                        ? "w-[4.75rem]"
-                        : "w-12",
-                    )}
+                  <FittedFileVisual
+                    // The glyph box: as tall as it is, and as wide as a
+                    // landscape thumbnail is let fill it.
+                    box={{ height: 4, width: 4.75 }}
+                    className="rounded-sm shadow-xs"
                     file={entry}
-                    previewAspectRatio={0.78}
+                    pageClassName="w-12"
                     renderFilePreview={renderFilePreview}
                   />
                 )}
@@ -3625,6 +3773,8 @@ function FileSystemIconsView({
               <button
                 aria-selected={isSelected}
                 className={tileClassName}
+                data-file-system-item={entry.path}
+                draggable={draggable}
                 key={entry.path}
                 onClick={() => onSelect(entry)}
                 onContextMenu={(event) => {
@@ -3709,6 +3859,7 @@ function FileSystemListColumnHeader({
 }
 function FileSystemListView({
   currentPath,
+  draggable,
   fileFilter,
   index,
   onItemContextMenu,
@@ -3795,6 +3946,7 @@ function FileSystemListView({
             folder disclosure state survives them. */}
       <FileSystemPierreTree
         currentPath={currentPath}
+        draggable={draggable}
         hasActiveFilters={fileFilter !== null}
         index={index}
         initialSelectedPath={
@@ -3823,11 +3975,14 @@ function FileSystemListView({
 const TREE_THUMBNAIL_SPRITE_LIMIT = 400;
 function FileSystemColumnsView(props: FileSystemViewProps) {
   const {
+    columnWidth: columnWidthProp,
     currentPath,
+    draggable,
     index,
     loadingFolders,
     loadPreviewImageUrl,
     moveFocusWithSelection,
+    onColumnWidthChange,
     onItemContextMenu,
     onOpen,
     onRenameCancel,
@@ -3959,9 +4114,21 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     : null;
   const selectedFileStage =
     selectedFile && renderFileStage ? renderFileStage(selectedFile) : null;
+  // A picture drawn in its own shape: the stage's width follows it, so a
+  // landscape photo takes the pane's width where a page takes a page's.
+  const selectedFileAspectRatio =
+    useNaturalAspectRatio(
+      selectedFile ? filePreviewUrls(selectedFile)[0] : undefined,
+    ) ?? 0.78;
   // One width for every column, dragged at any column's right edge, the way
   // the Finder's option-drag sets them all.
-  const [columnWidth, setColumnWidth] = React.useState(COLUMN_WIDTH_DEFAULT);
+  const [internalColumnWidth, setInternalColumnWidth] =
+    React.useState(COLUMN_WIDTH_DEFAULT);
+  const columnWidth = columnWidthProp ?? internalColumnWidth;
+  const setColumnWidth = (next: number) => {
+    setInternalColumnWidth(next);
+    onColumnWidthChange?.(next);
+  };
   React.useEffect(() => {
     const container = scrollContainerRef.current;
     if (container) container.scrollLeft = container.scrollWidth;
@@ -3990,6 +4157,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
       >
         {columnPaths.map((columnPath, columnIndex) => (
           <FileSystemColumn
+            draggable={draggable}
             entries={index.children.get(columnPath) ?? []}
             index={index}
             isLoading={loadingFolders.has(columnPath)}
@@ -4036,7 +4204,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
               <div
                 className="mx-auto w-full shrink-0"
                 style={{
-                  maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? 0.78) * 20}rem)`,
+                  maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? selectedFileAspectRatio) * 20}rem)`,
                 }}
               >
                 {selectedFileStage ?? (
@@ -4079,6 +4247,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
 }
 function FileSystemPierreTree({
   currentPath,
+  draggable,
   hasActiveFilters,
   index,
   initialSelectedPath,
@@ -4094,6 +4263,7 @@ function FileSystemPierreTree({
   treeExpansionRef,
 }: {
   currentPath: string;
+  draggable: boolean;
   hasActiveFilters: boolean;
   index: FileSystemIndex;
   initialSelectedPath: null | string;
@@ -4207,6 +4377,12 @@ function FileSystemPierreTree({
     };
   }, [currentPath, index, relativePaths]);
   const { model } = useFileTree({
+    // The rows are the tree's own to draw, and the only way to have it draw
+    // them draggable is its drag-and-drop, which moves rows within the tree.
+    // Nothing may be picked up for that: the tree then cancels the drag it
+    // would have started, and the dragstart still reaches the browser, which
+    // is where the drag out of the window begins.
+    ...(draggable ? { dragAndDrop: { canDrag: () => false } } : {}),
     flattenEmptyDirectories: false,
     icons,
     initialExpansion: "closed",
@@ -4594,6 +4770,7 @@ const COLUMN_WIDTH_DEFAULT = 240;
 const COLUMN_WIDTH_MIN = 160;
 const COLUMN_WIDTH_MAX = 640;
 const FileSystemColumn = React.memo(function FileSystemColumn({
+  draggable,
   entries,
   index,
   isLoading,
@@ -4611,6 +4788,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   trailChildPath,
   width,
 }: {
+  draggable: boolean;
   entries: FileSystemEntry[];
   index: FileSystemIndex;
   isLoading: boolean;
@@ -4729,10 +4907,12 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                           ? "bg-accent"
                           : "hover:bg-accent/50",
                     )}
+                    data-file-system-item={entry.path}
                     // Selected rows sit on the primary surface — the opposite
                     // of the mode's background — so the file-type icon swaps
                     // to the opposite palette.
                     data-file-system-on-primary={isSelected ? "" : undefined}
+                    draggable={draggable}
                     key={entry.path}
                     onClick={() => onSelect(entry)}
                     onContextMenu={(event) => {
@@ -4958,6 +5138,7 @@ function FileSystemGalleryStage({
 function FileSystemGalleryView(props: FileSystemViewProps) {
   const {
     attachedStagePaths,
+    draggable,
     entries,
     index,
     onItemContextMenu,
@@ -5090,6 +5271,8 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                     "flex size-14 shrink-0 items-center justify-center rounded-md border border-transparent p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     isActive && "border-ring/40 bg-accent",
                   )}
+                  data-file-system-item={entry.path}
+                  draggable={draggable}
                   key={entry.path}
                   onClick={() => onSelect(entry)}
                   onContextMenu={(event) => {
@@ -5115,10 +5298,12 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                   {entry.kind === "folder" ? (
                     <FileSystemFolderGlyph className="h-9 w-auto" />
                   ) : (
-                    <FileVisual
-                      className="w-9 rounded-sm"
+                    <FittedFileVisual
+                      // The tile inside its border and padding.
+                      box={{ height: 2.875, width: 2.875 }}
+                      className="rounded-sm"
                       file={entry}
-                      previewAspectRatio={0.78}
+                      pageClassName="w-9"
                       renderFilePreview={renderFilePreview}
                     />
                   )}
@@ -5171,15 +5356,13 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
           >
             <div className="flex items-center gap-3">
               {activeFile ? (
-                <FileVisual
-                  className={cn(
-                    "shrink-0 rounded-sm",
-                    (activeFile.previewAspectRatio ?? 0.78) > 1.2
-                      ? "w-16"
-                      : "w-9",
-                  )}
+                <FittedFileVisual
+                  // A page's height beside the name, and a landscape
+                  // picture's width.
+                  box={{ height: 2.875, width: 4 }}
+                  className="shrink-0 rounded-sm"
                   file={activeFile}
-                  previewAspectRatio={0.78}
+                  pageClassName="w-9"
                   renderFilePreview={renderFilePreview}
                 />
               ) : (

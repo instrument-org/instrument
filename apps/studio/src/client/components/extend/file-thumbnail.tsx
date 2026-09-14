@@ -13,6 +13,7 @@ export type FileThumbnailProps = {
   previewImageUrl?: string | null;
   isLoading?: boolean;
   hasError?: boolean;
+  style?: React.CSSProperties;
 };
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -21,6 +22,35 @@ function cx(...classes: Array<string | false | null | undefined>) {
 // remount thumbnails; URLs in this set render instantly instead of replaying
 // the blur-in, so only an image's first load animates.
 const revealedPreviewImageUrls = new Set<string>();
+// The shape of every preview image that has loaded this session, width over
+// height by URL. A file's own shape is not in its manifest, so the box a
+// preview is drawn in starts as a page and takes the image's shape once the
+// image has said what it is.
+const naturalAspectRatios = new Map<string, number>();
+const naturalAspectRatioListeners = new Set<() => void>();
+function subscribeToNaturalAspectRatios(listener: () => void) {
+  naturalAspectRatioListeners.add(listener);
+  return () => {
+    naturalAspectRatioListeners.delete(listener);
+  };
+}
+function recordNaturalAspectRatio(imageUrl: string, image: HTMLImageElement) {
+  const ratio = image.naturalWidth / image.naturalHeight;
+  if (naturalAspectRatios.get(imageUrl) === ratio) return;
+  naturalAspectRatios.set(imageUrl, ratio);
+  for (const listener of naturalAspectRatioListeners) listener();
+}
+/**
+ * The shape a preview image turned out to have, width over height, once it
+ * has loaded anywhere on the page; undefined until then, or for no URL.
+ */
+export function useNaturalAspectRatio(
+  previewImageUrl: string | null | undefined,
+) {
+  return React.useSyncExternalStore(subscribeToNaturalAspectRatios, () =>
+    previewImageUrl ? naturalAspectRatios.get(previewImageUrl) : undefined,
+  );
+}
 function FileThumbnailLoadingOverlay() {
   return (
     <div
@@ -40,6 +70,7 @@ export function FileThumbnail({
   previewImageUrl,
   isLoading = false,
   hasError = false,
+  style,
 }: FileThumbnailProps) {
   const imageRef = React.useRef<HTMLImageElement | null>(null);
   const revealFrameRef = React.useRef<number | null>(null);
@@ -78,6 +109,9 @@ export function FileThumbnail({
       const didLoad = image.naturalWidth > 0 && image.naturalHeight > 0;
       setFailedPreviewImageUrl(didLoad ? null : imageUrl);
       if (didLoad) {
+        // Before the reveal, so the box takes the image's shape and the
+        // image fades into it, rather than fading in and then reshaping.
+        recordNaturalAspectRatio(imageUrl, image);
         revealedPreviewImageUrls.add(imageUrl);
         cancelImageReveal();
         revealFrameRef.current = window.requestAnimationFrame(() => {
@@ -107,6 +141,7 @@ export function FileThumbnail({
         "group overflow-hidden rounded-lg border bg-background text-foreground",
         className,
       )}
+      style={style}
     >
       <div
         className={cx(

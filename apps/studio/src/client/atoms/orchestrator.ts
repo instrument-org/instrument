@@ -1,3 +1,4 @@
+import { type FileSystemSortState } from "@/client/components/extend/file-system";
 import {
   type SessionMessageDataPart,
   type TaskId,
@@ -227,6 +228,25 @@ export const computerViewAtom = atomWithStorage<
 export const computerHiddenFilesAtom = atomWithStorage<boolean>(
   "orchestrator.computer-hidden-files.v1",
   false,
+  undefined,
+  { getOnInit: true },
+);
+
+/**
+ * The order a folder's rows are in, held with the layout for the same reason.
+ * The recents keep their own order, newest shown first, and do not write here.
+ */
+export const computerSortAtom = atomWithStorage<FileSystemSortState>(
+  "orchestrator.computer-sort.v1",
+  { direction: "asc", key: "name" },
+  undefined,
+  { getOnInit: true },
+);
+
+/** How wide the columns view's columns are, in CSS px, dragged at any column's right edge. */
+export const computerColumnWidthAtom = atomWithStorage<number>(
+  "orchestrator.computer-column-width.v1",
+  240,
   undefined,
   { getOnInit: true },
 );

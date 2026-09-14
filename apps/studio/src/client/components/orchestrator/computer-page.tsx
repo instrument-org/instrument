@@ -1,5 +1,7 @@
 import {
+  computerColumnWidthAtom,
   computerHiddenFilesAtom,
+  computerSortAtom,
   computerViewAtom,
   type FileTab,
 } from "@/client/atoms/orchestrator";
@@ -141,9 +143,12 @@ export function ComputerPage({
   const { taskId } = useOrchestrator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // Held above the browser, which is rebuilt on every opening, so the layout
-  // and the dotfiles answer survive walking into the next folder.
+  // Held above the browser, which is rebuilt on every opening, so the layout,
+  // the order, the column width and the dotfiles answer survive walking into
+  // the next folder, the way the Finder keeps them.
   const [view, setView] = useAtom(computerViewAtom);
+  const [sort, setSort] = useAtom(computerSortAtom);
+  const [columnWidth, setColumnWidth] = useAtom(computerColumnWidthAtom);
   const [showHiddenFiles, setShowHiddenFiles] = useAtom(
     computerHiddenFilesAtom,
   );
@@ -838,11 +843,11 @@ export function ComputerPage({
               )}
               <FileSystem
                 className="h-full rounded-none border-0"
+                columnWidth={columnWidth}
                 defaultPath={path}
                 // The recents open in the order they were handed over, most
                 // recently shown first, which is the order the user met them
-                // in; anywhere else the browser's own name order is what a
-                // folder is expected to be in.
+                // in; a folder is in the order the last folder was left in.
                 {...(isRecents
                   ? {
                       defaultSort: {
@@ -850,7 +855,11 @@ export function ComputerPage({
                         key: "shownAt" as const,
                       },
                     }
-                  : {})}
+                  : { onSortChange: setSort, sort })}
+                // Every row here is a thing on this computer, and drags out of
+                // the window as one: to the desktop, a Finder window, another
+                // app. What lands there is the OS's copy; nothing here moves.
+                getHostPath={(item) => hostPathOfItem(item) || undefined}
                 items={items}
                 key={`${root}#${openings}`}
                 loadChildren={async ({ path: prefix }) => {
@@ -882,6 +891,7 @@ export function ComputerPage({
                 // the keyboard itself: a row taking it back would be taking it
                 // out of the panel the user is looking at.
                 moveFocusWithSelection={!quickLookOpen}
+                onColumnWidthChange={setColumnWidth}
                 onFileOpen={openFile}
                 onItemContextMenu={(item) => {
                   setMenuItem(item ?? undefined);
@@ -1289,9 +1299,11 @@ function DocumentThumbnail({ children }: { children: ReactNode }) {
       {/* The viewer is laid out at the box's width divided by the scale and
           drawn scaled back down, so it fills the box edge to edge; what it
           lays out past the box's height is clipped, the way a page preview
-          is. Its own chrome rows are hidden: a thumbnail is the document. */}
+          is. Its own chrome rows are hidden, and so is a markdown file's
+          outline, a rail of bars in the margin nobody reads at this size: a
+          thumbnail is the document. */}
       <div
-        className="origin-top-left [&_.viewer-chrome-stroke]:hidden"
+        className="origin-top-left [&_.viewer-chrome-stroke]:hidden [&_[data-slot=markdown-outline]]:hidden"
         style={{
           height: inverse,
           transform: `scale(${THUMBNAIL_SCALE})`,

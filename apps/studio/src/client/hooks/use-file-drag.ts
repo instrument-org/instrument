@@ -6,6 +6,7 @@ import {
   type DragEvent,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type SyntheticEvent,
   useEffect,
   useRef,
 } from "react";
@@ -48,104 +49,73 @@ interface Gesture {
  */
 export function useFileDrag(file: FileRef | undefined) {
   const canDrag = Boolean(file && window.api.startFileDrag);
-  // Cancelling the dragstart keeps Blink out of a drag state, so it never
-  // applies its own rule that a drag suppresses the click after it. A press and
-  // release on one element is a click by every measure Blink has left, which
-  // made dropping a file back onto the card it came from open that card.
-  const draggedRef = useRef(false);
-  const gestureRef = useRef<Gesture | null>(null);
-
-  const endGesture = () => {
-    gestureRef.current?.teardown();
-    gestureRef.current = null;
-  };
-
-  // A press that is still open when the surface goes away would otherwise leave
-  // its listeners on the window.
-  useEffect(() => endGesture, []);
-
-  const beginDrag = () => {
-    if (!file) {
-      return;
-    }
-    endGesture();
-    // Both set before the drag exists rather than after, so a release quick
-    // enough to beat the OS still finds them.
-    trackSelfFileDrag();
-    draggedRef.current = true;
-    window.api.startFileDrag?.([file.hostPath]);
-  };
+  const gesture = useDragGesture();
 
   return {
     draggable: canDrag,
-    onClickCapture: (event: MouseEvent) => {
-      if (!draggedRef.current) {
-        return;
-      }
-      // Capture, so this runs before whatever the surface does on click, and
-      // cleared here rather than on a timer: the click is the end of the
-      // gesture that set it.
-      draggedRef.current = false;
-      event.preventDefault();
-      event.stopPropagation();
-    },
+    onClickCapture: gesture.onClickCapture,
     onDragStart: (event: DragEvent) => {
       // Cancelled either way: left alone Blink drags its own idea of the
       // element, a thumbnail's image URL or nothing at all, and neither means
       // anything to another app. What it does not do any more is start the real
       // drag, which waits for the pointer to travel far enough to mean it.
       event.preventDefault();
-      const gesture = gestureRef.current;
-      if (gesture) {
-        gesture.armed = true;
-      }
+      gesture.arm();
     },
     onPointerDown: (event: ReactPointerEvent) => {
-      // A fresh press is a fresh gesture, whatever the last one turned into.
-      draggedRef.current = false;
-      endGesture();
       // Hover is what makes the first drag work: the icon behind it is rendered
       // by the OS, which is far slower than the few pixels of movement between
       // pressing and dragging.
       void prepare(file);
-
-      if (!canDrag) {
-        return;
-      }
-
-      const handleEnd = () => {
-        endGesture();
-      };
-
-      const handleMove = (moveEvent: PointerEvent) => {
-        const gesture = gestureRef.current;
-        if (!gesture?.armed) {
-          return;
-        }
-        const dx = moveEvent.clientX - gesture.originX;
-        const dy = moveEvent.clientY - gesture.originY;
-        if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) {
-          return;
-        }
-        beginDrag();
-      };
-
-      gestureRef.current = {
-        armed: false,
-        originX: event.clientX,
-        originY: event.clientY,
-        teardown: () => {
-          window.removeEventListener("pointercancel", handleEnd);
-          window.removeEventListener("pointermove", handleMove);
-          window.removeEventListener("pointerup", handleEnd);
-        },
-      };
-
-      window.addEventListener("pointercancel", handleEnd);
-      window.addEventListener("pointermove", handleMove);
-      window.addEventListener("pointerup", handleEnd);
+      gesture.press(event, canDrag ? file : undefined);
     },
     onPointerEnter: () => {
+      void prepare(file);
+    },
+  };
+}
+
+/**
+ * The same gesture for a surface that draws many files itself, a list or a
+ * grid of them: one set of handlers on the container, and the file under a
+ * press is looked up along the event's path. The rows are what carry
+ * `draggable`, since a container that is draggable itself takes text
+ * selection away from any field inside it; `draggable` here says whether they
+ * should, which is false wherever there is no OS to hand a file to.
+ *
+ * A drag that started on nothing named is left to Blink, so a selection in a
+ * field inside the container still drags as text.
+ */
+export function useFileDragArea(
+  resolve: ((event: SyntheticEvent) => FileRef | undefined) | undefined,
+) {
+  const canDrag = Boolean(resolve && window.api.startFileDrag);
+  const gesture = useDragGesture();
+  // The last file the pointer was over, so crossing from a row's icon to its
+  // name is not a second ask for the same drag image.
+  const hoveredRef = useRef<string>(undefined);
+
+  return {
+    draggable: canDrag,
+    onClickCapture: gesture.onClickCapture,
+    onDragStart: (event: DragEvent) => {
+      if (!gesture.isPressed()) {
+        return;
+      }
+      event.preventDefault();
+      gesture.arm();
+    },
+    onPointerDown: (event: ReactPointerEvent) => {
+      const file = resolve?.(event);
+      void prepare(file);
+      gesture.press(event, canDrag ? file : undefined);
+    },
+    onPointerOver: (event: ReactPointerEvent) => {
+      const file = resolve?.(event);
+      if (file?.hostPath === hoveredRef.current) {
+        return;
+      }
+      hoveredRef.current = file?.hostPath;
       void prepare(file);
     },
   };
@@ -170,4 +140,93 @@ function prepare(file: FileRef | undefined) {
 
   preparing.set(key, request);
   return request;
+}
+
+/**
+ * One press at a time, from the pointer going down on a file to either the
+ * drag being handed to the OS or the pointer coming back up.
+ */
+function useDragGesture() {
+  // Cancelling the dragstart keeps Blink out of a drag state, so it never
+  // applies its own rule that a drag suppresses the click after it. A press and
+  // release on one element is a click by every measure Blink has left, which
+  // made dropping a file back onto the card it came from open that card.
+  const draggedRef = useRef(false);
+  const gestureRef = useRef<Gesture | null>(null);
+
+  const endGesture = () => {
+    gestureRef.current?.teardown();
+    gestureRef.current = null;
+  };
+
+  // A press that is still open when the surface goes away would otherwise leave
+  // its listeners on the window.
+  useEffect(() => endGesture, []);
+
+  return {
+    arm: () => {
+      const gesture = gestureRef.current;
+      if (gesture) {
+        gesture.armed = true;
+      }
+    },
+    isPressed: () => gestureRef.current !== null,
+    onClickCapture: (event: MouseEvent) => {
+      if (!draggedRef.current) {
+        return;
+      }
+      // Capture, so this runs before whatever the surface does on click, and
+      // cleared here rather than on a timer: the click is the end of the
+      // gesture that set it.
+      draggedRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    /** A press on `file`, or on nothing that drags when it is left out. */
+    press: (event: ReactPointerEvent, file: FileRef | undefined) => {
+      // A fresh press is a fresh gesture, whatever the last one turned into.
+      draggedRef.current = false;
+      endGesture();
+      if (!file) {
+        return;
+      }
+
+      const handleEnd = () => {
+        endGesture();
+      };
+
+      const handleMove = (moveEvent: PointerEvent) => {
+        const gesture = gestureRef.current;
+        if (!gesture?.armed) {
+          return;
+        }
+        const dx = moveEvent.clientX - gesture.originX;
+        const dy = moveEvent.clientY - gesture.originY;
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) {
+          return;
+        }
+        endGesture();
+        // Both set before the drag exists rather than after, so a release quick
+        // enough to beat the OS still finds them.
+        trackSelfFileDrag();
+        draggedRef.current = true;
+        window.api.startFileDrag?.([file.hostPath]);
+      };
+
+      gestureRef.current = {
+        armed: false,
+        originX: event.clientX,
+        originY: event.clientY,
+        teardown: () => {
+          window.removeEventListener("pointercancel", handleEnd);
+          window.removeEventListener("pointermove", handleMove);
+          window.removeEventListener("pointerup", handleEnd);
+        },
+      };
+
+      window.addEventListener("pointercancel", handleEnd);
+      window.addEventListener("pointermove", handleMove);
+      window.addEventListener("pointerup", handleEnd);
+    },
+  };
 }

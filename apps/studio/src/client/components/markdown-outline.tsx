@@ -299,6 +299,7 @@ function MarkdownOutline({
       <nav
         aria-label="Contents"
         className="group/column relative flex w-56 shrink-0 flex-col border-l border-border/60"
+        data-slot="markdown-outline"
         ref={navRef}
       >
         {list}
@@ -323,6 +324,7 @@ function MarkdownOutline({
     <nav
       aria-label="Contents"
       className="group/outline sticky top-0 z-20 h-0"
+      data-slot="markdown-outline"
       onKeyDown={(event) => {
         if (event.key === "Escape" && pinned) {
           event.stopPropagation();

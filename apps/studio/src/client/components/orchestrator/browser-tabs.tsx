@@ -423,14 +423,17 @@ export function BrowserTabs({
           }
           const url = webview.getURL();
           const isHistoryStep = historySteps.current.delete(id);
-          // The pool creates guests at about:blank. Back past the first site
-          // returns to the preceding screen, keeping the site ready for Forward.
+          // The pool creates guests at about:blank, which stays at the start
+          // of the guest's history. Back arriving there, by whatever stepped
+          // the guest (the row's arrow, a mouse's thumb button, the guest's
+          // own menu), goes on to the visit before this page, keeping the
+          // site ready for Forward. A task's tab is the task's to step.
           if (
-            isHistoryStep &&
             url === "about:blank" &&
+            !webview.canGoBack() &&
+            webview.canGoForward() &&
             latest.current.active?.id === id &&
-            latest.current.active.past?.length &&
-            webview.canGoForward()
+            !latest.current.active.taskId
           ) {
             webview.goForward();
             setAllTabs((current) => {
@@ -440,7 +443,12 @@ export function BrowserTabs({
                 stepTabVisit(
                   {
                     ...tab,
-                    pageBackSteps: Math.max(0, (tab.pageBackSteps ?? 0) - 1),
+                    // The arrow counted its step before taking it, and the
+                    // guest is being sent back up to where it was.
+                    pageBackSteps: Math.max(
+                      0,
+                      (tab.pageBackSteps ?? 0) - (isHistoryStep ? 1 : 0),
+                    ),
                   },
                   -1,
                 );

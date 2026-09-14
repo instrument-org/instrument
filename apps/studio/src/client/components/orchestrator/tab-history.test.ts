@@ -1,6 +1,8 @@
-import { type WindowTab } from "@/client/atoms/orchestrator";
+import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/orchestrator";
+import { fileUrlOf } from "@/client/lib/file-url";
 import { describe, expect, it } from "vitest";
 
+import { fileHref } from "./file-tabs";
 import { stepTabVisit, visitInTab } from "./tab-history";
 
 const task: WindowTab = {
@@ -86,5 +88,96 @@ describe("tab visits", () => {
     expect(visitInTab(website, folder).past?.at(-1)).toMatchObject({
       pageBackSteps: 0,
     });
+  });
+
+  it("steps a page with nothing behind it back to a new tab", () => {
+    const back = stepped(page, -1);
+    expect(back).toMatchObject({
+      future: [page],
+      href: NEW_TAB_HREF,
+      kind: "screen",
+      past: [],
+      stripKey: page.id,
+    });
+    expect(stepTabVisit(back, 1)).toMatchObject({
+      ...page,
+      past: [{ href: NEW_TAB_HREF, id: back.id, kind: "screen" }],
+    });
+  });
+});
+
+describe("a file screen handing its page to the browser", () => {
+  const hostPath = "/Users/person/report.html";
+  const filePage: WindowTab = {
+    id: "file-session",
+    kind: "page",
+    openedAt: 1,
+    url: fileUrlOf(hostPath),
+  };
+
+  it("is skipped by back, which lands where the file was opened from", () => {
+    const fileScreen: WindowTab = {
+      ...folder,
+      at: 1,
+      href: fileHref(hostPath),
+      trail: [folder.href, fileHref(hostPath)],
+    };
+    const shown = visitInTab(fileScreen, filePage);
+    const back = stepped(shown, -1);
+    // The screen shown again would hand the file to a new page at once, a
+    // loop back could not leave.
+    expect(back).toMatchObject({
+      at: 0,
+      href: folder.href,
+      id: folder.id,
+      trail: [folder.href],
+    });
+    // Forward restores the page the file was shown in, guest and all.
+    expect(stepTabVisit(back, 1)).toEqual(shown);
+  });
+
+  it("is skipped when it began the tab, so back lands on the visit before it", () => {
+    const fileScreen: WindowTab = {
+      at: 0,
+      href: fileHref(hostPath),
+      id: "file-screen",
+      kind: "screen",
+      past: [page],
+      trail: [fileHref(hostPath)],
+    };
+    const shown = visitInTab(fileScreen, filePage);
+    expect(shown.past).toEqual([page]);
+    expect(stepped(shown, -1)).toMatchObject({ ...page, future: [filePage] });
+  });
+
+  it("leaves a page opened as its own tab with a new tab behind it", () => {
+    const fileScreen: WindowTab = {
+      at: 0,
+      href: fileHref(hostPath),
+      id: "file-screen",
+      kind: "screen",
+      trail: [fileHref(hostPath)],
+    };
+    const shown = visitInTab(fileScreen, filePage);
+    expect(shown.past).toEqual([]);
+    const back = stepped(shown, -1);
+    expect(back).toMatchObject({
+      future: [filePage],
+      href: NEW_TAB_HREF,
+      kind: "screen",
+      stripKey: "file-screen",
+    });
+    expect(stepTabVisit(back, 1)).toMatchObject(filePage);
+  });
+
+  it("stays a stop when it shows the file's source", () => {
+    const sourceHref = fileHref(hostPath, { source: true });
+    const sourceScreen: WindowTab = {
+      ...folder,
+      at: 1,
+      href: sourceHref,
+      trail: [folder.href, sourceHref],
+    };
+    expect(visitInTab(sourceScreen, filePage).past).toEqual([sourceScreen]);
   });
 });

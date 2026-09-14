@@ -126,21 +126,8 @@ export function useWindowTabs() {
   };
 
   const stepVisit = (direction: -1 | 1) => {
-    const from: undefined | WindowTab =
-      active?.kind === "page" && direction === -1 && !active.past?.length
-        ? {
-            ...active,
-            past: [
-              {
-                href: NEW_TAB_HREF,
-                id: `screen-${crypto.randomUUID()}`,
-                kind: "screen",
-              },
-            ],
-          }
-        : active;
-    const next = from && stepTabVisit(from, direction);
-    if (next && active) replace(active.id, next);
+    const next = active && stepTabVisit(active, direction);
+    if (next) replace(active.id, next);
     return next;
   };
 

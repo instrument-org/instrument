@@ -37,6 +37,11 @@ export namespace StorageKey {
     return StoreId.MessageSchema.parse(messageKey.split(SEPARATOR).at(-1));
   }
 
+  // The session segment of a message key, for a listing that spans sessions.
+  export function extractMessageSessionId(messageKey: string): StoreId.Session {
+    return StoreId.SessionSchema.parse(messageKey.split(SEPARATOR).at(1));
+  }
+
   export function extractPartId(partKey: string): StoreId.Part {
     return StoreId.PartSchema.parse(partKey.split(SEPARATOR).at(-1));
   }

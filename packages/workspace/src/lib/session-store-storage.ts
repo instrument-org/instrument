@@ -8,8 +8,10 @@ import dbDriver from "unstorage/drivers/db0";
 
 import { type TaskId } from "../schemas/task-id";
 import { TypedError } from "./errors";
+import { sweepInterruptedToolCalls } from "./interrupted-tool-calls";
 import { runStoreMigrations } from "./store-migrations";
 import { sessionStorePath, taskDir } from "./task-dir-utils";
+import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";
 
 // Avoids possible SQLite database lock errors if we create the same storage
@@ -101,6 +103,27 @@ export function getSessionsStoreStorage(taskId: TaskId) {
           return runStoreMigrations({ storage: wrappedStorage }).map(
             () => wrappedStorage,
           );
+        })
+        .andThen((wrappedStorage) => {
+          // Also before caching, and for a stronger reason than cost: a tool
+          // call still marked in flight belongs to a process that is gone,
+          // and that is only certain while no run of this process can have
+          // started, which the cache miss guarantees. A sweep that fails
+          // leaves the parts as they were, which is no worse than not
+          // sweeping; opening the task is not held to it.
+          return sweepInterruptedToolCalls({ storage: wrappedStorage })
+            .orElse((error) => {
+              if (hasWorkspaceConfig()) {
+                getWorkspaceConfig().captureException(error);
+              } else {
+                // A script reading a task outside the app has nowhere else
+                // to report to.
+                // eslint-disable-next-line no-console
+                console.error("Failed to sweep interrupted tool calls", error);
+              }
+              return ok(undefined);
+            })
+            .map(() => wrappedStorage);
         })
         .mapErr((error) =>
           error instanceof TypedError.Storage

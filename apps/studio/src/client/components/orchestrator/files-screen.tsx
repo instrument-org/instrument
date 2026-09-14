@@ -103,7 +103,10 @@ export function FilesScreen({
             },
             screen: "computer",
           }
-        : null,
+        : // The computer with no folder on it: the recents with nothing
+          // selected, or a folder not yet read. Said as such, so the answer
+          // is never a screen or a folder the user has left.
+          { screen: "computer" },
   );
 
   // A missing file returns to the preceding visit, or closes its dedicated tab.

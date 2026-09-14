@@ -115,8 +115,8 @@ export function ComputerPage({
   refreshInterval = REFRESH_MS,
   root,
 }: {
-  /** Told the folder on screen whenever it changes. */
-  onFolderChange?: (folder: FolderOnScreen) => void;
+  /** Told the folder on screen whenever it changes; null when nothing on screen is a folder. */
+  onFolderChange?: (folder: FolderOnScreen | null) => void;
   /**
    * Where the browser has moved to. Left out, it writes the tab's own address,
    * which is what the screen filling a tab wants; given, the page holding the
@@ -622,7 +622,10 @@ export function ComputerPage({
       ? (selectedItem?.name ?? selectedPath.split("/").at(-1))
       : undefined;
   useEffect(() => {
+    // The recents with nothing selected, or a folder not yet read: no folder
+    // is on screen, and the one that was is not still the answer.
     if (display === undefined || hostPath === undefined) {
+      onFolderChange?.(null);
       return;
     }
     onFolderChange?.({

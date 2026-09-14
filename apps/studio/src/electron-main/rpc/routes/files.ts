@@ -1,3 +1,4 @@
+import { capturePageThumbnail } from "@/electron-main/lib/page-thumbnail";
 import { base } from "@/electron-main/rpc/base";
 import { shell } from "electron";
 import fs from "node:fs/promises";
@@ -140,9 +141,31 @@ const trash = base
     }
   });
 
+/**
+ * A page's file drawn as its page, for the file browser to show beside the
+ * selection. `version` is the file's mtime as the caller last listed it: the
+ * file is read as it is either way, and a listing that noticed a write asks
+ * afresh rather than getting the picture it was already shown.
+ */
+const pageThumbnail = base
+  .errors({ CANNOT_DRAW: { message: "The page could not be drawn" } })
+  .input(z.object({ path: HostPathSchema, version: z.string().optional() }))
+  .output(z.object({ dataUrl: z.string() }))
+  .handler(async ({ errors, input, signal }) => {
+    try {
+      const { dataUrl } = await capturePageThumbnail(input.path, { signal });
+      return { dataUrl };
+    } catch (error) {
+      throw errors.CANNOT_DRAW({
+        message: error instanceof Error ? error.message : undefined,
+      });
+    }
+  });
+
 export const files = {
   duplicate,
   newFolder,
+  pageThumbnail,
   rename,
   trash,
 };

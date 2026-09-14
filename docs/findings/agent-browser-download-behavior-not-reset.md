@@ -8,11 +8,13 @@ Upstream agent-browser's `download` command sends
 `Browser.setDownloadBehavior` with `allowAndName` and the destination
 directory before clicking, and never undoes it (`handle_download` in
 `cli/src/native/actions.rs`; verified at v0.32.3). On the Instrument task
-browser this is harmless. On a connected external browser (`--auto-connect`
-or `--cdp` against the user's own Chrome), every later download in that
-browser, including ones the user triggers themselves, lands in the last
-`download` command's directory under a GUID filename until the browser
-restarts.
+browser the authorization is ours to hold, and `downloads.ts` clears it when
+the transfer it was sent for ends, so a person's later click on the same
+guest lands in the task's `downloads/` folder under its own name. On a
+connected external browser (`--auto-connect` or `--cdp` against the user's
+own Chrome), every later download in that browser, including ones the user
+triggers themselves, lands in the last `download` command's directory under
+a GUID filename until the browser restarts.
 
 ## Mitigations in place
 

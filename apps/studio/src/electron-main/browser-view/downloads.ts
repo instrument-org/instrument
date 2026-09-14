@@ -1,7 +1,14 @@
 import type { Protocol } from "devtools-protocol";
-import type { Session, WebContents } from "electron";
+import type { DownloadItem, Session, WebContents } from "electron";
 
-import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  type BrowserTargetId,
+  getDownloadsDir,
+  taskDir,
+} from "@instrument-org/workspace/electron";
+import fs from "node:fs";
+import path from "node:path";
 
 import type { BrowserEntry } from "./entry";
 
@@ -26,12 +33,13 @@ export function applyDownloadBehavior(
 }
 
 // Register the will-download handler for this session, once. A download is
-// attributed to the guest that started it, and routed by that guest's entry:
-// if the agent has authorized a download path there via setDownloadBehavior,
-// the file lands in it under the GUID as filename (matching agent-browser's
-// "allowAndName" expectation), falling back to a freshly-generated GUID when
-// no downloadWillBegin captured one. A download from any other guest, or from
-// one whose entry is gone, is canceled.
+// attributed to the guest that started it, and routed by that guest's entry.
+// With a path the agent authorized via setDownloadBehavior, the file lands
+// there under the GUID as filename (what agent-browser's `download` command
+// expects from "allowAndName"), with a fresh GUID when no downloadWillBegin
+// captured one. Without one, the download is the person's own, from a click in
+// the browser panel, and lands in the task's downloads folder under its own
+// name. Only a download from a guest no entry owns is canceled.
 export function attachDownloadHandler({
   entries,
   session,
@@ -46,45 +54,15 @@ export function attachDownloadHandler({
 
   session.on("will-download", (_event, item, webContents) => {
     const entry = findEntryByWebContents(entries, webContents);
-    if (!entry?.authorizedDownloadPath) {
+    if (!entry) {
       item.cancel();
       return;
     }
-    const { targetId } = entry;
-
-    const guid =
-      entry.pendingDownloadGuids.get(item.getURL()) ?? crypto.randomUUID();
-    entry.pendingDownloadGuids.delete(item.getURL());
-    item.setSavePath(`${entry.authorizedDownloadPath}/${guid}`);
-
-    // Synthesize Page.downloadWillBegin so agent-browser's download command
-    // can capture the GUID and start waiting for completion.
-    const willBegin: Protocol.Browser.DownloadWillBeginEvent = {
-      frameId: targetId,
-      guid,
-      suggestedFilename: item.getFilename(),
-      url: item.getURL(),
-    };
-    for (const listener of entry.eventListeners) {
-      listener("Page.downloadWillBegin", willBegin);
+    if (entry.authorizedDownloadPath) {
+      saveForAgent(entries, entry, item, entry.authorizedDownloadPath);
+    } else {
+      saveForPerson(entry, item);
     }
-
-    item.once("done", (_doneEvent, state) => {
-      const currentEntry = entries.get(targetId);
-      if (!currentEntry) {
-        return;
-      }
-      // Synthesize Page.downloadProgress so agent-browser resolves or errors.
-      const progress: Protocol.Browser.DownloadProgressEvent = {
-        guid,
-        receivedBytes: item.getReceivedBytes(),
-        state: state === "completed" ? "completed" : "canceled",
-        totalBytes: item.getTotalBytes(),
-      };
-      for (const listener of currentEntry.eventListeners) {
-        listener("Page.downloadProgress", progress);
-      }
-    });
   });
 }
 
@@ -100,6 +78,22 @@ export function captureDownloadWillBeginGuid(
   }
 }
 
+// `findAvailableName`'s convention, done synchronously: the save path has to
+// be set before the will-download handler returns.
+function availableFilename(dir: string, filename: string): string {
+  const taken = (candidate: string) => fs.existsSync(path.join(dir, candidate));
+  if (!taken(filename)) {
+    return filename;
+  }
+  const ext = path.extname(filename);
+  const stem = ext ? filename.slice(0, -ext.length) : filename;
+  let suffix = 2;
+  while (taken(`${stem}-${suffix}${ext}`)) {
+    suffix += 1;
+  }
+  return `${stem}-${suffix}${ext}`;
+}
+
 // By the guest's identity rather than a captured target id: the entry map is
 // keyed by target, and the download event names only the WebContents it came
 // from. Matched on id, which is stable for the life of a live guest.
@@ -113,4 +107,73 @@ function findEntryByWebContents(
     }
   }
   return undefined;
+}
+
+function saveForAgent(
+  entries: Map<BrowserTargetId, BrowserEntry>,
+  entry: BrowserEntry,
+  item: DownloadItem,
+  authorizedDownloadPath: string,
+) {
+  const { targetId } = entry;
+
+  const guid =
+    entry.pendingDownloadGuids.get(item.getURL()) ?? crypto.randomUUID();
+  entry.pendingDownloadGuids.delete(item.getURL());
+  item.setSavePath(`${authorizedDownloadPath}/${guid}`);
+
+  // Synthesize Page.downloadWillBegin so agent-browser's download command
+  // can capture the GUID and start waiting for completion.
+  const willBegin: Protocol.Browser.DownloadWillBeginEvent = {
+    frameId: targetId,
+    guid,
+    suggestedFilename: item.getFilename(),
+    url: item.getURL(),
+  };
+  for (const listener of entry.eventListeners) {
+    listener("Page.downloadWillBegin", willBegin);
+  }
+
+  item.once("done", (_doneEvent, state) => {
+    const currentEntry = entries.get(targetId);
+    if (!currentEntry) {
+      return;
+    }
+    // The authorization was for this one transfer: agent-browser sends a
+    // fresh setDownloadBehavior ahead of every `download` and never rescinds
+    // one, so left in place it would claim the person's next click on this
+    // guest too, saving it under a GUID where they cannot find it.
+    currentEntry.authorizedDownloadPath = null;
+    // Synthesize Page.downloadProgress so agent-browser resolves or errors.
+    const progress: Protocol.Browser.DownloadProgressEvent = {
+      guid,
+      receivedBytes: item.getReceivedBytes(),
+      state: state === "completed" ? "completed" : "canceled",
+      totalBytes: item.getTotalBytes(),
+    };
+    for (const listener of currentEntry.eventListeners) {
+      listener("Page.downloadProgress", progress);
+    }
+  });
+}
+
+// Into the task's own downloads folder, beside what the agent downloads, so
+// the file is in the task on disk and in the agent's view of it, and the
+// renderer is told where it landed so the window can say so. A name already
+// taken gets the `-2`, `-3` suffix the rest of the app gives a copy, rather
+// than overwriting, which is what an explicit save path otherwise does.
+function saveForPerson(entry: BrowserEntry, item: DownloadItem) {
+  const dir = getDownloadsDir(taskDir(entry.id));
+  const savePath = path.join(dir, availableFilename(dir, item.getFilename()));
+  item.setSavePath(savePath);
+
+  item.once("done", (_doneEvent, state) => {
+    publisher.publish("browser.download-finished", {
+      completed: state === "completed",
+      filename: path.basename(savePath),
+      host: entry.host,
+      path: savePath,
+      targetId: entry.targetId,
+    });
+  });
 }

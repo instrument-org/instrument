@@ -4,6 +4,7 @@ import ReactDOM, { type Root } from "react-dom/client";
 
 import { App } from "./app";
 import { MainWindow } from "./components/main-window";
+import { initBrowserDownloadNotices } from "./lib/browser-download-notices";
 import { initBrowserPool } from "./lib/browser-pool";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { initRendererLogForwarding } from "./lib/forward-renderer-logs";
@@ -36,6 +37,7 @@ if (rootElement) {
     // guests: a task's browser in the main window, the orchestrator's tabs in
     // its own.
     initBrowserPool();
+    initBrowserDownloadNotices();
   }
   if (isMainWindow) {
     // Only the main window has tabs and app-wide modals to drive.

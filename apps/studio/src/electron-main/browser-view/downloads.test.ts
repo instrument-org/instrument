@@ -4,13 +4,17 @@ import type {
 } from "@instrument-org/workspace/electron";
 import type { Session, WebContents } from "electron";
 
+import { publisher } from "@/electron-main/rpc/publisher";
 import {
   encodeBrowserTargetId,
   StoreId,
   TaskIdSchema,
 } from "@instrument-org/workspace/electron";
 import { EventEmitter } from "node:events";
-import { describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyDownloadBehavior,
@@ -19,9 +23,33 @@ import {
 } from "./downloads";
 import { type BrowserEntry, createEntry } from "./entry";
 
+// A person's download lands in the task's folder, which is resolved against
+// the workspace; a temp directory stands in for it here.
+const tasksRoot = vi.hoisted(() => ({ dir: "" }));
+vi.mock(
+  import("@instrument-org/workspace/electron"),
+  async (importOriginal) => {
+    const original = await importOriginal();
+    return {
+      ...original,
+      taskDir: (id: string) =>
+        original.TaskDirSchema.parse(path.join(tasksRoot.dir, id)),
+    };
+  },
+);
+
 const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
 const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
+
+beforeEach(() => {
+  tasksRoot.dir = fs.mkdtempSync(path.join(os.tmpdir(), "downloads-test-"));
+});
+
+afterEach(() => {
+  fs.rmSync(tasksRoot.dir, { force: true, recursive: true });
+  vi.restoreAllMocks();
+});
 
 interface FakeItem extends EventEmitter {
   cancel: ReturnType<typeof vi.fn>;
@@ -30,6 +58,10 @@ interface FakeItem extends EventEmitter {
   getTotalBytes: () => number;
   getURL: () => string;
   setSavePath: ReturnType<typeof vi.fn>;
+}
+
+function downloadsDir() {
+  return path.join(tasksRoot.dir, SUBDOMAIN, "downloads");
 }
 
 let webContentsCounter = 0;
@@ -138,18 +170,84 @@ function makeSession() {
 }
 
 describe("attachDownloadHandler", () => {
-  it("cancels downloads when no path is authorized", () => {
-    const entries = new Map<BrowserTargetId, BrowserEntry>();
-    const entry = makeEntry();
-    entries.set(TARGET_ID, entry);
-    const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session });
+  describe("a download the person started", () => {
+    it("lands in the task's downloads folder under its own name", () => {
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      attachDownloadHandler({ entries, session });
 
-    const item = makeFakeItem();
-    trigger(item, entry);
+      const item = makeFakeItem();
+      trigger(item, entry);
 
-    expect(item.cancel).toHaveBeenCalledOnce();
-    expect(item.setSavePath).not.toHaveBeenCalled();
+      expect(item.cancel).not.toHaveBeenCalled();
+      expect(item.setSavePath).toHaveBeenCalledWith(
+        path.join(downloadsDir(), "report.pdf"),
+      );
+    });
+
+    it("takes a numbered name when the folder already holds one", () => {
+      fs.mkdirSync(downloadsDir(), { recursive: true });
+      fs.writeFileSync(path.join(downloadsDir(), "report.pdf"), "");
+      fs.writeFileSync(path.join(downloadsDir(), "report-2.pdf"), "");
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      attachDownloadHandler({ entries, session });
+
+      const item = makeFakeItem();
+      trigger(item, entry);
+
+      expect(item.setSavePath).toHaveBeenCalledWith(
+        path.join(downloadsDir(), "report-3.pdf"),
+      );
+    });
+
+    it.each([
+      { completed: true, state: "completed" as const },
+      { completed: false, state: "interrupted" as const },
+      { completed: false, state: "cancelled" as const },
+    ])(
+      "tells the guest's window where it ended up when it finishes $state",
+      ({ completed, state }) => {
+        const publish = vi.spyOn(publisher, "publish");
+        const entries = new Map<BrowserTargetId, BrowserEntry>();
+        const entry = makeEntry();
+        entries.set(TARGET_ID, entry);
+        const { session, trigger } = makeSession();
+        attachDownloadHandler({ entries, session });
+
+        const item = makeFakeItem();
+        trigger(item, entry);
+        (item as unknown as EventEmitter).emit("done", {}, state);
+
+        expect(publish).toHaveBeenCalledWith("browser.download-finished", {
+          completed,
+          filename: "report.pdf",
+          host: "main",
+          path: path.join(downloadsDir(), "report.pdf"),
+          targetId: TARGET_ID,
+        });
+      },
+    );
+
+    it("goes through no agent-browser event", () => {
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      const onEvent = vi.fn();
+      entry.eventListeners.add(onEvent);
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      attachDownloadHandler({ entries, session });
+
+      const item = makeFakeItem();
+      trigger(item, entry);
+      (item as unknown as EventEmitter).emit("done", {}, "completed");
+
+      expect(onEvent).not.toHaveBeenCalled();
+    });
   });
 
   it("registers one listener per session however many guests bind to it", () => {
@@ -194,10 +292,17 @@ describe("attachDownloadHandler", () => {
     );
     expect(otherEvents).not.toHaveBeenCalled();
 
+    // The other guest holds no authorization, so its download is the
+    // person's: saved under its own name, and never reported to the agent's
+    // listeners on either guest.
     const fromOther = makeFakeItem();
     trigger(fromOther, other);
-    expect(fromOther.cancel).toHaveBeenCalledOnce();
-    expect(fromOther.setSavePath).not.toHaveBeenCalled();
+    expect(fromOther.cancel).not.toHaveBeenCalled();
+    expect(fromOther.setSavePath).toHaveBeenCalledWith(
+      path.join(downloadsDir(), "report.pdf"),
+    );
+    expect(authorizedEvents).toHaveBeenCalledOnce();
+    expect(otherEvents).not.toHaveBeenCalled();
   });
 
   it("cancels a download from a guest whose entry is gone", () => {
@@ -300,6 +405,29 @@ describe("attachDownloadHandler", () => {
       });
     },
   );
+
+  // agent-browser authorizes ahead of each `download` and never rescinds, so
+  // the authorization ends with the transfer it was for: the person's next
+  // click on the same guest is theirs, not a GUID in the agent's folder.
+  it("spends the agent's authorization on the one download", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    entry.authorizedDownloadPath = "/tmp/dl";
+    entries.set(TARGET_ID, entry);
+    const { session, trigger } = makeSession();
+    attachDownloadHandler({ entries, session });
+
+    const agentItem = makeFakeItem();
+    trigger(agentItem, entry);
+    (agentItem as unknown as EventEmitter).emit("done", {}, "completed");
+    const personItem = makeFakeItem();
+    trigger(personItem, entry);
+
+    expect(entry.authorizedDownloadPath).toBeNull();
+    expect(personItem.setSavePath).toHaveBeenCalledWith(
+      path.join(downloadsDir(), "report.pdf"),
+    );
+  });
 
   it("ignores done event if entry was removed before completion", () => {
     const entries = new Map<BrowserTargetId, BrowserEntry>();

@@ -19,6 +19,13 @@ function currentTargets(): BrowserGuestTarget[] {
 }
 
 const events = {
+  downloadFinished: base.handler(async function* ({ signal }) {
+    for await (const event of publisher.subscribe("browser.download-finished", {
+      signal,
+    })) {
+      yield event;
+    }
+  }),
   focusGuest: base.handler(async function* ({ signal }) {
     for await (const event of publisher.subscribe("browser.focus-guest", {
       signal,

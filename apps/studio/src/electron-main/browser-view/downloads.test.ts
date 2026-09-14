@@ -2,7 +2,7 @@ import type {
   AbsolutePath,
   BrowserTargetId,
 } from "@instrument-org/workspace/electron";
-import type { Session } from "electron";
+import type { Session, WebContents } from "electron";
 
 import {
   encodeBrowserTargetId,
@@ -32,13 +32,20 @@ interface FakeItem extends EventEmitter {
   setSavePath: ReturnType<typeof vi.fn>;
 }
 
+let webContentsCounter = 0;
+
+// An entry with its guest bound, the state every entry is in once a download
+// can reach it. Only the id matters: the handler attributes a download to a
+// guest by it.
 function makeEntry(targetId: BrowserTargetId = TARGET_ID): BrowserEntry {
-  return createEntry({
+  const entry = createEntry({
     id: SUBDOMAIN,
     partitionDir: "/tmp/partition" as AbsolutePath,
     sessionId: SESSION_ID,
     targetId,
   });
+  entry.webContents = { id: ++webContentsCounter } as WebContents;
+  return entry;
 }
 
 function makeFakeItem({
@@ -95,33 +102,118 @@ describe("captureDownloadWillBeginGuid", () => {
     );
   });
 });
+// Every listener runs on every event, as on a real Session: a second copy of
+// the handler is a second vote on every download, which is the failure the
+// per-session registration exists to rule out.
 function makeSession() {
-  const handlers: Record<string, (event: unknown, item: FakeItem) => void> = {};
+  type Listener = (
+    event: unknown,
+    item: FakeItem,
+    webContents: WebContents,
+  ) => void;
+  const listeners: Record<string, Listener[]> = {};
   const session = {
-    on(eventName: string, cb: (event: unknown, item: FakeItem) => void) {
-      handlers[eventName] = cb;
+    on(eventName: string, cb: Listener) {
+      (listeners[eventName] ??= []).push(cb);
       return session;
     },
   } as unknown as Session;
-  function trigger(item: FakeItem) {
-    const cb = handlers["will-download"];
-    if (!cb) {
+  function trigger(item: FakeItem, from: BrowserEntry) {
+    const callbacks = listeners["will-download"];
+    if (!callbacks?.length) {
       throw new Error("will-download not registered");
     }
-    cb({}, item);
+    if (!from.webContents) {
+      throw new Error("entry has no guest bound");
+    }
+    for (const cb of callbacks) {
+      cb({}, item, from.webContents);
+    }
   }
-  return { session, trigger };
+  return {
+    listenerCount: () => listeners["will-download"]?.length ?? 0,
+    session,
+    trigger,
+  };
 }
 
 describe("attachDownloadHandler", () => {
   it("cancels downloads when no path is authorized", () => {
     const entries = new Map<BrowserTargetId, BrowserEntry>();
-    entries.set(TARGET_ID, makeEntry());
+    const entry = makeEntry();
+    entries.set(TARGET_ID, entry);
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session, targetId: TARGET_ID });
+    attachDownloadHandler({ entries, session });
 
     const item = makeFakeItem();
-    trigger(item);
+    trigger(item, entry);
+
+    expect(item.cancel).toHaveBeenCalledOnce();
+    expect(item.setSavePath).not.toHaveBeenCalled();
+  });
+
+  it("registers one listener per session however many guests bind to it", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const { listenerCount, session } = makeSession();
+
+    attachDownloadHandler({ entries, session });
+    attachDownloadHandler({ entries, session });
+    attachDownloadHandler({ entries, session });
+
+    expect(listenerCount()).toBe(1);
+  });
+
+  it("routes a download by the guest that started it when several share the session", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const authorized = makeEntry();
+    authorized.authorizedDownloadPath = "/tmp/dl";
+    const authorizedEvents = vi.fn();
+    authorized.eventListeners.add(authorizedEvents);
+    entries.set(TARGET_ID, authorized);
+
+    const otherTargetId = encodeBrowserTargetId(
+      SUBDOMAIN,
+      StoreId.newSessionId(),
+    );
+    const other = makeEntry(otherTargetId);
+    const otherEvents = vi.fn();
+    other.eventListeners.add(otherEvents);
+    entries.set(otherTargetId, other);
+
+    const { session, trigger } = makeSession();
+    attachDownloadHandler({ entries, session });
+    attachDownloadHandler({ entries, session });
+
+    const fromAuthorized = makeFakeItem();
+    trigger(fromAuthorized, authorized);
+    expect(fromAuthorized.cancel).not.toHaveBeenCalled();
+    expect(fromAuthorized.setSavePath).toHaveBeenCalledOnce();
+    expect(authorizedEvents).toHaveBeenCalledWith(
+      "Page.downloadWillBegin",
+      expect.objectContaining({ frameId: TARGET_ID }),
+    );
+    expect(otherEvents).not.toHaveBeenCalled();
+
+    const fromOther = makeFakeItem();
+    trigger(fromOther, other);
+    expect(fromOther.cancel).toHaveBeenCalledOnce();
+    expect(fromOther.setSavePath).not.toHaveBeenCalled();
+  });
+
+  it("cancels a download from a guest whose entry is gone", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const live = makeEntry();
+    live.authorizedDownloadPath = "/tmp/dl";
+    entries.set(TARGET_ID, live);
+    const gone = makeEntry(
+      encodeBrowserTargetId(SUBDOMAIN, StoreId.newSessionId()),
+    );
+
+    const { session, trigger } = makeSession();
+    attachDownloadHandler({ entries, session });
+
+    const item = makeFakeItem();
+    trigger(item, gone);
 
     expect(item.cancel).toHaveBeenCalledOnce();
     expect(item.setSavePath).not.toHaveBeenCalled();
@@ -140,10 +232,10 @@ describe("attachDownloadHandler", () => {
     entries.set(TARGET_ID, entry);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session, targetId: TARGET_ID });
+    attachDownloadHandler({ entries, session });
 
     const item = makeFakeItem();
-    trigger(item);
+    trigger(item, entry);
 
     expect(item.setSavePath).toHaveBeenCalledWith("/tmp/dl/guid-from-cdp");
     expect(entry.pendingDownloadGuids.size).toBe(0);
@@ -162,14 +254,14 @@ describe("attachDownloadHandler", () => {
     entries.set(TARGET_ID, entry);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session, targetId: TARGET_ID });
+    attachDownloadHandler({ entries, session });
 
     vi.spyOn(crypto, "randomUUID").mockReturnValue(
       "00000000-0000-0000-0000-000000000001",
     );
 
     const item = makeFakeItem();
-    trigger(item);
+    trigger(item, entry);
 
     expect(item.setSavePath).toHaveBeenCalledWith(
       "/tmp/dl/00000000-0000-0000-0000-000000000001",
@@ -192,10 +284,10 @@ describe("attachDownloadHandler", () => {
       entries.set(TARGET_ID, entry);
 
       const { session, trigger } = makeSession();
-      attachDownloadHandler({ entries, session, targetId: TARGET_ID });
+      attachDownloadHandler({ entries, session });
 
       const item = makeFakeItem();
-      trigger(item);
+      trigger(item, entry);
 
       onEvent.mockClear();
       (item as unknown as EventEmitter).emit("done", {}, state);
@@ -218,10 +310,10 @@ describe("attachDownloadHandler", () => {
     entries.set(TARGET_ID, entry);
 
     const { session, trigger } = makeSession();
-    attachDownloadHandler({ entries, session, targetId: TARGET_ID });
+    attachDownloadHandler({ entries, session });
 
     const item = makeFakeItem();
-    trigger(item);
+    trigger(item, entry);
     onEvent.mockClear();
 
     entries.delete(TARGET_ID);

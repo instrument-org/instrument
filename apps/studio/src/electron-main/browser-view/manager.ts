@@ -236,11 +236,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     // Mouse thumb-button navigation + right-click menu so the user can drive it.
     attachGuestInteractions(guest);
 
-    attachDownloadHandler({
-      entries,
-      session: guest.session,
-      targetId,
-    });
+    attachDownloadHandler({ entries, session: guest.session });
 
     guest.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) {

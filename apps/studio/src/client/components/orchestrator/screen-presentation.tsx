@@ -10,7 +10,8 @@ import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
-import { segmentsOf } from "./host-path";
+import { RECENTS_ROOT } from "./computer-page";
+import { joinHostPath, segmentsOf } from "./host-path";
 import { IDEAS_HREF, ideaTitleOf } from "./ideas";
 import { type TabLocation } from "./tab-location";
 import { parseHref } from "./window-tabs";
@@ -39,7 +40,7 @@ export function screenLocation(
         path: file,
       };
     }
-    return { kind: "folder", path: search.get("path") ?? "" };
+    return { kind: "folder", path: folderPathOf(search) };
   }
   if (pathname.startsWith("/orchestrator/apps/")) {
     const slug = pathname.slice("/orchestrator/apps/".length);
@@ -98,13 +99,9 @@ export function screenPresentation(
         title: name,
       };
     }
-    const folder = (search.get("path") ?? "")
-      .replace(/\/$/, "")
-      .split("/")
-      .at(-1);
     return {
       icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
-      title: folder || computerName(),
+      title: folderTitle(search),
     };
   }
   if (pathname.startsWith("/orchestrator/tasks/")) {
@@ -142,4 +139,36 @@ export function screenPresentation(
     return { icon: <CompassIcon className="size-3.5" />, title: "Ideas" };
   }
   return { icon: <MagnifyingGlassIcon className="size-3.5" />, title: "Tab" };
+}
+
+/**
+ * The folder a folder tab's address stands in: the root the browser is rooted
+ * at, and the walk below it, as one path. The home folder stays `~`, which is
+ * how the row writes it; the recents are no folder at all.
+ */
+function folderPathOf(search: URLSearchParams) {
+  const root = search.get("root") ?? "~";
+  return root === RECENTS_ROOT
+    ? ""
+    : joinHostPath(root, search.get("path") ?? "");
+}
+
+/**
+ * What a folder tab is called: the last name along the walk below the root,
+ * and with no walk, the root itself, named the way the place that opened it
+ * is. The top of the disk has no name along its path, so it is the computer.
+ */
+function folderTitle(search: URLSearchParams) {
+  const below = segmentsOf(search.get("path") ?? "").at(-1);
+  if (below) {
+    return below;
+  }
+  const root = search.get("root") ?? "~";
+  if (root === "~") {
+    return "Home";
+  }
+  if (root === RECENTS_ROOT) {
+    return "Recents";
+  }
+  return segmentsOf(root).at(-1) ?? computerName();
 }

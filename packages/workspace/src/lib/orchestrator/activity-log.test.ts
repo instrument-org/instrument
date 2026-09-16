@@ -335,18 +335,6 @@ describe("listActivityLog", () => {
       ["taskFailed", "Grocery list", null, CHILD],
       ["taskOverdue", "Grocery list", null, CHILD],
       [
-        "madeFile",
-        "prices.csv",
-        { files: ["/mnt/Instrument/groceries/prices.csv"] },
-        null,
-      ],
-      [
-        "madeFile",
-        "list.md",
-        { files: ["/mnt/Instrument/groceries/list.md"] },
-        null,
-      ],
-      [
         "openedPage",
         "www.instacart.com",
         { sites: ["www.instacart.com"] },
@@ -354,7 +342,19 @@ describe("listActivityLog", () => {
       ],
       ["usedApp", "notion", { apps: ["notion"] }, null],
       ["startedTask", "Grocery list", null, CHILD],
-      ["replied", "Here it is.", null, null],
+      // The files the reply handed over ride on its row rather than on rows
+      // of their own.
+      [
+        "replied",
+        "Here it is.",
+        {
+          files: [
+            "/mnt/Instrument/groceries/list.md",
+            "/mnt/Instrument/groceries/prices.csv",
+          ],
+        },
+        null,
+      ],
       ["asked", "make me a grocery list", null, null],
     ]);
   });
@@ -378,11 +378,7 @@ describe("listActivityLog", () => {
     );
     expect(
       first.filter((entry) => entry.kind !== "asked").map((entry) => entry.id),
-    ).toEqual([
-      `${sessionId}:${reply}:madeFile:1`,
-      `${sessionId}:${reply}:madeFile`,
-      `${sessionId}:${reply}:replied`,
-    ]);
+    ).toEqual([`${sessionId}:${reply}:replied`]);
   });
 
   it("stops at the limit, keeping the newest", async () => {

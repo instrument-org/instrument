@@ -183,8 +183,17 @@ function entriesIn(
   }
 
   const finishedAt = message.metadata.finishedAt?.getTime();
-  if (finishedAt !== undefined && hasWords(message)) {
-    emit({ at: finishedAt, kind: "replied", text: firstLine(textOf(message)) });
+  // The files a reply hands over ride on the reply's own row as its marks;
+  // they get rows of their own only when there is no reply to carry them.
+  const files = [...pathsNamedInMessage(message)];
+  const replied = finishedAt !== undefined && hasWords(message);
+  if (replied) {
+    emit({
+      at: finishedAt,
+      kind: "replied",
+      ...(files.length > 0 ? { marks: { files } } : {}),
+      text: firstLine(textOf(message)),
+    });
   }
   for (const part of message.parts) {
     if (!isToolPart(part)) {
@@ -210,14 +219,15 @@ function entriesIn(
       emit({ at, kind: "askedYou", text: firstLine(asked) });
     }
   }
-  // The files a reply hands over land with the reply, once it is done.
-  for (const path of pathsNamedInMessage(message)) {
-    emit({
-      at: finishedAt ?? createdAt,
-      kind: "madeFile",
-      marks: { files: [path] },
-      text: basename(path),
-    });
+  if (!replied) {
+    for (const path of files) {
+      emit({
+        at: finishedAt ?? createdAt,
+        kind: "madeFile",
+        marks: { files: [path] },
+        text: basename(path),
+      });
+    }
   }
   return entries;
 }

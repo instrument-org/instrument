@@ -2,6 +2,7 @@ import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 
+import { OrchestratorContext, type OrchestratorWindow } from "./context";
 import { ThreadRow } from "./thread-row";
 import { type Thread, type Topic } from "./threads";
 
@@ -56,25 +57,56 @@ const HOUSE: Topic = {
   name: "House",
 };
 
-async function renderRow(row: Thread, onOpen = vi.fn()) {
-  const rendered = await renderInBrowser(
-    <div style={{ width: "400px" }}>
-      <ThreadRow
-        appsBySlug={new Map()}
-        onNewTopic={vi.fn()}
-        onOpen={onOpen}
-        onSetTopics={vi.fn()}
-        thread={row}
-        topics={[HOUSE]}
-      />
-    </div>,
+/** The row's lines, in order: the header, the ask, the latest, the foot. */
+function linesOf(row: HTMLElement) {
+  return [...row.children].filter(
+    (child): child is HTMLElement =>
+      child instanceof HTMLElement && !child.className.includes("absolute"),
   );
-  return { ...rendered, onOpen };
+}
+
+/** The window the pane sits in, as far as a row can tell: every opener lands in a tab of its own. */
+function paneWindow(openScreen = vi.fn()): OrchestratorWindow {
+  return {
+    ask: vi.fn(),
+    browser: null,
+    focusComposer: vi.fn(),
+    openPage: vi.fn(),
+    openScreen,
+    opensNewTab: true,
+    taskId: TaskIdSchema.parse("orchestrator"),
+  };
+}
+
+async function renderRow(
+  row: Thread,
+  { onOpen = vi.fn(), openScreen = vi.fn(), width = 400 } = {},
+) {
+  const rendered = await renderInBrowser(
+    <OrchestratorContext value={paneWindow(openScreen)}>
+      <div style={{ width: `${width}px` }}>
+        <ThreadRow
+          appsBySlug={new Map()}
+          onNewTopic={vi.fn()}
+          onOpen={onOpen}
+          onSetTopics={vi.fn()}
+          thread={row}
+          topics={[HOUSE]}
+        />
+      </div>
+    </OrchestratorContext>,
+  );
+  const rowElement =
+    rendered.container.querySelector<HTMLElement>('[role="button"]');
+  if (!rowElement) {
+    throw new Error("no row");
+  }
+  return { ...rendered, onOpen, openScreen, row: rowElement };
 }
 
 describe("ThreadRow", () => {
-  it("keeps the header on one line however much it carries", async () => {
-    const { container } = await renderRow(
+  it("gives the title the header line and puts the count and the holds at the foot", async () => {
+    const { row } = await renderRow(
       thread({
         holds: {
           apps: ["github", "wakatime"],
@@ -84,20 +116,47 @@ describe("ThreadRow", () => {
         topics: ["house"],
       }),
     );
-    const header = container.querySelector("p");
-    if (!header) {
-      throw new Error("no header line");
+    const lines = linesOf(row);
+    const header = lines[0];
+    const foot = lines[3];
+    if (!header || !foot) {
+      throw new Error("the row is short a line");
     }
-    const title = header.querySelector("span");
-    const titleHeight = title?.getBoundingClientRect().height ?? 0;
-    // One line of the header's own text, with a little air; two lines would
-    // be about double.
-    expect(header.getBoundingClientRect().height).toBeLessThan(
-      titleHeight * 1.6,
+    const title = header.querySelector("span.truncate");
+    // The title has the line to itself but the time and the marks, so it is
+    // most of the row rather than a few letters before an ellipsis.
+    expect(title?.getBoundingClientRect().width).toBeGreaterThan(
+      row.clientWidth / 2,
     );
-    expect(header.textContent).toContain("3 replies");
-    expect(header.textContent).toContain("last reply");
-    expect(header.textContent).toContain("report.md");
+    expect(header.textContent).not.toContain("replies");
+    expect(header.textContent).not.toContain("report.md");
+    expect(foot.textContent).toContain("3 replies");
+    expect(foot.textContent).toContain("report.md");
+    expect(row.textContent).not.toContain("last reply");
+  });
+
+  it("clips the holds at the edge and counts the rest", async () => {
+    const files = Array.from(
+      { length: 12 },
+      (_, index) => `/task/out/a-long-report-name-${index}.md`,
+    );
+    const { row } = await renderRow(
+      thread({ holds: { apps: [], files, sites: [] } }),
+      { width: 320 },
+    );
+    const foot = linesOf(row).at(-1);
+    await vi.waitFor(() => {
+      // The visible count, not the widest one the measuring row lays out.
+      const more = [...(foot?.querySelectorAll("button") ?? [])].find(
+        (button) =>
+          !button.closest("[aria-hidden]") &&
+          /^\+\d+$/.test(button.textContent),
+      );
+      expect(more).toBeDefined();
+      const shown = files.length - Number(more?.textContent.slice(1));
+      expect(shown).toBeGreaterThan(0);
+      expect(shown).toBeLessThan(files.length);
+    });
   });
 
   it("clamps a long ask to two lines and fades it", async () => {
@@ -153,14 +212,40 @@ describe("ThreadRow", () => {
     );
   });
 
-  it("opens on a click anywhere but the controls at its edge", async () => {
-    const { container, onOpen } = await renderRow(thread());
+  it("opens in place on a plain click anywhere but the control at its edge", async () => {
+    const { container, onOpen, openScreen } = await renderRow(thread());
     const ask = container.querySelector<HTMLElement>(".line-clamp-2");
     ask?.click();
     expect(onOpen).toHaveBeenCalledTimes(1);
     container.querySelector<HTMLElement>('[aria-label="Topics"]')?.click();
     expect(onOpen).toHaveBeenCalledTimes(1);
-    container.querySelector<HTMLElement>('[aria-label="Open thread"]')?.click();
-    expect(onOpen).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[aria-label="Open thread"]')).toBeNull();
+    expect(openScreen).not.toHaveBeenCalled();
+  });
+
+  it("asks the window for a place of its own on a middle or a modified click", async () => {
+    const { onOpen, openScreen, row } = await renderRow(thread());
+    row.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+    expect(openScreen).toHaveBeenCalledWith(
+      `/orchestrator/threads/${sessionId}`,
+    );
+    row.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, metaKey: true }),
+    );
+    expect(openScreen).toHaveBeenCalledTimes(2);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("keeps a click on a hold from opening the thread", async () => {
+    const { onOpen, row } = await renderRow(
+      thread({
+        holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
+      }),
+    );
+    const tile = [...row.querySelectorAll("button")].find((button) =>
+      button.textContent.includes("report.md"),
+    );
+    tile?.click();
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });

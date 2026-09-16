@@ -1,3 +1,4 @@
+import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { asClause } from "../as-clause";
@@ -37,6 +38,27 @@ const ASKS: Record<string, string> = {
   connect_app: "Waiting for you to sign in",
   request_folder: "Waiting for you to pick a folder",
 };
+
+/** The same question, read from a transcript already in hand. */
+export function askIn(
+  messages: SessionMessage.WithParts[],
+): string | undefined {
+  const last = messages.findLast((message) => message.role === "assistant");
+  for (const part of last?.parts ?? []) {
+    const name = part.type.startsWith("tool-")
+      ? part.type.slice("tool-".length)
+      : undefined;
+    if (
+      name &&
+      ASKS[name] &&
+      "state" in part &&
+      (part.state === "input-available" || part.state === "input-streaming")
+    ) {
+      return ASKS[name];
+    }
+  }
+  return undefined;
+}
 
 /**
  * How a turn that ended before the agent wrote any words ended. That happens
@@ -79,8 +101,8 @@ export async function endedWithoutWords(
 
 /**
  * What a conversation is waiting on the user for, when its last turn ended on
- * an ask rather than on words. A channel is a session, so this is also how a
- * channel says it has stopped and needs an answer.
+ * an ask rather than on words. A thread is a session, so this is also how a
+ * thread says it has stopped and needs an answer.
  */
 export async function sessionAsk(
   taskId: TaskId,
@@ -93,23 +115,7 @@ export async function sessionAsk(
   if (messages.isErr()) {
     return undefined;
   }
-  const last = messages.value.findLast(
-    (message) => message.role === "assistant",
-  );
-  for (const part of last?.parts ?? []) {
-    const name = part.type.startsWith("tool-")
-      ? part.type.slice("tool-".length)
-      : undefined;
-    if (
-      name &&
-      ASKS[name] &&
-      "state" in part &&
-      (part.state === "input-available" || part.state === "input-streaming")
-    ) {
-      return ASKS[name];
-    }
-  }
-  return undefined;
+  return askIn(messages.value);
 }
 
 /**

@@ -123,27 +123,6 @@ export async function setTaskState(
 }
 
 /**
- * Applies a change to the channels, reading them inside the write queue.
- *
- * Every channel write is read-modify-write on one array, and several run at
- * once: the window records what has been seen while the user archives or
- * renames. Reading before the queue means the slower writer restores the list
- * the faster one had just changed, which reads as an archived channel coming
- * back.
- */
-export async function updateTaskChannels(
-  dir: TaskDir,
-  update: (
-    channels: NonNullable<TaskState["channels"]>,
-  ) => NonNullable<TaskState["channels"]>,
-): Promise<NonNullable<TaskState["channels"]>> {
-  const written = await updateTaskRecord(dir, (record) =>
-    recordWithState(record, { channels: update(record.state.channels ?? []) }),
-  );
-  return written.state.channels ?? [];
-}
-
-/**
  * Apply a change to the pane, reading the current one inside the write queue.
  *
  * The tab actions are read-modify-write on top of a read-modify-write, and the
@@ -191,6 +170,38 @@ export async function updateTaskRecord(
     await writeTaskRecord(dir, next);
     return recordFrom(next);
   });
+}
+
+/**
+ * Applies a change to the state, reading the current one inside the write
+ * queue.
+ *
+ * For the fields that are read-modify-write on one value with several writers
+ * at once: the window records what has been seen in a thread while the agent
+ * tags it and a task files itself from it. Reading before the queue means the
+ * slower writer restores the value the faster one had just changed.
+ */
+export async function updateTaskState(
+  dir: TaskDir,
+  update: (state: TaskState) => Partial<TaskState>,
+): Promise<TaskState> {
+  const written = await updateTaskRecord(dir, (record) =>
+    recordWithState(record, update(record.state)),
+  );
+  return written.state;
+}
+
+/** Applies a change to the topics, reading them inside the write queue. */
+export async function updateTaskTopics(
+  dir: TaskDir,
+  update: (
+    topics: NonNullable<TaskState["topics"]>,
+  ) => NonNullable<TaskState["topics"]>,
+): Promise<NonNullable<TaskState["topics"]>> {
+  const written = await updateTaskState(dir, (state) => ({
+    topics: update(state.topics ?? []),
+  }));
+  return written.topics ?? [];
 }
 
 function emptyRecord(unreadable: boolean): TaskRecord {

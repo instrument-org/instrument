@@ -40,7 +40,7 @@ import { initializeTask } from "../initialize-task";
 import { newMessage } from "../new-message";
 import { newTaskId } from "../new-task-id";
 import { isWorking, leftRunning } from "../orchestrator/activity";
-import { recordTaskChannel } from "../orchestrator/attribution";
+import { recordTaskThread } from "../orchestrator/attribution";
 import { listChildTasks } from "../orchestrator/children";
 import {
   lastAssistantText,
@@ -107,7 +107,7 @@ export interface TaskCommandContext {
   /** What is left of the enclosing call's yield window, read when a wait starts. */
   remainingYieldMs: () => number;
   /**
-   * The channel this command is running in, recorded on every task it makes so
+   * The thread this command is running in, recorded on every task it makes so
    * the outcome comes back where it was asked for. Absent where the command is
    * built outside a turn, which leaves a task unattributed rather than wrong.
    */
@@ -577,7 +577,7 @@ export async function runNew(
     await setTaskState(taskDir(taskId), { browserTargetId });
   }
   if (context.sessionId) {
-    await recordTaskChannel({
+    await recordTaskThread({
       orchestratorTaskId: context.orchestratorTaskId,
       sessionId: context.sessionId,
       taskId,

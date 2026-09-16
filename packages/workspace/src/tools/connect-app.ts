@@ -7,7 +7,7 @@ import { recordConnection } from "../lib/apps/connection";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { appSiteFor } from "../lib/apps/site";
 import { loadApp } from "../lib/apps/store";
-import { recordAppChannel } from "../lib/orchestrator/attribution";
+import { recordAppThread } from "../lib/orchestrator/attribution";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";
@@ -93,8 +93,8 @@ export const ConnectApp = setupTool({
               : "needs-sign-in",
       });
       // What the user does on the card comes back as an app event with no
-      // channel of its own; this is what tells it which one asked.
-      await recordAppChannel({ orchestratorTaskId: taskId, sessionId, slug });
+      // thread of its own; this is what tells it which one asked.
+      await recordAppThread({ orchestratorTaskId: taskId, sessionId, slug });
     }
     return ok({
       kind,

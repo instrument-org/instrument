@@ -5,8 +5,6 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState, setTaskState } from "../task-record";
 import { linkedFiles } from "./linked-files";
 
 vi.mock(import("../session-store-storage"));
@@ -19,24 +17,7 @@ const freshTask = () =>
     TaskIdSchema.parse(`linked-${Date.now()}-${(counter += 1)}`),
   );
 
-/** A channel of the conversation, with a session behind it. */
-async function channel(taskId: TaskId, name: string) {
-  const sessionId = StoreId.newSessionId();
-  await Store.saveSession(
-    { createdAt: new Date(), id: sessionId, title: name },
-    taskId,
-  );
-  const state = await getTaskState(taskDir(taskId));
-  await setTaskState(taskDir(taskId), {
-    channels: [
-      ...(state.channels ?? []),
-      { createdAt: Date.now(), id: sessionId, name },
-    ],
-  });
-  return sessionId;
-}
-
-/** A reply in a channel, said at a given moment. */
+/** A reply in a thread, said at a given moment. */
 async function said(
   taskId: TaskId,
   sessionId: StoreId.Session,
@@ -70,12 +51,22 @@ async function said(
   await Store.saveMessageWithParts(message, taskId);
 }
 
+/** A thread of the conversation: a session under a title. */
+async function thread(taskId: TaskId, title: string) {
+  const sessionId = StoreId.newSessionId();
+  await Store.saveSession(
+    { createdAt: new Date(), id: sessionId, title },
+    taskId,
+  );
+  return sessionId;
+}
+
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 7, 12, minute));
 
 describe("linkedFiles", () => {
   it("names what a reply put on screen, newest first", async () => {
     const taskId = freshTask();
-    const sessionId = await channel(taskId, "General");
+    const sessionId = await thread(taskId, "General");
     await said(
       taskId,
       sessionId,
@@ -97,10 +88,10 @@ describe("linkedFiles", () => {
     ]);
   });
 
-  it("reads every channel, since the user saw all of them", async () => {
+  it("reads every thread, since the user saw all of them", async () => {
     const taskId = freshTask();
-    const work = await channel(taskId, "Work");
-    const home = await channel(taskId, "Home");
+    const work = await thread(taskId, "Work");
+    const home = await thread(taskId, "Home");
     await said(taskId, work, "```files\noutput/deck.pdf\n```", at(1));
     await said(taskId, home, "```files\n/mnt/Documents/plan.md\n```", at(2));
 
@@ -114,7 +105,7 @@ describe("linkedFiles", () => {
 
   it("leaves a path the reply only talked about out of it", async () => {
     const taskId = freshTask();
-    const sessionId = await channel(taskId, "General");
+    const sessionId = await thread(taskId, "General");
     await said(
       taskId,
       sessionId,
@@ -129,7 +120,7 @@ describe("linkedFiles", () => {
 
   it("names a file shown twice once, at the last time it was shown", async () => {
     const taskId = freshTask();
-    const sessionId = await channel(taskId, "General");
+    const sessionId = await thread(taskId, "General");
     await said(taskId, sessionId, "```files\noutput/report.md\n```", at(1));
     await said(taskId, sessionId, "```files\noutput/chart.png\n```", at(2));
     await said(taskId, sessionId, "```files\noutput/report.md\n```", at(3));
@@ -142,7 +133,7 @@ describe("linkedFiles", () => {
     ]);
   });
 
-  it("has nothing to show for a conversation with no channels", async () => {
+  it("has nothing to show for a conversation with no threads", async () => {
     const taskId = freshTask();
 
     await expect(linkedFiles(taskId)).resolves.toEqual([]);

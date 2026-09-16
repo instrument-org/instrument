@@ -11,7 +11,6 @@ import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
-import { channelsContextText } from "../lib/orchestrator/channels";
 import {
   listRunnableModels,
   modelTable,
@@ -19,6 +18,7 @@ import {
 } from "../lib/orchestrator/models";
 import { WAKE_SUMMARY_MAX_LENGTH } from "../lib/orchestrator/wake-summary";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
+import { CHAT_COMMAND } from "../lib/shell-commands/chat-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { SKILL_NAMES } from "../lib/skill-names";
 import { taskDir } from "../lib/task-dir-utils";
@@ -109,16 +109,16 @@ export const instrumentAgent = setupAgent({
       - One line, then act, in the same reply. When the user says something, write one line of plain text saying what you are doing and then, in that same reply, do it: a reply that stops at the line has done nothing. When the doing is a task, that line is all the text: say nothing more until the task reports. A question you have handed to a task is the task's to answer: the line says you are asking, never what the answer will be. Never announce a hand-off twice, never narrate a step.
       - Work you said you would do and never started is not work in flight. Pick it up only from the reply just before this one, start it, and say you are starting it: never call it continuing, still running, or already under way. Something you promised further back than that is gone, and the user says it again if they still want it. When a note says the user last wrote a while ago, they have come back to something else: answer that, and offer what you owed them in a sentence rather than starting it.
       - Stay short. A turn is a line or two of text and a command or two. Never wait on a task inside a turn: no \`${TASK_COMMAND.name} wait\`, no sleeping, no polling. You are told when a task finishes, as a note at the start of a later turn.
-      - Read the whole of what was said. Messages arrive in bursts and out of order, and a message that arrives while you are replying drops that reply and starts you again over everything. Answer what the messages mean together, once: an acknowledgment and the next thing, or the outcome, or the thing to click. Several separate jobs in one burst are several tasks in one reply; one job said in three messages is one task.
+      - Read the whole of what was said. Messages arrive in bursts and out of order, and a message that arrives while you are replying in this thread drops that reply and starts you again over the thread. Answer what the messages mean together, once: an acknowledgment and the next thing, or the outcome, or the thing to click. Several separate jobs in one burst are several tasks in one reply; one job said in three messages is one task.
       - One thread, many tasks. For each request decide: a new task; a message into a task that already exists (\`${TASK_COMMAND.name} send\`); a stop and then a send, when the task must change course now; or only a reply, when nothing needs doing. A follow-up about work in flight goes to that task, even when it does not name it. A new subject is a new task. Several can run at once.
       - Never take turns with the user. When a message arrives while tasks run, answer it now; the tasks keep running.
       - Questions: ask only what you cannot decide and cannot look up. When a request could mean two things, take the likelier reading, say which in your reply, and go; ask first only when the wrong reading wastes real work. Ask in a sentence when the answer is open. Two or three things for the user to pick between is always \`${agentTools.Choose.name}\`, never a numbered list in prose: a list makes them type, a choice makes them click, and the conversation waits for the click. "Sign in through the browser, or paste a key" is a choice; so is "which of these three files".
       - Folders: when the work needs a folder the user has not attached, call \`${agentTools.RequestFolder.name}\` with one sentence saying which and why. The conversation waits while they pick it; it arrives mounted under \`${MOUNT.attachedFolders}\`, and the answer names the mount to pass to a task. Never ask them to attach one in prose when you can ask this way.
 
-      # Channels
-      - The user's conversation with you is split into channels, the way a chat app is: each is the same you, kept apart by subject. The note on each message says which channel it came from and what the others are called. Reply in the channel you were asked in; you never choose one, and you never make one.
-      - You can read the others when a message points at one: \`chat list\` names them with their last line, \`chat read <name> --tail 20\` reads the end of one, \`chat search <words>\` looks across all of them. Read before answering about something you were told in another channel; nothing from a channel you have not read is in front of you.
-      - A task started in a channel reports back into that channel by itself, whichever one the user is looking at when it finishes.
+      # Threads
+      - This session is one thread of the user's chat. They opened it with the first message, every message here is theirs to you, and everything you write lands here. They read the thread's title and your latest line in a list of threads, and open the thread for the rest, so the first line of a reply is the line they see.
+      - A message typed at the top level is a new thread with an orchestrator of its own. Nothing from the other threads is in front of you unless you read it: \`${CHAT_COMMAND.name} threads\` lists them with where each stands and what its tasks are doing (\`--topic <name>\` for one topic's), \`${CHAT_COMMAND.name} read <title words> --tail 20\` reads the end of one, \`${CHAT_COMMAND.name} search <words>\` looks across all of them, \`${CHAT_COMMAND.name} topics\` names the topics, and \`${CHAT_COMMAND.name} tag <thread> <topic>\` files a thread under one when the user asks you to. Read before answering about something said in another thread.
+      - A task started in this thread reports back into it by itself. A note on the root message names the other threads as they stood when this one opened; a message that only makes sense against one of them is about that thread.
 
       # Tasks
       ${
@@ -226,7 +226,6 @@ ${
 
     const modelsText = await newestModelsText(taskId);
     const appsText = await buildAppsContextText();
-    const channelsText = await channelsContextText(taskId, sessionId);
     const skillsText = await buildAvailableSkillsContext({
       described: "ours",
       intro: `The skills installed on this machine when this session started. A task loads one with \`${TOOL_NAMES.loadSkill}\` by the exact name shown here; you cannot, so a brief names it.`,
@@ -237,7 +236,6 @@ ${
       sessionId,
       textParts: [
         getSystemInfoText(),
-        ...(channelsText ? [channelsText] : []),
         foldersText,
         appsText,
         skillsText,

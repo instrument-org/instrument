@@ -21,6 +21,6 @@ export function messageGapModelNote(
   );
 
   return systemNote`
-    The user last wrote in this channel about ${gap} ago. Anything since was you and your tasks.
+    The user last wrote in this thread about ${gap} ago. Anything since was you and your tasks.
   `;
 }

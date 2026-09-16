@@ -1,6 +1,8 @@
+import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
+import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { getTask } from "../../lib/get-tasks";
 import {
   isWorking,
@@ -8,18 +10,7 @@ import {
   orchestratorActivity,
   OrchestratorActivitySchema,
 } from "../../lib/orchestrator/activity";
-import { taskChannels } from "../../lib/orchestrator/attribution";
-import {
-  archiveChannel,
-  CHANNEL_NAME_MAX,
-  channelName,
-  channelStandings,
-  createChannel,
-  listChannels,
-  markChannelSeen,
-  reorderChannels,
-  updateChannel,
-} from "../../lib/orchestrator/channels";
+import { taskThreads } from "../../lib/orchestrator/attribution";
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
 import {
@@ -27,6 +18,20 @@ import {
   ensureOutputFolder,
 } from "../../lib/orchestrator/output-folder";
 import { taskStanding } from "../../lib/orchestrator/standing";
+import {
+  listThreads,
+  markThreadSeen,
+  setThreadTopics,
+  ThreadSchema,
+} from "../../lib/orchestrator/threads";
+import {
+  createTopic,
+  listTopics,
+  retireTopic,
+  TOPIC_NAME_MAX,
+  updateTopic,
+} from "../../lib/orchestrator/topics";
+import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
@@ -74,21 +79,6 @@ const children = base
   .input(z.object({ id: TaskIdSchema }))
   .output(
     TaskSchema.extend({
-      /**
-       * The channel it was filed from, as the user knows it, absent for a task
-       * made before channels or filed from one since archived.
-       */
-      channel: z
-        .object({
-          color: z.string().optional(),
-          emoji: z.string().optional(),
-          /** The channel the conversation started in, which wears the app's mark. */
-          isHome: z.boolean().optional(),
-          name: z.string(),
-        })
-        .optional(),
-      /** The same channel by its session id, for the window's own bookkeeping. */
-      channelId: StoreId.SessionSchema.optional(),
       // With each one's folder on disk: what a link into `/tasks/<id>` opens.
       dir: z.string(),
       /** Where it stands and the line the list says about it. */
@@ -96,39 +86,34 @@ const children = base
         kind: z.enum(["done", "failed", "running", "waiting"]),
         line: z.string(),
       }),
+      /** The thread it was filed from, absent for a task filed outside a turn. */
+      threadId: StoreId.SessionSchema.optional(),
+      /** That thread's title, as the user knows it. */
+      threadTitle: z.string().optional(),
     }).array(),
   )
   .handler(async ({ input }) => {
     const tasks = await listChildTasks(input.id);
-    const filedIn = await taskChannels(input.id);
-    // The session a task was filed from is an id; the row wants the whole mark
-    // the user chose for it, so a task is drawn in the colors of the channel it
-    // was asked for in wherever it is named.
-    const channels = await listChannels(input.id);
-    const known = new Map(
-      channels.map((channel, index) => [
-        channel.id,
-        {
-          ...(channel.color ? { color: channel.color } : {}),
-          ...(channel.emoji ? { emoji: channel.emoji } : {}),
-          ...(index === 0 ? { isHome: true } : {}),
-          name: channel.name,
-        },
-      ]),
+    const filedIn = await taskThreads(input.id);
+    const sessions = await Store.getSessions(input.id);
+    const titles = new Map(
+      sessions.isOk()
+        ? sessions.value.map((session) => [session.id, session.title])
+        : [],
     );
     return await Promise.all(
       tasks.map(async (task) => {
-        const filed = filedIn[task.id];
-        const channel = filed ? known.get(filed) : undefined;
+        const threadId = filedIn[task.id];
+        const threadTitle = threadId ? titles.get(threadId) : undefined;
         return {
           ...task,
-          ...(channel ? { channel } : {}),
-          ...(filed && channel ? { channelId: filed } : {}),
           dir: taskDir(task.id),
           standing: await taskStanding({
             isRunning: isWorking(task.id),
             taskId: task.id,
           }),
+          ...(threadId ? { threadId } : {}),
+          ...(threadTitle === undefined ? {} : { threadTitle }),
         };
       }),
     );
@@ -156,87 +141,140 @@ const ensure = base
     return result.value;
   });
 
-const ChannelSchema = z.object({
+const TopicSchema = z.object({
+  about: z.string().optional(),
   color: z.string().optional(),
   createdAt: z.number(),
   emoji: z.string().optional(),
-  id: StoreId.SessionSchema,
+  id: z.string(),
   name: z.string(),
-  needsYou: z.boolean(),
-  unread: z.number(),
-  updatedAt: z.number(),
+  retired: z.boolean().optional(),
 });
 
-/** What the user picks about a channel: its mark, its tint. */
-const ChannelMarkSchema = z.object({
+/** What the user picks about a topic: its mark, its tint. */
+const TopicMarkSchema = z.object({
   color: z.string().max(9).optional(),
   emoji: z.string().max(8).optional(),
 });
 
-/** The conversation's channels, in the order they were made. */
-const listChannelsRoute = base
+const TopicNameSchema = z
+  .string()
+  .min(1)
+  .max(TOPIC_NAME_MAX * 2);
+
+/** The conversation's threads, oldest first. */
+const listThreadsRoute = base
   .input(z.object({ id: TaskIdSchema }))
-  .output(ChannelSchema.array())
-  .handler(({ input }) => channelStandings(input.id));
+  .output(ThreadSchema.array())
+  .handler(({ input }) => listThreads(input.id));
 
-/** Makes a channel: a session of the same conversation under a name. */
-const createChannelRoute = base
-  .input(
-    ChannelMarkSchema.extend({
-      id: TaskIdSchema,
-      name: z
-        .string()
-        .min(1)
-        .max(CHANNEL_NAME_MAX * 2),
-    }),
-  )
-  .output(ChannelSchema.omit({ needsYou: true, unread: true, updatedAt: true }))
-  .handler(({ input }) =>
-    createChannel(input.id, channelName(input.name), {
-      ...(input.color ? { color: input.color } : {}),
-      ...(input.emoji ? { emoji: input.emoji } : {}),
-    }),
-  );
+/**
+ * The same list, re-read whenever anything lands in any thread or a thread's
+ * record changes. A burst of events collapses into one re-read, since the
+ * next batch is only pulled once the current list has been yielded.
+ */
+const liveListThreadsRoute = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(eventIterator(ThreadSchema.array()))
+  .handler(async function* ({ input, signal }) {
+    // Subscribed before the first read, so nothing lands unobserved between
+    // the two; an event the read already covered only costs one re-read.
+    const batches = changedMessageBatches({ id: input.id }, signal);
+    const sessionUpdates = publisher.subscribe("session.updated", { signal });
+    const sessionRemoved = publisher.subscribe("session.removed", { signal });
+    async function* changed() {
+      for await (const _batch of batches) {
+        yield null;
+      }
+    }
+    async function* forThisTask(
+      generator: typeof sessionRemoved | typeof sessionUpdates,
+    ) {
+      for await (const payload of generator) {
+        if (payload.id === input.id) {
+          yield null;
+        }
+      }
+    }
+    try {
+      yield await listThreads(input.id);
+      for await (const _change of mergeGenerators([
+        changed(),
+        forThisTask(sessionUpdates),
+        forThisTask(sessionRemoved),
+      ])) {
+        yield await listThreads(input.id);
+      }
+    } finally {
+      await batches.return();
+    }
+  });
 
-/** Changes what the user chose about a channel: its name, its mark, its tint. */
-const updateChannelRoute = base
+/** What the user has seen in a thread, so its count can clear. */
+const seenThreadRoute = base
+  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .handler(async ({ input }) => {
+    await markThreadSeen(input.id, input.sessionId);
+  });
+
+/** The topics a thread carries, replaced whole. */
+const setThreadTopicsRoute = base
   .input(
-    ChannelMarkSchema.extend({
+    z.object({
       id: TaskIdSchema,
-      name: z
-        .string()
-        .min(1)
-        .max(CHANNEL_NAME_MAX * 2)
-        .optional(),
       sessionId: StoreId.SessionSchema,
+      topics: z.array(z.string()),
     }),
   )
   .handler(async ({ input }) => {
-    await updateChannel(input.id, input.sessionId, {
+    await setThreadTopics(input.id, input.sessionId, input.topics);
+  });
+
+/** The conversation's topics: in use first, in the order made, then retired. */
+const listTopicsRoute = base
+  .input(z.object({ id: TaskIdSchema }))
+  .output(TopicSchema.array())
+  .handler(({ input }) => listTopics(input.id));
+
+/** Makes a topic under a name. */
+const createTopicRoute = base
+  .input(
+    TopicMarkSchema.extend({
+      id: TaskIdSchema,
+      name: TopicNameSchema,
+    }),
+  )
+  .output(TopicSchema)
+  .handler(({ input }) =>
+    createTopic(input.id, {
+      ...(input.color ? { color: input.color } : {}),
+      ...(input.emoji ? { emoji: input.emoji } : {}),
+      name: input.name,
+    }),
+  );
+
+/** Changes what the user chose about a topic: its name, its mark, its tint. */
+const updateTopicRoute = base
+  .input(
+    TopicMarkSchema.extend({
+      id: TaskIdSchema,
+      name: TopicNameSchema.optional(),
+      topicId: z.string(),
+    }),
+  )
+  .handler(async ({ input }) => {
+    await updateTopic(input.id, input.topicId, {
       ...(input.color === undefined ? {} : { color: input.color }),
       ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
       ...(input.name === undefined ? {} : { name: input.name }),
     });
   });
 
-/** Takes a channel out of the strip, keeping what was said in it. */
-const archiveChannelRoute = base
-  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
-  .output(z.object({ archived: z.boolean(), reason: z.string().optional() }))
-  .handler(({ input }) => archiveChannel(input.id, input.sessionId));
-
-/** The order the user dragged the strip into. */
-const reorderChannelsRoute = base
-  .input(z.object({ id: TaskIdSchema, ids: StoreId.SessionSchema.array() }))
+/** Takes a topic out of the menus, leaving the threads that carry it alone. */
+const retireTopicRoute = base
+  .input(z.object({ id: TaskIdSchema, topicId: z.string() }))
   .handler(async ({ input }) => {
-    await reorderChannels(input.id, input.ids);
-  });
-
-/** What the user has seen in a channel, so its count can clear. */
-const seenChannelRoute = base
-  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
-  .handler(async ({ input }) => {
-    await markChannelSeen(input.id, input.sessionId);
+    await retireTopic(input.id, input.topicId);
   });
 
 /**
@@ -293,18 +331,22 @@ const opened = base
 
 export const orchestrator = {
   activity,
-  channels: {
-    archive: archiveChannelRoute,
-    create: createChannelRoute,
-    list: listChannelsRoute,
-    reorder: reorderChannelsRoute,
-    seen: seenChannelRoute,
-    update: updateChannelRoute,
-  },
   children,
   childStatus,
   ensure,
   events: { open },
   opened,
   setActiveTab,
+  threads: {
+    list: listThreadsRoute,
+    live: { list: liveListThreadsRoute },
+    seen: seenThreadRoute,
+    setTopics: setThreadTopicsRoute,
+  },
+  topics: {
+    create: createTopicRoute,
+    list: listTopicsRoute,
+    retire: retireTopicRoute,
+    update: updateTopicRoute,
+  },
 };

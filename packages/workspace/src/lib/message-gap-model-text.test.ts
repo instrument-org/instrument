@@ -9,7 +9,7 @@ describe("messageGapModelNote", () => {
     expect(messageGapModelNote({ minutes: 60 })).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The user last wrote in this channel about 1 hour ago. Anything since was you and your tasks.
+      The user last wrote in this thread about 1 hour ago. Anything since was you and your tasks.
       </instrument-system-note>"
     `);
   });
@@ -18,7 +18,7 @@ describe("messageGapModelNote", () => {
     expect(messageGapModelNote({ minutes: 22 * 60 })).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The user last wrote in this channel about 22 hours ago. Anything since was you and your tasks.
+      The user last wrote in this thread about 22 hours ago. Anything since was you and your tasks.
       </instrument-system-note>"
     `);
   });
@@ -28,7 +28,7 @@ describe("messageGapModelNote", () => {
       .toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The user last wrote in this channel about 3 days ago. Anything since was you and your tasks.
+      The user last wrote in this thread about 3 days ago. Anything since was you and your tasks.
       </instrument-system-note>"
     `);
   });

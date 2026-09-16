@@ -55,8 +55,8 @@ describe("orchestratorRefusal", () => {
     expect(orchestratorRefusal("app tools notion | head -20")).toBeUndefined();
   });
 
-  it("lets the conversation read its other channels", () => {
-    expect(orchestratorRefusal("chat list")).toBeUndefined();
+  it("lets the conversation read its other threads", () => {
+    expect(orchestratorRefusal("chat threads --topic work")).toBeUndefined();
     expect(
       orchestratorRefusal("chat read Connect --tail 20 | head -5"),
     ).toBeUndefined();

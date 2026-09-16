@@ -1,6 +1,7 @@
 import { err, ok, type Result } from "neverthrow";
 import { alphabetical } from "radashi";
 
+import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { createSession } from "../create-session";
@@ -21,9 +22,15 @@ export async function lastAssistantText({
   if (messages.isErr()) {
     return undefined;
   }
-  const last = messages.value.findLast(
-    (message) => message.role === "assistant",
-  );
+  return lastAssistantTextIn(messages.value, maxLength);
+}
+
+/** The same words, read from a transcript already in hand. */
+export function lastAssistantTextIn(
+  messages: SessionMessage.WithParts[],
+  maxLength: number,
+): string | undefined {
+  const last = messages.findLast((message) => message.role === "assistant");
   const text = last?.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n")

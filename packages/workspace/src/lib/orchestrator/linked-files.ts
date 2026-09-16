@@ -4,13 +4,11 @@ import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
 
 /**
- * How far back into a channel this reads. A file the conversation handed over
+ * How far back into a thread this reads. A file the conversation handed over
  * a hundred messages ago is history rather than a recent, and the point of a
- * bound is that a channel a year old costs the same to ask as a new one.
+ * bound is that a thread a year old costs the same to ask as a new one.
  */
 const MESSAGES_READ = 100;
 
@@ -27,7 +25,7 @@ export interface LinkedFile {
  * What the agent chose to show is the whole of it: a `files` fence or a link
  * to a path, the two things a reply draws as something to open. Read back out
  * of what was said rather than recorded as it happened, so it needs nothing
- * kept up to date and says the same thing after a restart. Every channel is
+ * kept up to date and says the same thing after a restart. Every thread is
  * asked, since the user saw all of them.
  *
  * A path here is what the user was shown, not a promise that anything is still
@@ -36,10 +34,10 @@ export interface LinkedFile {
 export async function linkedFiles(
   orchestratorTaskId: TaskId,
 ): Promise<LinkedFile[]> {
-  const state = await getTaskState(taskDir(orchestratorTaskId));
+  const sessions = await Store.getSessions(orchestratorTaskId);
   const shown = await Promise.all(
-    (state.channels ?? []).map((channel) =>
-      shownIn(orchestratorTaskId, channel.id),
+    (sessions.isOk() ? sessions.value : []).map((session) =>
+      shownIn(orchestratorTaskId, session.id),
     ),
   );
   // Newest first, then one entry per file: a file handed over again is the
@@ -50,7 +48,7 @@ export async function linkedFiles(
   );
 }
 
-/** What one channel's replies showed. */
+/** What one thread's replies showed. */
 async function shownIn(
   taskId: TaskId,
   sessionId: StoreId.Session,

@@ -23,7 +23,7 @@ const AWAY_AFTER_MS = ms("1 hour");
 
 /**
  * Reports how long the user was gone, on the first message they send after a
- * long silence in a channel.
+ * long silence in a thread.
  *
  * The session context states the date the session began and nothing states the
  * time, so without this a gap of twenty seconds and a gap of a day reach the
@@ -36,7 +36,7 @@ const AWAY_AFTER_MS = ms("1 hour");
  * the orchestrator with a `user` message of its own, and counting those would
  * report three minutes of silence across a night where the user said nothing.
  *
- * Returns undefined when the user has not written in this channel before, and
+ * Returns undefined when the user has not written in this thread before, and
  * on every message inside the window.
  */
 export function detectMessageGap({

@@ -34,6 +34,12 @@ export namespace Session {
      */
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
     title: z.string(),
+    /**
+     * The topics this thread is tagged with, by topic id. On the thread's own
+     * record so the thread list is one read and a filter is a predicate over
+     * it; a task's ordinary sessions never carry any.
+     */
+    topics: z.array(z.string()).optional(),
     updatedAt: z.date().optional(),
   });
 

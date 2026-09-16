@@ -32,31 +32,34 @@ export const StoredTaskStateSchema = z
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
     browserTargetId: BrowserTargetIdSchema.optional(),
     /**
-     * The orchestrator's channels, in the order they were made: each a session
-     * of the one conversation under a name the user chose, with the last
-     * message they have seen in it.
-     *
-     * Here rather than on the session record because the order and the name
-     * belong to the window that draws the strip, and because a session the
-     * list does not name is not a channel: the conversations a task's own
-     * `task send` opens, and anything older than channels, stay out of view.
+     * The orchestrator's topics, in the order they were made: the tags a
+     * thread carries, many threads to many topics. Which threads carry one is
+     * on each thread's own session record (`Session.topics`), so retiring a
+     * topic touches no thread and a filter is a predicate over the list.
      */
-    channels: z
+    topics: z
       .array(
         z.object({
-          /** Out of the strip, with everything said in it kept. */
-          archived: z.boolean().optional(),
-          /** The tint its conversation is drawn on, as a hex string. */
+          /** The agent's line about what goes here, for later. */
+          about: z.string().optional(),
+          /** The tint its mark is drawn on, as a hex string. */
           color: z.string().optional(),
           createdAt: z.number(),
-          /** What stands for it on the rail: one emoji, chosen when it was made. */
+          /** What stands for it: one emoji, chosen when it was made. */
           emoji: z.string().optional(),
-          id: StoreId.SessionSchema,
+          id: z.string(),
           name: z.string(),
-          seenMessageId: StoreId.MessageSchema.optional(),
+          /** Out of the menus, with the threads that carry it left alone. */
+          retired: z.boolean().optional(),
         }),
       )
       .optional(),
+    /**
+     * The newest settled message the user has seen in each thread, by session
+     * id. Window state, kept off the session record; unread is every non-user
+     * message after it.
+     */
+    threadSeen: z.record(z.string(), StoreId.MessageSchema).optional(),
     // A pane this build cannot read costs the pane, not the folder list beside
     // it, which the record's silent catch would otherwise write away.
     // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
@@ -78,16 +81,16 @@ export const StoredTaskStateSchema = z
     selectedModelURI: z.string().optional(),
     showTutorial: z.boolean().optional(),
     /**
-     * The channel each task was filed from, by task id: what sends a task's
-     * outcome back to the channel that asked for it rather than to whichever
-     * one is on screen when it finishes.
+     * The thread each task was filed from, by task id: what sends a task's
+     * outcome back to the thread that asked for it rather than to whichever
+     * one is newest when it finishes.
      */
-    taskChannels: z.record(z.string(), StoreId.SessionSchema).optional(),
+    taskThreads: z.record(z.string(), StoreId.SessionSchema).optional(),
     /**
-     * The channel each app was asked for in, by slug: what sends the news of
-     * a sign-in, a key, or a decline back to the channel that asked for it.
+     * The thread each app was asked for in, by slug: what sends the news of
+     * a sign-in, a key, or a decline back to the thread that asked for it.
      */
-    appChannels: z.record(z.string(), StoreId.SessionSchema).optional(),
+    appThreads: z.record(z.string(), StoreId.SessionSchema).optional(),
   })
   .default(() => ({}));
 

@@ -1,33 +1,36 @@
 import { defineCommand } from "just-bash";
+import { alphabetical } from "radashi";
 
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import {
-  channelByName,
-  channelName,
-  listChannels,
-} from "../orchestrator/channels";
+  listThreads,
+  setThreadTopics,
+  type Thread,
+} from "../orchestrator/threads";
+import { listTopics, type Topic, topicByName } from "../orchestrator/topics";
 import { Store } from "../store";
+import { CHAT_COMMAND } from "./chat-command";
 
-const CHAT_NAME = "chat";
+export { CHAT_COMMAND } from "./chat-command";
 
-export const CHAT_COMMAND = {
-  description: `Read the user's other channels: \`${CHAT_NAME} list\` names them, \`${CHAT_NAME} read <channel> [--tail <n>]\` reads the end of one, \`${CHAT_NAME} search <words>\` finds a line across all of them. The channel you are in arrives with the message; these are for the others.`,
-  name: CHAT_NAME,
-} as const;
+const CHAT_NAME = CHAT_COMMAND.name;
 
 /** How much of a message a listing shows before it is cut. */
 const LINE_MAX = 240;
 const DEFAULT_TAIL = 20;
+const DEFAULT_THREADS = 20;
 const SEARCH_MAX = 20;
+/** How much of a session id a listing prints, and what a reference may abbreviate it to. */
+const SHORT_ID_LENGTH = 8;
 
 /**
  * The conversation's way of reading itself.
  *
- * A channel is a session of the same conversation, so the agent is in all of
- * them but is only handed the one the message came from. These read the rest
- * on demand, which is what keeps a reply in one channel able to answer about
- * another without every channel riding along in the prompt.
+ * A thread is a session with an orchestrator of its own, handed nothing from
+ * the others. These read the rest on demand, which is what keeps a reply in
+ * one thread able to answer about another without every thread riding along
+ * in the prompt.
  */
 export function createChatCommand({
   orchestratorTaskId,
@@ -37,14 +40,20 @@ export function createChatCommand({
   return defineCommand(CHAT_COMMAND.name, async (args) => {
     const [subcommand, ...rest] = args;
     switch (subcommand) {
-      case "list": {
-        return await runList(orchestratorTaskId);
-      }
       case "read": {
         return await runRead(orchestratorTaskId, rest);
       }
       case "search": {
         return await runSearch(orchestratorTaskId, rest);
+      }
+      case "tag": {
+        return await runTag(orchestratorTaskId, rest);
+      }
+      case "threads": {
+        return await runThreads(orchestratorTaskId, rest);
+      }
+      case "topics": {
+        return await runTopics(orchestratorTaskId);
       }
       default: {
         return {
@@ -57,12 +66,54 @@ export function createChatCommand({
   });
 }
 
-function cut(text: string): string {
+function cut(text: string, max = LINE_MAX): string {
   const line = text.replaceAll(/\s+/g, " ").trim();
-  return line.length > LINE_MAX ? `${line.slice(0, LINE_MAX)}…` : line;
+  return line.length > max ? `${line.slice(0, max)}…` : line;
 }
 
-/** A channel's messages as `who: what` lines, oldest first. */
+function failure(text: string) {
+  return { exitCode: 1, stderr: `${text}\n`, stdout: "" };
+}
+
+/**
+ * The thread a reference names: a session id or the start of one, or words
+ * from the title. One match is the thread; several are listed for the agent
+ * to pick from, since guessing between them answers about the wrong one.
+ */
+function findThread(
+  threads: Thread[],
+  words: string[],
+): { error: string } | { thread: Thread } {
+  const reference = words.join(" ").trim();
+  if (!reference) {
+    return { error: `which thread? ${CHAT_NAME} threads lists them.` };
+  }
+  const byId = threads.filter((thread) =>
+    thread.id.toLowerCase().startsWith(reference.toLowerCase()),
+  );
+  if (byId.length === 1 && byId[0]) {
+    return { thread: byId[0] };
+  }
+  const needles = reference.toLowerCase().split(/\s+/);
+  const byTitle = threads.filter((thread) => {
+    const title = thread.title.toLowerCase();
+    return needles.every((needle) => title.includes(needle));
+  });
+  const matches = byId.length > 0 ? byId : byTitle;
+  if (matches.length === 1 && matches[0]) {
+    return { thread: matches[0] };
+  }
+  if (matches.length === 0) {
+    return {
+      error: `no thread matches "${reference}". ${CHAT_NAME} threads lists them.`,
+    };
+  }
+  return {
+    error: `"${reference}" matches ${matches.length} threads; say which:\n${matches.map((thread) => `  ${shortId(thread.id)}  ${thread.title}`).join("\n")}`,
+  };
+}
+
+/** A thread's messages as `who: what` lines, oldest first. */
 async function lines(
   taskId: TaskId,
   sessionId: StoreId.Session,
@@ -71,75 +122,59 @@ async function lines(
   if (messages.isErr()) {
     return [];
   }
-  return messages.value.flatMap((message) => {
-    const text = message.parts
-      .flatMap((part) => (part.type === "text" ? [part.text] : []))
-      .join(" ")
-      .trim();
-    if (!text) {
-      return [];
-    }
-    return [`${message.role === "user" ? "user" : "you"}: ${cut(text)}`];
-  });
+  return alphabetical(messages.value, (message) => message.id).flatMap(
+    (message) => {
+      if (message.role !== "user" && message.role !== "assistant") {
+        return [];
+      }
+      const text = message.parts
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+        .join(" ")
+        .trim();
+      if (!text) {
+        return [];
+      }
+      return [`${message.role === "user" ? "user" : "you"}: ${cut(text)}`];
+    },
+  );
 }
 
-async function runList(taskId: TaskId) {
-  const channels = await listChannels(taskId);
-  const rows = await Promise.all(
-    channels.map(async (channel) => {
-      const said = await lines(taskId, channel.id);
-      return `#${channel.name}  ${said.length} messages  ${said.at(-1) ?? "nothing yet"}`;
-    }),
-  );
-  return { exitCode: 0, stderr: "", stdout: `${rows.join("\n")}\n` };
+/** The value after a flag, or none when the flag is absent or has no value. */
+function option(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index === -1 ? undefined : args[index + 1];
 }
 
 async function runRead(taskId: TaskId, args: string[]) {
-  const name = args[0];
-  if (!name) {
-    return {
-      exitCode: 1,
-      stderr: `${CHAT_NAME} read: which channel? ${CHAT_NAME} list names them.\n`,
-      stdout: "",
-    };
-  }
-  const channel = await channelByName(taskId, name);
-  if (!channel) {
-    return {
-      exitCode: 1,
-      stderr: `${CHAT_NAME} read: no channel called "${channelName(name)}".\n`,
-      stdout: "",
-    };
-  }
   const tailIndex = args.indexOf("--tail");
-  const tail =
-    tailIndex === -1
-      ? DEFAULT_TAIL
-      : Number(args[tailIndex + 1] ?? DEFAULT_TAIL);
-  const said = await lines(taskId, channel.id);
-  const shown = said.slice(-(Number.isFinite(tail) ? tail : DEFAULT_TAIL));
+  const words = tailIndex === -1 ? args : args.slice(0, tailIndex);
+  const found = findThread(await listThreads(taskId), words);
+  if ("error" in found) {
+    return failure(`${CHAT_NAME} read: ${found.error}`);
+  }
+  const tail = Number(option(args, "--tail") ?? DEFAULT_TAIL);
+  const said = await lines(taskId, found.thread.id);
+  const shown = said.slice(
+    -(Number.isFinite(tail) && tail > 0 ? tail : DEFAULT_TAIL),
+  );
   return {
     exitCode: 0,
     stderr: "",
-    stdout: `#${channel.name}\n${shown.join("\n")}\n`,
+    stdout: `${shortId(found.thread.id)}  "${found.thread.title}"\n${shown.join("\n")}\n`,
   };
 }
 
 async function runSearch(taskId: TaskId, args: string[]) {
   const words = args.join(" ").trim().toLowerCase();
   if (!words) {
-    return {
-      exitCode: 1,
-      stderr: `${CHAT_NAME} search: what words?\n`,
-      stdout: "",
-    };
+    return failure(`${CHAT_NAME} search: what words?`);
   }
-  const channels = await listChannels(taskId);
+  const threads = await listThreads(taskId);
   const hits: string[] = [];
-  for (const channel of channels) {
-    for (const line of await lines(taskId, channel.id)) {
+  for (const thread of threads) {
+    for (const line of await lines(taskId, thread.id)) {
       if (line.toLowerCase().includes(words)) {
-        hits.push(`#${channel.name}  ${line}`);
+        hits.push(`${shortId(thread.id)}  "${thread.title}"  ${line}`);
       }
     }
   }
@@ -149,6 +184,118 @@ async function runSearch(taskId: TaskId, args: string[]) {
     stdout:
       hits.length > 0
         ? `${hits.slice(0, SEARCH_MAX).join("\n")}\n`
-        : `Nothing in any channel matches "${words}".\n`,
+        : `Nothing in any thread matches "${words}".\n`,
   };
+}
+
+async function runTag(taskId: TaskId, args: string[]) {
+  const topicWord = args.at(-1);
+  const threadWords = args.slice(0, -1);
+  if (!topicWord || threadWords.length === 0) {
+    return failure(
+      `${CHAT_NAME} tag: which thread, and which topic? ${CHAT_NAME} tag <thread> <topic>.`,
+    );
+  }
+  const topic = await topicByName(taskId, topicWord);
+  if (!topic) {
+    const topics = await listTopics(taskId);
+    const known = topics.filter((entry) => !entry.retired);
+    return failure(
+      `${CHAT_NAME} tag: no topic called "${topicWord}". ${known.length > 0 ? `The topics: ${known.map((entry) => `#${entry.name}`).join(", ")}.` : "There are no topics yet; the user makes them."}`,
+    );
+  }
+  const found = findThread(await listThreads(taskId), threadWords);
+  if ("error" in found) {
+    return failure(`${CHAT_NAME} tag: ${found.error}`);
+  }
+  if (found.thread.topics.includes(topic.id)) {
+    return {
+      exitCode: 0,
+      stderr: "",
+      stdout: `"${found.thread.title}" is already under #${topic.name}.\n`,
+    };
+  }
+  const written = await setThreadTopics(taskId, found.thread.id, [
+    ...found.thread.topics,
+    topic.id,
+  ]);
+  if (!written) {
+    return failure(`${CHAT_NAME} tag: could not write the thread's topics.`);
+  }
+  return {
+    exitCode: 0,
+    stderr: "",
+    stdout: `Filed "${found.thread.title}" under #${topic.name}.\n`,
+  };
+}
+
+async function runThreads(taskId: TaskId, args: string[]) {
+  const topicWord = option(args, "--topic");
+  const count = Number(option(args, "-n") ?? DEFAULT_THREADS);
+  const topics = await listTopics(taskId);
+  const names = new Map(topics.map((topic) => [topic.id, topic.name]));
+  let threads = await listThreads(taskId);
+  if (topicWord !== undefined) {
+    const topic = await topicByName(taskId, topicWord);
+    if (!topic) {
+      return failure(
+        `${CHAT_NAME} threads: no topic called "${topicWord}". ${CHAT_NAME} topics names them.`,
+      );
+    }
+    threads = threads.filter((thread) => thread.topics.includes(topic.id));
+  }
+  // Newest last, so the end of the listing is where the user is.
+  const shown = threads.slice(
+    -(Number.isFinite(count) && count > 0 ? count : DEFAULT_THREADS),
+  );
+  return {
+    exitCode: 0,
+    stderr: "",
+    stdout:
+      shown.length > 0
+        ? `${shown.map((thread) => threadRow(thread, names)).join("\n")}\n`
+        : `${topicWord === undefined ? "No threads yet." : `No threads under #${topicWord}.`}\n`,
+  };
+}
+
+async function runTopics(taskId: TaskId) {
+  const every = await listTopics(taskId);
+  const topics = every.filter((topic) => !topic.retired);
+  return {
+    exitCode: 0,
+    stderr: "",
+    stdout:
+      topics.length > 0
+        ? `${topics.map(topicRow).join("\n")}\n`
+        : "No topics yet; the user makes them.\n",
+  };
+}
+
+function shortId(sessionId: StoreId.Session): string {
+  return sessionId.slice(0, SHORT_ID_LENGTH);
+}
+
+/** One thread as a listing prints it. */
+function threadRow(thread: Thread, names: Map<string, string>): string {
+  const topics = thread.topics
+    .flatMap((id) => {
+      const name = names.get(id);
+      return name ? [`#${name}`] : [];
+    })
+    .join(" ");
+  const columns = [
+    shortId(thread.id),
+    thread.state,
+    `"${thread.title}"`,
+    ...(topics ? [topics] : []),
+    thread.latest ? cut(thread.latest.text, 120) : "nothing yet",
+    ...(thread.runningTasks.length > 0
+      ? [`running: ${thread.runningTasks.map((task) => task.title).join(", ")}`]
+      : []),
+  ];
+  return columns.join("  ");
+}
+
+function topicRow(topic: Topic): string {
+  return `#${topic.name}${topic.emoji ? `  ${topic.emoji}` : ""}${topic.about ? `  ${topic.about}` : ""}`;
 }

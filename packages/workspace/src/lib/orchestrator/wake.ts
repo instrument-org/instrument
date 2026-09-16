@@ -15,7 +15,7 @@ import { getTaskSettings, recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
-import { channelOfTask } from "./attribution";
+import { threadOfTask } from "./attribution";
 import { filesWrittenBy } from "./files-written";
 import {
   lastAssistantText,
@@ -156,13 +156,13 @@ export function startOrchestratorWake(workspaceRef: WorkspaceActorRef): void {
  * Wake every orchestrator with the same part: what an app event does, since
  * the user acted on the app rather than on any one conversation. An
  * orchestrator that has never been messaged has no model to wake with and
- * nothing waiting on the news, so it is left alone. `channelOf` names the
- * channel to wake each one in; none means its newest.
+ * nothing waiting on the news, so it is left alone. `threadOf` names the
+ * thread to wake each one in; none means its newest.
  */
 export async function wakeOrchestrators(
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
-  channelOf?: (orchestratorId: TaskId) => Promise<StoreId.Session | undefined>,
+  threadOf?: (orchestratorId: TaskId) => Promise<StoreId.Session | undefined>,
 ): Promise<void> {
   const { tasks } = await getTasks(getWorkspaceConfig());
   for (const task of tasks) {
@@ -173,7 +173,7 @@ export async function wakeOrchestrators(
     if (!state.selectedModelURI) {
       continue;
     }
-    await wakeWith(task.id, part, workspaceRef, await channelOf?.(task.id));
+    await wakeWith(task.id, part, workspaceRef, await threadOf?.(task.id));
   }
 }
 
@@ -216,24 +216,24 @@ async function deliver(
   events: TaskEvent[],
   workspaceRef: WorkspaceActorRef,
 ) {
-  // A task reports into the channel it was filed from, so a batch that spans
-  // channels becomes one wake each rather than one message in whichever
-  // channel happens to be newest.
-  const byChannel = new Map<string, TaskEvent[]>();
+  // A task reports into the thread it was filed from, so a batch that spans
+  // threads becomes one wake each rather than one message in whichever
+  // thread happens to be newest.
+  const byThread = new Map<string, TaskEvent[]>();
   const sessions = new Map<string, StoreId.Session | undefined>();
   for (const event of events) {
-    const sessionId = await channelOfTask({
+    const sessionId = await threadOfTask({
       orchestratorTaskId: orchestratorId,
       taskId: event.taskId,
     });
     const key = sessionId ?? "";
     sessions.set(key, sessionId);
-    byChannel.set(key, [...(byChannel.get(key) ?? []), event]);
+    byThread.set(key, [...(byThread.get(key) ?? []), event]);
   }
-  for (const [key, channelEvents] of byChannel) {
+  for (const [key, threadEvents] of byThread) {
     await wakeWith(
       orchestratorId,
-      { data: { events: channelEvents }, type: "data-taskEvent" },
+      { data: { events: threadEvents }, type: "data-taskEvent" },
       workspaceRef,
       sessions.get(key),
     );
@@ -433,8 +433,8 @@ async function wakeWith(
   orchestratorId: TaskId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
-  /** The channel to wake in; the newest one when a caller has no channel. */
-  channelId?: StoreId.Session,
+  /** The thread to wake in; the newest one when a caller has no thread. */
+  threadId?: StoreId.Session,
 ) {
   const workspaceConfig = getWorkspaceConfig();
   const state = await getTaskState(taskDir(orchestratorId));
@@ -457,7 +457,7 @@ async function wakeWith(
   if (session.isErr()) {
     throw session.error;
   }
-  const sessionId = channelId ?? session.value;
+  const sessionId = threadId ?? session.value;
 
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();

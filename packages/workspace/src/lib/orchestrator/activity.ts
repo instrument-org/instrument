@@ -1,22 +1,23 @@
 import { z } from "zod";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type SessionMessage } from "../../schemas/session/message";
+import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { listTaskBackgroundProcesses } from "../background-processes";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { isToolPart } from "../is-tool-part";
 import { Store } from "../store";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
-import { taskChannels } from "./attribution";
+import { taskThreads } from "./attribution";
 import { listChildTasks } from "./children";
 import { latestSessionId } from "./latest-session";
 import { type LeftRunning } from "./left-running";
 
 const RunningTaskSchema = z.object({
-  /** The channel it was filed from, absent for a task made before channels. */
-  channel: z.string().optional(),
   /** What the task is doing this moment, in its agent's own label, when it gave one. */
   step: z.string().optional(),
-  taskId: z.string(),
+  taskId: TaskIdSchema,
+  /** The thread it was filed from, by session id; absent for a task filed outside a turn. */
+  thread: z.string().optional(),
   title: z.string(),
 });
 
@@ -53,7 +54,17 @@ export async function latestStep(taskId: TaskId): Promise<string | undefined> {
   if (messages.isErr()) {
     return undefined;
   }
-  for (const message of messages.value.toReversed()) {
+  return latestStepIn(messages.value);
+}
+
+/**
+ * The label on the newest tool call in a transcript: the activity heading the
+ * agent set, or the explanation on the call, whichever it gave.
+ */
+export function latestStepIn(
+  messages: SessionMessage.WithParts[],
+): string | undefined {
+  for (const message of messages.toReversed()) {
     if (message.role !== "assistant") {
       continue;
     }
@@ -108,14 +119,14 @@ export async function orchestratorActivity(
   orchestratorTaskId: TaskId,
 ): Promise<OrchestratorActivity> {
   const children = await listChildTasks(orchestratorTaskId);
-  const channels = await taskChannels(orchestratorTaskId);
+  const threads = await taskThreads(orchestratorTaskId);
   const running = await Promise.all(
     children
       .filter((child) => isWorking(child.id))
       .map(async (child) => ({
-        ...(channels[child.id] ? { channel: channels[child.id] } : {}),
         step: await latestStep(child.id),
         taskId: child.id,
+        ...(threads[child.id] ? { thread: threads[child.id] } : {}),
         title: child.title,
       })),
   );

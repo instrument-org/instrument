@@ -1,0 +1,453 @@
+import { alphabetical, parallel, unique } from "radashi";
+import { z } from "zod";
+
+import { type Session } from "../../schemas/session";
+import { SessionMessage } from "../../schemas/session/message";
+import { StoreId } from "../../schemas/store-id";
+import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { getTaskAgentStatus } from "../get-task-agent-status";
+import { pathsNamedInMessage } from "../paths-named-in-message";
+import { Store } from "../store";
+import { taskDir } from "../task-dir-utils";
+import { getTaskState, updateTaskState } from "../task-record";
+import { getTaskSettings } from "../task-settings";
+import { getWorkspaceActorRef } from "../workspace-actor-ref";
+import {
+  latestStepIn,
+  type OrchestratorActivity,
+  orchestratorActivity,
+} from "./activity";
+import { askIn } from "./standing";
+import { listTopics } from "./topics";
+
+/** How much of the agent's last reply a thread's row shows. */
+const LATEST_MAX = 160;
+
+/** How many threads are read at once when the list is built. */
+const READ_LIMIT = 8;
+
+export const ThreadSchema = z.object({
+  /** When the root was sent, in ms. */
+  createdAt: z.number(),
+  /**
+   * What the thread has made and used, read out of what was said in it and
+   * out of the tasks filed from it. Best effort: a source that is expensive
+   * to read may leave its list empty.
+   */
+  holds: z.object({
+    /** App slugs the thread called or handed to a task. */
+    apps: z.array(z.string()),
+    /** Paths the replies handed over in files fences, deduped, newest last. */
+    files: z.array(z.string()),
+    /** Hostnames the thread opened for the user. */
+    sites: z.array(z.string()),
+  }),
+  id: StoreId.SessionSchema,
+  /**
+   * The one line saying where the thread stands: the step while it works,
+   * the question while it waits, the first line of the last reply otherwise.
+   */
+  latest: z
+    .object({
+      at: z.number(),
+      kind: z.enum(["question", "reply", "step"]),
+      text: z.string(),
+    })
+    .optional(),
+  /** The newest message that is done, which is what marking seen records. */
+  newestSettledMessageId: StoreId.MessageSchema.optional(),
+  /** Replies that finished with visible words. */
+  replyCount: z.number(),
+  /** The message that opened the thread: the user's first with words or attachments. */
+  root: SessionMessage.UserSchemaWithParts,
+  /** The tasks filed from this thread that are at work right now. */
+  runningTasks: z.array(
+    z.object({
+      id: TaskIdSchema,
+      step: z.string().optional(),
+      title: z.string(),
+    }),
+  ),
+  /**
+   * Working while the thread's own agent is alive or a task filed from it is
+   * running; waiting while its last turn ended on an ask; idle otherwise.
+   */
+  state: z.enum(["idle", "waiting", "working"]),
+  title: z.string(),
+  /** Topic ids, from the session record. */
+  topics: z.array(z.string()),
+  /** Non-user messages after the newest the user has seen; all of them when nothing is recorded. */
+  unread: z.number(),
+  /** When anything last happened in it, in ms. */
+  updatedAt: z.number(),
+});
+
+export type Thread = z.output<typeof ThreadSchema>;
+
+/** What every thread of a conversation is read against, loaded once per list. */
+interface Shared {
+  activity: OrchestratorActivity;
+  seen: Record<string, StoreId.Message>;
+  taskThreads: Record<string, StoreId.Session>;
+}
+
+/**
+ * The conversation's threads, oldest first.
+ *
+ * Every top-level session of the orchestrator task is a thread once the user
+ * has opened it with a message; a session with no such message (one a wake
+ * made before anyone typed, say) is not one and is left out.
+ */
+export async function listThreads(taskId: TaskId): Promise<Thread[]> {
+  const sessions = await Store.getSessions(taskId);
+  if (sessions.isErr()) {
+    return [];
+  }
+  const shared = await loadShared(taskId);
+  const threads = await parallel(
+    { limit: READ_LIMIT },
+    alphabetical(sessions.value, (session) => session.id),
+    (session) => threadFor(taskId, session, shared),
+  );
+  return threads.filter((thread) => thread !== undefined);
+}
+
+/** Records what the user has seen in a thread, so its count can clear. */
+export async function markThreadSeen(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<void> {
+  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+  if (messages.isErr()) {
+    return;
+  }
+  const newest = newestSettledIn(messages.value);
+  if (!newest) {
+    return;
+  }
+  await updateTaskState(taskDir(taskId), (state) => ({
+    threadSeen: { ...state.threadSeen, [sessionId]: newest },
+  }));
+}
+
+/**
+ * Tags a thread with topics, by id. Ids the conversation has no topic for
+ * are dropped rather than written, so the record never names a topic that
+ * was never made.
+ */
+export async function setThreadTopics(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+  topics: string[],
+): Promise<boolean> {
+  const session = await Store.getSession(sessionId, taskId);
+  if (session.isErr()) {
+    return false;
+  }
+  const existing = await listTopics(taskId);
+  const known = new Set(existing.map((topic) => topic.id));
+  const saved = await Store.saveSession(
+    {
+      ...session.value,
+      topics: unique(topics.filter((id) => known.has(id))),
+    },
+    taskId,
+  );
+  return saved.isOk();
+}
+
+/** One thread by its session id, or none for a session that is not one. */
+export async function threadById(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<Thread | undefined> {
+  const session = await Store.getSession(sessionId, taskId);
+  if (session.isErr() || session.value.parentId) {
+    return undefined;
+  }
+  return threadFor(taskId, session.value, await loadShared(taskId));
+}
+
+/** Whether the thread's own agent is at work this moment. */
+export function threadIsAlive(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): boolean {
+  const status = getTaskAgentStatus({
+    id: taskId,
+    workspaceRef: getWorkspaceActorRef(),
+  });
+  return (
+    status.isOk() &&
+    status.value.sessionActors.some(
+      (actor) =>
+        actor.sessionId === sessionId && actor.tags.includes("agent.alive"),
+    )
+  );
+}
+
+/** The app slugs a thread reached: its own calls and the grants of its tasks. */
+async function appsHeld(
+  messages: SessionMessage.WithParts[],
+  filedTasks: TaskId[],
+): Promise<string[]> {
+  const slugs: string[] = [];
+  for (const command of bashCommandsIn(messages)) {
+    for (const match of command.matchAll(/\bapp\s+(?:call|request)\s+(\S+)/g)) {
+      if (match[1]) {
+        slugs.push(match[1]);
+      }
+    }
+  }
+  for (const filed of filedTasks) {
+    const settings = await getTaskSettings(taskDir(filed));
+    slugs.push(...(settings?.apps ?? []));
+  }
+  return unique(slugs);
+}
+
+/** Every command the thread's agent ran in its shell, oldest first. */
+function bashCommandsIn(messages: SessionMessage.WithParts[]): string[] {
+  return messages.flatMap((message) =>
+    message.role === "assistant"
+      ? message.parts.flatMap((part) => {
+          if (part.type !== "tool-bash") {
+            return [];
+          }
+          const input: unknown = part.input;
+          return typeof input === "object" &&
+            input !== null &&
+            "command" in input &&
+            typeof input.command === "string"
+            ? [input.command]
+            : [];
+        })
+      : [],
+  );
+}
+
+/** The paths the replies handed over, deduped, the newest mention last. */
+function filesHeld(messages: SessionMessage.WithParts[]): string[] {
+  const files = new Set<string>();
+  for (const message of messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+    for (const path of pathsNamedInMessage(message)) {
+      files.delete(path);
+      files.add(path);
+    }
+  }
+  return [...files];
+}
+
+/** The first line with words, cut to what a row can show. */
+function firstLine(text: string): string {
+  const line = text.split("\n").find((part) => part.trim()) ?? text;
+  const trimmed = line.trim();
+  return trimmed.length > LATEST_MAX
+    ? `${trimmed.slice(0, LATEST_MAX)}…`
+    : trimmed;
+}
+
+function hasWords(message: SessionMessage.WithParts): boolean {
+  return message.parts.some(
+    (part) => part.type === "text" && part.text.trim() !== "",
+  );
+}
+
+/** Whether a user message opens a thread: it has words, or it brought files. */
+function isRoot(
+  message: SessionMessage.WithParts,
+): message is SessionMessage.UserWithParts {
+  if (message.role !== "user") {
+    return false;
+  }
+  return (
+    hasWords(message) ||
+    message.parts.some(
+      (part) =>
+        part.type === "data-attachments" &&
+        (part.data.files.length > 0 || (part.data.folders?.length ?? 0) > 0),
+    )
+  );
+}
+
+function latestFor({
+  ask,
+  lastAssistant,
+  lastMessage,
+  messages,
+  runningStep,
+  state,
+}: {
+  ask: string | undefined;
+  lastAssistant: SessionMessage.WithParts | undefined;
+  lastMessage: SessionMessage.WithParts | undefined;
+  messages: SessionMessage.WithParts[];
+  runningStep: string | undefined;
+  state: Thread["state"];
+}): Thread["latest"] {
+  if (state === "working") {
+    const step = runningStep ?? latestStepIn(messages);
+    return step && lastMessage
+      ? {
+          at: lastMessage.metadata.createdAt.getTime(),
+          kind: "step",
+          text: step,
+        }
+      : undefined;
+  }
+  if (ask && lastAssistant) {
+    return {
+      at: lastAssistant.metadata.createdAt.getTime(),
+      kind: "question",
+      text: ask,
+    };
+  }
+  // The last reply with words in it, since a turn can end on a tool call
+  // with nothing said, and the row wants the last thing the agent told them.
+  const spoken = messages.findLast(
+    (message) => message.role === "assistant" && hasWords(message),
+  );
+  if (spoken?.role !== "assistant") {
+    return undefined;
+  }
+  return {
+    at: (spoken.metadata.finishedAt ?? spoken.metadata.createdAt).getTime(),
+    kind: "reply",
+    text: firstLine(textOf(spoken)),
+  };
+}
+
+async function loadShared(taskId: TaskId): Promise<Shared> {
+  const state = await getTaskState(taskDir(taskId));
+  return {
+    activity: await orchestratorActivity(taskId),
+    seen: state.threadSeen ?? {},
+    taskThreads: state.taskThreads ?? {},
+  };
+}
+
+/**
+ * The newest message that is done: the user's own, or a reply that has
+ * finished. A reply still being written is not seen by being on screen when
+ * it starts, and marking it so would leave the thread silent about what it
+ * went on to say after the user left.
+ */
+function newestSettledIn(
+  messages: SessionMessage.WithParts[],
+): StoreId.Message | undefined {
+  const settled = messages.filter(
+    (message) =>
+      message.role === "user" ||
+      (message.role === "assistant" &&
+        message.metadata.finishedAt !== undefined),
+  );
+  return alphabetical(settled, (message) => message.id).at(-1)?.id;
+}
+
+/** The hostnames the thread's agent opened for the user with `open <url>`. */
+function sitesHeld(messages: SessionMessage.WithParts[]): string[] {
+  const hosts: string[] = [];
+  for (const command of bashCommandsIn(messages)) {
+    for (const match of command.matchAll(
+      /(?:^|[\n;&|])\s*open\s+['"]?(https?:\/\/[^\s'"]+)/g,
+    )) {
+      try {
+        hosts.push(new URL(match[1] ?? "").hostname);
+      } catch {
+        // Not an address the shell would have opened either.
+      }
+    }
+  }
+  return unique(hosts.filter((host) => host !== ""));
+}
+
+function textOf(message: SessionMessage.WithParts): string {
+  return message.parts
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n");
+}
+
+async function threadFor(
+  taskId: TaskId,
+  session: Session.Type,
+  shared: Shared,
+): Promise<Thread | undefined> {
+  const read = await Store.getMessagesWithParts({
+    sessionId: session.id,
+    taskId,
+  });
+  if (read.isErr()) {
+    return undefined;
+  }
+  const messages = alphabetical(read.value, (message) => message.id);
+  const root = messages.find(isRoot);
+  if (!root) {
+    return undefined;
+  }
+
+  const filedTasks = Object.entries(shared.taskThreads).flatMap(
+    ([filed, sessionId]) =>
+      sessionId === session.id ? [TaskIdSchema.parse(filed)] : [],
+  );
+  const runningTasks = shared.activity.running
+    .filter((task) => task.thread === session.id)
+    .map((task) => ({
+      id: task.taskId,
+      ...(task.step ? { step: task.step } : {}),
+      title: task.title,
+    }));
+
+  const working = runningTasks.length > 0 || threadIsAlive(taskId, session.id);
+  const ask = working ? undefined : askIn(messages);
+  const state = working ? "working" : ask ? "waiting" : "idle";
+
+  const seen = shared.seen[session.id];
+  const unread = messages.filter(
+    (message) =>
+      message.role !== "user" &&
+      message.role !== "session-context" &&
+      (seen === undefined || message.id > seen),
+  ).length;
+
+  const lastAssistant = messages.findLast(
+    (message) => message.role === "assistant",
+  );
+  const lastMessage = messages.at(-1);
+  const latest = latestFor({
+    ask,
+    lastAssistant,
+    lastMessage,
+    messages,
+    runningStep: runningTasks.find((task) => task.step)?.step,
+    state,
+  });
+
+  const newestSettledMessageId = newestSettledIn(messages);
+  return {
+    createdAt: root.metadata.createdAt.getTime(),
+    holds: {
+      apps: await appsHeld(messages, filedTasks),
+      files: filesHeld(messages),
+      sites: sitesHeld(messages),
+    },
+    id: session.id,
+    ...(latest ? { latest } : {}),
+    ...(newestSettledMessageId ? { newestSettledMessageId } : {}),
+    replyCount: messages.filter(
+      (message) =>
+        message.role === "assistant" &&
+        message.metadata.finishedAt !== undefined &&
+        hasWords(message),
+    ).length,
+    root,
+    runningTasks,
+    state,
+    title: session.title,
+    topics: session.topics ?? [],
+    unread,
+    updatedAt: (session.updatedAt ?? session.createdAt).getTime(),
+  };
+}

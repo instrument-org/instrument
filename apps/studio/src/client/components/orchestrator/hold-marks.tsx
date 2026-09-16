@@ -1,5 +1,5 @@
+import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { Favicon } from "@/client/components/favicon";
-import { FileIcon } from "@/client/components/file-icon";
 import {
   Popover,
   PopoverContent,
@@ -59,13 +59,15 @@ export function HoldMarks({
         target: { href: `/orchestrator/apps/${slug}`, kind: "screen" as const },
       };
     }),
-    ...holds.files.map((path) => ({
-      icon: <FileIcon className="size-4" filename={basename(path)} />,
+    // The newest first, so what the thread made last is what shows before
+    // the count folds the rest away.
+    ...holds.files.toReversed().map((path) => ({
+      icon: <FileTypeIcon className="size-4" fileName={basename(path)} />,
       key: `file:${path}`,
       name: basename(path),
       target: { kind: "path" as const, path },
     })),
-    ...holds.sites.map((site) => ({
+    ...holds.sites.toReversed().map((site) => ({
       icon: <Favicon className="size-4" url={addressOf(site)} />,
       key: `site:${site}`,
       name: hostOf(site),

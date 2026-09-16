@@ -254,30 +254,26 @@ describe("ThreadRow", () => {
     });
   });
 
-  it("puts the count in brand, the last reply's time of day, then the peek on one line", async () => {
+  it("puts the count, how long ago the last reply landed, then the peek on one line", async () => {
     const { row } = await renderRow(thread());
     const line = repliesLineOf(row);
-    expect(partsOf(line)).toEqual([
-      "3 replies",
-      "9:11 AM",
-      "Done: the automation now checks presence first.",
-    ]);
-    expect(line.querySelector(".text-brand-600")?.textContent).toBe(
-      "3 replies",
-    );
+    const parts = partsOf(line);
+    expect(parts[0]).toBe("3 replies");
+    expect(parts[1]).toMatch(/^\d+[mhd] ago$/);
+    expect(parts[2]).toBe("Done: the automation now checks presence first.");
+    // Read, the count keeps the text's own color and only its weight.
+    expect(line.querySelector(".text-brand-600")).toBeNull();
+    expect(line.querySelector(".font-medium")?.textContent).toBe("3 replies");
   });
 
-  it("says an older thread was answered today, by the clock", async () => {
-    const yesterday = Date.now() - 24 * 60 * 60_000;
-    const { row } = await renderRow(
-      thread({ createdAt: yesterday, lastReplyAt: Date.now() - 5 * 60_000 }),
-    );
-    expect(partsOf(repliesLineOf(row))[1]).toMatch(
-      /^Today at \d{1,2}:\d{2} [AP]M$/,
-    );
+  it("colors the count in brand only while there are unseen replies", async () => {
+    const { row } = await renderRow(thread({ unread: 1 }));
+    expect(
+      repliesLineOf(row).querySelector(".text-brand-600")?.textContent,
+    ).toBe("3 replies");
   });
 
-  it("says how long ago the last reply landed when it is neither the thread's day nor today", async () => {
+  it("says how long ago the last reply landed whatever day it was", async () => {
     const day = 24 * 60 * 60_000;
     const { row } = await renderRow(
       thread({
@@ -285,7 +281,7 @@ describe("ThreadRow", () => {
         lastReplyAt: Date.now() - 3 * day,
       }),
     );
-    expect(partsOf(repliesLineOf(row))[1]).toMatch(/^3 days ago$/);
+    expect(partsOf(repliesLineOf(row))[1]).toMatch(/^3d ago$/);
   });
 
   it("marks unseen replies with a dot before the count and never a number", async () => {
@@ -500,10 +496,11 @@ describe("ThreadRow", () => {
     const names = [...list.element().querySelectorAll("button")].map(
       (entry) => entry.textContent,
     );
-    // The app by its name and the files by theirs, never a slug or a path.
+    // The app by its name and the files by theirs, newest first, never a
+    // slug or a path.
     expect(names).toEqual([
       "GitHub",
-      ...files.map((path) => path.split("/").at(-1)),
+      ...files.toReversed().map((path) => path.split("/").at(-1)),
       "wakatime.com",
     ]);
     await userEvent.keyboard("{Escape}");

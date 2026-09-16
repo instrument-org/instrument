@@ -10,6 +10,7 @@ import {
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { FileSystemIconSpriteSheet } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { ActivityPopover } from "@/client/components/orchestrator/activity-popover";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
@@ -144,6 +145,10 @@ function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
         which is already the real window scaled to the zoom the UI is laid out
         at, so a viewport height would apply that zoom a second time. */}
       <div className="relative flex h-full flex-col bg-background">
+        {/* The file browser's own type icons, drawn by reference, so a file
+          named anywhere in the window (a thread's marks, a row in Activity)
+          wears the same colored mark it has in the computer view. */}
+        <FileSystemIconSpriteSheet />
         {/* The bar is the window's own row and reserves the band the traffic
           lights are drawn in, so no column below has to leave a gap for them. */}
         {bar ?? (
@@ -750,27 +755,26 @@ function OrchestratorLayout() {
                 className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]"
                 ref={conversationRef}
               >
-                {/* Names the openers for the links inside, so a page a row
-                  names offers both the window's browser and the user's, and
-                  a thread opens as a tab beside whatever is up. */}
+                {/* Names the openers for what the rows hold, so a file, an
+                  app, or a page a thread made opens in the tab on screen the
+                  way the thread itself does; a middle or modified click is
+                  what asks for a tab of its own. */}
                 <OrchestratorContext
                   value={{
                     ...screens,
-                    openPage: (url) => openPage(url, { newTab: true }),
+                    openPage: (url) => openPage(url),
                     openScreen: (href) => {
-                      openScreen(href, { newTab: true });
+                      openScreen(href);
                     },
-                    opensNewTab: true,
+                    opensNewTab: false,
                   }}
                 >
                   <FileOpenContext
                     value={(path) => {
-                      openNamedPath(path, { newTab: true });
+                      openNamedPath(path);
                     }}
                   >
-                    <PageOpenContext
-                      value={(url) => openPage(url, { newTab: true })}
-                    >
+                    <PageOpenContext value={(url) => openPage(url)}>
                       <ThreadPane
                         modelURI={modelURI}
                         onOpenThread={(thread) => {

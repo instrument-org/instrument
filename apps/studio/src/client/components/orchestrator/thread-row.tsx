@@ -10,7 +10,7 @@ import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TagIcon } from "@phosphor-icons/react/Tag";
-import { format, isSameDay, isToday } from "date-fns";
+import { format } from "date-fns";
 import { type SyntheticEvent, useEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
@@ -269,13 +269,23 @@ function RepliesLine({
           className="-mr-1 size-1.5 shrink-0 rounded-full bg-brand-500"
         />
       )}
+      {/* Green only while there is something unseen, with the dot: a count
+        that has been read is still the line's landmark, in the text's own
+        color. */}
       {replyCount > 0 && (
-        <span className="shrink-0 font-medium text-brand-600 dark:text-brand-400">
+        <span
+          className={cn(
+            "shrink-0 font-medium",
+            unread > 0 && thread.state !== "working"
+              ? "text-brand-600 dark:text-brand-400"
+              : "text-foreground",
+          )}
+        >
           {replyCount} {replyCount === 1 ? "reply" : "replies"}
         </span>
       )}
       {replyCount > 0 && lastReplyAt !== undefined && (
-        <ReplyTime at={lastReplyAt} startedAt={thread.createdAt} />
+        <ReplyTime at={lastReplyAt} />
       )}
       <Peek thread={thread} />
       {hasHolds && (
@@ -290,20 +300,18 @@ function RepliesLine({
 }
 
 /**
- * When the last reply landed: the time of day while it is the same day the
- * thread began, since the day head above carries that date; "Today at" when
- * an older thread was answered today, so the reply is not read as belonging
- * to the day head; and how long ago for any other later day.
+ * How long ago the last reply landed, with the clock in its tooltip. Relative
+ * whatever the day, since a clock beside the count read as a second start
+ * time; it moves once a minute, which is below notice.
  */
-function ReplyTime({ at, startedAt }: { at: number; startedAt: number }) {
-  const className = "shrink-0 text-muted-foreground/70";
-  if (isSameDay(at, startedAt)) {
-    return <span className={className}>{format(at, "h:mm a")}</span>;
-  }
-  if (isToday(at)) {
-    return <span className={className}>Today at {format(at, "h:mm a")}</span>;
-  }
-  return <RelativeTime className={className} date={new Date(at)} />;
+function ReplyTime({ at }: { at: number }) {
+  return (
+    <RelativeTime
+      className="shrink-0 text-muted-foreground/70"
+      compact
+      date={new Date(at)}
+    />
+  );
 }
 
 /** Keeps a control's gesture from reaching the row under it, which would open the thread. */
@@ -389,7 +397,9 @@ function TagControl({
 function TopicPill({ onPick, topic }: { onPick: () => void; topic: Topic }) {
   return (
     <button
-      className="inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) py-px pr-1.5 pl-1 text-[11px] leading-none text-foreground/90 topic-tint hover:bg-(--topic-tint-edge) hover:text-foreground"
+      // `leading-4` rather than none: the name's box has to hold its
+      // descenders, or the clip that truncates it cuts them off.
+      className="inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) pr-1.5 pl-1 text-[11px] leading-4 text-foreground/90 topic-tint hover:bg-(--topic-tint-edge) hover:text-foreground"
       onAuxClick={stopHere}
       onClick={(event) => {
         stopHere(event);

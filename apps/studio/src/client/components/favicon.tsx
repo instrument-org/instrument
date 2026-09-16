@@ -79,7 +79,9 @@ export function Favicon({
           <img
             alt={`Favicon for ${hostname}`}
             className={cn(
-              "size-4 shrink-0 rounded-full border border-border/50",
+              // A rounded rectangle, the way a browser tab softens a site's
+              // own square mark, and what tells a site from an app's circle.
+              "size-4 shrink-0 rounded-sm border border-border/50",
               FAVICON_SURFACE_CLASS_NAME,
               arrival.className,
               className,

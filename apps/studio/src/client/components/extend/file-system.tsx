@@ -1025,7 +1025,7 @@ function filePreviewUrls(file: FileSystemFileItem) {
   if (file.previewImageUrls?.length) return file.previewImageUrls;
   return file.previewImageUrl ? [file.previewImageUrl] : [];
 }
-function FileSystemIconSpriteSheet() {
+export function FileSystemIconSpriteSheet() {
   return (
     <>
       <span
@@ -1037,7 +1037,7 @@ function FileSystemIconSpriteSheet() {
     </>
   );
 }
-function FileTypeIcon({
+export function FileTypeIcon({
   className,
   fileName,
 }: {

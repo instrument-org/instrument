@@ -1,10 +1,10 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
   type AgentCompletionNotificationMode,
   getPreferencesStore,
 } from "@/electron-main/stores/preferences";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
   type StoreId,
   type TaskId,

@@ -85,5 +85,6 @@ function hostOf(site: string | undefined): string | undefined {
 }
 
 function initialOf(label: string): string {
-  return [...label.trim()][0]?.toUpperCase() ?? "";
+  const first = label.trim().codePointAt(0);
+  return first === undefined ? "" : String.fromCodePoint(first).toUpperCase();
 }

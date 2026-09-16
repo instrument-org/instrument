@@ -1,6 +1,7 @@
 import { alphabetical, parallel, unique } from "radashi";
 import { z } from "zod";
 
+import { publisher } from "../../rpc/publisher";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -15,7 +16,6 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskState, updateTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
-import { publisher } from "../../rpc/publisher";
 import {
   latestStepIn,
   type OrchestratorActivity,

@@ -81,6 +81,11 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // The reason an orchestrator woke, shown so a reply that follows nothing the
   // user typed has a visible cause.
   "data-taskEvent": "always",
+  // What the agent is told about the chat around its thread: the other
+  // threads at the moment this one opened, and the topics this one is filed
+  // under. Context for the model; the head of the thread is the user's copy.
+  "data-threadContext": "dev",
+  "data-threadTopics": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
 };
@@ -287,6 +292,34 @@ export function renderDataPart({
         return null;
       }
       return <TaskEventNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-threadContext": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={
+            part.data.threads.length === 0
+              ? "First thread of the chat"
+              : `Other threads: ${part.data.threads.map((thread) => thread.title).join(" · ")}`
+          }
+        />
+      );
+    }
+    case "data-threadTopics": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={
+            part.data.topics.length === 0
+              ? "No topics on this thread"
+              : `Topics: ${part.data.topics.map((topic) => topic.name).join(", ")}`
+          }
+        />
+      );
     }
     case "data-unknown": {
       // Not a failure the reader can do anything about, so it stays a

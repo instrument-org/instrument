@@ -67,8 +67,14 @@ export function ThreadList({
               groups.map(([label, group]) => (
                 <Fragment key={label}>
                   {/* The head stays at the top while its day scrolls under it:
-                    the rows say only the time of day, and this is their date. */}
-                  <p className="sticky top-0 z-10 flex items-center gap-3 bg-background px-2 py-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                    the rows say only the time of day, and this is their date.
+                    Its ground is the page's color through the label and then
+                    fades out over the rows below, the way the transcript's
+                    edges fade, so what scrolls under it thins out rather than
+                    hitting a hard edge; the fade band overlaps the first row
+                    (`-mb-4` against `pb-6`) rather than taking room of its
+                    own. */}
+                  <p className="sticky top-0 z-10 -mb-4 flex items-center gap-3 bg-linear-to-b from-background from-55% to-transparent px-2 pt-2 pb-6 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     <span className="h-px flex-1 bg-border" />
                     {label}
                     <span className="h-px flex-1 bg-border" />

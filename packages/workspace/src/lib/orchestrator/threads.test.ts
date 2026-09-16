@@ -329,6 +329,35 @@ describe("listThreads", () => {
     });
   });
 
+  it("reads a reply that is only the files it handed over by what it wrote", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Compare");
+    await userSays(taskId, sessionId, "compare the two quotes", 1);
+    await agentSays(
+      taskId,
+      sessionId,
+      "```files\n/mnt/Instrument/quotes/compared.html\n```",
+      { minute: 2 },
+    );
+
+    const [thread] = await listThreads(taskId);
+    expect(thread?.latest).toEqual({
+      at: at(2).getTime(),
+      kind: "reply",
+      text: "Wrote compared.html",
+    });
+
+    await agentSays(
+      taskId,
+      sessionId,
+      "```files\n/mnt/Instrument/quotes/a.md\n/mnt/Instrument/quotes/b.png\n/mnt/Instrument/quotes/c.html\n```",
+      { minute: 3 },
+    );
+    const [updated] = await listThreads(taskId);
+    expect(updated?.latest?.text).toBe("Wrote 3 files: a.md, b.png, c.html");
+    expect(updated?.replyCount).toBe(2);
+  });
+
   it("reads what the thread made and used out of its replies", async () => {
     const taskId = freshTask();
     const sessionId = await session(taskId, "Groceries");

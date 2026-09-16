@@ -91,6 +91,45 @@ describe("taskStanding", () => {
     });
   });
 
+  it("names what a finished task wrote when its reply was only the files it handed over", async () => {
+    const taskId = freshTask();
+    const sessionId = await withSession(taskId);
+    await Store.saveMessageWithParts(
+      assistant(sessionId, [
+        (ids) => ({
+          metadata: partMetadata(ids),
+          text: "```files\n/mnt/Instrument/quotes/compared.html\n```",
+          type: "text",
+        }),
+      ]),
+      taskId,
+    );
+
+    const standing = await taskStanding({ isRunning: false, taskId });
+
+    expect(standing).toEqual({ kind: "done", line: "Wrote compared.html" });
+  });
+
+  it("reads a reply past the files it opens with, and cuts the line after that", async () => {
+    const taskId = freshTask();
+    const sessionId = await withSession(taskId);
+    const words = "The second quote is cheaper once delivery is in.".repeat(3);
+    await Store.saveMessageWithParts(
+      assistant(sessionId, [
+        (ids) => ({
+          metadata: partMetadata(ids),
+          text: `\`\`\`files\n/mnt/Instrument/quotes/compared.html\n\`\`\`\n\n${words}`,
+          type: "text",
+        }),
+      ]),
+      taskId,
+    );
+
+    const standing = await taskStanding({ isRunning: false, taskId });
+
+    expect(standing.line).toBe(`${words.slice(0, 90)}…`);
+  });
+
   it("says what a task is waiting for when its turn ended on an ask", async () => {
     const taskId = freshTask();
     const sessionId = await withSession(taskId);

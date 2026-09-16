@@ -8,13 +8,13 @@ import { createSession } from "../create-session";
 import { type TypedError } from "../errors";
 import { Store } from "../store";
 
-/** What a task's agent last wrote in a session, shortened for a note. */
+/** What a task's agent last wrote in a session, shortened for a note when given a length; whole otherwise. */
 export async function lastAssistantText({
   maxLength,
   sessionId,
   taskId,
 }: {
-  maxLength: number;
+  maxLength?: number;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }): Promise<string | undefined> {
@@ -28,7 +28,7 @@ export async function lastAssistantText({
 /** The same words, read from a transcript already in hand. */
 export function lastAssistantTextIn(
   messages: SessionMessage.WithParts[],
-  maxLength: number,
+  maxLength?: number,
 ): string | undefined {
   const last = messages.findLast((message) => message.role === "assistant");
   const text = last?.parts
@@ -38,7 +38,9 @@ export function lastAssistantTextIn(
   if (!text) {
     return undefined;
   }
-  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
+  return maxLength !== undefined && text.length > maxLength
+    ? `${text.slice(0, maxLength)}…`
+    : text;
 }
 
 /**

@@ -1,8 +1,10 @@
+import { AGENT_FILES_LANGUAGE } from "../../constants";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
+import { parseFilesBlock } from "../parse-files-block";
 import { Store } from "../store";
 import { latestStep } from "./activity";
 import { lastAssistantText, latestSessionId } from "./latest-session";
@@ -58,6 +60,45 @@ export function askIn(
     }
   }
   return undefined;
+}
+
+/**
+ * The one line a reply is read by, cut to what a row can show. Fenced blocks
+ * are skipped whole: a reply that opens with the files it hands over is read
+ * by its words. One that is nothing but that fence is read by what it wrote,
+ * named from the fence's basenames, and any other fence with no words around
+ * it by its first line, so no excerpt ever shows the fence itself.
+ */
+export function excerptOf(text: string, maxLength: number): string {
+  /** The info string of the fence being walked; undefined outside one. */
+  let fence: string | undefined;
+  const fencedFiles: string[] = [];
+  let firstFenced: string | undefined;
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("```")) {
+      fence = fence === undefined ? line.replace(/^`+/, "").trim() : undefined;
+      continue;
+    }
+    if (!line) {
+      continue;
+    }
+    if (fence === undefined) {
+      return cut(line, maxLength);
+    }
+    if (fence === AGENT_FILES_LANGUAGE) {
+      fencedFiles.push(line);
+    }
+    firstFenced ??= line;
+  }
+  const names = parseFilesBlock(fencedFiles.join("\n")).map(basename);
+  if (names.length === 1) {
+    return cut(`Wrote ${names[0]}`, maxLength);
+  }
+  if (names.length > 1) {
+    return cut(`Wrote ${names.length} files: ${names.join(", ")}`, maxLength);
+  }
+  return cut(firstFenced ?? "", maxLength);
 }
 
 /**
@@ -146,23 +187,26 @@ export async function taskStanding({
   if (sessionId.isErr() || !sessionId.value) {
     return { kind: "done", line: "Nothing yet" };
   }
+  // Read whole and cut after: the line is chosen from the reply's shape, and a
+  // fence cut off mid-way is a fence the excerpt cannot read.
   const said = await lastAssistantText({
-    maxLength: LINE_MAX,
     sessionId: sessionId.value,
     taskId,
   });
   if (said) {
-    return { kind: "done", line: firstLine(said) };
+    return { kind: "done", line: excerptOf(said, LINE_MAX) };
   }
   const ending = await endedWithoutWords(taskId, sessionId.value);
   return { kind: ending.failed ? "failed" : "done", line: ending.line };
 }
 
-/** The agent's last words as one line, since the list has room for one. */
-function firstLine(text: string): string {
-  const line = text.split("\n").find((part) => part.trim()) ?? text;
-  const trimmed = line.trim();
-  return trimmed.length > LINE_MAX ? `${trimmed.slice(0, LINE_MAX)}…` : trimmed;
+/** The last segment of a path, which is how a file is named in a line. */
+function basename(path: string): string {
+  return path.replace(/\/+$/, "").split("/").at(-1) || path;
+}
+
+function cut(line: string, maxLength: number): string {
+  return line.length > maxLength ? `${line.slice(0, maxLength)}…` : line;
 }
 
 /**

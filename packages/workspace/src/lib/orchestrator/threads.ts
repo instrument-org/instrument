@@ -18,7 +18,7 @@ import {
   type OrchestratorActivity,
   orchestratorActivity,
 } from "./activity";
-import { askIn } from "./standing";
+import { askIn, excerptOf } from "./standing";
 import { listTopics } from "./topics";
 
 /** How much of the agent's last reply a thread's row shows. */
@@ -118,26 +118,10 @@ export function bashCommandOf(
 /**
  * The first line with words, cut to what a row can show. Fenced blocks are
  * skipped whole: a reply that opens with the files it hands over is read by
- * its words, not by its paths.
+ * its words, and one that is only that fence by what it wrote.
  */
 export function firstLine(text: string): string {
-  let inFence = false;
-  let line: string | undefined;
-  for (const part of text.split("\n")) {
-    const candidate = part.trim();
-    if (candidate.startsWith("```")) {
-      inFence = !inFence;
-      continue;
-    }
-    if (!inFence && candidate) {
-      line = candidate;
-      break;
-    }
-  }
-  const trimmed = (line ?? text).trim();
-  return trimmed.length > LATEST_MAX
-    ? `${trimmed.slice(0, LATEST_MAX)}…`
-    : trimmed;
+  return excerptOf(text, LATEST_MAX);
 }
 
 export function hasWords(message: SessionMessage.WithParts): boolean {

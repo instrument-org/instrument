@@ -63,11 +63,6 @@ export async function isSessionTitleAutoReplaceable({
   return settings?.name === title;
 }
 
-/** Whether a title is the placeholder a session wears until it is named. */
-export function isUntitledChat(title: string): boolean {
-  return defaultUntitledChatPattern.test(title);
-}
-
 export function isUntitledChatSessionTitle(title: string) {
   return defaultUntitledChatPattern.test(title);
 }

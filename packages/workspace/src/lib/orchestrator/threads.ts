@@ -7,7 +7,7 @@ import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { getBrowserState } from "../browser-state";
-import { isUntitledChat } from "../generate-session-title";
+import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { Store } from "../store";
@@ -485,7 +485,7 @@ async function threadFor(
     state,
     // Until the agent names the thread, the ask's own first words stand for it
     // rather than the placeholder a session is born with.
-    title: isUntitledChat(session.title)
+    title: isUntitledChatSessionTitle(session.title)
       ? firstLine(textOf(root)) || session.title
       : session.title,
     topics: session.topics ?? [],

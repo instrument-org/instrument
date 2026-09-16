@@ -2,16 +2,16 @@ import { Favicon } from "@/client/components/favicon";
 import { RelativeTime } from "@/client/components/relative-time";
 import { SkillMentionText } from "@/client/components/skill-mention-text";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/client/components/ui/popover";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -153,66 +153,6 @@ export function ThreadRow({
       </div>
       <RowMenu thread={thread} />
     </div>
-  );
-}
-
-/**
- * The row's own menu, at its top right while the pointer is on the row: the
- * one thing a thread offers that no line of it carries, which is putting it
- * back among the unread, or the reverse. A pick stops short of the door.
- */
-function RowMenu({ thread }: { thread: Thread }) {
-  const { taskId } = useOrchestrator();
-  const seen = useMutation(
-    rpcClient.workspace.orchestrator.threads.seen.mutationOptions(),
-  );
-  const unseen = useMutation(
-    rpcClient.workspace.orchestrator.threads.unseen.mutationOptions(),
-  );
-  const canUnread = thread.unread === 0 && thread.replyCount > 0;
-  const canRead = thread.unread > 0;
-  if (!canUnread && !canRead) {
-    return null;
-  }
-  return (
-    <span
-      className="absolute top-1.5 right-1.5 hidden group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex"
-      onAuxClick={stopHere}
-      onClick={stopHere}
-      onContextMenu={stopHere}
-      onKeyDown={stopHere}
-    >
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            aria-label="More"
-            className="grid size-5 place-items-center rounded-md bg-background/90 text-muted-foreground shadow-xs ring-1 ring-border hover:text-foreground data-[state=open]:text-foreground"
-            type="button"
-          >
-            <DotsThreeIcon className="size-4" weight="bold" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {canRead ? (
-            <DropdownMenuItem
-              onSelect={() => {
-                seen.mutate({ id: taskId, sessionId: thread.id });
-              }}
-            >
-              Mark as read
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              onSelect={() => {
-                unseen.mutate({ id: taskId, sessionId: thread.id });
-              }}
-            >
-              Mark as unread
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </span>
   );
 }
 
@@ -382,6 +322,66 @@ function ReplyTime({ at }: { at: number }) {
       compact
       date={new Date(at)}
     />
+  );
+}
+
+/**
+ * The row's own menu, at its top right while the pointer is on the row: the
+ * one thing a thread offers that no line of it carries, which is putting it
+ * back among the unread, or the reverse. A pick stops short of the door.
+ */
+function RowMenu({ thread }: { thread: Thread }) {
+  const { taskId } = useOrchestrator();
+  const seen = useMutation(
+    rpcClient.workspace.orchestrator.threads.seen.mutationOptions(),
+  );
+  const unseen = useMutation(
+    rpcClient.workspace.orchestrator.threads.unseen.mutationOptions(),
+  );
+  const canUnread = thread.unread === 0 && thread.replyCount > 0;
+  const canRead = thread.unread > 0;
+  if (!canUnread && !canRead) {
+    return null;
+  }
+  return (
+    <span
+      className="absolute top-1.5 right-1.5 hidden group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex"
+      onAuxClick={stopHere}
+      onClick={stopHere}
+      onContextMenu={stopHere}
+      onKeyDown={stopHere}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            aria-label="More"
+            className="grid size-5 place-items-center rounded-md bg-background/90 text-muted-foreground shadow-xs ring-1 ring-border hover:text-foreground data-[state=open]:text-foreground"
+            type="button"
+          >
+            <DotsThreeIcon className="size-4" weight="bold" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {canRead ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                seen.mutate({ id: taskId, sessionId: thread.id });
+              }}
+            >
+              Mark as read
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onSelect={() => {
+                unseen.mutate({ id: taskId, sessionId: thread.id });
+              }}
+            >
+              Mark as unread
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }
 

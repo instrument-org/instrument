@@ -13,6 +13,8 @@ import {
   isToolCallVisible,
   isToolPartRunning,
 } from "./message-part/tool-call-utils";
+import { createdTaskId } from "./orchestrator/created-task";
+import { CreatedTaskCard } from "./orchestrator/created-task-card";
 import { ReasoningMessage } from "./reasoning-message";
 import { isReasoningPartVisible } from "./reasoning-utils";
 import { isPartBeingWritten } from "./transcript-layout";
@@ -114,16 +116,23 @@ export function renderChatPart({
   }
 
   if (isToolPart(part)) {
-    if (
-      ctx.presentation === "orchestrator" && // What the conversation asks the user (a choice, a sign-in, a folder);
-      // every other call is its own business. The tasks it starts are
-      // followed from the banner under the transcript, not from cards in it.
-
-      part.type !== "tool-choose" &&
-      part.type !== "tool-connect_app" &&
-      part.type !== "tool-request_folder"
-    ) {
-      return null;
+    if (ctx.presentation === "orchestrator") {
+      // What the conversation asks the user (a choice, a sign-in, a folder)
+      // and what it started (a task, as its card inside the reply); every
+      // other call is its own business, a message to a task included.
+      if (part.type === "tool-bash") {
+        const created = createdTaskId(part);
+        return created ? (
+          <CreatedTaskCard key={part.metadata.id} taskId={created} />
+        ) : null;
+      }
+      if (
+        part.type !== "tool-choose" &&
+        part.type !== "tool-connect_app" &&
+        part.type !== "tool-request_folder"
+      ) {
+        return null;
+      }
     }
     const streaming = ctx.isToolStreaming(part, message);
     if (

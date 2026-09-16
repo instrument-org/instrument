@@ -34,9 +34,34 @@ const BrowserStateSchema = z.object({
   lastTitle: z.string().optional(),
   lastUrl: z.string().optional(),
   lastUsedAt: z.date(),
+  /**
+   * The hosts this session's browser has been on, oldest first, each once,
+   * the newest visit moving its host to the end. What a thread shows as the
+   * sites its work used: the pages themselves are too many to keep and too
+   * many to draw, and a host is the mark a person recognizes.
+   */
+  visitedHosts: z.array(z.string()).optional(),
 });
 
 type BrowserState = z.output<typeof BrowserStateSchema>;
+
+/** How many hosts a session remembers; a long crawl keeps its newest. */
+const VISITED_HOSTS_MAX = 40;
+
+/** The hosts with one more visit at the end, that host said once. */
+function withVisit(hosts: string[] | undefined, url: string): string[] {
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return hosts ?? [];
+  }
+  if (host === "") {
+    return hosts ?? [];
+  }
+  const rest = (hosts ?? []).filter((known) => known !== host);
+  return [...rest, host].slice(-VISITED_HOSTS_MAX);
+}
 
 const RevealedThisTurnSchema = z.boolean();
 
@@ -186,6 +211,9 @@ export function recordBrowserUse({
           }
         : {}),
       lastUsedAt: new Date(),
+      ...(isNewPage
+        ? { visitedHosts: withVisit(current?.visitedHosts, nextUrl) }
+        : {}),
     };
     yield* setParsedStorageItem(
       StorageKey.browserState(sessionId),

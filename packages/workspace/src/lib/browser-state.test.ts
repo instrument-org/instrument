@@ -111,6 +111,23 @@ describe("browser state", () => {
     expect(state._unsafeUnwrap()?.lastUrl).toBe("https://example.org");
   });
 
+  it("remembers each host the browser has been on, once, newest last", async () => {
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.com/a" });
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.org" });
+    // The same page again is not a visit, and a second page on a host the
+    // browser has already been on moves that host to the end rather than
+    // naming it twice.
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.org" });
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.com/b" });
+    await recordBrowserUse({ sessionId, taskId, url: BLANK_PAGE_URL });
+
+    const state = await getBrowserState(taskId, sessionId);
+    expect(state._unsafeUnwrap()?.visitedHosts).toEqual([
+      "example.org",
+      "example.com",
+    ]);
+  });
+
   it("preserves the last known page when a later observation has none", async () => {
     await recordBrowserUse({
       sessionId,

@@ -81,7 +81,7 @@ export const NO_ACTIVITY_FILTERS: ActivityFilters = {
 };
 
 /** How far apart two visits can be and still be one run. */
-export const VISIT_RUN_MS = 10 * 60 * 1000;
+const VISIT_RUN_MS = 10 * 60 * 1000;
 
 /** Every app slug the entries used, in first-seen order. */
 export function appsIn(rows: ActivityRow[]): string[] {
@@ -175,11 +175,6 @@ export function groupRowsByDay(
     day[1].push(opened);
   }
   return days;
-}
-
-/** Whether an entry is about a task, which is what its row opens. */
-export function isTaskEntry(entry: ActivityEntry): boolean {
-  return entry.taskId !== undefined;
 }
 
 /**

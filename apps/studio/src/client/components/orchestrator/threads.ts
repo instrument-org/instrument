@@ -131,7 +131,7 @@ export function matchesFilters(
  * whatever its case: in the title, the ask, the latest line, a topic's name,
  * a file's name, a site, or an app. Nothing searched for matches everything.
  */
-export function matchesSearch(
+function matchesSearch(
   thread: Filterable,
   search: string,
   topicNames: ReadonlyMap<string, string>,

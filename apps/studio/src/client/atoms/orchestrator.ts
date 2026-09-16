@@ -101,17 +101,6 @@ export function originOf(url: string | undefined): string | undefined {
   }
 }
 
-export const TASKS_COLUMN_MIN = 200;
-export const TASKS_COLUMN_MAX = 480;
-
-/** The Tasks screen's list column width in CSS px, dragged by its right edge. */
-export const tasksColumnWidthAtom = atomWithStorage<number>(
-  "orchestrator.tasks-column-width.v1",
-  288,
-  undefined,
-  { getOnInit: true },
-);
-
 /**
  * A tab of the window. A page is a browser session of the orchestrator's,
  * drawn by a guest the pool holds; a screen is anything else the product

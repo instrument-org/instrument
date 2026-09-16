@@ -74,15 +74,6 @@ export async function retireTopic(
   );
 }
 
-/** A topic by id, retired or not. */
-export async function topicById(
-  taskId: TaskId,
-  topicId: string,
-): Promise<Topic | undefined> {
-  const topics = await listTopics(taskId);
-  return topics.find((topic) => topic.id === topicId);
-}
-
 /** A topic in use by name, however the caller cased or hashed it. */
 export async function topicByName(
   taskId: TaskId,

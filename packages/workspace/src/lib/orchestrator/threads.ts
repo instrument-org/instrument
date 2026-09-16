@@ -301,10 +301,7 @@ export async function threadById(
 }
 
 /** Whether the thread's own agent is at work this moment. */
-export function threadIsAlive(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-): boolean {
+function threadIsAlive(taskId: TaskId, sessionId: StoreId.Session): boolean {
   const status = getTaskAgentStatus({
     id: taskId,
     workspaceRef: getWorkspaceActorRef(),

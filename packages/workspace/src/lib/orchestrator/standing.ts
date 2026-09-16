@@ -148,7 +148,7 @@ export function excerptOf(text: string, maxLength: number): string {
  * an ask rather than on words. A thread is a session, so this is also how a
  * thread says it has stopped and needs an answer.
  */
-export async function sessionAsk(
+async function sessionAsk(
   taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<string | undefined> {

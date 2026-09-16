@@ -21,7 +21,7 @@ import {
 } from "./threads";
 
 /** How many entries a list holds when the caller names no limit. */
-export const ACTIVITY_LOG_LIMIT = 300;
+const ACTIVITY_LOG_LIMIT = 300;
 
 /** How many threads are read at once when the log is built. */
 const READ_LIMIT = 8;

@@ -14,6 +14,8 @@ import {
   bashCommandOf,
   firstLine,
   hasWords,
+  knownAmong,
+  knownAppSlugs,
   openedHostsIn,
   textOf,
 } from "./threads";
@@ -87,10 +89,11 @@ export async function listActivityLog(
   if (sessions.isErr()) {
     return [];
   }
+  const known = await knownAppSlugs();
   const perThread = await parallel(
     { limit: READ_LIMIT },
     alphabetical(sessions.value, (session) => session.id),
-    (session) => entriesOf(taskId, session),
+    (session) => entriesOf(taskId, session, known),
   );
   // Ties keep transcript order, so a reply's own line stays above the files
   // it handed over, and the newest lands at the top of the list.
@@ -137,6 +140,7 @@ function calledAt(part: SessionMessagePart.ToolPart): number {
 function entriesIn(
   message: SessionMessage.WithParts,
   thread: ActivityEntry["thread"],
+  knownApps: Set<string>,
 ): ActivityEntry[] {
   const entries: ActivityEntry[] = [];
   const counts = new Map<Kind, number>();
@@ -206,7 +210,7 @@ function entriesIn(
       if (started) {
         emit({ at, kind: "startedTask", ...started });
       }
-      for (const slug of appSlugsIn(command)) {
+      for (const slug of knownAmong(appSlugsIn(command), knownApps)) {
         emit({ at, kind: "usedApp", marks: { apps: [slug] }, text: slug });
       }
       for (const host of openedHostsIn(command)) {
@@ -235,6 +239,7 @@ function entriesIn(
 async function entriesOf(
   taskId: TaskId,
   session: Session.Type,
+  knownApps: Set<string>,
 ): Promise<ActivityEntry[]> {
   const read = await Store.getMessagesWithParts({
     sessionId: session.id,
@@ -249,7 +254,7 @@ async function entriesOf(
     topics: session.topics ?? [],
   };
   return alphabetical(read.value, (message) => message.id).flatMap((message) =>
-    entriesIn(message, thread),
+    entriesIn(message, thread, knownApps),
   );
 }
 

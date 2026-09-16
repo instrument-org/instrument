@@ -7,6 +7,7 @@ import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { getTaskAgentStatus } from "../get-task-agent-status";
@@ -16,6 +17,7 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskState, updateTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
+import { getWorkspaceConfig } from "../workspace-config";
 import {
   latestStepIn,
   type OrchestratorActivity,
@@ -99,15 +101,24 @@ export type Thread = z.output<typeof ThreadSchema>;
 /** What every thread of a conversation is read against, loaded once per list. */
 interface Shared {
   activity: OrchestratorActivity;
+  /** The apps the workspace has, so a hold names only a real one. */
+  knownApps: Set<string>;
   seen: Record<string, StoreId.Message>;
   taskThreads: Record<string, StoreId.Session>;
 }
 
-/** The app slugs a shell command calls or asks the user to connect. */
+/**
+ * The app slugs a shell command calls or asks the user to connect: `app call`
+ * or `app request` where a command begins, followed by a slug's own letters.
+ * Anchored to the command's start and to a slug's shape so the same words
+ * inside a brief's prose ("keep the app request intact.") name nothing.
+ */
 export function appSlugsIn(command: string): string[] {
-  return [...command.matchAll(/\bapp\s+(?:call|request)\s+(\S+)/g)].flatMap(
-    (match) => (match[1] ? [match[1]] : []),
-  );
+  return [
+    ...command.matchAll(
+      /(?:^|[\n;&|]|\$\()\s*app\s+(?:call|request)\s+([a-z0-9][a-z0-9_-]*)\b/g,
+    ),
+  ].flatMap((match) => (match[1] ? [match[1]] : []));
 }
 
 /** The command a shell call ran, once its input has arrived whole. */
@@ -139,6 +150,21 @@ export function hasWords(message: SessionMessage.WithParts): boolean {
   return message.parts.some(
     (part) => part.type === "text" && part.text.trim() !== "",
   );
+}
+
+/** The slugs among `slugs` that name an app the workspace has, when it has any. */
+export function knownAmong(slugs: string[], known: Set<string>): string[] {
+  return known.size === 0 ? slugs : slugs.filter((slug) => known.has(slug));
+}
+
+/**
+ * The slugs of the apps this workspace has, for telling a real app apart from
+ * a word that looked like one. Empty when the workspace has no apps folder
+ * yet, in which case nothing is known and nothing is filtered.
+ */
+export async function knownAppSlugs(): Promise<Set<string>> {
+  const { apps } = await listApps(getWorkspaceConfig().appsDir);
+  return new Set(apps.map((app) => app.slug));
 }
 
 /**
@@ -296,13 +322,14 @@ export function threadIsAlive(
 async function appsHeld(
   messages: SessionMessage.WithParts[],
   filedTasks: TaskId[],
+  known: Set<string>,
 ): Promise<string[]> {
   const slugs = bashCommandsIn(messages).flatMap(appSlugsIn);
   for (const filed of filedTasks) {
     const settings = await getTaskSettings(taskDir(filed));
     slugs.push(...(settings?.apps ?? []));
   }
-  return unique(slugs);
+  return unique(knownAmong(slugs, known));
 }
 
 /** Every command the thread's agent ran in its shell, oldest first. */
@@ -409,6 +436,7 @@ async function loadShared(taskId: TaskId): Promise<Shared> {
   const state = await getTaskState(taskDir(taskId));
   return {
     activity: await orchestratorActivity(taskId),
+    knownApps: await knownAppSlugs(),
     seen: state.threadSeen ?? {},
     taskThreads: state.taskThreads ?? {},
   };
@@ -522,7 +550,7 @@ async function threadFor(
   return {
     createdAt: root.metadata.createdAt.getTime(),
     holds: {
-      apps: await appsHeld(messages, filedTasks),
+      apps: await appsHeld(messages, filedTasks, shared.knownApps),
       files: filesHeld(messages),
       sites: await sitesHeld(messages, filedTasks),
     },

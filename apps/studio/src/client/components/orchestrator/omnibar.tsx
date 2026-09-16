@@ -503,8 +503,10 @@ export function Omnibar({
             "pointer-events-none absolute inset-0 opacity-0",
         )}
         onBlur={() => {
+          // The list goes with the caret, wherever the box is; a place's own
+          // name comes back into the box once it is left.
+          setEditing(false);
           if (resting !== undefined) {
-            setEditing(false);
             setQuery(initial);
           }
         }}
@@ -552,8 +554,15 @@ export function Omnibar({
         type="text"
         value={query}
       />
-      {words ? (
-        <div className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover shadow-lg">
+      {words && isEditing ? (
+        // A press on a row must not take the caret first: the box would blur,
+        // the list would go, and the click would land on nothing.
+        <div
+          className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover shadow-lg"
+          onMouseDown={(event) => {
+            event.preventDefault();
+          }}
+        >
           {rows.length === 0 ? (
             <p className="px-4 py-3 text-sm text-muted-foreground">
               Nothing by that name.

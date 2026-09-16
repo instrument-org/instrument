@@ -22,6 +22,17 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
+// The gestures that open the task in a tab of its own reach the window's
+// browser and the OS menu; a plain click is the card's own and is all this
+// test drives.
+vi.mock("@/client/hooks/use-open-target", () => ({
+  useOpenGestures: () => ({
+    onAuxClick: vi.fn(),
+    onContextMenu: vi.fn(),
+    separate: undefined,
+  }),
+}));
+
 const ORCHESTRATOR_ID = TaskIdSchema.parse("instrument");
 const TASK_ID = "lisbon-hotel";
 
@@ -62,7 +73,7 @@ function renderFinished(standing: {
 }
 
 describe("CreatedTaskCard", () => {
-  it("reads as the task's name and then its line, and opens the task as a tab", async () => {
+  it("reads as the task's name and then its line, and opens the task in place", async () => {
     const { openScreen } = renderFinished({
       kind: "done",
       line: "Wrote hotel-options.md with three places near the Alfama.",
@@ -79,10 +90,7 @@ describe("CreatedTaskCard", () => {
 
     fireEvent.click(row);
 
-    expect(openScreen).toHaveBeenCalledWith(
-      "/orchestrator/tasks/lisbon-hotel",
-      { newTab: true },
-    );
+    expect(openScreen).toHaveBeenCalledWith("/orchestrator/tasks/lisbon-hotel");
   });
 
   it.each([

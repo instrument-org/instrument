@@ -1,10 +1,11 @@
-import { cn } from "@/client/lib/utils";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { useQuery } from "@tanstack/react-query";
 import ms from "ms";
-import { useState } from "react";
+import { type MouseEvent, useState } from "react";
 
 import { TRANSCRIPT_ROW } from "../message-part/transcript-group";
 import { useOrchestrator } from "./context";
@@ -26,7 +27,8 @@ const STEPS_SHOWN = 3;
  * weight that wraps rather than cuts, with the way out to the task's page
  * showing on hover where that row's chevron does. No icon at all: a task that
  * failed or stopped to ask says so in its line's tone rather than beside it.
- * Either way a press opens the task's own page as a tab beside the thread.
+ * Either way a press opens the task's own page in the tab on screen, and a
+ * middle or modified click puts it in a tab of its own.
  */
 export function CreatedTaskCard({ taskId }: { taskId: string }) {
   const orchestrator = useOrchestrator();
@@ -57,8 +59,16 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
     setSteps([...steps, step].slice(-STEPS_SHOWN));
   }
 
-  const open = () => {
-    orchestrator.openScreen(`/orchestrator/tasks/${id}`, { newTab: true });
+  const href = `/orchestrator/tasks/${id}`;
+  // A middle click, a modified click, or the menu on a right click asks for a
+  // tab of the task's own; a plain click takes the tab on screen.
+  const gestures = useOpenGestures({ href, kind: "screen" });
+  const open = (event: MouseEvent<HTMLButtonElement>) => {
+    if (isMacOS() ? event.metaKey : event.ctrlKey) {
+      gestures.separate?.run();
+      return;
+    }
+    orchestrator.openScreen(href);
   };
   const title = status.data?.title ?? "Task";
 
@@ -80,7 +90,9 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
           TRANSCRIPT_ROW,
           "mt-2 inline-flex max-w-full items-start text-left",
         )}
+        onAuxClick={gestures.onAuxClick}
         onClick={open}
+        onContextMenu={gestures.onContextMenu}
         type="button"
       >
         <span className="min-w-0 text-sm">
@@ -112,7 +124,9 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
   return (
     <button
       className="mt-1.5 flex w-full flex-col rounded-lg border border-border bg-card px-3 pt-2 pb-1 text-left hover:bg-accent/50"
+      onAuxClick={gestures.onAuxClick}
       onClick={open}
+      onContextMenu={gestures.onContextMenu}
       type="button"
     >
       <span className="flex w-full items-center gap-2 pb-2 text-xs font-medium text-brand-600 dark:text-brand-400">

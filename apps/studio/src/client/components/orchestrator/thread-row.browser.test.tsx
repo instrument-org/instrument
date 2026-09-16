@@ -64,9 +64,18 @@ const HOUSE: Topic = {
   name: "House",
 };
 
-/** The row's lines, in order: the header, the ask, the replies row, the peek, the holds. */
+/** The gutter at the row's left, which is the thread's start time. */
+function gutterOf(row: HTMLElement) {
+  const gutter = row.firstElementChild;
+  if (!(gutter instanceof HTMLElement)) {
+    throw new TypeError("no gutter");
+  }
+  return gutter;
+}
+
+/** The lines hanging past the gutter, in order: the header, the ask, the replies row, the holds. */
 function linesOf(row: HTMLElement) {
-  return [...row.children].filter(
+  return [...(row.children[1]?.children ?? [])].filter(
     (child): child is HTMLElement => child instanceof HTMLElement,
   );
 }
@@ -135,7 +144,7 @@ function shownOn(replies: HTMLElement) {
 }
 
 describe("ThreadRow", () => {
-  it("lays out the five lines in order", async () => {
+  it("starts with the time in a gutter and hangs every line off one edge past it", async () => {
     const { row } = await renderRow(
       thread({
         holds: {
@@ -146,27 +155,35 @@ describe("ThreadRow", () => {
         topics: ["house"],
       }),
     );
-    const [header, ask, replies, peek, holds] = linesOf(row);
-    if (!header || !ask || !replies || !peek || !holds) {
+    const gutter = gutterOf(row);
+    expect(gutter.textContent).toBe("8:46 AM");
+    const lines = linesOf(row);
+    const [header, ask, replies, holds] = lines;
+    if (!header || !ask || !replies || !holds || lines.length !== 4) {
       throw new Error("the row is short a line");
     }
+    const edge = header.getBoundingClientRect().left;
+    expect(edge).toBeGreaterThan(gutter.getBoundingClientRect().right);
+    for (const line of lines) {
+      expect(line.getBoundingClientRect().left).toBe(edge);
+    }
+    // The gutter's time shares the header's line.
+    expect(gutter.getBoundingClientRect().top).toBe(
+      header.getBoundingClientRect().top,
+    );
     expect(header.textContent).toContain("House");
     expect(header.textContent).toContain("·");
     expect(header.textContent).toContain("Second-floor Nest");
-    expect(header.textContent).toContain("8:46 AM");
+    expect(header.textContent).not.toContain("8:46 AM");
     expect(header.textContent).not.toContain("replies");
-    expect(header.textContent).not.toContain("report.md");
-    // The title has what the pill, the control, and the time leave, which at
-    // this width is most of the line rather than a few letters before an
-    // ellipsis.
+    // The title has what the pill and the control leave, which at this width
+    // is most of the line rather than a few letters before an ellipsis.
     const title = header.querySelector("span.truncate.flex-1");
     expect(title?.getBoundingClientRect().width).toBeGreaterThan(
       row.clientWidth / 2,
     );
     expect(ask.textContent).toBe("Guard the Nest eco mode before 5 p.m.");
     expect(replies.tagName).toBe("BUTTON");
-    expect(replies.textContent).toContain("3 replies");
-    expect(peek.textContent).toContain("Done: the automation");
     expect(holds.textContent).toContain("report.md");
     expect(row.textContent).not.toContain("last reply");
   });
@@ -175,9 +192,7 @@ describe("ThreadRow", () => {
     const { row } = await renderRow(
       thread({ createdAt: new Date(2026, 8, 10, 8, 46).getTime() }),
     );
-    const header = linesOf(row)[0];
-    expect(header?.textContent).toContain("8:46 AM");
-    expect(header?.textContent).not.toMatch(/Sep|Thursday/);
+    expect(gutterOf(row).textContent).toBe("8:46 AM");
   });
 
   it("leaves out the dot when the thread has no topic", async () => {
@@ -231,16 +246,28 @@ describe("ThreadRow", () => {
     });
   });
 
-  it("counts the replies in brand, the unseen ones after them, and the last reply's time beside", async () => {
+  it("puts the count in brand, the unseen ones after it, the last reply's time, then the peek on one line", async () => {
     const { row } = await renderRow(thread({ unread: 2 }));
     const replies = repliesRowOf(row);
-    const [count, time] = shownOn(replies);
+    const [count, time, peek] = shownOn(replies);
     expect(count).toBe("3 replies, 2 new");
     expect(replies.querySelector(".text-brand-700")?.textContent).toBe(
       "3 replies, 2 new",
     );
     expect(time).toMatch(/^\d+m ago$/);
-    expect(shownOn(replies)).toHaveLength(2);
+    expect(peek).toBe("Done: the automation now checks presence first.");
+    expect(shownOn(replies)).toHaveLength(3);
+  });
+
+  it("truncates the peek to what the line has left", async () => {
+    const { row } = await renderRow(
+      thread({ latest: { at: Date.now(), kind: "reply", text: LONG_ASK } }),
+      { width: 320 },
+    );
+    const replies = repliesRowOf(row);
+    const peek = replies.querySelector(".truncate");
+    expect(peek?.scrollWidth).toBeGreaterThan(peek?.clientWidth ?? 0);
+    expect(replies.scrollWidth).toBe(replies.clientWidth);
   });
 
   it("counts one reply in the singular, with nothing about unseen ones", async () => {
@@ -264,15 +291,19 @@ describe("ThreadRow", () => {
   it("says View thread at the replies row's end on hover, and opens the thread", async () => {
     const { onOpen, openScreen, row } = await renderRow(thread());
     const replies = repliesRowOf(row);
-    expect(shownOn(replies)).toHaveLength(2);
+    expect(shownOn(replies)).toHaveLength(3);
     await userEvent.hover(replies);
     await vi.waitFor(() => {
       expect(shownOn(replies).at(-1)).toBe("View thread");
     });
     expect(shownOn(replies)[0]).toBe("3 replies");
+    expect(shownOn(replies)).toHaveLength(4);
     await userEvent.click(replies);
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(openScreen).not.toHaveBeenCalled();
+    // The pointer stays where it was left, and the next test's row renders
+    // under it.
+    await userEvent.unhover(replies);
   });
 
   it("opens the thread from the keyboard on the replies row", async () => {
@@ -282,7 +313,7 @@ describe("ThreadRow", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it("quotes the question behind the amber glyph while waiting", async () => {
+  it("peeks at the question behind the amber glyph while waiting", async () => {
     const { container, row } = await renderRow(
       thread({
         latest: {
@@ -293,16 +324,17 @@ describe("ThreadRow", () => {
         state: "waiting",
       }),
     );
-    const peek = linesOf(row)[3];
-    expect(peek?.textContent).toContain("Reuse the old CSR");
-    expect(peek?.querySelector("svg.text-warning-700")).not.toBeNull();
-    expect(peek?.className).toContain("border-l");
+    const replies = repliesRowOf(row);
+    expect(shownOn(replies).at(-1)).toBe(
+      "Reuse the old CSR, or generate a new one?",
+    );
+    expect(replies.querySelector("svg.text-warning-700")).not.toBeNull();
     expect(container.querySelector(".bg-brand-500")).toBeNull();
     expect(container.querySelector(".bg-warning-500")).toBeNull();
   });
 
   it("writes a working thread's step with the traveling highlight", async () => {
-    const { container, row } = await renderRow(
+    const { row } = await renderRow(
       thread({
         runningTasks: [
           {
@@ -314,21 +346,23 @@ describe("ThreadRow", () => {
         state: "working",
       }),
     );
-    expect(container.querySelector(".brand-shiny-text")?.textContent).toBe(
+    const replies = repliesRowOf(row);
+    expect(replies.querySelector(".brand-shiny-text")?.textContent).toBe(
       "Reading the automation",
     );
-    expect(linesOf(row)[3]?.querySelector("svg")).toBeNull();
+    expect(shownOn(replies).at(-1)).toBe("Reading the automation");
   });
 
   it("keeps the unseen count off the peek", async () => {
     const { row } = await renderRow(thread({ unread: 2 }));
-    expect(linesOf(row)[3]?.textContent).not.toContain("new");
+    expect(shownOn(repliesRowOf(row)).at(-1)).not.toContain("new");
   });
 
-  it("omits the peek when an idle thread has said nothing", async () => {
-    const { row } = await renderRow(
-      thread({ latest: undefined, replyCount: 0 }),
-    );
+  it("is only the count and the time when an idle thread has said nothing", async () => {
+    const { row } = await renderRow(thread({ latest: undefined }));
+    const replies = repliesRowOf(row);
+    expect(shownOn(replies)).toHaveLength(2);
+    expect(shownOn(replies)[0]).toBe("3 replies");
     expect(linesOf(row)).toHaveLength(3);
   });
 
@@ -336,7 +370,7 @@ describe("ThreadRow", () => {
     const { container, onOpen, openScreen, row } = await renderRow(thread());
     container.querySelector<HTMLElement>(".line-clamp-2")?.click();
     expect(onOpen).toHaveBeenCalledTimes(1);
-    linesOf(row)[3]?.click();
+    repliesRowOf(row).querySelector<HTMLElement>(".truncate")?.click();
     expect(onOpen).toHaveBeenCalledTimes(2);
     expect(openScreen).not.toHaveBeenCalled();
   });
@@ -366,9 +400,10 @@ describe("ThreadRow", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("opens nothing from the row's padding or its tag control", async () => {
+  it("opens nothing from the row's padding, its gutter, or its tag control", async () => {
     const { onOpen, openScreen, row } = await renderRow(thread());
     row.click();
+    gutterOf(row).click();
     linesOf(row)[0]?.click();
     row.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
     row.querySelector<HTMLElement>('[aria-label="Topics"]')?.click();

@@ -33,17 +33,17 @@ interface Door {
 }
 
 /**
- * One thread in the chat, in five lines. The topics it is filed under as
- * pills, a dot, the title in muted regular weight, and the time of day it
- * began at the far right, with the tag control beside it while the pointer is
- * on the row. The ask exactly as it was typed, clamped with a fade. The
- * replies row: how many in brand, how many of them unseen, when the last one
- * landed, the whole line the door and saying so on hover. A peek at what is
- * inside, quoted under a hairline: the step it is working through, the
- * question it is waiting on, or the last reply's first words. And what it
- * holds. No avatar, no name: every row here is the user's. The ask, the
- * replies row, and the peek each open the thread the same way; a pill narrows
- * the list to its topic; the padding between them opens nothing.
+ * One thread in the chat: the time of day it began in a gutter at the left,
+ * and four lines hanging off one edge past it. The topics it is filed under
+ * as pills, a dot, and the title in muted regular weight, with the tag control
+ * at the line's end while the pointer is on the row. The ask exactly as it
+ * was typed, clamped with a fade. The replies row: how many in brand, how many
+ * of them unseen, when the last one landed, then a peek at what is inside
+ * (the step it is working through, the question it is waiting on, or the last
+ * reply's first words), the whole line the door and saying so on hover. And
+ * what it holds. No avatar, no name: every row here is the user's. The ask
+ * and the replies row each open the thread the same way; a pill narrows the
+ * list to its topic; the padding between them opens nothing.
  */
 export function ThreadRow({
   appsBySlug,
@@ -94,52 +94,50 @@ export function ThreadRow({
   return (
     // Not text: no selection and no text cursor over it. Each line brings its
     // own click target, or none.
-    <div className="group/row cursor-default px-2 py-3 select-none">
-      <p className="flex items-center gap-1.5 px-1 text-[13px]">
-        {marks.map((topic) => (
-          <TopicPill
-            key={topic.id}
-            onPick={() => {
-              onPickTopic(topic.id);
-            }}
-            topic={topic}
+    <div className="group/row flex cursor-default items-start gap-2 px-2 py-3 select-none">
+      {/* The gutter: the time of day alone, since the day head above carries
+        the date, right-aligned so every row's time ends at the same edge and
+        on the header's line so the two read as one. */}
+      <span className="w-14 shrink-0 text-right text-[11px] leading-5 text-muted-foreground tabular-nums">
+        {format(thread.createdAt, "h:mm a")}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="flex h-5 items-center gap-1.5 px-1 text-[13px]">
+          {marks.map((topic) => (
+            <TopicPill
+              key={topic.id}
+              onPick={() => {
+                onPickTopic(topic.id);
+              }}
+              topic={topic}
+            />
+          ))}
+          {marks.length > 0 && (
+            <span className="shrink-0 text-muted-foreground/60">·</span>
+          )}
+          {/* The title has what the pills and the control leave: it is what
+            truncates first. */}
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">
+            {thread.title}
+          </span>
+          <TagControl
+            onNewTopic={onNewTopic}
+            onSetTopics={onSetTopics}
+            thread={thread}
+            topics={topics}
           />
-        ))}
-        {marks.length > 0 && (
-          <span className="shrink-0 text-muted-foreground/60">·</span>
+        </p>
+        <Ask door={door} text={askOf(thread)} />
+        <RepliesRow door={door} thread={thread} />
+        {hasHolds && (
+          <HoldsStrip
+            appsBySlug={appsBySlug}
+            className="mt-2 px-1"
+            holds={thread.holds}
+            size="sm"
+          />
         )}
-        {/* The title has what the pills, the control, and the time leave: it
-          is what truncates first. */}
-        <span className="min-w-0 flex-1 truncate text-muted-foreground">
-          {thread.title}
-        </span>
-        <TagControl
-          onNewTopic={onNewTopic}
-          onSetTopics={onSetTopics}
-          thread={thread}
-          topics={topics}
-        />
-        {/* The time of day alone: the day head above carries the date. */}
-        <span className="shrink-0 text-[11px] text-muted-foreground">
-          {format(thread.createdAt, "h:mm a")}
-        </span>
-      </p>
-      <Ask door={door} text={askOf(thread)} />
-      <RepliesRow
-        door={door}
-        lastAt={thread.lastReplyAt}
-        replyCount={thread.replyCount}
-        unread={thread.unread}
-      />
-      <Peek door={door} thread={thread} />
-      {hasHolds && (
-        <HoldsStrip
-          appsBySlug={appsBySlug}
-          className="mt-2 px-1"
-          holds={thread.holds}
-          size="sm"
-        />
-      )}
+      </div>
     </div>
   );
 }
@@ -182,22 +180,19 @@ function Ask({ door, text }: { door: Door; text: string }) {
 }
 
 /**
- * A quoted line from inside the thread, indented under a hairline the way a
- * quote reads: the step while it works, the question while it waits, and the
- * last reply's first words otherwise. Nothing when an idle thread has said
- * nothing yet.
+ * A peek at what is inside the thread, on the replies row after its count and
+ * time and taking what is left of the line: the step while it works, the
+ * question while it waits, and the last reply's first words otherwise.
+ * Nothing when an idle thread has said nothing yet.
  */
-function Peek({ door, thread }: { door: Door; thread: Thread }) {
+function Peek({ thread }: { thread: Thread }) {
   const isWaiting = thread.state === "waiting";
   const isWorking = thread.state === "working";
   if (!thread.latest && !isWaiting && !isWorking) {
     return null;
   }
   return (
-    <div
-      className="mx-1 mt-1 flex items-center gap-1.5 border-l border-border pl-2.5 text-[12px]"
-      {...door}
-    >
+    <span className="flex min-w-0 flex-1 items-center gap-1.5">
       {isWorking ? (
         <>
           {/* `brand-shiny-text` is an inline-block, which a parent's truncate
@@ -230,50 +225,42 @@ function Peek({ door, thread }: { door: Door; thread: Thread }) {
           {thread.latest?.text}
         </span>
       )}
-    </div>
+    </span>
   );
 }
 
 /**
  * The line under the ask that a chat gives a thread: how many replies, in
- * brand so the count is what the eye lands on, how many of them unseen, and
- * when the last one landed in a lighter gray beside it. The whole line is the
- * door, and on hover or focus says so at its far end.
+ * brand so the count is what the eye lands on, how many of them unseen, when
+ * the last one landed in a lighter gray beside it, then the peek at what is
+ * inside, truncating to what the line has left. The whole line is the door,
+ * and on hover or focus says so at its far end.
  */
-function RepliesRow({
-  door,
-  lastAt,
-  replyCount,
-  unread,
-}: {
-  door: Door;
-  /** When the last reply landed; absent until there is one. */
-  lastAt: number | undefined;
-  replyCount: number;
-  unread: number;
-}) {
+function RepliesRow({ door, thread }: { door: Door; thread: Thread }) {
+  const { lastReplyAt, replyCount, unread } = thread;
   return (
     <button
-      className="group/replies mt-1.5 flex h-6 w-full items-center gap-2 rounded-md px-1 text-[11px] hover:bg-accent focus-visible:bg-accent focus-visible:outline-hidden"
+      className="group/replies mt-1.5 flex h-6 w-full items-center gap-2 rounded-md px-1 text-[12px] hover:bg-accent focus-visible:bg-accent focus-visible:outline-hidden"
       type="button"
       {...door}
     >
       {replyCount === 0 ? (
-        <span className="text-muted-foreground">No replies yet</span>
+        <span className="shrink-0 text-muted-foreground">No replies yet</span>
       ) : (
-        <span className="font-medium text-brand-700 dark:text-brand-300">
+        <span className="shrink-0 font-medium text-brand-700 dark:text-brand-300">
           {replyCount} {replyCount === 1 ? "reply" : "replies"}
           {unread > 0 && <span className="font-semibold">, {unread} new</span>}
         </span>
       )}
-      {lastAt !== undefined && (
+      {lastReplyAt !== undefined && (
         <RelativeTime
-          className="text-muted-foreground/70"
+          className="shrink-0 text-muted-foreground/70"
           compact
-          date={new Date(lastAt)}
+          date={new Date(lastReplyAt)}
         />
       )}
-      <span className="ml-auto hidden font-medium text-foreground group-hover/replies:inline group-focus-visible/replies:inline">
+      <Peek thread={thread} />
+      <span className="ml-auto hidden shrink-0 font-medium text-foreground group-hover/replies:inline group-focus-visible/replies:inline">
         View thread
       </span>
     </button>

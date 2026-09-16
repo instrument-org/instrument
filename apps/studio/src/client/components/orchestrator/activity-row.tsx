@@ -6,6 +6,7 @@ import {
   useGesturesFor,
   useOpenGestures,
 } from "@/client/hooks/use-open-target";
+import { isMacOS } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
@@ -18,7 +19,7 @@ import { PlayIcon } from "@phosphor-icons/react/Play";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { format } from "date-fns";
-import { type ReactNode } from "react";
+import { type MouseEvent, type ReactNode } from "react";
 
 import {
   type ActivityEntry,
@@ -69,38 +70,42 @@ const KINDS: Record<ActivityEntry["kind"], { icon: ReactNode; label: string }> =
     usedApp: { icon: <AppWindowIcon className={ICON} />, label: "Used" },
   };
 
+/** The gestures a door answers, as the hook hands them back for one target. */
+type Gestures = ReturnType<ReturnType<typeof useGesturesFor>>;
+
 /**
  * One line of Activity, in the chat's row grammar: a mark for the kind at the
  * left, the word for it, the text, the marks for what it made or used, the
  * thread it happened in with its topic marks, and the time at the end. No
- * avatar, no bubble. The row is a door: a plain click opens the thread, or
- * the task when the line is about one, or brings back what was looked at.
+ * avatar, no bubble. The row is a door, not text: a plain click opens the
+ * thread in place, or the task when the line is about one, or brings back
+ * what was looked at; a middle or modified click asks for a tab of its own,
+ * and a right click offers both.
  */
 export function ActivityRow({
   appsBySlug,
+  onOpened,
   row,
   topicsById,
 }: {
   appsBySlug: AppsBySlug;
+  /** Told after the row, or a chip on it, opened something, for a surface that should get out of the way then. */
+  onOpened?: () => void;
   row: Row;
   topicsById: Map<string, Topic>;
 }) {
   const target = rowTarget(row);
   const gestures = useOpenGestures(target ?? { href: "", kind: "screen" });
-  const open = target
-    ? gestures.destinations.find((destination) => destination.id === "open")
-    : undefined;
+  const open = target ? openerOf(gestures, onOpened) : undefined;
   return (
     <div
-      className="group/row flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-foreground/4"
-      onAuxClick={target ? gestures.onAuxClick : undefined}
-      onClick={() => {
-        open?.run();
-      }}
+      className="group/row flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-[13px] select-none hover:bg-foreground/4"
+      onAuxClick={target ? auxOpenerOf(gestures, onOpened) : undefined}
+      onClick={open}
       onContextMenu={target ? gestures.onContextMenu : undefined}
       onKeyDown={(event) => {
         if (event.key === "Enter" && event.target === event.currentTarget) {
-          open?.run();
+          open?.(event);
         }
       }}
       role="button"
@@ -113,13 +118,27 @@ export function ActivityRow({
           topicsById={topicsById}
         />
       ) : (
-        <Looked visits={row.visits} />
+        <Looked onOpened={onOpened} visits={row.visits} />
       )}
       <span className="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">
         {format(row.at, "h:mm a")}
       </span>
     </div>
   );
+}
+
+/**
+ * A middle click, which asks for a tab of its own. The hook answers it by
+ * consuming the event, so the window does not hand the address to the OS
+ * browser, and a consumed event is one that opened something.
+ */
+function auxOpenerOf(gestures: Gestures, onOpened: (() => void) | undefined) {
+  return (event: MouseEvent) => {
+    gestures.onAuxClick(event);
+    if (event.defaultPrevented) {
+      onOpened?.();
+    }
+  };
 }
 
 function Entry({
@@ -148,7 +167,9 @@ function Entry({
       </span>
       <span className="min-w-0 truncate">{text}</span>
       <Marks appsBySlug={appsBySlug} marks={entry.marks} />
-      <span className="flex max-w-64 min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
+      {/* A third of the row at most, so the thread's name never crowds the
+        line out in a narrow panel. */}
+      <span className="flex max-w-1/3 min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
         <span className="truncate">{entry.thread.title}</span>
         {marks.map((topic) => (
           <TopicMark key={topic.id} size="sm" topic={topic} />
@@ -160,9 +181,16 @@ function Entry({
 
 /**
  * A run of what the window showed: the count by kind, and the first few by
- * name with their own marks, each a door back to it.
+ * name with their own marks, each a door back to it. A chip's gestures are
+ * its own and stop at it, so the row under it does not open as well.
  */
-function Looked({ visits }: { visits: Visit[] }) {
+function Looked({
+  onOpened,
+  visits,
+}: {
+  onOpened: (() => void) | undefined;
+  visits: Visit[];
+}) {
   const gesturesFor = useGesturesFor();
   const named = visits.length === 1 ? [] : visits.slice(0, VISITS_NAMED);
   return (
@@ -183,17 +211,19 @@ function Looked({ visits }: { visits: Visit[] }) {
         <span className="flex min-w-0 items-center gap-1.5 overflow-hidden border-l border-border pl-2 whitespace-nowrap">
           {named.map((visit) => {
             const gestures = gesturesFor(visit.target);
-            const open = gestures.destinations.find(
-              (destination) => destination.id === "open",
-            );
+            const open = openerOf(gestures, onOpened);
+            const auxOpen = auxOpenerOf(gestures, onOpened);
             return (
               <button
                 className="inline-flex h-5 max-w-36 shrink-0 items-center gap-1 rounded border border-border bg-card px-1 text-[10px] text-foreground/80 hover:bg-accent"
                 key={targetKey(visit.target)}
-                onAuxClick={gestures.onAuxClick}
+                onAuxClick={(event) => {
+                  event.stopPropagation();
+                  auxOpen(event);
+                }}
                 onClick={(event) => {
                   event.stopPropagation();
-                  open?.run();
+                  open(event);
                 }}
                 onContextMenu={(event) => {
                   event.stopPropagation();
@@ -270,6 +300,26 @@ function Marks({
       ))}
     </span>
   );
+}
+
+/**
+ * A click on a door: plain, it opens where the surface says, in place; with
+ * the modifier the platform means a tab by, it asks for a tab of its own,
+ * the way a middle click does. One modifier: on macOS Ctrl and a click is the
+ * secondary click, which belongs to the menu.
+ */
+function openerOf(gestures: Gestures, onOpened: (() => void) | undefined) {
+  return (event: { ctrlKey: boolean; metaKey: boolean }) => {
+    const wantsNewTab = isMacOS() ? event.metaKey : event.ctrlKey;
+    const destination = wantsNewTab
+      ? gestures.separate
+      : gestures.destinations.find((entry) => entry.id === "open");
+    if (!destination) {
+      return;
+    }
+    destination.run();
+    onOpened?.();
+  };
 }
 
 /** The same mark the tab strip gives the thing: its type for a file, the folder, the glyph, the site's icon. */

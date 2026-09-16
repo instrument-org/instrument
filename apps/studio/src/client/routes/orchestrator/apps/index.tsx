@@ -37,7 +37,7 @@ function AppRow({
   return (
     <Row
       action={action}
-      icon={<AppIcon site={app.site} />}
+      icon={<AppIcon name={app.name} site={app.site} />}
       line={line}
       onOpen={onOpen}
       title={app.name}

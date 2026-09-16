@@ -212,7 +212,7 @@ function HomeRoute() {
             <Tiles>
               {appList.data.apps.slice(0, APPS_SHOWN).map((app) => (
                 <Tile
-                  icon={<AppIcon site={app.site} size="lg" />}
+                  icon={<AppIcon name={app.name} site={app.site} size="lg" />}
                   key={app.slug}
                   name={app.name}
                   onOpen={() => {

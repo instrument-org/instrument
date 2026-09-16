@@ -337,7 +337,7 @@ export function Omnibar({
   }));
   const appRows: OmniRow[] = apps.map((app) => ({
     group: "Apps",
-    icon: <AppIcon site={app.site} size="sm" />,
+    icon: <AppIcon name={app.name} site={app.site} size="sm" />,
     id: app.id,
     name: app.name,
     note: app.note,

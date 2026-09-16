@@ -2,7 +2,7 @@ import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { getFaviconUrl } from "@/client/lib/favicon-url";
 import { cn } from "@/client/lib/utils";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -41,9 +41,12 @@ type Source = "none" | "proxy" | "site";
 
 export function Favicon({
   className,
+  fallback,
   url,
 }: {
   className?: string;
+  /** What to draw when the site has no icon anywhere; the drawn globe otherwise. */
+  fallback?: ReactNode;
   url: string;
 }) {
   const hostname = URL.canParse(url) ? new URL(url).hostname : url;
@@ -65,11 +68,13 @@ export function Favicon({
     <Tooltip>
       <TooltipTrigger asChild>
         {source === "none" ? (
-          <GlobeIcon
-            aria-label={`Favicon for ${hostname}`}
-            className={cn("size-4 shrink-0 text-muted-foreground", className)}
-            role="img"
-          />
+          (fallback ?? (
+            <GlobeIcon
+              aria-label={`Favicon for ${hostname}`}
+              className={cn("size-4 shrink-0 text-muted-foreground", className)}
+              role="img"
+            />
+          ))
         ) : (
           <img
             alt={`Favicon for ${hostname}`}

@@ -144,7 +144,7 @@ export function screenPresentation(
     const app = appsBySlug.get(slug);
     return {
       icon: app ? (
-        <AppIcon site={app.site} size="sm" />
+        <AppIcon name={app.name} site={app.site} size="sm" />
       ) : (
         <AppWindowIcon className="size-3.5" />
       ),

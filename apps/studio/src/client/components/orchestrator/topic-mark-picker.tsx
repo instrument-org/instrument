@@ -32,7 +32,7 @@ export function ColorRow({
         <button
           aria-label={`Color ${color}`}
           className={cn(
-            "size-7 rounded-full transition channel-tint",
+            "size-7 rounded-full transition topic-tint",
             color === value
               ? // Outside the swatch, so choosing one does not shrink it: an
                 // inset ring eats into the color it is meant to be marking.
@@ -44,7 +44,7 @@ export function ColorRow({
             onPick(color);
           }}
           style={{
-            background: "var(--channel-tint-base)",
+            background: "var(--topic-tint-base)",
             ...topicTint(color),
           }}
           type="button"

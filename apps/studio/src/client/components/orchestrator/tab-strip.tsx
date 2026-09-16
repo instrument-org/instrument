@@ -63,11 +63,11 @@ const TAB_MOTION = {
   "--tab-motion": `${TAB_MOTION_MS}ms`,
 } as React.CSSProperties;
 
-// What the tab being read stands on: the channel's own color raised off the
+// What the tab being read stands on: the topic's own color raised off the
 // bar, so the selection reads in the same hue the bar is wearing. A strip
-// drawn for no channel falls back to the theme's own selected surface.
+// drawn for no topic falls back to the theme's own selected surface.
 const SELECTED = {
-  backgroundColor: "var(--channel-tint-raised, var(--accent))",
+  backgroundColor: "var(--topic-tint-raised, var(--accent))",
 } satisfies React.CSSProperties;
 
 // What a tab stands on while it is being carried over the others.
@@ -77,7 +77,7 @@ const CARRIED = {
 const CARRIED_SELECTED = {
   ...CARRIED,
   backgroundImage:
-    "linear-gradient(var(--channel-tint-raised, var(--accent)), var(--channel-tint-raised, var(--accent)))",
+    "linear-gradient(var(--topic-tint-raised, var(--accent)), var(--topic-tint-raised, var(--accent)))",
 } satisfies React.CSSProperties;
 
 interface StripLayout {
@@ -144,7 +144,7 @@ export function TabStrip({
     useState(() => stripLayout(0, movableTabs.length, fixedTabs.length));
 
   if (group !== groupKey) {
-    // The whole strip was swapped for another set (a different channel), so
+    // The whole strip was swapped for another set (another window), so
     // none of these tabs are arriving: they were already open, somewhere the
     // user was not looking, and animating them in makes a switch feel like
     // five tabs opening at once.
@@ -513,7 +513,7 @@ function Tab({
     isSelected
       ? "text-foreground shadow-xs-soft"
       : // An opacity of the ink rather than a grey: the strip sits on the
-        // channel's tint in the window bar, and a fixed grey reads as dirt on
+        // topic's tint in the window bar, and a fixed grey reads as dirt on
         // a colored ground.
         cn(
           "text-foreground/55",

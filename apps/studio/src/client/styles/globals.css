@@ -779,11 +779,11 @@ body {
   }
 }
 
-/* Window chrome tinted by the channel it belongs to: the top bar, a rail tile.
- * Set `--channel-color` to the channel's palette hex (`channelTint()` writes
+/* A surface tinted by a topic's color: its mark, a swatch in the picker, the tab being read.
+ * Set `--topic-color` to the topic's palette hex (`topicTint()` writes
  * that declaration) and paint with the three colors this publishes:
- * `--channel-tint-surface` for the fill, `--channel-tint-edge` for the hairline
- * or ring around it, and `--channel-tint-raised` for something sitting on the
+ * `--topic-tint-surface` for the fill, `--topic-tint-edge` for the hairline
+ * or ring around it, and `--topic-tint-raised` for something sitting on the
  * fill and standing off it, such as the tab being read.
  *
  * The hue of the chosen color survives, and the tier it was picked from; every
@@ -809,101 +809,43 @@ body {
  * on the fill is standing on the ground a card would: in light that is a move
  * toward white, so it takes little of the tint, and in dark the color is the
  * lighter of the two, so it takes most of it. Either way it lands clear of the
- * fill beneath it while staying in the channel's hue, which a grey laid over a
+ * fill beneath it while staying in the topic's hue, which a grey laid over a
  * colored bar does not.
  *
- * None of the three resolves without a `--channel-color`, so a surface that is
- * also drawn for a channel without one paints through a fallback:
- * `var(--channel-tint-surface, var(--background))`. */
-@utility channel-tint {
+ * None of the three resolves without a `--topic-color`, so a surface that is
+ * also drawn for a topic without one paints through a fallback:
+ * `var(--topic-tint-surface, var(--background))`. */
+@utility topic-tint {
   /* Only the strengths are themed, so the mixes are written once here rather
      than restated per theme. */
-  --channel-tint-surface-strength: 30%;
-  --channel-tint-edge-strength: 52%;
-  --channel-tint-raised-strength: 12%;
+  --topic-tint-surface-strength: 30%;
+  --topic-tint-edge-strength: 52%;
+  --topic-tint-raised-strength: 12%;
 
-  --channel-tint-base: oklch(
-    from var(--channel-color) var(--channel-lightness, 0.62)
-      var(--channel-chroma, 0.11) h
+  --topic-tint-base: oklch(
+    from var(--topic-color) var(--topic-lightness, 0.62)
+      var(--topic-chroma, 0.11) h
   );
-  --channel-tint-surface: color-mix(
+  --topic-tint-surface: color-mix(
     in oklab,
-    var(--channel-tint-base) var(--channel-tint-surface-strength),
+    var(--topic-tint-base) var(--topic-tint-surface-strength),
     var(--background)
   );
-  --channel-tint-edge: color-mix(
+  --topic-tint-edge: color-mix(
     in oklab,
-    var(--channel-tint-base) var(--channel-tint-edge-strength),
+    var(--topic-tint-base) var(--topic-tint-edge-strength),
     var(--background)
   );
-  --channel-tint-raised: color-mix(
+  --topic-tint-raised: color-mix(
     in oklab,
-    var(--channel-tint-base) var(--channel-tint-raised-strength),
+    var(--topic-tint-base) var(--topic-tint-raised-strength),
     var(--card)
   );
 
   :is(.dark *) & {
-    --channel-tint-surface-strength: 34%;
-    --channel-tint-edge-strength: 58%;
-    --channel-tint-raised-strength: 40%;
-  }
-}
-
-/* A channel at work: an arc in the channel's own color runs around the edge
- * of its tile, the way an indeterminate spinner runs, so it reads as motion
- * rather than as a mark. Nothing sits on the tile itself, so the badge in its
- * corner keeps the corner and nothing reads as a second selection. The
- * `channel-tint` utility publishes the color on the tile; the app's own tile,
- * which wears no tint, takes a brand shade light enough to show on it. */
-@property --channel-arc {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-
-@utility channel-working {
-  /* The palette color as chosen rather than the tint mixed from it: the tint
-     is made to sit quietly under an emoji, and the arc has to carry. */
-  --channel-glow: var(--channel-color, var(--brand-400));
-  position: relative;
-
-  /* The arc: a conic gradient the width of a hairline around the tile, its
-     middle cut out by masking the content box away, turned by animating the
-     angle it starts from. It lives on a pseudo-element two pixels past the
-     tile's edge, which the rail's row has room for. */
-  &::before {
-    content: "";
-    position: absolute;
-    inset: -2px;
-    padding: 2px;
-    border-radius: calc(var(--radius-xl) + 2px);
-    background: conic-gradient(
-      from var(--channel-arc),
-      transparent 0deg 140deg,
-      var(--channel-glow) 360deg
-    );
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    /* After the mask, so the halo is the arc's and not the ring's. */
-    filter: drop-shadow(0 0 2px var(--channel-glow));
-    animation: channel-working-turn 1.6s linear infinite;
-    pointer-events: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &::before {
-      animation: none;
-      background: var(--channel-glow);
-      opacity: 0.7;
-    }
-  }
-}
-
-@keyframes channel-working-turn {
-  to {
-    --channel-arc: 360deg;
+    --topic-tint-surface-strength: 34%;
+    --topic-tint-edge-strength: 58%;
+    --topic-tint-raised-strength: 40%;
   }
 }
 

@@ -1,13 +1,14 @@
-import { ChannelFace } from "@/client/components/orchestrator/channel-rail";
 import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useNewestSessionId } from "@/client/components/orchestrator/newest-session";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
+import { THREADS_HREF } from "@/client/components/orchestrator/screen-presentation";
 import { TaskMenu } from "@/client/components/orchestrator/task-menu";
 import { Spinner } from "@/client/components/ui/spinner";
 import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -42,14 +43,18 @@ function TaskRoute() {
       refetchInterval: REFRESH_MS,
     }),
   );
-  // The channel this was asked for in, which is the task's address rather than
+  // The thread this was asked for in, which is the task's address rather than
   // one more fact about how it ran, so it sits with the title.
   const children = useQuery(
     rpcClient.workspace.orchestrator.children.queryOptions({
       input: { id: orchestrator.taskId },
     }),
   );
-  const channel = children.data?.find((child) => child.id === taskId)?.channel;
+  const child = children.data?.find((entry) => entry.id === taskId);
+  const thread =
+    child?.threadId && child.threadTitle
+      ? { id: child.threadId, title: child.threadTitle }
+      : undefined;
   // The session the transcript below is showing, so the menu acts on what is
   // on screen rather than on whichever session it would pick for itself.
   const sessionId = useNewestSessionId(taskId);
@@ -88,11 +93,22 @@ function TaskRoute() {
           </h2>
           <TaskMenu sessionId={sessionId} taskId={taskId} />
         </div>
-        {channel && (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border">
-            <ChannelFace channel={channel} className="text-[12px]" />
-            {channel.name}
-          </span>
+        {thread && (
+          // The chip is a door back to the thread, opened as a tab beside
+          // this one so the task stays on screen.
+          <button
+            className="flex min-w-0 shrink items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-border hover:bg-foreground/5 hover:text-foreground"
+            onClick={() => {
+              orchestrator.openScreen(`${THREADS_HREF}/${thread.id}`, {
+                newTab: true,
+              });
+            }}
+            title={thread.title}
+            type="button"
+          >
+            <ChatTeardropTextIcon className="size-3.5 shrink-0" />
+            <span className="max-w-48 truncate">{thread.title}</span>
+          </button>
         )}
         {/* Closing the task is closing this pane, not ending the work: the
           list beside it becomes the screen again, and the task goes on. */}

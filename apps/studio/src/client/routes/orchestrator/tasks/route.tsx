@@ -79,7 +79,7 @@ function TasksLayout() {
   );
   const items: TaskListItem[] =
     children.data?.map((child) => ({
-      ...(child.channel ? { channel: child.channel } : {}),
+      ...(child.threadTitle ? { threadTitle: child.threadTitle } : {}),
       id: child.id,
       line: child.standing.line,
       standing: child.standing.kind,

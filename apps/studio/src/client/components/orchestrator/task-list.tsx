@@ -1,20 +1,21 @@
-import { type ChannelMark } from "@/client/components/orchestrator/channel-rail";
 import {
   TaskRow,
   type TaskStandingKind,
 } from "@/client/components/orchestrator/task-row";
+import { useNow } from "@/client/components/orchestrator/use-now";
 import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 /** One task as the list needs it. */
 export interface TaskListItem {
-  channel?: ChannelMark & { name: string };
   id: TaskId;
   line: string;
   standing: TaskStandingKind;
+  /** The title of the thread that started it. */
+  threadTitle?: string;
   title: string;
   updatedAt: Date;
 }
@@ -32,7 +33,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * The tasks, newest first, under the day they belong to.
  *
- * Time is the only order: the channel a task came from is written on its row
+ * Time is the only order: the thread a task came from is written on its row
  * and never groups it, because a task is looked for by when it was asked for.
  * The groups are the ones a mail or photo app would use, which is what makes a
  * month of them scannable without a scrollbar's worth of reading.
@@ -60,7 +61,7 @@ export function TaskList({
       !words ||
       item.title.toLowerCase().includes(words) ||
       item.line.toLowerCase().includes(words) ||
-      (item.channel?.name ?? "").toLowerCase().includes(words)
+      (item.threadTitle ?? "").toLowerCase().includes(words)
     );
   });
   // One clock for the whole render, so every row's "20m" is measured from the
@@ -114,7 +115,7 @@ export function TaskList({
         {shown.length === 0 ? (
           <p className="px-2 py-3 text-sm text-muted-foreground">
             {items.length === 0
-              ? "Nothing yet. Ask for something in any channel and it shows up here."
+              ? "Nothing yet. Ask for something in the chat and it shows up here."
               : "Nothing matches."}
           </p>
         ) : (
@@ -125,7 +126,6 @@ export function TaskList({
               </p>
               {group.map((item) => (
                 <TaskRow
-                  channel={item.channel}
                   isOpen={item.id === openId}
                   key={item.id}
                   line={item.line}
@@ -133,6 +133,9 @@ export function TaskList({
                     onOpen(item.id);
                   }}
                   standing={item.standing}
+                  {...(item.threadTitle
+                    ? { threadTitle: item.threadTitle }
+                    : {})}
                   time={timeOf(item.updatedAt, now)}
                   title={item.title}
                 />
@@ -210,18 +213,4 @@ function timeOf(date: Date, now: Date): string {
     return `${hours}h`;
   }
   return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
-
-/** The clock the list reads its "how long ago" from, ticking once a minute. */
-function useNow(): Date {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(new Date());
-    }, 60_000);
-    return () => {
-      clearInterval(timer);
-    };
-  }, []);
-  return now;
 }

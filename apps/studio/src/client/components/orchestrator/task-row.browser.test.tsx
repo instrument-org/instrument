@@ -8,24 +8,24 @@ import { describe, expect, it, vi } from "vitest";
  * every box as zero and would pass whatever these rows did.
  */
 describe("TaskRow", () => {
-  it("puts every row's channel mark at the same left edge", async () => {
+  it("puts every row's time at the same left edge", async () => {
     const { container } = await renderInBrowser(
       <div style={{ width: "320px" }}>
         <TaskRow
-          channel={{ emoji: "🍊", name: "Groceries" }}
           isOpen={false}
           line="Reading the recipe"
           onOpen={vi.fn()}
           standing="running"
+          threadTitle="Plan a week of dinners"
           time="now"
           title="Plan a week of dinners"
         />
         <TaskRow
-          channel={{ emoji: "📗", name: "Reading" }}
           isOpen={false}
           line="Done"
           onOpen={vi.fn()}
           standing="done"
+          threadTitle="Summarize the chapter"
           time="Sep 28"
           title="Summarize the chapter"
         />
@@ -34,11 +34,11 @@ describe("TaskRow", () => {
     // The two rows carry the shortest and the longest time the list writes,
     // which is the pair a content-sized column pulls furthest apart.
     const lefts = [...container.querySelectorAll("button")].map((row) => {
-      const face = row.querySelector("span.grid");
-      if (!face) {
-        throw new Error("a row drew no channel cell");
+      const time = row.querySelector(".tabular-nums");
+      if (!time) {
+        throw new Error("a row drew no time cell");
       }
-      return face.getBoundingClientRect().left;
+      return time.getBoundingClientRect().left;
     });
     expect(lefts).toHaveLength(2);
     expect(lefts[0]).toBe(lefts[1]);
@@ -47,7 +47,6 @@ describe("TaskRow", () => {
   it("writes a waiting task's line in its own color per theme", async () => {
     const row = (
       <TaskRow
-        channel={{ emoji: "🍊", name: "Groceries" }}
         isOpen={false}
         line="Waiting on you"
         onOpen={vi.fn()}
@@ -83,7 +82,6 @@ describe("TaskRow", () => {
   it("marks a working task with the traveling highlight and no dot", async () => {
     const { container } = await renderInBrowser(
       <TaskRow
-        channel={{ emoji: "🍊", name: "Groceries" }}
         isOpen={false}
         line="Reading the recipe"
         onOpen={vi.fn()}

@@ -774,9 +774,7 @@ function OrchestratorLayout() {
                       <ThreadPane
                         modelURI={modelURI}
                         onOpenThread={(thread) => {
-                          openScreen(`${THREADS_HREF}/${thread.id}`, {
-                            newTab: true,
-                          });
+                          openScreen(`${THREADS_HREF}/${thread.id}`);
                         }}
                         promptDraft={state.data.promptDraft ?? ""}
                         sendContext={sendContext}

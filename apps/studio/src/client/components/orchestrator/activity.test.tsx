@@ -168,11 +168,15 @@ describe("matchesActivityFilters", () => {
     visits: [page("https://example.com/x", 0)],
   };
 
-  it("narrows to the user's side: their asks and what they looked at", () => {
-    const yours = { ...NO_ACTIVITY_FILTERS, yours: true };
-    expect(matchesActivityFilters(asked, yours)).toBe(true);
-    expect(matchesActivityFilters(looked, yours)).toBe(true);
-    expect(matchesActivityFilters(opened, yours)).toBe(false);
+  it("splits the record by side: the user's asks and looks, or everything Instrument did", () => {
+    const you = { ...NO_ACTIVITY_FILTERS, who: "you" as const };
+    expect(matchesActivityFilters(asked, you)).toBe(true);
+    expect(matchesActivityFilters(looked, you)).toBe(true);
+    expect(matchesActivityFilters(opened, you)).toBe(false);
+    const instrument = { ...NO_ACTIVITY_FILTERS, who: "instrument" as const };
+    expect(matchesActivityFilters(asked, instrument)).toBe(false);
+    expect(matchesActivityFilters(looked, instrument)).toBe(false);
+    expect(matchesActivityFilters(opened, instrument)).toBe(true);
   });
 
   it("reads sites off what an entry opened and off the pages a run showed", () => {

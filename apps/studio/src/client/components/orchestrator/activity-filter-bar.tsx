@@ -12,6 +12,7 @@ import { type ReactNode, useState } from "react";
 import {
   type ActivityFilters,
   type ActivityRow,
+  type ActivityWho,
   appsIn,
   matchesActivityFilters,
   NO_ACTIVITY_FILTERS,
@@ -26,22 +27,37 @@ import { TopicMark } from "./topic-mark";
 const CHIP =
   "flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px]";
 
+/** The groups a menu chip can narrow by, in the order the bar draws them. */
+type Group = "apps" | "sites" | "topics";
+
+const ALL_GROUPS: Group[] = ["topics", "apps", "sites"];
+
+/** The sides of the record, in the order the control offers them. */
+const WHO: { label: string; who: ActivityWho }[] = [
+  { label: "All", who: "all" },
+  { label: "Instrument", who: "instrument" },
+  { label: "You", who: "you" },
+];
+
 /**
  * The row of disclosures along the top of Activity, in the shape of the
- * chat's own: Yours as a toggle carrying how many rows are the user's, then
- * Topics, Apps, and Sites as one chip each that opens a menu. A chosen group
- * goes solid with what was chosen, how many rows that reaches, and the way to
- * undo it.
+ * chat's own: first whose side of the record is shown, as one control with
+ * three positions, then Topics, Apps, and Sites as one chip each that opens a
+ * menu. A chosen group goes solid with what was chosen, how many rows that
+ * reaches, and the way to undo it.
  */
 export function ActivityFilterBar({
   appsBySlug,
   filters,
+  groups = ALL_GROUPS,
   onFiltersChange,
   rows,
   topics,
 }: {
   appsBySlug: AppsBySlug;
   filters: ActivityFilters;
+  /** Which menu chips the bar draws; a narrow surface keeps only the ones it has room for. */
+  groups?: Group[];
   onFiltersChange: (filters: ActivityFilters) => void;
   rows: ActivityRow[];
   topics: Topic[];
@@ -51,7 +67,7 @@ export function ActivityFilterBar({
     rows.filter((row) =>
       matchesActivityFilters(row, { ...NO_ACTIVITY_FILTERS, ...group }),
     ).length;
-  const toggleIn = (group: "apps" | "sites" | "topics", id: string) => {
+  const toggleIn = (group: Group, id: string) => {
     const current = filters[group];
     onFiltersChange({
       ...filters,
@@ -60,7 +76,7 @@ export function ActivityFilterBar({
         : [...current, id],
     });
   };
-  const clear = (group: "apps" | "sites" | "topics") => {
+  const clear = (group: Group) => {
     onFiltersChange({ ...filters, [group]: [] });
   };
   const chosenTopic = topics.find((topic) => topic.id === filters.topics[0]);
@@ -68,7 +84,6 @@ export function ActivityFilterBar({
   const chosenSite = filters.sites[0];
   const apps = appsIn(rows);
   const sites = sitesByUse(rows);
-  const yoursCount = reachOf({ yours: true });
 
   return (
     <div
@@ -76,140 +91,151 @@ export function ActivityFilterBar({
       className="flex shrink-0 flex-wrap items-center gap-1"
       role="toolbar"
     >
-      <button
-        aria-pressed={filters.yours}
-        className={cn(
-          CHIP,
-          "gap-1.5",
-          filters.yours
-            ? "bg-foreground text-background"
-            : "bg-muted text-foreground/80 hover:text-foreground",
-        )}
-        onClick={() => {
-          onFiltersChange({ ...filters, yours: !filters.yours });
-        }}
-        type="button"
+      <div
+        aria-label="Who"
+        className="flex h-6 shrink-0 items-center gap-0.5 rounded-md bg-muted p-0.5 text-[11px]"
+        role="radiogroup"
       >
-        <span>Yours</span>
-        <span
-          className={cn(filters.yours ? "text-background/80" : "opacity-80")}
-        >
-          {yoursCount}
-        </span>
-      </button>
-      <GroupChip
-        label="Topics"
-        menu={
-          <PickList
-            chosen={new Set(filters.topics)}
-            entries={topics
-              .filter(
-                (topic) => !topic.retired || filters.topics.includes(topic.id),
-              )
-              .map((topic) => ({
-                icon: <TopicMark size="sm" topic={topic} />,
-                id: topic.id,
-                label: topic.name,
-                note: String(reachOf({ topics: [topic.id] })),
+        {WHO.map(({ label, who }) => (
+          <button
+            aria-checked={filters.who === who}
+            className={cn(
+              "h-full rounded-sm px-1.5",
+              filters.who === who
+                ? "bg-background font-medium text-foreground shadow-xs"
+                : "text-foreground/70 hover:text-foreground",
+            )}
+            key={who}
+            onClick={() => {
+              onFiltersChange({ ...filters, who });
+            }}
+            role="radio"
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {groups.includes("topics") && (
+        <GroupChip
+          label="Topics"
+          menu={
+            <PickList
+              chosen={new Set(filters.topics)}
+              entries={topics
+                .filter(
+                  (topic) =>
+                    !topic.retired || filters.topics.includes(topic.id),
+                )
+                .map((topic) => ({
+                  icon: <TopicMark size="sm" topic={topic} />,
+                  id: topic.id,
+                  label: topic.name,
+                  note: String(reachOf({ topics: [topic.id] })),
+                }))}
+              findPlaceholder="Find a topic"
+              onToggle={(id) => {
+                toggleIn("topics", id);
+              }}
+            />
+          }
+          onClear={() => {
+            clear("topics");
+          }}
+          {...(chosenTopic
+            ? {
+                chosen: {
+                  count: reachOf({ topics: filters.topics }),
+                  icon: <TopicMark topic={chosenTopic} />,
+                  label: chosenTopic.name,
+                  more: filters.topics.length - 1,
+                },
+              }
+            : {})}
+        />
+      )}
+      {groups.includes("apps") && (
+        <GroupChip
+          label="Apps"
+          menu={
+            <PickList
+              chosen={new Set(filters.apps)}
+              entries={apps
+                .map((slug) => ({
+                  icon: (
+                    <AppIcon
+                      className="size-4"
+                      site={appsBySlug.get(slug)?.site}
+                      size="sm"
+                    />
+                  ),
+                  id: slug,
+                  label: appsBySlug.get(slug)?.name ?? slug,
+                  note: String(reachOf({ apps: [slug] })),
+                }))
+                .sort((a, b) => a.label.localeCompare(b.label))}
+              findPlaceholder="Find an app"
+              onToggle={(id) => {
+                toggleIn("apps", id);
+              }}
+            />
+          }
+          onClear={() => {
+            clear("apps");
+          }}
+          {...(chosenApp
+            ? {
+                chosen: {
+                  count: reachOf({ apps: filters.apps }),
+                  icon: (
+                    <AppIcon
+                      className="size-4"
+                      site={appsBySlug.get(chosenApp)?.site}
+                      size="sm"
+                    />
+                  ),
+                  label: appsBySlug.get(chosenApp)?.name ?? chosenApp,
+                  more: filters.apps.length - 1,
+                },
+              }
+            : {})}
+        />
+      )}
+      {groups.includes("sites") && (
+        <GroupChip
+          label="Sites"
+          menu={
+            <PickList
+              chosen={new Set(filters.sites)}
+              entries={sites.map((host) => ({
+                icon: <Favicon className="size-4" url={`https://${host}`} />,
+                id: host,
+                label: host,
+                note: String(reachOf({ sites: [host] })),
               }))}
-            findPlaceholder="Find a topic"
-            onToggle={(id) => {
-              toggleIn("topics", id);
-            }}
-          />
-        }
-        onClear={() => {
-          clear("topics");
-        }}
-        {...(chosenTopic
-          ? {
-              chosen: {
-                count: reachOf({ topics: filters.topics }),
-                icon: <TopicMark topic={chosenTopic} />,
-                label: chosenTopic.name,
-                more: filters.topics.length - 1,
-              },
-            }
-          : {})}
-      />
-      <GroupChip
-        label="Apps"
-        menu={
-          <PickList
-            chosen={new Set(filters.apps)}
-            entries={apps
-              .map((slug) => ({
-                icon: (
-                  <AppIcon
-                    className="size-4"
-                    site={appsBySlug.get(slug)?.site}
-                    size="sm"
-                  />
-                ),
-                id: slug,
-                label: appsBySlug.get(slug)?.name ?? slug,
-                note: String(reachOf({ apps: [slug] })),
-              }))
-              .sort((a, b) => a.label.localeCompare(b.label))}
-            findPlaceholder="Find an app"
-            onToggle={(id) => {
-              toggleIn("apps", id);
-            }}
-          />
-        }
-        onClear={() => {
-          clear("apps");
-        }}
-        {...(chosenApp
-          ? {
-              chosen: {
-                count: reachOf({ apps: filters.apps }),
-                icon: (
-                  <AppIcon
-                    className="size-4"
-                    site={appsBySlug.get(chosenApp)?.site}
-                    size="sm"
-                  />
-                ),
-                label: appsBySlug.get(chosenApp)?.name ?? chosenApp,
-                more: filters.apps.length - 1,
-              },
-            }
-          : {})}
-      />
-      <GroupChip
-        label="Sites"
-        menu={
-          <PickList
-            chosen={new Set(filters.sites)}
-            entries={sites.map((host) => ({
-              icon: <Favicon className="size-4" url={`https://${host}`} />,
-              id: host,
-              label: host,
-              note: String(reachOf({ sites: [host] })),
-            }))}
-            findPlaceholder="Find a site"
-            onToggle={(id) => {
-              toggleIn("sites", id);
-            }}
-          />
-        }
-        onClear={() => {
-          clear("sites");
-        }}
-        {...(chosenSite
-          ? {
-              chosen: {
-                count: reachOf({ sites: filters.sites }),
-                icon: (
-                  <Favicon className="size-4" url={`https://${chosenSite}`} />
-                ),
-                label: chosenSite,
-                more: filters.sites.length - 1,
-              },
-            }
-          : {})}
-      />
+              findPlaceholder="Find a site"
+              onToggle={(id) => {
+                toggleIn("sites", id);
+              }}
+            />
+          }
+          onClear={() => {
+            clear("sites");
+          }}
+          {...(chosenSite
+            ? {
+                chosen: {
+                  count: reachOf({ sites: filters.sites }),
+                  icon: (
+                    <Favicon className="size-4" url={`https://${chosenSite}`} />
+                  ),
+                  label: chosenSite,
+                  more: filters.sites.length - 1,
+                },
+              }
+            : {})}
+        />
+      )}
     </div>
   );
 }

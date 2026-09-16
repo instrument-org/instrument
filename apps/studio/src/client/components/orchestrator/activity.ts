@@ -22,8 +22,8 @@ export interface ActivityFilters {
   sites: string[];
   /** Topic ids an entry's thread has to be filed under one of. */
   topics: string[];
-  /** Only the user's side: what they asked, and what the window showed them. */
-  yours: boolean;
+  /** Whose side of the record: both, Instrument's alone, or the user's alone. */
+  who: ActivityWho;
 }
 
 /**
@@ -33,6 +33,12 @@ export interface ActivityFilters {
 export type ActivityRow =
   | { at: number; entry: ActivityEntry; id: string; kind: "entry" }
   | { at: number; id: string; kind: "looked"; visits: Visit[] };
+
+/**
+ * The two sides of the record. The user's is what they asked and what the
+ * window showed them; Instrument's is everything the threads did in answer.
+ */
+export type ActivityWho = "all" | "instrument" | "you";
 
 /** One thing the window showed the user: a screen by its address, or a page by its url. */
 export interface Visit {
@@ -50,7 +56,7 @@ export const NO_ACTIVITY_FILTERS: ActivityFilters = {
   apps: [],
   sites: [],
   topics: [],
-  yours: false,
+  who: "all",
 };
 
 /** How far apart two visits can be and still be one run. */
@@ -156,7 +162,7 @@ export function matchesActivityFilters(
   row: ActivityRow,
   filters: ActivityFilters,
 ): boolean {
-  if (filters.yours && !isYours(row)) {
+  if (filters.who !== "all" && isYours(row) !== (filters.who === "you")) {
     return false;
   }
   const entry = row.kind === "entry" ? row.entry : undefined;

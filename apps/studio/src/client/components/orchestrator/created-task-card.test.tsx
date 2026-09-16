@@ -80,7 +80,7 @@ describe("CreatedTaskCard", () => {
     });
 
     const row = await screen.findByRole("button", {
-      name: "Lisbon hotel Wrote hotel-options.md with three places near the Alfama.",
+      name: "Lisbon hotel · Wrote hotel-options.md with three places near the Alfama.",
     });
     expect(
       screen.getByText(

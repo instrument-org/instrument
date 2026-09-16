@@ -117,6 +117,12 @@ describe("locationCrumbs", () => {
         "Apps",
       ]
     `);
+    expect(readable({ kind: "thread", title: "Caffeine mixes" }))
+      .toMatchInlineSnapshot(`
+      [
+        "Caffeine mixes",
+      ]
+    `);
   });
 
   it("says an address whole, and a new tab not at all", () => {

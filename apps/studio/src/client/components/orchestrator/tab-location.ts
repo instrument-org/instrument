@@ -30,7 +30,8 @@ export type TabLocation =
   | { kind: "newTab" }
   | { kind: "page"; url: string }
   | { kind: "task"; title: string }
-  | { kind: "tasks" };
+  | { kind: "tasks" }
+  | { kind: "thread"; title: string };
 
 /**
  * The place the field shows, as the parts a person reads it in.
@@ -83,6 +84,11 @@ export function locationCrumbs(
     }
     case "tasks": {
       return [{ label: "Tasks" }];
+    }
+    // A thread hangs from the chat beside the tabs rather than from a screen
+    // under one, so there is nothing above it the field could go to.
+    case "thread": {
+      return [{ label: location.title }];
     }
   }
 }

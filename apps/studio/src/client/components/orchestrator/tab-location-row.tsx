@@ -14,6 +14,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
@@ -364,6 +365,11 @@ function locationMark(location: TabLocation): ReactNode {
     case "tasks": {
       return <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600" />;
     }
+    case "thread": {
+      return (
+        <ChatTeardropTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
   }
 }
 
@@ -397,6 +403,9 @@ function locationText(location: TabLocation) {
     }
     case "tasks": {
       return "Tasks";
+    }
+    case "thread": {
+      return location.title;
     }
   }
 }

@@ -2,8 +2,9 @@ import { NEW_TAB_HREF } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
@@ -16,16 +17,24 @@ import { IDEAS_HREF, ideaTitleOf } from "./ideas";
 import { type TabLocation } from "./tab-location";
 import { parseHref } from "./window-tabs";
 
+/** The route a thread's screen is at, followed by the thread's session id. */
+export const THREADS_HREF = "/orchestrator/threads";
+
+/**
+ * What an address alone cannot say about a screen: the names of the things
+ * it stands for, kept by the window and read off the address's id.
+ */
+interface ScreenNames {
+  appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  childTitles: Map<TaskId, string>;
+  /** Each thread's title by its session, for a tab standing on one; a thread not in it is a "Thread". */
+  threadTitles?: Map<StoreId.Session, string>;
+}
+
 /** Where a screen tab is, in the terms the row above it says a place in. */
 export function screenLocation(
   href: string,
-  {
-    appsBySlug,
-    childTitles,
-  }: {
-    appsBySlug: Map<string, { name: string; site: string | undefined }>;
-    childTitles: Map<TaskId, string>;
-  },
+  { appsBySlug, childTitles, threadTitles }: ScreenNames,
 ): TabLocation {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -67,6 +76,9 @@ export function screenLocation(
     const id = pathname.slice("/orchestrator/tasks/".length) as TaskId;
     return { kind: "task", title: childTitles.get(id) ?? "Task" };
   }
+  if (pathname.startsWith(`${THREADS_HREF}/`)) {
+    return { kind: "thread", title: threadTitleOf(pathname, threadTitles) };
+  }
   // Every other screen is the work, which is the one place a tab can be that
   // is neither a file nor an app nor a site.
   return { kind: "tasks" };
@@ -75,13 +87,7 @@ export function screenLocation(
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(
   href: string,
-  {
-    appsBySlug,
-    childTitles,
-  }: {
-    appsBySlug: Map<string, { name: string; site: string | undefined }>;
-    childTitles: Map<TaskId, string>;
-  },
+  { appsBySlug, childTitles, threadTitles }: ScreenNames,
 ): { icon: ReactNode; title: string } {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -113,6 +119,12 @@ export function screenPresentation(
   }
   if (pathname === "/orchestrator/tasks") {
     return { icon: <InstrumentGlyph className="size-3.5" />, title: "Tasks" };
+  }
+  if (pathname.startsWith(`${THREADS_HREF}/`)) {
+    return {
+      icon: <ChatTeardropTextIcon className="size-3.5" />,
+      title: threadTitleOf(pathname, threadTitles),
+    };
   }
   if (pathname.startsWith("/orchestrator/apps/")) {
     const slug = pathname.slice("/orchestrator/apps/".length);
@@ -171,4 +183,15 @@ function folderTitle(search: URLSearchParams) {
     return "Recents";
   }
   return segmentsOf(root).at(-1) ?? computerName();
+}
+
+/** The thread a screen address stands on, by the title the window has for it. */
+function threadTitleOf(
+  pathname: string,
+  threadTitles: ScreenNames["threadTitles"],
+) {
+  const id = StoreId.SessionSchema.safeParse(
+    pathname.slice(`${THREADS_HREF}/`.length),
+  );
+  return (id.success ? threadTitles?.get(id.data) : undefined) ?? "Thread";
 }

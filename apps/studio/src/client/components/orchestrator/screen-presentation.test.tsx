@@ -1,10 +1,24 @@
+import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { screenLocation, screenPresentation } from "./screen-presentation";
 
 const CONTEXT = { appsBySlug: new Map(), childTitles: new Map() };
 
+const THREAD_ID = StoreId.SessionSchema.parse(
+  "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+);
+const THREAD_HREF = `/orchestrator/threads/${THREAD_ID}`;
+
 describe("screenPresentation", () => {
+  it("names a thread tab by the thread's title, and by kind until it is known", () => {
+    const threadTitles = new Map([[THREAD_ID, "Caffeine mixes, plus Zevia"]]);
+    expect(
+      screenPresentation(THREAD_HREF, { ...CONTEXT, threadTitles }).title,
+    ).toBe("Caffeine mixes, plus Zevia");
+    expect(screenPresentation(THREAD_HREF, CONTEXT).title).toBe("Thread");
+  });
+
   it.each([
     ["the home folder", "/orchestrator/computer?path=&root=~", "Home"],
     [
@@ -55,5 +69,13 @@ describe("screenLocation", () => {
     ["the recents", "/orchestrator/computer?path=&root=recents%3A", ""],
   ])("places a folder tab at %s", (_, href, path) => {
     expect(screenLocation(href, CONTEXT)).toEqual({ kind: "folder", path });
+  });
+
+  it("places a thread tab on its thread", () => {
+    const threadTitles = new Map([[THREAD_ID, "Caffeine mixes"]]);
+    expect(screenLocation(THREAD_HREF, { ...CONTEXT, threadTitles })).toEqual({
+      kind: "thread",
+      title: "Caffeine mixes",
+    });
   });
 });

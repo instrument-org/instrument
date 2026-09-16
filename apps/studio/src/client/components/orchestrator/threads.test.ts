@@ -10,6 +10,7 @@ import {
   matchesFilters,
   NO_FILTERS,
   sitesByUse,
+  type ThreadFilters,
 } from "./threads";
 
 function thread(overrides: Partial<Filterable> = {}): Filterable {
@@ -27,13 +28,19 @@ describe("matchesFilters", () => {
     expect(matchesFilters(thread(), NO_FILTERS)).toBe(true);
   });
 
-  it.each([
-    ["unread", { unread: true }, thread({ unread: 2 }), thread()],
+  it.each<[string, Partial<ThreadFilters>, Filterable, Filterable]>([
+    ["unread", { status: ["unread"] }, thread({ unread: 2 }), thread()],
     [
       "needs you",
-      { needsYou: true },
+      { status: ["needsYou"] },
       thread({ state: "waiting" }),
       thread({ state: "working" }),
+    ],
+    [
+      "either state",
+      { status: ["unread", "needsYou"] },
+      thread({ state: "waiting" }),
+      thread({ state: "idle" }),
     ],
     [
       "a topic",

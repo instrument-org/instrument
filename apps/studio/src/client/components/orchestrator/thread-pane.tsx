@@ -18,9 +18,7 @@ import { FilterBar } from "./filter-bar";
 import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
 import { ThreadList } from "./thread-list";
 import {
-  isUnread,
   matchesFilters,
-  needsYou,
   NO_FILTERS,
   type Thread,
   type ThreadFilters,
@@ -96,14 +94,7 @@ export function ThreadPane({
   );
 
   const [filters, setFilters] = useState<ThreadFilters>(NO_FILTERS);
-  // A state filter whose chip has gone, its count at zero, narrows nothing:
-  // left in force it would empty the list with nothing on screen to undo it.
-  const effective: ThreadFilters = {
-    ...filters,
-    needsYou: filters.needsYou && threads.some(needsYou),
-    unread: filters.unread && threads.some(isUnread),
-  };
-  const shown = threads.filter((thread) => matchesFilters(thread, effective));
+  const shown = threads.filter((thread) => matchesFilters(thread, filters));
 
   const [isNewTopicOpen, setNewTopicOpen] = useState(false);
   // The topic being renamed or re-marked, by id, so a re-read of the list does

@@ -15,24 +15,24 @@ import { PickList } from "./pick-list";
 import {
   appsUsed,
   type Filterable,
-  isUnread,
+  hasStatus,
   matchesFilters,
-  needsYou,
   NO_FILTERS,
   sitesByUse,
+  THREAD_STATUSES,
   type ThreadFilters,
+  type ThreadStatus,
   type Topic,
 } from "./threads";
 import { TopicMark } from "./topic-mark";
 import { type TopicAction, TopicPickList } from "./topic-menu";
 
 /**
- * The row of disclosures along the top of the chat, always there: Unread and
- * Needs you while there is any, each with its count, then Topics, Apps, and
- * Sites as one chip each that opens a menu. Five click targets at most and
- * never a wall of chips, so the row costs the same height whether there are
- * five topics or fifty sites. A chosen group goes solid with what was chosen,
- * how many threads that reaches, and the way to undo it.
+ * The row of disclosures along the top of the chat, always there: Status,
+ * Topics, Apps, and Sites as one chip each that opens a menu. Four click
+ * targets and never a wall of chips, so the row costs the same height whether
+ * there are five topics or fifty sites. A chosen group goes solid with what
+ * was chosen, how many threads that reaches, and the way to undo it.
  */
 export function FilterBar({
   appsBySlug,
@@ -51,8 +51,6 @@ export function FilterBar({
   threads: Filterable[];
   topics: Topic[];
 }) {
-  const unreadCount = threads.filter(isUnread).length;
-  const needsYouCount = threads.filter(needsYou).length;
   /** How many threads one group's own choice reaches, the other groups aside. */
   const reachOf = (group: Partial<ThreadFilters>) =>
     threads.filter((thread) =>
@@ -63,17 +61,14 @@ export function FilterBar({
     topics.map((topic) => [topic.id, reachOf({ topics: [topic.id] })]),
   );
   const toggleIn = (group: "apps" | "sites" | "topics", id: string) => {
-    const current = filters[group];
-    onFiltersChange({
-      ...filters,
-      [group]: current.includes(id)
-        ? current.filter((entry) => entry !== id)
-        : [...current, id],
-    });
+    onFiltersChange({ ...filters, [group]: toggled(filters[group], id) });
   };
-  const clear = (group: "apps" | "sites" | "topics") => {
+  const clear = (group: "apps" | "sites" | "status" | "topics") => {
     onFiltersChange({ ...filters, [group]: [] });
   };
+  const chosenStatus = THREAD_STATUSES.find(
+    (status) => status.id === filters.status[0],
+  );
   const chosenTopic = topicsById.get(filters.topics[0] ?? "");
   const chosenApp = filters.apps[0];
   const chosenSite = filters.sites[0];
@@ -86,30 +81,45 @@ export function FilterBar({
       className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-3 py-1.5"
       role="toolbar"
     >
-      {unreadCount > 0 && (
-        <ToggleChip
-          count={unreadCount}
-          on={filters.unread}
-          onToggle={() => {
-            onFiltersChange({ ...filters, unread: !filters.unread });
-          }}
-          tone="brand"
-        >
-          Unread
-        </ToggleChip>
-      )}
-      {needsYouCount > 0 && (
-        <ToggleChip
-          count={needsYouCount}
-          on={filters.needsYou}
-          onToggle={() => {
-            onFiltersChange({ ...filters, needsYou: !filters.needsYou });
-          }}
-          tone="warning"
-        >
-          Needs you
-        </ToggleChip>
-      )}
+      <GroupChip
+        label="Status"
+        menu={
+          <PickList
+            chosen={new Set(filters.status)}
+            entries={THREAD_STATUSES.map((status) => ({
+              icon: <StatusDot status={status.id} />,
+              id: status.id,
+              label: status.label,
+              note: String(
+                threads.filter((thread) => hasStatus(thread, status.id)).length,
+              ),
+            }))}
+            findPlaceholder="Find a state"
+            onToggle={(id) => {
+              const status = THREAD_STATUSES.find((entry) => entry.id === id);
+              if (status) {
+                onFiltersChange({
+                  ...filters,
+                  status: toggled(filters.status, status.id),
+                });
+              }
+            }}
+          />
+        }
+        onClear={() => {
+          clear("status");
+        }}
+        {...(chosenStatus
+          ? {
+              chosen: {
+                count: reachOf({ status: filters.status }),
+                icon: <StatusDot status={chosenStatus.id} />,
+                label: chosenStatus.label,
+                more: filters.status.length - 1,
+              },
+            }
+          : {})}
+      />
       <GroupChip
         label="Topics"
         menu={
@@ -312,52 +322,23 @@ function GroupChip({
   );
 }
 
-/**
- * A filter that is a state rather than a group: on or off, carrying how many
- * threads are in that state, in the color the rows wear for it.
- */
-function ToggleChip({
-  children,
-  count,
-  on,
-  onToggle,
-  tone,
-}: {
-  children: ReactNode;
-  count: number;
-  on: boolean;
-  onToggle: () => void;
-  tone: "brand" | "warning";
-}) {
+/** The mark a state is known by: the same dot the rows wear for it, in its color. */
+function StatusDot({ status }: { status: ThreadStatus }) {
   return (
-    <button
-      aria-pressed={on}
+    // Important: the chosen chip sizes every span it holds to the mark's box,
+    // which is right for a topic's tile and too big for a dot.
+    <span
       className={cn(
-        CHIP,
-        "gap-1.5",
-        tone === "brand"
-          ? on
-            ? "bg-brand-600 text-white"
-            : "bg-brand-50 text-brand-800 ring-1 ring-brand-200 hover:bg-brand-100 dark:bg-brand-950/60 dark:text-brand-200 dark:ring-brand-800"
-          : on
-            ? "bg-warning-500 text-white"
-            : "bg-warning-50 text-warning-900 ring-1 ring-warning-300 hover:bg-warning-100 dark:bg-warning-900/30 dark:text-warning-300 dark:ring-warning-700",
+        "size-2! rounded-full",
+        status === "unread" ? "bg-brand-500" : "bg-warning-500",
       )}
-      onClick={onToggle}
-      type="button"
-    >
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          on
-            ? "bg-white"
-            : tone === "brand"
-              ? "bg-brand-500"
-              : "bg-warning-500",
-        )}
-      />
-      <span>{children}</span>
-      <span className={cn(on ? "text-white/80" : "opacity-80")}>{count}</span>
-    </button>
+    />
   );
+}
+
+/** The list with the entry added when it was missing, and taken out when it was there. */
+function toggled<T>(list: T[], entry: T): T[] {
+  return list.includes(entry)
+    ? list.filter((item) => item !== entry)
+    : [...list, entry];
 }

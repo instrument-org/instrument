@@ -9,13 +9,16 @@ export type Thread =
 export interface ThreadFilters {
   /** App slugs a thread has to have used one of. */
   apps: string[];
-  needsYou: boolean;
   /** Hostnames a thread has to have been to one of. */
   sites: string[];
+  /** States a thread has to be in one of. */
+  status: ThreadStatus[];
   /** Topic ids a thread has to be filed under one of. */
   topics: string[];
-  unread: boolean;
 }
+
+/** The two states a thread can be picked out by: replies not yet seen, and a question waiting on an answer. */
+export type ThreadStatus = "needsYou" | "unread";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic =
@@ -23,11 +26,16 @@ export type Topic =
 
 export const NO_FILTERS: ThreadFilters = {
   apps: [],
-  needsYou: false,
   sites: [],
+  status: [],
   topics: [],
-  unread: false,
 };
+
+/** The states in the order the Status menu offers them, each with its name. */
+export const THREAD_STATUSES: { id: ThreadStatus; label: string }[] = [
+  { id: "unread", label: "Unread" },
+  { id: "needsYou", label: "Needs you" },
+];
 
 /** The part of a thread the filters read, so the predicate is testable off any row shape. */
 export interface Filterable {
@@ -42,27 +50,19 @@ export function appsUsed(threads: Filterable[]): string[] {
   return [...new Set(threads.flatMap((thread) => thread.holds.apps))];
 }
 
-export function isUnread(thread: Filterable) {
-  return thread.unread > 0;
+/** Whether a thread is in a state, by the state's name. */
+export function hasStatus(thread: Filterable, status: ThreadStatus) {
+  return status === "unread" ? thread.unread > 0 : thread.state === "waiting";
 }
 
 /** Whether a thread passes every filter that is set. */
 export function matchesFilters(thread: Filterable, filters: ThreadFilters) {
-  if (filters.unread && !isUnread(thread)) {
-    return false;
-  }
-  if (filters.needsYou && !needsYou(thread)) {
-    return false;
-  }
   return (
+    anyOf(filters.status, statusesOf(thread)) &&
     anyOf(filters.topics, thread.topics) &&
     anyOf(filters.apps, thread.holds.apps) &&
     anyOf(filters.sites, thread.holds.sites)
   );
-}
-
-export function needsYou(thread: Filterable) {
-  return thread.state === "waiting";
 }
 
 /**
@@ -83,8 +83,15 @@ export function sitesByUse(threads: Filterable[]): string[] {
 }
 
 /** A group with nothing chosen narrows nothing; one with choices wants any of them. */
-function anyOf(chosen: string[], held: string[]) {
+function anyOf<T extends string>(chosen: T[], held: T[]) {
   return chosen.length === 0 || chosen.some((entry) => held.includes(entry));
+}
+
+/** The states a thread is in right now. */
+function statusesOf(thread: Filterable): ThreadStatus[] {
+  return THREAD_STATUSES.flatMap(({ id }) =>
+    hasStatus(thread, id) ? [id] : [],
+  );
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

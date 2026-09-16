@@ -84,11 +84,10 @@ export const visitedPagesAtom = atomWithStorage<VisitedPage[]>(
   { getOnInit: true },
 );
 
-/** A file the conversation has put on screen, newest first: what the sidebar lists as recent. */
-export interface LinkedFile {
+/** A file the window can open in a tab: where it is on the computer, which is the tab's identity. */
+export interface FileTab {
+  hostPath: string;
   name: string;
-  /** The virtual path the reply named. */
-  path: string;
 }
 
 export function originOf(url: string | undefined): string | undefined {
@@ -100,14 +99,6 @@ export function originOf(url: string | undefined): string | undefined {
   } catch {
     return;
   }
-}
-
-export const linkedFilesAtom = atom<LinkedFile[]>([]);
-
-/** A file the window can open in a tab: where it is on the computer, which is the tab's identity. */
-export interface FileTab {
-  hostPath: string;
-  name: string;
 }
 
 export const TASKS_COLUMN_MIN = 200;
@@ -166,25 +157,19 @@ interface TabHistory {
 /** The address a new tab opens at: the page with the box that reaches everything. */
 export const NEW_TAB_HREF = "/orchestrator/home";
 
-/** What one channel has open: its tabs in strip order, and which is on screen. */
-export interface ChannelTabs {
+/** What the window has open: its tabs in strip order, and which is on screen. */
+export interface WindowTabs {
   activeId: null | string;
   tabs: WindowTab[];
 }
 
-const NO_TABS: ChannelTabs = { activeId: null, tabs: [] };
-
 /**
- * Every channel's tabs, by channel id, kept across launches.
- *
- * A channel owns what is open in the window while it is the one on the rail:
- * switching channels swaps the whole strip and the page on screen, and the
- * guests of the channels not on screen stay attached, so a task can carry on
- * browsing in a channel the user is not looking at.
+ * The window's tabs, one set, kept across launches. Every screen reads and
+ * writes this one; a thread opens as a tab in it beside everything else.
  */
-const windowTabsByChannelAtom = atomWithStorage<Record<string, ChannelTabs>>(
-  "orchestrator.tabs.v3",
-  {},
+export const windowTabsAtom = atomWithStorage<WindowTabs>(
+  "orchestrator.tabs.v4",
+  { activeId: null, tabs: [] },
   undefined,
   { getOnInit: true },
 );
@@ -196,18 +181,10 @@ export const SIDEBAR_WIDTH_MIN = 320;
 export const SIDEBAR_WIDTH_MAX = 640;
 export const SIDEBAR_WIDTH_DEFAULT = 400;
 
-/** The sidebar's width in CSS px, dragged by its right edge. It holds the conversation, so it never closes. */
+/** The chat pane's width in CSS px, dragged by its right edge. It holds the conversation, so it never closes. */
 export const orchestratorSidebarWidthAtom = atomWithStorage<number>(
   "orchestrator.sidebar-width.v1",
   SIDEBAR_WIDTH_DEFAULT,
-  undefined,
-  { getOnInit: true },
-);
-
-/** Whether the sidebar is open, or shrunk to a rail. It is never gone: the rail keeps the conversation one click away. */
-export const orchestratorSidebarOpenAtom = atomWithStorage<boolean>(
-  "orchestrator.sidebar-open.v2",
-  true,
   undefined,
   { getOnInit: true },
 );
@@ -268,70 +245,14 @@ export const pinsAtom = atomWithStorage<Pin[]>(
   { getOnInit: true },
 );
 
-/**
- * The channel the conversation is showing, by its session id.
- *
- * Kept here rather than in the route so the strip and the composer agree
- * without threading it through the screens, and remembered across launches so
- * the window opens where the user left off. An id that no longer names a
- * channel falls back to the first one.
- */
-export const selectedChannelAtom = atomWithStorage<null | string>(
-  "orchestrator.channel.v1",
-  null,
-  undefined,
-  { getOnInit: true },
-);
-
-/**
- * The tabs of the channel on screen. Every screen reads and writes this one
- * and never knows which channel it belongs to; the channel is what the write
- * is keyed by.
- */
-export const windowTabsAtom = atom(
-  (get) =>
-    get(windowTabsByChannelAtom)[get(selectedChannelAtom) ?? ""] ?? NO_TABS,
-  (get, set, update: ((current: ChannelTabs) => ChannelTabs) | ChannelTabs) => {
-    const channel = get(selectedChannelAtom) ?? "";
-    set(windowTabsByChannelAtom, (byChannel) => ({
-      ...byChannel,
-      [channel]:
-        typeof update === "function"
-          ? update(byChannel[channel] ?? NO_TABS)
-          : update,
-    }));
-  },
-);
-
-/** Writes a named channel's tabs, for what arrives on a channel other than the one on screen. */
-export const channelTabsAtom = atom(
-  null,
-  (
-    _get,
-    set,
-    channel: string,
-    update: ((current: ChannelTabs) => ChannelTabs) | ChannelTabs,
-  ) => {
-    set(windowTabsByChannelAtom, (byChannel) => ({
-      ...byChannel,
-      [channel]:
-        typeof update === "function"
-          ? update(byChannel[channel] ?? NO_TABS)
-          : update,
-    }));
-  },
-);
-
-/** Every tab id the window holds, across every channel, so nothing is opened twice. */
+/** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
 export const everyTabIdAtom = atom(
   (get) =>
     new Set(
-      Object.values(get(windowTabsByChannelAtom)).flatMap((channel) =>
-        channel.tabs.flatMap((tab) => [
-          tab.id,
-          ...(tab.past ?? []).map((visit) => visit.id),
-          ...(tab.future ?? []).map((visit) => visit.id),
-        ]),
-      ),
+      get(windowTabsAtom).tabs.flatMap((tab) => [
+        tab.id,
+        ...(tab.past ?? []).map((visit) => visit.id),
+        ...(tab.future ?? []).map((visit) => visit.id),
+      ]),
     ),
 );

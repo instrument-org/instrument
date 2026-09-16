@@ -1,24 +1,25 @@
 import type { CSSProperties } from "react";
 
-import { isPaleChannelColor } from "@/client/components/orchestrator/channel-colors";
+import { isPaleTopicColor } from "@/client/components/orchestrator/topic-colors";
 
 /**
- * The one declaration the `channel-tint` utility reads: the channel's own
+ * The one declaration the `channel-tint` utility reads: the topic's own
  * color, which the utility rebuilds at a fixed lightness and chroma before
  * mixing it into the theme's ground. Wear the class and this together, since
- * neither paints anything on its own.
+ * neither paints anything on its own. The utility and the custom properties
+ * it publishes keep the `channel` name in `globals.css`.
  *
- * A channel with no color hands back nothing, leaving the surface whatever it
- * draws for a channel that was never marked.
+ * A topic with no color hands back nothing, leaving the surface whatever it
+ * draws for a topic that was never marked.
  */
-export function channelTint(color: string | undefined): CSSProperties {
+export function topicTint(color: string | undefined): CSSProperties {
   if (!color) {
     return {};
   }
   // The tier the color was picked from, carried alongside the hue: a pale and
   // a deep entry of one hue would otherwise come out the same, since the
   // rebuild keeps nothing else of what was chosen.
-  const pale = isPaleChannelColor(color);
+  const pale = isPaleTopicColor(color);
   // Cast because a custom property is not a key `CSSProperties` knows, which is
   // the one thing this object is for.
   return {

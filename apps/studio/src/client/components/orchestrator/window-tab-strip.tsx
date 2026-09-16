@@ -37,24 +37,24 @@ export function ScreenIcon({
  */
 export function WindowTabStrip({
   childTitles,
-  groupKey,
   onClose,
   onNew,
   onReorder,
   onSelect,
   selectedId,
   tabs,
+  threadTitles,
   trailing,
 }: {
   childTitles: Map<TaskId, string>;
-  /** The channel these tabs belong to, so a switch is not drawn as five tabs opening. */
-  groupKey?: string;
   onClose: (id: string) => void;
   onNew: () => void;
   onReorder: (ids: string[]) => void;
   onSelect: (id: string) => void;
   selectedId: string | undefined;
   tabs: WindowTab[];
+  /** Each thread's title by its session, for a tab standing on one. */
+  threadTitles: Map<StoreId.Session, string>;
   /** What sits at the end of the row, past the tabs: the window's top right. */
   trailing?: ReactNode;
 }) {
@@ -86,7 +86,11 @@ export function WindowTabStrip({
     const title =
       tab.kind === "page"
         ? pageTabTitle(tab) || target
-        : screenPresentation(tab.href, { appsBySlug, childTitles }).title;
+        : screenPresentation(tab.href, {
+            appsBySlug,
+            childTitles,
+            threadTitles,
+          }).title;
     setPins((pins) =>
       pins.some((pinned) => pinned.target === target)
         ? pins
@@ -166,7 +170,6 @@ export function WindowTabStrip({
         // many tabs fit, so it has to be told to fill the bar rather than
         // sizing to the tabs it currently holds.
         className="min-w-0 flex-1"
-        {...(groupKey === undefined ? {} : { groupKey })}
         onClose={(key) => {
           onClose(idOf(key));
         }}
@@ -196,7 +199,11 @@ export function WindowTabStrip({
                   pageTabTitle(tab) ||
                   "New tab",
               }
-            : screenPresentation(tab.href, { appsBySlug, childTitles })),
+            : screenPresentation(tab.href, {
+                appsBySlug,
+                childTitles,
+                threadTitles,
+              })),
         }))}
         trailing={trailing}
       />

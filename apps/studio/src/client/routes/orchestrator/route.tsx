@@ -1,50 +1,39 @@
 import {
-  linkedFilesAtom,
   NEW_TAB_HREF,
   type OrchestratorRecent,
   orchestratorRecentsAtom,
-  orchestratorSidebarOpenAtom,
   orchestratorSidebarWidthAtom,
   RECENTS_MAX,
   screenViewAtom,
-  selectedChannelAtom,
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { FilesLayoutContext } from "@/client/components/files-layout-context";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import {
   BrowserTabs,
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
-import { BannerWork } from "@/client/components/orchestrator/channel-banner";
-import { ChannelDetailsDialog } from "@/client/components/orchestrator/channel-details-dialog";
-import {
-  ChannelMenu,
-  type MenuAt,
-} from "@/client/components/orchestrator/channel-menu";
-import { ChannelRail } from "@/client/components/orchestrator/channel-rail";
 import {
   OrchestratorContext,
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
-import { ViewChip } from "@/client/components/orchestrator/conversation-chrome";
 import {
   fileHref,
   folderHref,
   mountOfHostPath,
 } from "@/client/components/orchestrator/file-tabs";
 import { segmentsOf } from "@/client/components/orchestrator/host-path";
-import { NewChannelDialog } from "@/client/components/orchestrator/new-channel-dialog";
 import {
   screenLocation,
   screenPresentation,
+  THREADS_HREF,
 } from "@/client/components/orchestrator/screen-presentation";
 import { type TabLocation } from "@/client/components/orchestrator/tab-location";
 import { TabLocationRow } from "@/client/components/orchestrator/tab-location-row";
+import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
@@ -60,7 +49,6 @@ import {
   type RailBounds,
   StudioSidebarRail,
 } from "@/client/components/studio-sidebar-rail";
-import { TaskChat } from "@/client/components/task/chat";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,7 +67,6 @@ import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -87,7 +74,6 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   isFolderPath,
-  pathsNamedInMessage,
   StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
@@ -104,14 +90,13 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
 import {
   lazy,
   type ReactNode,
   Suspense,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -131,9 +116,9 @@ const REFRESH_MS = ms("2 seconds");
 /** How long a screen has to stay up before Recent counts it. */
 const RECENT_DWELL_MS = ms("2 seconds");
 
-/** Dragged under the collapse point, the sidebar shrinks to a rail; it is never gone. */
+/** The chat pane never collapses: a drag past its floor stops at the floor. */
 const SIDEBAR_BOUNDS: RailBounds = {
-  collapse: 220,
+  collapse: Number.NEGATIVE_INFINITY,
   initial: SIDEBAR_WIDTH_DEFAULT,
   max: SIDEBAR_WIDTH_MAX,
   min: SIDEBAR_WIDTH_MIN,
@@ -146,7 +131,7 @@ export const Route = createFileRoute("/orchestrator")({
 
 /**
  * The window's chrome: no title bar, so it drags by its top-left corner,
- * which is the sidebar's top, past the traffic lights.
+ * which is the chat pane's top, past the traffic lights.
  */
 function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
   return (
@@ -178,13 +163,13 @@ function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
 }
 
 /**
- * The window: the sidebar down the left, with the user's own things at its
- * top and the conversation under them, and to its right one strip of tabs
- * above whatever is open. A tab is a page (a browser guest of the
- * orchestrator's) or a screen (a folder, a file, a task, the apps, a new tab)
- * addressed by the route it is at, so the router follows the tab on screen
- * and a screen navigating inside itself changes its own tab. The sidebar
- * never closes: the conversation is always in reach.
+ * The window: the chat pane down the left, with its filters, its threads, and
+ * its composer, and to its right one strip of tabs above whatever is open. A
+ * tab is a page (a browser guest of the orchestrator's) or a screen (a thread,
+ * a folder, a file, a task, the apps, a new tab) addressed by the route it is
+ * at, so the router follows the tab on screen and a screen navigating inside
+ * itself changes its own tab. The pane never closes: the chat is always in
+ * reach.
  */
 function OrchestratorLayout() {
   const ensure = useQuery(
@@ -195,102 +180,6 @@ function OrchestratorLayout() {
     }),
   );
   const ids = ensure.data;
-  // The channels of the one conversation, and which of them is on screen. A
-  // channel is a session, so everything below that took a session id takes the
-  // selected channel's instead.
-  const channels = useQuery(
-    rpcClient.workspace.orchestrator.channels.list.queryOptions({
-      input: ids ? { id: ids.taskId } : skipToken,
-      refetchInterval: REFRESH_MS,
-    }),
-  );
-  const [selectedChannel, setSelectedChannel] = useAtom(selectedChannelAtom);
-  const channelList = channels.data ?? [];
-  const channelId =
-    channelList.find((channel) => channel.id === selectedChannel)?.id ??
-    channelList[0]?.id;
-  // No channel at all until the list is in, since there is nothing to answer
-  // with that is not a guess: the task's newest session is the last channel
-  // the user made rather than the one they left off in, and a window that
-  // answered with it put that channel's transcript on screen, marked it read,
-  // and stood ready to take a message meant for another one.
-  const sessionId = channelId
-    ? StoreId.SessionSchema.parse(channelId)
-    : undefined;
-  // The tabs are kept per channel and keyed by the stored id, so the list is
-  // what settles it: left alone, an id naming no channel keeps the strip and
-  // its guests on a channel the conversation has already moved off.
-  useEffect(() => {
-    // A channel just made is selected by its own mutation, which re-reads the
-    // list before it writes, so the id it chose is already one of these.
-    if (channelId && channelId !== selectedChannel) {
-      setSelectedChannel(channelId);
-    }
-  }, [channelId, selectedChannel, setSelectedChannel]);
-  const createChannel = useMutation(
-    rpcClient.workspace.orchestrator.channels.create.mutationOptions({
-      onSuccess: async (channel) => {
-        // Re-read first: the rail has to know the channel exists before the
-        // window is switched to it.
-        await channels.refetch();
-        setSelectedChannel(channel.id);
-      },
-    }),
-  );
-  const markSeen = useMutation(
-    rpcClient.workspace.orchestrator.channels.seen.mutationOptions(),
-  );
-  const afterChannelChange = { onSuccess: () => void channels.refetch() };
-  const updateChannel = useMutation(
-    rpcClient.workspace.orchestrator.channels.update.mutationOptions(
-      afterChannelChange,
-    ),
-  );
-  const archiveChannel = useMutation(
-    rpcClient.workspace.orchestrator.channels.archive.mutationOptions(
-      afterChannelChange,
-    ),
-  );
-  const reorderChannels = useMutation(
-    rpcClient.workspace.orchestrator.channels.reorder.mutationOptions(
-      afterChannelChange,
-    ),
-  );
-  // Which channels have a task running, for the ring on their marks and for
-  // the line under the banner of the one on screen.
-  const activity = useQuery(
-    rpcClient.workspace.orchestrator.activity.queryOptions({
-      input: ids ? { id: ids.taskId } : skipToken,
-      refetchInterval: REFRESH_MS,
-    }),
-  );
-  const running = activity.data?.running ?? [];
-  // A channel is at work when a task of its is running, and also when its
-  // own agent is alive: the reply being written is the same kind of news as
-  // the task, and the mark on the rail says both the same way.
-  const conversationActivity = useQuery({
-    ...rpcClient.workspace.task.live.activity.experimental_liveOptions(),
-    select: (entries) => entries.find((entry) => entry.taskId === ids?.taskId),
-  });
-  const aliveSessions = (conversationActivity.data?.sessionActors ?? [])
-    .filter((actor) => actor.tags.includes("agent.alive"))
-    .map((actor): string => actor.sessionId);
-  const workingChannels = new Set([
-    ...aliveSessions,
-    ...running.flatMap((task) => (task.channel ? [task.channel] : [])),
-  ]);
-  const [isNewChannelOpen, setNewChannelOpen] = useState(false);
-  // Which channel a menu was asked for and where, so the rail's right click
-  // and the banner's caret open the same one.
-  const [menu, setMenu] = useState<{ at: MenuAt; id: string }>();
-  // The channel whose details are open, by id, so a re-read of the list does
-  // not close the dialog under the user.
-  const [detailsFor, setDetailsFor] = useState<string>();
-  const task = useQuery(
-    rpcClient.workspace.task.live.byId.experimental_liveOptions({
-      input: ids ? { id: ids.taskId } : skipToken,
-    }),
-  );
   const state = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({
       input: ids ? { id: ids.taskId } : skipToken,
@@ -305,55 +194,20 @@ function OrchestratorLayout() {
   const childTitles = new Map<TaskId, string>(
     children.data?.map((child) => [child.id, child.title]) ?? [],
   );
-  const messages = useQuery(
-    rpcClient.workspace.message.live.list.experimental_liveOptions({
-      input: ids && sessionId ? { id: ids.taskId, sessionId } : skipToken,
-    }),
+  // The threads' titles, for the tabs standing on one; the pane reads the
+  // same live list, so this is one subscription shared through the cache.
+  const threads = useQuery(
+    rpcClient.workspace.orchestrator.threads.live.list.experimental_liveOptions(
+      { input: ids ? { id: ids.taskId } : skipToken },
+    ),
   );
-  // What the user has seen in the channel they are looking at, so its count
-  // clears while they read rather than only when they leave.
-  const newestMessage = messages.data?.at(-1);
-  const newestMessageId = newestMessage?.id;
-  // A reply counts as seen once it has finished, so the mark is taken again
-  // when the newest message finishes and not only when it appears.
-  const newestMessageDone =
-    newestMessage?.role !== "assistant" ||
-    newestMessage.metadata.finishedAt !== undefined;
-  useEffect(() => {
-    if (!ids || !sessionId) {
-      return;
-    }
-    markSeen.mutate({ id: ids.taskId, sessionId });
-    // The mutation is stable; re-running on its identity would loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [ids?.taskId, sessionId, newestMessageId, newestMessageDone]);
+  const threadTitles = new Map<StoreId.Session, string>(
+    threads.data?.map((thread) => [thread.id, thread.title]) ?? [],
+  );
   const [defaultModelURI] = useDefaultModelURI();
   const screenView = useAtomValue(screenViewAtom);
-  const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
   const isDeveloperMode = useDeveloperMode();
-  const setLinkedFiles = useSetAtom(linkedFilesAtom);
   const conversationRef = useRef<HTMLDivElement>(null);
-  // The files the conversation has handed over, newest first, for the sidebar.
-  const linkedFiles = messages.data
-    ?.toReversed()
-    .flatMap((message) =>
-      message.role === "assistant" ? [...pathsNamedInMessage(message)] : [],
-    );
-  const linkedKey = linkedFiles?.join("\n") ?? "";
-  useEffect(() => {
-    const seen = new Set<string>();
-    setLinkedFiles(
-      (linkedFiles ?? []).flatMap((path) => {
-        if (seen.has(path)) {
-          return [];
-        }
-        seen.add(path);
-        return [{ name: path.split("/").at(-1) ?? path, path }];
-      }),
-    );
-    // By content: the list is rebuilt from the messages on every update.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linkedKey, setLinkedFiles]);
   const router = useRouter();
   const location = useRouterState({
     select: (routerState) => routerState.location,
@@ -370,13 +224,10 @@ function OrchestratorLayout() {
   const { active, activeId, tabs } = windowTabs;
   const isPageOnScreen = active?.kind === "page";
 
-  // The window is never empty: with no tab, the screen the router is at
-  // becomes one, or a new tab when the router is at the page route. The one
-  // opener while the list is empty; the effects below wait for it.
+  // The window is never empty: with no tab, it starts where a new tab starts.
+  // The one opener while the list is empty; the effects below wait for it.
   useEffect(() => {
     if (tabs.length === 0) {
-      // A channel with nothing open starts where a new tab starts, rather than
-      // inheriting whatever the channel before it was showing.
       windowTabs.openScreen(NEW_TAB_HREF);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -554,7 +405,11 @@ function OrchestratorLayout() {
               path: activeFilePath,
             }
         : active?.kind === "screen"
-          ? screenLocation(active.href, { appsBySlug, childTitles })
+          ? screenLocation(active.href, {
+              appsBySlug,
+              childTitles,
+              threadTitles,
+            })
           : { kind: "newTab" };
     if (fromTab.kind === "folder" && screenView?.folder) {
       return { ...fromTab, path: screenView.folder.display };
@@ -569,7 +424,7 @@ function OrchestratorLayout() {
   // A screen a link from outside asked for while this window was opening:
   // the command stream below could not carry it to a renderer not yet
   // listening, so it is asked for once the window can show it.
-  const isReady = ids !== undefined && sessionId !== undefined;
+  const isReady = ids !== undefined;
   useEffect(() => {
     if (!isReady) {
       return;
@@ -723,93 +578,107 @@ function OrchestratorLayout() {
     rpcClient.workspace.message.create.mutationOptions(),
   );
   const modelURI = state.data?.selectedModelURI ?? defaultModelURI;
-  const screens: null | OrchestratorWindow =
-    ids && sessionId
-      ? {
-          ask: (prompt) => {
-            if (!modelURI) {
-              return;
-            }
-            createMessage.mutate({
-              id: ids.taskId,
-              modelURI,
-              prompt,
-              sessionId,
-            });
-          },
-          browser,
-          // The composer is the sidebar's, so a screen that wants the caret in
-          // it reaches through the box the conversation is drawn in.
-          focusComposer: () => {
-            conversationRef.current
-              ?.querySelector<HTMLElement>('[contenteditable="true"], textarea')
-              ?.focus();
-          },
-          openPage,
-          openScreen,
-          sessionId,
-          taskId: ids.taskId,
-        }
-      : null;
+  const screens: null | OrchestratorWindow = ids
+    ? {
+        // No session: a line sent at the top level opens a thread of its own.
+        ask: (prompt) => {
+          if (!modelURI) {
+            return;
+          }
+          createMessage.mutate({ id: ids.taskId, modelURI, prompt });
+        },
+        browser,
+        // The composer is the pane's, so a screen that wants the caret in it
+        // reaches through the box the chat is drawn in.
+        focusComposer: () => {
+          conversationRef.current
+            ?.querySelector<HTMLElement>('[contenteditable="true"], textarea')
+            ?.focus();
+        },
+        openPage,
+        openScreen,
+        taskId: ids.taskId,
+      }
+    : null;
 
-  // Opening a channel is the user saying they want to talk in it, so the caret
-  // goes to its composer. A layout effect, which runs after the newly mounted
-  // screen has taken focus for itself, so the channel's own composer wins over
-  // a new tab page's search box.
-  useLayoutEffect(() => {
-    if (!sessionId) {
+  /**
+   * What the tab on screen says it shows, plus the page's words when that
+   * tab is a page, read at the moment of sending; a screen that registered
+   * nothing sends nothing.
+   */
+  const sendContext = async () => {
+    if (!screenView || !state.data) {
       return;
     }
-    conversationRef.current
-      ?.querySelector<HTMLElement>('[contenteditable="true"], textarea')
-      ?.focus();
-  }, [sessionId]);
+    // A file shown as a page is the file to the conversation: where it is,
+    // and how the agent reaches it when a granted folder covers it, rather
+    // than an address only this window can open.
+    const activeFilePath =
+      screenView.screen === "browser" && active?.kind === "page"
+        ? hostPathOfFileUrl(active.url)
+        : undefined;
+    const page =
+      screenView.screen === "browser" && activeFilePath === undefined
+        ? await browser?.readPage()
+        : undefined;
+    const activeMount =
+      activeFilePath === undefined
+        ? undefined
+        : mountOfHostPath(activeFilePath, state.data.attachedFolders ?? {});
+    const shown =
+      activeFilePath === undefined
+        ? screenView
+        : {
+            file: {
+              ...(activeMount === undefined ? {} : { mount: activeMount }),
+              name: segmentsOf(activeFilePath).at(-1) ?? activeFilePath,
+              path: activeFilePath,
+            },
+            screen: "file" as const,
+          };
+    return {
+      ...shown,
+      ...(page ? { page } : {}),
+      tabs: tabs.map((tab) => {
+        if (tab.kind !== "page") {
+          return {
+            at: tab.href,
+            title: screenPresentation(tab.href, {
+              appsBySlug,
+              childTitles,
+              threadTitles,
+            }).title,
+          };
+        }
+        // A file page has no id to hand a task: a task is pointed at sites,
+        // never at a file on this computer.
+        const filePath = hostPathOfFileUrl(tab.url);
+        return filePath === undefined
+          ? {
+              at: tab.url ?? "about:blank",
+              id: tab.id,
+              title: tab.title || tab.url || "New tab",
+            }
+          : {
+              at: filePath,
+              title: segmentsOf(filePath).at(-1) ?? filePath,
+            };
+      }),
+      url: location.href,
+    };
+  };
 
-  // The channels are half of what the window opens on, so a list that cannot
-  // be read is the same dead end as a conversation that cannot: without one
-  // there is no channel to show, and the spinner below would never end.
-  const openError = ensure.error ?? channels.error;
-  if (openError) {
+  if (ensure.error) {
     return (
       <Frame>
         <p className="p-4 pt-12 text-sm text-destructive">
-          Could not open the conversation: {openError.message}
+          Could not open the conversation: {ensure.error.message}
         </p>
       </Frame>
     );
   }
 
-  // The channels as the rail draws them, and the one it has open. A channel
-  // on screen has nothing unread by definition, since the user is reading it.
-  const railChannels = channelList.map((channel, index) => ({
-    ...(channel.color ? { color: channel.color } : {}),
-    ...(channel.emoji ? { emoji: channel.emoji } : {}),
-    id: channel.id,
-    // Which one is the app's own room is settled here, once, off the order the
-    // conversation keeps them in: everything that draws a channel takes its
-    // mark and its color from that rather than working it out again.
-    ...(index === 0 ? { isHome: true } : {}),
-    name: channel.name,
-    needsYou: channel.id === sessionId ? false : channel.needsYou,
-    unread: channel.id === sessionId ? 0 : channel.unread,
-    working: workingChannels.has(channel.id),
-  }));
-  const openChannel = railChannels.find((channel) => channel.id === sessionId);
-  const menuChannel = railChannels.find((channel) => channel.id === menu?.id);
-  const detailsChannel = railChannels.find(
-    (channel) => channel.id === detailsFor,
-  );
-  // Only this channel's work, since the line belongs to the channel rather
-  // than to the window.
-  const channelTasks = running
-    .filter((entry) => entry.channel === sessionId)
-    .map((entry) => ({
-      step: entry.step ?? "Working",
-      taskId: entry.taskId,
-      title: entry.title,
-    }));
-
-  if (!screens || !task.data || !state.data) {
+  if (!screens || !state.data) {
     return (
       <Frame>
         <div className="flex h-full flex-1 items-center justify-center">
@@ -831,34 +700,18 @@ function OrchestratorLayout() {
           <Frame
             bar={
               <WindowBar
-                isSidebarOpen={isSidebarOpen}
-                onOpenDetails={() => {
-                  if (openChannel) {
-                    setDetailsFor(openChannel.id);
-                  }
-                }}
-                onToggleSidebar={() => {
-                  setSidebarOpen(!isSidebarOpen);
-                }}
                 tabs={
                   <WindowTabStrip
-                    childTitles={
-                      new Map(
-                        children.data?.map((child) => [
-                          child.id,
-                          child.title,
-                        ]) ?? [],
-                      )
-                    }
+                    childTitles={childTitles}
                     onClose={requestClose}
                     onNew={() => {
                       windowTabs.openScreen(NEW_TAB_HREF);
                     }}
                     onReorder={windowTabs.reorder}
-                    {...(sessionId ? { groupKey: sessionId } : {})}
                     onSelect={windowTabs.select}
                     selectedId={active?.id}
                     tabs={tabs}
+                    threadTitles={threadTitles}
                   />
                 }
                 trailing={
@@ -869,204 +722,64 @@ function OrchestratorLayout() {
                       </Suspense>
                     )}
                     {/* A build waiting to be installed is the window's news,
-                      not a channel's, so it sits in the same corner the
+                      not a thread's, so it sits in the same corner the
                       classic window keeps it in. */}
                     <UpdateStatusIndicator />
                   </>
                 }
-                {...(openChannel ? { channel: openChannel } : {})}
               />
             }
           >
-            {/* The window's own rail, outside the sidebar: a channel owns the
-              conversation, the tabs and the pages in them, so what switches
-              them sits against the traffic lights rather than inside the panel
-              it switches. */}
-            <ChannelRail
-              channels={railChannels}
-              onMenu={(id, at) => {
-                setMenu({ at, id });
-              }}
-              onNew={() => {
-                setNewChannelOpen(true);
-              }}
-              onReorder={(order) => {
-                reorderChannels.mutate({
-                  id: screens.taskId,
-                  ids: order.map((id) => StoreId.SessionSchema.parse(id)),
-                });
-              }}
-              onSelect={(id) => {
-                // The channel you are already in is the one whose conversation
-                // you are asking for, so clicking it again brings the sidebar
-                // back rather than doing nothing.
-                if (id === sessionId && !isSidebarOpen) {
-                  setSidebarOpen(true);
-                  return;
-                }
-                setSelectedChannel(id);
-              }}
-              {...(sessionId ? { selectedId: sessionId } : {})}
-            />
             <StudioSidebarRail
               bounds={SIDEBAR_BOUNDS}
-              isOpen={isSidebarOpen}
-              label="Resize the sidebar"
+              isOpen
+              label="Resize the chat"
               onCollapse={() => {
-                setSidebarOpen(false);
+                // The pane never collapses; its floor is where a drag stops.
               }}
               panelClassName="bg-background"
               widthAtom={orchestratorSidebarWidthAtom}
             >
-              <div className="relative flex min-h-0 w-full flex-1 flex-col">
-                {/* Beside the traffic lights, where the rail's twin sits. */}
-                <div className="flex min-h-0 flex-1 flex-col">
-                  {/* `select-text`: the sidebar shell is chrome and turns selection off; the conversation is text. */}
-                  <div
-                    className="min-h-0 flex-1 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]"
-                    ref={conversationRef}
+              {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
+              <div
+                className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]"
+                ref={conversationRef}
+              >
+                {/* Names the openers for the links inside, so a page a row
+                  names offers both the window's browser and the user's, and
+                  a thread opens as a tab beside whatever is up. */}
+                <OrchestratorContext
+                  value={{
+                    ...screens,
+                    openPage: (url) => openPage(url, { newTab: true }),
+                    openScreen: (href) => {
+                      openScreen(href, { newTab: true });
+                    },
+                    opensNewTab: true,
+                  }}
+                >
+                  <FileOpenContext
+                    value={(path) => {
+                      openNamedPath(path, { newTab: true });
+                    }}
                   >
-                    {/* Names the task and session for the links inside, so a page
-                      a reply names offers both the window's browser and the
-                      user's, the way a link in a task does. */}
-                    <OrchestratorContext
-                      value={{
-                        ...screens,
-                        openPage: (url) => openPage(url, { newTab: true }),
-                        openScreen: (href) => {
-                          openScreen(href, { newTab: true });
-                        },
-                        opensNewTab: true,
-                      }}
+                    <PageOpenContext
+                      value={(url) => openPage(url, { newTab: true })}
                     >
-                      <FileOpenContext
-                        value={(path) => {
-                          openNamedPath(path, { newTab: true });
+                      <ThreadPane
+                        modelURI={modelURI}
+                        onOpenThread={(thread) => {
+                          openScreen(`${THREADS_HREF}/${thread.id}`, {
+                            newTab: true,
+                          });
                         }}
-                      >
-                        <PageOpenContext
-                          value={(url) => openPage(url, { newTab: true })}
-                        >
-                          <TaskSessionProvider
-                            sessionId={screens.sessionId}
-                            taskId={screens.taskId}
-                          >
-                            <FilesLayoutContext value="list">
-                              <TaskChat
-                                alwaysSubmittable
-                                beforeComposer={
-                                  <BannerWork
-                                    onOpen={(taskId) => {
-                                      openScreen(
-                                        `/orchestrator/tasks/${taskId}`,
-                                        { newTab: true },
-                                      );
-                                    }}
-                                    tasks={channelTasks}
-                                  />
-                                }
-                                composerLead={<ViewChip />}
-                                {...(openChannel
-                                  ? {
-                                      composerPlaceholder: `Message ${openChannel.name}`,
-                                    }
-                                  : {})}
-                                navigateOnSend={false}
-                                presentation="orchestrator"
-                                promptDraft={state.data.promptDraft ?? ""}
-                                selectedModelURI={
-                                  state.data.selectedModelURI ?? defaultModelURI
-                                }
-                                selectedSessionId={screens.sessionId}
-                                // What the tab on screen says it shows, plus the page's
-                                // words when that tab is a page, read at the moment of
-                                // sending; a screen that registered nothing sends nothing.
-                                sendContext={async () => {
-                                  if (!screenView) {
-                                    return;
-                                  }
-                                  // A file shown as a page is the file to the
-                                  // conversation: where it is, and how the agent
-                                  // reaches it when a granted folder covers it,
-                                  // rather than an address only this window can open.
-                                  const activeFilePath =
-                                    screenView.screen === "browser" &&
-                                    active?.kind === "page"
-                                      ? hostPathOfFileUrl(active.url)
-                                      : undefined;
-                                  const page =
-                                    screenView.screen === "browser" &&
-                                    activeFilePath === undefined
-                                      ? await browser?.readPage()
-                                      : undefined;
-                                  const activeMount =
-                                    activeFilePath === undefined
-                                      ? undefined
-                                      : mountOfHostPath(
-                                          activeFilePath,
-                                          state.data.attachedFolders ?? {},
-                                        );
-                                  const shown =
-                                    activeFilePath === undefined
-                                      ? screenView
-                                      : {
-                                          file: {
-                                            ...(activeMount === undefined
-                                              ? {}
-                                              : { mount: activeMount }),
-                                            name:
-                                              segmentsOf(activeFilePath).at(
-                                                -1,
-                                              ) ?? activeFilePath,
-                                            path: activeFilePath,
-                                          },
-                                          screen: "file" as const,
-                                        };
-                                  return {
-                                    ...shown,
-                                    ...(page ? { page } : {}),
-                                    tabs: tabs.map((tab) => {
-                                      if (tab.kind !== "page") {
-                                        return {
-                                          at: tab.href,
-                                          title: screenPresentation(tab.href, {
-                                            appsBySlug,
-                                            childTitles,
-                                          }).title,
-                                        };
-                                      }
-                                      // A file page has no id to hand a task: a
-                                      // task is pointed at sites, never at a file
-                                      // on this computer.
-                                      const filePath = hostPathOfFileUrl(
-                                        tab.url,
-                                      );
-                                      return filePath === undefined
-                                        ? {
-                                            at: tab.url ?? "about:blank",
-                                            id: tab.id,
-                                            title:
-                                              tab.title || tab.url || "New tab",
-                                          }
-                                        : {
-                                            at: filePath,
-                                            title:
-                                              segmentsOf(filePath).at(-1) ??
-                                              filePath,
-                                          };
-                                    }),
-                                    url: location.href,
-                                  };
-                                }}
-                                task={task.data}
-                              />
-                            </FilesLayoutContext>
-                          </TaskSessionProvider>
-                        </PageOpenContext>
-                      </FileOpenContext>
-                    </OrchestratorContext>
-                  </div>
-                </div>
+                        promptDraft={state.data.promptDraft ?? ""}
+                        sendContext={sendContext}
+                        taskId={screens.taskId}
+                      />
+                    </PageOpenContext>
+                  </FileOpenContext>
+                </OrchestratorContext>
               </div>
             </StudioSidebarRail>
             <main className="relative flex min-w-0 flex-1 flex-col">
@@ -1111,70 +824,6 @@ function OrchestratorLayout() {
                   </ActiveTabProvider>
                 </div>
               </div>
-              {menuChannel && (
-                <ChannelMenu
-                  at={menu?.at}
-                  channel={{
-                    id: StoreId.SessionSchema.parse(menuChannel.id),
-                    name: menuChannel.name,
-                  }}
-                  onClose={() => {
-                    setMenu(undefined);
-                  }}
-                  onOpenDetails={() => {
-                    setDetailsFor(menuChannel.id);
-                  }}
-                  taskId={screens.taskId}
-                />
-              )}
-              {detailsChannel && (
-                <ChannelDetailsDialog
-                  canEdit={!detailsChannel.isHome}
-                  channel={detailsChannel}
-                  onChange={(edits) => {
-                    updateChannel.mutate({
-                      ...edits,
-                      id: screens.taskId,
-                      sessionId: StoreId.SessionSchema.parse(detailsChannel.id),
-                    });
-                  }}
-                  onOpenChange={(next) => {
-                    if (!next) {
-                      setDetailsFor(undefined);
-                    }
-                  }}
-                  open
-                  {...(detailsChannel.isHome
-                    ? {}
-                    : {
-                        onArchive: () => {
-                          if (detailsChannel.id === sessionId) {
-                            setSelectedChannel(
-                              channelList.find(
-                                (channel) => channel.id !== detailsChannel.id,
-                              )?.id ?? null,
-                            );
-                          }
-                          archiveChannel.mutate({
-                            id: screens.taskId,
-                            sessionId: StoreId.SessionSchema.parse(
-                              detailsChannel.id,
-                            ),
-                          });
-                        },
-                      })}
-                />
-              )}
-              <NewChannelDialog
-                onCreate={(channel) => {
-                  createChannel.mutate({ ...channel, id: screens.taskId });
-                }}
-                onOpenChange={setNewChannelOpen}
-                open={isNewChannelOpen}
-                taken={channelList.flatMap((channel) =>
-                  channel.emoji ? [channel.emoji] : [],
-                )}
-              />
               <AlertDialog
                 onOpenChange={(open) => {
                   if (!open) {

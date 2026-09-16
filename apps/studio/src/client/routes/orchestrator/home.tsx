@@ -3,7 +3,6 @@ import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
-import { ChannelChip } from "@/client/components/orchestrator/channel-rail";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
@@ -21,12 +20,10 @@ import { ideaHref } from "@/client/components/orchestrator/ideas";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
-import { type TaskStandingKind } from "@/client/components/orchestrator/task-row";
 import { useIdeas } from "@/client/components/orchestrator/use-ideas";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { RelativeTime } from "@/client/components/relative-time";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import {
   useGesturesFor,
   useOpenGestures,
@@ -45,12 +42,12 @@ import ms from "ms";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /**
- * A new tab: the work across every channel, the places the user kept, the
- * apps this workspace reaches, the computer and the folders a person keeps
- * things in, the kinds of page Instrument can make, and under them the files
- * the conversation has shown. Each section is a head with a way to the rest
- * of it and a grid of tiles, one gesture for everything on the page;
- * whatever is picked, this tab becomes it.
+ * A new tab: the places the user kept, the apps this workspace reaches, the
+ * computer and the folders a person keeps things in, the kinds of page
+ * Instrument can make, and under them the files the conversation has shown.
+ * Each section is a head with a way to the rest of it and a grid of tiles,
+ * one gesture for everything on the page; whatever is picked, this tab
+ * becomes it. Tasks are reached from the thread that started them.
  */
 export const Route = createFileRoute("/orchestrator/home")({
   component: HomeRoute,
@@ -63,7 +60,6 @@ type RecentFile = RPCOutput["workspace"]["computer"]["recents"][number];
  * its head. Enough to find the one from this morning, few enough that the
  * page stays a page: every section can grow, and only the head's button does.
  */
-const TASKS_SHOWN = 4;
 const PINS_SHOWN = 6;
 const APPS_SHOWN = 6;
 const PLACES_SHOWN = 6;
@@ -76,14 +72,6 @@ const RECENTS_SHOWN = 5;
  * can sit open all day beside the work.
  */
 const RECENTS_REFRESH_MS = ms("30 seconds");
-
-/** How often the tasks are re-read: the clock the Tasks screen keeps, since a task's line is its latest step. */
-const TASKS_REFRESH_MS = ms("2 seconds");
-
-/** A task that is still somebody's concern: at work, or stopped on a question for the user. */
-function isLive(standing: TaskStandingKind) {
-  return standing === "running" || standing === "waiting";
-}
 
 /** A tile's mark when the thing has no icon of its own: a card with a glyph on it. */
 const MARK_CARD =
@@ -109,23 +97,6 @@ function HomeRoute() {
   const pins = useAtomValue(pinsAtom);
   useOnScreen({ screen: "home" });
 
-  // The work across every channel, on the clock the Tasks screen keeps, since
-  // a task's line is what it is doing this moment.
-  const children = useQuery(
-    rpcClient.workspace.orchestrator.children.queryOptions({
-      input: { id: taskId },
-      refetchInterval: TASKS_REFRESH_MS,
-    }),
-  );
-  // What is going on comes first, whatever its age: a task at work or
-  // waiting on the user outranks one that finished a minute ago, and the
-  // rest follow in the order the list keeps them, newest activity first.
-  const tasks = (children.data ?? [])
-    .toSorted(
-      (a, b) =>
-        Number(isLive(b.standing.kind)) - Number(isLive(a.standing.kind)),
-    )
-    .slice(0, TASKS_SHOWN);
   const ideas = useIdeas();
   const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const appsBySlug = useAppsBySlug();
@@ -156,82 +127,6 @@ function HomeRoute() {
   return (
     <div className="@container/home flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
       <div className="mx-auto w-full max-w-3xl space-y-8">
-        {/* The work, first and across every channel: what each task is doing
-            this moment under its name, in the colors of the channel it was
-            asked for in. The one section on this page that changes on its
-            own, which is why it is at the top rather than under things that
-            hold still. */}
-        <Section
-          action={{
-            icon: <InstrumentGlyph className="size-4 text-brand-600" />,
-            label: "All tasks",
-            onOpen: () => {
-              void navigate({ to: "/orchestrator/tasks" });
-            },
-          }}
-          title="Tasks"
-        >
-          {children.data === undefined ? (
-            <TileSkeletons count={TASKS_SHOWN} />
-          ) : tasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Tasks Instrument starts for you will appear here.
-            </p>
-          ) : (
-            <Tiles>
-              {tasks.map((task) => (
-                <Tile
-                  icon={
-                    task.channel ? (
-                      <ChannelChip channel={task.channel} />
-                    ) : (
-                      <span className={MARK_CARD}>
-                        <InstrumentGlyph className="size-6 text-brand-600" />
-                      </span>
-                    )
-                  }
-                  key={task.id}
-                  line={
-                    <span
-                      className={cn(
-                        "block truncate text-xs",
-                        task.standing.kind === "running"
-                          ? "brand-shiny-text"
-                          : task.standing.kind === "waiting"
-                            ? "text-warning-700 dark:text-warning-300"
-                            : task.standing.kind === "failed"
-                              ? "text-error-700 dark:text-error-300"
-                              : "text-muted-foreground",
-                      )}
-                    >
-                      {task.standing.line}
-                    </span>
-                  }
-                  name={task.title}
-                  onOpen={() => {
-                    void navigate({
-                      params: { id: task.id },
-                      to: "/orchestrator/tasks/$id",
-                    });
-                  }}
-                  target={{
-                    href: `/orchestrator/tasks/${task.id}`,
-                    kind: "screen",
-                  }}
-                  trailing={
-                    <RelativeTime
-                      className="shrink-0 text-xs text-muted-foreground"
-                      compact
-                      date={task.updatedAt}
-                      tooltip={false}
-                    />
-                  }
-                />
-              ))}
-            </Tiles>
-          )}
-        </Section>
-
         {/* The places the user kept, which is what a bookmark is: their own
             choice, before anything the app has to offer. */}
         <Section title="Bookmarks">

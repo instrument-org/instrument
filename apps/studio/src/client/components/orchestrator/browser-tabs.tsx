@@ -1,6 +1,5 @@
 import {
   type BrowserTab,
-  channelTabsAtom,
   everyTabIdAtom,
   NEW_TAB_HREF,
   orchestratorRecentsAtom,
@@ -178,18 +177,6 @@ export function BrowserTabs({
   const { openScreen, taskId } = useOrchestrator();
   const [{ activeId, tabs: allTabs }, setAllTabs] = useAtom(windowTabsAtom);
   const everyTabId = useAtomValue(everyTabIdAtom);
-  const setChannelTabs = useSetAtom(channelTabsAtom);
-  // Which channel each task was filed from, so a guest of one lands there.
-  const children = useQuery(
-    rpcClient.workspace.orchestrator.children.queryOptions({
-      input: { id: taskId },
-    }),
-  );
-  const channelOfTask = new Map(
-    (children.data ?? []).flatMap((child) =>
-      child.channelId ? [[child.id, child.channelId] as const] : [],
-    ),
-  );
   const tabs = allTabs.filter((tab) => tab.kind === "page");
   // A patch to a page tab lands in the window's list, where the tab lives.
   const setTabs = (update: PageTabsUpdate) => {
@@ -326,8 +313,8 @@ export function BrowserTabs({
     seenTargets.current = new Set(attached);
     const newcomers = arrived.flatMap((target) => {
       const decoded = decodeBrowserTargetId(target);
-      // Checked against every channel's tabs rather than this channel's: a
-      // task browsing in a channel the user is not looking at already has one.
+      // Checked against every visit the window holds, not only the tabs on the
+      // strip: a task browsing behind a screen already has one.
       if (
         !decoded ||
         decoded.id === taskId ||
@@ -346,29 +333,13 @@ export function BrowserTabs({
     if (newcomers.length === 0) {
       return;
     }
-    // A task's tab belongs to the channel the task was filed from, which is
-    // where the person who asked for it will look for it, and not to whichever
-    // channel happens to be on screen when the guest attaches.
-    for (const tab of newcomers) {
-      const home = (tab.taskId && channelOfTask.get(tab.taskId)) || undefined;
-      if (home) {
-        setChannelTabs(home, (current) => ({
-          ...current,
-          tabs: [...current.tabs, { ...tab, kind: "page" as const }],
-        }));
-      } else {
-        setAllTabs(
-          withPageTabs((current) => ({
-            ...current,
-            tabs: [...current.tabs, tab],
-          })),
-        );
-      }
-    }
-    // `channelOfTask` is rebuilt on every children re-read; the guard above is
-    // what keeps this from re-adding, so it is not a dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attached, everyTabId, setAllTabs, setChannelTabs, taskId]);
+    setAllTabs(
+      withPageTabs((current) => ({
+        ...current,
+        tabs: [...current.tabs, ...newcomers],
+      })),
+    );
+  }, [attached, everyTabId, setAllTabs, taskId]);
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the

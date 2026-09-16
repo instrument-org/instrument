@@ -1,6 +1,5 @@
 import {
   orchestratorRecentsAtom,
-  orchestratorSidebarOpenAtom,
   visitedPagesAtom,
 } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
@@ -25,11 +24,10 @@ import { GearIcon } from "@phosphor-icons/react/Gear";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import { unique } from "radashi";
 import {
   type ComponentType,
@@ -131,7 +129,6 @@ export function Omnibar({
   });
   const recents = useAtomValue(orchestratorRecentsAtom);
   const visited = useAtomValue(visitedPagesAtom);
-  const [isSidebarOpen, setSidebarOpen] = useAtom(orchestratorSidebarOpenAtom);
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
@@ -366,15 +363,6 @@ export function Omnibar({
         toast(developerMode ? "Developer mode off" : "Developer mode on");
       },
       words: ["!dev"],
-    },
-    {
-      icon: <SidebarSimpleIcon className="size-4" />,
-      id: "sidebar",
-      name: isSidebarOpen ? "Hide the sidebar" : "Show the sidebar",
-      run: () => {
-        setSidebarOpen(!isSidebarOpen);
-      },
-      words: ["sidebar"],
     },
     {
       icon: <GearIcon className="size-4" />,

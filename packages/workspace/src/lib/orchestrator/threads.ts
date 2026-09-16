@@ -6,6 +6,7 @@ import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { getBrowserState } from "../browser-state";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { Store } from "../store";
@@ -18,6 +19,7 @@ import {
   type OrchestratorActivity,
   orchestratorActivity,
 } from "./activity";
+import { latestSessionId } from "./latest-session";
 import { askIn, excerptOf } from "./standing";
 import { listTopics } from "./topics";
 
@@ -377,9 +379,28 @@ function newestSettledIn(
   return alphabetical(settled, (message) => message.id).at(-1)?.id;
 }
 
-/** The hostnames the thread's agent opened for the user with `open <url>`. */
-function sitesHeld(messages: SessionMessage.WithParts[]): string[] {
-  return unique(bashCommandsIn(messages).flatMap(openedHostsIn));
+/**
+ * The hostnames the thread's work touched: what its agent opened for the user
+ * with `open <url>`, then every host the browsers of the tasks it filed have
+ * been on, each task's newest last. A task's hosts come from its browser
+ * state, one small read per task, rather than from its transcript.
+ */
+async function sitesHeld(
+  messages: SessionMessage.WithParts[],
+  filedTasks: TaskId[],
+): Promise<string[]> {
+  const hosts = bashCommandsIn(messages).flatMap(openedHostsIn);
+  for (const filed of filedTasks) {
+    const sessionId = await latestSessionId(filed);
+    if (sessionId.isErr() || !sessionId.value) {
+      continue;
+    }
+    const browser = await getBrowserState(filed, sessionId.value);
+    if (browser.isOk()) {
+      hosts.push(...(browser.value?.visitedHosts ?? []));
+    }
+  }
+  return unique(hosts);
 }
 
 async function threadFor(
@@ -443,7 +464,7 @@ async function threadFor(
     holds: {
       apps: await appsHeld(messages, filedTasks),
       files: filesHeld(messages),
-      sites: sitesHeld(messages),
+      sites: await sitesHeld(messages, filedTasks),
     },
     id: session.id,
     ...(latest ? { latest } : {}),

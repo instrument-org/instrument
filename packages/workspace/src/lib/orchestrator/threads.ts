@@ -115,10 +115,26 @@ export function bashCommandOf(
     : undefined;
 }
 
-/** The first line with words, cut to what a row can show. */
+/**
+ * The first line with words, cut to what a row can show. Fenced blocks are
+ * skipped whole: a reply that opens with the files it hands over is read by
+ * its words, not by its paths.
+ */
 export function firstLine(text: string): string {
-  const line = text.split("\n").find((part) => part.trim()) ?? text;
-  const trimmed = line.trim();
+  let inFence = false;
+  let line: string | undefined;
+  for (const part of text.split("\n")) {
+    const candidate = part.trim();
+    if (candidate.startsWith("```")) {
+      inFence = !inFence;
+      continue;
+    }
+    if (!inFence && candidate) {
+      line = candidate;
+      break;
+    }
+  }
+  const trimmed = (line ?? text).trim();
   return trimmed.length > LATEST_MAX
     ? `${trimmed.slice(0, LATEST_MAX)}…`
     : trimmed;

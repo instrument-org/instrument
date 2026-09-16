@@ -9,9 +9,8 @@ import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
-import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import ms from "ms";
 
 const REFRESH_MS = ms("2 seconds");
@@ -25,7 +24,6 @@ function TaskRoute() {
   const { id } = Route.useParams();
   const taskId = TaskIdSchema.parse(id);
   const orchestrator = useOrchestrator();
-  const navigate = useNavigate();
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: { id: taskId },
@@ -110,19 +108,6 @@ function TaskRoute() {
             <span className="max-w-48 truncate">{thread.title}</span>
           </button>
         )}
-        {/* Closing the task is closing this pane, not ending the work: the
-          list beside it becomes the screen again, and the task goes on. */}
-        <button
-          aria-label="Close this task"
-          className="grid size-6 shrink-0 place-items-center rounded-md text-foreground/60 hover:bg-foreground/8 hover:text-foreground"
-          onClick={() => {
-            void navigate({ to: "/orchestrator/tasks" });
-          }}
-          title="Close"
-          type="button"
-        >
-          <XIcon className="size-4" />
-        </button>
       </div>
       <div className="min-h-0 flex-1">
         <ChildTranscript key={taskId} task={task.data} />

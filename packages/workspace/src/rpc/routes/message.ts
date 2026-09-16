@@ -9,9 +9,12 @@ import { createSession } from "../../lib/create-session";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
+import { threadContextFor } from "../../lib/orchestrator/thread-context";
+import { setThreadTopics } from "../../lib/orchestrator/threads";
 import { getTaskProjectName } from "../../lib/project";
 import { Store } from "../../lib/store";
-import { recordTaskActivity } from "../../lib/task-settings";
+import { taskDir } from "../../lib/task-dir-utils";
+import { getTaskSettings, recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { FolderAttachment } from "../../schemas/folder-attachment";
@@ -60,6 +63,8 @@ const create = base
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
       sessionId: StoreId.SessionSchema.optional(),
+      /** Topic ids for the thread this message opens, when it opens one. */
+      topics: z.array(z.string()).optional(),
       viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
     }),
   )
@@ -68,7 +73,16 @@ const create = base
     async ({
       context,
       errors,
-      input: { files, folders, id, modelURI, prompt, sessionId, viewing },
+      input: {
+        files,
+        folders,
+        id,
+        modelURI,
+        prompt,
+        sessionId,
+        topics,
+        viewing,
+      },
     }) => {
       const taskId = id;
 
@@ -87,10 +101,21 @@ const create = base
 
       const model = modelResult.value;
 
+      const settings = await getTaskSettings(taskDir(taskId));
+      const isOrchestrator = settings?.kind === "orchestrator";
+
       let finalSessionId: StoreId.Session;
+      // The other threads as they stand when a new one opens, read before
+      // the new session exists so it is not among them.
+      let threadContext:
+        | SessionMessageDataPart.ThreadContextDataPart
+        | undefined;
       if (sessionId) {
         finalSessionId = sessionId;
       } else {
+        if (isOrchestrator) {
+          threadContext = await threadContextFor(taskId);
+        }
         const sessionResult = await createSession({
           sessionId: StoreId.newSessionId(),
           taskId,
@@ -100,6 +125,9 @@ const create = base
           throw toORPCError(sessionResult.error, errors);
         }
         finalSessionId = sessionResult.value.id;
+        if (isOrchestrator && topics && topics.length > 0) {
+          await setThreadTopics(taskId, finalSessionId, topics);
+        }
       }
 
       const messageIdsBeforeResult = await Store.getMessageIds(
@@ -120,6 +148,7 @@ const create = base
         prompt,
         sessionId: finalSessionId,
         taskId,
+        threadContext,
         viewing,
       });
 

@@ -33,6 +33,8 @@ import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { taskAppChangesModelNote } from "../../lib/task-app-changes-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
+import { threadContextModelNote } from "../../lib/thread-context-model-text";
+import { threadTopicsModelNote } from "../../lib/thread-topics-model-text";
 import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
@@ -289,6 +291,8 @@ export namespace SessionMessage {
     // same folder, is a note the agent already read and has no reason to
     // doubt, and a page's excerpt is the longest thing a message carries.
     let previousViewContextNote: string | undefined;
+    // The thread's topics, told again only when they changed.
+    let previousThreadTopicsNote: string | undefined;
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
@@ -598,6 +602,35 @@ export namespace SessionMessage {
             injectedParts.push({ text: note, type: "text" });
           }
           previousViewContextNote = note;
+        }
+
+        const threadContextPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-threadContext";
+          } => part.type === "data-threadContext",
+        );
+        if (threadContextPart) {
+          injectedParts.push({
+            text: threadContextModelNote(threadContextPart.data),
+            type: "text",
+          });
+        }
+
+        const threadTopicsPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-threadTopics";
+          } => part.type === "data-threadTopics",
+        );
+        if (threadTopicsPart) {
+          const note = threadTopicsModelNote(threadTopicsPart.data);
+          if (note !== previousThreadTopicsNote) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+          previousThreadTopicsNote = note;
         }
 
         if (pendingMaxStepsNote) {

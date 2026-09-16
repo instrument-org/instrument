@@ -31,6 +31,8 @@ export {
   isFolderPath,
   nameOfPath,
 } from "./lib/task-file-path";
+export { threadContextModelNote } from "./lib/thread-context-model-text";
+export { threadTopicsModelNote } from "./lib/thread-topics-model-text";
 export {
   getUsageSummaryFromMessages,
   type UsageSummary,

@@ -13,18 +13,20 @@ export namespace SessionMessageDataPart {
    *
    * - **Event**: something that happened on this turn -- `attachments`,
    *   `contextRollover`, `intent`, `maxSteps`, `skillChanges`,
-   *   `skillMentions`, and `projectContext`, which is written once at
-   *   creation. A repeat is impossible by construction; nothing to guard.
+   *   `skillMentions`, and `projectContext` and `threadContext`, which are
+   *   written once at creation. A repeat is impossible by construction;
+   *   nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
    *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
    *   part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
-   *   `browserStatus`, `paneTabs`.
+   *   `browserStatus`, `paneTabs`, `threadTopics`, `viewContext`.
    *   These are the ones that will restate an unchanged fact on every single
    *   turn unless their producer compares against what this session was last
    *   told. `createBrowserStatusPart` and `createPaneTabsPart` each do, by
-   *   different means; a new state part that forgets is not a failure anyone
-   *   sees, it just quietly spends context.
+   *   different means, and `toModelMessages` skips a topics or view note that
+   *   reads the same as the last one; a new state part that forgets is not a
+   *   failure anyone sees, it just quietly spends context.
    *
    * Adding a part? Decide which of the three it is first.
    *
@@ -51,6 +53,8 @@ export namespace SessionMessageDataPart {
     "projectContext",
     "taskAppChanges",
     "taskEvent",
+    "threadContext",
+    "threadTopics",
     "unknown",
     "viewContext",
   ]);
@@ -564,11 +568,19 @@ export namespace SessionMessageDataPart {
       "ideas",
       "task",
       "tasks",
+      "thread",
     ]),
     /** The one task open on the Tasks screen. */
     task: ViewedTaskSchema.optional(),
     /** The tasks listed on the Tasks screen. */
     tasks: z.array(ViewedTaskSchema).optional(),
+    /** The thread open beside the chat, when the message was sent from its screen. */
+    thread: z
+      .object({
+        id: z.string(),
+        title: z.string(),
+      })
+      .optional(),
     /** The screen's address in the window, the way a browser has one. */
     url: z.string().optional(),
   });
@@ -590,7 +602,7 @@ export namespace SessionMessageDataPart {
   export type DateChangeDataPart = z.output<typeof DateChangeDataPartSchema>;
 
   /**
-   * Whole minutes since the user last wrote in this channel, written to a
+   * Whole minutes since the user last wrote in this thread, written to a
    * message they sent after a long enough silence to mean they went away and
    * came back.
    *
@@ -612,6 +624,51 @@ export namespace SessionMessageDataPart {
   });
 
   export type MessageGapDataPart = z.output<typeof MessageGapDataPartSchema>;
+
+  /**
+   * The other threads of the user's chat at the moment a new thread opened,
+   * newest first: each one's title, topics, latest line, and when it last
+   * moved. Written once, onto the thread's root message, so a fresh three-word
+   * ask can find the thread it belongs to. Stored rather than read live, so
+   * the note reads the same every time the transcript is rebuilt; `sentAt`
+   * is what "when" is measured from.
+   */
+  const ThreadContextDataPartSchema = z.object({
+    sentAt: z.number(),
+    threads: z.array(
+      z.object({
+        at: z.number(),
+        latest: z.string().optional(),
+        title: z.string(),
+        /** Topic names, since the agent reads names and never ids. */
+        topics: z.array(z.string()),
+      }),
+    ),
+  });
+
+  export type ThreadContextDataPart = z.output<
+    typeof ThreadContextDataPartSchema
+  >;
+
+  /**
+   * The topics the thread carries, on every user message sent in a thread
+   * that has any: each one's name, mark, and the line saying what goes
+   * there. State cadence: rendered only when it differs from the note before
+   * it, so a thread tagged once is told once.
+   */
+  const ThreadTopicsDataPartSchema = z.object({
+    topics: z.array(
+      z.object({
+        about: z.string().optional(),
+        emoji: z.string().optional(),
+        name: z.string(),
+      }),
+    ),
+  });
+
+  export type ThreadTopicsDataPart = z.output<
+    typeof ThreadTopicsDataPartSchema
+  >;
 
   /**
    * Retired, and read anyway.
@@ -725,6 +782,8 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
     [NameSchema.enum.taskAppChanges]: TaskAppChangesDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
+    [NameSchema.enum.threadContext]: ThreadContextDataPartSchema,
+    [NameSchema.enum.threadTopics]: ThreadTopicsDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
     [NameSchema.enum.viewContext]: ViewContextDataPartSchema,
   });

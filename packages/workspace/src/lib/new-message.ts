@@ -20,6 +20,8 @@ import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectMessageGap } from "./message-gap";
+import { listTopics } from "./orchestrator/topics";
+import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-record";
@@ -37,6 +39,7 @@ export async function newMessage({
   prompt,
   sessionId,
   taskId,
+  threadContext,
   viewing,
 }: {
   files?: FileUpload.Type[];
@@ -52,6 +55,8 @@ export async function newMessage({
   prompt: string;
   sessionId: StoreId.Session;
   taskId: TaskId;
+  /** The user's other threads, on the message that opens a new one; see the thread-context part. */
+  threadContext?: SessionMessageDataPart.ThreadContextDataPart;
   /** What the sending surface had on screen; see the view-context part. */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
 }) {
@@ -140,6 +145,19 @@ export async function newMessage({
     });
   }
 
+  if (threadContext) {
+    parts.push({
+      data: threadContext,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-threadContext",
+    });
+  }
+
   const backgroundProcessesPart = await createBackgroundProcessesPart({
     createdAt,
     messageId,
@@ -205,6 +223,18 @@ export async function newMessage({
       getWorkspaceConfig().captureException(messageGap.error);
     } else if (messageGap.value) {
       parts.push(messageGap.value);
+    }
+
+    // The thread's topics ride on every message sent in it, and the model
+    // note is rendered only when they changed since the last one.
+    const threadTopicsPart = await createThreadTopicsPart({
+      createdAt,
+      messageId,
+      sessionId,
+      taskId,
+    });
+    if (threadTopicsPart) {
+      parts.push(threadTopicsPart);
     }
   }
 
@@ -299,4 +329,56 @@ export async function newMessage({
   });
 
   return ok(message);
+}
+
+/**
+ * The topics the thread carries, named for the model. None when it carries
+ * none and never has: a thread untagged since its last message gets an empty
+ * part, so the note can say the topics are gone.
+ */
+async function createThreadTopicsPart({
+  createdAt,
+  messageId,
+  sessionId,
+  taskId,
+}: {
+  createdAt: Date;
+  messageId: StoreId.Message;
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}): Promise<SessionMessagePart.Type | undefined> {
+  const session = await Store.getSession(sessionId, taskId);
+  if (session.isErr()) {
+    return undefined;
+  }
+  const tagged = session.value.topics ?? [];
+  if (tagged.length === 0) {
+    const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+    const toldBefore =
+      messages.isOk() &&
+      messages.value.some((message) =>
+        message.parts.some((part) => part.type === "data-threadTopics"),
+      );
+    if (!toldBefore) {
+      return undefined;
+    }
+  }
+  const known = await listTopics(taskId);
+  const topics = tagged.flatMap((id) => {
+    const topic = known.find((entry) => entry.id === id);
+    return topic
+      ? [
+          {
+            ...(topic.about ? { about: topic.about } : {}),
+            ...(topic.emoji ? { emoji: topic.emoji } : {}),
+            name: topic.name,
+          },
+        ]
+      : [];
+  });
+  return {
+    data: { topics },
+    metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
+    type: "data-threadTopics",
+  };
 }

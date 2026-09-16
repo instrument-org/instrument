@@ -162,6 +162,9 @@ function screenNote(data: ViewContext) {
     case "tasks": {
       return tasksNote(data);
     }
+    case "thread": {
+      return threadNote(data);
+    }
   }
 }
 
@@ -216,5 +219,17 @@ function tasksNote(data: ViewContext) {
     .join("; ");
   return systemNote`
     When the user sent this, the window showed the Tasks screen: your tasks, listed as ${rows}. "These", "them" and "the tasks" refer to that list; "the first one" and the like count down it.
+  `;
+}
+
+function threadNote(data: ViewContext) {
+  const { thread } = data;
+  if (!thread) {
+    return systemNote`
+      When the user sent this, a thread of their chat was open beside it. "This thread" refers to it.
+    `;
+  }
+  return systemNote`
+    When the user sent this, the thread "${thread.title}" was open beside the chat, its transcript on screen. "This thread", "this", "here" and "it" refer to that thread. When it is not the thread you are in, \`chat read ${thread.title}\` reads it.
   `;
 }

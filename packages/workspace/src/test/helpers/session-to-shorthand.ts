@@ -210,6 +210,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join(",");
       return `<data-taskEvent>${events}</data-taskEvent>`;
     }
+    case "data-threadContext": {
+      return `<data-threadContext>${part.data.threads.map((thread) => thread.title).join(",")}</data-threadContext>`;
+    }
+    case "data-threadTopics": {
+      return `<data-threadTopics>${part.data.topics.map((topic) => topic.name).join(",")}</data-threadTopics>`;
+    }
     case "data-unknown": {
       return `<data-unknown originalType="${part.data.originalType}" />`;
     }

@@ -11,6 +11,7 @@ import {
 } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { FileOpenContext } from "@/client/components/file-open-context";
+import { ActivityPopover } from "@/client/components/orchestrator/activity-popover";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import {
   BrowserTabs,
@@ -716,6 +717,10 @@ function OrchestratorLayout() {
                 }
                 trailing={
                   <>
+                    {/* The record across every thread, behind a clock at the
+                      strip's end: a place to flip between locations from
+                      without leaving the tab that is up. */}
+                    <ActivityPopover />
                     {isDeveloperMode && (
                       <Suspense fallback={null}>
                         <DevPanel />

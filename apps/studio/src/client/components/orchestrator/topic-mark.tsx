@@ -33,14 +33,14 @@ export function TopicMark({
     <span
       aria-hidden
       className={cn(
-        "inline-grid shrink-0 place-items-center leading-none channel-tint",
+        "inline-grid shrink-0 place-items-center leading-none topic-tint",
         box,
         className,
       )}
       style={{
         // A tint rather than a fill: the emoji has to stay legible on it, and a
         // row of solid squares would read as a toolbar.
-        background: "var(--channel-tint-surface, var(--card))",
+        background: "var(--topic-tint-surface, var(--card))",
         ...topicTint(topicColor(topic)),
       }}
       title={topic.name}

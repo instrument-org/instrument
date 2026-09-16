@@ -19,6 +19,7 @@ import { IdeaSketch } from "@/client/components/orchestrator/idea-sketch";
 import { ideaHref } from "@/client/components/orchestrator/ideas";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
+import { ACTIVITY_HREF } from "@/client/components/orchestrator/screen-presentation";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { useIdeas } from "@/client/components/orchestrator/use-ideas";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
@@ -167,6 +168,26 @@ function HomeRoute() {
               ))}
             </Tiles>
           )}
+        </Section>
+
+        {/* What Instrument keeps across every thread: the record of what was
+            asked, done, and looked at, as one list. Topics join it here once
+            they have a page of their own. */}
+        <Section title="Instrument">
+          <Tiles>
+            <Tile
+              icon={
+                <span className={MARK_CARD}>
+                  <ClockCounterClockwiseIcon className="size-6" />
+                </span>
+              }
+              name="Activity"
+              onOpen={() => {
+                void navigate({ to: ACTIVITY_HREF });
+              }}
+              target={{ href: ACTIVITY_HREF, kind: "screen" }}
+            />
+          </Tiles>
         </Section>
 
         {/* The services the workspace reaches, each a tile; the rest, and

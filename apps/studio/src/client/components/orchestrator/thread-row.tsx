@@ -82,14 +82,18 @@ export function ThreadRow({
             className="size-2 shrink-0 rounded-full bg-brand-500"
           />
         ) : null}
-        <span className="truncate font-semibold">{thread.title}</span>
+        {/* The title reads first, so it keeps its width up to half the row
+          and the facts after it clip instead; a long title truncates there. */}
+        <span className="max-w-[55%] shrink-0 truncate font-semibold">
+          {thread.title}
+        </span>
         <span className="shrink-0 text-[11px] text-muted-foreground">
           {format(thread.createdAt, "h:mm a")}
         </span>
         {marks.map((topic) => (
           <TopicMark key={topic.id} size="sm" topic={topic} />
         ))}
-        <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] text-muted-foreground">
           {isWaiting ? (
             <span className="flex shrink-0 items-center gap-0.5 font-medium text-warning-700 dark:text-warning-300">
               <QuestionIcon className="size-3" weight="bold" />

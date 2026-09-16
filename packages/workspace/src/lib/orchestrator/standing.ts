@@ -63,45 +63,6 @@ export function askIn(
 }
 
 /**
- * The one line a reply is read by, cut to what a row can show. Fenced blocks
- * are skipped whole: a reply that opens with the files it hands over is read
- * by its words. One that is nothing but that fence is read by what it wrote,
- * named from the fence's basenames, and any other fence with no words around
- * it by its first line, so no excerpt ever shows the fence itself.
- */
-export function excerptOf(text: string, maxLength: number): string {
-  /** The info string of the fence being walked; undefined outside one. */
-  let fence: string | undefined;
-  const fencedFiles: string[] = [];
-  let firstFenced: string | undefined;
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (line.startsWith("```")) {
-      fence = fence === undefined ? line.replace(/^`+/, "").trim() : undefined;
-      continue;
-    }
-    if (!line) {
-      continue;
-    }
-    if (fence === undefined) {
-      return cut(line, maxLength);
-    }
-    if (fence === AGENT_FILES_LANGUAGE) {
-      fencedFiles.push(line);
-    }
-    firstFenced ??= line;
-  }
-  const names = parseFilesBlock(fencedFiles.join("\n")).map(basename);
-  if (names.length === 1) {
-    return cut(`Wrote ${names[0]}`, maxLength);
-  }
-  if (names.length > 1) {
-    return cut(`Wrote ${names.length} files: ${names.join(", ")}`, maxLength);
-  }
-  return cut(firstFenced ?? "", maxLength);
-}
-
-/**
  * How a turn that ended before the agent wrote any words ended. That happens
  * three ways, each of which leaves the last assistant message text-less: the
  * step limit, a model error, or a stop, whether the user's or the
@@ -138,6 +99,45 @@ export async function endedWithoutWords(
     failed: false,
     line: step ? `Stopped while ${asClause(step)}` : "Stopped",
   };
+}
+
+/**
+ * The one line a reply is read by, cut to what a row can show. Fenced blocks
+ * are skipped whole: a reply that opens with the files it hands over is read
+ * by its words. One that is nothing but that fence is read by what it wrote,
+ * named from the fence's basenames, and any other fence with no words around
+ * it by its first line, so no excerpt ever shows the fence itself.
+ */
+export function excerptOf(text: string, maxLength: number): string {
+  /** The info string of the fence being walked; undefined outside one. */
+  let fence: string | undefined;
+  const fencedFiles: string[] = [];
+  let firstFenced: string | undefined;
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("```")) {
+      fence = fence === undefined ? line.replace(/^`+/, "").trim() : undefined;
+      continue;
+    }
+    if (!line) {
+      continue;
+    }
+    if (fence === undefined) {
+      return cut(line, maxLength);
+    }
+    if (fence === AGENT_FILES_LANGUAGE) {
+      fencedFiles.push(line);
+    }
+    firstFenced ??= line;
+  }
+  const names = parseFilesBlock(fencedFiles.join("\n")).map(basename);
+  const [first, ...more] = names;
+  if (first === undefined) {
+    return cut(firstFenced ?? "", maxLength);
+  }
+  return more.length === 0
+    ? cut(`Wrote ${first}`, maxLength)
+    : cut(`Wrote ${names.length} files: ${names.join(", ")}`, maxLength);
 }
 
 /**

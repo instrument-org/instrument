@@ -19,7 +19,6 @@ import { PaperPlaneTiltIcon } from "@phosphor-icons/react/PaperPlaneTilt";
 import { PlayIcon } from "@phosphor-icons/react/Play";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
-import { format, isToday } from "date-fns";
 import { type MouseEvent, type ReactNode } from "react";
 
 import {
@@ -32,9 +31,12 @@ import {
 } from "./activity";
 import { AppIcon } from "./app-icon";
 import { type AppsBySlug } from "./apps-by-slug";
+import { THREADS_HREF } from "./screen-presentation";
 import { SiteIcon } from "./sidebar";
 import { basename, type Topic } from "./threads";
+import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
+import { topicTint } from "./topic-tint";
 
 /** How many of a run's visits a row names before the rest are the count. */
 const VISITS_NAMED = 3;
@@ -75,32 +77,38 @@ const KINDS: Record<ActivityEntry["kind"], { icon: ReactNode; label: string }> =
 type Gestures = ReturnType<ReturnType<typeof useGesturesFor>>;
 
 /**
+ * What every row of Activity is drawn as, the head of a group and the lines
+ * under it alike, so a day reads as one column whichever kind of line the eye
+ * is on. Not text: no selection and no text cursor over it.
+ */
+const ROW =
+  "group/row flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-[13px] select-none hover:bg-foreground/4";
+
+/**
  * One line of Activity, in the chat's row grammar: a mark for the kind at the
- * left, the word for it, the text, the marks for what it made or used, the
- * thread it happened in with its topic marks, and the time at the end. No
- * avatar, no bubble. The row is a door, not text: a plain click opens the
- * thread in place, or the task when the line is about one, or brings back
- * what was looked at; a middle or modified click asks for a tab of its own,
- * and a right click offers both.
+ * left, the word for it, the text, the marks for what it made or used, and
+ * how long ago at the end. No avatar, no bubble, and no thread name: the row
+ * sits under its thread's head, which carries that. The row is a door, not
+ * text: a plain click opens the thread in place, or the task when the line
+ * is about one, or brings back what was looked at; a middle or modified
+ * click asks for a tab of its own, and a right click offers both.
  */
 export function ActivityRow({
   appsBySlug,
   onOpened,
   row,
-  topicsById,
 }: {
   appsBySlug: AppsBySlug;
   /** Told after the row, or a chip on it, opened something, for a surface that should get out of the way then. */
   onOpened?: () => void;
   row: Row;
-  topicsById: Map<string, Topic>;
 }) {
   const target = rowTarget(row);
   const gestures = useOpenGestures(target ?? { href: "", kind: "screen" });
   const open = target ? openerOf(gestures, onOpened) : undefined;
   return (
     <div
-      className="group/row flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-[13px] select-none hover:bg-foreground/4"
+      className={ROW}
       onAuxClick={target ? auxOpenerOf(gestures, onOpened) : undefined}
       onClick={open}
       onContextMenu={target ? gestures.onContextMenu : undefined}
@@ -113,24 +121,74 @@ export function ActivityRow({
       tabIndex={0}
     >
       {row.kind === "entry" ? (
-        <Entry
-          appsBySlug={appsBySlug}
-          entry={row.entry}
-          topicsById={topicsById}
-        />
+        <Entry appsBySlug={appsBySlug} entry={row.entry} />
       ) : (
         <Looked onOpened={onOpened} visits={row.visits} />
       )}
-      {/* Today's rows say how long ago, the way the rest of the app does;
-          older ones say when, since "3d ago" is not where a day head is. */}
-      <span className="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">
-        {isToday(row.at) ? (
-          <RelativeTime compact date={new Date(row.at)} tooltip={false} />
-        ) : (
-          format(row.at, "h:mm a")
-        )}
-      </span>
+      <Ago at={row.at} />
     </div>
+  );
+}
+
+/**
+ * The head a thread's entries for the day sit under: the thread's title, the
+ * topics it is filed under as readable pills, and how long ago its newest
+ * entry landed at the end. A door to the thread itself, answering the same
+ * gestures as the rows under it.
+ */
+export function ThreadHeadRow({
+  at,
+  onOpened,
+  thread,
+  topicsById,
+}: {
+  /** When the newest entry under the head landed. */
+  at: number;
+  /** Told after the head opened the thread, for a surface that should get out of the way then. */
+  onOpened?: () => void;
+  thread: ActivityEntry["thread"];
+  topicsById: Map<string, Topic>;
+}) {
+  const gestures = useOpenGestures({
+    href: `${THREADS_HREF}/${thread.id}`,
+    kind: "screen",
+  });
+  const open = openerOf(gestures, onOpened);
+  const marks = thread.topics.flatMap((id) => {
+    const topic = topicsById.get(id);
+    return topic ? [topic] : [];
+  });
+  return (
+    <div
+      className={ROW}
+      onAuxClick={auxOpenerOf(gestures, onOpened)}
+      onClick={open}
+      onContextMenu={gestures.onContextMenu}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && event.target === event.currentTarget) {
+          open(event);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
+      <span className="min-w-0 truncate font-medium">{thread.title}</span>
+      {marks.map((topic) => (
+        <TopicPill key={topic.id} topic={topic} />
+      ))}
+      <Ago at={at} />
+    </div>
+  );
+}
+
+/** How long ago, at the far end of a row, with the moment itself on hover; the day head above carries the date. */
+function Ago({ at }: { at: number }) {
+  return (
+    <RelativeTime
+      className="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums"
+      compact
+      date={new Date(at)}
+    />
   );
 }
 
@@ -151,17 +209,11 @@ function auxOpenerOf(gestures: Gestures, onOpened: (() => void) | undefined) {
 function Entry({
   appsBySlug,
   entry,
-  topicsById,
 }: {
   appsBySlug: AppsBySlug;
   entry: ActivityEntry;
-  topicsById: Map<string, Topic>;
 }) {
   const { icon, label } = KINDS[entry.kind];
-  const marks = entry.thread.topics.flatMap((id) => {
-    const topic = topicsById.get(id);
-    return topic ? [topic] : [];
-  });
   const text =
     entry.kind === "usedApp"
       ? (appsBySlug.get(entry.text)?.name ?? entry.text)
@@ -174,14 +226,6 @@ function Entry({
       </span>
       <span className="min-w-0 truncate">{text}</span>
       <Marks appsBySlug={appsBySlug} marks={entry.marks} />
-      {/* A third of the row at most, so the thread's name never crowds the
-        line out in a narrow panel. */}
-      <span className="flex max-w-1/3 min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
-        <span className="truncate">{entry.thread.title}</span>
-        {marks.map((topic) => (
-          <TopicMark key={topic.id} size="sm" topic={topic} />
-        ))}
-      </span>
     </>
   );
 }
@@ -327,6 +371,28 @@ function openerOf(gestures: Gestures, onOpened: (() => void) | undefined) {
     destination.run();
     onOpened?.();
   };
+}
+
+/**
+ * A topic a thread is filed under, readable as a badge: its emoji, or its
+ * mark's tile where it has none, then its name, on a pill in its tint no
+ * taller than the line it sits on. Says nothing on hover, since the head it
+ * sits on is the door and the pill is not one.
+ */
+function TopicPill({ topic }: { topic: Topic }) {
+  return (
+    <span
+      className="inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) py-px pr-1.5 pl-1 text-[11px] leading-none text-foreground/90 topic-tint"
+      style={topicTint(topicColor(topic))}
+    >
+      {topic.emoji ? (
+        <span className="text-[10px]">{topic.emoji}</span>
+      ) : (
+        <TopicMark className="size-3.5 text-[10px]" topic={topic} />
+      )}
+      <span className="truncate">{topic.name}</span>
+    </span>
+  );
 }
 
 /** The same mark the tab strip gives the thing: its type for a file, the folder, the glyph, the site's icon. */

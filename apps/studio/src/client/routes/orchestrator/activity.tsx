@@ -10,8 +10,9 @@ import { useState } from "react";
 
 /**
  * Activity: one record across every thread of what was asked, replied, and
- * done, newest first under day heads, in the chat's row grammar, each row a
- * door to its thread or its task. A door opens in this tab's place, the way
+ * done, newest first under day heads and gathered by thread within each, in
+ * the chat's row grammar, each row a door to its thread or its task and each
+ * thread's head a door to the thread. A door opens in this tab's place, the way
  * a link on any screen does; a middle or modified click asks for a tab of its
  * own. The same list sits behind the clock in the window bar, with fewer
  * filters; this page has all of them.

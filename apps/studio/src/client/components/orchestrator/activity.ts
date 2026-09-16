@@ -27,6 +27,15 @@ export interface ActivityFilters {
 }
 
 /**
+ * What sits under a day head: a thread's entries from that day as one group
+ * under the thread's name, or a run of the window's visits, which is in no
+ * thread and sits among the groups by its time.
+ */
+export type ActivityItem =
+  | Extract<ActivityRow, { kind: "looked" }>
+  | ThreadGroup;
+
+/**
  * One line of Activity: an entry from a thread, or a run of the window's own
  * visits, which the workspace never sees and the window merges in itself.
  */
@@ -39,6 +48,18 @@ export type ActivityRow =
  * window showed them; Instrument's is everything the threads did in answer.
  */
 export type ActivityWho = "all" | "instrument" | "you";
+
+/**
+ * A thread's entries within one day, newest first, headed by the thread as
+ * its newest entry names it and placed by that entry's time.
+ */
+export interface ThreadGroup {
+  at: number;
+  id: string;
+  kind: "thread";
+  rows: Extract<ActivityRow, { kind: "entry" }>[];
+  thread: ActivityEntry["thread"];
+}
 
 /** One thing the window showed the user: a screen by its address, or a page by its url. */
 export interface Visit {
@@ -109,22 +130,51 @@ export function collapseVisits(visits: Visit[]): ActivityRow[] {
   });
 }
 
-/** The rows under their day heads, newest first, so today sits at the top. */
+/**
+ * The rows under their day heads, newest first, so today sits at the top, and
+ * within a day gathered by thread: a thread's entries that day are one group
+ * where its newest entry falls, so the day reads as what each thread did rather
+ * than as one interleaved clock. A run of visits is in no thread and stays
+ * where its time puts it. A thread with entries on two days is a group under
+ * each, since a day head says what happened that day.
+ */
 export function groupRowsByDay(
   rows: ActivityRow[],
   now: Date,
-): [string, ActivityRow[]][] {
-  const groups: [string, ActivityRow[]][] = [];
+): [string, ActivityItem[]][] {
+  const days: [string, ActivityItem[]][] = [];
+  // The open groups of the day being built, by thread; the day boundary drops them.
+  let groups = new Map<string, ThreadGroup>();
   for (const row of rows) {
     const label = dayLabel(new Date(row.at), now);
-    const last = groups.at(-1);
-    if (last?.[0] === label) {
-      last[1].push(row);
-    } else {
-      groups.push([label, [row]]);
+    let day = days.at(-1);
+    if (day?.[0] !== label) {
+      day = [label, []];
+      days.push(day);
+      groups = new Map();
     }
+    if (row.kind === "looked") {
+      day[1].push(row);
+      continue;
+    }
+    const group = groups.get(row.entry.thread.id);
+    if (group) {
+      group.rows.push(row);
+      continue;
+    }
+    // Rows come newest first, so the first of a thread's is its newest, and
+    // the group takes its place and time.
+    const opened: ThreadGroup = {
+      at: row.at,
+      id: `thread:${row.entry.thread.id}`,
+      kind: "thread",
+      rows: [row],
+      thread: row.entry.thread,
+    };
+    groups.set(row.entry.thread.id, opened);
+    day[1].push(opened);
   }
-  return groups;
+  return days;
 }
 
 /** Whether an entry is about a task, which is what its row opens. */

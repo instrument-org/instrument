@@ -230,8 +230,33 @@ describe("rowTarget", () => {
 });
 
 describe("groupRowsByDay", () => {
+  const now = new Date(NOON + 6 * 60 * MINUTE);
+  const OTHER = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAW");
+
+  /** An entry in the other thread, "Taxes". */
+  function taxes(
+    overrides: Partial<ActivityEntry> & Pick<ActivityEntry, "at" | "kind">,
+  ): ActivityEntry {
+    return entry({
+      id: `${OTHER}:msg:${overrides.kind}:${overrides.at}`,
+      thread: { id: OTHER, title: "Taxes", topics: [] },
+      ...overrides,
+    });
+  }
+
+  /** A day as its head and what sits under it: a thread by title with its entries' kinds, or a run. */
+  function shape(days: ReturnType<typeof groupRowsByDay>) {
+    return days.map(([label, items]) => [
+      label,
+      items.map((item) =>
+        item.kind === "thread"
+          ? [item.thread.title, item.rows.map((row) => row.entry.kind)]
+          : "looked",
+      ),
+    ]);
+  }
+
   it("heads the rows by day, newest first", () => {
-    const now = new Date(NOON + 6 * 60 * MINUTE);
     const rows = mergeRows(
       [
         entry({ at: NOON, kind: "asked" }),
@@ -241,11 +266,64 @@ describe("groupRowsByDay", () => {
       [],
     );
     expect(
-      groupRowsByDay(rows, now).map(([label, group]) => [label, group.length]),
+      groupRowsByDay(rows, now).map(([label, items]) => [label, items.length]),
     ).toEqual([
       ["Today", 1],
       ["Yesterday", 1],
       ["Sunday", 1],
+    ]);
+  });
+
+  it("gathers a day's entries by thread, each group where its newest entry falls, newest first inside", () => {
+    const rows = mergeRows(
+      [
+        entry({ at: NOON + 30 * MINUTE, kind: "replied" }),
+        taxes({ at: NOON + 20 * MINUTE, kind: "replied" }),
+        entry({ at: NOON + 10 * MINUTE, kind: "asked" }),
+        taxes({ at: NOON, kind: "asked" }),
+      ],
+      [],
+    );
+    const days = groupRowsByDay(rows, now);
+    expect(shape(days)).toEqual([
+      [
+        "Today",
+        [
+          ["Groceries", ["replied", "asked"]],
+          ["Taxes", ["replied", "asked"]],
+        ],
+      ],
+    ]);
+    expect(days[0]?.[1].map((item) => item.at)).toEqual([
+      NOON + 30 * MINUTE,
+      NOON + 20 * MINUTE,
+    ]);
+  });
+
+  it("keeps a run of visits among the groups by its time, since it is in no thread", () => {
+    const rows = mergeRows(
+      [
+        entry({ at: NOON + 30 * MINUTE, kind: "replied" }),
+        taxes({ at: NOON, kind: "asked" }),
+      ],
+      [file("a.md", 15)],
+    );
+    expect(shape(groupRowsByDay(rows, now))).toEqual([
+      ["Today", [["Groceries", ["replied"]], "looked", ["Taxes", ["asked"]]]],
+    ]);
+  });
+
+  it("gives a thread with entries on two days a group under each", () => {
+    const rows = mergeRows(
+      [
+        entry({ at: NOON, kind: "replied" }),
+        entry({ at: NOON - 24 * 60 * MINUTE, kind: "asked" }),
+      ],
+      [],
+    );
+    expect(shape(groupRowsByDay(rows, now))).toEqual([
+      ["Today", [["Groceries", ["replied"]]]],
+      ["Yesterday", [["Groceries", ["asked"]]]],
     ]);
   });
 });

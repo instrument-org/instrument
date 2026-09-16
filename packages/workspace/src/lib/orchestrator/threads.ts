@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
+import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { getTaskAgentStatus } from "../get-task-agent-status";
@@ -91,6 +92,44 @@ interface Shared {
   taskThreads: Record<string, StoreId.Session>;
 }
 
+/** The app slugs a shell command calls or asks the user to connect. */
+export function appSlugsIn(command: string): string[] {
+  return [...command.matchAll(/\bapp\s+(?:call|request)\s+(\S+)/g)].flatMap(
+    (match) => (match[1] ? [match[1]] : []),
+  );
+}
+
+/** The command a shell call ran, once its input has arrived whole. */
+export function bashCommandOf(
+  part: SessionMessagePart.Type,
+): string | undefined {
+  if (part.type !== "tool-bash") {
+    return undefined;
+  }
+  const input: unknown = part.input;
+  return typeof input === "object" &&
+    input !== null &&
+    "command" in input &&
+    typeof input.command === "string"
+    ? input.command
+    : undefined;
+}
+
+/** The first line with words, cut to what a row can show. */
+export function firstLine(text: string): string {
+  const line = text.split("\n").find((part) => part.trim()) ?? text;
+  const trimmed = line.trim();
+  return trimmed.length > LATEST_MAX
+    ? `${trimmed.slice(0, LATEST_MAX)}…`
+    : trimmed;
+}
+
+export function hasWords(message: SessionMessage.WithParts): boolean {
+  return message.parts.some(
+    (part) => part.type === "text" && part.text.trim() !== "",
+  );
+}
+
 /**
  * The conversation's threads, oldest first.
  *
@@ -130,6 +169,21 @@ export async function markThreadSeen(
   }));
 }
 
+/** The hostnames a shell command opens for the user with `open <url>`. */
+export function openedHostsIn(command: string): string[] {
+  const hosts: string[] = [];
+  for (const match of command.matchAll(
+    /(?:^|[\n;&|])\s*open\s+['"]?(https?:\/\/[^\s'"]+)/g,
+  )) {
+    try {
+      hosts.push(new URL(match[1] ?? "").hostname);
+    } catch {
+      // Not an address the shell would have opened either.
+    }
+  }
+  return hosts.filter((host) => host !== "");
+}
+
 /**
  * Tags a thread with topics, by id. Ids the conversation has no topic for
  * are dropped rather than written, so the record never names a topic that
@@ -154,6 +208,12 @@ export async function setThreadTopics(
     taskId,
   );
   return saved.isOk();
+}
+
+export function textOf(message: SessionMessage.WithParts): string {
+  return message.parts
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n");
 }
 
 /** One thread by its session id, or none for a session that is not one. */
@@ -191,14 +251,7 @@ async function appsHeld(
   messages: SessionMessage.WithParts[],
   filedTasks: TaskId[],
 ): Promise<string[]> {
-  const slugs: string[] = [];
-  for (const command of bashCommandsIn(messages)) {
-    for (const match of command.matchAll(/\bapp\s+(?:call|request)\s+(\S+)/g)) {
-      if (match[1]) {
-        slugs.push(match[1]);
-      }
-    }
-  }
+  const slugs = bashCommandsIn(messages).flatMap(appSlugsIn);
   for (const filed of filedTasks) {
     const settings = await getTaskSettings(taskDir(filed));
     slugs.push(...(settings?.apps ?? []));
@@ -211,16 +264,8 @@ function bashCommandsIn(messages: SessionMessage.WithParts[]): string[] {
   return messages.flatMap((message) =>
     message.role === "assistant"
       ? message.parts.flatMap((part) => {
-          if (part.type !== "tool-bash") {
-            return [];
-          }
-          const input: unknown = part.input;
-          return typeof input === "object" &&
-            input !== null &&
-            "command" in input &&
-            typeof input.command === "string"
-            ? [input.command]
-            : [];
+          const command = bashCommandOf(part);
+          return command === undefined ? [] : [command];
         })
       : [],
   );
@@ -239,21 +284,6 @@ function filesHeld(messages: SessionMessage.WithParts[]): string[] {
     }
   }
   return [...files];
-}
-
-/** The first line with words, cut to what a row can show. */
-function firstLine(text: string): string {
-  const line = text.split("\n").find((part) => part.trim()) ?? text;
-  const trimmed = line.trim();
-  return trimmed.length > LATEST_MAX
-    ? `${trimmed.slice(0, LATEST_MAX)}…`
-    : trimmed;
-}
-
-function hasWords(message: SessionMessage.WithParts): boolean {
-  return message.parts.some(
-    (part) => part.type === "text" && part.text.trim() !== "",
-  );
 }
 
 /** Whether a user message opens a thread: it has words, or it brought files. */
@@ -349,25 +379,7 @@ function newestSettledIn(
 
 /** The hostnames the thread's agent opened for the user with `open <url>`. */
 function sitesHeld(messages: SessionMessage.WithParts[]): string[] {
-  const hosts: string[] = [];
-  for (const command of bashCommandsIn(messages)) {
-    for (const match of command.matchAll(
-      /(?:^|[\n;&|])\s*open\s+['"]?(https?:\/\/[^\s'"]+)/g,
-    )) {
-      try {
-        hosts.push(new URL(match[1] ?? "").hostname);
-      } catch {
-        // Not an address the shell would have opened either.
-      }
-    }
-  }
-  return unique(hosts.filter((host) => host !== ""));
-}
-
-function textOf(message: SessionMessage.WithParts): string {
-  return message.parts
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("\n");
+  return unique(bashCommandsIn(messages).flatMap(openedHostsIn));
 }
 
 async function threadFor(

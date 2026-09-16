@@ -10,6 +10,10 @@ import {
   orchestratorActivity,
   OrchestratorActivitySchema,
 } from "../../lib/orchestrator/activity";
+import {
+  ActivityEntrySchema,
+  listActivityLog,
+} from "../../lib/orchestrator/activity-log";
 import { taskThreads } from "../../lib/orchestrator/attribution";
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
@@ -37,7 +41,7 @@ import { setTaskState } from "../../lib/task-record";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { BrowserTargetIdSchema } from "../../types";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
@@ -169,44 +173,98 @@ const listThreadsRoute = base
   .handler(({ input }) => listThreads(input.id));
 
 /**
- * The same list, re-read whenever anything lands in any thread or a thread's
- * record changes. A burst of events collapses into one re-read, since the
- * next batch is only pulled once the current list has been yielded.
+ * Fires whenever anything lands in any thread of the task or a thread's
+ * record changes. Subscribed the moment it is called rather than when it is
+ * first pulled, so a read taken right after has nothing land unobserved
+ * between the two; an event the read already covered only costs one re-read.
+ * A burst of events collapses into one firing per pull, since the next batch
+ * is only taken once the consumer has come back for it.
  */
+function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
+  const batches = changedMessageBatches({ id }, signal);
+  const sessionUpdates = publisher.subscribe("session.updated", { signal });
+  const sessionRemoved = publisher.subscribe("session.removed", { signal });
+  async function* changed() {
+    for await (const _batch of batches) {
+      yield null;
+    }
+  }
+  async function* forThisTask(
+    generator: typeof sessionRemoved | typeof sessionUpdates,
+  ) {
+    for await (const payload of generator) {
+      if (payload.id === id) {
+        yield null;
+      }
+    }
+  }
+  async function* merged() {
+    try {
+      yield* mergeGenerators([
+        changed(),
+        forThisTask(sessionUpdates),
+        forThisTask(sessionRemoved),
+      ]);
+    } finally {
+      await batches.return();
+    }
+  }
+  return merged();
+}
+
+/** The same list, re-read on every change in any thread, bursts collapsed. */
 const liveListThreadsRoute = base
   .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(ThreadSchema.array()))
   .handler(async function* ({ input, signal }) {
-    // Subscribed before the first read, so nothing lands unobserved between
-    // the two; an event the read already covered only costs one re-read.
-    const batches = changedMessageBatches({ id: input.id }, signal);
-    const sessionUpdates = publisher.subscribe("session.updated", { signal });
-    const sessionRemoved = publisher.subscribe("session.removed", { signal });
-    async function* changed() {
-      for await (const _batch of batches) {
-        yield null;
-      }
-    }
-    async function* forThisTask(
-      generator: typeof sessionRemoved | typeof sessionUpdates,
-    ) {
-      for await (const payload of generator) {
-        if (payload.id === input.id) {
-          yield null;
-        }
-      }
-    }
+    const changes = threadChanges(input.id, signal);
     try {
       yield await listThreads(input.id);
-      for await (const _change of mergeGenerators([
-        changed(),
-        forThisTask(sessionUpdates),
-        forThisTask(sessionRemoved),
-      ])) {
+      for await (const _change of changes) {
         yield await listThreads(input.id);
       }
     } finally {
-      await batches.return();
+      await changes.return();
+    }
+  });
+
+/**
+ * What happened across every thread, newest first, with the thread each
+ * entry belongs to; nothing is stored for it.
+ */
+const listActivityLogRoute = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      limit: z.number().int().positive().optional(),
+    }),
+  )
+  .output(ActivityEntrySchema.array())
+  .handler(({ input }) =>
+    listActivityLog(input.id, {
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+    }),
+  );
+
+/** The same log, re-read on every change in any thread, bursts collapsed. */
+const liveListActivityLogRoute = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      limit: z.number().int().positive().optional(),
+    }),
+  )
+  .output(eventIterator(ActivityEntrySchema.array()))
+  .handler(async function* ({ input, signal }) {
+    const options = input.limit === undefined ? {} : { limit: input.limit };
+    const changes = threadChanges(input.id, signal);
+    try {
+      yield await listActivityLog(input.id, options);
+      for await (const _change of changes) {
+        yield await listActivityLog(input.id, options);
+      }
+    } finally {
+      await changes.return();
     }
   });
 
@@ -331,6 +389,10 @@ const opened = base
 
 export const orchestrator = {
   activity,
+  activityLog: {
+    list: listActivityLogRoute,
+    live: { list: liveListActivityLogRoute },
+  },
   children,
   childStatus,
   ensure,

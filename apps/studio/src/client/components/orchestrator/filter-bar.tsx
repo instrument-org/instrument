@@ -6,6 +6,7 @@ import {
 } from "@/client/components/ui/popover";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ReactNode, useState } from "react";
 
@@ -28,11 +29,12 @@ import { TopicMark } from "./topic-mark";
 import { type TopicAction, TopicPickList } from "./topic-menu";
 
 /**
- * The row of disclosures along the top of the chat, always there: Status,
- * Topics, Apps, and Sites as one chip each that opens a menu. Four click
- * targets and never a wall of chips, so the row costs the same height whether
- * there are five topics or fifty sites. A chosen group goes solid with what
- * was chosen, how many threads that reaches, and the way to undo it.
+ * The row of disclosures along the top of the chat, always there: a search
+ * that opens from a magnifier, then Status, Topics, Apps, and Sites as one
+ * chip each that opens a menu. Five click targets and never a wall of chips,
+ * so the row costs the same height whether there are five topics or fifty
+ * sites. A chosen group goes solid with what was chosen, how many threads that
+ * reaches, and the way to undo it.
  */
 export function FilterBar({
   appsBySlug,
@@ -51,12 +53,13 @@ export function FilterBar({
   threads: Filterable[];
   topics: Topic[];
 }) {
+  const topicsById = new Map(topics.map((topic) => [topic.id, topic]));
+  const topicNames = new Map(topics.map((topic) => [topic.id, topic.name]));
   /** How many threads one group's own choice reaches, the other groups aside. */
   const reachOf = (group: Partial<ThreadFilters>) =>
     threads.filter((thread) =>
-      matchesFilters(thread, { ...NO_FILTERS, ...group }),
+      matchesFilters(thread, { ...NO_FILTERS, ...group }, topicNames),
     ).length;
-  const topicsById = new Map(topics.map((topic) => [topic.id, topic]));
   const topicReach = new Map(
     topics.map((topic) => [topic.id, reachOf({ topics: [topic.id] })]),
   );
@@ -81,6 +84,13 @@ export function FilterBar({
       className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-3 py-1.5"
       role="toolbar"
     >
+      <SearchChip
+        count={reachOf({ search: filters.search })}
+        onChange={(search) => {
+          onFiltersChange({ ...filters, search });
+        }}
+        value={filters.search}
+      />
       <GroupChip
         label="Status"
         menu={
@@ -319,6 +329,92 @@ function GroupChip({
         {menu}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * The search as one more chip: a magnifier until it is clicked, then a field
+ * in its place that narrows the list as it is typed into, with how many
+ * threads the words reach and an x to clear them. Escape clears and closes it;
+ * so does leaving it empty. Nothing here takes focus on its own.
+ */
+function SearchChip({
+  count,
+  onChange,
+  value,
+}: {
+  count: number;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  const [isOpen, setOpen] = useState(false);
+  if (!isOpen && value === "") {
+    return (
+      <button
+        aria-label="Search"
+        className={cn(
+          CHIP,
+          "bg-muted text-foreground/80 hover:text-foreground",
+        )}
+        onClick={() => {
+          setOpen(true);
+        }}
+        type="button"
+      >
+        <MagnifyingGlassIcon className="size-3.5" />
+      </button>
+    );
+  }
+  const clear = () => {
+    onChange("");
+    setOpen(false);
+  };
+  return (
+    <div className={cn(CHIP, "gap-0 bg-accent p-0 text-foreground")}>
+      <MagnifyingGlassIcon className="ml-1.5 size-3.5 shrink-0 text-muted-foreground" />
+      <input
+        aria-label="Search threads"
+        // Mounted by the click on the magnifier, which is the one moment the
+        // field is asked for.
+        autoFocus
+        className="h-full w-36 bg-transparent px-1.5 text-[11px] outline-hidden placeholder:text-muted-foreground"
+        onBlur={() => {
+          if (value === "") {
+            setOpen(false);
+          }
+        }}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.currentTarget.blur();
+            clear();
+          }
+        }}
+        placeholder="Search threads"
+        type="text"
+        value={value}
+      />
+      {value ? (
+        <>
+          <span className="rounded-sm bg-foreground/10 px-1 text-[10px] tabular-nums">
+            {count}
+          </span>
+          <button
+            aria-label="Clear search"
+            className="grid h-full place-items-center px-1 text-muted-foreground hover:text-foreground"
+            onClick={clear}
+            type="button"
+          >
+            <XIcon className="size-2.5" weight="bold" />
+          </button>
+        </>
+      ) : (
+        <span className="w-1.5" />
+      )}
+    </div>
   );
 }
 

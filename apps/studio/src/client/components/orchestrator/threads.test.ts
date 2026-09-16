@@ -13,15 +13,41 @@ import {
   type ThreadFilters,
 } from "./threads";
 
-function thread(overrides: Partial<Filterable> = {}): Filterable {
+function thread({
+  holds,
+  ...overrides
+}: Partial<Omit<Filterable, "holds">> & {
+  holds?: Partial<Filterable["holds"]>;
+} = {}): Filterable {
   return {
-    holds: { apps: [], sites: [] },
+    holds: { apps: [], files: [], sites: [], ...holds },
+    root: { parts: [] },
     state: "idle",
+    title: "",
     topics: [],
     unread: 0,
     ...overrides,
   };
 }
+
+/** A thread with every kind of words a row shows, for the search to find. */
+function wordyThread(): Filterable {
+  return thread({
+    holds: {
+      apps: ["gmail"],
+      files: ["/task/out/Protein-Report.md"],
+      sites: ["amazon.com"],
+    },
+    latest: { text: "Ready to drink, chocolate first." },
+    root: {
+      parts: [{ text: "Find the best RTD protein drink", type: "text" }],
+    },
+    title: "Best priced protein drink",
+    topics: ["shopping"],
+  });
+}
+
+const TOPIC_NAMES = new Map([["shopping", "Shopping"]]);
 
 describe("matchesFilters", () => {
   it("narrows nothing with nothing set", () => {
@@ -60,10 +86,56 @@ describe("matchesFilters", () => {
       thread({ holds: { apps: [], sites: ["amazon.com"] } }),
       thread({ holds: { apps: [], sites: [] } }),
     ],
+    [
+      "the words",
+      { search: "protein" },
+      thread({ title: "Best priced protein drink" }),
+      thread({ title: "MLS standings" }),
+    ],
   ])("keeps what has %s and drops the rest", (_, group, kept, dropped) => {
     const filters = { ...NO_FILTERS, ...group };
     expect(matchesFilters(kept, filters)).toBe(true);
     expect(matchesFilters(dropped, filters)).toBe(false);
+  });
+
+  it.each([
+    ["the title", "priced"],
+    ["the ask", "rtd"],
+    ["the latest line", "chocolate"],
+    ["a topic's name", "shopping"],
+    ["a file's name", "protein-report"],
+    ["a site", "amazon"],
+    ["an app", "gmail"],
+  ])("finds a word in %s, whatever its case", (_, search) => {
+    const filters = { ...NO_FILTERS, search: search.toUpperCase() };
+    expect(matchesFilters(wordyThread(), filters, TOPIC_NAMES)).toBe(true);
+    expect(matchesFilters(thread(), filters, TOPIC_NAMES)).toBe(false);
+  });
+
+  it("wants every word searched for, wherever each turns up", () => {
+    expect(
+      matchesFilters(
+        wordyThread(),
+        { ...NO_FILTERS, search: "  chocolate  amazon " },
+        TOPIC_NAMES,
+      ),
+    ).toBe(true);
+    expect(
+      matchesFilters(
+        wordyThread(),
+        { ...NO_FILTERS, search: "chocolate costco" },
+        TOPIC_NAMES,
+      ),
+    ).toBe(false);
+    expect(
+      matchesFilters(thread(), { ...NO_FILTERS, search: "   " }, TOPIC_NAMES),
+    ).toBe(true);
+  });
+
+  it("reads a pill only by a name it was given", () => {
+    const filters = { ...NO_FILTERS, search: "shopping" };
+    expect(matchesFilters(wordyThread(), filters)).toBe(false);
+    expect(matchesFilters(wordyThread(), filters, TOPIC_NAMES)).toBe(true);
   });
 
   it("wants any of a group's choices and all of the groups", () => {

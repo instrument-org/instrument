@@ -94,7 +94,10 @@ export function ThreadPane({
   );
 
   const [filters, setFilters] = useState<ThreadFilters>(NO_FILTERS);
-  const shown = threads.filter((thread) => matchesFilters(thread, filters));
+  const topicNames = new Map(topics.map((topic) => [topic.id, topic.name]));
+  const shown = threads.filter((thread) =>
+    matchesFilters(thread, filters, topicNames),
+  );
 
   const [isNewTopicOpen, setNewTopicOpen] = useState(false);
   // The topic being renamed or re-marked, by id, so a re-read of the list does

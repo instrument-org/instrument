@@ -28,6 +28,7 @@ export function ThreadList({
   isFollowing,
   onNewTopic,
   onOpen,
+  onPickTopic,
   onSetTopics,
   scrollSignal,
   threads,
@@ -40,6 +41,8 @@ export function ThreadList({
   isFollowing: boolean;
   onNewTopic: () => void;
   onOpen: (thread: Thread) => void;
+  /** A row's topic pill: the list narrowed to that topic. */
+  onPickTopic: (topicId: string) => void;
   onSetTopics: (thread: Thread, topics: string[]) => void;
   /** Counts up whenever the list should be taken to its end, whatever the reader was doing. */
   scrollSignal: number;
@@ -66,7 +69,9 @@ export function ThreadList({
             ) : (
               groups.map(([label, group]) => (
                 <Fragment key={label}>
-                  <p className="flex items-center gap-3 px-2 py-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                  {/* The head stays at the top while its day scrolls under it:
+                    the rows say only the time of day, and this is their date. */}
+                  <p className="sticky top-0 z-10 flex items-center gap-3 bg-background px-2 py-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     <span className="h-px flex-1 bg-border" />
                     {label}
                     <span className="h-px flex-1 bg-border" />
@@ -79,6 +84,7 @@ export function ThreadList({
                       onOpen={() => {
                         onOpen(thread);
                       }}
+                      onPickTopic={onPickTopic}
                       onSetTopics={(next) => {
                         onSetTopics(thread, next);
                       }}

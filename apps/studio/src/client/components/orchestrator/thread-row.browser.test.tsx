@@ -1,6 +1,7 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { OrchestratorContext, type OrchestratorWindow } from "./context";
 import { ThreadRow } from "./thread-row";
@@ -21,6 +22,11 @@ function thread(
     createdAt: new Date(2026, 8, 16, 8, 46).getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: sessionId,
+    latest: {
+      at: Date.now() - 5 * 60_000,
+      kind: "reply",
+      text: "Done: the automation now checks presence first.",
+    },
     replyCount: 3,
     root: {
       id: messageId,
@@ -57,11 +63,10 @@ const HOUSE: Topic = {
   name: "House",
 };
 
-/** The row's lines, in order: the header, the ask, the latest, the foot. */
+/** The row's lines, in order: the header, the ask, the replies row, the peek, the holds. */
 function linesOf(row: HTMLElement) {
   return [...row.children].filter(
-    (child): child is HTMLElement =>
-      child instanceof HTMLElement && !child.className.includes("absolute"),
+    (child): child is HTMLElement => child instanceof HTMLElement,
   );
 }
 
@@ -80,7 +85,12 @@ function paneWindow(openScreen = vi.fn()): OrchestratorWindow {
 
 async function renderRow(
   row: Thread,
-  { onOpen = vi.fn(), openScreen = vi.fn(), width = 400 } = {},
+  {
+    onOpen = vi.fn(),
+    onPickTopic = vi.fn(),
+    openScreen = vi.fn(),
+    width = 400,
+  } = {},
 ) {
   const rendered = await renderInBrowser(
     <OrchestratorContext value={paneWindow(openScreen)}>
@@ -89,6 +99,7 @@ async function renderRow(
           appsBySlug={new Map()}
           onNewTopic={vi.fn()}
           onOpen={onOpen}
+          onPickTopic={onPickTopic}
           onSetTopics={vi.fn()}
           thread={row}
           topics={[HOUSE]}
@@ -97,15 +108,33 @@ async function renderRow(
     </OrchestratorContext>,
   );
   const rowElement =
-    rendered.container.querySelector<HTMLElement>('[role="button"]');
+    rendered.container.querySelector<HTMLElement>(".group\\/row");
   if (!rowElement) {
     throw new Error("no row");
   }
-  return { ...rendered, onOpen, openScreen, row: rowElement };
+  return { ...rendered, onOpen, onPickTopic, openScreen, row: rowElement };
+}
+
+/** The replies row, which is the one button the row keeps at rest. */
+function repliesRowOf(row: HTMLElement) {
+  const button = [...row.querySelectorAll("button")].find((candidate) =>
+    /replies|reply/.test(candidate.textContent),
+  );
+  if (!button) {
+    throw new Error("no replies row");
+  }
+  return button;
+}
+
+/** What the replies row shows right now, its parts in order, leaving out what is only drawn on hover. */
+function shownOn(replies: HTMLElement) {
+  return [...replies.querySelectorAll(":scope > span")]
+    .filter((span) => span.getClientRects().length > 0)
+    .map((span) => span.textContent);
 }
 
 describe("ThreadRow", () => {
-  it("gives the title the header line and puts the count and the holds at the foot", async () => {
+  it("lays out the five lines in order", async () => {
     const { row } = await renderRow(
       thread({
         holds: {
@@ -116,23 +145,53 @@ describe("ThreadRow", () => {
         topics: ["house"],
       }),
     );
-    const lines = linesOf(row);
-    const header = lines[0];
-    const foot = lines[3];
-    if (!header || !foot) {
+    const [header, ask, replies, peek, holds] = linesOf(row);
+    if (!header || !ask || !replies || !peek || !holds) {
       throw new Error("the row is short a line");
     }
-    const title = header.querySelector("span.truncate");
-    // The title has the line to itself but the time and the marks, so it is
-    // most of the row rather than a few letters before an ellipsis.
+    expect(header.textContent).toContain("House");
+    expect(header.textContent).toContain("·");
+    expect(header.textContent).toContain("Second-floor Nest");
+    expect(header.textContent).toContain("8:46 AM");
+    expect(header.textContent).not.toContain("replies");
+    expect(header.textContent).not.toContain("report.md");
+    // The title has what the pill, the control, and the time leave, which at
+    // this width is most of the line rather than a few letters before an
+    // ellipsis.
+    const title = header.querySelector("span.truncate.flex-1");
     expect(title?.getBoundingClientRect().width).toBeGreaterThan(
       row.clientWidth / 2,
     );
-    expect(header.textContent).not.toContain("replies");
-    expect(header.textContent).not.toContain("report.md");
-    expect(foot.textContent).toContain("3 replies");
-    expect(foot.textContent).toContain("report.md");
+    expect(ask.textContent).toBe("Guard the Nest eco mode before 5 p.m.");
+    expect(replies.tagName).toBe("BUTTON");
+    expect(replies.textContent).toContain("3 replies");
+    expect(peek.textContent).toContain("Done: the automation");
+    expect(holds.textContent).toContain("report.md");
     expect(row.textContent).not.toContain("last reply");
+  });
+
+  it("says the time of day whatever the day, since the head above carries the date", async () => {
+    const { row } = await renderRow(
+      thread({ createdAt: new Date(2026, 8, 10, 8, 46).getTime() }),
+    );
+    const header = linesOf(row)[0];
+    expect(header?.textContent).toContain("8:46 AM");
+    expect(header?.textContent).not.toMatch(/Sep|Thursday/);
+  });
+
+  it("leaves out the dot when the thread has no topic", async () => {
+    const { row } = await renderRow(thread());
+    const header = linesOf(row)[0];
+    expect(header?.textContent).not.toContain("·");
+    expect(header?.textContent).toContain("Second-floor Nest");
+  });
+
+  it("keeps a topic pill within the header line", async () => {
+    const { row } = await renderRow(thread({ topics: ["house"] }));
+    const header = linesOf(row)[0];
+    const pill = header?.querySelector("button");
+    expect(pill?.getBoundingClientRect().height).toBeLessThanOrEqual(20);
+    expect(header?.getBoundingClientRect().height).toBeLessThanOrEqual(20);
   });
 
   it("clips the holds at the edge and counts the rest", async () => {
@@ -144,10 +203,10 @@ describe("ThreadRow", () => {
       thread({ holds: { apps: [], files, sites: [] } }),
       { width: 320 },
     );
-    const foot = linesOf(row).at(-1);
+    const holds = linesOf(row).at(-1);
     await vi.waitFor(() => {
       // The visible count, not the widest one the measuring row lays out.
-      const more = [...(foot?.querySelectorAll("button") ?? [])].find(
+      const more = [...(holds?.querySelectorAll("button") ?? [])].find(
         (button) =>
           !button.closest("[aria-hidden]") &&
           /^\+\d+$/.test(button.textContent),
@@ -171,8 +230,59 @@ describe("ThreadRow", () => {
     });
   });
 
-  it("says where a waiting thread stands in warning, with the question as its peer line", async () => {
-    const { container } = await renderRow(
+  it("counts the replies in brand, the unseen ones after them, and the last reply's time beside", async () => {
+    const { row } = await renderRow(thread({ unread: 2 }));
+    const replies = repliesRowOf(row);
+    const [count, time] = shownOn(replies);
+    expect(count).toBe("3 replies, 2 new");
+    expect(replies.querySelector(".text-brand-700")?.textContent).toBe(
+      "3 replies, 2 new",
+    );
+    expect(time).toMatch(/^\d+m ago$/);
+    expect(shownOn(replies)).toHaveLength(2);
+  });
+
+  it("counts one reply in the singular, with nothing about unseen ones", async () => {
+    const { row } = await renderRow(thread({ replyCount: 1 }));
+    expect(shownOn(repliesRowOf(row))[0]).toBe("1 reply");
+  });
+
+  it("says there are no replies yet, with no time beside it", async () => {
+    const { row } = await renderRow(
+      thread({ latest: undefined, replyCount: 0 }),
+    );
+    const replies = [...row.querySelectorAll("button")].find((button) =>
+      button.textContent.includes("No replies yet"),
+    );
+    if (!replies) {
+      throw new Error("no replies row");
+    }
+    expect(shownOn(replies)).toEqual(["No replies yet"]);
+  });
+
+  it("says View thread at the replies row's end on hover, and opens the thread", async () => {
+    const { onOpen, openScreen, row } = await renderRow(thread());
+    const replies = repliesRowOf(row);
+    expect(shownOn(replies)).toHaveLength(2);
+    await userEvent.hover(replies);
+    await vi.waitFor(() => {
+      expect(shownOn(replies).at(-1)).toBe("View thread");
+    });
+    expect(shownOn(replies)[0]).toBe("3 replies");
+    await userEvent.click(replies);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(openScreen).not.toHaveBeenCalled();
+  });
+
+  it("opens the thread from the keyboard on the replies row", async () => {
+    const { onOpen, row } = await renderRow(thread());
+    repliesRowOf(row).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("quotes the question behind the amber glyph while waiting", async () => {
+    const { container, row } = await renderRow(
       thread({
         latest: {
           at: Date.now(),
@@ -182,20 +292,16 @@ describe("ThreadRow", () => {
         state: "waiting",
       }),
     );
-    expect(container.textContent).toContain("Needs you");
-    expect(container.textContent).toContain("Reuse the old CSR");
-    expect(container.querySelector(".bg-warning-500")).not.toBeNull();
+    const peek = linesOf(row)[3];
+    expect(peek?.textContent).toContain("Reuse the old CSR");
+    expect(peek?.querySelector("svg.text-warning-700")).not.toBeNull();
+    expect(peek?.className).toContain("border-l");
     expect(container.querySelector(".bg-brand-500")).toBeNull();
-  });
-
-  it("counts unseen replies in brand and marks the row with a dot", async () => {
-    const { container } = await renderRow(thread({ unread: 2 }));
-    expect(container.textContent).toContain("2 new");
-    expect(container.querySelector(".bg-brand-500")).not.toBeNull();
+    expect(container.querySelector(".bg-warning-500")).toBeNull();
   });
 
   it("writes a working thread's step with the traveling highlight", async () => {
-    const { container } = await renderRow(
+    const { container, row } = await renderRow(
       thread({
         runningTasks: [
           {
@@ -210,30 +316,64 @@ describe("ThreadRow", () => {
     expect(container.querySelector(".brand-shiny-text")?.textContent).toBe(
       "Reading the automation",
     );
+    expect(linesOf(row)[3]?.querySelector("svg")).toBeNull();
   });
 
-  it("opens in place on a plain click anywhere but the control at its edge", async () => {
-    const { container, onOpen, openScreen } = await renderRow(thread());
-    const ask = container.querySelector<HTMLElement>(".line-clamp-2");
-    ask?.click();
+  it("keeps the unseen count off the peek", async () => {
+    const { row } = await renderRow(thread({ unread: 2 }));
+    expect(linesOf(row)[3]?.textContent).not.toContain("new");
+  });
+
+  it("omits the peek when an idle thread has said nothing", async () => {
+    const { row } = await renderRow(
+      thread({ latest: undefined, replyCount: 0 }),
+    );
+    expect(linesOf(row)).toHaveLength(3);
+  });
+
+  it("opens the thread from the ask and from the peek", async () => {
+    const { container, onOpen, openScreen, row } = await renderRow(thread());
+    container.querySelector<HTMLElement>(".line-clamp-2")?.click();
     expect(onOpen).toHaveBeenCalledTimes(1);
-    container.querySelector<HTMLElement>('[aria-label="Topics"]')?.click();
-    expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('[aria-label="Open thread"]')).toBeNull();
+    linesOf(row)[3]?.click();
+    expect(onOpen).toHaveBeenCalledTimes(2);
     expect(openScreen).not.toHaveBeenCalled();
   });
 
   it("asks the window for a place of its own on a middle or a modified click", async () => {
     const { onOpen, openScreen, row } = await renderRow(thread());
-    row.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+    const replies = repliesRowOf(row);
+    replies.dispatchEvent(
+      new MouseEvent("auxclick", { bubbles: true, button: 1 }),
+    );
     expect(openScreen).toHaveBeenCalledWith(
       `/orchestrator/threads/${sessionId}`,
     );
-    row.dispatchEvent(
+    replies.dispatchEvent(
       new MouseEvent("click", { bubbles: true, metaKey: true }),
     );
     expect(openScreen).toHaveBeenCalledTimes(2);
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("narrows the list to a topic from its pill", async () => {
+    const { onOpen, onPickTopic } = await renderRow(
+      thread({ topics: ["house"] }),
+    );
+    await userEvent.click(page.getByRole("button", { name: /House/ }));
+    expect(onPickTopic).toHaveBeenCalledWith("house");
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("opens nothing from the row's padding or its tag control", async () => {
+    const { onOpen, openScreen, row } = await renderRow(thread());
+    row.click();
+    linesOf(row)[0]?.click();
+    row.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+    row.querySelector<HTMLElement>('[aria-label="Topics"]')?.click();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(openScreen).not.toHaveBeenCalled();
+    expect(row.getAttribute("role")).toBeNull();
   });
 
   it("keeps a click on a hold from opening the thread", async () => {

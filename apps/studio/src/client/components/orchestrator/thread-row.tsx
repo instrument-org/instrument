@@ -1,4 +1,5 @@
 import { Favicon } from "@/client/components/favicon";
+import { RelativeTime } from "@/client/components/relative-time";
 import { SkillMentionText } from "@/client/components/skill-mention-text";
 import {
   Popover,
@@ -7,43 +8,48 @@ import {
 } from "@/client/components/ui/popover";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { format } from "date-fns";
-import {
-  type MouseEvent,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { HoldsStrip } from "./holds-strip";
 import { THREADS_HREF } from "./screen-presentation";
 import { askOf, type Thread, type Topic } from "./threads";
+import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicPickList } from "./topic-menu";
+import { topicTint } from "./topic-tint";
 
 /** How many site marks a working row shows beside its step. */
 const SITES_SHOWN = 4;
 
+/** The three gestures a door into the thread answers: a plain click, a middle or modified click, a right click. */
+interface Door {
+  onAuxClick: (event: MouseEvent) => void;
+  onClick: (event: MouseEvent) => void;
+  onContextMenu: (event: MouseEvent) => void;
+}
+
 /**
- * One thread in the chat, in four lines. The header: a dot when there is
- * state, the title in bold with the line to itself, the time, the topic
- * marks. The ask under it exactly as it was typed, clamped with a fade. One
- * peer line saying where the thread stands: the latest reply, the step it is
- * working through, or the question it is waiting on. And a foot the way a
- * thread's is in a chat: the count of replies, or what the thread wants, then
- * what it holds, clipping at the edge. No avatar, no name: every row here is
- * the user's. The row is a door; the control at its edge tags it without
- * leaving the list.
+ * One thread in the chat, in five lines. The topics it is filed under as
+ * pills, a dot, the title in muted regular weight, and the time of day it
+ * began at the far right, with the tag control beside it while the pointer is
+ * on the row. The ask exactly as it was typed, clamped with a fade. The
+ * replies row: how many in brand, how many of them unseen, when the last one
+ * landed, the whole line the door and saying so on hover. A peek at what is
+ * inside, quoted under a hairline: the step it is working through, the
+ * question it is waiting on, or the last reply's first words. And what it
+ * holds. No avatar, no name: every row here is the user's. The ask, the
+ * replies row, and the peek each open the thread the same way; a pill narrows
+ * the list to its topic; the padding between them opens nothing.
  */
 export function ThreadRow({
   appsBySlug,
   onNewTopic,
   onOpen,
+  onPickTopic,
   onSetTopics,
   thread,
   topics,
@@ -52,13 +58,12 @@ export function ThreadRow({
   onNewTopic: () => void;
   /** A plain click: the thread in place of whatever the window shows. */
   onOpen: () => void;
+  /** A pill: the list narrowed to that topic. */
+  onPickTopic: (topicId: string) => void;
   onSetTopics: (topics: string[]) => void;
   thread: Thread;
   topics: Topic[];
 }) {
-  const isWaiting = thread.state === "waiting";
-  const isWorking = thread.state === "working";
-  const hasUnread = thread.unread > 0;
   const hasHolds =
     thread.holds.apps.length > 0 ||
     thread.holds.files.length > 0 ||
@@ -68,177 +73,79 @@ export function ThreadRow({
     const topic = topicsById.get(id);
     return topic ? [topic] : [];
   });
-  const [isTagging, setTagging] = useState(false);
   // The gestures that ask for a place of the thread's own: a middle click, a
   // modified click, the menu on a right click. A plain click is the caller's.
   const gestures = useOpenGestures({
     href: `${THREADS_HREF}/${thread.id}`,
     kind: "screen",
   });
+  const door: Door = {
+    onAuxClick: gestures.onAuxClick,
+    onClick: (event) => {
+      if (wantsNewTab(event)) {
+        gestures.separate?.run();
+        return;
+      }
+      onOpen();
+    },
+    onContextMenu: gestures.onContextMenu,
+  };
 
   return (
-    // A click target, not text: no selection and no text cursor over it. The
-    // controls inside stop their clicks short of it.
-    <div
-      className="group/row relative cursor-default rounded-md px-2 py-2 select-none hover:bg-foreground/4 has-[[data-state=open]]:bg-foreground/4"
-      onAuxClick={gestures.onAuxClick}
-      onClick={(event) => {
-        if (wantsNewTab(event)) {
-          gestures.separate?.run();
-          return;
-        }
-        onOpen();
-      }}
-      onContextMenu={gestures.onContextMenu}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" && event.target === event.currentTarget) {
-          onOpen();
-        }
-      }}
-      role="button"
-      tabIndex={0}
-    >
-      <p className="flex items-center gap-1.5 text-[13px]">
-        {isWaiting ? (
-          <span
-            aria-label="Needs you"
-            className="size-2 shrink-0 rounded-full bg-warning-500"
+    // Not text: no selection and no text cursor over it. Each line brings its
+    // own click target, or none.
+    <div className="group/row cursor-default px-2 py-3 select-none">
+      <p className="flex items-center gap-1.5 px-1 text-[13px]">
+        {marks.map((topic) => (
+          <TopicPill
+            key={topic.id}
+            onPick={() => {
+              onPickTopic(topic.id);
+            }}
+            topic={topic}
           />
-        ) : hasUnread ? (
-          <span
-            aria-label="Unread"
-            className="size-2 shrink-0 rounded-full bg-brand-500"
-          />
-        ) : null}
-        {/* The title has the line: the time and the marks keep their width,
-          and only what is left after them is what the title truncates to. */}
-        <span className="min-w-0 truncate font-semibold">{thread.title}</span>
+        ))}
+        {marks.length > 0 && (
+          <span className="shrink-0 text-muted-foreground/60">·</span>
+        )}
+        {/* The title has what the pills, the control, and the time leave: it
+          is what truncates first. */}
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+          {thread.title}
+        </span>
+        <TagControl
+          onNewTopic={onNewTopic}
+          onSetTopics={onSetTopics}
+          thread={thread}
+          topics={topics}
+        />
+        {/* The time of day alone: the day head above carries the date. */}
         <span className="shrink-0 text-[11px] text-muted-foreground">
           {format(thread.createdAt, "h:mm a")}
         </span>
-        {marks.map((topic) => (
-          <TopicMark key={topic.id} size="sm" topic={topic} />
-        ))}
       </p>
-      <Ask text={askOf(thread)} />
-      <div className="mt-1 border-l-2 border-border pl-3">
-        {isWaiting ? (
-          <p className="flex items-center gap-1.5 text-[12px] text-foreground/80">
-            <QuestionIcon
-              className="size-3.5 shrink-0 text-warning-700 dark:text-warning-300"
-              weight="bold"
-            />
-            <span className="truncate">
-              {thread.latest?.text || "Waiting on you"}
-            </span>
-          </p>
-        ) : isWorking ? (
-          <p className="flex items-center gap-1.5 text-[12px]">
-            {/* `brand-shiny-text` is an inline-block, which a parent's truncate
-              cannot shrink, so the step carries its own. */}
-            <span className="brand-shiny-text min-w-0 truncate">
-              {thread.runningTasks.find((task) => task.step)?.step ??
-                thread.latest?.text ??
-                "Working"}
-            </span>
-            {thread.holds.sites.slice(0, SITES_SHOWN).map((site) => (
-              <Favicon
-                className="size-3.5 shrink-0"
-                key={site}
-                url={`https://${site}`}
-              />
-            ))}
-          </p>
-        ) : (
-          <p className="truncate text-[12px] text-foreground/80">
-            {thread.latest?.text || "No reply yet"}
-          </p>
-        )}
-      </div>
-      {(isWaiting || hasUnread || thread.replyCount > 0 || hasHolds) && (
-        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          {isWaiting ? (
-            <Foot className="font-medium text-warning-700 dark:text-warning-300">
-              <QuestionIcon className="size-3" weight="bold" />
-              Needs you
-            </Foot>
-          ) : hasUnread ? (
-            <Foot className="font-semibold text-brand-700 dark:text-brand-300">
-              {thread.unread} new
-            </Foot>
-          ) : thread.replyCount > 0 ? (
-            <Foot className="font-medium">
-              {thread.replyCount}{" "}
-              {thread.replyCount === 1 ? "reply" : "replies"}
-            </Foot>
-          ) : null}
-          {hasHolds && (
-            <span
-              className="flex min-w-0 flex-1"
-              onAuxClick={stopHere}
-              onClick={stopHere}
-              onContextMenu={stopHere}
-            >
-              <HoldsStrip
-                appsBySlug={appsBySlug}
-                className="min-w-0 flex-1"
-                holds={thread.holds}
-                size="sm"
-              />
-            </span>
-          )}
-        </div>
+      <Ask door={door} text={askOf(thread)} />
+      <RepliesRow
+        door={door}
+        lastAt={thread.replyCount > 0 ? thread.latest?.at : undefined}
+        replyCount={thread.replyCount}
+        unread={thread.unread}
+      />
+      <Peek door={door} thread={thread} />
+      {hasHolds && (
+        <HoldsStrip
+          appsBySlug={appsBySlug}
+          className="mt-2 px-1"
+          holds={thread.holds}
+          size="sm"
+        />
       )}
-      {/* At the row's edge, over the header line, only while the pointer is
-        on the row or its menu is open. */}
-      <div
-        className="absolute top-1 right-1.5 flex items-center gap-0.5 rounded-md bg-background/90 opacity-0 shadow-xs ring-1 ring-border backdrop-blur-xs group-hover/row:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100"
-        onAuxClick={stopHere}
-        onClick={stopHere}
-        onContextMenu={stopHere}
-      >
-        <Popover onOpenChange={setTagging} open={isTagging}>
-          <PopoverTrigger asChild>
-            <button
-              aria-label="Topics"
-              className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:text-foreground"
-              title="Topics"
-              type="button"
-            >
-              <TagIcon className="size-3.5" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            className="w-60 p-1"
-            role="menu"
-            side="bottom"
-            sideOffset={4}
-          >
-            <TopicPickList
-              chosen={new Set(thread.topics)}
-              onNew={() => {
-                setTagging(false);
-                onNewTopic();
-              }}
-              onToggle={(id) => {
-                onSetTopics(
-                  thread.topics.includes(id)
-                    ? thread.topics.filter((entry) => entry !== id)
-                    : [...thread.topics, id],
-                );
-              }}
-              topics={topics}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
     </div>
   );
 }
 
 /** The ask exactly as typed, the way the transcript draws a sent message, clamped to two lines with a fade when it runs past them. */
-function Ask({ text }: { text: string }) {
+function Ask({ door, text }: { door: Door; text: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [isClamped, setClamped] = useState(false);
   useEffect(() => {
@@ -260,38 +167,194 @@ function Ask({ text }: { text: string }) {
   }, [text]);
   return (
     // A mask rather than a painted fade, so the words thin out over whatever
-    // the row is drawn on, hovered or not.
+    // the row is drawn on.
     <div
       className={cn(
-        "mt-0.5 line-clamp-2 text-sm break-words whitespace-pre-wrap",
+        "mt-1 line-clamp-2 px-1 text-sm break-words whitespace-pre-wrap",
         isClamped && "mask-b-from-55%",
       )}
       ref={ref}
+      {...door}
     >
       <SkillMentionText text={text} />
     </div>
   );
 }
 
-/** The foot's first words, with the caret that says the thread opens on them. */
-function Foot({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className: string;
-}) {
+/**
+ * A quoted line from inside the thread, indented under a hairline the way a
+ * quote reads: the step while it works, the question while it waits, and the
+ * last reply's first words otherwise. Nothing when an idle thread has said
+ * nothing yet.
+ */
+function Peek({ door, thread }: { door: Door; thread: Thread }) {
+  const isWaiting = thread.state === "waiting";
+  const isWorking = thread.state === "working";
+  if (!thread.latest && !isWaiting && !isWorking) {
+    return null;
+  }
   return (
-    <span className={cn("flex shrink-0 items-center gap-1", className)}>
-      {children}
-      <CaretRightIcon className="size-2.5" weight="bold" />
-    </span>
+    <div
+      className="mx-1 mt-1 flex items-center gap-1.5 border-l border-border pl-2.5 text-[12px]"
+      {...door}
+    >
+      {isWorking ? (
+        <>
+          {/* `brand-shiny-text` is an inline-block, which a parent's truncate
+            cannot shrink, so the step carries its own. */}
+          <span className="brand-shiny-text min-w-0 truncate">
+            {thread.runningTasks.find((task) => task.step)?.step ??
+              thread.latest?.text ??
+              "Working"}
+          </span>
+          {thread.holds.sites.slice(0, SITES_SHOWN).map((site) => (
+            <Favicon
+              className="size-3.5 shrink-0"
+              key={site}
+              url={`https://${site}`}
+            />
+          ))}
+        </>
+      ) : isWaiting ? (
+        <>
+          <QuestionIcon
+            className="size-3.5 shrink-0 text-warning-700 dark:text-warning-300"
+            weight="bold"
+          />
+          <span className="min-w-0 truncate text-foreground/80">
+            {thread.latest?.text || "Waiting on you"}
+          </span>
+        </>
+      ) : (
+        <span className="min-w-0 truncate text-muted-foreground">
+          {thread.latest?.text}
+        </span>
+      )}
+    </div>
   );
 }
 
-/** Keeps a control's click from reaching the row under it, which would open the thread. */
-function stopHere(event: MouseEvent) {
-  event.stopPropagation();
+/**
+ * The line under the ask that a chat gives a thread: how many replies, in
+ * brand so the count is what the eye lands on, how many of them unseen, and
+ * when the last one landed in a lighter gray beside it. The whole line is the
+ * door, and on hover or focus says so at its far end.
+ */
+function RepliesRow({
+  door,
+  lastAt,
+  replyCount,
+  unread,
+}: {
+  door: Door;
+  /** When the last reply landed; absent until there is one. */
+  lastAt: number | undefined;
+  replyCount: number;
+  unread: number;
+}) {
+  return (
+    <button
+      className="group/replies mt-1.5 flex h-6 w-full items-center gap-2 rounded-md px-1 text-[11px] hover:bg-accent focus-visible:bg-accent focus-visible:outline-hidden"
+      type="button"
+      {...door}
+    >
+      {replyCount === 0 ? (
+        <span className="text-muted-foreground">No replies yet</span>
+      ) : (
+        <span className="font-medium text-brand-700 dark:text-brand-300">
+          {replyCount} {replyCount === 1 ? "reply" : "replies"}
+          {unread > 0 && <span className="font-semibold">, {unread} new</span>}
+        </span>
+      )}
+      {lastAt !== undefined && (
+        <RelativeTime
+          className="text-muted-foreground/70"
+          compact
+          date={new Date(lastAt)}
+        />
+      )}
+      <span className="ml-auto hidden font-medium text-foreground group-hover/replies:inline group-focus-visible/replies:inline">
+        View thread
+      </span>
+    </button>
+  );
+}
+
+/**
+ * The control that files the thread, at the header's edge beside the time,
+ * drawn only while the pointer is on the row or its list is open. Its list is
+ * the one the Topics chip opens.
+ */
+function TagControl({
+  onNewTopic,
+  onSetTopics,
+  thread,
+  topics,
+}: {
+  onNewTopic: () => void;
+  onSetTopics: (topics: string[]) => void;
+  thread: Thread;
+  topics: Topic[];
+}) {
+  const [isOpen, setOpen] = useState(false);
+  return (
+    <Popover onOpenChange={setOpen} open={isOpen}>
+      <PopoverTrigger asChild>
+        <button
+          aria-label="Topics"
+          className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:bg-foreground/8 hover:text-foreground focus-visible:opacity-100 data-[state=open]:text-foreground data-[state=open]:opacity-100"
+          title="Topics"
+          type="button"
+        >
+          <TagIcon className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="w-60 p-1"
+        role="menu"
+        side="bottom"
+        sideOffset={4}
+      >
+        <TopicPickList
+          chosen={new Set(thread.topics)}
+          onNew={() => {
+            setOpen(false);
+            onNewTopic();
+          }}
+          onToggle={(id) => {
+            onSetTopics(
+              thread.topics.includes(id)
+                ? thread.topics.filter((entry) => entry !== id)
+                : [...thread.topics, id],
+            );
+          }}
+          topics={topics}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * A topic the thread is filed under, as a pill in its tint no taller than the
+ * line it sits on: its face, then its name. The mark's tile is the pill's own
+ * color, so what shows of it is the emoji, or the letter that stands in for
+ * one. Clicking it narrows the list to the topic.
+ */
+function TopicPill({ onPick, topic }: { onPick: () => void; topic: Topic }) {
+  return (
+    <button
+      className="inline-flex h-4.5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) py-0 pr-1.5 pl-1 text-[11px] leading-none text-foreground/90 topic-tint hover:ring-1 hover:ring-(--topic-tint-edge)"
+      onClick={onPick}
+      style={topicTint(topicColor(topic))}
+      title={`Only ${topic.name}`}
+      type="button"
+    >
+      <TopicMark className="size-3.5 text-[10px]" topic={topic} />
+      <span className="truncate">{topic.name}</span>
+    </button>
+  );
 }
 
 /**

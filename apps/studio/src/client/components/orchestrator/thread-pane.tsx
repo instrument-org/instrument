@@ -173,6 +173,9 @@ export function ThreadPane({
           setNewTopicOpen(true);
         }}
         onOpen={onOpenThread}
+        onPickTopic={(topicId) => {
+          setFilters((current) => ({ ...current, topics: [topicId] }));
+        }}
         onSetTopics={(thread, next) => {
           setThreadTopics.mutate({
             id: taskId,

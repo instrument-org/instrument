@@ -1,6 +1,7 @@
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { Favicon } from "@/client/components/favicon";
 import { FileIcon } from "@/client/components/file-icon";
+import { RelativeTime } from "@/client/components/relative-time";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import {
   useGesturesFor,
@@ -18,7 +19,7 @@ import { PaperPlaneTiltIcon } from "@phosphor-icons/react/PaperPlaneTilt";
 import { PlayIcon } from "@phosphor-icons/react/Play";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
-import { format } from "date-fns";
+import { format, isToday } from "date-fns";
 import { type MouseEvent, type ReactNode } from "react";
 
 import {
@@ -120,8 +121,14 @@ export function ActivityRow({
       ) : (
         <Looked onOpened={onOpened} visits={row.visits} />
       )}
+      {/* Today's rows say how long ago, the way the rest of the app does;
+          older ones say when, since "3d ago" is not where a day head is. */}
       <span className="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">
-        {format(row.at, "h:mm a")}
+        {isToday(row.at) ? (
+          <RelativeTime compact date={new Date(row.at)} tooltip={false} />
+        ) : (
+          format(row.at, "h:mm a")
+        )}
       </span>
     </div>
   );
@@ -333,7 +340,9 @@ function VisitIcon({ visit }: { visit: Visit }) {
     }
     case "page": {
       return (
-        <span className="[&_img]:size-3.5 [&_svg]:size-3.5">
+        // Its own box, so a row short of room clips the chip's name rather
+        // than pressing the favicon narrow.
+        <span className="inline-flex size-3.5 shrink-0 items-center justify-center [&_img]:size-3.5 [&_svg]:size-3.5">
           <SiteIcon
             favicon={visit.favicon}
             url={visit.target.kind === "page" ? visit.target.url : undefined}

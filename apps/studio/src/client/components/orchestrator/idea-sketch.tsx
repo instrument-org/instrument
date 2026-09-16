@@ -309,6 +309,36 @@ const MARKS: Record<string, () => ReactNode> = {
       );
     }),
 
+  /** Map: numbered pins dropped on a plain ground. */
+  pins: () => (
+    <>
+      {box("ground", PAD, TOP, W, H, BOX, undefined, 4)}
+      <g key="streets" stroke={EDGE} strokeLinecap="round" strokeWidth={2.5}>
+        <path d={`M${PAD + 4} ${TOP + 28} L${PAD + W - 4} ${TOP + 64}`} />
+        <path d={`M${PAD + 30} ${TOP + 4} L${PAD + 62} ${TOP + H - 4}`} />
+      </g>
+      {(
+        [
+          [24, 24],
+          [68, 40],
+          [40, 76],
+        ] satisfies [number, number][]
+      ).map(([x, y], i) => (
+        <g key={i}>
+          <circle
+            cx={PAD + x}
+            cy={TOP + y}
+            fill={BRAND}
+            r={9}
+            stroke="white"
+            strokeWidth={2}
+          />
+          {bar(`n${i}`, PAD + x - 3, TOP + y - 3, 6, "white", 6)}
+        </g>
+      ))}
+    </>
+  ),
+
   /** FAQ: the same question shape, over and over. */
   qa: () =>
     rows(3, 30).map((y, i) => (

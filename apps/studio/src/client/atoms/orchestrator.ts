@@ -90,17 +90,6 @@ export interface FileTab {
   name: string;
 }
 
-export function originOf(url: string | undefined): string | undefined {
-  if (!url) {
-    return;
-  }
-  try {
-    return new URL(url).origin;
-  } catch {
-    return;
-  }
-}
-
 /**
  * A tab of the window. A page is a browser session of the orchestrator's,
  * drawn by a guest the pool holds; a screen is anything else the product
@@ -141,6 +130,17 @@ interface TabHistory {
   stripKey?: string;
   /** The screen addresses this tab has been at, oldest first. */
   trail?: string[];
+}
+
+export function originOf(url: string | undefined): string | undefined {
+  if (!url) {
+    return;
+  }
+  try {
+    return new URL(url).origin;
+  } catch {
+    return;
+  }
 }
 
 /** The address a new tab opens at: the page with the box that reaches everything. */

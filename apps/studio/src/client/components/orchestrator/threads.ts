@@ -127,6 +127,28 @@ export function matchesFilters(
 }
 
 /**
+ * How often each hostname turns up across the threads, most used first, which
+ * is the order the Sites menu offers them in: there can be hundreds, and the
+ * ones the agent keeps going back to are the ones worth a filter.
+ */
+export function sitesByUse(threads: Filterable[]): string[] {
+  const counts = new Map<string, number>();
+  for (const thread of threads) {
+    for (const site of thread.holds.sites) {
+      counts.set(site, (counts.get(site) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([site]) => site);
+}
+
+/** A group with nothing chosen narrows nothing; one with choices wants any of them. */
+function anyOf<T extends string>(chosen: T[], held: T[]) {
+  return chosen.length === 0 || chosen.some((entry) => held.includes(entry));
+}
+
+/**
  * Whether every word searched for turns up somewhere on the thread's row,
  * whatever its case: in the title, the ask, the latest line, a topic's name,
  * a file's name, a site, or an app. Nothing searched for matches everything.
@@ -152,28 +174,6 @@ function matchesSearch(
     .join("\n")
     .toLowerCase();
   return words.every((word) => shown.includes(word));
-}
-
-/**
- * How often each hostname turns up across the threads, most used first, which
- * is the order the Sites menu offers them in: there can be hundreds, and the
- * ones the agent keeps going back to are the ones worth a filter.
- */
-export function sitesByUse(threads: Filterable[]): string[] {
-  const counts = new Map<string, number>();
-  for (const thread of threads) {
-    for (const site of thread.holds.sites) {
-      counts.set(site, (counts.get(site) ?? 0) + 1);
-    }
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([site]) => site);
-}
-
-/** A group with nothing chosen narrows nothing; one with choices wants any of them. */
-function anyOf<T extends string>(chosen: T[], held: T[]) {
-  return chosen.length === 0 || chosen.some((entry) => held.includes(entry));
 }
 
 /** The states a thread is in right now. */

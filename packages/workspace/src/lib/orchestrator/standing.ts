@@ -144,25 +144,6 @@ export function excerptOf(text: string, maxLength: number): string {
 }
 
 /**
- * What a conversation is waiting on the user for, when its last turn ended on
- * an ask rather than on words. A thread is a session, so this is also how a
- * thread says it has stopped and needs an answer.
- */
-async function sessionAsk(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts({
-    sessionId,
-    taskId,
-  });
-  if (messages.isErr()) {
-    return undefined;
-  }
-  return askIn(messages.value);
-}
-
-/**
  * Where a task stands and what to say about it.
  *
  * The list reads this rather than the task's own status because the status
@@ -222,4 +203,23 @@ async function pendingAsk(taskId: TaskId): Promise<string | undefined> {
     return undefined;
   }
   return sessionAsk(taskId, sessionId.value);
+}
+
+/**
+ * What a conversation is waiting on the user for, when its last turn ended on
+ * an ask rather than on words. A thread is a session, so this is also how a
+ * thread says it has stopped and needs an answer.
+ */
+async function sessionAsk(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<string | undefined> {
+  const messages = await Store.getMessagesWithParts({
+    sessionId,
+    taskId,
+  });
+  if (messages.isErr()) {
+    return undefined;
+  }
+  return askIn(messages.value);
 }

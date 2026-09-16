@@ -300,21 +300,6 @@ export async function threadById(
   return threadFor(taskId, session.value, await loadShared(taskId));
 }
 
-/** Whether the thread's own agent is at work this moment. */
-function threadIsAlive(taskId: TaskId, sessionId: StoreId.Session): boolean {
-  const status = getTaskAgentStatus({
-    id: taskId,
-    workspaceRef: getWorkspaceActorRef(),
-  });
-  return (
-    status.isOk() &&
-    status.value.sessionActors.some(
-      (actor) =>
-        actor.sessionId === sessionId && actor.tags.includes("agent.alive"),
-    )
-  );
-}
-
 /** The app slugs a thread reached: its own calls and the grants of its tasks. */
 async function appsHeld(
   messages: SessionMessage.WithParts[],
@@ -569,4 +554,19 @@ async function threadFor(
     unread,
     updatedAt: (session.updatedAt ?? session.createdAt).getTime(),
   };
+}
+
+/** Whether the thread's own agent is at work this moment. */
+function threadIsAlive(taskId: TaskId, sessionId: StoreId.Session): boolean {
+  const status = getTaskAgentStatus({
+    id: taskId,
+    workspaceRef: getWorkspaceActorRef(),
+  });
+  return (
+    status.isOk() &&
+    status.value.sessionActors.some(
+      (actor) =>
+        actor.sessionId === sessionId && actor.tags.includes("agent.alive"),
+    )
+  );
 }

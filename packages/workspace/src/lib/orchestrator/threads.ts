@@ -15,6 +15,7 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskState, updateTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
+import { publisher } from "../../rpc/publisher";
 import {
   latestStepIn,
   type OrchestratorActivity,
@@ -80,6 +81,11 @@ export const ThreadSchema = z.object({
    */
   state: z.enum(["idle", "waiting", "working"]),
   title: z.string(),
+  /**
+   * Whether the agent has named the thread. Until it has, `title` is the
+   * ask's own first words, which a row need not repeat under the ask.
+   */
+  titled: z.boolean(),
   /** Topic ids, from the session record. */
   topics: z.array(z.string()),
   /** Non-user messages after the newest the user has seen; all of them when nothing is recorded. */
@@ -172,6 +178,10 @@ export async function markThreadSeen(
   await updateTaskState(taskDir(taskId), (state) => ({
     threadSeen: { ...state.threadSeen, [sessionId]: newest },
   }));
+  // What was seen is a fact about the session as the window shows it, and the
+  // live list re-reads on the session's events, so the count clears the
+  // moment the thread is opened rather than the next time something is said.
+  publisher.publish("session.updated", { id: taskId, sessionId });
 }
 
 /** The hostnames a shell command opens for the user with `open <url>`. */
@@ -493,6 +503,7 @@ async function threadFor(
     title: isUntitledChatSessionTitle(session.title)
       ? firstLine(textOf(root)) || session.title
       : session.title,
+    titled: !isUntitledChatSessionTitle(session.title),
     topics: session.topics ?? [],
     unread,
     updatedAt: (session.updatedAt ?? session.createdAt).getTime(),

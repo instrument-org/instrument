@@ -1,3 +1,5 @@
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
+
 import { AGENT_FILES_LANGUAGE } from "../../constants";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
@@ -123,7 +125,8 @@ export function excerptOf(text: string, maxLength: number): string {
       continue;
     }
     if (fence === undefined) {
-      return cut(line, maxLength);
+      // Plain words: a row has no room for a bold marker or a link's target.
+      return cut(stripMarkdown(line).trim(), maxLength);
     }
     if (fence === AGENT_FILES_LANGUAGE) {
       fencedFiles.push(line);

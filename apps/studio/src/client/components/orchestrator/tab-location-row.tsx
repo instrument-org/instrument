@@ -15,6 +15,7 @@ import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
@@ -317,6 +318,11 @@ function Field({ location }: { location: TabLocation }) {
 /** What the place is drawn with, ahead of its name. */
 function locationMark(location: TabLocation): ReactNode {
   switch (location.kind) {
+    case "activity": {
+      return (
+        <ClockCounterClockwiseIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
     case "app": {
       return (
         <span className="flex size-3.5 shrink-0 items-center justify-center [&_img]:size-3.5 [&_svg]:size-3.5">
@@ -376,6 +382,9 @@ function locationMark(location: TabLocation): ReactNode {
 /** What the field holds when it is edited: the place, in words that can be typed over. */
 function locationText(location: TabLocation) {
   switch (location.kind) {
+    case "activity": {
+      return "Activity";
+    }
     case "app": {
       return location.name;
     }

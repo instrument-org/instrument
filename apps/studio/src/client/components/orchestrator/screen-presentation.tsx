@@ -5,6 +5,7 @@ import { InstrumentGlyph } from "@/client/components/wordmark";
 import { StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
@@ -16,6 +17,9 @@ import { joinHostPath, segmentsOf } from "./host-path";
 import { IDEAS_HREF, ideaTitleOf } from "./ideas";
 import { type TabLocation } from "./tab-location";
 import { parseHref } from "./window-tabs";
+
+/** The route Activity is at: what happened across every thread, newest first. */
+export const ACTIVITY_HREF = "/orchestrator/activity";
 
 /** The route a thread's screen is at, followed by the thread's session id. */
 export const THREADS_HREF = "/orchestrator/threads";
@@ -79,6 +83,9 @@ export function screenLocation(
   if (pathname.startsWith(`${THREADS_HREF}/`)) {
     return { kind: "thread", title: threadTitleOf(pathname, threadTitles) };
   }
+  if (pathname === ACTIVITY_HREF) {
+    return { kind: "activity" };
+  }
   // Every other screen is the work, which is the one place a tab can be that
   // is neither a file nor an app nor a site.
   return { kind: "tasks" };
@@ -124,6 +131,12 @@ export function screenPresentation(
     return {
       icon: <ChatTeardropTextIcon className="size-3.5" />,
       title: threadTitleOf(pathname, threadTitles),
+    };
+  }
+  if (pathname === ACTIVITY_HREF) {
+    return {
+      icon: <ClockCounterClockwiseIcon className="size-3.5" />,
+      title: "Activity",
     };
   }
   if (pathname.startsWith("/orchestrator/apps/")) {

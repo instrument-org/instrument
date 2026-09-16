@@ -18,6 +18,7 @@ import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as OrchestratorHomeRouteImport } from './routes/orchestrator/home'
 import { Route as OrchestratorComputerRouteImport } from './routes/orchestrator/computer'
 import { Route as OrchestratorBrowserRouteImport } from './routes/orchestrator/browser'
+import { Route as OrchestratorActivityRouteImport } from './routes/orchestrator/activity'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
 import { Route as AppTutorialTaskRouteImport } from './routes/_app/tutorial-task'
@@ -104,6 +105,11 @@ const OrchestratorComputerRoute = OrchestratorComputerRouteImport.update({
 const OrchestratorBrowserRoute = OrchestratorBrowserRouteImport.update({
   id: '/browser',
   path: '/browser',
+  getParentRoute: () => OrchestratorRouteRoute,
+} as any)
+const OrchestratorActivityRoute = OrchestratorActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => OrchestratorRouteRoute,
 } as any)
 const OnboardingThemeRoute = OnboardingThemeRouteImport.update({
@@ -349,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/tutorial-task': typeof AppTutorialTaskRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
+  '/orchestrator/activity': typeof OrchestratorActivityRoute
   '/orchestrator/browser': typeof OrchestratorBrowserRoute
   '/orchestrator/computer': typeof OrchestratorComputerRoute
   '/orchestrator/home': typeof OrchestratorHomeRoute
@@ -396,6 +403,7 @@ export interface FileRoutesByTo {
   '/tutorial-task': typeof AppTutorialTaskRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
+  '/orchestrator/activity': typeof OrchestratorActivityRoute
   '/orchestrator/browser': typeof OrchestratorBrowserRoute
   '/orchestrator/computer': typeof OrchestratorComputerRoute
   '/orchestrator/home': typeof OrchestratorHomeRoute
@@ -449,6 +457,7 @@ export interface FileRoutesById {
   '/_app/tutorial-task': typeof AppTutorialTaskRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
+  '/orchestrator/activity': typeof OrchestratorActivityRoute
   '/orchestrator/browser': typeof OrchestratorBrowserRoute
   '/orchestrator/computer': typeof OrchestratorComputerRoute
   '/orchestrator/home': typeof OrchestratorHomeRoute
@@ -503,6 +512,7 @@ export interface FileRouteTypes {
     | '/tutorial-task'
     | '/onboarding/providers'
     | '/onboarding/theme'
+    | '/orchestrator/activity'
     | '/orchestrator/browser'
     | '/orchestrator/computer'
     | '/orchestrator/home'
@@ -550,6 +560,7 @@ export interface FileRouteTypes {
     | '/tutorial-task'
     | '/onboarding/providers'
     | '/onboarding/theme'
+    | '/orchestrator/activity'
     | '/orchestrator/browser'
     | '/orchestrator/computer'
     | '/orchestrator/home'
@@ -602,6 +613,7 @@ export interface FileRouteTypes {
     | '/_app/tutorial-task'
     | '/onboarding/providers'
     | '/onboarding/theme'
+    | '/orchestrator/activity'
     | '/orchestrator/browser'
     | '/orchestrator/computer'
     | '/orchestrator/home'
@@ -713,6 +725,13 @@ declare module '@tanstack/react-router' {
       path: '/browser'
       fullPath: '/orchestrator/browser'
       preLoaderRoute: typeof OrchestratorBrowserRouteImport
+      parentRoute: typeof OrchestratorRouteRoute
+    }
+    '/orchestrator/activity': {
+      id: '/orchestrator/activity'
+      path: '/activity'
+      fullPath: '/orchestrator/activity'
+      preLoaderRoute: typeof OrchestratorActivityRouteImport
       parentRoute: typeof OrchestratorRouteRoute
     }
     '/onboarding/theme': {
@@ -1187,6 +1206,7 @@ const OrchestratorTasksRouteRouteWithChildren =
 
 interface OrchestratorRouteRouteChildren {
   OrchestratorTasksRouteRoute: typeof OrchestratorTasksRouteRouteWithChildren
+  OrchestratorActivityRoute: typeof OrchestratorActivityRoute
   OrchestratorBrowserRoute: typeof OrchestratorBrowserRoute
   OrchestratorComputerRoute: typeof OrchestratorComputerRoute
   OrchestratorHomeRoute: typeof OrchestratorHomeRoute
@@ -1200,6 +1220,7 @@ interface OrchestratorRouteRouteChildren {
 
 const OrchestratorRouteRouteChildren: OrchestratorRouteRouteChildren = {
   OrchestratorTasksRouteRoute: OrchestratorTasksRouteRouteWithChildren,
+  OrchestratorActivityRoute: OrchestratorActivityRoute,
   OrchestratorBrowserRoute: OrchestratorBrowserRoute,
   OrchestratorComputerRoute: OrchestratorComputerRoute,
   OrchestratorHomeRoute: OrchestratorHomeRoute,

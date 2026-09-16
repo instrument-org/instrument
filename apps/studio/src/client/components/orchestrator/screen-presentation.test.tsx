@@ -1,13 +1,15 @@
 import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { screenLocation, screenPresentation } from "./screen-presentation";
+import {
+  ACTIVITY_HREF,
+  screenLocation,
+  screenPresentation,
+} from "./screen-presentation";
 
 const CONTEXT = { appsBySlug: new Map(), childTitles: new Map() };
 
-const THREAD_ID = StoreId.SessionSchema.parse(
-  "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
-);
+const THREAD_ID = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 const THREAD_HREF = `/orchestrator/threads/${THREAD_ID}`;
 
 describe("screenPresentation", () => {
@@ -17,6 +19,10 @@ describe("screenPresentation", () => {
       screenPresentation(THREAD_HREF, { ...CONTEXT, threadTitles }).title,
     ).toBe("Caffeine mixes, plus Zevia");
     expect(screenPresentation(THREAD_HREF, CONTEXT).title).toBe("Thread");
+  });
+
+  it("names the activity tab", () => {
+    expect(screenPresentation(ACTIVITY_HREF, CONTEXT).title).toBe("Activity");
   });
 
   it.each([
@@ -76,6 +82,12 @@ describe("screenLocation", () => {
     expect(screenLocation(THREAD_HREF, { ...CONTEXT, threadTitles })).toEqual({
       kind: "thread",
       title: "Caffeine mixes",
+    });
+  });
+
+  it("places the activity tab on activity rather than on the work", () => {
+    expect(screenLocation(ACTIVITY_HREF, CONTEXT)).toEqual({
+      kind: "activity",
     });
   });
 });

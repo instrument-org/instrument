@@ -2,11 +2,11 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
-import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useQuery } from "@tanstack/react-query";
 import ms from "ms";
 import { useState } from "react";
 
+import { TRANSCRIPT_ROW } from "../message-part/transcript-group";
 import { useOrchestrator } from "./context";
 
 /** How often the card re-reads where the task stands. */
@@ -21,9 +21,12 @@ const STEPS_SHOWN = 3;
  *
  * While it runs, a contained card: the task's name in brand, and the last few
  * steps as a small timeline with the current one lit. No avatar, no time. Done,
- * it steps out of the way as one quiet line, a check, the name, and how it
- * ended, which still opens the task. Either way a press opens the task's own
- * page as a tab beside the thread.
+ * it steps out of the way and takes the shape of a tool call's shut row in the
+ * transcript: the name, then how it ended, as prose in the row's size and
+ * weight that wraps rather than cuts, with the way out to the task's page
+ * showing on hover where that row's chevron does. No icon at all: a task that
+ * failed or stopped to ask says so in its line's tone rather than beside it.
+ * Either way a press opens the task's own page as a tab beside the thread.
  */
 export function CreatedTaskCard({ taskId }: { taskId: string }) {
   const orchestrator = useOrchestrator();
@@ -60,20 +63,47 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
   const title = status.data?.title ?? "Task";
 
   if (status.data && !status.data.isWorking) {
+    // The line is in the warning tone when the task did not get to the end of
+    // its work: it failed, it was stopped, or it is waiting on the user.
+    const needsAttention =
+      standing?.kind === "failed" || standing?.kind === "waiting";
     return (
+      // `mt-2` on top of the reply's own 8px gap is the boundary the transcript
+      // puts between a paragraph and a step under it, so the row sits under the
+      // reply's words at the distance a tool call sits under the agent's.
+      //
+      // Inline, as the tool call's row is: a one-line row ends where its text
+      // does, so the arrow follows the words, and one that wraps fills the width
+      // with the arrow at its first line's end.
       <button
-        className="mt-1 flex h-6 w-fit max-w-full items-center gap-2 rounded px-1 text-left text-xs hover:bg-foreground/8"
+        className={cn(
+          TRANSCRIPT_ROW,
+          "mt-2 inline-flex max-w-full items-start text-left",
+        )}
         onClick={open}
         type="button"
       >
-        <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 truncate font-medium">{title}</span>
-        {standing ? (
-          <span className="min-w-0 truncate text-muted-foreground">
-            {standing.line}
-          </span>
-        ) : null}
-        <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 text-sm">
+          <span className="text-foreground">{title}</span>
+          {standing ? (
+            <>
+              {" "}
+              <span
+                className={
+                  needsAttention
+                    ? "text-warning-700 dark:text-warning-300"
+                    : "text-muted-foreground group-hover/run-row:text-foreground"
+                }
+              >
+                {standing.line}
+              </span>
+            </>
+          ) : null}
+        </span>
+        {/* Where the tool call's row keeps its chevron, and shown the same way:
+            faded rather than absent, so the row is one width whether or not it
+            is hovered. `mt-1` centers it on the text's first 20px line. */}
+        <ArrowUpRightIcon className="mt-1 -ml-1 size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity duration-200 group-hover/run-row:opacity-100 group-focus-visible/run-row:opacity-100" />
       </button>
     );
   }

@@ -79,7 +79,7 @@ describe("ActivityList", () => {
     expect(
       screen
         .getAllByRole("button")
-        .map((row) => row.textContent?.replace(/\d+m ago$/, "").trim()),
+        .map((row) => row.textContent.replace(/\d+m ago$/, "").trim()),
     ).toEqual([
       "Taxes",
       "You askedasked",

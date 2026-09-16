@@ -10,7 +10,7 @@ import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TagIcon } from "@phosphor-icons/react/Tag";
-import { format, isSameDay } from "date-fns";
+import { format, isSameDay, isToday } from "date-fns";
 import { type SyntheticEvent, useEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
@@ -113,6 +113,7 @@ export function ThreadRow({
       <div className="min-w-0 flex-1">
         {hasHeader && (
           <p className="flex h-5 items-center gap-1.5 px-1 text-[13px]">
+            {tagControl}
             {marks.map((topic) => (
               <TopicPill
                 key={topic.id}
@@ -130,14 +131,13 @@ export function ThreadRow({
             <span className="min-w-0 flex-1 truncate text-muted-foreground">
               {thread.titled ? thread.title : ""}
             </span>
-            {tagControl}
           </p>
         )}
-        {/* With no header, the ask is the first line and the control keeps
-          its end. */}
+        {/* With no header, the ask is the first line and the control opens
+          it, where the pills would be. */}
         <div className={cn("flex items-start gap-1.5", hasHeader && "mt-0.5")}>
-          <Ask text={askOf(thread)} />
           {!hasHeader && tagControl}
+          <Ask text={askOf(thread)} />
         </div>
         <RepliesLine appsBySlug={appsBySlug} thread={thread} />
       </div>
@@ -261,7 +261,9 @@ function RepliesLine({
   }
   return (
     <div className="mt-0.5 flex h-6 items-center gap-2 px-1 text-[12px]">
-      {unread > 0 && (
+      {/* Not while the thread works: the step's own light is the news then,
+        and a dot coming and going beside it read as flicker. */}
+      {unread > 0 && thread.state !== "working" && (
         <span
           aria-label="Unread"
           className="-mr-1 size-1.5 shrink-0 rounded-full bg-brand-500"
@@ -289,16 +291,19 @@ function RepliesLine({
 
 /**
  * When the last reply landed: the time of day while it is the same day the
- * thread began, since the day head above carries that date, and how long ago
- * once it is a later day.
+ * thread began, since the day head above carries that date; "Today at" when
+ * an older thread was answered today, so the reply is not read as belonging
+ * to the day head; and how long ago for any other later day.
  */
 function ReplyTime({ at, startedAt }: { at: number; startedAt: number }) {
   const className = "shrink-0 text-muted-foreground/70";
-  return isSameDay(at, startedAt) ? (
-    <span className={className}>{format(at, "h:mm a")}</span>
-  ) : (
-    <RelativeTime className={className} compact date={new Date(at)} />
-  );
+  if (isSameDay(at, startedAt)) {
+    return <span className={className}>{format(at, "h:mm a")}</span>;
+  }
+  if (isToday(at)) {
+    return <span className={className}>Today at {format(at, "h:mm a")}</span>;
+  }
+  return <RelativeTime className={className} date={new Date(at)} />;
 }
 
 /** Keeps a control's gesture from reaching the row under it, which would open the thread. */
@@ -307,10 +312,11 @@ function stopHere(event: SyntheticEvent) {
 }
 
 /**
- * The control that files the thread, at the first line's end and drawn only
- * while the pointer is on the row or its list is open. The list is the one
- * the Topics chip opens, and the one a pill opens: the row keeps its open
- * state so either way in lands here.
+ * The control that files the thread, at the first line's start where the
+ * pills sit, and in the flow only while the pointer is on the row or its list
+ * is open: it takes its room then and gives it back after, with no motion, so
+ * the pills beside it read as the things it adds to. The list is the one a
+ * pill opens too: the row keeps its open state so either way in lands here.
  */
 function TagControl({
   isOpen,
@@ -331,7 +337,7 @@ function TagControl({
     // The list is drawn elsewhere on the page but is this span's in React's
     // eyes, so a pick inside it stops here rather than opening the thread.
     <span
-      className="flex shrink-0"
+      className="hidden shrink-0 group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex"
       onAuxClick={stopHere}
       onClick={stopHere}
       onContextMenu={stopHere}
@@ -340,7 +346,7 @@ function TagControl({
         <PopoverTrigger asChild>
           <button
             aria-label="Topics"
-            className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:bg-foreground/8 hover:text-foreground focus-visible:opacity-100 data-[state=open]:text-foreground data-[state=open]:opacity-100"
+            className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:text-foreground"
             title="Topics"
             type="button"
           >
@@ -348,7 +354,7 @@ function TagControl({
           </button>
         </PopoverTrigger>
         <PopoverContent
-          align="end"
+          align="start"
           className="w-60 p-1"
           role="menu"
           side="bottom"

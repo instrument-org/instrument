@@ -267,12 +267,25 @@ describe("ThreadRow", () => {
     );
   });
 
-  it("says how long ago the last reply landed once it is on a later day than the thread began", async () => {
+  it("says an older thread was answered today, by the clock", async () => {
     const yesterday = Date.now() - 24 * 60 * 60_000;
     const { row } = await renderRow(
       thread({ createdAt: yesterday, lastReplyAt: Date.now() - 5 * 60_000 }),
     );
-    expect(partsOf(repliesLineOf(row))[1]).toMatch(/^\d+m ago$/);
+    expect(partsOf(repliesLineOf(row))[1]).toMatch(
+      /^Today at \d{1,2}:\d{2} [AP]M$/,
+    );
+  });
+
+  it("says how long ago the last reply landed when it is neither the thread's day nor today", async () => {
+    const day = 24 * 60 * 60_000;
+    const { row } = await renderRow(
+      thread({
+        createdAt: Date.now() - 6 * day,
+        lastReplyAt: Date.now() - 3 * day,
+      }),
+    );
+    expect(partsOf(repliesLineOf(row))[1]).toMatch(/^3 days ago$/);
   });
 
   it("marks unseen replies with a dot before the count and never a number", async () => {
@@ -388,18 +401,30 @@ describe("ThreadRow", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("wears the hover ground across the whole row, and shows the tag control then", async () => {
-    const { row } = await renderRow(thread());
+  it("wears the hover ground across the whole row, and puts the tag control in front then", async () => {
+    const { row } = await renderRow(thread({ topics: ["house"] }));
     const control = row.querySelector<HTMLElement>('[aria-label="Topics"]');
     if (!control) {
       throw new Error("no tag control");
     }
-    expect(getComputedStyle(control).opacity).toBe("0");
+    // Out of the flow at rest: it takes no room until the pointer arrives.
+    expect(control.getClientRects().length).toBe(0);
     const marksBefore = repliesLineOf(row).getBoundingClientRect();
+    const pillBefore = linesOf(row)[0]
+      ?.querySelector("button:not([aria-label])")
+      ?.getBoundingClientRect();
     await userEvent.hover(gutterOf(row));
     await vi.waitFor(() => {
-      expect(getComputedStyle(control).opacity).toBe("1");
+      expect(control.getClientRects().length).toBeGreaterThan(0);
     });
+    // In front of the pills, which move over to make room for it.
+    const pillAfter = linesOf(row)[0]
+      ?.querySelector("button:not([aria-label])")
+      ?.getBoundingClientRect();
+    expect(control.getBoundingClientRect().right).toBeLessThanOrEqual(
+      pillAfter?.left ?? 0,
+    );
+    expect(pillAfter?.left ?? 0).toBeGreaterThan(pillBefore?.left ?? 0);
     expect(getComputedStyle(row).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
     expect(row.getBoundingClientRect().left).toBeLessThan(
       gutterOf(row).getBoundingClientRect().left,

@@ -54,9 +54,55 @@ export interface Filterable {
   unread: number;
 }
 
+/** One row of the filter column: which group it is in, and which of that group's ids it stands for. */
+export type FilterChoice =
+  | { group: "apps" | "sites" | "topics"; id: string }
+  | { group: "status"; id: ThreadStatus };
+
 /** Every app slug any thread has used, in name order by whoever names them. */
 export function appsUsed(threads: Filterable[]): string[] {
   return [...new Set(threads.flatMap((thread) => thread.holds.apps))];
+}
+
+/**
+ * The filters with one row chosen and every other row off, or with nothing
+ * chosen when the row was the one already on: the column is one radio group
+ * across all of its sections, so the list is never narrowed by two kinds at
+ * once. The search is its own thing and stays as it was. The predicate still
+ * reads lists, so nothing downstream knows the column only ever fills one.
+ */
+export function chooseOnly(
+  filters: ThreadFilters,
+  choice: FilterChoice,
+): ThreadFilters {
+  const cleared = { ...NO_FILTERS, search: filters.search };
+  if (choice.group === "status") {
+    return filters.status.includes(choice.id)
+      ? cleared
+      : { ...cleared, status: [choice.id] };
+  }
+  return filters[choice.group].includes(choice.id)
+    ? cleared
+    : { ...cleared, [choice.group]: [choice.id] };
+}
+
+/** How many of a section's rows the filter column shows before folding the rest behind a "more" row. */
+export const SECTION_SHOWN = 6;
+
+/**
+ * The rows a folded section shows: the first several in their order, and any
+ * chosen one past them, since a filter that is on has to stay in reach to be
+ * turned off. `hidden` is how many the "more" row stands for.
+ */
+export function foldSection<T extends { id: string }>(
+  entries: T[],
+  chosen: ReadonlySet<string>,
+  limit = SECTION_SHOWN,
+): { hidden: number; shown: T[] } {
+  const shown = entries.filter(
+    (entry, index) => index < limit || chosen.has(entry.id),
+  );
+  return { hidden: entries.length - shown.length, shown };
 }
 
 /** Whether a thread is in a state, by the state's name. */

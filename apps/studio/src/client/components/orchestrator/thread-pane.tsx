@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { FilterBar } from "./filter-bar";
+import { FilterColumn } from "./filter-column";
 import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
 import { ThreadList } from "./thread-list";
 import {
@@ -30,10 +30,11 @@ import {
 const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
 
 /**
- * The chat pane: the filter bar, the thread list, and the composer at its
- * foot. Sending here makes a thread; there is no session to send into, and
- * nothing to stop, since the reply lands in the thread rather than under the
- * field. Nothing shows before send.
+ * The chat pane: the filter column down its left, and beside it the thread
+ * list with the composer at its foot. Sending here makes a thread; there is
+ * no session to send into, and nothing to stop, since the reply lands in the
+ * thread rather than under the field. Nothing shows before send. With one
+ * topic chosen in the column, the thread a send makes is filed under it.
  */
 export function ThreadPane({
   modelURI: initialModelURI,
@@ -107,10 +108,10 @@ export function ThreadPane({
   );
 
   const [isNewTopicOpen, setNewTopicOpen] = useState(false);
-  // The topic being renamed or re-marked, by id, so a re-read of the list does
+  // The topic whose details are open, by id, so a re-read of the list does
   // not close the dialog under the user.
-  const [editing, setEditing] = useState<{ id: string; picking: boolean }>();
-  const editingTopic = topics.find((topic) => topic.id === editing?.id);
+  const [editingId, setEditingId] = useState<string>();
+  const editingTopic = topics.find((topic) => topic.id === editingId);
 
   const promptInputRef = useRef<PromptInputRef>(null);
   const [isFollowingSubmit, setFollowingSubmit] = useState(false);
@@ -148,98 +149,105 @@ export function ThreadPane({
   }, [isFollowingSubmit]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <FilterBar
+    // The pane is the container the column sizes itself by: it is the pane's
+    // own width, not the window's, that says whether there is room for words
+    // beside the marks.
+    <div className="@container/chat flex h-full min-h-0">
+      <FilterColumn
         appsBySlug={appsBySlug}
         filters={filters}
         onFiltersChange={changeFilters}
-        onManageTopic={(action, topic) => {
-          if (action === "retire") {
-            retireTopic.mutate({ id: taskId, topicId: topic.id });
-            changeFilters({
-              ...filters,
-              topics: filters.topics.filter((entry) => entry !== topic.id),
-            });
-          } else {
-            setEditing({ id: topic.id, picking: action === "mark" });
-          }
-        }}
         onNewTopic={() => {
           setNewTopicOpen(true);
+        }}
+        onTopicDetails={(topic) => {
+          setEditingId(topic.id);
         }}
         threads={threads}
         topics={topics}
       />
-      <ThreadList
-        appsBySlug={appsBySlug}
-        emptyLine={
-          threads.length === 0
-            ? "Ask for something below. Each ask becomes a thread here."
-            : "Nothing matches."
-        }
-        isFollowing={isNewestWorking || isFollowingSubmit}
-        onNewTopic={() => {
-          setNewTopicOpen(true);
-        }}
-        onOpen={onOpenThread}
-        onSetTopics={(thread, next) => {
-          setThreadTopics.mutate({
-            id: taskId,
-            sessionId: thread.id,
-            topics: next,
-          });
-        }}
-        scrollSignal={scrollSignal}
-        threads={shown}
-        topics={topics}
-      />
-      <div className="shrink-0 px-3 pb-3">
-        <PromptInput
-          // Beside the work, the row stays open: a tab switch moves the caret,
-          // and a row that folded and unfolded with it would animate on every
-          // switch.
-          alwaysOpen
-          className="relative z-10"
-          draftKey={{ scope: "task", taskId }}
-          folderTrayPlacement="above"
-          id={taskId}
-          isLoading={createMessage.isPending}
-          modelURI={modelURI}
-          onModelChange={setModelURI}
-          onSubmit={({ files, folders, modelURI: chosenModelURI, prompt }) => {
-            // The composer empties on submit rather than on the reply, so a
-            // send the workspace rejects has to hand the prompt and its
-            // attachments back: nothing else holds them.
-            const draft = promptInputRef.current?.snapshot();
-            promptInputRef.current?.clear();
-            // Sending is a request to watch what happens next, so a reader
-            // who had scrolled back returns to the end and follows it.
-            setFollowingSubmit(true);
-            setScrollSignal((signal) => signal + 1);
-            void sendContext().then((viewing) => {
-              createMessage.mutate(
-                {
-                  files,
-                  folders,
-                  id: taskId,
-                  modelURI: chosenModelURI,
-                  prompt,
-                  viewing,
-                },
-                {
-                  onError: () => {
-                    if (draft) {
-                      promptInputRef.current?.restore(draft);
-                    }
-                  },
-                },
-              );
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <ThreadList
+          appsBySlug={appsBySlug}
+          emptyLine={
+            threads.length === 0
+              ? "Ask for something below. Each ask becomes a thread here."
+              : "Nothing matches."
+          }
+          isFollowing={isNewestWorking || isFollowingSubmit}
+          onNewTopic={() => {
+            setNewTopicOpen(true);
+          }}
+          onOpen={onOpenThread}
+          onSetTopics={(thread, next) => {
+            setThreadTopics.mutate({
+              id: taskId,
+              sessionId: thread.id,
+              topics: next,
             });
           }}
-          placeholder="What do you need?"
-          ref={promptInputRef}
-          variant="pill"
+          scrollSignal={scrollSignal}
+          threads={shown}
+          topics={topics}
         />
+        <div className="shrink-0 px-3 pb-3">
+          <PromptInput
+            // Beside the work, the row stays open: a tab switch moves the caret,
+            // and a row that folded and unfolded with it would animate on every
+            // switch.
+            alwaysOpen
+            className="relative z-10"
+            draftKey={{ scope: "task", taskId }}
+            folderTrayPlacement="above"
+            id={taskId}
+            isLoading={createMessage.isPending}
+            modelURI={modelURI}
+            onModelChange={setModelURI}
+            onSubmit={({
+              files,
+              folders,
+              modelURI: chosenModelURI,
+              prompt,
+            }) => {
+              // The composer empties on submit rather than on the reply, so a
+              // send the workspace rejects has to hand the prompt and its
+              // attachments back: nothing else holds them.
+              const draft = promptInputRef.current?.snapshot();
+              promptInputRef.current?.clear();
+              // Sending is a request to watch what happens next, so a reader
+              // who had scrolled back returns to the end and follows it.
+              setFollowingSubmit(true);
+              setScrollSignal((signal) => signal + 1);
+              // One topic chosen is the place the pane is standing in, so the
+              // thread lands there; several is a search, and files nothing.
+              const topicsChosen =
+                filters.topics.length === 1 ? filters.topics : undefined;
+              void sendContext().then((viewing) => {
+                createMessage.mutate(
+                  {
+                    files,
+                    folders,
+                    id: taskId,
+                    modelURI: chosenModelURI,
+                    prompt,
+                    ...(topicsChosen ? { topics: topicsChosen } : {}),
+                    viewing,
+                  },
+                  {
+                    onError: () => {
+                      if (draft) {
+                        promptInputRef.current?.restore(draft);
+                      }
+                    },
+                  },
+                );
+              });
+            }}
+            placeholder="What do you need?"
+            ref={promptInputRef}
+            variant="pill"
+          />
+        </div>
       </div>
       <NewTopicDialog
         onCreate={(topic) => {
@@ -249,7 +257,7 @@ export function ThreadPane({
         open={isNewTopicOpen}
         taken={topics.flatMap((topic) => (topic.emoji ? [topic.emoji] : []))}
       />
-      {editingTopic && editing && (
+      {editingTopic && (
         <EditTopicDialog
           onChange={(edits) => {
             if (Object.keys(edits).length === 0) {
@@ -261,13 +269,20 @@ export function ThreadPane({
               topicId: editingTopic.id,
             });
           }}
+          // Deleting retires the topic: the tag goes from the column and from
+          // the filter if it was the one chosen; the threads keep everything.
+          onDelete={() => {
+            retireTopic.mutate({ id: taskId, topicId: editingTopic.id });
+            if (filters.topics.includes(editingTopic.id)) {
+              changeFilters({ ...filters, topics: [] });
+            }
+          }}
           onOpenChange={(open) => {
             if (!open) {
-              setEditing(undefined);
+              setEditingId(undefined);
             }
           }}
           open
-          picking={editing.picking}
           topic={editingTopic}
         />
       )}

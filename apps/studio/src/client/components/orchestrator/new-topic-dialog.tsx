@@ -7,6 +7,17 @@ import {
   ColorRow,
   TopicMarkPicker,
 } from "@/client/components/orchestrator/topic-mark-picker";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -26,25 +37,26 @@ export interface TopicChoice {
   name: string;
 }
 
-/** How long a topic's name may run: a chip's worth, since that is where it is read. */
+/** How long a topic's name may run: a row's worth, since that is where it is read. */
 const TOPIC_NAME_MAX = 24;
 
 /**
- * A topic as it stands, in the shape the dialog that made it used, for
- * renaming it or changing its mark. Only what changed is handed back.
+ * A topic as it stands, in the shape the dialog that made it used: its name,
+ * its mark, and its tint, for changing any of them, and at its foot the way to
+ * delete it. Only what changed is handed back.
  */
 export function EditTopicDialog({
   onChange,
+  onDelete,
   onOpenChange,
   open,
-  picking = false,
   topic,
 }: {
   onChange: (edits: Partial<TopicChoice>) => void;
+  /** Asked for from the foot, past a confirmation; the dialog closes with it. */
+  onDelete: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  /** Opens with the mark picker already out, for a change asked for as "change mark". */
-  picking?: boolean;
   topic: { color?: string; emoji?: string; id: string; name: string };
 }) {
   return (
@@ -53,6 +65,7 @@ export function EditTopicDialog({
         rather than showing the last topic's name. */}
       <TopicForm
         action="Save"
+        deleting={{ name: topic.name, onDelete }}
         description="Threads filed under it keep the change."
         initial={{
           color: topic.color ?? TOPIC_COLORS[8] ?? "#3b6ef6",
@@ -68,8 +81,8 @@ export function EditTopicDialog({
           });
         }}
         onOpenChange={onOpenChange}
-        picking={picking}
-        title="Edit topic"
+        open={open}
+        title="Topic details"
       />
     </Dialog>
   );
@@ -78,7 +91,7 @@ export function EditTopicDialog({
 /**
  * Making a topic, which is a tag rather than a place: threads are filed under
  * it and the list is filtered by it. Worth a moment, and nothing here can be
- * got wrong permanently, since the topic's own menu renames and re-marks it.
+ * got wrong permanently, since the topic's details rename and re-mark it.
  */
 export function NewTopicDialog({
   onCreate,
@@ -94,8 +107,6 @@ export function NewTopicDialog({
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      {/* The form is the content, which the dialog unmounts on close, so the
-        fields are empty again next time without an effect to clear them. */}
       <TopicForm
         action="Create"
         description="File threads under it, and find them by it."
@@ -109,33 +120,91 @@ export function NewTopicDialog({
         }}
         onCommit={onCreate}
         onOpenChange={onOpenChange}
+        open={open}
         title="New topic"
       />
     </Dialog>
   );
 }
 
+/**
+ * Deleting a topic, behind a confirmation: the tag goes, and the threads
+ * filed under it keep everything else they have.
+ */
+function DeleteTopicButton({
+  name,
+  onDelete,
+}: {
+  name: string;
+  onDelete: () => void;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          className="text-destructive hover:text-destructive"
+          variant="ghost"
+        >
+          Delete topic
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{`Delete “${name}”?`}</AlertDialogTitle>
+          <AlertDialogDescription>
+            Threads filed under it keep everything; they lose the tag.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onDelete} variant="destructive">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/**
+ * The fields, which start over from `initial` each time the dialog opens: the
+ * form stays mounted through the dialog's close, so what was typed into it
+ * last time would otherwise be waiting at the next opening.
+ */
 function TopicForm({
   action,
+  deleting,
   description,
   initial,
   onCommit,
   onOpenChange,
-  picking = false,
+  open,
   title,
 }: {
   action: string;
+  /** Offered at the foot when the topic exists to be deleted: whose name to confirm, and what deleting does. */
+  deleting?: { name: string; onDelete: () => void };
   description: string;
   initial: TopicChoice;
   onCommit: (topic: TopicChoice) => void;
   onOpenChange: (open: boolean) => void;
-  picking?: boolean;
+  open: boolean;
   title: string;
 }) {
   const [name, setName] = useState(initial.name);
   const [emoji, setEmoji] = useState(initial.emoji);
   const [color, setColor] = useState(initial.color);
-  const [isPicking, setPicking] = useState(picking);
+  const [isPicking, setPicking] = useState(false);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setName(initial.name);
+      setEmoji(initial.emoji);
+      setColor(initial.color);
+      setPicking(false);
+    }
+  }
   const nameField = useRef<HTMLInputElement>(null);
 
   const commit = () => {
@@ -152,12 +221,8 @@ function TopicForm({
       className="sm:max-w-md"
       // The name is what the dialog is for, so the caret starts in it, with
       // the name selected so typing replaces it; the dialog would otherwise
-      // put focus on the first control, which is the mark. Left alone while
-      // the picker opens with the dialog, since that is where the caret goes.
+      // put focus on the first control, which is the mark.
       onOpenAutoFocus={(event) => {
-        if (picking) {
-          return;
-        }
         event.preventDefault();
         nameField.current?.focus();
         nameField.current?.select();
@@ -202,18 +267,31 @@ function TopicForm({
         </p>
         <ColorRow onPick={setColor} value={color} />
       </div>
-      <DialogFooter>
-        <Button
-          onClick={() => {
-            onOpenChange(false);
-          }}
-          variant="ghost"
-        >
-          Cancel
-        </Button>
-        <Button disabled={!name.trim()} onClick={commit}>
-          {action}
-        </Button>
+      <DialogFooter className="sm:justify-between">
+        {deleting ? (
+          <DeleteTopicButton
+            name={deleting.name}
+            onDelete={() => {
+              deleting.onDelete();
+              onOpenChange(false);
+            }}
+          />
+        ) : (
+          <span />
+        )}
+        <div className="flex gap-2">
+          <Button
+            onClick={() => {
+              onOpenChange(false);
+            }}
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button disabled={!name.trim()} onClick={commit}>
+            {action}
+          </Button>
+        </div>
       </DialogFooter>
     </DialogContent>
   );

@@ -4,8 +4,10 @@ import {
   appsUsed,
   askOf,
   basename,
+  chooseOnly,
   dayLabel,
   type Filterable,
+  foldSection,
   groupByDay,
   matchesFilters,
   NO_FILTERS,
@@ -183,6 +185,72 @@ describe("what the menus offer", () => {
         thread({ holds: { apps: ["gmail"], sites: [] } }),
       ]),
     ).toEqual(["gmail", "github"]);
+  });
+});
+
+describe("choosing a row of the column", () => {
+  const searched = { ...NO_FILTERS, search: "fence" };
+
+  it("turns the row on alone, whatever was on before", () => {
+    expect(
+      chooseOnly(
+        { ...searched, apps: ["gmail"], status: ["unread"] },
+        { group: "topics", id: "house" },
+      ),
+    ).toEqual({ ...searched, topics: ["house"] });
+    expect(
+      chooseOnly(
+        { ...searched, topics: ["house"] },
+        { group: "status", id: "needsYou" },
+      ),
+    ).toEqual({ ...searched, status: ["needsYou"] });
+  });
+
+  it("moves between rows of one section", () => {
+    expect(
+      chooseOnly(
+        { ...searched, topics: ["house"] },
+        { group: "topics", id: "money" },
+      ),
+    ).toEqual({ ...searched, topics: ["money"] });
+  });
+
+  it("turns the chosen row off again, keeping the search", () => {
+    expect(
+      chooseOnly(
+        { ...searched, sites: ["amazon.com"] },
+        { group: "sites", id: "amazon.com" },
+      ),
+    ).toEqual(searched);
+    expect(
+      chooseOnly(
+        { ...searched, status: ["unread"] },
+        { group: "status", id: "unread" },
+      ),
+    ).toEqual(searched);
+  });
+});
+
+describe("a folded section", () => {
+  const entries = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
+  const ids = (shown: { id: string }[]) => shown.map((entry) => entry.id);
+
+  it("shows the first several and says how many more there are", () => {
+    const { hidden, shown } = foldSection(entries, new Set(), 3);
+    expect(ids(shown)).toEqual(["a", "b", "c"]);
+    expect(hidden).toBe(2);
+  });
+
+  it("keeps a chosen row in reach past the fold, in its place", () => {
+    const { hidden, shown } = foldSection(entries, new Set(["a", "e"]), 3);
+    expect(ids(shown)).toEqual(["a", "b", "c", "e"]);
+    expect(hidden).toBe(1);
+  });
+
+  it("folds nothing when the section fits", () => {
+    const { hidden, shown } = foldSection(entries, new Set(), 5);
+    expect(ids(shown)).toEqual(["a", "b", "c", "d", "e"]);
+    expect(hidden).toBe(0);
   });
 });
 

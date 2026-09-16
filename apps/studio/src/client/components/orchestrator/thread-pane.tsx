@@ -94,6 +94,13 @@ export function ThreadPane({
   );
 
   const [filters, setFilters] = useState<ThreadFilters>(NO_FILTERS);
+  const [scrollSignal, setScrollSignal] = useState(0);
+  // A change of filter is a change of subject, and the newest of the new
+  // subject is what matters, so the list is taken to its end with it.
+  const changeFilters = (next: ThreadFilters) => {
+    setFilters(next);
+    setScrollSignal((signal) => signal + 1);
+  };
   const topicNames = new Map(topics.map((topic) => [topic.id, topic.name]));
   const shown = threads.filter((thread) =>
     matchesFilters(thread, filters, topicNames),
@@ -106,7 +113,6 @@ export function ThreadPane({
   const editingTopic = topics.find((topic) => topic.id === editing?.id);
 
   const promptInputRef = useRef<PromptInputRef>(null);
-  const [scrollSignal, setScrollSignal] = useState(0);
   const [isFollowingSubmit, setFollowingSubmit] = useState(false);
   const [modelURI, setModelURI] = useState(initialModelURI);
   const [lastInitialModelURI, setLastInitialModelURI] =
@@ -146,14 +152,14 @@ export function ThreadPane({
       <FilterBar
         appsBySlug={appsBySlug}
         filters={filters}
-        onFiltersChange={setFilters}
+        onFiltersChange={changeFilters}
         onManageTopic={(action, topic) => {
           if (action === "retire") {
             retireTopic.mutate({ id: taskId, topicId: topic.id });
-            setFilters((current) => ({
-              ...current,
-              topics: current.topics.filter((entry) => entry !== topic.id),
-            }));
+            changeFilters({
+              ...filters,
+              topics: filters.topics.filter((entry) => entry !== topic.id),
+            });
           } else {
             setEditing({ id: topic.id, picking: action === "mark" });
           }
@@ -176,9 +182,6 @@ export function ThreadPane({
           setNewTopicOpen(true);
         }}
         onOpen={onOpenThread}
-        onPickTopic={(topicId) => {
-          setFilters((current) => ({ ...current, topics: [topicId] }));
-        }}
         onSetTopics={(thread, next) => {
           setThreadTopics.mutate({
             id: taskId,

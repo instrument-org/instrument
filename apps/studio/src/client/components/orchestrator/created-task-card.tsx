@@ -9,7 +9,6 @@ import { type MouseEvent } from "react";
 
 import { PlanningDotIcon } from "../icons/planning-dot";
 import { TRANSCRIPT_ROW } from "../message-part/transcript-group";
-import { InstrumentGlyph } from "../wordmark";
 import { useOrchestrator } from "./context";
 
 /** How often the row re-reads where the task stands while it works. */
@@ -20,11 +19,12 @@ const REFRESH_MS = ms("2 seconds");
  * created it, drawn the way a tool call is drawn in the transcript: one row,
  * the task's name and then the step it is on, in the live shimmer while it
  * works, and the name and how it ended in the shut row's muted tone once it
- * is done. What the row says is only what the task says now; nothing about
- * earlier steps is kept. A task that failed or stopped to ask says so in its
- * line's tone rather than with a mark. A press opens the task's own page in
- * the tab on screen, and a middle or modified click puts it in a tab of its
- * own; the way out shows on hover where a tool row keeps its chevron.
+ * is done, with nothing in front of it. What the row says is only what the
+ * task says now; nothing about earlier steps is kept. A task that failed or
+ * stopped to ask says so in its line's tone rather than with a mark. A press
+ * opens the task's own page in the tab on screen, and a middle or modified
+ * click puts it in a tab of its own; the way out shows on hover where a tool
+ * row keeps its chevron.
  */
 export function CreatedTaskCard({ taskId }: { taskId: string }) {
   const orchestrator = useOrchestrator();
@@ -79,13 +79,9 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
       title={line}
       type="button"
     >
-      {isWorking ? (
-        <PlanningDotIcon />
-      ) : (
-        <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
-          <InstrumentGlyph className="size-3 text-foreground/70" />
-        </span>
-      )}
+      {/* The live dot while it works; once it is done the name starts the
+          row, with nothing in front of it. */}
+      {isWorking && <PlanningDotIcon />}
       <span
         className={cn(
           "min-w-0 truncate text-sm",

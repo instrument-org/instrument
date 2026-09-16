@@ -28,7 +28,6 @@ export function ThreadList({
   isFollowing,
   onNewTopic,
   onOpen,
-  onPickTopic,
   onSetTopics,
   scrollSignal,
   threads,
@@ -41,8 +40,6 @@ export function ThreadList({
   isFollowing: boolean;
   onNewTopic: () => void;
   onOpen: (thread: Thread) => void;
-  /** A row's topic pill: the list narrowed to that topic. */
-  onPickTopic: (topicId: string) => void;
   onSetTopics: (thread: Thread, topics: string[]) => void;
   /** Counts up whenever the list should be taken to its end, whatever the reader was doing. */
   scrollSignal: number;
@@ -84,7 +81,6 @@ export function ThreadList({
                       onOpen={() => {
                         onOpen(thread);
                       }}
-                      onPickTopic={onPickTopic}
                       onSetTopics={(next) => {
                         onSetTopics(thread, next);
                       }}

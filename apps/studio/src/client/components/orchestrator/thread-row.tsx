@@ -6,14 +6,24 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TagIcon } from "@phosphor-icons/react/Tag";
+import { useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { type SyntheticEvent, useEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
+import { useOrchestrator } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { THREADS_HREF } from "./screen-presentation";
 import { askOf, type Thread, type Topic } from "./threads";
@@ -86,7 +96,7 @@ export function ThreadRow({
     // A click target, not text: no selection and no text cursor over it. The
     // controls inside stop their clicks short of it.
     <div
-      className="group/row flex cursor-default items-start gap-2 rounded-md px-2 py-2.5 select-none hover:bg-foreground/4 focus-visible:bg-foreground/4 focus-visible:outline-hidden has-[[data-state=open]]:bg-foreground/4"
+      className="group/row relative flex cursor-default items-start gap-2 rounded-md px-2 py-2.5 select-none hover:bg-foreground/4 focus-visible:bg-foreground/4 focus-visible:outline-hidden has-[[data-state=open]]:bg-foreground/4"
       onAuxClick={gestures.onAuxClick}
       onClick={(event) => {
         if (wantsNewTab(event)) {
@@ -141,7 +151,68 @@ export function ThreadRow({
         </div>
         <RepliesLine appsBySlug={appsBySlug} thread={thread} />
       </div>
+      <RowMenu thread={thread} />
     </div>
+  );
+}
+
+/**
+ * The row's own menu, at its top right while the pointer is on the row: the
+ * one thing a thread offers that no line of it carries, which is putting it
+ * back among the unread, or the reverse. A pick stops short of the door.
+ */
+function RowMenu({ thread }: { thread: Thread }) {
+  const { taskId } = useOrchestrator();
+  const seen = useMutation(
+    rpcClient.workspace.orchestrator.threads.seen.mutationOptions(),
+  );
+  const unseen = useMutation(
+    rpcClient.workspace.orchestrator.threads.unseen.mutationOptions(),
+  );
+  const canUnread = thread.unread === 0 && thread.replyCount > 0;
+  const canRead = thread.unread > 0;
+  if (!canUnread && !canRead) {
+    return null;
+  }
+  return (
+    <span
+      className="absolute top-1.5 right-1.5 hidden group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex"
+      onAuxClick={stopHere}
+      onClick={stopHere}
+      onContextMenu={stopHere}
+      onKeyDown={stopHere}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            aria-label="More"
+            className="grid size-5 place-items-center rounded-md bg-background/90 text-muted-foreground shadow-xs ring-1 ring-border hover:text-foreground data-[state=open]:text-foreground"
+            type="button"
+          >
+            <DotsThreeIcon className="size-4" weight="bold" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {canRead ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                seen.mutate({ id: taskId, sessionId: thread.id });
+              }}
+            >
+              Mark as read
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onSelect={() => {
+                unseen.mutate({ id: taskId, sessionId: thread.id });
+              }}
+            >
+              Mark as unread
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }
 
@@ -278,7 +349,7 @@ function RepliesLine({
             "shrink-0 font-medium",
             unread > 0 && thread.state !== "working"
               ? "text-brand-600 dark:text-brand-400"
-              : "text-foreground",
+              : "text-muted-foreground",
           )}
         >
           {replyCount} {replyCount === 1 ? "reply" : "replies"}

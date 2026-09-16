@@ -1,5 +1,6 @@
 import { featuresAtom } from "@/client/atoms/features";
 import {
+  type PromptDraftKey,
   promptDraftRefAtom,
   promptFocusSignalAtom,
   useHydrateTaskDraft,
@@ -73,6 +74,7 @@ export function TaskChat({
   beforeComposer,
   composerLead,
   composerPlaceholder,
+  draftKey: draftKeyOfSurface,
   isReplayActive = false,
   navigateOnSend = true,
   onCancelReplay,
@@ -98,6 +100,12 @@ export function TaskChat({
   composerLead?: ReactNode;
   /** What the empty composer says, when the window knows better than the app's name does. */
   composerPlaceholder?: string;
+  /**
+   * Which draft the composer edits. The task's own, stored with it, unless
+   * this chat is one of several over the same task: a thread's composer takes
+   * a transient key of its own, or it would share the top-level field's words.
+   */
+  draftKey?: PromptDraftKey;
   isReplayActive?: boolean;
   /**
    * Whether a successful send moves the route to the task page with the
@@ -127,10 +135,15 @@ export function TaskChat({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const id = task.id;
+  const draftKey: PromptDraftKey = draftKeyOfSurface ?? {
+    scope: "task",
+    taskId: id,
+  };
 
   // The route does not render until the task's state has loaded, so the stored
   // draft is in hand on the composer's very first render rather than arriving
-  // after it.
+  // after it. The stored draft is the task's whichever key this composer edits
+  // by: seeding it once is what any composer on the task's own key reads.
   useHydrateTaskDraft(id, promptDraft);
 
   const promptInputRef = useRef<PromptInputRef>(null);
@@ -307,7 +320,6 @@ export function TaskChat({
 
   const isActiveTab = useIsActiveTab();
   const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
-  const draftKey = { scope: "task", taskId: id } as const;
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
   // The conversation never takes the caret on its own: it shares a window with
   // the page the user is reading, and switching channel is looking around

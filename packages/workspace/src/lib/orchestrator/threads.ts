@@ -7,6 +7,7 @@ import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { getBrowserState } from "../browser-state";
+import { isUntitledChat } from "../generate-session-title";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { Store } from "../store";
@@ -438,10 +439,14 @@ async function threadFor(
   const state = working ? "working" : ask ? "waiting" : "idle";
 
   const seen = shared.seen[session.id];
+  // A reply still being written is not news yet: it counts once it has
+  // finished, which is also when marking the thread seen would record it.
   const unread = messages.filter(
     (message) =>
       message.role !== "user" &&
       message.role !== "session-context" &&
+      (message.role !== "assistant" ||
+        message.metadata.finishedAt !== undefined) &&
       (seen === undefined || message.id > seen),
   ).length;
 
@@ -478,7 +483,11 @@ async function threadFor(
     root,
     runningTasks,
     state,
-    title: session.title,
+    // Until the agent names the thread, the ask's own first words stand for it
+    // rather than the placeholder a session is born with.
+    title: isUntitledChat(session.title)
+      ? firstLine(textOf(root)) || session.title
+      : session.title,
     topics: session.topics ?? [],
     unread,
     updatedAt: (session.updatedAt ?? session.createdAt).getTime(),

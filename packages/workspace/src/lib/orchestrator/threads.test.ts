@@ -230,6 +230,28 @@ describe("listThreads", () => {
     ]);
   });
 
+  it("lets the ask stand for a thread the agent has not named yet", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Untitled chat 3");
+    await userSays(taskId, sessionId, "plan a trip to lisbon\nin october", 1);
+
+    const [thread] = await listThreads(taskId);
+    expect(thread?.title).toBe("plan a trip to lisbon");
+  });
+
+  it("does not count a reply that is still being written as new", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentSays(taskId, sessionId, "Working on it", {
+      finished: false,
+      minute: 2,
+    });
+
+    const [thread] = await listThreads(taskId);
+    expect(thread?.unread).toBe(0);
+  });
+
   it("clears the count once seen, and counts again from there", async () => {
     const taskId = freshTask();
     const sessionId = await session(taskId, "Groceries");

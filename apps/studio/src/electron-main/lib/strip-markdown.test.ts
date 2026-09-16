@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { stripMarkdown } from "./strip-markdown";
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 
 const cases: Record<string, string> = {
   blockquote: "> quoted line\n> another",

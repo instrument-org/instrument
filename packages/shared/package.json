@@ -17,7 +17,8 @@
     "./icons": "./src/icons.ts",
     "./merge-generators": "./src/merge-generators.ts",
     "./shim": "./src/shim.ts",
-    "./skill-mention": "./src/skill-mention.ts"
+    "./skill-mention": "./src/skill-mention.ts",
+    "./strip-markdown": "./src/strip-markdown.ts"
   },
   "scripts": {
     "check:lint": "eslint . --max-warnings 0 && oxlint --type-aware",

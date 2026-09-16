@@ -1,5 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { stripMarkdown } from "@/electron-main/lib/strip-markdown";
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
   type AgentCompletionNotificationMode,
   getPreferencesStore,

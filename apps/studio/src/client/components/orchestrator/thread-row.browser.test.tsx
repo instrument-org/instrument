@@ -22,6 +22,7 @@ function thread(
     createdAt: new Date(2026, 8, 16, 8, 46).getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: sessionId,
+    lastReplyAt: Date.now() - 5 * 60_000,
     latest: {
       at: Date.now() - 5 * 60_000,
       kind: "reply",
@@ -249,7 +250,7 @@ describe("ThreadRow", () => {
 
   it("says there are no replies yet, with no time beside it", async () => {
     const { row } = await renderRow(
-      thread({ latest: undefined, replyCount: 0 }),
+      thread({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
     );
     const replies = [...row.querySelectorAll("button")].find((button) =>
       button.textContent.includes("No replies yet"),

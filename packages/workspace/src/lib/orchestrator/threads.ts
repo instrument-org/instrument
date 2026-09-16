@@ -58,6 +58,8 @@ export const ThreadSchema = z.object({
       text: z.string(),
     })
     .optional(),
+  /** When the last reply with words finished, in ms; absent until there is one. */
+  lastReplyAt: z.number().optional(),
   /** The newest message that is done, which is what marking seen records. */
   newestSettledMessageId: StoreId.MessageSchema.optional(),
   /** Replies that finished with visible words. */
@@ -464,6 +466,13 @@ async function threadFor(
   });
 
   const newestSettledMessageId = newestSettledIn(messages);
+  const replies = messages.filter(
+    (message): message is SessionMessage.AssistantWithParts =>
+      message.role === "assistant" &&
+      message.metadata.finishedAt !== undefined &&
+      hasWords(message),
+  );
+  const lastReply = replies.at(-1)?.metadata.finishedAt;
   return {
     createdAt: root.metadata.createdAt.getTime(),
     holds: {
@@ -473,13 +482,9 @@ async function threadFor(
     },
     id: session.id,
     ...(latest ? { latest } : {}),
+    ...(lastReply ? { lastReplyAt: lastReply.getTime() } : {}),
     ...(newestSettledMessageId ? { newestSettledMessageId } : {}),
-    replyCount: messages.filter(
-      (message) =>
-        message.role === "assistant" &&
-        message.metadata.finishedAt !== undefined &&
-        hasWords(message),
-    ).length,
+    replyCount: replies.length,
     root,
     runningTasks,
     state,

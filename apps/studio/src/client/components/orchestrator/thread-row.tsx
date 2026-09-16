@@ -127,7 +127,7 @@ export function ThreadRow({
       <Ask door={door} text={askOf(thread)} />
       <RepliesRow
         door={door}
-        lastAt={thread.replyCount > 0 ? thread.latest?.at : undefined}
+        lastAt={thread.lastReplyAt}
         replyCount={thread.replyCount}
         unread={thread.unread}
       />

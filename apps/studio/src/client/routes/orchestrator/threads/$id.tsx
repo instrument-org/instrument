@@ -1,14 +1,9 @@
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import {
   OrchestratorContext,
   useOrchestrator,
 } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
-import {
-  ThreadHead,
-  type ThreadTopic,
-} from "@/client/components/orchestrator/thread-head";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { TaskChat } from "@/client/components/task/chat";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -21,16 +16,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useContext, useEffect } from "react";
 
 /**
- * A thread opened as a tab: its head, then its transcript, then a composer
- * that replies in it. The thread is a session of the orchestrator's, so the
- * chat under the head is the same conversation the pane beside the tabs
- * holds, narrowed to this one thread.
+ * A thread opened as a tab: its transcript, opening at the end, and a
+ * composer that replies in it. Nothing above the transcript: the tab's
+ * location row names the thread, the row in the pane beside it shows its
+ * topics and what it holds, and the top of the scroll is the ask itself. The
+ * thread is a session of the orchestrator's, so the chat is the same
+ * conversation the pane holds, narrowed to this one thread.
  */
 export const Route = createFileRoute("/orchestrator/threads/$id")({
   component: ThreadRoute,
 });
-
-const NO_HOLDS = { apps: [], files: [], sites: [] };
 
 function ThreadRoute() {
   const { id } = Route.useParams();
@@ -48,8 +43,8 @@ function ThreadRoute() {
     }),
   );
   // The thread as the list beside the tabs knows it: its title as the agent
-  // keeps renaming it, its topics, what it has made and used, and the newest
-  // reply that has landed, which is what marks it read below.
+  // keeps renaming it, and the newest reply that has landed, which is what
+  // marks it read below.
   const threads = useQuery(
     rpcClient.workspace.orchestrator.threads.live.list.experimental_liveOptions(
       { input: { id: taskId } },
@@ -64,12 +59,6 @@ function ThreadRoute() {
       input: { id: taskId, sessionId },
     }),
   );
-  const topics = useQuery(
-    rpcClient.workspace.orchestrator.topics.list.queryOptions({
-      input: { id: taskId },
-    }),
-  );
-  const appsBySlug = useAppsBySlug();
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(
@@ -77,21 +66,6 @@ function ThreadRoute() {
   );
 
   const title = thread?.title ?? session.data?.title ?? "Thread";
-  const threadTopics: ThreadTopic[] = (thread?.topics ?? []).flatMap(
-    (topicId) => {
-      const topic = topics.data?.find((entry) => entry.id === topicId);
-      return topic
-        ? [
-            {
-              ...(topic.color ? { color: topic.color } : {}),
-              ...(topic.emoji ? { emoji: topic.emoji } : {}),
-              id: topic.id,
-              name: topic.name,
-            },
-          ]
-        : [];
-    },
-  );
 
   useOnScreen({ screen: "thread", thread: { id: sessionId, title } });
 
@@ -118,11 +92,6 @@ function ThreadRoute() {
   const modelURI = state.data.selectedModelURI ?? defaultModelURI;
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ThreadHead
-        appsBySlug={appsBySlug}
-        holds={thread?.holds ?? NO_HOLDS}
-        topics={threadTopics}
-      />
       {/* The thread is a tab, so what a reply hands over opens as another
           tab beside it rather than in its place: the openers all say so, and
           a line a card asks the conversation lands in this thread. */}

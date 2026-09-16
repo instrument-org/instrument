@@ -11,6 +11,7 @@ import { type OrchestratorActivity } from "./activity";
 import {
   listThreads,
   markThreadSeen,
+  markThreadUnseen,
   setThreadTopics,
   threadById,
 } from "./threads";
@@ -250,6 +251,23 @@ describe("listThreads", () => {
 
     const [thread] = await listThreads(taskId);
     expect(thread?.unread).toBe(0);
+  });
+
+  it("puts one reply back among the unread when asked, and clears it again on seeing", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
+    await markThreadSeen(taskId, sessionId);
+
+    await markThreadUnseen(taskId, sessionId);
+    const [put] = await listThreads(taskId);
+    expect(put?.unread).toBe(1);
+
+    await markThreadSeen(taskId, sessionId);
+    const [seen] = await listThreads(taskId);
+    expect(seen?.unread).toBe(0);
   });
 
   it("clears the count once seen, and counts again from there", async () => {

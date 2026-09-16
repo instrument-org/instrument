@@ -184,6 +184,37 @@ export async function markThreadSeen(
   publisher.publish("session.updated", { id: taskId, sessionId });
 }
 
+/**
+ * Puts a thread back among the unread: its newest finished reply counts as
+ * unseen again, and only that one, since what the user asks for is the
+ * thread's dot back rather than every reply it ever had. A thread with no
+ * finished reply has nothing to put back.
+ */
+export async function markThreadUnseen(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<void> {
+  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+  if (messages.isErr()) {
+    return;
+  }
+  const ordered = alphabetical(messages.value, (message) => message.id);
+  const newest = ordered.findLast(countsAsUnread);
+  if (!newest) {
+    return;
+  }
+  const before = ordered
+    .slice(0, ordered.indexOf(newest))
+    .findLast((message) => message.role !== "session-context");
+  await updateTaskState(taskDir(taskId), (state) => {
+    const { [sessionId]: _seen, ...rest } = state.threadSeen ?? {};
+    return {
+      threadSeen: before ? { ...rest, [sessionId]: before.id } : rest,
+    };
+  });
+  publisher.publish("session.updated", { id: taskId, sessionId });
+}
+
 /** The hostnames a shell command opens for the user with `open <url>`. */
 export function openedHostsIn(command: string): string[] {
   const hosts: string[] = [];
@@ -283,6 +314,15 @@ function bashCommandsIn(messages: SessionMessage.WithParts[]): string[] {
           return command === undefined ? [] : [command];
         })
       : [],
+  );
+}
+
+/** A message the user could have missed: a finished reply, or anything else that is not their own. */
+function countsAsUnread(message: SessionMessage.WithParts): boolean {
+  return (
+    message.role !== "user" &&
+    message.role !== "session-context" &&
+    (message.role !== "assistant" || message.metadata.finishedAt !== undefined)
   );
 }
 
@@ -455,11 +495,7 @@ async function threadFor(
   // finished, which is also when marking the thread seen would record it.
   const unread = messages.filter(
     (message) =>
-      message.role !== "user" &&
-      message.role !== "session-context" &&
-      (message.role !== "assistant" ||
-        message.metadata.finishedAt !== undefined) &&
-      (seen === undefined || message.id > seen),
+      countsAsUnread(message) && (seen === undefined || message.id > seen),
   ).length;
 
   const lastAssistant = messages.findLast(

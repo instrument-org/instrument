@@ -25,6 +25,7 @@ import { taskStanding } from "../../lib/orchestrator/standing";
 import {
   listThreads,
   markThreadSeen,
+  markThreadUnseen,
   setThreadTopics,
   ThreadSchema,
 } from "../../lib/orchestrator/threads";
@@ -275,6 +276,13 @@ const seenThreadRoute = base
     await markThreadSeen(input.id, input.sessionId);
   });
 
+/** A thread the user wants back among the unread: its newest reply unseen again. */
+const unseenThreadRoute = base
+  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .handler(async ({ input }) => {
+    await markThreadUnseen(input.id, input.sessionId);
+  });
+
 /** The topics a thread carries, replaced whole. */
 const setThreadTopicsRoute = base
   .input(
@@ -404,6 +412,7 @@ export const orchestrator = {
     live: { list: liveListThreadsRoute },
     seen: seenThreadRoute,
     setTopics: setThreadTopicsRoute,
+    unseen: unseenThreadRoute,
   },
   topics: {
     create: createTopicRoute,

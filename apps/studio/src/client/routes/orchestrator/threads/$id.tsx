@@ -57,7 +57,7 @@ function ThreadRoute() {
   );
   const thread = threads.data?.find((entry) => entry.id === sessionId);
   // The session itself stands in until the list has it: a thread opened by
-  // address before the list is in still has a title and a start.
+  // address before the list is in still has a title.
   const session = useQuery(
     rpcClient.workspace.session.byId.queryOptions({
       enabled: thread === undefined,
@@ -77,9 +77,6 @@ function ThreadRoute() {
   );
 
   const title = thread?.title ?? session.data?.title ?? "Thread";
-  const createdAt = thread
-    ? new Date(thread.createdAt)
-    : session.data?.createdAt;
   const threadTopics: ThreadTopic[] = (thread?.topics ?? []).flatMap(
     (topicId) => {
       const topic = topics.data?.find((entry) => entry.id === topicId);
@@ -123,9 +120,7 @@ function ThreadRoute() {
     <div className="flex h-full min-h-0 flex-col">
       <ThreadHead
         appsBySlug={appsBySlug}
-        createdAt={createdAt}
         holds={thread?.holds ?? NO_HOLDS}
-        title={title}
         topics={threadTopics}
       />
       {/* The thread is a tab, so what a reply hands over opens as another

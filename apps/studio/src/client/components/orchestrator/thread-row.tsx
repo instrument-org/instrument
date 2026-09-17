@@ -116,8 +116,7 @@ export function ThreadRow({
   const title = (
     <span
       className={cn(
-        "min-w-0 truncate text-[13px]",
-        density === "slim" && "flex-1",
+        "min-w-0 flex-1 truncate text-[13px]",
         isUnseen ? "font-semibold" : "text-foreground/90",
       )}
     >

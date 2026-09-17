@@ -297,7 +297,7 @@ describe("ThreadRow", () => {
     expect(slim.scrollWidth).toBe(slim.clientWidth);
   });
 
-  it("counts the replies right after the title when tall, and only once there is a conversation", async () => {
+  it("counts the replies at the row's right, under the time when tall and before it when slim, once there is a conversation", async () => {
     const { rows } = await renderRows([
       { density: "tall", thread: thread({ replyCount: 3 }) },
       { density: "tall", thread: thread({ replyCount: 1 }) },
@@ -307,16 +307,27 @@ describe("ThreadRow", () => {
     if (!three || !one || !slim) {
       throw new Error("no rows");
     }
-    const line = firstLineOf(three);
-    expect(line.textContent).toBe(`${TITLE}39:11 AM`);
-    const count = [...line.querySelectorAll("span")].find(
-      (span) => span.textContent === "3",
+    const countOf = (row: HTMLElement) =>
+      row.querySelector<HTMLElement>('[aria-label="3 replies"]');
+    // The first line carries the title, the time, and the count under it;
+    // the count is no part of the title's line.
+    expect(firstLineOf(three).textContent).toBe(`${TITLE}9:11 AM3`);
+    const tallCount = countOf(three);
+    expect(tallCount?.textContent).toBe("3");
+    const time = timeOf(three).getBoundingClientRect();
+    expect(tallCount?.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      time.bottom,
     );
-    expect(count?.getBoundingClientRect().left).toBeGreaterThanOrEqual(
-      titleOf(three).getBoundingClientRect().right,
+    expect(tallCount?.getBoundingClientRect().right).toBeLessThanOrEqual(
+      time.right + 1,
     );
+    expect(countOf(one)).toBeNull();
     expect(firstLineOf(one).textContent).toBe(`${TITLE}9:11 AM`);
-    expect(slim.textContent).toBe(`${TITLE}${REPLY}9:11 AM`);
+    const slimCount = countOf(slim);
+    expect(slimCount?.getBoundingClientRect().right).toBeLessThanOrEqual(
+      timeOf(slim).getBoundingClientRect().left,
+    );
+    expect(slim.textContent).toBe(`${TITLE}${REPLY}39:11 AM`);
   });
 
   it.each<[string, Partial<Thread>, null | { color: string; label: string }]>([

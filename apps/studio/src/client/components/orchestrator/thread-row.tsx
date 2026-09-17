@@ -15,6 +15,7 @@ import {
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TagIcon } from "@phosphor-icons/react/Tag";
@@ -133,6 +134,17 @@ export function ThreadRow({
       {activityLabel(new Date(thread.updatedAt), now)}
     </span>
   );
+  // How many replies, once there is a conversation to count: the thread's
+  // own mark and a number, in muted, never a word.
+  const count = thread.replyCount > 1 && (
+    <span
+      aria-label={`${thread.replyCount} replies`}
+      className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground tabular-nums"
+    >
+      <ChatTeardropTextIcon className="size-3" />
+      {thread.replyCount}
+    </span>
+  );
 
   return (
     // A click target, not text: no selection and no text cursor over it. The
@@ -190,6 +202,9 @@ export function ThreadRow({
               />
             </HoldsInThread>
           )}
+          {/* A slot of its own before the time, filled or not, so the
+            times line up down the list. */}
+          <span className="flex w-9 shrink-0 justify-end">{count}</span>
           <span className="w-14 shrink-0 text-right">{time}</span>
         </>
       ) : (
@@ -197,20 +212,20 @@ export function ThreadRow({
           <p className="flex h-5 items-center gap-1.5">
             {tagControl}
             {pill}
-            {/* The count right after the title, the way a mailbox counts a
-              conversation beside its sender, and only once there is a
-              conversation to count. */}
-            <span className="flex min-w-0 flex-1 items-center gap-1">
-              {title}
-              {thread.replyCount > 1 && (
-                <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-                  {thread.replyCount}
-                </span>
-              )}
+            {title}
+            {/* The count under the time, out of the title's way and the
+              time's: one column at the row's right, the second line of it
+              hanging beside the latest line. */}
+            <span className="flex shrink-0 flex-col items-end gap-0.5">
+              {time}
+              {count}
             </span>
-            {time}
           </p>
-          <Peek className="mt-0.5" lines={2} thread={thread} />
+          <Peek
+            className={cn("mt-0.5", count && "pr-10")}
+            lines={2}
+            thread={thread}
+          />
           {hasHolds && (
             <HoldsInThread onOpen={onOpen}>
               <HoldMarks

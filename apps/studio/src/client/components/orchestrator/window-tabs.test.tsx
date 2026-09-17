@@ -1,4 +1,6 @@
 import {
+  draftGroupOf,
+  NEW_TAB_HREF,
   THREADS_HREF,
   type WindowTab,
   windowTabsAtom,
@@ -55,10 +57,31 @@ function Navigation() {
       </button>
       <button
         onClick={() => {
-          tabs.showWindow();
+          tabs.leaveGroup();
         }}
       >
-        Window
+        Leave
+      </button>
+      <button
+        onClick={() => {
+          tabs.showDraft("d1");
+        }}
+      >
+        Draft
+      </button>
+      <button
+        onClick={() => {
+          tabs.adoptGroup(draftGroupOf("d1"), THREAD_B);
+        }}
+      >
+        Adopt
+      </button>
+      <button
+        onClick={() => {
+          tabs.openScreen("/orchestrator/ideas", { group: THREAD_B });
+        }}
+      >
+        Open ideas for B
       </button>
       <span data-testid="strip">
         {tabs.tabs
@@ -69,10 +92,15 @@ function Navigation() {
   );
 }
 
+/** A window with one group up, holding the tab given; every tab belongs to a group. */
 function setup(tab: WindowTab) {
   const { store } = renderWithProviders(<Navigation />);
   act(() => {
-    store.set(windowTabsAtom, { activeId: tab.id, tabs: [tab] });
+    store.set(windowTabsAtom, {
+      activeId: tab.id,
+      group: "g",
+      tabs: [{ ...tab, group: "g" }],
+    });
   });
   return () => store.get(windowTabsAtom);
 }
@@ -162,10 +190,10 @@ describe("a thread's tabs", () => {
     expect(active()).toMatchObject({ href: "/orchestrator/apps" });
     fireEvent.click(screen.getByText("Thread A"));
     expect(active()).toMatchObject({ href: threadA });
-    // The window's own tabs are still there, apart.
-    fireEvent.click(screen.getByText("Window"));
+    // Leaving shows nothing; every group keeps what it has.
+    fireEvent.click(screen.getByText("Leave"));
     expect(read().group).toBeUndefined();
-    expect(strip()).toBe("/orchestrator/apps");
+    expect(strip()).toBe("");
     expect(read().tabs).toHaveLength(4);
   });
 
@@ -187,5 +215,66 @@ describe("a thread's tabs", () => {
     ).toMatchObject({ trail: [threadA] });
     fireEvent.click(screen.getByText("Close active"));
     expect(strip()).toBe(threadA);
+  });
+
+  it("files a tab opened for a thread that is not up in that thread's group, behind", () => {
+    const read = setup({
+      href: "/orchestrator/apps",
+      id: "apps",
+      kind: "screen",
+    });
+    fireEvent.click(screen.getByText("Thread A"));
+    fireEvent.click(screen.getByText("Open ideas for B"));
+    // Still on A, at the tab it had.
+    expect(read().group).toBe(THREAD_A);
+    expect(strip()).toBe(threadA);
+    // B's group was made for it, its own screen first.
+    fireEvent.click(screen.getByText("Thread B"));
+    expect(strip()).toBe(`${threadB}|/orchestrator/ideas`);
+  });
+});
+
+describe("a draft's tabs", () => {
+  const strip = () => screen.getByTestId("strip").textContent;
+  const threadB = `${THREADS_HREF}/${THREAD_B}`;
+
+  it("starts at the new-tab page, gathers beside it, and hands everything to the thread as it is", () => {
+    const read = setup({
+      href: "/orchestrator/apps",
+      id: "apps",
+      kind: "screen",
+    });
+    fireEvent.click(screen.getByText("Draft"));
+    expect(read().group).toBe(draftGroupOf("d1"));
+    expect(strip()).toBe(NEW_TAB_HREF);
+    // Opened from the home page: beside it, never in its place; a second
+    // thing asked for as a tab of its own lands beside that.
+    fireEvent.click(screen.getByText("Apps"));
+    fireEvent.click(screen.getByText("Conversation file"));
+    expect(strip()).toBe(
+      `${NEW_TAB_HREF}|/orchestrator/apps|/orchestrator/computer`,
+    );
+    const gathered = read()
+      .tabs.filter((tab) => tab.group === draftGroupOf("d1"))
+      .slice(1)
+      .map((tab) => tab.id);
+    fireEvent.click(screen.getByText("Adopt"));
+    expect(read().group).toBe(THREAD_B);
+    expect(strip()).toBe(
+      `${threadB}|/orchestrator/apps|/orchestrator/computer`,
+    );
+    // The same tabs, under the thread now; the draft's home is gone.
+    expect(
+      read()
+        .tabs.filter((tab) => tab.group === THREAD_B)
+        .slice(1)
+        .map((tab) => tab.id),
+    ).toEqual(gathered);
+    expect(read().tabs.some((tab) => tab.group === draftGroupOf("d1"))).toBe(
+      false,
+    );
+    expect(read().tabs.find((tab) => tab.id === read().activeId)).toMatchObject(
+      { anchor: true, href: threadB },
+    );
   });
 });

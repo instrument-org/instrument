@@ -63,18 +63,18 @@ export interface BrowserTabsHandle {
   /**
    * Opens a new page tab, at an address when given, and shows it. Given a
    * tab to replace, the page takes that tab's place in the strip: a new tab
-   * becoming the page that was typed into it.
+   * becoming the page that was typed into it. Given a group, the page lands
+   * in that group, behind whatever is up when the group is not the one on
+   * screen.
    */
-  open: (url?: string, options?: { replacing?: WindowTab }) => StoreId.Session;
+  open: (url?: string, options?: OpenOptions) => StoreId.Session;
   /**
-   * Shows the page tab already at that address, or opens one there. Given a
-   * tab to replace, a page opened takes that tab's place in the strip rather
-   * than arriving beside it, and says which of the two it did.
+   * Shows the page tab already at that address in the group on screen or the
+   * group given, or opens one there. Given a tab to replace, a page opened
+   * takes that tab's place in the strip rather than arriving beside it, and
+   * says which of the two it did.
    */
-  openOrFocus: (
-    url: string,
-    options?: { replacing?: WindowTab },
-  ) => "focused" | "opened";
+  openOrFocus: (url: string, options?: OpenOptions) => "focused" | "opened";
   /** Reads the page on screen as it is at that moment; undefined while none is. */
   readPage: () => Promise<PageContext | undefined>;
 }
@@ -149,6 +149,13 @@ const READ_PAGE_WORDS = `(() => {
     ),
   };
 })()`;
+
+/** Where a page opens: in a tab's place, or in a named group. */
+interface OpenOptions {
+  /** The group the page belongs to; the group on screen when left out. */
+  group?: string;
+  replacing?: WindowTab;
+}
 
 type PageTabsUpdate = (current: {
   activeId: null | string;
@@ -568,7 +575,7 @@ export function BrowserTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePage?.favicon, activePage?.title, activePage?.url]);
 
-  const openTab = (url?: string, replacing?: WindowTab) => {
+  const openTab = (url?: string, { group: into, replacing }: OpenOptions = {}) => {
     const id = StoreId.newSessionId();
     const page = {
       id,
@@ -599,16 +606,17 @@ export function BrowserTabs({
         };
       });
     } else {
-      // In the group on screen: a page opened while a thread is up is the
-      // thread's.
+      // In the group on screen, or the group asked for: a page opened while
+      // a thread is up is the thread's, and one a thread asked for while
+      // another was up is still that thread's, waiting behind.
       setAllTabs((current) => ({
         ...current,
-        activeId: id,
+        activeId: into === undefined || into === current.group ? id : current.activeId,
         tabs: [
           ...current.tabs,
           {
             ...page,
-            group: current.group,
+            group: into ?? current.group,
             kind: "page",
             past: [
               {
@@ -655,26 +663,27 @@ export function BrowserTabs({
           void webview.loadURL(url);
         }
       },
-      open: (url, options) => openTab(url, options?.replacing),
+      open: (url, options) => openTab(url, options),
       openOrFocus: (url, options) => {
         // A tab still on that site, by where it is now: a tab that was opened
         // there and has since wandered off is not the site.
         const origin = originOf(url);
-        // Among the group on screen: a thread's page is the thread's, and
+        // Among the group's own: a thread's page is the thread's, and
         // another thread's tab at the same site is not this one's.
-        const own = latest.current.tabs.filter(
-          (tab) => tab.group === latest.current.group,
-        );
+        const key = options?.group ?? latest.current.group;
+        const own = latest.current.tabs.filter((tab) => tab.group === key);
         const existing =
           own.find((tab) => sameAddress(tab.url, url)) ??
           own.find(
             (tab) => origin !== undefined && originOf(tab.url) === origin,
           );
         if (existing) {
-          setAllTabs((current) => selectTab(current, existing.id));
+          if (key === latest.current.group) {
+            setAllTabs((current) => selectTab(current, existing.id));
+          }
           return "focused";
         }
-        openTab(url, options?.replacing);
+        openTab(url, options);
         return "opened";
       },
       readPage: async () => {

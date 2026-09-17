@@ -39,38 +39,67 @@ export type ScreenView = Omit<
 
 export const screenViewAtom = atom<null | ScreenView>(null);
 
-/** What is being composed at the top level: the words, the files under them as tabs, which of them is shown, and the topic it will be filed under. */
+/**
+ * A thread not yet started: its words and the topic it will be filed under.
+ * What it has gathered (sites, files, folders) is its tab group, kept with
+ * the window's tabs under the draft's group key; a file read in from bytes
+ * rather than pointed at on disk is held in memory beside it.
+ */
 export interface Draft {
-  files: DraftFile[];
-  /** The file whose tab is up under the words. */
-  shownFileId?: string;
+  createdAt: number;
+  id: string;
   topicId?: string;
+  updatedAt: number;
   words: string;
 }
 
-/** A file gathered into the draft: read into memory, or pointed at where it sits on disk. */
+/** A file read into memory for a draft, when it had no place on disk to be opened from: sent with the words, shown as a tile. */
 export interface DraftFile {
-  /** The file's bytes, base64, when it was read in rather than pointed at. */
-  content?: string;
+  /** The file's bytes, base64. */
+  content: string;
   id: string;
   mimeType: string;
   name: string;
-  /** Where the file sits on this computer, when the drop said. */
-  path?: string;
   size: number;
   /** A preview to draw, for an image. */
   url?: string;
 }
 
-/** Where the draft is drawn: a window at the corner, a bar along the bottom edge, a modal over the whole window, or put away. */
-export type DraftPlacement = "bar" | "closed" | "modal" | "window";
+/** The group key a draft's tabs are kept under. */
+export function draftGroupOf(draftId: string): string {
+  return `draft:${draftId}`;
+}
 
-export const EMPTY_DRAFT: Draft = { files: [], words: "" };
+/** The draft a group key names, if it names one. */
+export function draftOfGroup(group: string | undefined): string | undefined {
+  return group?.startsWith("draft:") ? group.slice("draft:".length) : undefined;
+}
 
-/** In memory only: the files in it cannot be stored, and a draft is a moment's work. */
-export const draftAtom = atom<Draft>(EMPTY_DRAFT);
+/**
+ * Every draft not yet started, newest last, kept on this computer across
+ * launches the way the tabs are: a draft put away is still in Drafts.
+ */
+export const draftsAtom = atomWithStorage<Draft[]>(
+  "orchestrator.drafts.v1",
+  [],
+  undefined,
+  { getOnInit: true },
+);
 
-export const draftPlacementAtom = atom<DraftPlacement>("closed");
+/** The files read in for each draft, by draft id; in memory only, since bytes do not belong in storage. */
+export const draftFilesAtom = atom<Record<string, DraftFile[]>>({});
+
+/**
+ * Where the draft being composed is drawn: docked in the right area with its
+ * tabs under its words, expanded across the window with the inbox put away,
+ * or shrunk to a bar along the bottom edge. Absent while no draft is up.
+ */
+export type DraftPlacement = "bar" | "docked" | "expanded";
+
+export const openDraftAtom = atom<null | {
+  id: string;
+  placement: DraftPlacement;
+}>(null);
 
 /**
  * Whether the right area is shown at all. Closed, the inbox takes the whole
@@ -151,6 +180,11 @@ export type WindowTab = TabHistory & TabVisit;
  * the boundary between screens and pages.
  */
 interface TabHistory {
+  /**
+   * The tab its group is anchored on: a thread's own screen, or a draft's
+   * home page. First in the group and never closed.
+   */
+  anchor?: boolean;
   /** Where in `trail` the tab is standing; the end of it, until back is used. */
   at?: number;
   future?: TabVisit[];
@@ -200,21 +234,24 @@ export const THREADS_HREF = "/orchestrator/threads";
  * is on screen, and which tab each group last had up.
  */
 export interface WindowTabs {
-  /** The tab each group last had up, by the thread's session id or "window" for the window's own, so coming back lands there. */
+  /** The tab each group last had up, by its key, so coming back lands there. */
   activeByGroup?: Record<string, string>;
   activeId: null | string;
-  /** The thread whose group is on screen, by its session id; absent while the window's own group is. */
+  /** The group on screen: a thread's session id or a draft's key; absent while nothing is on screen. */
   group?: string;
+  /** The group the one on screen took over from, so a draft put away can hand the screen back. */
+  previousGroup?: string;
   tabs: WindowTab[];
 }
 
 /**
  * The window's tabs, one list across every group, kept across launches on
  * this computer. Every screen reads and writes this one; a thread's tabs are
- * the ones in its group, and the thread itself is the first of them.
+ * the ones in its group, and the thread itself is the first of them; a
+ * draft's are the ones under its key, its home page first.
  */
 export const windowTabsAtom = atomWithStorage<WindowTabs>(
-  "orchestrator.tabs.v6",
+  "orchestrator.tabs.v7",
   { activeId: null, tabs: [] },
   undefined,
   { getOnInit: true },

@@ -18,7 +18,7 @@ import { useOrchestrator } from "./context";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { TabStrip } from "./tab-strip";
-import { isAnchor } from "./window-tabs";
+import { isAnchor, threadOfHref } from "./window-tabs";
 
 /** A screen's icon on its own, by its address: for a pin's row. */
 export function ScreenIcon({
@@ -200,7 +200,9 @@ export function WindowTabStrip({
           // threads moves nothing in the row.
           isFixed: isAnchor(tab),
           key: tab.stripKey ?? tab.id,
-          ...(isAnchor(tab)
+          ...(tab.kind === "screen" &&
+          isAnchor(tab) &&
+          threadOfHref(tab.href) !== undefined
             ? {
                 icon: <ChatTeardropTextIcon className="size-3.5" />,
                 title: "Thread",

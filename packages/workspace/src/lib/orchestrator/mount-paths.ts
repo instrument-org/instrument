@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { AGENT_FILES_LANGUAGE } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
 import { taskDir } from "../task-dir-utils";
@@ -106,6 +107,35 @@ export function translateMountPaths(
     translated += read?.mountPath ?? text.slice(at, subpathAt);
     index = read?.end ?? subpathAt;
   }
+}
+
+const FILES_FENCE = new RegExp(
+  String.raw`^[ \t]*\x60{3,}[ \t]*${AGENT_FILES_LANGUAGE}[ \t]*$([\s\S]*?)^[ \t]*\x60{3,}[ \t]*$`,
+  "gmu",
+);
+
+/**
+ * The same text with the task's own folder rewritten to the name the
+ * conversation that started it reaches that folder by. A task writes
+ * `work/report.html` or `/task/work/report.html` for a file the conversation
+ * reaches as `/tasks/<id>/work/report.html`. The absolute form is rewritten
+ * wherever it appears; the relative one only on the lines of a files fence,
+ * where a line that is not an absolute path can be nothing but a task path.
+ */
+export function translateTaskFolderPaths(text: string, taskId: TaskId): string {
+  const root = `${MOUNT.tasks}/${taskId}`;
+  return text
+    .replaceAll(`${MOUNT.task}/`, `${root}/`)
+    .replace(FILES_FENCE, (fence: string, body: string) =>
+      fence.replace(
+        body,
+        body.replace(
+          /^([ \t]*)(?!\/|[ \t]*$)(?:\.\/)?(\S.*)$/gmu,
+          (_line, indent: string, taskPath: string) =>
+            `${indent}${root}/${taskPath}`,
+        ),
+      ),
+    );
 }
 
 /**

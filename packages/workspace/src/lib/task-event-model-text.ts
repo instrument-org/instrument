@@ -49,13 +49,15 @@ export function taskEventModelNote(
       event.steps && event.steps.length > 0
         ? ` Its steps this turn, latest last: ${event.steps.map((step) => `"${step}"`).join(", ")}.`
         : "";
-    // An ending already says why there were no last words.
+    // An ending already says why there were no last words. A finished task's
+    // words come as a block under the line, indented, since they are its
+    // receipt: a few sentences and a files fence rather than a phrase.
     const summary = event.summary
       ? event.status === "overdue"
         ? steps
           ? ""
           : ` Its latest step: "${event.summary}"`
-        : ` It last said: "${event.summary}"`
+        : ` It said:\n${indent(event.summary, "      ")}`
       : event.ended || event.status === "overdue"
         ? ""
         : " It said nothing.";
@@ -96,6 +98,13 @@ export function taskEventModelNote(
     ${lines.join("\n")}
     Nobody typed anything; this note is why you are awake.
   `;
+}
+
+function indent(text: string, prefix: string) {
+  return text
+    .split("\n")
+    .map((line) => (line === "" ? line : `${prefix}${line}`))
+    .join("\n");
 }
 
 function formatTokens(tokens: number) {

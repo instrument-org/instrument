@@ -4,7 +4,11 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { Store } from "../store";
-import { latestOrNewSessionId, latestSessionId } from "./latest-session";
+import {
+  lastAssistantTextIn,
+  latestOrNewSessionId,
+  latestSessionId,
+} from "./latest-session";
 
 vi.mock(import("../session-store-storage"));
 
@@ -37,5 +41,29 @@ describe("latestOrNewSessionId", () => {
 
     const latest = await latestOrNewSessionId(taskId);
     expect(latest._unsafeUnwrap()).toBe(newer);
+  });
+});
+
+describe("lastAssistantTextIn", () => {
+  const message = (text: string) =>
+    ({
+      id: "msg",
+      metadata: { createdAt: new Date() },
+      parts: [{ text, type: "text" }],
+      role: "assistant",
+    }) as unknown as Parameters<typeof lastAssistantTextIn>[0][number];
+
+  it("gives the words whole when they fit", () => {
+    expect(lastAssistantTextIn([message("Done, in work/x.md.")], 4000)).toBe(
+      "Done, in work/x.md.",
+    );
+  });
+
+  it("says where it cut, so the first part is not taken for the whole", () => {
+    expect(lastAssistantTextIn([message("a".repeat(12))], 8))
+      .toMatchInlineSnapshot(`
+      "aaaaaaaa
+      [cut here at 8 characters; the transcript has the rest]"
+    `);
   });
 });

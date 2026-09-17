@@ -8,6 +8,7 @@ import { parseArgs } from "node:util";
 import { sessionsFor } from "../evals/harness";
 import { buildReportWorkspaceConfig } from "../evals/utils";
 import { getTasks } from "../src/lib/get-tasks";
+import { WAKE_SUMMARY_MAX_LENGTH } from "../src/lib/orchestrator/wake-summary";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 
@@ -15,8 +16,8 @@ import { setWorkspaceConfig } from "../src/lib/workspace-config";
  * What each task in a workspace handed back, and what that hand-off cost.
  *
  * The thing worth watching is the last assistant message of every task the
- * conversation started: only its first 400 characters reach the conversation,
- * and everything past that was composed, paid for and thrown away. Read from
+ * conversation started: what reaches the conversation stops at the wake's
+ * ceiling, and everything past that was composed, paid for and thrown away. Read from
  * the stored parts rather than from a rendered transcript, because the render
  * interleaves reasoning and placeholders that are easy to mistake for a reply.
  */
@@ -28,9 +29,6 @@ if (!workspaceRootDir) {
 
 const absolute = path.resolve(workspaceRootDir);
 setWorkspaceConfig(buildReportWorkspaceConfig(absolute));
-
-/** The cut the wake applies to a task's last words before they travel. */
-const WAKE_SUMMARY_MAX = 400;
 
 const { tasks } = await getTasks(buildReportWorkspaceConfig(absolute), {
   direction: "asc",
@@ -73,7 +71,7 @@ for (const task of tasks) {
     lastReply: last.length,
     name: task.title,
     outputTokens: usage.outputTokens,
-    truncated: last.length > WAKE_SUMMARY_MAX,
+    truncated: last.length > WAKE_SUMMARY_MAX_LENGTH,
   });
 }
 
@@ -94,6 +92,6 @@ if (children.length > 0) {
   const median = lengths[Math.floor(lengths.length / 2)] ?? 0;
   const cut = children.filter((row) => row.truncated).length;
   process.stdout.write(
-    `\n${children.length} tasks; median last reply ${median} chars; ${cut} cut by the ${WAKE_SUMMARY_MAX}-char wake summary\n`,
+    `\n${children.length} tasks; median last reply ${median} chars; ${cut} cut by the ${WAKE_SUMMARY_MAX_LENGTH}-char wake summary\n`,
   );
 }

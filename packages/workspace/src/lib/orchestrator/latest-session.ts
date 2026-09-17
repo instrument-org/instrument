@@ -8,7 +8,7 @@ import { createSession } from "../create-session";
 import { type TypedError } from "../errors";
 import { Store } from "../store";
 
-/** What a task's agent last wrote in a session, shortened for a note when given a length; whole otherwise. */
+/** What a task's agent last wrote in a session, cut at a length when given one and saying so where it stops; whole otherwise. */
 export async function lastAssistantText({
   maxLength,
   sessionId,
@@ -38,8 +38,10 @@ export function lastAssistantTextIn(
   if (!text) {
     return undefined;
   }
+  // The cut names itself, so a reader never mistakes the first part of a long
+  // reply for the whole of a short one.
   return maxLength !== undefined && text.length > maxLength
-    ? `${text.slice(0, maxLength)}…`
+    ? `${text.slice(0, maxLength)}\n[cut here at ${maxLength.toLocaleString("en-US")} characters; the transcript has the rest]`
     : text;
 }
 

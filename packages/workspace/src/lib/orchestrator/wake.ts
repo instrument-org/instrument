@@ -22,7 +22,11 @@ import {
   latestOrNewSessionId,
   latestSessionId,
 } from "./latest-session";
-import { mountsOf, translateMountPaths } from "./mount-paths";
+import {
+  mountsOf,
+  translateMountPaths,
+  translateTaskFolderPaths,
+} from "./mount-paths";
 import { endedWithoutWords } from "./standing";
 import { activitiesSince } from "./steps";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
@@ -289,10 +293,13 @@ async function inOrchestratorPaths(
   if (text === undefined) {
     return undefined;
   }
-  return translateMountPaths(
-    text,
-    await mountsOf(taskId),
-    await mountsOf(orchestratorTaskId),
+  return translateTaskFolderPaths(
+    translateMountPaths(
+      text,
+      await mountsOf(taskId),
+      await mountsOf(orchestratorTaskId),
+    ),
+    taskId,
   );
 }
 

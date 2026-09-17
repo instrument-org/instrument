@@ -37,7 +37,8 @@ describe("taskEventModelNote", () => {
       "
       <instrument-system-note>
       A task you created has finished:
-      - 2026-09-08-find-the-vault ("Find project status note") finished a turn (3 minutes of work, 425K tokens so far). It last said: "Located the note."
+      - 2026-09-08-find-the-vault ("Find project status note") finished a turn (3 minutes of work, 425K tokens so far). It said:
+            Located the note.
         It wrote: /mnt/Instrument/output/report.md
         It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`task kill 2026-09-08-find-the-vault <bg id>\`, or all of it with \`task kill 2026-09-08-find-the-vault\`; a server they are using stays.
       Nobody typed anything; this note is why you are awake.

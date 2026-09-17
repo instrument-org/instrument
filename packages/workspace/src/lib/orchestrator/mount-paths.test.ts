@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { TaskIdSchema } from "../../schemas/task-id";
 import {
   type FolderMounts,
   mountPathOf,
   translateMountPaths,
+  translateTaskFolderPaths,
 } from "./mount-paths";
 
 function mounts(paths: Record<string, string>): FolderMounts {
@@ -185,5 +187,48 @@ describe("mountPathOf", () => {
     expect(mountPathOf("/Volumes/Archive", conversation)).toMatchInlineSnapshot(
       `undefined`,
     );
+  });
+});
+
+describe("translateTaskFolderPaths", () => {
+  const taskId = TaskIdSchema.parse("2026-09-17-build-the-digest");
+
+  it("rewrites the task's own folder wherever it is named absolutely", () => {
+    expect(
+      translateTaskFolderPaths(
+        "Built at /task/work/digest.html and checked it.",
+        taskId,
+      ),
+    ).toMatchInlineSnapshot(
+      `"Built at /tasks/2026-09-17-build-the-digest/work/digest.html and checked it."`,
+    );
+  });
+
+  it("rewrites the relative lines of a files fence and leaves absolute ones", () => {
+    const receipt = [
+      "Done. The page and the script it came from:",
+      "",
+      "```files",
+      "work/digest.html",
+      "./work/build.mjs",
+      "/mnt/Instrument/digest.html",
+      "",
+      "```",
+    ].join("\n");
+    expect(translateTaskFolderPaths(receipt, taskId)).toMatchInlineSnapshot(`
+      "Done. The page and the script it came from:
+
+      \`\`\`files
+      /tasks/2026-09-17-build-the-digest/work/digest.html
+      /tasks/2026-09-17-build-the-digest/work/build.mjs
+      /mnt/Instrument/digest.html
+
+      \`\`\`"
+    `);
+  });
+
+  it("leaves a relative path in prose alone, since a sentence is not a fence", () => {
+    const text = "The script is in work/build.mjs beside the page.";
+    expect(translateTaskFolderPaths(text, taskId)).toBe(text);
   });
 });

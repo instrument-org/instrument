@@ -1,6 +1,7 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { atom, useAtom } from "jotai";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -17,6 +18,9 @@ import {
   type Topic,
 } from "./threads";
 import { TopicBanner } from "./topic-banner";
+
+/** Where the column stands and what the search says, kept outside the pane so the pane can be re-laid without losing them. */
+const threadFiltersAtom = atom<ThreadFilters>(NO_FILTERS);
 
 /**
  * The chat pane: the sections down its left, and beside them the inbox with
@@ -74,7 +78,7 @@ export function ThreadPane({
     }),
   );
 
-  const [filters, setFilters] = useState<ThreadFilters>(NO_FILTERS);
+  const [filters, setFilters] = useAtom(threadFiltersAtom);
   const [scrollSignal, setScrollSignal] = useState(0);
   // A change of filter is a change of subject, and the newest of the new
   // subject is what matters, so the list is taken back to its top with it.
@@ -203,6 +207,9 @@ export function ThreadPane({
 function emptyLineFor(filters: ThreadFilters, total: number): string {
   if (filters.place === "drafts") {
     return "No drafts yet.";
+  }
+  if (filters.place === "archive") {
+    return "Nothing put away yet.";
   }
   if (filters.place === "unread") {
     return "Nothing unread.";

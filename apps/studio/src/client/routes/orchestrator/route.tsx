@@ -6,6 +6,7 @@ import {
   orchestratorRecentsAtom,
   orchestratorSidebarWidthAtom,
   RECENTS_MAX,
+  rightAreaOpenAtom,
   screenViewAtom,
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
@@ -14,7 +15,6 @@ import {
 import { openSettings } from "@/client/atoms/settings-modal";
 import { FileSystemIconSpriteSheet } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { ActivityPopover } from "@/client/components/orchestrator/activity-popover";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import {
   BrowserTabs,
@@ -31,6 +31,7 @@ import {
   mountOfHostPath,
 } from "@/client/components/orchestrator/file-tabs";
 import { segmentsOf } from "@/client/components/orchestrator/host-path";
+import { RightAreaToggle } from "@/client/components/orchestrator/right-area-toggle";
 import {
   screenLocation,
   screenPresentation,
@@ -95,7 +96,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
 import {
   lazy,
@@ -128,6 +129,39 @@ const SIDEBAR_BOUNDS: RailBounds = {
   max: SIDEBAR_WIDTH_MAX,
   min: SIDEBAR_WIDTH_MIN,
 };
+
+/**
+ * The column the chat pane stands in: the resizable rail beside the right
+ * area, or, with the right area closed, the whole width. The pane inside is
+ * re-laid between the two, so anything it has to keep lives outside it.
+ */
+function ChatColumn({
+  children,
+  isRightAreaOpen,
+}: {
+  children: ReactNode;
+  isRightAreaOpen: boolean;
+}) {
+  if (!isRightAreaOpen) {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+    );
+  }
+  return (
+    <StudioSidebarRail
+      bounds={SIDEBAR_BOUNDS}
+      isOpen
+      label="Resize the chat"
+      onCollapse={() => {
+        // The pane never collapses; its floor is where a drag stops.
+      }}
+      panelClassName="bg-background"
+      widthAtom={orchestratorSidebarWidthAtom}
+    >
+      {children}
+    </StudioSidebarRail>
+  );
+}
 
 export const Route = createFileRoute("/orchestrator")({
   component: OrchestratorLayout,
@@ -217,6 +251,7 @@ function OrchestratorLayout() {
   const screenView = useAtomValue(screenViewAtom);
   const setDraft = useSetAtom(draftAtom);
   const setDraftPlacement = useSetAtom(draftPlacementAtom);
+  const [isRightAreaOpen, setRightAreaOpen] = useAtom(rightAreaOpenAtom);
   const isDeveloperMode = useDeveloperMode();
   const router = useRouter();
   const location = useRouterState({
@@ -289,6 +324,7 @@ function OrchestratorLayout() {
   // where nobody can see it. Everything else gives its place up in place.
   const isTaskTab = active?.kind === "page" && Boolean(active.taskId);
   const openPage = (url: string, { newTab = false } = {}) => {
+    setRightAreaOpen(true);
     if (!newTab && active?.kind === "page" && !active.taskId) {
       browser?.navigate(url);
       return active.id;
@@ -301,6 +337,7 @@ function OrchestratorLayout() {
     );
   };
   const openScreen = (href: string, { newTab = false } = {}) => {
+    setRightAreaOpen(true);
     if (newTab && !isFreshNewTab) {
       windowTabs.openOrFocusScreen(href);
     } else {
@@ -716,7 +753,10 @@ function OrchestratorLayout() {
                       windowTabs.openScreen(NEW_TAB_HREF);
                     }}
                     onReorder={windowTabs.reorder}
-                    onSelect={windowTabs.select}
+                    onSelect={(id) => {
+                      setRightAreaOpen(true);
+                      windowTabs.select(id);
+                    }}
                     selectedId={active?.id}
                     tabs={tabs}
                     threadTitles={threadTitles}
@@ -724,10 +764,10 @@ function OrchestratorLayout() {
                 }
                 trailing={
                   <>
-                    {/* The record across every thread, behind a clock at the
-                      strip's end: a place to flip between locations from
-                      without leaving the tab that is up. */}
-                    <ActivityPopover />
+                    {/* The way out of the right area as a whole, at the
+                      strip's end: not perfectly the strip's business, but
+                      the one place a control over the whole area can sit. */}
+                    <RightAreaToggle />
                     {isDeveloperMode && (
                       <Suspense fallback={null}>
                         <DevPanel />
@@ -742,16 +782,7 @@ function OrchestratorLayout() {
               />
             }
           >
-            <StudioSidebarRail
-              bounds={SIDEBAR_BOUNDS}
-              isOpen
-              label="Resize the chat"
-              onCollapse={() => {
-                // The pane never collapses; its floor is where a drag stops.
-              }}
-              panelClassName="bg-background"
-              widthAtom={orchestratorSidebarWidthAtom}
-            >
+            <ChatColumn isRightAreaOpen={isRightAreaOpen}>
               {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
               <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
                 {/* Names the openers for what the rows hold, so a file, an
@@ -795,8 +826,15 @@ function OrchestratorLayout() {
                   </FileOpenContext>
                 </OrchestratorContext>
               </div>
-            </StudioSidebarRail>
-            <main className="relative flex min-w-0 flex-1 flex-col">
+            </ChatColumn>
+            {/* Hidden rather than unmounted while the area is closed, so
+              every tab keeps what it has for when something opens again. */}
+            <main
+              className={cn(
+                "relative flex min-w-0 flex-1 flex-col",
+                isRightAreaOpen ? undefined : "hidden",
+              )}
+            >
               {/* Under the strip and across the pane: what this tab is
                 showing, and the way back out of it. */}
               <TabLocationRow
@@ -829,11 +867,13 @@ function OrchestratorLayout() {
                 <div
                   className={cn(
                     "absolute inset-0 bg-background",
-                    isPageOnScreen ? undefined : "invisible",
+                    isPageOnScreen && isRightAreaOpen ? undefined : "invisible",
                   )}
                 >
                   {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
-                  <ActiveTabProvider isActive={isPageOnScreen}>
+                  <ActiveTabProvider
+                    isActive={isPageOnScreen && isRightAreaOpen}
+                  >
                     <BrowserTabs chromeInto={chromeSlot} ref={setBrowser} />
                   </ActiveTabProvider>
                 </div>

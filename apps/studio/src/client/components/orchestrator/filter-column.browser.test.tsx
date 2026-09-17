@@ -88,7 +88,15 @@ describe("FilterColumn", () => {
       [...strip.querySelectorAll("button")].map((mark) =>
         mark.getAttribute("aria-label"),
       ),
-    ).toEqual(["New", "Inbox", "Unread", "Drafts", "House", "Gmail"]);
+    ).toEqual([
+      "New",
+      "Inbox",
+      "Unread",
+      "Drafts",
+      "Archive",
+      "House",
+      "Gmail",
+    ]);
     expect(
       strip.querySelector('[aria-label="House"]')?.getAttribute("data-chosen"),
     ).toBe("true");

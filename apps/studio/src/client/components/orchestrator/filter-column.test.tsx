@@ -104,7 +104,7 @@ describe("FilterColumn", () => {
       column
         .getAllByRole("button", { pressed: false })
         .map((row) => row.textContent),
-    ).toEqual(["Unread1", "Drafts", "🏠House2", "💸Money", "Gmail"]);
+    ).toEqual(["Unread1", "Drafts", "Archive", "🏠House2", "💸Money", "Gmail"]);
   });
 
   it("has no search of its own: that sits over the list", () => {

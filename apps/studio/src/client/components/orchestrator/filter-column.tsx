@@ -9,6 +9,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
+import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { CircleIcon } from "@phosphor-icons/react/Circle";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -60,7 +61,7 @@ interface Section {
   onToggle: (id: string) => void;
 }
 
-/** The places in the order they are drawn: everything, what is new, and what is not yet sent. */
+/** The places in the order they are drawn: everything, what is new, what is not yet sent, and what was put away. */
 const PLACES: Place[] = [
   { icon: <TrayIcon className="size-4" />, id: "inbox", label: "Inbox" },
   { icon: <CircleIcon className="size-4" />, id: "unread", label: "Unread" },
@@ -68,6 +69,11 @@ const PLACES: Place[] = [
     icon: <PencilSimpleIcon className="size-4" />,
     id: "drafts",
     label: "Drafts",
+  },
+  {
+    icon: <ArchiveIcon className="size-4" />,
+    id: "archive",
+    label: "Archive",
   },
 ];
 

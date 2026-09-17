@@ -17,8 +17,8 @@ export interface ThreadFilters {
   topics: string[];
 }
 
-/** The places of the column apart from the inbox: threads with replies not yet seen, and drafts not yet sent. */
-export type ThreadPlace = "drafts" | "unread";
+/** The places of the column apart from the inbox: threads with replies not yet seen, drafts not yet sent, and threads put away. */
+export type ThreadPlace = "archive" | "drafts" | "unread";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic =
@@ -128,10 +128,12 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
 /**
  * Whether a thread is in the place the column stands in. The inbox is every
  * thread; the unread are those with replies not yet seen; drafts are not
- * threads at all yet, so that place holds none of them.
+ * threads at all yet, and nothing can be put away yet, so those places hold
+ * none of them.
  */
 function matchesPlace(thread: Filterable, place: ThreadPlace | undefined) {
   switch (place) {
+    case "archive":
     case "drafts": {
       return false;
     }

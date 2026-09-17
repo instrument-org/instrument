@@ -70,6 +70,13 @@ export const draftAtom = atom<Draft>(EMPTY_DRAFT);
 
 export const draftPlacementAtom = atom<DraftPlacement>("closed");
 
+/**
+ * Whether the right area is shown at all. Closed, the inbox takes the whole
+ * width and the tabs keep what they have for when something opens again, so
+ * leaving a thread is one press rather than closing its tabs one by one.
+ */
+export const rightAreaOpenAtom = atom(true);
+
 /** A tab of the window's browser: a browser session of the orchestrator's. */
 export interface BrowserTab {
   /** The page's icon, as the page last announced it. */

@@ -37,6 +37,8 @@ import { type ReactNode, useEffect, useRef } from "react";
 /** How wide a rail may be, where a drag lets go of it, and where it opens. */
 export interface RailBounds {
   collapse: number;
+  /** A width a drag reaches past the max, where the rail is asked to cover what is beside it; none by default. */
+  cover?: number;
   initial: number;
   max: number;
   min: number;
@@ -55,6 +57,7 @@ export function StudioSidebarRail({
   isOpen,
   label = "Resize sidebar",
   onCollapse,
+  onCover,
   panelClassName,
   side = "left",
   widthAtom = sidebarWidthAtom,
@@ -65,6 +68,8 @@ export function StudioSidebarRail({
   isOpen: boolean;
   label?: string;
   onCollapse: () => void;
+  /** Dragged past the cover width: the rail is to have the whole row, and what was beside it goes. */
+  onCover?: () => void;
   panelClassName?: string;
   /** Which edge of the window it hangs from; the handle is on the other. */
   side?: "left" | "right";
@@ -240,6 +245,16 @@ export function StudioSidebarRail({
         animate(panelX, away * frozenWidth, RAIL_SLIDE_TRANSITION);
         animate(opacity, 0, RAIL_FADE_TRANSITION);
         onCollapse();
+        return;
+      }
+      // Past the point of keeping anything beside it: the rail is left at
+      // its widest, and the row is the caller's to give it.
+      if (bounds.cover !== undefined && onCover && raw > bounds.cover) {
+        endDrag();
+        const widest = clampWidth(raw);
+        applyWidth(widest);
+        setStoredWidth(widest);
+        onCover();
         return;
       }
       applyWidth(clampWidth(raw));

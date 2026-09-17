@@ -42,7 +42,7 @@ export function OutputPicker({
           aria-expanded={open}
           aria-label={picked ? `Output: ${picked.title}` : "Output"}
           className={cn(
-            "flex h-auto max-w-40 items-center gap-1.5 rounded-lg px-1.5! py-1 text-left text-xs leading-4 font-medium",
+            "flex h-auto max-w-40 min-w-0 items-center gap-1.5 rounded-lg px-1.5! py-1 text-left text-xs leading-4 font-medium",
             picked
               ? "text-foreground/80 hover:text-foreground"
               : "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",

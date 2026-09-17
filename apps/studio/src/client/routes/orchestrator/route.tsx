@@ -118,6 +118,7 @@ import ms from "ms";
 import {
   lazy,
   type ReactNode,
+  type Ref,
   Suspense,
   useEffect,
   useRef,
@@ -140,32 +141,36 @@ const REFRESH_MS = ms("2 seconds");
 /** How long a screen has to stay up before Recent counts it. */
 const RECENT_DWELL_MS = ms("2 seconds");
 
-/** The chat pane never collapses: a drag past its floor stops at the floor. */
-const SIDEBAR_BOUNDS: RailBounds = {
-  collapse: Number.NEGATIVE_INFINITY,
-  initial: SIDEBAR_WIDTH_DEFAULT,
-  max: SIDEBAR_WIDTH_MAX,
-  min: SIDEBAR_WIDTH_MIN,
-};
+/** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
+const INBOX_COLLAPSE_THRESHOLD = 240;
+/** How far past its widest the inbox is dragged before it takes the row and the thread beside it goes. */
+const INBOX_COVER_PAST = 80;
+/** The least the conversation and its pane keep beside the inbox. */
+const MAIN_WIDTH_MIN = 560;
 
 /**
- * The column the chat pane stands in: the resizable rail beside the right
- * area, or, with the right area closed, the whole width. The pane inside is
- * re-laid between the two, so anything it has to keep lives outside it.
+ * The column the inbox stands in: beside the right area, the resizable rail
+ * the way the classic window keeps its sidebar, sliding shut when dragged
+ * under its floor or put away by the bar's toggle, and giving the whole row
+ * to the inbox when dragged past its widest; with nothing on the right, the
+ * whole width outright. The pane inside is re-laid between the two, so
+ * anything it has to keep lives outside it.
  */
 function ChatColumn({
+  bounds,
   children,
-  isHidden,
+  isOpen,
   isRightAreaOpen,
+  onCollapse,
+  onCover,
 }: {
+  bounds: RailBounds;
   children: ReactNode;
-  /** Put away entirely, for a draft spread across the window. */
-  isHidden: boolean;
+  isOpen: boolean;
   isRightAreaOpen: boolean;
+  onCollapse: () => void;
+  onCover: () => void;
 }) {
-  if (isHidden) {
-    return <div className="hidden">{children}</div>;
-  }
   if (!isRightAreaOpen) {
     return (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
@@ -173,18 +178,36 @@ function ChatColumn({
   }
   return (
     <StudioSidebarRail
-      bounds={SIDEBAR_BOUNDS}
-      isOpen
-      label="Resize the chat"
-      onCollapse={() => {
-        // The pane never collapses; its floor is where a drag stops.
-      }}
+      bounds={bounds}
+      isOpen={isOpen}
+      label="Resize the inbox"
+      onCollapse={onCollapse}
+      onCover={onCover}
       panelClassName="bg-background"
       widthAtom={orchestratorSidebarWidthAtom}
     >
       {children}
     </StudioSidebarRail>
   );
+}
+
+/**
+ * How wide the inbox column may be beside the right area: the row less what
+ * the conversation keeps, within the column's own floor and ceiling; a drag
+ * past that by a margin covers the row.
+ */
+function inboxBounds(rowWidth: number): RailBounds {
+  const max = Math.min(
+    SIDEBAR_WIDTH_MAX,
+    Math.max(SIDEBAR_WIDTH_MIN, rowWidth - MAIN_WIDTH_MIN),
+  );
+  return {
+    collapse: INBOX_COLLAPSE_THRESHOLD,
+    cover: max + INBOX_COVER_PAST,
+    initial: SIDEBAR_WIDTH_DEFAULT,
+    max,
+    min: SIDEBAR_WIDTH_MIN,
+  };
 }
 
 export const Route = createFileRoute("/orchestrator")({
@@ -196,7 +219,16 @@ export const Route = createFileRoute("/orchestrator")({
  * The window's chrome: no title bar, so it drags by its top-left corner,
  * which is the chat pane's top, past the traffic lights.
  */
-function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
+function Frame({
+  bar,
+  children,
+  rowRef,
+}: {
+  bar?: ReactNode;
+  children: ReactNode;
+  /** The row the columns share, for whoever sizes them against it. */
+  rowRef?: Ref<HTMLDivElement>;
+}) {
   return (
     // The band across the top is the window's, so every menu, popover and
     // tooltip is held below it: on macOS the traffic lights are drawn over that
@@ -218,7 +250,9 @@ function Frame({ bar, children }: { bar?: ReactNode; children: ReactNode }) {
             style={{ height: `${TOOLBAR_HEIGHT}px` }}
           />
         )}
-        <div className="flex min-h-0 flex-1">{children}</div>
+        <div className="flex min-h-0 flex-1" ref={rowRef}>
+          {children}
+        </div>
         <StudioModals />
         <Toaster position="bottom-right" />
         {/* No action beside it: the release notes are a screen this window has
@@ -287,6 +321,25 @@ function OrchestratorLayout() {
     () => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>
   >(() => Promise.resolve(undefined));
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const [sidebarWidth, setSidebarWidth] = useAtom(orchestratorSidebarWidthAtom);
+  // The row the columns share, measured in layout px, so the inbox's widest
+  // leaves the conversation its least whatever the window is.
+  const [rowElement, setRowElement] = useState<HTMLDivElement | null>(null);
+  const [rowWidth, setRowWidth] = useState(0);
+  useEffect(() => {
+    if (!rowElement) {
+      return;
+    }
+    setRowWidth(rowElement.offsetWidth);
+    const observer = new ResizeObserver(() => {
+      setRowWidth(rowElement.offsetWidth);
+    });
+    observer.observe(rowElement);
+    return () => {
+      observer.disconnect();
+    };
+  }, [rowElement]);
+  const bounds = inboxBounds(rowWidth);
   const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
   const isDeveloperMode = useDeveloperMode();
   const router = useRouter();
@@ -306,6 +359,13 @@ function OrchestratorLayout() {
   // Nothing is on screen with no group up: the right area belongs to a
   // thread or a draft, never to the window on its own.
   const showsRightArea = windowTabs.group !== undefined;
+  // An inbox left at the row's whole width, or a window grown narrower,
+  // gives the conversation its least back as soon as something is beside it.
+  useEffect(() => {
+    if (showsRightArea && rowWidth > 0 && sidebarWidth > bounds.max) {
+      setSidebarWidth(bounds.max);
+    }
+  }, [showsRightArea, rowWidth, sidebarWidth, bounds.max, setSidebarWidth]);
   const draftUp = draftOfGroup(windowTabs.group);
   const draftOnScreen =
     draftUp === undefined
@@ -810,9 +870,13 @@ function OrchestratorLayout() {
   /**
    * Makes a draft, filed under a topic when the pane stands in one, and
    * brings it up with the new-tab page as its first tab: the place to find
-   * a site, a folder, a file, or an app to gather.
+   * a site, a folder, a file, or an app to gather. Asked for while a draft
+   * is already up, it makes nothing: that draft is the new one.
    */
   const startDraft = (topicId: string | undefined) => {
+    if (draftOnScreen) {
+      return;
+    }
     const now = Date.now();
     const draft: Draft = {
       createdAt: now,
@@ -865,22 +929,28 @@ function OrchestratorLayout() {
     }
     windowTabs.dropGroup(draftGroupOf(id));
   };
-  /**
-   * Closes the draft: one with words or something gathered is kept in
-   * Drafts, the way mail keeps a draft, and an empty one is thrown away.
-   */
-  const closeDraft = (id: string) => {
-    const draft = drafts.find((entry) => entry.id === id);
-    const hasGathered = windowTabs.allTabs.some(
-      (tab) => tab.group === draftGroupOf(id) && !isHomeTab(tab),
-    );
-    if (draft && (draft.words.trim() !== "" || hasGathered)) {
-      leaveDraft();
-      toast("Saved to Drafts");
-    } else {
-      deleteDraft(id);
+  // A draft has no close of its own: leaving it for a thread or another
+  // draft is what closes it, and one with words or something gathered is
+  // kept in Drafts the way mail keeps a draft, while one with nothing in it
+  // is thrown away as it is left.
+  const leftDraft = useRef(draftUp);
+  useEffect(() => {
+    const left = leftDraft.current;
+    leftDraft.current = draftUp;
+    if (left === undefined || left === draftUp) {
+      return;
     }
-  };
+    const draft = drafts.find((entry) => entry.id === left);
+    const hasGathered = windowTabs.allTabs.some(
+      (tab) => tab.group === draftGroupOf(left) && !isHomeTab(tab),
+    );
+    if (draft?.words.trim() === "" && !hasGathered) {
+      setDrafts((current) => current.filter((entry) => entry.id !== left));
+      windowTabs.dropGroup(draftGroupOf(left));
+    }
+    // Runs as the draft on screen changes; the rest is read as it is then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftUp]);
   /**
    * Starts the thread the draft is for: what its composer sends (the words,
    * the files, the folders, the model) and its topic as the first message,
@@ -1091,10 +1161,16 @@ function OrchestratorLayout() {
                 }
               />
             }
+            rowRef={setRowElement}
           >
             <ChatColumn
-              isHidden={!isInboxOpen && showsRightArea}
+              bounds={bounds}
+              isOpen={isInboxOpen}
               isRightAreaOpen={showsRightArea}
+              onCollapse={() => {
+                setInboxOpen(false);
+              }}
+              onCover={leaveGroup}
             >
               {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
               <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
@@ -1162,7 +1238,6 @@ function OrchestratorLayout() {
                       )}
                     >
                       <ThreadHeader
-                        onClose={leaveGroup}
                         onNewTopic={() => {
                           setNewTopicOpen(true);
                         }}
@@ -1204,14 +1279,10 @@ function OrchestratorLayout() {
                               ),
                             );
                           }}
-                          onClose={() => {
-                            closeDraft(draftOnScreen.id);
-                          }}
                           onModelChange={setDefaultModelURI}
                           onStart={(send) => {
                             startThread(draftOnScreen.id, send);
                           }}
-                          topics={topics}
                           trailing={showsPane ? null : paneToggle}
                         />
                       </div>
@@ -1226,7 +1297,7 @@ function OrchestratorLayout() {
                 }}
                 paneKey={windowTabs.group ?? "window"}
               >
-                <div className="flex h-full flex-col p-2 pl-0">
+                <div className="flex h-full flex-col p-2">
                   {/* One card, with the strip as its first row: the tabs of
                     the thread or the draft on screen, and at the row's end
                     the toggle that puts the pane away. */}

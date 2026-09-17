@@ -14,7 +14,6 @@ import { toolbarClassName } from "@/client/components/ui/toggle";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { TagIcon } from "@phosphor-icons/react/Tag";
-import { XIcon } from "@phosphor-icons/react/X";
 import { type ReactNode } from "react";
 
 import { useThreadActions } from "./thread-actions";
@@ -25,25 +24,23 @@ import { TopicMark } from "./topic-mark";
 /**
  * The head over a thread's conversation, the way a task's page heads its
  * chat: the topic it is filed under and its title at the left with the
- * thread's own menu hugging them, and at the right the controls over the
- * whole thread, the pane toggle while the pane is closed and the way out of
- * the thread. Nothing under it but air: the transcript starts below.
+ * thread's own menu hugging them, and at the right the pane toggle while
+ * the pane is closed. No way out of the thread here: the thread stays
+ * beside the inbox until the inbox is dragged over it. Nothing under the
+ * head but air: the transcript starts below.
  */
 export function ThreadHeader({
-  onClose,
   onNewTopic,
   onSetTopics,
   thread,
   topics,
   trailing,
 }: {
-  /** Puts the thread away from the screen; the inbox takes its place. */
-  onClose: () => void;
   onNewTopic: () => void;
   onSetTopics: (topics: string[]) => void;
   thread: Thread | undefined;
   topics: Topic[];
-  /** What sits before the way out: the pane toggle while the pane is closed. */
+  /** What sits at the head's right: the pane toggle while the pane is closed. */
   trailing?: ReactNode;
 }) {
   const topic = topics.find((entry) => entry.id === thread?.topics[0]);
@@ -56,7 +53,6 @@ export function ThreadHeader({
         </h2>
         {thread && (
           <ThreadMenu
-            onClose={onClose}
             onNewTopic={onNewTopic}
             onSetTopics={onSetTopics}
             thread={thread}
@@ -64,21 +60,9 @@ export function ThreadHeader({
           />
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-x-1">
-        {trailing}
-        <Button
-          aria-label="Close thread"
-          className={toolbarClassName({
-            className: "shrink-0",
-            pressed: false,
-          })}
-          onClick={onClose}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <XIcon className="size-4" />
-        </Button>
-      </div>
+      {trailing && (
+        <div className="flex shrink-0 items-center gap-x-1">{trailing}</div>
+      )}
     </div>
   );
 }
@@ -86,16 +70,14 @@ export function ThreadHeader({
 /**
  * The thread's own menu, beside its title: what the inbox row offers from
  * its edge and its menu (putting it away, marking it read, starring it),
- * its topics, and the way out.
+ * and its topics.
  */
 function ThreadMenu({
-  onClose,
   onNewTopic,
   onSetTopics,
   thread,
   topics,
 }: {
-  onClose: () => void;
   onNewTopic: () => void;
   onSetTopics: (topics: string[]) => void;
   thread: Thread;
@@ -159,11 +141,6 @@ function ThreadMenu({
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onClose}>
-          <XIcon className="size-4" />
-          Close
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

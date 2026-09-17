@@ -27,6 +27,7 @@ import {
   listThreads,
   markThreadSeen,
   markThreadUnseen,
+  setThreadStarred,
   setThreadTopics,
   ThreadSchema,
   unarchiveThread,
@@ -292,6 +293,19 @@ const archiveThreadRoute = base
     await archiveThread(input.id, input.sessionId);
   });
 
+/** Stars a thread, or takes the star off. */
+const starThreadRoute = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      sessionId: StoreId.SessionSchema,
+      starred: z.boolean(),
+    }),
+  )
+  .handler(async ({ input }) => {
+    await setThreadStarred(input.id, input.sessionId, input.starred);
+  });
+
 /** Brings a thread back into the inbox. */
 const unarchiveThreadRoute = base
   .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
@@ -440,6 +454,7 @@ export const orchestrator = {
     live: { list: liveListThreadsRoute },
     seen: seenThreadRoute,
     setTopics: setThreadTopicsRoute,
+    star: starThreadRoute,
     unarchive: unarchiveThreadRoute,
     unseen: unseenThreadRoute,
   },

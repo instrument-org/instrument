@@ -28,6 +28,7 @@ function thread({
     archived: false,
     holds: { apps: [], files: [], sites: [], ...holds },
     root: { parts: [] },
+    starred: false,
     state: "idle",
     title: "",
     topics: [],
@@ -67,6 +68,12 @@ describe("matchesFilters", () => {
       { place: "needsYou" },
       thread({ state: "waiting" }),
       thread({ state: "working", unread: 2 }),
+    ],
+    [
+      "a star",
+      { place: "starred" },
+      thread({ archived: true, starred: true }),
+      thread({ unread: 2 }),
     ],
     [
       "been put away",
@@ -349,6 +356,7 @@ describe("the inbox", () => {
   it.each<[string, ThreadFilters]>([
     ["a place", { ...NO_FILTERS, place: "unread" }],
     ["what needs the user", { ...NO_FILTERS, place: "needsYou" }],
+    ["the starred", { ...NO_FILTERS, place: "starred" }],
     ["the drafts", { ...NO_FILTERS, place: "drafts" }],
     ["the archive", { ...NO_FILTERS, place: "archive" }],
     ["a topic", { ...NO_FILTERS, topics: ["house"] }],

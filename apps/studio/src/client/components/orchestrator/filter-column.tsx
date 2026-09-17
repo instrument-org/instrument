@@ -15,6 +15,7 @@ import { CircleIcon } from "@phosphor-icons/react/Circle";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import { TrayIcon } from "@phosphor-icons/react/Tray";
 import { Fragment, type ReactNode, useState } from "react";
 
@@ -72,6 +73,7 @@ const PLACES: Place[] = [
     id: "needsYou",
     label: "Needs you",
   },
+  { icon: <StarIcon className="size-4" />, id: "starred", label: "Starred" },
   {
     icon: <PencilSimpleIcon className="size-4" />,
     id: "drafts",
@@ -151,6 +153,9 @@ export function FilterColumn({
       }
       case "needsYou": {
         return kept.filter((thread) => thread.state === "waiting").length;
+      }
+      case "starred": {
+        return threads.filter((thread) => thread.starred).length;
       }
       case "unread": {
         return kept.filter((thread) => thread.unread > 0).length;

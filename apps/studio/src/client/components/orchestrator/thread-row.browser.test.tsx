@@ -21,6 +21,7 @@ import { type Thread, type Topic } from "./threads";
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
   seen: vi.fn(),
+  star: vi.fn(),
   unarchive: vi.fn(),
   unseen: vi.fn(),
 }));
@@ -46,6 +47,7 @@ vi.mock("@/client/rpc/client", () => {
           threads: {
             archive: routeOf(calls.archive),
             seen: routeOf(calls.seen),
+            star: routeOf(calls.star),
             unarchive: routeOf(calls.unarchive),
             unseen: routeOf(calls.unseen),
           },
@@ -107,6 +109,7 @@ function thread(overrides: Partial<Thread> = {}): Thread {
       role: "user",
     },
     runningTasks: [],
+    starred: false,
     state: "idle",
     title: TITLE,
     titled: true,
@@ -776,7 +779,7 @@ describe("the row's actions", () => {
     async (density) => {
       const { row } = await renderRow(thread(), { density });
       const { bar, labels } = barOf(row);
-      expect(labels).toEqual(["Archive", "Mark as unread"]);
+      expect(labels).toEqual(["Archive", "Mark as unread", "Star"]);
       // The pointer is wherever the last test left it, which may be here.
       await userEvent.unhover(row);
       expect(bar.getClientRects().length).toBe(0);
@@ -813,7 +816,7 @@ describe("the row's actions", () => {
 
   it("offers a thread put away the way back", async () => {
     const { row } = await renderRow(thread({ archived: true }));
-    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as unread"]);
+    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as unread", "Star"]);
     await userEvent.hover(gutterOf(row));
     await userEvent.click(actionOf(row, "Unarchive"));
     expect(calls.unarchive).toHaveBeenCalledWith(INPUT);
@@ -840,7 +843,7 @@ describe("the row's actions", () => {
 
   it("offers no read or unread mark on a thread with no replies to have read", async () => {
     const { row } = await renderRow(thread({ replyCount: 0, unread: 0 }));
-    expect(barOf(row).labels).toEqual(["Archive"]);
+    expect(barOf(row).labels).toEqual(["Archive", "Star"]);
   });
 
   it("raises the row's menu on a right click: the ways in, the actions, and the topics", async () => {
@@ -854,7 +857,14 @@ describe("the row's actions", () => {
       [...menu.element().querySelectorAll('[role="menuitem"]')].map(
         (item) => item.textContent,
       ),
-    ).toEqual(["Open", "Open in new tab", "Archive", "Mark as read", "Topics"]);
+    ).toEqual([
+      "Open",
+      "Open in new tab",
+      "Archive",
+      "Mark as read",
+      "Star",
+      "Topics",
+    ]);
     await userEvent.click(menu.getByText("Open in new tab"));
     expect(openScreen).toHaveBeenCalledWith(
       `/orchestrator/threads/${sessionId}`,
@@ -878,5 +888,38 @@ describe("the row's actions", () => {
     await userEvent.click(house);
     expect(onSetTopics).toHaveBeenCalledWith(["house"]);
     expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("stars from the control on a wide row and from the actions on a narrow one, and wears the star once given", async () => {
+    const { rows } = await renderRows([
+      { density: "slim", thread: thread() },
+      { density: "tall", thread: thread({ starred: true }) },
+      { density: "tall", thread: thread() },
+    ]);
+    const [slim, starredTall, plainTall] = rows;
+    if (!slim || !starredTall || !plainTall) {
+      throw new Error("no rows");
+    }
+    // In view on the wide row, before the title; a click turns it without
+    // opening the thread.
+    const control = slim.querySelector<HTMLButtonElement>('[aria-label="Star"]');
+    expect(control).not.toBeNull();
+    const words = [...slim.querySelectorAll("span.truncate")].find(
+      (span) => span.textContent === TITLE,
+    );
+    expect(control?.getBoundingClientRect().right).toBeLessThanOrEqual(
+      words?.getBoundingClientRect().left ?? 0,
+    );
+    control?.click();
+    await vi.waitFor(() => {
+      expect(calls.star).toHaveBeenCalledWith({ ...INPUT, starred: true });
+    });
+    // A narrow row has no control of its own in the flow (the one in its
+    // actions waits for the pointer): the star shows once given.
+    expect(
+      plainTall.querySelector('[aria-label="Star"]')?.getClientRects().length,
+    ).toBe(0);
+    expect(starredTall.querySelector('[aria-label="Starred"]')).not.toBeNull();
+    expect(plainTall.querySelector('[aria-label="Starred"]')).toBeNull();
   });
 });

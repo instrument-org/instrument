@@ -40,6 +40,7 @@ function thread({
     archived: false,
     holds: { apps: [], files: [], sites: [], ...holds },
     root: { parts: [] },
+    starred: false,
     state: "idle",
     title: "",
     topics: [],
@@ -114,6 +115,7 @@ describe("FilterColumn", () => {
     ).toEqual([
       "Unread1",
       "Needs you",
+      "Starred",
       "Drafts",
       "Archive",
       "🏠House2",
@@ -145,6 +147,7 @@ describe("FilterColumn", () => {
         thread({
           archived: true,
           holds: { apps: ["gmail"] },
+          starred: true,
           state: "waiting",
           topics: ["house", "money"],
           unread: 2,
@@ -159,6 +162,7 @@ describe("FilterColumn", () => {
     ).toEqual([
       "Unread1",
       "Needs you",
+      "Starred1",
       "Drafts",
       "Archive1",
       "🏠House1",

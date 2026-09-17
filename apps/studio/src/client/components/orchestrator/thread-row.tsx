@@ -27,6 +27,7 @@ import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { EnvelopeSimpleOpenIcon } from "@phosphor-icons/react/EnvelopeSimpleOpen";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useContext, useState } from "react";
@@ -199,6 +200,9 @@ export function ThreadRow({
                 starts at one edge and the column reads down as a list of
                 names. */}
               <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
+                {/* The star sits in view on a wide row, where there is room
+                  for a mark of the user's own beside the title. */}
+                <StarControl thread={thread} />
                 {tagControl}
                 {pill}
                 {title}
@@ -225,6 +229,15 @@ export function ThreadRow({
                 {tagControl}
                 {pill}
                 {title}
+                {/* A narrow row has no room for the control; the star shows
+                  once given, and the row's actions are where it is given. */}
+                {thread.starred && (
+                  <StarIcon
+                    aria-label="Starred"
+                    className="size-3.5 shrink-0 text-warning-500"
+                    weight="fill"
+                  />
+                )}
                 {/* The count under the time, out of the title's way and the
                   time's: one column at the row's right, the second line of
                   it hanging beside the latest line. */}
@@ -462,6 +475,46 @@ function Peek({
 }
 
 /**
+ * The star as a control in the row: faint until the pointer is on the row
+ * or the star is given, filled in amber once it is. A click turns it and
+ * stops short of the door.
+ */
+function StarControl({ thread }: { thread: Thread }) {
+  const { taskId } = useOrchestrator();
+  const star = useMutation(
+    rpcClient.workspace.orchestrator.threads.star.mutationOptions(),
+  );
+  return (
+    <button
+      aria-label={thread.starred ? "Unstar" : "Star"}
+      aria-pressed={thread.starred}
+      className={cn(
+        "grid size-5 shrink-0 place-items-center rounded-sm",
+        thread.starred
+          ? "hover:text-warning-600 text-warning-500"
+          : "text-muted-foreground/40 group-hover/row:text-muted-foreground hover:text-warning-500",
+      )}
+      onAuxClick={stopHere}
+      onClick={(event) => {
+        stopHere(event);
+        star.mutate({
+          id: taskId,
+          sessionId: thread.id,
+          starred: !thread.starred,
+        });
+      }}
+      onContextMenu={stopHere}
+      type="button"
+    >
+      <StarIcon
+        className="size-3.5"
+        weight={thread.starred ? "fill" : "regular"}
+      />
+    </button>
+  );
+}
+
+/**
  * Where the thread stands, as a dot: amber while it waits on the user, brand
  * while it works or holds replies not yet seen, and nothing at all while it
  * is quiet, so the gutter is empty down a list with nothing new in it.
@@ -595,6 +648,9 @@ function useThreadActions(thread: Thread): RowAction[] {
   const unseen = useMutation(
     rpcClient.workspace.orchestrator.threads.unseen.mutationOptions(),
   );
+  const star = useMutation(
+    rpcClient.workspace.orchestrator.threads.star.mutationOptions(),
+  );
   function putAway() {
     archive.mutate(input);
   }
@@ -638,7 +694,24 @@ function useThreadActions(thread: Thread): RowAction[] {
             },
           ]
         : [];
-  return [put, ...mark];
+  const starred: RowAction = thread.starred
+    ? {
+        icon: <StarIcon className="size-3.5" weight="fill" />,
+        id: "unstar",
+        label: "Unstar",
+        run: () => {
+          star.mutate({ ...input, starred: false });
+        },
+      }
+    : {
+        icon: <StarIcon className="size-3.5" />,
+        id: "star",
+        label: "Star",
+        run: () => {
+          star.mutate({ ...input, starred: true });
+        },
+      };
+  return [put, ...mark, starred];
 }
 
 /**

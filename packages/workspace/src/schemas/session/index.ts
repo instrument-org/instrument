@@ -8,8 +8,10 @@ export namespace Session {
     /** When the thread was put away; absent while it is in the inbox. */
     archivedAt: z.date().optional(),
     createdAt: z.date(),
+    /** When the user starred the thread; absent while it is not starred. */
     id: StoreId.SessionSchema,
     parentId: StoreId.SessionSchema.optional(),
+    starredAt: z.date().optional(),
     /**
      * The last message of the conversation before its context window was reset.
      *

@@ -13,6 +13,7 @@ import {
   listThreads,
   markThreadSeen,
   markThreadUnseen,
+  setThreadStarred,
   setThreadTopics,
   threadById,
   unarchiveThread,
@@ -323,6 +324,24 @@ describe("listThreads", () => {
     await unarchiveThread(taskId, sessionId);
     const [back] = await listThreads(taskId);
     expect(back?.archived).toBe(false);
+  });
+
+  it("stars a thread and takes the star off, without moving its stamp", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Groceries", 1);
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    const [before] = await listThreads(taskId);
+    expect(before?.starred).toBe(false);
+
+    await setThreadStarred(taskId, sessionId, true);
+    const [starred] = await listThreads(taskId);
+    expect(starred?.starred).toBe(true);
+    expect(starred?.updatedAt).toBe(before?.updatedAt);
+
+    await setThreadStarred(taskId, sessionId, false);
+    const [back] = await listThreads(taskId);
+    expect(back?.starred).toBe(false);
   });
 
   it("is working while a task filed from it runs, and says its step", async () => {

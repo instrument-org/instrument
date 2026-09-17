@@ -17,8 +17,8 @@ export interface ThreadFilters {
   topics: string[];
 }
 
-/** The places of the column apart from the inbox: threads with replies not yet seen, threads waiting on the user, drafts not yet sent, and threads put away. */
-export type ThreadPlace = "archive" | "drafts" | "needsYou" | "unread";
+/** The places of the column apart from the inbox: threads with replies not yet seen, threads waiting on the user, threads the user starred, drafts not yet sent, and threads put away. */
+export type ThreadPlace = "archive" | "drafts" | "needsYou" | "starred" | "unread";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic =
@@ -40,6 +40,8 @@ export interface Filterable {
   holds: { apps: string[]; files: string[]; sites: string[] };
   latest?: { text: string };
   root: { parts: { text?: string; type: string }[] };
+  /** Whether the user starred it: a mark of the user's own, kept wherever the thread is. */
+  starred: boolean;
   state: "idle" | "waiting" | "working";
   title: string;
   topics: string[];
@@ -153,6 +155,10 @@ function matchesPlace(thread: Filterable, place: ThreadPlace | undefined) {
     }
     case "needsYou": {
       return !thread.archived && thread.state === "waiting";
+    }
+    case "starred": {
+      // A star is the user's own mark, and stays on a thread put away.
+      return thread.starred;
     }
     case undefined: {
       return !thread.archived;

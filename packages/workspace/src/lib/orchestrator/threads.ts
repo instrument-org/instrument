@@ -40,6 +40,8 @@ export const ThreadSchema = z.object({
    * the window keeps it out of the inbox.
    */
   archived: z.boolean(),
+  /** Whether the user starred it: a mark of the user's own, meaning whatever they mean by it. */
+  starred: z.boolean(),
   /** When the root was sent, in ms. */
   createdAt: z.number(),
   /**
@@ -276,6 +278,18 @@ export function openedHostsIn(command: string): string[] {
   return hosts.filter((host) => host !== "");
 }
 
+/** Stars a thread, or takes the star off. The stamp stays where it was, as with putting a thread away. */
+export async function setThreadStarred(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+  starred: boolean,
+): Promise<boolean> {
+  return saveMark(taskId, sessionId, (session) => {
+    const { starredAt: _was, ...rest } = session;
+    return { ...rest, ...(starred ? { starredAt: new Date() } : {}) };
+  });
+}
+
 /**
  * Tags a thread with topics, by id. Ids the conversation has no topic for
  * are dropped rather than written, so the record never names a topic that
@@ -495,15 +509,23 @@ async function saveArchivedAt(
   sessionId: StoreId.Session,
   archivedAt: Date | undefined,
 ): Promise<boolean> {
+  return saveMark(taskId, sessionId, (session) => {
+    const { archivedAt: _was, ...rest } = session;
+    return { ...rest, ...(archivedAt ? { archivedAt } : {}) };
+  });
+}
+
+/** Writes a mark of the user's onto the session record, announcing the change so the live list re-reads. */
+async function saveMark(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+  mark: (session: Session.Type) => Session.Type,
+): Promise<boolean> {
   const session = await Store.getSession(sessionId, taskId);
   if (session.isErr()) {
     return false;
   }
-  const { archivedAt: _was, ...rest } = session.value;
-  const saved = await Store.saveSession(
-    { ...rest, ...(archivedAt ? { archivedAt } : {}) },
-    taskId,
-  );
+  const saved = await Store.saveSession(mark(session.value), taskId);
   return saved.isOk();
 }
 
@@ -605,6 +627,7 @@ async function threadFor(
       sites: await sitesHeld(messages, filedTasks),
     },
     id: session.id,
+    starred: session.starredAt !== undefined,
     ...(latest ? { latest } : {}),
     ...(lastReply ? { lastReplyAt: lastReply.getTime() } : {}),
     ...(newestSettledMessageId ? { newestSettledMessageId } : {}),

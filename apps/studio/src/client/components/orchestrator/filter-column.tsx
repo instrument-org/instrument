@@ -1,5 +1,3 @@
-import { Favicon } from "@/client/components/favicon";
-import { Input } from "@/client/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -11,11 +9,11 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
+import { CircleIcon } from "@phosphor-icons/react/Circle";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { XIcon } from "@phosphor-icons/react/X";
+import { TrayIcon } from "@phosphor-icons/react/Tray";
 import { Fragment, type ReactNode, useState } from "react";
 
 import { AppIcon } from "./app-icon";
@@ -26,11 +24,10 @@ import {
   chooseOnly,
   type Filterable,
   foldSection,
-  hasStatus,
-  sitesByUse,
-  THREAD_STATUSES,
+  isInbox,
+  NO_FILTERS,
   type ThreadFilters,
-  type ThreadStatus,
+  type ThreadPlace,
   type Topic,
 } from "./threads";
 import { TopicMark } from "./topic-mark";
@@ -43,18 +40,36 @@ import {
 /** How many of a section's marks the strip shows before the rest fold behind a dots mark. */
 const STRIP_SHOWN = 4;
 
-/** The groups whose rows carry ids of the user's things, in the order the column draws them under Status. */
-type Group = "apps" | "sites" | "topics";
+/** The groups whose rows carry ids of the user's things, in the order the column draws them under the places. */
+type Group = "apps" | "topics";
+
+/** One of the places above the topics: where the column stands when no topic or app is chosen. The inbox is no filter at all. */
+interface Place {
+  icon: ReactNode;
+  id: "inbox" | ThreadPlace;
+  label: string;
+}
 
 /** One section of the column: its rows, which are on, and how a row is turned. */
 interface Section {
   chosen: ReadonlySet<string>;
   entries: PickEntry[];
   findPlaceholder: string;
-  id: "status" | Group;
+  id: Group;
   label: string;
   onToggle: (id: string) => void;
 }
+
+/** The places in the order they are drawn: everything, what is new, and what is not yet sent. */
+const PLACES: Place[] = [
+  { icon: <TrayIcon className="size-4" />, id: "inbox", label: "Inbox" },
+  { icon: <CircleIcon className="size-4" />, id: "unread", label: "Unread" },
+  {
+    icon: <PencilSimpleIcon className="size-4" />,
+    id: "drafts",
+    label: "Drafts",
+  },
+];
 
 /** A chosen row or mark: a tint, never a fill, so the column reads the same in either theme. */
 const CHOSEN = "bg-foreground/8 text-foreground";
@@ -64,16 +79,16 @@ const UNCHOSEN =
   "text-foreground/80 hover:bg-foreground/5 hover:text-foreground";
 
 /**
- * The filters as a column down the left of the chat, inside the pane: a
- * search, then Status, Topics, Apps, and Sites as rows that toggle on click,
- * the chosen ones tinted. A row is a place to click from and to find again,
- * which a menu is not. The rows are one radio group across every section:
- * choosing one is standing in it, choosing another is moving, and choosing
- * it again is stepping out, so the list is never narrowed by two kinds at
- * once; only the search adds to whatever is chosen. When the pane is narrow the column shrinks in
- * place to a strip of marks, one per row, each opening its section's list
- * beside it; it never moves to the top. The only quantities are on the
- * Status rows, where the number is the news; nothing else is counted.
+ * The sections down the left of the inbox, inside the pane: the places
+ * (Inbox, which is everything, Unread, and Drafts), then the topics as rows
+ * with their marks, then the apps. A row is a place to click from and to
+ * find again, which a menu is not, and the places and the topics carry how
+ * many threads each holds at their right edge. The rows are one radio group
+ * across the whole column: choosing one is standing in it, choosing another
+ * is moving, and choosing it again is stepping back out to the inbox, so the
+ * list is never narrowed by two kinds at once; only the search over the list
+ * adds to whatever is chosen. When the pane is narrow the column shrinks in
+ * place to a strip of marks, one per row; it never moves to the top.
  */
 export function FilterColumn({
   appsBySlug,
@@ -98,38 +113,39 @@ export function FilterColumn({
   const chooseIn = (group: Group, id: string) => {
     onFiltersChange(chooseOnly(filters, { group, id }));
   };
+  /** How many threads a place holds, said on its row above zero: drafts are not threads, so that row says nothing yet. */
+  const placeCount = (id: Place["id"]) =>
+    id === "inbox"
+      ? threads.length
+      : id === "unread"
+        ? threads.filter((thread) => thread.unread > 0).length
+        : 0;
+  const placeEntry = (place: Place): PickEntry => ({
+    icon: place.icon,
+    id: place.id,
+    label: place.label,
+    ...noteOf(placeCount(place.id)),
+  });
+  const isPlaceOn = (place: Place) =>
+    place.id === "inbox" ? isInbox(filters) : filters.place === place.id;
+  /** Standing in a place: the inbox is standing nowhere in particular, so choosing it steps out of everything. */
+  const choosePlace = (id: Place["id"]) => {
+    onFiltersChange(
+      id === "inbox"
+        ? { ...NO_FILTERS, search: filters.search }
+        : chooseOnly(filters, { group: "place", id }),
+    );
+  };
   const sections: Section[] = [
-    {
-      chosen: new Set(filters.status),
-      entries: THREAD_STATUSES.map((status) => {
-        const count = threads.filter((thread) =>
-          hasStatus(thread, status.id),
-        ).length;
-        return {
-          icon: <StatusDot status={status.id} />,
-          id: status.id,
-          label: status.label,
-          ...(count > 0 ? { note: String(count) } : {}),
-        };
-      }),
-      findPlaceholder: "Find a state",
-      id: "status",
-      label: "Status",
-      onToggle: (id) => {
-        const status = THREAD_STATUSES.find((entry) => entry.id === id);
-        if (status) {
-          onFiltersChange(
-            chooseOnly(filters, { group: "status", id: status.id }),
-          );
-        }
-      },
-    },
     {
       chosen: new Set(filters.topics),
       entries: live.map((topic) => ({
         icon: <TopicMark topic={topic} />,
         id: topic.id,
         label: topic.name,
+        ...noteOf(
+          threads.filter((thread) => thread.topics.includes(topic.id)).length,
+        ),
       })),
       findPlaceholder: "Find a topic",
       id: "topics",
@@ -160,26 +176,7 @@ export function FilterColumn({
         chooseIn("apps", id);
       },
     },
-    {
-      chosen: new Set(filters.sites),
-      entries: sitesByUse(threads).map((host) => ({
-        icon: <Favicon className="size-4" url={`https://${host}`} />,
-        id: host,
-        // The filter matches the host as the thread holds it; the row reads
-        // it without the prefix nobody says.
-        label: host.replace(/^www\./, ""),
-      })),
-      findPlaceholder: "Find a site",
-      id: "sites",
-      label: "Sites",
-      onToggle: (id) => {
-        chooseIn("sites", id);
-      },
-    },
   ];
-  const setSearch = (search: string) => {
-    onFiltersChange({ ...filters, search });
-  };
   /** The list a section's marks open in the strip: the topics' own, with its menus and its new-topic foot, or a plain pick list. */
   const listOf = (section: Section) =>
     section.id === "topics" ? (
@@ -207,10 +204,19 @@ export function FilterColumn({
         className="hidden min-h-0 flex-1 flex-col @[30rem]/chat:flex"
         role="group"
       >
-        <div className="shrink-0 px-2 pt-2">
-          <SearchField onChange={setSearch} value={filters.search} />
-        </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+          <section aria-label="Places" className="pt-2">
+            {PLACES.map((place) => (
+              <FilterRow
+                entry={placeEntry(place)}
+                isOn={isPlaceOn(place)}
+                key={place.id}
+                onToggle={() => {
+                  choosePlace(place.id);
+                }}
+              />
+            ))}
+          </section>
           {sections.map((section) =>
             section.id === "topics" ? (
               <ColumnSection
@@ -274,38 +280,26 @@ export function FilterColumn({
         className="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto pt-2 pb-2 @[30rem]/chat:hidden"
         role="toolbar"
       >
-        <Mark
-          isOn={filters.search !== ""}
-          label="Search threads"
-          list={
-            <div className="p-1">
-              <SearchField
-                autoFocus
-                onChange={setSearch}
-                value={filters.search}
-              />
-            </div>
-          }
-        >
-          <MagnifyingGlassIcon className="size-4" />
-        </Mark>
+        {PLACES.map((place) => (
+          <PlaceMark
+            isOn={isPlaceOn(place)}
+            key={place.id}
+            label={place.label}
+            onChoose={() => {
+              choosePlace(place.id);
+            }}
+          >
+            {place.icon}
+          </PlaceMark>
+        ))}
         {sections.map((section) => {
-          if (section.id !== "status" && section.entries.length === 0) {
+          if (section.id !== "topics" && section.entries.length === 0) {
             return null;
           }
-          const list = listOf(section);
-          const marks =
-            section.id === "sites" ? (
-              <Mark isOn={section.chosen.size > 0} label="Sites" list={list}>
-                <GlobeIcon className="size-4" />
-              </Mark>
-            ) : (
-              <SectionMarks list={list} section={section} />
-            );
           return (
             <Fragment key={section.id}>
               <Rule />
-              {marks}
+              <SectionMarks list={listOf(section)} section={section} />
             </Fragment>
           );
         })}
@@ -454,60 +448,48 @@ function Mark({
   );
 }
 
+/** A count as a row's note, and nothing when there is nothing to count. */
+function noteOf(count: number): { note?: string } {
+  return count > 0 ? { note: String(count) } : {};
+}
+
+/** A place's mark in the strip: the row itself at a smaller size, since a place has no list to open. */
+function PlaceMark({
+  children,
+  isOn,
+  label,
+  onChoose,
+}: {
+  children: ReactNode;
+  isOn: boolean;
+  label: string;
+  onChoose: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          aria-label={label}
+          aria-pressed={isOn}
+          className={cn(
+            "grid size-7 shrink-0 place-items-center rounded-md",
+            isOn ? CHOSEN : UNCHOSEN,
+          )}
+          data-chosen={isOn || undefined}
+          onClick={onChoose}
+          type="button"
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 /** A hairline between the strip's sections, where the column has a head. */
 function Rule() {
   return <span aria-hidden className="my-1 h-px w-5 shrink-0 bg-border" />;
-}
-
-/**
- * The search as a field: it narrows the list as it is typed into, and an x
- * or Escape empties it. Nothing here takes focus on its own unless asked to,
- * which the strip's popover does, since opening it is asking for the field.
- */
-function SearchField({
-  autoFocus = false,
-  onChange,
-  value,
-}: {
-  autoFocus?: boolean;
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  return (
-    <div className="relative">
-      <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        aria-label="Search threads"
-        autoFocus={autoFocus}
-        className="h-7 rounded-md pr-6 pl-7 text-xs"
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && value !== "") {
-            event.preventDefault();
-            event.stopPropagation();
-            onChange("");
-          }
-        }}
-        placeholder="Search"
-        type="text"
-        value={value}
-      />
-      {value !== "" && (
-        <button
-          aria-label="Clear search"
-          className="absolute top-1/2 right-1 grid size-5 -translate-y-1/2 place-items-center rounded-sm text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            onChange("");
-          }}
-          type="button"
-        >
-          <XIcon className="size-2.5" weight="bold" />
-        </button>
-      )}
-    </div>
-  );
 }
 
 /**
@@ -547,17 +529,5 @@ function SectionMarks({
         </Mark>
       )}
     </>
-  );
-}
-
-/** The mark a state is known by: the same dot the rows wear for it, in its color. */
-function StatusDot({ status }: { status: ThreadStatus }) {
-  return (
-    <span
-      className={cn(
-        "size-2 rounded-full",
-        status === "unread" ? "bg-brand-500" : "bg-warning-500",
-      )}
-    />
   );
 }

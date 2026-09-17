@@ -25,6 +25,8 @@ interface Hold {
   key: string;
   /** What the hold is called: the app's name, the file's name, the site's host. Never a path. */
   name: string;
+  /** Whether the name is drawn beside the mark, as a chip, rather than kept for the tooltip. */
+  named?: boolean;
   target: OpenTarget;
 }
 
@@ -32,24 +34,41 @@ interface Hold {
 const MARKS_SHOWN = 5;
 
 /**
- * What a thread has made and used, as bare marks at the end of its replies
- * line: the apps as their icons, the files as their type's, the sites as
- * their favicons, a handful and then a count that opens every hold by name.
- * No names on the line. Each mark opens its thing where the surface says,
- * and answers a middle click, a modified click, and a right click the way
- * every openable thing does. None of it reaches the row underneath, and
- * nothing here moves when the row is hovered.
+ * What a thread has made and used, as marks on a line of it: the apps as
+ * their icons, the files as their type's, the sites as their favicons, a
+ * handful and then a count that opens every hold by name. The marks are bare
+ * unless the files are asked for by name, when each file is a chip with its
+ * name the way mail lists attachments, and the apps and sites stay bare
+ * beside them. Each mark opens its thing where the surface says, and answers
+ * a middle click, a modified click, and a right click the way every openable
+ * thing does. None of it reaches the row underneath, and nothing here moves
+ * when the row is hovered.
  */
 export function HoldMarks({
   appsBySlug,
   className,
   holds,
+  namedFiles = false,
+  shown = MARKS_SHOWN,
 }: {
   appsBySlug: AppsBySlug;
   className?: string;
   holds: { apps: string[]; files: string[]; sites: string[] };
+  /** Whether the files are chips with their names rather than bare marks. */
+  namedFiles?: boolean;
+  /** How many marks are drawn before the rest fold into the count. */
+  shown?: number;
 }) {
   const items: Hold[] = [
+    // The newest first, so what the thread made last is what shows before
+    // the count folds the rest away.
+    ...holds.files.toReversed().map((path) => ({
+      icon: <FileTypeIcon className="size-4" fileName={basename(path)} />,
+      key: `file:${path}`,
+      name: basename(path),
+      named: namedFiles,
+      target: { kind: "path" as const, path },
+    })),
     ...holds.apps.map((slug) => {
       const app = appsBySlug.get(slug);
       return {
@@ -59,14 +78,6 @@ export function HoldMarks({
         target: { href: `/orchestrator/apps/${slug}`, kind: "screen" as const },
       };
     }),
-    // The newest first, so what the thread made last is what shows before
-    // the count folds the rest away.
-    ...holds.files.toReversed().map((path) => ({
-      icon: <FileTypeIcon className="size-4" fileName={basename(path)} />,
-      key: `file:${path}`,
-      name: basename(path),
-      target: { kind: "path" as const, path },
-    })),
     ...holds.sites.toReversed().map((site) => ({
       icon: <Favicon className="size-4" url={addressOf(site)} />,
       key: `site:${site}`,
@@ -78,7 +89,7 @@ export function HoldMarks({
   if (items.length === 0) {
     return null;
   }
-  const marked = items.slice(0, MARKS_SHOWN);
+  const marked = items.slice(0, shown);
   const folded = items.length - marked.length;
   const openOf = (item: Hold) => {
     const gestures = gesturesFor(item.target);
@@ -101,20 +112,34 @@ export function HoldMarks({
       onContextMenu={stopHere}
       onKeyDown={stopHere}
     >
-      {marked.map((item) => (
-        <Tooltip key={item.key}>
-          <TooltipTrigger asChild>
-            <button
-              className="grid size-5 shrink-0 place-items-center rounded-sm hover:bg-foreground/8"
-              type="button"
-              {...openOf(item)}
-            >
+      {marked.map((item) =>
+        item.named ? (
+          <button
+            className="inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground/80 hover:bg-foreground/5 hover:text-foreground"
+            key={item.key}
+            type="button"
+            {...openOf(item)}
+          >
+            <span className="flex size-3.5 shrink-0 items-center justify-center [&>*]:size-3.5">
               {item.icon}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{item.name}</TooltipContent>
-        </Tooltip>
-      ))}
+            </span>
+            <span className="truncate">{item.name}</span>
+          </button>
+        ) : (
+          <Tooltip key={item.key}>
+            <TooltipTrigger asChild>
+              <button
+                className="grid size-5 shrink-0 place-items-center rounded-sm hover:bg-foreground/8"
+                type="button"
+                {...openOf(item)}
+              >
+                {item.icon}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{item.name}</TooltipContent>
+          </Tooltip>
+        ),
+      )}
       {folded > 0 && (
         <Popover>
           <PopoverTrigger asChild>

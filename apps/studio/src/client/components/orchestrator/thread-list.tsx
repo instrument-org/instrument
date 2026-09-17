@@ -1,31 +1,24 @@
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-  useMessageScroller,
-} from "@/client/components/ui/message-scroller";
-import { Fragment, useLayoutEffect } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
-import { ThreadRow } from "./thread-row";
-import { groupByDay, type Thread, type Topic } from "./threads";
+import { type RowDensity, ThreadRow } from "./thread-row";
+import { byActivity, type Thread, type Topic } from "./threads";
 import { useNow } from "./use-now";
 
-/** How long the list is given to settle after it arrives before the edge is taken a last time. */
-const SETTLE_MS = 250;
+/** The width the list has to have, in px, before its rows lie down to one line each. */
+export const SLIM_FROM = 600;
 
 /**
- * The chat: every thread in time order under its day head, newest at the
- * foot. The list opens at its end and follows it while the newest thread is
- * working, the way a transcript follows a reply, and stays where the reader
- * scrolled to otherwise.
+ * The inbox: every thread by when something last happened in it, newest at
+ * the top, so a reply landing lifts its thread to the head of the list. The
+ * rows take one line each when the list is wide enough for a mailbox's
+ * columns, and three when it is not; the list measures its own width for
+ * that, since the pane and the column beside it set it. It opens at the top
+ * and stays where the reader scrolled to.
  */
 export function ThreadList({
   appsBySlug,
   emptyLine,
-  isFollowing,
   onNewTopic,
   onOpen,
   onSetTopics,
@@ -36,101 +29,78 @@ export function ThreadList({
   appsBySlug: AppsBySlug;
   /** What the list says when it has nothing to show. */
   emptyLine: string;
-  /** Whether the end of the list is being watched: a thread working there, or a message just sent. */
-  isFollowing: boolean;
   onNewTopic: () => void;
   onOpen: (thread: Thread) => void;
   onSetTopics: (thread: Thread, topics: string[]) => void;
-  /** Counts up whenever the list should be taken to its end, whatever the reader was doing. */
+  /** Counts up whenever the list should be taken back to its top, whatever the reader was doing. */
   scrollSignal: number;
   threads: Thread[];
   topics: Topic[];
 }) {
   const now = useNow();
-  const groups = groupByDay(threads, now);
+  const ref = useRef<HTMLDivElement>(null);
+  const density = useDensity(ref);
+  useLayoutEffect(() => {
+    ref.current?.scrollTo({ top: 0 });
+  }, [scrollSignal]);
+  const rows = byActivity(threads);
   return (
-    <MessageScrollerProvider
-      autoScroll={isFollowing}
-      defaultScrollPosition="end"
+    <div
+      className="min-h-0 flex-1 overflow-y-auto pb-4"
+      data-density={density}
+      ref={ref}
     >
-      <ScrollToEndBridge signal={scrollSignal} />
-      <MessageScroller className="min-h-0 flex-1">
-        <MessageScrollerViewport>
-          {/* `justify-end`: a short list sits at the foot beside the composer,
-            the way a chat reads from the bottom up. */}
-          <MessageScrollerContent className="min-h-full justify-end gap-0 px-2 pt-1 pb-4">
-            {groups.length === 0 ? (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                {emptyLine}
-              </p>
-            ) : (
-              groups.map(([label, group]) => (
-                <Fragment key={label}>
-                  {/* The head stays at the top while its day scrolls under it:
-                    the rows say only the time of day, and this is their date.
-                    Its ground is the page's color through the label and then
-                    fades out over the rows below, the way the transcript's
-                    edges fade, so what scrolls under it thins out rather than
-                    hitting a hard edge; the fade band overlaps the first row
-                    (`-mb-4` against `pb-6`) rather than taking room of its
-                    own. */}
-                  <p className="sticky top-0 z-10 -mb-4 flex items-center gap-3 bg-linear-to-b from-background from-55% to-transparent px-2 pt-2 pb-6 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                    <span className="h-px flex-1 bg-border" />
-                    {label}
-                    <span className="h-px flex-1 bg-border" />
-                  </p>
-                  {group.map((thread) => (
-                    <ThreadRow
-                      appsBySlug={appsBySlug}
-                      key={thread.id}
-                      onNewTopic={onNewTopic}
-                      onOpen={() => {
-                        onOpen(thread);
-                      }}
-                      onSetTopics={(next) => {
-                        onSetTopics(thread, next);
-                      }}
-                      thread={thread}
-                      topics={topics}
-                    />
-                  ))}
-                </Fragment>
-              ))
-            )}
-          </MessageScrollerContent>
-        </MessageScrollerViewport>
-        {/* Fade the list into the composer with a background gradient rather
-          than a viewport mask, so the scrollbar stays crisp. */}
-        <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
-          <MessageScrollerButton className="pointer-events-auto" />
+      {rows.length === 0 ? (
+        <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+          {emptyLine}
+        </p>
+      ) : (
+        <div className="divide-y divide-border">
+          {rows.map((thread) => (
+            <ThreadRow
+              appsBySlug={appsBySlug}
+              density={density}
+              key={thread.id}
+              now={now}
+              onNewTopic={onNewTopic}
+              onOpen={() => {
+                onOpen(thread);
+              }}
+              onSetTopics={(next) => {
+                onSetTopics(thread, next);
+              }}
+              thread={thread}
+              topics={topics}
+            />
+          ))}
         </div>
-      </MessageScroller>
-    </MessageScrollerProvider>
+      )}
+    </div>
   );
 }
 
 /**
- * Runs the scroller's scroll-to-end from below its provider, once per change
- * of the signal: on arrival, and again on every send, so a reader who had
- * scrolled back returns to the live edge when they ask for something new.
+ * Which shape the rows take, from the list's own width: the pane is resized
+ * by hand and the column beside the list changes shape on its own, so the
+ * list is measured rather than told. Tall until measured, which is the shape
+ * that fits anywhere.
  */
-function ScrollToEndBridge({ signal }: { signal: number }) {
-  const { scrollToEnd } = useMessageScroller();
+function useDensity(ref: React.RefObject<HTMLDivElement | null>): RowDensity {
+  const [isSlim, setSlim] = useState(false);
   useLayoutEffect(() => {
-    scrollToEnd();
-    // The rows settle after they are laid out (icons size themselves, the
-    // asks clamp), and an end reached before that is short of the end.
-    const frame = requestAnimationFrame(() => {
-      scrollToEnd();
-    });
-    const later = setTimeout(() => {
-      scrollToEnd();
-    }, SETTLE_MS);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(later);
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    const measure = () => {
+      setSlim(element.clientWidth >= SLIM_FROM);
     };
-  }, [scrollToEnd, signal]);
-  return null;
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [ref]);
+  return isSlim ? "slim" : "tall";
 }

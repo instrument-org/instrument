@@ -9,18 +9,16 @@ export type Thread =
 export interface ThreadFilters {
   /** App slugs a thread has to have used one of. */
   apps: string[];
+  /** The place the column stands in, when it is not the inbox: the unread, or the drafts. */
+  place?: ThreadPlace;
   /** Words that all have to turn up somewhere on a thread's row, whatever their case. */
   search: string;
-  /** Hostnames a thread has to have been to one of. */
-  sites: string[];
-  /** States a thread has to be in one of. */
-  status: ThreadStatus[];
   /** Topic ids a thread has to be filed under one of. */
   topics: string[];
 }
 
-/** The two states a thread can be picked out by: replies not yet seen, and a question waiting on an answer. */
-export type ThreadStatus = "needsYou" | "unread";
+/** The places of the column apart from the inbox: threads with replies not yet seen, and drafts not yet sent. */
+export type ThreadPlace = "drafts" | "unread";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic =
@@ -29,19 +27,11 @@ export type Topic =
 export const NO_FILTERS: ThreadFilters = {
   apps: [],
   search: "",
-  sites: [],
-  status: [],
   topics: [],
 };
 
 /** What a search reads the pills by when no topics are in hand: nothing, so a pill's name is not searched. */
 const NO_TOPIC_NAMES: ReadonlyMap<string, string> = new Map();
-
-/** The states in the order the Status menu offers them, each with its name. */
-export const THREAD_STATUSES: { id: ThreadStatus; label: string }[] = [
-  { id: "unread", label: "Unread" },
-  { id: "needsYou", label: "Needs you" },
-];
 
 /** The part of a thread the filters read, which is what its row shows, so the predicate is testable off any row shape. */
 export interface Filterable {
@@ -54,10 +44,10 @@ export interface Filterable {
   unread: number;
 }
 
-/** One row of the filter column: which group it is in, and which of that group's ids it stands for. */
+/** One row of the column: which group it is in, and which of that group's ids it stands for. */
 export type FilterChoice =
-  | { group: "apps" | "sites" | "topics"; id: string }
-  | { group: "status"; id: ThreadStatus };
+  | { group: "apps" | "topics"; id: string }
+  | { group: "place"; id: ThreadPlace };
 
 /** Every app slug any thread has used, in name order by whoever names them. */
 export function appsUsed(threads: Filterable[]): string[] {
@@ -68,18 +58,19 @@ export function appsUsed(threads: Filterable[]): string[] {
  * The filters with one row chosen and every other row off, or with nothing
  * chosen when the row was the one already on: the column is one radio group
  * across all of its sections, so the list is never narrowed by two kinds at
- * once. The search is its own thing and stays as it was. The predicate still
- * reads lists, so nothing downstream knows the column only ever fills one.
+ * once, and stepping out of any row lands in the inbox. The search is its own
+ * thing and stays as it was. The predicate still reads lists, so nothing
+ * downstream knows the column only ever fills one.
  */
 export function chooseOnly(
   filters: ThreadFilters,
   choice: FilterChoice,
 ): ThreadFilters {
   const cleared = { ...NO_FILTERS, search: filters.search };
-  if (choice.group === "status") {
-    return filters.status.includes(choice.id)
+  if (choice.group === "place") {
+    return filters.place === choice.id
       ? cleared
-      : { ...cleared, status: [choice.id] };
+      : { ...cleared, place: choice.id };
   }
   return filters[choice.group].includes(choice.id)
     ? cleared
@@ -105,9 +96,13 @@ export function foldSection<T extends { id: string }>(
   return { hidden: entries.length - shown.length, shown };
 }
 
-/** Whether a thread is in a state, by the state's name. */
-export function hasStatus(thread: Filterable, status: ThreadStatus) {
-  return status === "unread" ? thread.unread > 0 : thread.state === "waiting";
+/** Whether the column stands in the inbox: nothing chosen, so every thread is in view. */
+export function isInbox(filters: ThreadFilters) {
+  return (
+    filters.place === undefined &&
+    filters.topics.length === 0 &&
+    filters.apps.length === 0
+  );
 }
 
 /** Whether a thread passes every filter that is set. */
@@ -118,34 +113,35 @@ export function matchesFilters(
   topicNames: ReadonlyMap<string, string> = NO_TOPIC_NAMES,
 ) {
   return (
-    anyOf(filters.status, statusesOf(thread)) &&
+    matchesPlace(thread, filters.place) &&
     anyOf(filters.topics, thread.topics) &&
     anyOf(filters.apps, thread.holds.apps) &&
-    anyOf(filters.sites, thread.holds.sites) &&
     matchesSearch(thread, filters.search, topicNames)
   );
-}
-
-/**
- * How often each hostname turns up across the threads, most used first, which
- * is the order the Sites menu offers them in: there can be hundreds, and the
- * ones the agent keeps going back to are the ones worth a filter.
- */
-export function sitesByUse(threads: Filterable[]): string[] {
-  const counts = new Map<string, number>();
-  for (const thread of threads) {
-    for (const site of thread.holds.sites) {
-      counts.set(site, (counts.get(site) ?? 0) + 1);
-    }
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([site]) => site);
 }
 
 /** A group with nothing chosen narrows nothing; one with choices wants any of them. */
 function anyOf<T extends string>(chosen: T[], held: T[]) {
   return chosen.length === 0 || chosen.some((entry) => held.includes(entry));
+}
+
+/**
+ * Whether a thread is in the place the column stands in. The inbox is every
+ * thread; the unread are those with replies not yet seen; drafts are not
+ * threads at all yet, so that place holds none of them.
+ */
+function matchesPlace(thread: Filterable, place: ThreadPlace | undefined) {
+  switch (place) {
+    case "drafts": {
+      return false;
+    }
+    case undefined: {
+      return true;
+    }
+    case "unread": {
+      return thread.unread > 0;
+    }
+  }
 }
 
 /**
@@ -176,14 +172,25 @@ function matchesSearch(
   return words.every((word) => shown.includes(word));
 }
 
-/** The states a thread is in right now. */
-function statusesOf(thread: Filterable): ThreadStatus[] {
-  return THREAD_STATUSES.flatMap(({ id }) =>
-    hasStatus(thread, id) ? [id] : [],
-  );
-}
-
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When something last happened in a thread, the way a mailbox says it at a
+ * row's end: the time of day while it is today, the weekday for the rest of
+ * the week, and past that the date, since a weekday alone stops saying which
+ * one it was.
+ */
+export function activityLabel(date: Date, now: Date): string {
+  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+  const days = Math.floor((startOfToday - date.getTime()) / DAY_MS);
+  if (days < 0) {
+    return format(date, "h:mm a");
+  }
+  if (days < 6) {
+    return format(date, "EEE");
+  }
+  return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
+}
 
 /** The words of a thread's first message: what the row shows as the ask. */
 export function askOf(thread: {
@@ -199,9 +206,14 @@ export function basename(path: string): string {
   return path.replace(/\/+$/, "").split("/").at(-1) || path;
 }
 
+/** The threads by when something last happened in each, newest first, which is the order the inbox keeps. */
+export function byActivity<T extends { updatedAt: number }>(threads: T[]): T[] {
+  return [...threads].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 /**
- * The head a day's threads sit under: today and yesterday by name, the rest
- * of the week by weekday, and past that the date, since a weekday alone stops
+ * The head a day's rows sit under: today and yesterday by name, the rest of
+ * the week by weekday, and past that the date, since a weekday alone stops
  * saying which one it was.
  */
 export function dayLabel(date: Date, now: Date): string {
@@ -217,22 +229,4 @@ export function dayLabel(date: Date, now: Date): string {
     return format(date, "EEEE");
   }
   return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
-}
-
-/** The threads under their day heads, oldest first, so the newest sits at the foot of the list. */
-export function groupByDay<T extends { createdAt: number }>(
-  threads: T[],
-  now: Date,
-): [string, T[]][] {
-  const groups: [string, T[]][] = [];
-  for (const thread of [...threads].sort((a, b) => a.createdAt - b.createdAt)) {
-    const label = dayLabel(new Date(thread.createdAt), now);
-    const last = groups.at(-1);
-    if (last?.[0] === label) {
-      last[1].push(thread);
-    } else {
-      groups.push([label, [thread]]);
-    }
-  }
-  return groups;
 }

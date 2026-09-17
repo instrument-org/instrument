@@ -1,36 +1,41 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, type Mock, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { OrchestratorContext, type OrchestratorWindow } from "./context";
-import { ThreadRow } from "./thread-row";
+import { type RowDensity, ThreadRow } from "./thread-row";
 import { type Thread, type Topic } from "./threads";
 
 const sessionId = StoreId.newSessionId();
 
-/** A long ask, so the clamp has something to cut. */
-const LONG_ASK =
-  "Hey, I'm trying to set up an automation that uses some criteria to determine if the second floor nest thermostat goes into eco mode, and then it could either alert me or even turn it back off. But I need this to only happen if I'm at home at the time and it's earlier in the day than, like, let's say 5 p.m. or so. I think I already have an automation set up for this, but I don't know.";
+/** The moment every row is read at: a Wednesday afternoon. */
+const NOW = new Date(2026, 8, 16, 14, 30);
+
+/** When the fixture's thread last moved, earlier the same day. */
+const MOVED_AT = new Date(2026, 8, 16, 9, 11);
 
 /** The morning the fixture's thread began. */
 const STARTED_AT = new Date(2026, 8, 16, 8, 46);
 
-function thread(
-  overrides: Partial<Thread> = {},
-  ask = "Guard the Nest eco mode before 5 p.m.",
-): Thread {
+const ASK = "Guard the Nest eco mode before 5 p.m.";
+
+const TITLE = "Second-floor Nest eco mode guard before 5 p.m.";
+
+const REPLY = "Done: the automation now checks presence first.";
+
+/** A long reply, so a clamp has something to cut. */
+const LONG_REPLY =
+  "Done: the automation now checks presence first, then the hour, then the thermostat's own schedule, and only then trips eco mode, which it also undoes on the way back before five so the second floor is warm when anyone comes up.";
+
+function thread(overrides: Partial<Thread> = {}): Thread {
   const messageId = StoreId.newMessageId();
   return {
     createdAt: STARTED_AT.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: sessionId,
-    lastReplyAt: new Date(2026, 8, 16, 9, 11).getTime(),
-    latest: {
-      at: new Date(2026, 8, 16, 9, 11).getTime(),
-      kind: "reply",
-      text: "Done: the automation now checks presence first.",
-    },
+    lastReplyAt: MOVED_AT.getTime(),
+    latest: { at: MOVED_AT.getTime(), kind: "reply", text: REPLY },
     replyCount: 3,
     root: {
       id: messageId,
@@ -43,7 +48,7 @@ function thread(
             messageId,
             sessionId,
           },
-          text: ask,
+          text: ASK,
           type: "text",
         },
       ],
@@ -51,11 +56,11 @@ function thread(
     },
     runningTasks: [],
     state: "idle",
-    title: "Second-floor Nest eco mode guard before 5 p.m.",
+    title: TITLE,
     titled: true,
     topics: [],
     unread: 0,
-    updatedAt: new Date(2026, 8, 16, 9, 11).getTime(),
+    updatedAt: MOVED_AT.getTime(),
     ...overrides,
   };
 }
@@ -76,16 +81,21 @@ const MONEY: Topic = {
   name: "Money",
 };
 
-/** The ask, which is the one line every row has. */
-function askOf(row: HTMLElement) {
-  const ask = row.querySelector<HTMLElement>(".line-clamp-2");
-  if (!ask) {
-    throw new Error("no ask");
-  }
-  return ask;
+/** The state dot in the gutter, if the thread wears one. */
+function dotOf(row: HTMLElement) {
+  return gutterOf(row).querySelector<HTMLElement>("[aria-label]");
 }
 
-/** The gutter at the row's left, which is the thread's start time. */
+/** The first line of a tall row: the pill, the title, its count, and the time. */
+function firstLineOf(row: HTMLElement) {
+  const line = row.children[1]?.firstElementChild;
+  if (!(line instanceof HTMLElement)) {
+    throw new TypeError("no first line");
+  }
+  return line;
+}
+
+/** The gutter at the row's left, which holds the state. */
 function gutterOf(row: HTMLElement) {
   const gutter = row.firstElementChild;
   if (!(gutter instanceof HTMLElement)) {
@@ -94,16 +104,13 @@ function gutterOf(row: HTMLElement) {
   return gutter;
 }
 
-/** The lines hanging past the gutter, in order: the header when there is one, the ask, the replies line when there is one. */
-function linesOf(row: HTMLElement) {
-  return [...(row.children[1]?.children ?? [])].filter(
-    (child): child is HTMLElement => child instanceof HTMLElement,
-  );
-}
-
-/** The marks of what the thread holds, at the replies line's end. */
+/** The marks of what the thread holds: every button that is not a control of the row's own. */
 function marksOf(row: HTMLElement) {
-  return [...repliesLineOf(row).querySelectorAll("button")];
+  return [...row.querySelectorAll("button")].filter(
+    (button) =>
+      !button.hasAttribute("aria-label") &&
+      !button.classList.contains("rounded-full"),
+  );
 }
 
 /** The window the pane sits in, as far as a row can tell: every opener lands in a tab of its own. */
@@ -119,251 +126,299 @@ function paneWindow(openScreen = vi.fn()): OrchestratorWindow {
   };
 }
 
-/** What the replies line says, its parts in order. */
-function partsOf(line: HTMLElement) {
-  return [...line.querySelectorAll(":scope > span")]
-    .filter((span) => span.getClientRects().length > 0)
-    .map((span) => span.textContent);
+/** The agent's latest line, the one thing on the row set in the smaller size. */
+function peekOf(row: HTMLElement) {
+  return row.querySelector<HTMLElement>('[class*="text-[12px]"]');
+}
+
+/** The pill of the topic the thread is filed under. */
+function pillOf(row: HTMLElement) {
+  return row.querySelector<HTMLButtonElement>("button.rounded-full");
 }
 
 async function renderRow(
   row: Thread,
   {
+    density = "tall" as RowDensity,
     onOpen = vi.fn(),
     onSetTopics = vi.fn(),
     openScreen = vi.fn(),
-    width = 400,
+  } = {},
+) {
+  const { rows, ...rest } = await renderRows([{ density, thread: row }], {
+    onOpen,
+    onSetTopics,
+    openScreen,
+  });
+  const [element] = rows;
+  if (!element) {
+    throw new Error("no row");
+  }
+  return { ...rest, onOpen, onSetTopics, openScreen, row: element };
+}
+
+/**
+ * Several rows at once, each in a box of its density's width, so one test
+ * can hold two shapes side by side without a second render.
+ */
+async function renderRows(
+  specs: { density: RowDensity; thread: Thread }[],
+  {
+    onOpen = vi.fn(),
+    onSetTopics = vi.fn(),
+    openScreen = vi.fn(),
+  }: {
+    onOpen?: Mock<() => void>;
+    onSetTopics?: Mock<(topics: string[]) => void>;
+    openScreen?: Mock<(href: string) => void>;
   } = {},
 ) {
   const rendered = await renderInBrowser(
     <OrchestratorContext value={paneWindow(openScreen)}>
-      <div style={{ width: `${width}px` }}>
-        <ThreadRow
-          appsBySlug={
-            new Map([
-              ["github", { name: "GitHub", site: "https://github.com" }],
-            ])
-          }
-          onNewTopic={vi.fn()}
-          onOpen={onOpen}
-          onSetTopics={onSetTopics}
-          thread={row}
-          topics={[HOUSE, MONEY]}
-        />
-      </div>
+      {specs.map((spec, index) => (
+        <div
+          key={index}
+          style={{ width: spec.density === "slim" ? "800px" : "400px" }}
+        >
+          <ThreadRow
+            appsBySlug={
+              new Map([
+                ["github", { name: "GitHub", site: "https://github.com" }],
+              ])
+            }
+            density={spec.density}
+            now={NOW}
+            onNewTopic={vi.fn()}
+            onOpen={onOpen}
+            onSetTopics={onSetTopics}
+            thread={spec.thread}
+            topics={[HOUSE, MONEY]}
+          />
+        </div>
+      ))}
     </OrchestratorContext>,
   );
-  const rowElement =
-    rendered.container.querySelector<HTMLElement>('[role="button"]');
-  if (!rowElement) {
-    throw new Error("no row");
-  }
-  return { ...rendered, onOpen, onSetTopics, openScreen, row: rowElement };
+  const rows = [
+    ...rendered.container.querySelectorAll<HTMLElement>('[role="button"]'),
+  ];
+  return { ...rendered, onOpen, onSetTopics, openScreen, rows };
 }
 
-/** The replies line: the last line of a row that has one. */
-function repliesLineOf(row: HTMLElement) {
-  const line = linesOf(row).at(-1);
-  if (!line || line.querySelector(".line-clamp-2")) {
-    throw new Error("no replies line");
+/** The time at the row's end. */
+function timeOf(row: HTMLElement) {
+  const time = row.querySelector<HTMLElement>(".text-right");
+  if (!time) {
+    throw new Error("no time");
   }
-  return line;
+  return time;
+}
+
+/** The title, which is the one line of words every row has. */
+function titleOf(row: HTMLElement) {
+  const title = [...row.querySelectorAll("span")].find(
+    (span) => span.textContent === TITLE,
+  );
+  if (!title) {
+    throw new Error("no title");
+  }
+  return title;
 }
 
 describe("ThreadRow", () => {
-  it("starts with the time in a gutter and hangs every line off one edge past it", async () => {
-    const { row } = await renderRow(thread({ topics: ["house"] }));
-    const gutter = gutterOf(row);
-    expect(gutter.textContent).toBe("8:46 AM");
-    const lines = linesOf(row);
-    const [header, ask, replies] = lines;
-    if (!header || !ask || !replies || lines.length !== 3) {
-      throw new Error("the row is short a line");
-    }
-    const edge = header.getBoundingClientRect().left;
-    expect(edge).toBeGreaterThan(gutter.getBoundingClientRect().right);
-    for (const line of lines) {
-      expect(line.getBoundingClientRect().left).toBe(edge);
-    }
-    // The gutter's time shares the first line.
-    expect(gutter.getBoundingClientRect().top).toBe(
-      header.getBoundingClientRect().top,
-    );
-    expect(header.textContent).toContain("House");
-    expect(header.textContent).toContain("·");
-    expect(header.textContent).toContain("Second-floor Nest");
-    expect(header.textContent).not.toContain("8:46 AM");
-    expect(askOf(row).textContent).toBe(
-      "Guard the Nest eco mode before 5 p.m.",
-    );
-    expect(row.textContent).not.toContain("View thread");
-    expect(row.textContent).not.toContain("last reply");
-  });
-
-  it("leaves the title off until the agent has given the thread one", async () => {
-    const { row } = await renderRow(thread({ titled: false }));
-    const [first] = linesOf(row);
-    expect(first?.textContent).toBe("Guard the Nest eco mode before 5 p.m.");
-    expect(row.textContent).not.toContain("Second-floor Nest");
-    expect(linesOf(row)).toHaveLength(2);
-    // The ask is the first line, so the gutter shares its line and the tag
-    // control keeps its end.
-    expect(gutterOf(row).getBoundingClientRect().top).toBe(
-      first?.getBoundingClientRect().top,
-    );
-    expect(first?.querySelector('[aria-label="Topics"]')).not.toBeNull();
-  });
-
-  it("keeps the pills alone on the header of an untitled thread, with no dot", async () => {
-    const { row } = await renderRow(
-      thread({ titled: false, topics: ["house"] }),
-    );
-    const [header] = linesOf(row);
-    expect(header?.textContent).toBe("🏠House");
-    expect(linesOf(row)).toHaveLength(3);
-  });
-
-  it("says the time of day whatever the day, since the head above carries the date", async () => {
-    const { row } = await renderRow(
-      thread({ createdAt: new Date(2026, 8, 10, 8, 46).getTime() }),
-    );
-    expect(gutterOf(row).textContent).toBe("8:46 AM");
-  });
-
-  it("leaves out the dot when the thread has no topic", async () => {
-    const { row } = await renderRow(thread());
-    const header = linesOf(row)[0];
-    expect(header?.textContent).not.toContain("·");
-    expect(header?.textContent).toContain("Second-floor Nest");
-  });
-
-  it("keeps a topic pill within the header line", async () => {
-    const { row } = await renderRow(thread({ topics: ["house"] }));
-    const header = linesOf(row)[0];
-    const pill = header?.querySelector("button");
-    expect(pill?.getBoundingClientRect().height).toBeLessThanOrEqual(20);
-    expect(header?.getBoundingClientRect().height).toBeLessThanOrEqual(20);
-  });
-
-  it("clamps a long ask to two lines and fades it", async () => {
-    const { row } = await renderRow(thread({}, LONG_ASK));
-    const ask = askOf(row);
-    expect(ask.scrollHeight).toBeGreaterThan(ask.clientHeight);
-    await vi.waitFor(() => {
-      expect(ask.className).toContain("mask-b-from");
+  it("lies down to one line across a wide list, the time at the far right and no ask on it", async () => {
+    const { row } = await renderRow(thread({ topics: ["house"] }), {
+      density: "slim",
     });
+    expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(40);
+    expect(row.textContent).toContain(TITLE);
+    expect(row.textContent).toContain("9:11 AM");
+    expect(row.textContent).not.toContain(ASK);
+    expect(row.textContent).not.toContain("replies");
+    const time = timeOf(row).getBoundingClientRect();
+    for (const child of row.children) {
+      expect(child.getBoundingClientRect().right).toBeLessThanOrEqual(
+        time.right,
+      );
+    }
+    // The latest line starts past the title's column, never under it.
+    expect(peekOf(row)?.getBoundingClientRect().left).toBeGreaterThan(
+      titleOf(row).getBoundingClientRect().right,
+    );
   });
 
-  it("puts the count, how long ago the last reply landed, then the peek on one line", async () => {
-    const { row } = await renderRow(thread());
-    const line = repliesLineOf(row);
-    const parts = partsOf(line);
-    expect(parts[0]).toBe("3 replies");
-    expect(parts[1]).toMatch(/^\d+[mhd] ago$/);
-    expect(parts[2]).toBe("Done: the automation now checks presence first.");
-    // Read, the count keeps the text's own color and only its weight.
-    expect(line.querySelector(".text-brand-600")).toBeNull();
-    expect(line.querySelector(".font-medium")?.textContent).toBe("3 replies");
-  });
-
-  it("colors the count in brand only while there are unseen replies", async () => {
-    const { row } = await renderRow(thread({ unread: 1 }));
-    expect(
-      repliesLineOf(row).querySelector(".text-brand-600")?.textContent,
-    ).toBe("3 replies");
-  });
-
-  it("says how long ago the last reply landed whatever day it was", async () => {
-    const day = 24 * 60 * 60_000;
+  it("stacks when the list is narrow: the title and the time on one line, the latest under it, the files under that", async () => {
     const { row } = await renderRow(
       thread({
-        createdAt: Date.now() - 6 * day,
-        lastReplyAt: Date.now() - 3 * day,
+        holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
+        topics: ["house"],
       }),
     );
-    expect(partsOf(repliesLineOf(row))[1]).toMatch(/^3d ago$/);
-  });
-
-  it("marks unseen replies with a dot before the count and never a number", async () => {
-    const { row } = await renderRow(thread({ unread: 2 }));
-    const line = repliesLineOf(row);
-    expect(line.querySelector('[aria-label="Unread"]')?.className).toContain(
-      "bg-brand-500",
+    expect(row.getBoundingClientRect().height).toBeGreaterThan(40);
+    const first = firstLineOf(row);
+    expect(first.textContent).toContain("House");
+    expect(first.textContent).toContain(TITLE);
+    expect(first.textContent).toContain("9:11 AM");
+    expect(row.textContent).not.toContain(ASK);
+    const peek = peekOf(row);
+    expect(peek?.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      first.getBoundingClientRect().bottom,
     );
-    expect(line.firstElementChild?.getAttribute("aria-label")).toBe("Unread");
-    expect(line.textContent).not.toContain("new");
-    expect(line.textContent).not.toContain("2");
-  });
-
-  it("has no dot while every reply has been seen", async () => {
-    const { row } = await renderRow(thread());
-    expect(
-      repliesLineOf(row).querySelector('[aria-label="Unread"]'),
-    ).toBeNull();
-  });
-
-  it("truncates the peek to what the line has left", async () => {
-    const { row } = await renderRow(
-      thread({ latest: { at: Date.now(), kind: "reply", text: LONG_ASK } }),
-      { width: 320 },
+    const [chip] = marksOf(row);
+    expect(chip?.textContent).toBe("report.md");
+    expect(chip?.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      peek?.getBoundingClientRect().bottom ?? 0,
     );
-    const line = repliesLineOf(row);
-    const peek = line.querySelector(".truncate");
-    expect(peek?.scrollWidth).toBeGreaterThan(peek?.clientWidth ?? 0);
-    expect(line.scrollWidth).toBe(line.clientWidth);
   });
 
-  it("counts one reply in the singular", async () => {
-    const { row } = await renderRow(thread({ replyCount: 1 }));
-    expect(partsOf(repliesLineOf(row))[0]).toBe("1 reply");
+  it("gives the latest line two lines when tall and one when slim", async () => {
+    const long = thread({
+      latest: { at: MOVED_AT.getTime(), kind: "reply", text: LONG_REPLY },
+    });
+    const { rows } = await renderRows([
+      { density: "tall", thread: long },
+      { density: "slim", thread: long },
+    ]);
+    const [tall, slim] = rows;
+    if (!tall || !slim) {
+      throw new Error("no rows");
+    }
+    const tallPeek = peekOf(tall);
+    expect(tallPeek?.querySelector(".line-clamp-2")).not.toBeNull();
+    expect(tallPeek?.getBoundingClientRect().height).toBeGreaterThan(30);
+    expect(peekOf(slim)?.getBoundingClientRect().height).toBeLessThanOrEqual(
+      24,
+    );
+    expect(slim.scrollWidth).toBe(slim.clientWidth);
   });
 
-  it("has no replies line at all for an idle thread with nothing to say", async () => {
+  it("counts the replies right after the title when tall, and only once there is a conversation", async () => {
+    const { rows } = await renderRows([
+      { density: "tall", thread: thread({ replyCount: 3 }) },
+      { density: "tall", thread: thread({ replyCount: 1 }) },
+      { density: "slim", thread: thread({ replyCount: 3 }) },
+    ]);
+    const [three, one, slim] = rows;
+    if (!three || !one || !slim) {
+      throw new Error("no rows");
+    }
+    const line = firstLineOf(three);
+    expect(line.textContent).toBe(`${TITLE}39:11 AM`);
+    const count = [...line.querySelectorAll("span")].find(
+      (span) => span.textContent === "3",
+    );
+    expect(count?.getBoundingClientRect().left).toBeGreaterThanOrEqual(
+      titleOf(three).getBoundingClientRect().right,
+    );
+    expect(firstLineOf(one).textContent).toBe(`${TITLE}9:11 AM`);
+    expect(slim.textContent).toBe(`${TITLE}${REPLY}9:11 AM`);
+  });
+
+  it.each<[string, Partial<Thread>, null | { color: string; label: string }]>([
+    ["quiet", {}, null],
+    ["unseen", { unread: 2 }, { color: "bg-brand-500", label: "Unread" }],
+    [
+      "working",
+      { state: "working" },
+      { color: "bg-brand-500", label: "Working" },
+    ],
+    [
+      "waiting",
+      { state: "waiting" },
+      { color: "bg-warning-500", label: "Needs you" },
+    ],
+    [
+      "waiting with unseen replies",
+      { state: "waiting", unread: 2 },
+      { color: "bg-warning-500", label: "Needs you" },
+    ],
+  ])("wears the state as a dot when %s", async (_, overrides, dot) => {
+    const { row } = await renderRow(thread(overrides));
+    const worn = dotOf(row);
+    if (dot === null) {
+      expect(worn).toBeNull();
+      return;
+    }
+    expect(worn?.getAttribute("aria-label")).toBe(dot.label);
+    expect(worn?.className).toContain(dot.color);
+  });
+
+  it("sets the title in semibold only while something in it is unseen", async () => {
+    const { rows } = await renderRows([
+      { density: "tall", thread: thread({ unread: 1 }) },
+      { density: "tall", thread: thread() },
+    ]);
+    const [unseen, seen] = rows;
+    if (!unseen || !seen) {
+      throw new Error("no rows");
+    }
+    expect(titleOf(unseen).className).toContain("font-semibold");
+    expect(timeOf(unseen).className).toContain("text-foreground");
+    expect(titleOf(seen).className).not.toContain("font-semibold");
+    expect(timeOf(seen).className).toContain("text-muted-foreground");
+  });
+
+  it("wears one pill, the first topic it is filed under", async () => {
+    const { row } = await renderRow(thread({ topics: ["money", "house"] }));
+    expect(row.querySelectorAll("button.rounded-full")).toHaveLength(1);
+    expect(pillOf(row)?.textContent).toBe("💸Money");
+  });
+
+  it.each([
+    ["the clock while it is today", MOVED_AT, "9:11 AM"],
+    ["the weekday within the week", new Date(2026, 8, 13, 9, 11), "Sun"],
+    ["the date past that", new Date(2026, 8, 6, 9, 11), "Sep 6"],
+  ])("says when anything last happened as %s", async (_, at, label) => {
+    const { row } = await renderRow(thread({ updatedAt: at.getTime() }));
+    expect(timeOf(row).textContent).toBe(label);
+  });
+
+  it("shows the step in brand while working, and the question behind the amber glyph while waiting", async () => {
+    const { rows } = await renderRows([
+      {
+        density: "tall",
+        thread: thread({
+          latest: undefined,
+          replyCount: 0,
+          runningTasks: [
+            {
+              id: TaskIdSchema.parse("nest-guard"),
+              step: "Reading the automation",
+              title: "Nest guard",
+            },
+          ],
+          state: "working",
+        }),
+      },
+      {
+        density: "tall",
+        thread: thread({
+          latest: {
+            at: MOVED_AT.getTime(),
+            kind: "question",
+            text: "Reuse the old CSR, or generate a new one?",
+          },
+          state: "waiting",
+        }),
+      },
+    ]);
+    const [working, waiting] = rows;
+    if (!working || !waiting) {
+      throw new Error("no rows");
+    }
+    expect(working.querySelector(".brand-shiny-text")?.textContent).toBe(
+      "Reading the automation",
+    );
+    const peek = peekOf(waiting);
+    expect(peek?.textContent).toBe("Reuse the old CSR, or generate a new one?");
+    expect(peek?.querySelector("svg.text-warning-700")).not.toBeNull();
+  });
+
+  it("has no latest line for an idle thread with nothing to say", async () => {
     const { row } = await renderRow(
       thread({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
     );
-    expect(row.textContent).not.toContain("No replies");
-    expect(linesOf(row)).toHaveLength(2);
-  });
-
-  it("shows only the peek before the first reply of a working thread", async () => {
-    const { row } = await renderRow(
-      thread({
-        lastReplyAt: undefined,
-        latest: undefined,
-        replyCount: 0,
-        runningTasks: [
-          {
-            id: TaskIdSchema.parse("nest-guard"),
-            step: "Reading the automation",
-            title: "Nest guard",
-          },
-        ],
-        state: "working",
-      }),
-    );
-    const line = repliesLineOf(row);
-    expect(partsOf(line)).toEqual(["Reading the automation"]);
-    expect(line.querySelector(".brand-shiny-text")).not.toBeNull();
-  });
-
-  it("peeks at the question behind the amber glyph while waiting", async () => {
-    const { container, row } = await renderRow(
-      thread({
-        latest: {
-          at: Date.now(),
-          kind: "question",
-          text: "Reuse the old CSR, or generate a new one?",
-        },
-        state: "waiting",
-      }),
-    );
-    const line = repliesLineOf(row);
-    expect(partsOf(line).at(-1)).toBe(
-      "Reuse the old CSR, or generate a new one?",
-    );
-    expect(line.querySelector("svg.text-warning-700")).not.toBeNull();
-    expect(container.querySelector(".bg-warning-500")).toBeNull();
+    expect(peekOf(row)).toBeNull();
+    expect(row.textContent).toBe(`${TITLE}9:11 AM`);
   });
 
   it("opens the thread from a click anywhere on it, and from Enter", async () => {
@@ -372,119 +427,114 @@ describe("ThreadRow", () => {
     );
     row.click();
     gutterOf(row).click();
-    askOf(row).click();
-    linesOf(row)[0]?.click();
-    repliesLineOf(row).click();
-    expect(onOpen).toHaveBeenCalledTimes(5);
+    titleOf(row).click();
+    peekOf(row)?.click();
+    expect(onOpen).toHaveBeenCalledTimes(4);
     row.focus();
     await userEvent.keyboard("{Enter}");
-    expect(onOpen).toHaveBeenCalledTimes(6);
+    expect(onOpen).toHaveBeenCalledTimes(5);
     expect(openScreen).not.toHaveBeenCalled();
   });
 
   it("asks the window for a place of its own on a middle or a modified click", async () => {
     const { onOpen, openScreen, row } = await renderRow(thread());
-    askOf(row).dispatchEvent(
+    titleOf(row).dispatchEvent(
       new MouseEvent("auxclick", { bubbles: true, button: 1 }),
     );
     expect(openScreen).toHaveBeenCalledWith(
       `/orchestrator/threads/${sessionId}`,
     );
-    askOf(row).dispatchEvent(
+    titleOf(row).dispatchEvent(
       new MouseEvent("click", { bubbles: true, metaKey: true }),
     );
     expect(openScreen).toHaveBeenCalledTimes(2);
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("wears the hover ground across the whole row, and puts the tag control in front then", async () => {
-    const { row } = await renderRow(thread({ topics: ["house"] }));
+  it("wears the hover ground across the whole row, and puts the tag control in front of the pill then", async () => {
+    const { row } = await renderRow(
+      thread({
+        holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
+        topics: ["house"],
+      }),
+    );
     const control = row.querySelector<HTMLElement>('[aria-label="Topics"]');
     if (!control) {
       throw new Error("no tag control");
     }
     // Out of the flow at rest: it takes no room until the pointer arrives.
     expect(control.getClientRects().length).toBe(0);
-    const marksBefore = repliesLineOf(row).getBoundingClientRect();
-    const pillBefore = linesOf(row)[0]
-      ?.querySelector("button:not([aria-label])")
-      ?.getBoundingClientRect();
+    const chipBefore = marksOf(row)[0]?.getBoundingClientRect();
+    const pillBefore = pillOf(row)?.getBoundingClientRect();
     await userEvent.hover(gutterOf(row));
     await vi.waitFor(() => {
       expect(control.getClientRects().length).toBeGreaterThan(0);
     });
-    // In front of the pills, which move over to make room for it.
-    const pillAfter = linesOf(row)[0]
-      ?.querySelector("button:not([aria-label])")
-      ?.getBoundingClientRect();
+    const pillAfter = pillOf(row)?.getBoundingClientRect();
     expect(control.getBoundingClientRect().right).toBeLessThanOrEqual(
       pillAfter?.left ?? 0,
     );
     expect(pillAfter?.left ?? 0).toBeGreaterThan(pillBefore?.left ?? 0);
     expect(getComputedStyle(row).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
-    expect(row.getBoundingClientRect().left).toBeLessThan(
-      gutterOf(row).getBoundingClientRect().left,
-    );
-    // Nothing on the replies line moves with the pointer.
-    expect(repliesLineOf(row).getBoundingClientRect()).toEqual(marksBefore);
-    // The pointer stays where it was left, and the next test's row renders
-    // under it.
+    // Nothing under the first line moves with the pointer.
+    expect(marksOf(row)[0]?.getBoundingClientRect()).toEqual(chipBefore);
     await userEvent.unhover(gutterOf(row));
   });
 
-  it("carries the holds as marks at the line's end, sites as favicons among them, the rest behind a count", async () => {
-    const { row } = await renderRow(
-      thread({
-        holds: {
-          apps: ["github"],
-          files: ["/task/out/report.md", "/task/out/data.csv"],
-          sites: ["wakatime.com", "example.com", "example.org", "example.net"],
-        },
-      }),
-    );
-    const marks = marksOf(row);
-    // Five marks, then a count of the two that did not get one.
-    expect(marks).toHaveLength(6);
-    expect(marks.at(-1)?.textContent).toBe("+2");
-    expect(
-      marks.slice(3, 5).every((mark) => mark.querySelector("img, svg")),
-    ).toBe(true);
-    const line = repliesLineOf(row);
-    expect(line.textContent).not.toContain("report.md");
-    expect(line.textContent).not.toContain("wakatime.com");
-    const peek = line.querySelector(".flex-1");
-    expect(peek?.getBoundingClientRect().right).toBeLessThanOrEqual(
-      marks[0]?.getBoundingClientRect().left ?? 0,
-    );
+  it("carries what it holds as chips named for the files and bare marks for the rest, behind a count past a few", async () => {
+    const holds = {
+      apps: ["github"],
+      files: ["/task/out/report.md", "/task/out/data.csv"],
+      sites: ["wakatime.com", "example.com", "example.org", "example.net"],
+    };
+    const { rows } = await renderRows([
+      { density: "tall", thread: thread({ holds }) },
+      { density: "slim", thread: thread({ holds }) },
+    ]);
+    for (const row of rows) {
+      const marks = marksOf(row);
+      // Five marks, then a count of the two that did not get one.
+      expect(marks).toHaveLength(6);
+      expect(marks.at(-1)?.textContent).toBe("+2");
+      // The files first, newest first, each named; the app and the sites bare.
+      expect(marks.slice(0, 2).map((mark) => mark.textContent)).toEqual([
+        "data.csv",
+        "report.md",
+      ]);
+      expect(marks.slice(2, 5).every((mark) => mark.textContent === "")).toBe(
+        true,
+      );
+      expect(row.textContent).not.toContain("/task");
+      expect(row.textContent).not.toContain("wakatime.com");
+    }
   });
 
-  it("names a mark by the file's name, never its path", async () => {
+  it("names a bare mark in its tooltip", async () => {
     const { row } = await renderRow(
-      thread({
-        holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
-      }),
+      thread({ holds: { apps: [], files: [], sites: ["wakatime.com"] } }),
+      { density: "slim" },
     );
-    const [file] = marksOf(row);
-    if (!file) {
+    const [site] = marksOf(row);
+    if (!site) {
       throw new Error("no mark");
     }
-    await userEvent.hover(file);
+    await userEvent.hover(site);
+    // The tooltip and the announcement it carries for the screen reader are
+    // two elements with the role; either says the name.
     await expect
-      .element(page.getByRole("tooltip"))
-      .toHaveTextContent("report.md");
-    expect(page.getByRole("tooltip").element().textContent).not.toContain(
-      "/task",
-    );
-    await userEvent.unhover(file);
+      .element(page.getByRole("tooltip").first())
+      .toHaveTextContent("wakatime.com");
+    await userEvent.unhover(site);
   });
 
-  it("lists every hold by name behind the count", async () => {
+  it("lists every hold by name behind the count, never a slug or a path", async () => {
     const files = Array.from(
       { length: 6 },
       (_, index) => `/task/out/report-${index}.md`,
     );
     const { row } = await renderRow(
       thread({ holds: { apps: ["github"], files, sites: ["wakatime.com"] } }),
+      { density: "slim" },
     );
     const count = marksOf(row).at(-1);
     if (!count) {
@@ -496,11 +546,9 @@ describe("ThreadRow", () => {
     const names = [...list.element().querySelectorAll("button")].map(
       (entry) => entry.textContent,
     );
-    // The app by its name and the files by theirs, newest first, never a
-    // slug or a path.
     expect(names).toEqual([
-      "GitHub",
       ...files.toReversed().map((path) => path.split("/").at(-1)),
+      "GitHub",
       "wakatime.com",
     ]);
     await userEvent.keyboard("{Escape}");
@@ -520,11 +568,11 @@ describe("ThreadRow", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("opens the thread's topic list from a pill, which files the thread rather than opening it", async () => {
+  it("opens the thread's topic list from the pill, which files the thread rather than opening it", async () => {
     const { onOpen, onSetTopics, row } = await renderRow(
       thread({ topics: ["house"] }),
     );
-    const pill = linesOf(row)[0]?.querySelector("button");
+    const pill = pillOf(row);
     if (!pill) {
       throw new Error("no pill");
     }
@@ -543,6 +591,11 @@ describe("ThreadRow", () => {
     if (!control) {
       throw new Error("no tag control");
     }
+    // The control is in the flow only while the pointer is on the row.
+    await userEvent.hover(gutterOf(row));
+    await vi.waitFor(() => {
+      expect(control.getClientRects().length).toBeGreaterThan(0);
+    });
     await userEvent.click(control);
     const list = page.getByRole("menu");
     await expect.element(list).toBeVisible();

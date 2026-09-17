@@ -1,6 +1,6 @@
-// The filter column at width and as the strip it shrinks to: rows that
-// choose, marks that open the section's list, and a count only where a
-// state has one.
+// The sections column at width and as the strip it shrinks to: places and
+// rows that choose, marks that open a section's list, and a count where a
+// row holds threads.
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -48,8 +48,8 @@ function thread({
 }
 
 const THREADS = [
-  thread({ holds: { apps: ["gmail"], sites: ["www.amazon.com"] } }),
-  thread({ holds: { sites: ["www.amazon.com"] } }),
+  thread({ holds: { apps: ["gmail"] }, topics: ["house"], unread: 2 }),
+  thread({ topics: ["house"] }),
 ];
 
 function renderColumn({
@@ -80,76 +80,78 @@ function renderColumn({
 }
 
 describe("FilterColumn", () => {
-  it("lists Status, Topics, Apps, and Sites as rows, with no count on any of them", () => {
+  it("lists the places, then Topics and Apps, counting what a row holds and nothing where it holds nothing", () => {
     const { column } = renderColumn();
     expect(
       column.getAllByRole("region").map((section) => section.ariaLabel),
-    ).toEqual(["Status", "Topics", "Apps", "Sites"]);
+    ).toEqual(["Places", "Topics", "Apps"]);
+    // The inbox is where the column stands with nothing chosen.
+    expect(column.getByRole("button", { pressed: true }).textContent).toBe(
+      "Inbox2",
+    );
     expect(
       column
         .getAllByRole("button", { pressed: false })
         .map((row) => row.textContent),
-    ).toEqual([
-      "Unread",
-      "Needs you",
-      "🏠House",
-      "💸Money",
-      "Gmail",
-      "amazon.com",
-    ]);
-    expect(
-      screen.getByRole("group", { name: "Filters" }).textContent,
-    ).not.toMatch(/\d/);
+    ).toEqual(["Unread1", "Drafts", "🏠House2", "💸Money", "Gmail"]);
   });
 
-  it("counts the threads in a state on its row alone, and only above zero", () => {
-    const { column } = renderColumn({
-      threads: [
-        thread({ unread: 2 }),
-        thread({ holds: { sites: ["www.amazon.com"] }, unread: 1 }),
-        thread({ holds: { sites: ["www.amazon.com"] } }),
-      ],
+  it("has no search of its own: that sits over the list", () => {
+    renderColumn();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("steps back out to the inbox from its row, keeping the search", () => {
+    const { column, onFiltersChange } = renderColumn({
+      filters: { ...NO_FILTERS, search: "fence", topics: ["house"] },
     });
-    expect(column.getByRole("button", { name: /Unread/ }).textContent).toBe(
-      "Unread2",
+    expect(column.getByRole("button", { name: /Inbox/ }).ariaPressed).toBe(
+      "false",
     );
-    expect(column.getByRole("button", { name: "Needs you" }).textContent).toBe(
-      "Needs you",
+    expect(column.getByRole("button", { name: /^House/ }).ariaPressed).toBe(
+      "true",
     );
-    expect(column.getByRole("button", { name: "amazon.com" }).textContent).toBe(
-      "amazon.com",
-    );
+    fireEvent.click(column.getByRole("button", { name: /Inbox/ }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith({
+      ...NO_FILTERS,
+      search: "fence",
+    });
   });
 
   it("stands in one topic at a time: choosing moves, choosing again clears", () => {
     const { column, onFiltersChange } = renderColumn({
       filters: { ...NO_FILTERS, topics: ["house"] },
     });
-    expect(column.getByRole("button", { name: "House" }).ariaPressed).toBe(
-      "true",
-    );
-    fireEvent.click(column.getByRole("button", { name: "Money" }));
+    fireEvent.click(column.getByRole("button", { name: /^Money/ }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
       topics: ["money"],
     });
-    fireEvent.click(column.getByRole("button", { name: "House" }));
-    expect(onFiltersChange).toHaveBeenLastCalledWith({
-      ...NO_FILTERS,
-      topics: [],
-    });
+    fireEvent.click(column.getByRole("button", { name: /^House/ }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
   });
 
-  it("is one radio group across its sections, with the search apart from it", () => {
+  it("is one radio group across the places and the sections, with the search apart from it", () => {
     const { column, onFiltersChange } = renderColumn({
       filters: { ...NO_FILTERS, search: "fence", topics: ["house"] },
     });
-    fireEvent.click(column.getByRole("button", { name: "Needs you" }));
+    fireEvent.click(column.getByRole("button", { name: /Unread/ }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
+      place: "unread",
       search: "fence",
-      status: ["needsYou"],
     });
+  });
+
+  it("steps out of a place by choosing it again", () => {
+    const { column, onFiltersChange } = renderColumn({
+      filters: { ...NO_FILTERS, place: "unread" },
+    });
+    expect(column.getByRole("button", { name: /Unread/ }).ariaPressed).toBe(
+      "true",
+    );
+    fireEvent.click(column.getByRole("button", { name: /Unread/ }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
   });
 
   it("opens the new-topic dialog from the plus on the Topics head", () => {
@@ -159,20 +161,20 @@ describe("FilterColumn", () => {
   });
 
   it("folds a long section behind a more row that opens it and a less row that folds it again", () => {
-    const sites = Array.from(
+    const apps = Array.from(
       { length: SECTION_SHOWN + 2 },
-      (_, index) => `site-${index}.com`,
+      (_, index) => `app-${index}`,
     );
     const { column } = renderColumn({
-      threads: sites.map((site) => thread({ holds: { sites: [site] } })),
+      threads: apps.map((slug) => thread({ holds: { apps: [slug] } })),
     });
-    const section = within(column.getByRole("region", { name: "Sites" }));
+    const section = within(column.getByRole("region", { name: "Apps" }));
     expect(section.getAllByRole("button", { pressed: false })).toHaveLength(
       SECTION_SHOWN,
     );
     fireEvent.click(section.getByRole("button", { name: "2 more" }));
     expect(section.getAllByRole("button", { pressed: false })).toHaveLength(
-      sites.length,
+      apps.length,
     );
     fireEvent.click(section.getByRole("button", { name: "Less" }));
     expect(section.getAllByRole("button", { pressed: false })).toHaveLength(
@@ -208,13 +210,18 @@ describe("FilterColumn", () => {
     });
   });
 
-  it("stands every site behind one globe, tinted once a site is chosen", () => {
-    const { strip } = renderColumn({
-      filters: { ...NO_FILTERS, sites: ["www.amazon.com"] },
+  it("turns a place straight from its mark in the strip, with no list to open", () => {
+    const { onFiltersChange, strip } = renderColumn({
+      filters: { ...NO_FILTERS, place: "unread" },
     });
-    expect(strip.queryByRole("button", { name: "amazon.com" })).toBeNull();
-    expect(strip.getByRole("button", { name: "Sites" }).dataset.chosen).toBe(
+    expect(strip.getByRole("button", { name: "Unread" }).dataset.chosen).toBe(
       "true",
     );
+    expect(strip.getByRole("button", { name: "Inbox" }).dataset.chosen).toBe(
+      undefined,
+    );
+    fireEvent.click(strip.getByRole("button", { name: "Inbox" }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });

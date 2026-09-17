@@ -1,6 +1,3 @@
-import { Favicon } from "@/client/components/favicon";
-import { RelativeTime } from "@/client/components/relative-time";
-import { SkillMentionText } from "@/client/components/skill-mention-text";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,41 +16,44 @@ import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { useMutation } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { type SyntheticEvent, useEffect, useRef, useState } from "react";
+import { type SyntheticEvent, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { useOrchestrator } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { THREADS_HREF } from "./screen-presentation";
-import { askOf, type Thread, type Topic } from "./threads";
+import { activityLabel, type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicPickList } from "./topic-menu";
 import { topicTint } from "./topic-tint";
 
-/** How many site marks a working row shows beside its step. */
-const SITES_SHOWN = 4;
+/** The two shapes a row takes, by the room the list has: one line across a wide list, three down a narrow one. */
+export type RowDensity = "slim" | "tall";
 
 /**
- * One thread in the chat, and the door into it: a plain click anywhere on it
+ * One thread in the inbox, and the door into it: a plain click anywhere on it
  * opens the thread in place, a middle or modified click in a tab of its own,
- * a right click raises its menu, and the keyboard opens it with Enter. The
- * time of day it began in a gutter at the left, and the lines hanging off one
- * edge past it. The topics it is filed under as pills and the title in muted
- * regular weight, once the agent has given it one; the line is left out
- * until then, since the ask under it is the title until then. The ask
- * exactly as it was typed, clamped with a fade. The replies line: a dot
- * while there are replies not yet seen, how many in brand, when the last one
- * landed, a peek at what is inside (the step it is working through, the
- * question it is waiting on, or the last reply's first words), and what it
- * holds as marks at its end. No avatar, no name: every row here is the
- * user's. The pills, the marks, and the tag control at the first line's end
- * while the pointer is on the row are the row's own controls, and a click on
- * one stops short of the door.
+ * a right click raises its menu, and the keyboard opens it with Enter. Its
+ * state as a dot in a gutter at the left: brand while it works or holds
+ * replies not yet seen, amber while it waits on the user, nothing while it is
+ * quiet. Then the topic it is filed under as a pill, the title in semibold
+ * while there is something unseen in it, the agent's latest line (the step it
+ * is on, the question it is waiting on, or its last reply's first words), the
+ * marks of what it holds, and when anything last happened at the far right.
+ * Slim, all of that is one line, the way a mailbox lists mail; tall, the
+ * title has the first line with the reply count right after it and the time
+ * at its end, the latest line gets two, and the files it made sit on a third
+ * as chips with their names, the apps and sites as marks beside them. No
+ * avatar, no name: every row
+ * here is the user's. The pill, the marks, and the tag control that stands
+ * in front of the pill while the pointer is on the row are the row's own
+ * controls, and a click on one stops short of the door.
  */
 export function ThreadRow({
   appsBySlug,
+  density,
+  now,
   onNewTopic,
   onOpen,
   onSetTopics,
@@ -61,6 +61,9 @@ export function ThreadRow({
   topics,
 }: {
   appsBySlug: AppsBySlug;
+  density: RowDensity;
+  /** The moment the time at the row's end is read against. */
+  now: Date;
   onNewTopic: () => void;
   /** A plain click: the thread in place of whatever the window shows. */
   onOpen: () => void;
@@ -68,11 +71,7 @@ export function ThreadRow({
   thread: Thread;
   topics: Topic[];
 }) {
-  const topicsById = new Map(topics.map((topic) => [topic.id, topic]));
-  const marks = thread.topics.flatMap((id) => {
-    const topic = topicsById.get(id);
-    return topic ? [topic] : [];
-  });
+  const topic = topics.find((entry) => entry.id === thread.topics[0]);
   const [isPicking, setPicking] = useState(false);
   // The gestures that ask for a place of the thread's own: a middle click, a
   // modified click, the menu on a right click. A plain click is the caller's.
@@ -80,7 +79,11 @@ export function ThreadRow({
     href: `${THREADS_HREF}/${thread.id}`,
     kind: "screen",
   });
-  const hasHeader = thread.titled || marks.length > 0;
+  const isUnseen = thread.unread > 0;
+  const hasHolds =
+    thread.holds.apps.length > 0 ||
+    thread.holds.files.length > 0 ||
+    thread.holds.sites.length > 0;
   const tagControl = (
     <TagControl
       isOpen={isPicking}
@@ -91,12 +94,45 @@ export function ThreadRow({
       topics={topics}
     />
   );
+  const pill = topic && (
+    <TopicPill
+      onPick={() => {
+        setPicking(true);
+      }}
+      topic={topic}
+    />
+  );
+  const title = (
+    <span
+      className={cn(
+        "min-w-0 truncate text-[13px]",
+        density === "slim" && "flex-1",
+        isUnseen ? "font-semibold" : "text-foreground/90",
+      )}
+    >
+      {thread.title}
+    </span>
+  );
+  const time = (
+    <span
+      className={cn(
+        "shrink-0 text-right text-[11px] tabular-nums",
+        isUnseen ? "text-foreground" : "text-muted-foreground",
+      )}
+    >
+      {activityLabel(new Date(thread.updatedAt), now)}
+    </span>
+  );
 
   return (
     // A click target, not text: no selection and no text cursor over it. The
     // controls inside stop their clicks short of it.
     <div
-      className="group/row relative flex cursor-default items-start gap-2 rounded-md px-2 py-2.5 select-none hover:bg-foreground/4 focus-visible:bg-foreground/4 focus-visible:outline-hidden has-[[data-state=open]]:bg-foreground/4"
+      className={cn(
+        "group/row relative flex cursor-default gap-2 px-2 select-none hover:bg-foreground/4 focus-visible:bg-foreground/4 focus-visible:outline-hidden has-[[data-state=open]]:bg-foreground/4",
+        density === "slim" ? "h-9 items-center" : "items-start py-2.5",
+      )}
+      data-density={density}
       onAuxClick={gestures.onAuxClick}
       onClick={(event) => {
         if (wantsNewTab(event)) {
@@ -114,127 +150,113 @@ export function ThreadRow({
       role="button"
       tabIndex={0}
     >
-      {/* The gutter: the time of day alone, since the day head above carries
-        the date, right-aligned so every row's time ends at the same edge and
-        on the first line's height so the two read as one. */}
-      <span className="w-14 shrink-0 text-right text-[11px] leading-5 text-muted-foreground tabular-nums">
-        {format(thread.createdAt, "h:mm a")}
+      {/* The gutter: the state alone, on the first line's height so the dot
+        sits beside the title whatever the row's shape. */}
+      <span className="flex h-5 w-4 shrink-0 items-center justify-center">
+        <StateDot thread={thread} />
       </span>
-      <div className="min-w-0 flex-1">
-        {hasHeader && (
-          <p className="flex h-5 items-center gap-1.5 px-1 text-[13px]">
+      {density === "slim" ? (
+        <>
+          {/* The title's column is fixed, so every row's latest line starts
+            at one edge and the column reads down as a list of names. */}
+          <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
             {tagControl}
-            {marks.map((topic) => (
-              <TopicPill
-                key={topic.id}
-                onPick={() => {
-                  setPicking(true);
-                }}
-                topic={topic}
-              />
-            ))}
-            {marks.length > 0 && thread.titled && (
-              <span className="shrink-0 text-muted-foreground/60">·</span>
-            )}
-            {/* The title has what the pills and the control leave: it is
-              what truncates first. */}
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-              {thread.titled ? thread.title : ""}
+            {pill}
+            {title}
+          </span>
+          <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
+          {hasHolds && (
+            <HoldMarks
+              appsBySlug={appsBySlug}
+              className="ml-auto"
+              holds={thread.holds}
+              namedFiles
+            />
+          )}
+          <span className="w-14 shrink-0 text-right">{time}</span>
+        </>
+      ) : (
+        <div className="min-w-0 flex-1">
+          <p className="flex h-5 items-center gap-1.5">
+            {tagControl}
+            {pill}
+            {/* The count right after the title, the way a mailbox counts a
+              conversation beside its sender, and only once there is a
+              conversation to count. */}
+            <span className="flex min-w-0 flex-1 items-center gap-1">
+              {title}
+              {thread.replyCount > 1 && (
+                <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                  {thread.replyCount}
+                </span>
+              )}
             </span>
+            {time}
           </p>
-        )}
-        {/* With no header, the ask is the first line and the control opens
-          it, where the pills would be. */}
-        <div className={cn("flex items-start gap-1.5", hasHeader && "mt-0.5")}>
-          {!hasHeader && tagControl}
-          <Ask text={askOf(thread)} />
+          <Peek className="mt-0.5" lines={2} thread={thread} />
+          {hasHolds && (
+            <HoldMarks
+              appsBySlug={appsBySlug}
+              className="mt-1 flex-wrap gap-1"
+              holds={thread.holds}
+              namedFiles
+            />
+          )}
         </div>
-        <RepliesLine appsBySlug={appsBySlug} thread={thread} />
-      </div>
-      <RowMenu thread={thread} />
-    </div>
-  );
-}
-
-/** The ask exactly as typed, the way the transcript draws a sent message, clamped to two lines with a fade when it runs past them. */
-function Ask({ text }: { text: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isClamped, setClamped] = useState(false);
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) {
-      return;
-    }
-    // `scrollHeight` is the full height under the clamp, so the answer holds
-    // however the pane is resized.
-    const check = () => {
-      setClamped(element.scrollHeight > element.clientHeight + 1);
-    };
-    check();
-    const observer = new ResizeObserver(check);
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
-  }, [text]);
-  return (
-    // A mask rather than a painted fade, so the words thin out over whatever
-    // the row is drawn on.
-    <div
-      className={cn(
-        "line-clamp-2 min-w-0 flex-1 px-1 text-sm break-words whitespace-pre-wrap",
-        isClamped && "mask-b-from-55%",
       )}
-      ref={ref}
-    >
-      <SkillMentionText text={text} />
+      <RowMenu density={density} thread={thread} />
     </div>
   );
 }
 
 /**
- * A peek at what is inside the thread, on the replies line after its count
- * and time and taking what is left of it: the step while it works, the
- * question while it waits, and the last reply's first words otherwise.
- * Nothing when an idle thread has said nothing yet.
+ * The agent's latest line: the step while it works, in brand; the question
+ * while it waits, behind an amber glyph with the words themselves in gray;
+ * and the last reply's first words otherwise, in muted. Nothing when an idle
+ * thread has said nothing yet. One line that truncates, or two that clamp.
  */
-function Peek({ thread }: { thread: Thread }) {
+function Peek({
+  className,
+  lines,
+  thread,
+}: {
+  className?: string;
+  lines: 1 | 2;
+  thread: Thread;
+}) {
   const isWaiting = thread.state === "waiting";
   const isWorking = thread.state === "working";
   if (!thread.latest && !isWaiting && !isWorking) {
     return null;
   }
+  const clamp = lines === 1 ? "truncate" : "line-clamp-2";
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-1.5">
+    <span
+      className={cn(
+        "flex items-start gap-1.5 text-[12px] leading-5",
+        className,
+      )}
+    >
       {isWorking ? (
-        <>
-          {/* `brand-shiny-text` is an inline-block, which a parent's truncate
-            cannot shrink, so the step carries its own. */}
-          <span className="brand-shiny-text min-w-0 truncate">
-            {thread.runningTasks.find((task) => task.step)?.step ??
-              thread.latest?.text ??
-              "Working"}
-          </span>
-          {thread.holds.sites.slice(0, SITES_SHOWN).map((site) => (
-            <Favicon
-              className="size-3.5 shrink-0"
-              key={site}
-              url={`https://${site}`}
-            />
-          ))}
-        </>
+        // `brand-shiny-text` is an inline-block, which a parent's truncate
+        // cannot shrink, so the step carries its own clamp.
+        <span className={cn("brand-shiny-text min-w-0", clamp)}>
+          {thread.runningTasks.find((task) => task.step)?.step ??
+            thread.latest?.text ??
+            "Working"}
+        </span>
       ) : isWaiting ? (
         <>
           <QuestionIcon
-            className="size-3.5 shrink-0 text-warning-700 dark:text-warning-300"
+            className="mt-[3px] size-3.5 shrink-0 text-warning-700 dark:text-warning-300"
             weight="bold"
           />
-          <span className="min-w-0 truncate text-foreground/80">
+          <span className={cn("min-w-0 text-foreground/80", clamp)}>
             {thread.latest?.text || "Waiting on you"}
           </span>
         </>
       ) : (
-        <span className="min-w-0 truncate text-muted-foreground">
+        <span className={cn("min-w-0 text-muted-foreground", clamp)}>
           {thread.latest?.text}
         </span>
       )}
@@ -243,94 +265,11 @@ function Peek({ thread }: { thread: Thread }) {
 }
 
 /**
- * The line under the ask that a chat gives a thread: a dot while there are
- * replies not yet seen, how many replies in brand so the count is what the
- * eye lands on, when the last one landed in a lighter gray beside it, the
- * peek at what is inside truncating to what the line has left, then the
- * marks of what the thread holds. Only what exists is said: no count before
- * the first reply, and no line at all for an idle thread with nothing to
- * say. Nothing on it moves when the row is hovered.
- */
-function RepliesLine({
-  appsBySlug,
-  thread,
-}: {
-  appsBySlug: AppsBySlug;
-  thread: Thread;
-}) {
-  const { lastReplyAt, replyCount, unread } = thread;
-  const hasPeek =
-    thread.latest !== undefined ||
-    thread.state === "waiting" ||
-    thread.state === "working";
-  const hasHolds =
-    thread.holds.apps.length > 0 ||
-    thread.holds.files.length > 0 ||
-    thread.holds.sites.length > 0;
-  if (replyCount === 0 && !hasPeek && !hasHolds) {
-    return null;
-  }
-  return (
-    <div className="mt-0.5 flex h-6 items-center gap-2 px-1 text-[12px]">
-      {/* Not while the thread works: the step's own light is the news then,
-        and a dot coming and going beside it read as flicker. */}
-      {unread > 0 && thread.state !== "working" && (
-        <span
-          aria-label="Unread"
-          className="-mr-1 size-1.5 shrink-0 rounded-full bg-brand-500"
-        />
-      )}
-      {/* Green only while there is something unseen, with the dot: a count
-        that has been read is still the line's landmark, in the text's own
-        color. */}
-      {replyCount > 0 && (
-        <span
-          className={cn(
-            "shrink-0 font-medium",
-            unread > 0 && thread.state !== "working"
-              ? "text-brand-600 dark:text-brand-400"
-              : "text-muted-foreground",
-          )}
-        >
-          {replyCount} {replyCount === 1 ? "reply" : "replies"}
-        </span>
-      )}
-      {replyCount > 0 && lastReplyAt !== undefined && (
-        <ReplyTime at={lastReplyAt} />
-      )}
-      <Peek thread={thread} />
-      {hasHolds && (
-        <HoldMarks
-          appsBySlug={appsBySlug}
-          className="ml-auto"
-          holds={thread.holds}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * How long ago the last reply landed, with the clock in its tooltip. Relative
- * whatever the day, since a clock beside the count read as a second start
- * time; it moves once a minute, which is below notice.
- */
-function ReplyTime({ at }: { at: number }) {
-  return (
-    <RelativeTime
-      className="shrink-0 text-muted-foreground/70"
-      compact
-      date={new Date(at)}
-    />
-  );
-}
-
-/**
- * The row's own menu, at its top right while the pointer is on the row: the
+ * The row's own menu, at its right edge while the pointer is on the row: the
  * one thing a thread offers that no line of it carries, which is putting it
  * back among the unread, or the reverse. A pick stops short of the door.
  */
-function RowMenu({ thread }: { thread: Thread }) {
+function RowMenu({ density, thread }: { density: RowDensity; thread: Thread }) {
   const { taskId } = useOrchestrator();
   const seen = useMutation(
     rpcClient.workspace.orchestrator.threads.seen.mutationOptions(),
@@ -345,7 +284,10 @@ function RowMenu({ thread }: { thread: Thread }) {
   }
   return (
     <span
-      className="absolute top-1.5 right-1.5 hidden group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex"
+      className={cn(
+        "absolute right-1.5 hidden group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex",
+        density === "slim" ? "top-1/2 -translate-y-1/2" : "top-1.5",
+      )}
       onAuxClick={stopHere}
       onClick={stopHere}
       onContextMenu={stopHere}
@@ -385,17 +327,42 @@ function RowMenu({ thread }: { thread: Thread }) {
   );
 }
 
+/**
+ * Where the thread stands, as a dot: amber while it waits on the user, brand
+ * while it works or holds replies not yet seen, and nothing at all while it
+ * is quiet, so the gutter is empty down a list with nothing new in it.
+ */
+function StateDot({ thread }: { thread: Thread }) {
+  if (thread.state === "waiting") {
+    return (
+      <span
+        aria-label="Needs you"
+        className="size-2 rounded-full bg-warning-500"
+      />
+    );
+  }
+  if (thread.state === "working" || thread.unread > 0) {
+    return (
+      <span
+        aria-label={thread.state === "working" ? "Working" : "Unread"}
+        className="size-2 rounded-full bg-brand-500"
+      />
+    );
+  }
+  return null;
+}
+
 /** Keeps a control's gesture from reaching the row under it, which would open the thread. */
 function stopHere(event: SyntheticEvent) {
   event.stopPropagation();
 }
 
 /**
- * The control that files the thread, at the first line's start where the
- * pills sit, and in the flow only while the pointer is on the row or its list
- * is open: it takes its room then and gives it back after, with no motion, so
- * the pills beside it read as the things it adds to. The list is the one a
- * pill opens too: the row keeps its open state so either way in lands here.
+ * The control that files the thread, in front of the pill and in the flow
+ * only while the pointer is on the row or its list is open: it takes its
+ * room then and gives it back after, with no motion, so the pill beside it
+ * reads as the thing it adds to. The list is the one the pill opens too: the
+ * row keeps its open state so either way in lands here.
  */
 function TagControl({
   isOpen,
@@ -461,9 +428,9 @@ function TagControl({
 }
 
 /**
- * A topic the thread is filed under, as a pill in its tint no taller than the
- * line it sits on: its emoji, or its mark's tile where it has none, then its
- * name. Clicking it opens the thread's topic list rather than the thread.
+ * The topic the thread is filed under, as a pill in its tint no taller than
+ * the line it sits on: its emoji, or its mark's tile where it has none, then
+ * its name. Clicking it opens the thread's topic list rather than the thread.
  */
 function TopicPill({ onPick, topic }: { onPick: () => void; topic: Topic }) {
   return (

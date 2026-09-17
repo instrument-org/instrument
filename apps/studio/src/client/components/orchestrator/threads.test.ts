@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activityLabel,
   appsUsed,
   askOf,
   basename,
+  byActivity,
   chooseOnly,
   dayLabel,
   type Filterable,
   foldSection,
-  groupByDay,
+  isInbox,
   matchesFilters,
   NO_FILTERS,
-  sitesByUse,
   type ThreadFilters,
 } from "./threads";
 
@@ -57,19 +58,7 @@ describe("matchesFilters", () => {
   });
 
   it.each<[string, Partial<ThreadFilters>, Filterable, Filterable]>([
-    ["unread", { status: ["unread"] }, thread({ unread: 2 }), thread()],
-    [
-      "needs you",
-      { status: ["needsYou"] },
-      thread({ state: "waiting" }),
-      thread({ state: "working" }),
-    ],
-    [
-      "either state",
-      { status: ["unread", "needsYou"] },
-      thread({ state: "waiting" }),
-      thread({ state: "idle" }),
-    ],
+    ["unread replies", { place: "unread" }, thread({ unread: 2 }), thread()],
     [
       "a topic",
       { topics: ["house"] },
@@ -79,14 +68,8 @@ describe("matchesFilters", () => {
     [
       "an app",
       { apps: ["gmail"] },
-      thread({ holds: { apps: ["gmail"], sites: [] } }),
-      thread({ holds: { apps: ["github"], sites: [] } }),
-    ],
-    [
-      "a site",
-      { sites: ["amazon.com"] },
-      thread({ holds: { apps: [], sites: ["amazon.com"] } }),
-      thread({ holds: { apps: [], sites: [] } }),
+      thread({ holds: { apps: ["gmail"] } }),
+      thread({ holds: { apps: ["github"] } }),
     ],
     [
       "the words",
@@ -98,6 +81,28 @@ describe("matchesFilters", () => {
     const filters = { ...NO_FILTERS, ...group };
     expect(matchesFilters(kept, filters)).toBe(true);
     expect(matchesFilters(dropped, filters)).toBe(false);
+  });
+
+  it("keeps a waiting thread among the unread only by its unread count", () => {
+    const filters: ThreadFilters = { ...NO_FILTERS, place: "unread" };
+    expect(matchesFilters(thread({ state: "waiting" }), filters)).toBe(false);
+    expect(
+      matchesFilters(thread({ state: "working", unread: 1 }), filters),
+    ).toBe(true);
+  });
+
+  it("holds no thread in the drafts, since a draft is not a thread yet", () => {
+    const filters: ThreadFilters = { ...NO_FILTERS, place: "drafts" };
+    expect(matchesFilters(thread(), filters)).toBe(false);
+    expect(matchesFilters(thread({ unread: 3 }), filters)).toBe(false);
+    expect(matchesFilters(wordyThread(), filters, TOPIC_NAMES)).toBe(false);
+  });
+
+  it("keeps every thread in the inbox, whatever it holds", () => {
+    const filters: ThreadFilters = { ...NO_FILTERS, place: undefined };
+    expect(matchesFilters(thread(), filters)).toBe(true);
+    expect(matchesFilters(thread({ unread: 3 }), filters)).toBe(true);
+    expect(matchesFilters(thread({ state: "waiting" }), filters)).toBe(true);
   });
 
   it.each([
@@ -148,41 +153,48 @@ describe("matchesFilters", () => {
     };
     expect(
       matchesFilters(
-        thread({ holds: { apps: ["gmail"], sites: [] }, topics: ["errands"] }),
+        thread({ holds: { apps: ["gmail"] }, topics: ["errands"] }),
         filters,
       ),
     ).toBe(true);
     expect(
       matchesFilters(
-        thread({ holds: { apps: ["gmail"], sites: [] }, topics: ["money"] }),
+        thread({ holds: { apps: ["gmail"] }, topics: ["money"] }),
         filters,
       ),
     ).toBe(false);
     expect(
       matchesFilters(
-        thread({ holds: { apps: [], sites: [] }, topics: ["house"] }),
+        thread({ holds: { apps: [] }, topics: ["house"] }),
         filters,
       ),
     ).toBe(false);
   });
+
+  it("narrows a place by the search too", () => {
+    const filters: ThreadFilters = {
+      ...NO_FILTERS,
+      place: "unread",
+      search: "protein",
+    };
+    expect(
+      matchesFilters(thread({ title: "Protein drink", unread: 1 }), filters),
+    ).toBe(true);
+    expect(
+      matchesFilters(thread({ title: "MLS standings", unread: 1 }), filters),
+    ).toBe(false);
+    expect(matchesFilters(thread({ title: "Protein drink" }), filters)).toBe(
+      false,
+    );
+  });
 });
 
-describe("what the menus offer", () => {
-  it("orders sites by how many threads went there, then by name", () => {
-    expect(
-      sitesByUse([
-        thread({ holds: { apps: [], sites: ["zevia.com", "amazon.com"] } }),
-        thread({ holds: { apps: [], sites: ["amazon.com"] } }),
-        thread({ holds: { apps: [], sites: ["costco.com"] } }),
-      ]),
-    ).toEqual(["amazon.com", "costco.com", "zevia.com"]);
-  });
-
+describe("what the column offers", () => {
   it("lists each app once", () => {
     expect(
       appsUsed([
-        thread({ holds: { apps: ["gmail", "github"], sites: [] } }),
-        thread({ holds: { apps: ["gmail"], sites: [] } }),
+        thread({ holds: { apps: ["gmail", "github"] } }),
+        thread({ holds: { apps: ["gmail"] } }),
       ]),
     ).toEqual(["gmail", "github"]);
   });
@@ -194,16 +206,16 @@ describe("choosing a row of the column", () => {
   it("turns the row on alone, whatever was on before", () => {
     expect(
       chooseOnly(
-        { ...searched, apps: ["gmail"], status: ["unread"] },
+        { ...searched, apps: ["gmail"], place: "unread" },
         { group: "topics", id: "house" },
       ),
     ).toEqual({ ...searched, topics: ["house"] });
     expect(
       chooseOnly(
-        { ...searched, topics: ["house"] },
-        { group: "status", id: "needsYou" },
+        { ...searched, apps: ["gmail"], topics: ["house"] },
+        { group: "place", id: "unread" },
       ),
-    ).toEqual({ ...searched, status: ["needsYou"] });
+    ).toEqual({ ...searched, place: "unread" });
   });
 
   it("moves between rows of one section", () => {
@@ -213,21 +225,64 @@ describe("choosing a row of the column", () => {
         { group: "topics", id: "money" },
       ),
     ).toEqual({ ...searched, topics: ["money"] });
+    expect(
+      chooseOnly(
+        { ...searched, place: "unread" },
+        { group: "place", id: "drafts" },
+      ),
+    ).toEqual({ ...searched, place: "drafts" });
+  });
+
+  it("moves between a topic and a place", () => {
+    expect(
+      chooseOnly(
+        { ...searched, topics: ["house"] },
+        { group: "place", id: "drafts" },
+      ),
+    ).toEqual({ ...searched, place: "drafts" });
+    expect(
+      chooseOnly(
+        { ...searched, place: "drafts" },
+        { group: "topics", id: "house" },
+      ),
+    ).toEqual({ ...searched, topics: ["house"] });
   });
 
   it("turns the chosen row off again, keeping the search", () => {
     expect(
       chooseOnly(
-        { ...searched, sites: ["amazon.com"] },
-        { group: "sites", id: "amazon.com" },
+        { ...searched, apps: ["gmail"] },
+        { group: "apps", id: "gmail" },
       ),
     ).toEqual(searched);
     expect(
       chooseOnly(
-        { ...searched, status: ["unread"] },
-        { group: "status", id: "unread" },
+        { ...searched, place: "unread" },
+        { group: "place", id: "unread" },
       ),
     ).toEqual(searched);
+    expect(
+      chooseOnly(
+        { ...searched, place: "unread" },
+        { group: "place", id: "unread" },
+      ).place,
+    ).toBeUndefined();
+  });
+});
+
+describe("the inbox", () => {
+  it("is where nothing is chosen, whatever the search says", () => {
+    expect(isInbox(NO_FILTERS)).toBe(true);
+    expect(isInbox({ ...NO_FILTERS, search: "fence" })).toBe(true);
+  });
+
+  it.each<[string, ThreadFilters]>([
+    ["a place", { ...NO_FILTERS, place: "unread" }],
+    ["the drafts", { ...NO_FILTERS, place: "drafts" }],
+    ["a topic", { ...NO_FILTERS, topics: ["house"] }],
+    ["an app", { ...NO_FILTERS, apps: ["gmail"] }],
+  ])("is left once %s is chosen", (_, filters) => {
+    expect(isInbox(filters)).toBe(false);
   });
 });
 
@@ -254,6 +309,55 @@ describe("a folded section", () => {
   });
 });
 
+describe("the inbox's order", () => {
+  it("puts the thread something last happened in at the top", () => {
+    const threads = [
+      { id: "b", updatedAt: new Date(2026, 8, 15, 8).getTime() },
+      { id: "d", updatedAt: new Date(2026, 8, 16, 11).getTime() },
+      { id: "a", updatedAt: new Date(2026, 8, 14, 8).getTime() },
+      { id: "c", updatedAt: new Date(2026, 8, 16, 9).getTime() },
+    ];
+    expect(byActivity(threads).map((row) => row.id)).toEqual([
+      "d",
+      "c",
+      "b",
+      "a",
+    ]);
+  });
+
+  it("leaves the list it was given as it was", () => {
+    const threads = [
+      { id: "a", updatedAt: 1 },
+      { id: "b", updatedAt: 2 },
+    ];
+    const sorted = byActivity(threads);
+    expect(sorted).not.toBe(threads);
+    expect(threads.map((row) => row.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("the time at a row's end", () => {
+  // A Wednesday afternoon.
+  const now = new Date(2026, 8, 16, 14, 30);
+
+  it.each([
+    ["9:00 AM", new Date(2026, 8, 16, 9)],
+    ["12:05 PM", new Date(2026, 8, 16, 12, 5)],
+    ["Tue", new Date(2026, 8, 15, 23)],
+    ["Mon", new Date(2026, 8, 14, 8)],
+    ["Sun", new Date(2026, 8, 13, 8)],
+    ["Sat", new Date(2026, 8, 12, 8)],
+    ["Fri", new Date(2026, 8, 11, 8)],
+    ["Thu", new Date(2026, 8, 10, 8)],
+    // A week back the weekday would name today, so it is a date.
+    ["Sep 9", new Date(2026, 8, 9, 8)],
+    ["Aug 14", new Date(2026, 7, 14, 8)],
+    ["Dec 30, 2025", new Date(2025, 11, 30, 8)],
+  ])("says %s", (label, date) => {
+    expect(activityLabel(date, now)).toBe(label);
+  });
+});
+
 describe("day heads", () => {
   const now = new Date(2026, 8, 16, 14, 30);
 
@@ -269,25 +373,6 @@ describe("day heads", () => {
     ["Dec 30, 2025", new Date(2025, 11, 30, 8)],
   ])("says %s", (label, date) => {
     expect(dayLabel(date, now)).toBe(label);
-  });
-
-  it("groups oldest first, newest at the foot", () => {
-    const groups = groupByDay(
-      [
-        { createdAt: new Date(2026, 8, 16, 9).getTime(), id: "c" },
-        { createdAt: new Date(2026, 8, 14, 8).getTime(), id: "a" },
-        { createdAt: new Date(2026, 8, 15, 8).getTime(), id: "b" },
-        { createdAt: new Date(2026, 8, 16, 11).getTime(), id: "d" },
-      ],
-      now,
-    );
-    expect(
-      groups.map(([label, rows]) => [label, rows.map((row) => row.id)]),
-    ).toEqual([
-      ["Monday", ["a"]],
-      ["Yesterday", ["b"]],
-      ["Today", ["c", "d"]],
-    ]);
   });
 });
 

@@ -72,7 +72,7 @@ describe("FilterColumn", () => {
       [...column.querySelectorAll("section")].map((section) =>
         section.getAttribute("aria-label"),
       ),
-    ).toEqual(["Status", "Topics", "Apps", "Sites"]);
+    ).toEqual(["Places", "Topics", "Apps"]);
   });
 
   it("shrinks in place to a strip of marks when the pane is narrow", async () => {
@@ -87,14 +87,7 @@ describe("FilterColumn", () => {
       [...strip.querySelectorAll("button")].map((mark) =>
         mark.getAttribute("aria-label"),
       ),
-    ).toEqual([
-      "Search threads",
-      "Unread",
-      "Needs you",
-      "House",
-      "Gmail",
-      "Sites",
-    ]);
+    ).toEqual(["Inbox", "Unread", "Drafts", "House", "Gmail"]);
     expect(
       strip.querySelector('[aria-label="House"]')?.getAttribute("data-chosen"),
     ).toBe("true");

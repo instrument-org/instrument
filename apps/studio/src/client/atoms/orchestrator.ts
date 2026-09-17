@@ -167,7 +167,8 @@ export const windowTabsAtom = atomWithStorage<WindowTabs>(
 export const closedTabsAtom = atom<WindowTab[]>([]);
 
 export const SIDEBAR_WIDTH_MIN = 320;
-export const SIDEBAR_WIDTH_MAX = 640;
+/** Wide enough for the inbox to lay its rows down to one line each beside the column. */
+export const SIDEBAR_WIDTH_MAX = 1200;
 export const SIDEBAR_WIDTH_DEFAULT = 400;
 
 /** The chat pane's width in CSS px, dragged by its right edge. It holds the conversation, so it never closes. */

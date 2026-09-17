@@ -10,12 +10,13 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { FilterColumn } from "./filter-column";
 import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
+import { SearchField } from "./search-field";
 import { ThreadList } from "./thread-list";
 import {
   matchesFilters,
@@ -24,17 +25,15 @@ import {
   type ThreadFilters,
   type Topic,
 } from "./threads";
-
-// How long a sent message keeps the list following its end on its own before
-// the thread it made has to justify it by working there.
-const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
+import { TopicBanner } from "./topic-banner";
 
 /**
- * The chat pane: the filter column down its left, and beside it the thread
- * list with the composer at its foot. Sending here makes a thread; there is
- * no session to send into, and nothing to stop, since the reply lands in the
- * thread rather than under the field. Nothing shows before send. With one
- * topic chosen in the column, the thread a send makes is filed under it.
+ * The chat pane: the sections down its left, and beside them the inbox with
+ * the composer at its foot. Sending here makes a thread; there is no session
+ * to send into, and nothing to stop, since the reply lands in the thread
+ * rather than under the field. Nothing shows before send. With one topic
+ * chosen in the column, the thread a send makes is filed under it, and the
+ * topic's banner stands above the rows.
  */
 export function ThreadPane({
   modelURI: initialModelURI,
@@ -97,7 +96,7 @@ export function ThreadPane({
   const [filters, setFilters] = useState<ThreadFilters>(NO_FILTERS);
   const [scrollSignal, setScrollSignal] = useState(0);
   // A change of filter is a change of subject, and the newest of the new
-  // subject is what matters, so the list is taken to its end with it.
+  // subject is what matters, so the list is taken back to its top with it.
   const changeFilters = (next: ThreadFilters) => {
     setFilters(next);
     setScrollSignal((signal) => signal + 1);
@@ -106,6 +105,12 @@ export function ThreadPane({
   const shown = threads.filter((thread) =>
     matchesFilters(thread, filters, topicNames),
   );
+  // One topic chosen is the place the pane is standing in: the banner names
+  // it, and the thread a send makes lands there.
+  const chosenTopic =
+    filters.topics.length === 1
+      ? topics.find((topic) => topic.id === filters.topics[0])
+      : undefined;
 
   const [isNewTopicOpen, setNewTopicOpen] = useState(false);
   // The topic whose details are open, by id, so a re-read of the list does
@@ -114,7 +119,6 @@ export function ThreadPane({
   const editingTopic = topics.find((topic) => topic.id === editingId);
 
   const promptInputRef = useRef<PromptInputRef>(null);
-  const [isFollowingSubmit, setFollowingSubmit] = useState(false);
   const [modelURI, setModelURI] = useState(initialModelURI);
   const [lastInitialModelURI, setLastInitialModelURI] =
     useState(initialModelURI);
@@ -129,24 +133,6 @@ export function ThreadPane({
       },
     }),
   );
-  // The newest thread working takes over following the end as soon as it
-  // does; a send that never became one hands the list back after a while.
-  const newest = threads.at(-1);
-  const isNewestWorking = newest?.state === "working";
-  if (isFollowingSubmit && isNewestWorking) {
-    setFollowingSubmit(false);
-  }
-  useEffect(() => {
-    if (!isFollowingSubmit) {
-      return;
-    }
-    const timeout = window.setTimeout(() => {
-      setFollowingSubmit(false);
-    }, SUBMIT_FOLLOW_TIMEOUT_MS);
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [isFollowingSubmit]);
 
   return (
     // The pane is the container the column sizes itself by: it is the pane's
@@ -167,14 +153,27 @@ export function ThreadPane({
         topics={topics}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Over the list rather than in the column, the way mail puts it:
+          the search is about the rows, and it narrows whatever the column has
+          chosen. */}
+        <div className="shrink-0 px-3 pt-2 pb-1">
+          <SearchField
+            onChange={(search) => {
+              changeFilters({ ...filters, search });
+            }}
+            value={filters.search}
+          />
+        </div>
+        {chosenTopic && (
+          <TopicBanner
+            appsBySlug={appsBySlug}
+            threads={shown}
+            topic={chosenTopic}
+          />
+        )}
         <ThreadList
           appsBySlug={appsBySlug}
-          emptyLine={
-            threads.length === 0
-              ? "Ask for something below. Each ask becomes a thread here."
-              : "Nothing matches."
-          }
-          isFollowing={isNewestWorking || isFollowingSubmit}
+          emptyLine={emptyLineFor(filters, threads.length)}
           onNewTopic={() => {
             setNewTopicOpen(true);
           }}
@@ -214,14 +213,9 @@ export function ThreadPane({
               // attachments back: nothing else holds them.
               const draft = promptInputRef.current?.snapshot();
               promptInputRef.current?.clear();
-              // Sending is a request to watch what happens next, so a reader
-              // who had scrolled back returns to the end and follows it.
-              setFollowingSubmit(true);
+              // The thread a send makes lands at the top of the list, so a
+              // reader who had scrolled down returns there to see it arrive.
               setScrollSignal((signal) => signal + 1);
-              // One topic chosen is the place the pane is standing in, so the
-              // thread lands there; several is a search, and files nothing.
-              const topicsChosen =
-                filters.topics.length === 1 ? filters.topics : undefined;
               void sendContext().then((viewing) => {
                 createMessage.mutate(
                   {
@@ -230,7 +224,7 @@ export function ThreadPane({
                     id: taskId,
                     modelURI: chosenModelURI,
                     prompt,
-                    ...(topicsChosen ? { topics: topicsChosen } : {}),
+                    ...(chosenTopic ? { topics: [chosenTopic.id] } : {}),
                     viewing,
                   },
                   {
@@ -288,4 +282,17 @@ export function ThreadPane({
       )}
     </div>
   );
+}
+
+/** What the list says when it has nothing to show, by where the column stands. */
+function emptyLineFor(filters: ThreadFilters, total: number): string {
+  if (filters.place === "drafts") {
+    return "No drafts yet.";
+  }
+  if (filters.place === "unread") {
+    return "Nothing unread.";
+  }
+  return total === 0
+    ? "Ask for something below. Each ask becomes a thread here."
+    : "Nothing matches.";
 }

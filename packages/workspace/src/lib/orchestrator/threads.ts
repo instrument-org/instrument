@@ -552,7 +552,13 @@ async function threadFor(
     titled: !isUntitledChatSessionTitle(session.title),
     topics: session.topics ?? [],
     unread,
-    updatedAt: (session.updatedAt ?? session.createdAt).getTime(),
+    // When anything last happened: the session's own stamp moves when a turn
+    // starts, so a reply landing later and the line it is peeked by count too.
+    updatedAt: Math.max(
+      (session.updatedAt ?? session.createdAt).getTime(),
+      lastReply?.getTime() ?? 0,
+      latest?.at ?? 0,
+    ),
   };
 }
 

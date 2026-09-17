@@ -9,7 +9,7 @@ import { byActivity, type Thread, type Topic } from "./threads";
 import { useNow } from "./use-now";
 
 /** The width the list has to have, in px, before its rows lie down to one line each. */
-export const SLIM_FROM = 600;
+const SLIM_FROM = 600;
 
 /**
  * The inbox: every thread by when something last happened in it, newest at

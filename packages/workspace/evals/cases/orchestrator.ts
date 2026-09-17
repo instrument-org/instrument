@@ -338,14 +338,14 @@ const linkedAFileThatExists: Assertion = {
       return fail(text, "the last reply names no file in a fence");
     }
     const mounts = await mountsOf(taskId);
-    const resolved = named.map((named) => ({
-      host: hostPathOf(named, mounts),
-      named,
+    const resolved = named.map((name) => ({
+      host: hostPathOf(name, mounts),
+      name,
     }));
     const evidence = resolved
       .map(
-        ({ host, named }) =>
-          `${named} -> ${host === undefined ? "(unresolved)" : fs.existsSync(host) ? "exists" : "missing"}`,
+        ({ host, name }) =>
+          `${name} -> ${host === undefined ? "(unresolved)" : fs.existsSync(host) ? "exists" : "missing"}`,
       )
       .join("; ");
     return resolved.every(

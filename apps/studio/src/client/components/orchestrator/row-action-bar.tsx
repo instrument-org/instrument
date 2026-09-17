@@ -21,7 +21,8 @@ export function RowActionBar({
   actions: RowAction[];
   density: RowDensity;
 }) {
-  if (actions.length === 0) {
+  const shown = actions.filter((action) => !action.menuOnly);
+  if (shown.length === 0) {
     return null;
   }
   return (
@@ -35,7 +36,7 @@ export function RowActionBar({
       onContextMenu={stopHere}
       onKeyDown={stopHere}
     >
-      {actions.map((action) => (
+      {shown.map((action) => (
         <Tooltip key={action.id}>
           <TooltipTrigger asChild>
             <button

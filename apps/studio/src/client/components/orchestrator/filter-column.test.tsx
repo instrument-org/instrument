@@ -114,7 +114,6 @@ describe("FilterColumn", () => {
         .map((row) => row.textContent),
     ).toEqual([
       "Unread1",
-      "Needs you",
       "Starred",
       "Drafts",
       "Archive",
@@ -161,7 +160,6 @@ describe("FilterColumn", () => {
         .map((row) => row.textContent),
     ).toEqual([
       "Unread1",
-      "Needs you",
       "Starred1",
       "Drafts",
       "Archive1",
@@ -221,8 +219,10 @@ describe("FilterColumn", () => {
     });
   });
 
-  it("stands in Needs you and in the archive from their rows", () => {
-    const { column, onFiltersChange } = renderColumn();
+  it("stands in Needs you, which is a row only while something waits on the user, and in the archive", () => {
+    const { column, onFiltersChange } = renderColumn({
+      threads: [thread({ state: "waiting" })],
+    });
     fireEvent.click(column.getByRole("button", { name: /Needs you/ }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
@@ -233,6 +233,11 @@ describe("FilterColumn", () => {
       ...NO_FILTERS,
       place: "archive",
     });
+  });
+
+  it("has no Needs you row while nothing waits on the user", () => {
+    const { column } = renderColumn();
+    expect(column.queryByRole("button", { name: /Needs you/ })).toBeNull();
   });
 
   it("steps out of a place by choosing it again", () => {

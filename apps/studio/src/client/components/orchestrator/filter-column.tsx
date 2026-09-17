@@ -162,6 +162,11 @@ export function FilterColumn({
       }
     }
   };
+  // Needs you is a place only while something needs the user: an empty
+  // amber row would be a warning about nothing.
+  const places = PLACES.filter(
+    (place) => place.id !== "needsYou" || placeCount("needsYou") > 0,
+  );
   const placeEntry = (place: Place): PickEntry => ({
     icon: place.icon,
     id: place.id,
@@ -203,6 +208,7 @@ export function FilterColumn({
           icon: (
             <AppIcon
               className="size-4"
+              name={appsBySlug.get(slug)?.name ?? slug}
               site={appsBySlug.get(slug)?.site}
               size="sm"
             />
@@ -257,7 +263,7 @@ export function FilterColumn({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           <section aria-label="Places" className="pt-2">
-            {PLACES.map((place) => (
+            {places.map((place) => (
               <FilterRow
                 entry={placeEntry(place)}
                 isOn={isPlaceOn(place)}
@@ -335,7 +341,7 @@ export function FilterColumn({
           <PencilSimpleIcon className="size-4" />
         </PlaceMark>
         <Rule />
-        {PLACES.map((place) => (
+        {places.map((place) => (
           <PlaceMark
             isOn={isPlaceOn(place)}
             key={place.id}

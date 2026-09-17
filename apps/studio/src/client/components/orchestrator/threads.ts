@@ -18,7 +18,12 @@ export interface ThreadFilters {
 }
 
 /** The places of the column apart from the inbox: threads with replies not yet seen, threads waiting on the user, threads the user starred, drafts not yet sent, and threads put away. */
-export type ThreadPlace = "archive" | "drafts" | "needsYou" | "starred" | "unread";
+export type ThreadPlace =
+  | "archive"
+  | "drafts"
+  | "needsYou"
+  | "starred"
+  | "unread";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic =

@@ -200,9 +200,6 @@ export function ThreadRow({
                 starts at one edge and the column reads down as a list of
                 names. */}
               <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
-                {/* The star sits in view on a wide row, where there is room
-                  for a mark of the user's own beside the title. */}
-                <StarControl thread={thread} />
                 {tagControl}
                 {pill}
                 {title}
@@ -222,6 +219,10 @@ export function ThreadRow({
                 times line up down the list. */}
               <span className="flex w-9 shrink-0 justify-end">{count}</span>
               <span className="w-14 shrink-0 text-right">{time}</span>
+              {/* Past the time at the row's end, in view, where mail keeps
+                its star: a mark of the user's own, apart from the row's
+                actions. */}
+              <StarControl thread={thread} />
             </>
           ) : (
             <div className="min-w-0 flex-1">
@@ -231,13 +232,6 @@ export function ThreadRow({
                 {title}
                 {/* A narrow row has no room for the control; the star shows
                   once given, and the row's actions are where it is given. */}
-                {thread.starred && (
-                  <StarIcon
-                    aria-label="Starred"
-                    className="size-3.5 shrink-0 text-warning-500"
-                    weight="fill"
-                  />
-                )}
                 {/* The count under the time, out of the title's way and the
                   time's: one column at the row's right, the second line of
                   it hanging beside the latest line. */}
@@ -246,6 +240,11 @@ export function ThreadRow({
                   {count}
                 </span>
               </p>
+              {/* The star at the row's lower right, in view and apart from
+                the row's actions, where mail keeps it. */}
+              <span className="absolute right-2 bottom-2">
+                <StarControl thread={thread} />
+              </span>
               <Peek
                 className={cn("mt-0.5", count && "pr-10")}
                 lines={2}
@@ -711,7 +710,7 @@ function useThreadActions(thread: Thread): RowAction[] {
           star.mutate({ ...input, starred: true });
         },
       };
-  return [put, ...mark, starred];
+  return [put, ...mark, { ...starred, menuOnly: true }];
 }
 
 /**

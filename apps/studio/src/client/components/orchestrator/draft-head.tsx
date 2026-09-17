@@ -5,7 +5,12 @@ import {
   draftFilesAtom,
 } from "@/client/atoms/orchestrator";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
-import { type ComposerAction } from "@/client/components/composer-add-menu";
+import {
+  type ComposerAction,
+  ComposerAddMenu,
+  type ComposerMenuView,
+} from "@/client/components/composer-add-menu";
+import { FileDropRegion } from "@/client/components/file-drop-region";
 import {
   PromptEditor,
   type PromptEditorRef,
@@ -22,11 +27,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { type DroppedFolder } from "@/client/hooks/use-file-drop-region";
+import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { skillMentionToken } from "@instrument-org/shared/skill-mention";
+import { safe } from "@orpc/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -34,11 +44,12 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
-import { type DragEvent, type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ulid } from "ulid";
 
 import { useOrchestrator } from "./context";
-import { fileHref } from "./file-tabs";
+import { fileHref, folderHref } from "./file-tabs";
 import { TopicPill } from "./thread-row";
 import { type Topic } from "./threads";
 import { TopicPickList } from "./topic-menu";
@@ -130,6 +141,7 @@ export function DraftHead({
     : [];
   const [filesByDraft, setFilesByDraft] = useAtom(draftFilesAtom);
   const [bounds, setBounds] = useState<HTMLElement | null>(null);
+  const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
   const editorRef = useRef<PromptEditorRef>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   if (!draft) {
@@ -140,11 +152,11 @@ export function DraftHead({
   const canStart =
     !isStarting && (draft.words.trim().length > 0 || files.length > 0);
 
+  /** Files handed over: those with a place on disk open as tabs; the rest are read in and ride with the words. */
   const addFiles = (dropped: File[] | FileList) => {
     for (const file of dropped) {
       const path = window.api.getFilePath(file).trim();
       if (path) {
-        // Where it sits is where its tab opens; the thread gets the tab.
         openScreen(fileHref(path), { newTab: true });
         continue;
       }
@@ -156,8 +168,50 @@ export function DraftHead({
       });
     }
   };
+  /** Folders handed over: each opens as a tab standing in it. */
+  const addFolders = (folders: DroppedFolder[]) => {
+    for (const folder of folders) {
+      openScreen(folderHref(folder.path), { newTab: true });
+    }
+  };
   const pickFiles = () => {
     fileInputRef.current?.click();
+  };
+  const pickFolder = async () => {
+    const [error, result] = await safe(
+      rpcClient.utils.showFolderPicker.call({}),
+    );
+    if (error) {
+      toast.error("Failed to open folder picker");
+      return;
+    }
+    if (result) {
+      addFolders([{ path: result.path, type: "folder" }]);
+    }
+  };
+  /** A paste of files (a screenshot, say) is read in the way a drop with no path is; text is the editor's. */
+  const handlePaste = (event: ClipboardEvent) => {
+    const data = event.clipboardData;
+    if (!data) {
+      return false;
+    }
+    const hasText = data.getData("text/plain").trim().length > 0;
+    const pasted: File[] = [];
+    for (const item of data.items) {
+      if (!shouldAttachClipboardItem({ hasText, item })) {
+        continue;
+      }
+      const file = item.getAsFile();
+      if (file) {
+        pasted.push(file);
+      }
+    }
+    if (pasted.length === 0) {
+      return false;
+    }
+    event.preventDefault();
+    addFiles(pasted);
+    return true;
   };
   const actions: ComposerAction[] = [
     {
@@ -166,19 +220,26 @@ export function DraftHead({
       label: "Add files",
       onSelect: pickFiles,
     },
+    {
+      icon: FolderIcon,
+      id: "work-in-folder",
+      label: "Work in a local folder",
+      onSelect: () => {
+        void pickFolder();
+      },
+    },
   ];
 
   return (
+    <FileDropRegion
+      className="flex shrink-0 flex-col"
+      note="Drop to add to the draft"
+      onFilesDropped={addFiles}
+      onFoldersDropped={addFolders}
+    >
     <section
       aria-label="New thread"
       className="flex shrink-0 flex-col border-b border-border bg-background"
-      onDragOver={(event: DragEvent) => {
-        event.preventDefault();
-      }}
-      onDrop={(event: DragEvent) => {
-        event.preventDefault();
-        addFiles(event.dataTransfer.files);
-      }}
       ref={setBounds}
     >
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-muted/40 pr-1 pl-3">
@@ -246,7 +307,7 @@ export function DraftHead({
             onChange={(words) => {
               onChange((current) => ({ ...current, words }));
             }}
-            onPaste={() => false}
+            onPaste={handlePaste}
             onSubmit={() => {
               if (canStart) {
                 onStart();
@@ -257,27 +318,44 @@ export function DraftHead({
             skills={userInvocableSkills}
           />
         </div>
-        {files.length > 0 && (
-          <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2">
-            {files.map((file) => (
-              <AttachedFilePreview
-                filename={file.name}
-                key={file.id}
-                mimeType={file.mimeType}
-                onRemove={() => {
-                  setFilesByDraft((current) => ({
-                    ...current,
-                    [draft.id]: (current[draft.id] ?? []).filter(
-                      (entry) => entry.id !== file.id,
-                    ),
-                  }));
-                }}
-                size={file.size}
-                url={file.url}
-              />
-            ))}
-          </div>
-        )}
+        {/* The foot of the head, where a composer keeps its attachments: the
+          plus, with what can be gathered (files, a folder, and the skills
+          the words can call), and beside it the files read in for the
+          draft. Always here, so adding more is one place to find. */}
+        <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2">
+          <ComposerAddMenu
+            actions={actions}
+            bounds={bounds}
+            disabled={isStarting}
+            onReturnFocus={() => {
+              editorRef.current?.focus();
+            }}
+            onSelectSkill={(skill) => {
+              editorRef.current?.insertText(skillMentionToken(skill.id));
+            }}
+            onViewChange={setMenuView}
+            skills={userInvocableSkills}
+            triggerClassName="size-7 rounded-full [&_svg]:size-4"
+            view={menuView}
+          />
+          {files.map((file) => (
+            <AttachedFilePreview
+              filename={file.name}
+              key={file.id}
+              mimeType={file.mimeType}
+              onRemove={() => {
+                setFilesByDraft((current) => ({
+                  ...current,
+                  [draft.id]: (current[draft.id] ?? []).filter(
+                    (entry) => entry.id !== file.id,
+                  ),
+                }));
+              }}
+              size={file.size}
+              url={file.url}
+            />
+          ))}
+        </div>
       </div>
       <input
         className="hidden"
@@ -292,6 +370,7 @@ export function DraftHead({
         type="file"
       />
     </section>
+    </FileDropRegion>
   );
 }
 

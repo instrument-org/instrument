@@ -1,6 +1,7 @@
 import {
   closedTabsAtom,
   draftGroupOf,
+  draftOfGroup,
   NEW_TAB_HREF,
   THREADS_HREF,
   type WindowTab,
@@ -96,9 +97,22 @@ export function useWindowTabs() {
    * again is asking for the conversation. The anchor is made the first time,
    * at the head of the group, from the address given for it.
    */
-  const showGroup = (key: string, anchorHref: string) => {
+  const showGroup = (
+    key: string,
+    anchorHref: string,
+    { anchorOnlyWhenEmpty = false } = {},
+  ) => {
     setTabs((current) => {
-      const { anchor, tabs: next } = withAnchor(current.tabs, key, anchorHref);
+      const own = current.tabs.filter((tab) => tab.group === key);
+      // A draft whose home page was closed keeps what it has rather than
+      // getting the home back.
+      const { anchor, tabs: next } =
+        anchorOnlyWhenEmpty && own.length > 0
+          ? { anchor: own.find(isAnchor) ?? own[0], tabs: current.tabs }
+          : withAnchor(current.tabs, key, anchorHref);
+      if (!anchor) {
+        return current;
+      }
       const remembered = current.activeByGroup?.[key];
       const resumeAt =
         current.group !== key &&
@@ -127,9 +141,11 @@ export function useWindowTabs() {
     showGroup(sessionId, `${THREADS_HREF}/${sessionId}`);
   };
 
-  /** Shows a draft's group, with the new-tab page as its home. */
+  /** Shows a draft's group, with the new-tab page as its home the first time. */
   const showDraft = (draftId: string) => {
-    showGroup(draftGroupOf(draftId), NEW_TAB_HREF);
+    showGroup(draftGroupOf(draftId), NEW_TAB_HREF, {
+      anchorOnlyWhenEmpty: true,
+    });
   };
 
   /**
@@ -329,11 +345,23 @@ export function useWindowTabs() {
     return href;
   };
 
-  /** Closes a tab, never an anchor: a group always has its anchor. */
+  /**
+   * Closes a tab. A thread's anchor is never closed: a thread's group always
+   * has the thread. A draft's home page is closable like any tab, so long as
+   * the draft has another tab to show; the last tab of a draft stays.
+   */
   const close = (id: string) => {
     const closing = allTabs.find((tab) => tab.id === id);
-    if (!closing || isAnchor(closing)) {
+    if (!closing) {
       return;
+    }
+    if (isAnchor(closing)) {
+      const others = allTabs.filter(
+        (tab) => tab.group === closing.group && tab.id !== id,
+      );
+      if (draftOfGroup(closing.group) === undefined || others.length === 0) {
+        return;
+      }
     }
     if (closing.kind === "screen" || closing.url) {
       setClosed((current) => [...current, closing]);

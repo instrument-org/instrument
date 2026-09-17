@@ -59,29 +59,39 @@ export function ToolChoose({
 
       <ToolCardSection collapsedHeight={256}>
         <p className="mb-3 text-sm">{part.input.question}</p>
-        <div className="space-y-1">
+        <div className="space-y-1.5" role={isPending ? "radiogroup" : undefined}>
           {part.input.choices?.map((choice, index) => {
             const isSelected = choice === selected;
+            // A radio, so a choice reads as one thing to pick among several
+            // before it is picked: a ring while open, the ring filled once
+            // chosen, and a check in the ring where the answer stands.
             const row = (
               <>
-                <CheckIcon
+                <span
+                  aria-hidden
                   className={cn(
-                    "size-3 shrink-0",
-                    isSelected ? "opacity-100" : "opacity-0",
+                    "grid size-4 shrink-0 place-items-center rounded-full border",
+                    isSelected
+                      ? "border-brand-600 bg-brand-600 text-brand-foreground"
+                      : "border-border bg-background",
                   )}
-                />
-                {choice}
+                >
+                  {isSelected && <CheckIcon className="size-2.5" weight="bold" />}
+                </span>
+                <span className="min-w-0 flex-1">{choice}</span>
               </>
             );
             const className = cn(
-              "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left font-mono text-sm",
+              "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm",
               isSelected
-                ? "bg-foreground/8 text-foreground"
-                : "text-muted-foreground",
-              isPending && "hover:bg-foreground/5 hover:text-foreground",
+                ? "border-brand-600/40 bg-brand-500/8 text-foreground"
+                : isPending
+                  ? "border-border text-foreground hover:border-foreground/30 hover:bg-foreground/5"
+                  : "border-transparent text-muted-foreground",
             );
             return isPending ? (
               <button
+                aria-checked={isSelected}
                 className={className}
                 disabled={answer.isPending}
                 key={index}
@@ -93,6 +103,7 @@ export function ToolChoose({
                     toolName: "choose",
                   });
                 }}
+                role="radio"
                 type="button"
               >
                 {row}

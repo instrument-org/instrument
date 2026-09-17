@@ -170,26 +170,6 @@ function HomeRoute() {
           )}
         </Section>
 
-        {/* What Instrument keeps across every thread: the record of what was
-            asked, done, and looked at, as one list. Topics join it here once
-            they have a page of their own. */}
-        <Section title="Instrument">
-          <Tiles>
-            <Tile
-              icon={
-                <span className={MARK_CARD}>
-                  <ClockCounterClockwiseIcon className="size-6" />
-                </span>
-              }
-              name="Activity"
-              onOpen={() => {
-                void navigate({ to: ACTIVITY_HREF });
-              }}
-              target={{ href: ACTIVITY_HREF, kind: "screen" }}
-            />
-          </Tiles>
-        </Section>
-
         {/* The services the workspace reaches, each a tile; the rest, and
             connecting a new one, are behind the head's button. */}
         <Section
@@ -338,6 +318,26 @@ function HomeRoute() {
               {...quickLook.props}
             />
           )}
+        </Section>
+
+        {/* What Instrument keeps across every thread: the record of what was
+            asked, done, and looked at, as one list. Last, since it is the
+            least of what the page offers. */}
+        <Section title="Instrument">
+          <Tiles>
+            <Tile
+              icon={
+                <span className={MARK_CARD}>
+                  <ClockCounterClockwiseIcon className="size-6" />
+                </span>
+              }
+              name="Activity"
+              onOpen={() => {
+                void navigate({ to: ACTIVITY_HREF });
+              }}
+              target={{ href: ACTIVITY_HREF, kind: "screen" }}
+            />
+          </Tiles>
         </Section>
       </div>
 

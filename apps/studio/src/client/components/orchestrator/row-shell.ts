@@ -6,6 +6,8 @@ export interface RowAction {
   icon: ReactNode;
   id: string;
   label: string;
+  /** Offered in the row's menu alone, not on the tile the pointer raises: for an action the row already carries a control for. */
+  menuOnly?: boolean;
   run: () => void;
 }
 

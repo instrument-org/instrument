@@ -95,7 +95,6 @@ describe("FilterColumn", () => {
       "New",
       "Inbox",
       "Unread",
-      "Needs you",
       "Starred",
       "Drafts",
       "Archive",

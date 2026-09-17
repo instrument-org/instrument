@@ -197,8 +197,12 @@ export function WindowTabStrip({
           // The thread's own screen holds the head of its group and is never
           // closed from the strip: one short word and its mark, the same
           // width whatever the thread is called, so flipping between
-          // threads moves nothing in the row.
-          isFixed: isAnchor(tab),
+          // threads moves nothing in the row. A draft's home page is a tab
+          // like any other.
+          isFixed:
+            tab.kind === "screen" &&
+            isAnchor(tab) &&
+            threadOfHref(tab.href) !== undefined,
           key: tab.stripKey ?? tab.id,
           ...(tab.kind === "screen" &&
           isAnchor(tab) &&

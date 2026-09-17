@@ -1,7 +1,6 @@
 # The inbox: the 2.0 chat pane shaped like mail, with each thread's tabs
 
-Status: built, first version. The inbox rows in two densities, the sections column, the topic banner, the draft window with its attachments as tabs, the tab groups scoped to threads, the right-area close, and the tasks badge are in. Still to come from the sections below: the groups kept in the workspace rather than on one computer, sites and folders gathered into a draft, the Drafts and Archive places holding something, and the word on the draft's action.
-
+Status: built, second version. The draft is a tab group of its own docked in the right area, the agent's opens land with the thread that asked, the threads stay mounted, archiving and starring work with undo, and the inbox rows carry their actions. Still to come from the sections below: the groups and drafts kept in the workspace rather than on one computer, and the word on the draft's action.
 ## The rule
 
 Mail is the metaphor and the furniture is ours. A thread is a conversation the user started; the inbox lists them by when anything last happened, newest at the top, so a reply landing lifts its thread. What the agent opened or made while working in a thread stays with that thread: its tabs, its files, its sites. Nothing lives at the window level except the way in (New), the way out of the right area, and the count of tasks at work. The words on screen are ours: Inbox, Unread, Drafts, Archive, Topics, Apps; never Compose, Label, Attachment, Mail.
@@ -16,13 +15,21 @@ With one topic chosen, a banner stands above the rows: the topic's mark and name
 
 ## The draft
 
-New opens a draft at the bottom right of the window rather than a field under the list. Its head is a slim row with minimize, expand, and close; its body has the topic slot at the top left and the round brand arrow at the top right, the words as the head of it, and under the words everything gathered so far as a row of tabs, the one that is up shown in full beneath them, the way the thread's tabs will show it. A file dropped anywhere on the draft lands as a tab and comes up; the window grows tall for it. Minimize leaves a bar along the bottom edge; expand opens the same body in a modal over the whole window, as large as the window allows, since a draft is apart from what is open. The draft is one in-memory record wherever it is drawn, and it survives the right area being put away. The arrow starts the thread with the words, the files, and the topic; the thread's group comes up seeded with a tab per gathered file, and then the thread itself is shown. The arrow has no word on it: the right one for starting a thread is still to be found, and Send is not it.
+New at the top of the sections column starts a draft, which is a tab group of its own: while it is up the right area shows it, with the draft's words as the head over its tab row (the topic slot at the top left, the round brand arrow at the top right, the words under them, and the files read in from bytes as tiles beside them) and, under the row, whatever the tab up shows. Its home is the new-tab page, first in the row and never closed, so a site, a folder, a file, an app, or an idea opened from there is a real tab of the draft's. A file dropped on the head that has a place on disk opens as a tab too. Expanding puts the inbox away so the draft has the window; minimizing leaves a bar along the bottom edge and hands the screen back to the group the draft took it from; closing keeps a draft with words or tabs in Drafts and throws an empty one away. The arrow starts the thread with the words, the files, and the topic, and what the draft's tabs show as the context; then the group is re-keyed to the thread with the thread's own screen put first, so the tabs, guests and all, are the thread's exactly as they were. The arrow has no word on it: the right one for starting a thread is still to be found, and Send is not it.
+
+Drafts are rows in the Drafts place, newest first, opened by a click and thrown away from the row. They live in an atom kept on this computer, as the tabs do.
 
 ## Each thread's tabs
 
-The tabs belong to threads. Each thread has a group with the thread's own screen as its anchor, first in the row and never closed. Whatever opens while the thread is on screen joins the group as a new tab, never in place of what the right area had up: a page or file the agent hands over, a link or card the user clicks, a task's browser filed from that thread. Choosing another thread swaps the whole row; coming back lands on the tab the thread last had up, and asking for the thread while it is already up lands on the thread itself. What opens outside any thread stays in the window's own group. Sending a thread's screen elsewhere opens a tab beside it rather than moving it. The tab row sits at the top of the right area over the location row; the window bar's middle is empty, reserved for tabs of the window's own should they come back. A hold on an inbox row opens its thread and then the hold as a tab of the thread's.
+The tabs belong to threads. Each thread has a group with the thread's own screen as its anchor, first in the row as a fixed "Thread" tab and never closed. Whatever opens while the thread is on screen joins the group as a new tab, never in place of what the right area had up: a page or file the agent hands over, a link or card the user clicks, a task's browser filed from that thread. The agent's opens carry the thread that asked, so a page or path opened for a thread that is not up lands in that thread's group behind, made with its anchor if the thread has not been shown yet. Choosing another thread swaps the whole row silently; coming back lands on the tab the thread last had up, and asking for the thread while it is already up lands on the thread itself. A file or page asked for as a tab of its own comes forward if the group already has it. Sending a thread's screen elsewhere opens a tab beside it rather than moving it. The tab row sits at the top of the right area; a thread's own tab wears a head (topic, title, count, time) in place of the address row. A hold on an inbox row opens its thread and then the hold as a tab of the thread's.
 
-The groups are one flat list of tabs, each carrying the thread it belongs to, kept on this computer across launches. Keeping them in the workspace, the way a task's open tabs were kept before, is the next step.
+There is no group of the window's own: nothing on screen means the right area is closed and the inbox takes the width, so the tabs can never stand without a thread or a draft. The threads lately shown stay mounted behind the one on screen, so switching back is the transcript as it was.
+
+The groups are one flat list of tabs, each carrying its group, kept on this computer across launches. Keeping them in the workspace, the way a task's open tabs were kept before, is the next step.
+
+## Rows and places
+
+A row carries its actions over the time while the pointer is on it (Archive or Unarchive, Mark as read or unread, Star or Unstar) and a menu on a right click with the ways in, the actions, and the topics. Archiving and unarchiving each show a toast with an undo. Starring is a control in view on a wide row and a mark once given on a narrow one. The places are Inbox, Unread, Needs you (a thread waiting on the user, including a task of its stalled on a question), Starred, Drafts, and Archive; a thread put away is in the archive alone, a starred one in Starred wherever it is.
 
 ## The bar
 
@@ -31,16 +38,14 @@ The window bar keeps three things at its right end. The tasks badge says how man
 ## Accepted for this version
 
 - Inbox carries the total count and Unread the unread count, rather than an unread count on both.
-- The reply count after a tall row's title shows only from two replies up.
-- Drafts and Archive are rows so the concepts are in view; neither holds anything yet.
-- The draft gathers files only; a file read in from bytes rather than pointed at on disk goes with the message but cannot become a tab, since a tab needs a place to open.
-- The modal keeps the draft's body rather than a larger one.
+- The reply count is the chat mark and a number, under the time on a narrow row and before it on a wide one, from two replies up.
+- The draft gathers files by path as tabs; a file read in from bytes rides with the words as a tile.
+- The bar is where a minimized draft waits; expanding hides the inbox rather than opening a modal, since the right area is the draft.
+- The tasks badge counts running and waiting tasks together.
 - No microphone on the draft, since the app has no dictation.
 
 ## Open
 
-- The tab groups kept in the workspace rather than in browser storage on one computer.
-- Sites and folders gathered into a draft, with a page shown inside it.
-- What the Drafts and Archive places hold, and how a thread is put away.
+- The tab groups and the drafts kept in the workspace rather than in browser storage on one computer.
 - The word on the draft's action.
 - The new-tab page's Activity door, and whether Activity stays at all.

@@ -94,45 +94,6 @@ export function useWindowTabs() {
     setTabs((current) => selectTab(current, id));
   };
 
-  /** Opens a screen at an address in the group on screen, and shows it. */
-  const openScreen = (href: string, { isOpened = false } = {}) => {
-    const thread = threadOfHref(href);
-    if (thread) {
-      showThread(thread);
-      return;
-    }
-    const id = `screen-${crypto.randomUUID()}`;
-    setTabs((current) => ({
-      ...current,
-      activeId: id,
-      tabs: [
-        ...current.tabs,
-        {
-          at: 0,
-          group: current.group,
-          href,
-          id,
-          isOpened,
-          kind: "screen",
-          trail: [href],
-        },
-      ],
-    }));
-    return id;
-  };
-
-  /** Shows the screen tab of this group already at that address, or opens one there. */
-  const openOrFocusScreen = (href: string, { isOpened = false } = {}) => {
-    const existing = tabs.find(
-      (tab) => tab.kind === "screen" && sameHref(tab.href, href),
-    );
-    if (existing) {
-      select(existing.id);
-      return existing.id;
-    }
-    return openScreen(href, { isOpened });
-  };
-
   /**
    * Shows a thread: its group comes on screen, at the tab it last had up, or
    * at its anchor when it is the group already on screen, since asking for
@@ -175,6 +136,45 @@ export function useWindowTabs() {
         tabs: next,
       };
     });
+  };
+
+  /** Opens a screen at an address in the group on screen, and shows it. */
+  const openScreen = (href: string, { isOpened = false } = {}) => {
+    const thread = threadOfHref(href);
+    if (thread) {
+      showThread(thread);
+      return;
+    }
+    const id = `screen-${crypto.randomUUID()}`;
+    setTabs((current) => ({
+      ...current,
+      activeId: id,
+      tabs: [
+        ...current.tabs,
+        {
+          at: 0,
+          group: current.group,
+          href,
+          id,
+          isOpened,
+          kind: "screen",
+          trail: [href],
+        },
+      ],
+    }));
+    return id;
+  };
+
+  /** Shows the screen tab of this group already at that address, or opens one there. */
+  const openOrFocusScreen = (href: string, { isOpened = false } = {}) => {
+    const existing = tabs.find(
+      (tab) => tab.kind === "screen" && sameHref(tab.href, href),
+    );
+    if (existing) {
+      select(existing.id);
+      return existing.id;
+    }
+    return openScreen(href, { isOpened });
   };
 
   /** Shows the window's own group, at the tab it last had up, or at a new tab when it has none. */
@@ -223,7 +223,7 @@ export function useWindowTabs() {
     }
     setTabs((current) => {
       const tab = current.tabs.find((entry) => entry.id === current.activeId);
-      if (!tab || tab.kind !== "screen" || sameHref(tab.href, href)) {
+      if (tab?.kind !== "screen" || sameHref(tab.href, href)) {
         return current;
       }
       if (isAnchor(tab)) {

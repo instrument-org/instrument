@@ -10,6 +10,9 @@ import { describe, expect, it } from "vitest";
 
 import { useWindowTabs } from "./window-tabs";
 
+const THREAD_A = StoreId.newSessionId();
+const THREAD_B = StoreId.newSessionId();
+
 function Navigation() {
   const tabs = useWindowTabs();
   return (
@@ -43,8 +46,20 @@ function Navigation() {
       <button onClick={() => tabs.openScreen("/orchestrator/apps")}>
         Open apps
       </button>
-      <button onClick={() => tabs.closeActive()}>Close active</button>
-      <button onClick={() => tabs.showWindow()}>Window</button>
+      <button
+        onClick={() => {
+          tabs.closeActive();
+        }}
+      >
+        Close active
+      </button>
+      <button
+        onClick={() => {
+          tabs.showWindow();
+        }}
+      >
+        Window
+      </button>
       <span data-testid="strip">
         {tabs.tabs
           .map((tab) => (tab.kind === "screen" ? tab.href : tab.url))
@@ -53,9 +68,6 @@ function Navigation() {
     </>
   );
 }
-
-const THREAD_A = StoreId.newSessionId();
-const THREAD_B = StoreId.newSessionId();
 
 function setup(tab: WindowTab) {
   const { store } = renderWithProviders(<Navigation />);

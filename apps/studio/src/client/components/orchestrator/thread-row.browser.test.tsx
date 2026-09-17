@@ -202,6 +202,7 @@ function paneWindow(openScreen = vi.fn()): OrchestratorWindow {
     browser: null,
     focusComposer: vi.fn(),
     openPage: vi.fn(),
+    openPath: vi.fn(),
     openScreen,
     opensNewTab: true,
     taskId: TaskIdSchema.parse("orchestrator"),
@@ -327,7 +328,10 @@ describe("ThreadRow", () => {
     // Nothing past the time but the star, which is the row's own mark.
     const time = timeOf(row).getBoundingClientRect();
     for (const child of row.children) {
-      if (child.querySelector('[aria-label="Star"]') || child.matches('[aria-label="Star"]')) {
+      if (
+        child.querySelector('[aria-label="Star"]') ||
+        child.matches('[aria-label="Star"]')
+      ) {
         continue;
       }
       expect(child.getBoundingClientRect().right).toBeLessThanOrEqual(
@@ -708,20 +712,21 @@ describe("ThreadRow", () => {
     await userEvent.keyboard("{Escape}");
   });
 
-  it("opens a hold inside its thread: the thread first, then the hold as a tab of the thread's", async () => {
+  it("opens a hold inside its thread: as a tab of the thread's group, shown, without opening the row", async () => {
     const { onOpen, openScreen, row } = await renderRow(
       thread({ holds: { apps: ["github"], files: [], sites: [] } }),
     );
     const [app] = marksOf(row);
     app?.click();
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
     expect(openScreen).toHaveBeenCalledWith("/orchestrator/apps/github", {
+      group: sessionId,
       newTab: true,
+      show: true,
     });
     app?.dispatchEvent(
       new MouseEvent("auxclick", { bubbles: true, button: 1 }),
     );
-    expect(onOpen).toHaveBeenCalledTimes(2);
     expect(openScreen).toHaveBeenCalledTimes(2);
   });
 
@@ -923,7 +928,9 @@ describe("the row's actions", () => {
       throw new Error("no rows");
     }
     // Past the time on the wide row.
-    const control = slim.querySelector<HTMLButtonElement>('[aria-label="Star"]');
+    const control = slim.querySelector<HTMLButtonElement>(
+      '[aria-label="Star"]',
+    );
     expect(control).not.toBeNull();
     expect(control?.getBoundingClientRect().left).toBeGreaterThanOrEqual(
       timeOf(slim).getBoundingClientRect().right,
@@ -933,7 +940,9 @@ describe("the row's actions", () => {
       expect(calls.star).toHaveBeenCalledWith({ ...INPUT, starred: true });
     });
     // At the lower right of the narrow row, under the time, filled once given.
-    const given = tall.querySelector<HTMLButtonElement>('[aria-label="Unstar"]');
+    const given = tall.querySelector<HTMLButtonElement>(
+      '[aria-label="Unstar"]',
+    );
     expect(given?.getAttribute("aria-pressed")).toBe("true");
     expect(given?.getBoundingClientRect().top).toBeGreaterThan(
       timeOf(tall).getBoundingClientRect().bottom,
@@ -951,8 +960,6 @@ describe("the row's actions", () => {
       expect(mark.getBoundingClientRect().left).toBeLessThan(starLeft);
     }
     // The star is the row's own control, not one of the actions on hover.
-    expect(
-      [...tall.querySelectorAll('[aria-label="Unstar"]')].length,
-    ).toBe(1);
+    expect([...tall.querySelectorAll('[aria-label="Unstar"]')].length).toBe(1);
   });
 });

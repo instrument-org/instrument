@@ -61,6 +61,7 @@ describe("ActivityList", () => {
       browser: null,
       focusComposer: vi.fn(),
       openPage: vi.fn(),
+      openPath: vi.fn(),
       openScreen: vi.fn(),
       taskId: TaskIdSchema.parse("orchestrator"),
     } satisfies OrchestratorWindow;

@@ -62,6 +62,7 @@ function renderFinished(standing: {
         browser: null,
         focusComposer: vi.fn(),
         openPage: vi.fn(),
+        openPath: vi.fn(),
         openScreen,
         taskId: ORCHESTRATOR_ID,
       }}

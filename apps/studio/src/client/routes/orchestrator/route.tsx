@@ -26,6 +26,7 @@ import {
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
 import {
+  type OpenOptions,
   OrchestratorContext,
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
@@ -138,12 +139,6 @@ const REFRESH_MS = ms("2 seconds");
 
 /** How long a screen has to stay up before Recent counts it. */
 const RECENT_DWELL_MS = ms("2 seconds");
-
-/** What an opener is told: a tab of its own, and the group the thing belongs to when not the one on screen. */
-interface OpenOptions {
-  group?: string;
-  newTab?: boolean;
-}
 
 /** The chat pane never collapses: a drag past its floor stops at the floor. */
 const SIDEBAR_BOUNDS: RailBounds = {
@@ -428,10 +423,13 @@ function OrchestratorLayout() {
    */
   const openPage = (
     url: string,
-    { group: into, newTab = false }: OpenOptions = {},
+    { group: into, newTab = false, show = false }: OpenOptions = {},
   ) => {
     if (into !== undefined && into !== windowTabs.group) {
-      browser?.openOrFocus(url, { group: into });
+      browser?.openOrFocus(url, { group: into, show });
+      if (show) {
+        setPaneOpen(into, true);
+      }
       return;
     }
     if (windowTabs.group === undefined) {
@@ -459,7 +457,7 @@ function OrchestratorLayout() {
   };
   const openScreen = (
     href: string,
-    { group: into, newTab = false }: OpenOptions = {},
+    { group: into, newTab = false, show = false }: OpenOptions = {},
   ) => {
     const thread = threadOfHref(href);
     if (thread) {
@@ -470,7 +468,14 @@ function OrchestratorLayout() {
       return;
     }
     if (into !== undefined && into !== windowTabs.group) {
-      windowTabs.openOrFocusScreen(href, { group: into, isOpened: true });
+      windowTabs.openOrFocusScreen(href, {
+        group: into,
+        isOpened: true,
+        show,
+      });
+      if (show) {
+        setPaneOpen(into, true);
+      }
       return;
     }
     if (windowTabs.group === undefined) {
@@ -935,6 +940,7 @@ function OrchestratorLayout() {
           startDraft(undefined);
         },
         openPage,
+        openPath: openNamedPath,
         openScreen,
         taskId: ids.taskId,
       }
@@ -1091,16 +1097,16 @@ function OrchestratorLayout() {
             >
               {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
               <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
-                {/* Names the openers for what the rows hold, so a file, an
-                  app, or a page a thread made opens in the tab on screen the
-                  way the thread itself does; a middle or modified click is
-                  what asks for a tab of its own. */}
+                {/* Names the openers for what the rows hold: a plain click
+                  opens in the tab on screen the way the thread itself does,
+                  and a middle or modified click asks for a tab of its own;
+                  the rows say which thread a hold belongs to. */}
                 <OrchestratorContext
                   value={{
                     ...screens,
-                    openPage: (url) => openPage(url),
-                    openScreen: (href) => {
-                      openScreen(href);
+                    openPage: (url, options) => openPage(url, options),
+                    openScreen: (href, options) => {
+                      openScreen(href, options);
                     },
                     opensNewTab: false,
                   }}

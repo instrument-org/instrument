@@ -62,6 +62,7 @@ function renderInWindow(ui: React.ReactNode) {
     browser: null,
     focusComposer: vi.fn(),
     openPage: vi.fn(),
+    openPath: vi.fn(),
     openScreen,
     taskId: TaskIdSchema.parse("orchestrator"),
   } satisfies OrchestratorWindow;

@@ -155,6 +155,8 @@ interface OpenOptions {
   /** The group the page belongs to; the group on screen when left out. */
   group?: string;
   replacing?: WindowTab;
+  /** Brings the group on screen at the page, rather than leaving it behind: for what the user asked for by name. */
+  show?: boolean;
 }
 
 type PageTabsUpdate = (current: {
@@ -575,7 +577,10 @@ export function BrowserTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePage?.favicon, activePage?.title, activePage?.url]);
 
-  const openTab = (url?: string, { group: into, replacing }: OpenOptions = {}) => {
+  const openTab = (
+    url?: string,
+    { group: into, replacing }: OpenOptions = {},
+  ) => {
     const id = StoreId.newSessionId();
     const page = {
       id,
@@ -611,7 +616,8 @@ export function BrowserTabs({
       // another was up is still that thread's, waiting behind.
       setAllTabs((current) => ({
         ...current,
-        activeId: into === undefined || into === current.group ? id : current.activeId,
+        activeId:
+          into === undefined || into === current.group ? id : current.activeId,
         tabs: [
           ...current.tabs,
           {
@@ -678,12 +684,15 @@ export function BrowserTabs({
             (tab) => origin !== undefined && originOf(tab.url) === origin,
           );
         if (existing) {
-          if (key === latest.current.group) {
+          if (options?.show || key === latest.current.group) {
             setAllTabs((current) => selectTab(current, existing.id));
           }
           return "focused";
         }
-        openTab(url, options);
+        const id = openTab(url, options);
+        if (options?.show) {
+          setAllTabs((current) => selectTab(current, id));
+        }
         return "opened";
       },
       readPage: async () => {

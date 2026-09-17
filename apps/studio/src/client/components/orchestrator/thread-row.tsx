@@ -20,13 +20,14 @@ import {
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { type StoreId } from "@instrument-org/workspace/client";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { useMutation } from "@tanstack/react-query";
-import { type ReactNode, useContext, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { OrchestratorContext, useOrchestrator } from "./context";
@@ -201,7 +202,7 @@ export function ThreadRow({
                 it, so a thread with many files never pushes into the title's
                 column. */}
               {hasHolds && (
-                <HoldsInThread onOpen={onOpen}>
+                <HoldsInThread threadId={thread.id}>
                   <HoldMarks
                     appsBySlug={appsBySlug}
                     className="ml-auto max-w-[30%]"
@@ -230,7 +231,7 @@ export function ThreadRow({
                 </p>
                 <Peek className="mt-0.5" lines={2} thread={thread} />
                 {hasHolds && (
-                  <HoldsInThread onOpen={onOpen}>
+                  <HoldsInThread threadId={thread.id}>
                     <HoldMarks
                       appsBySlug={appsBySlug}
                       className="mt-1 gap-1"
@@ -362,45 +363,41 @@ export function TopicPill({
 
 /**
  * Names the openers for the marks of what a thread holds: a hold is the
- * thread's, so opening one opens the thread first and then the hold as a
- * tab inside the thread's group, never in place of whatever the right area
- * had up. A middle or modified click asks for the same tab.
+ * thread's, so opening one opens it as a tab of the thread's group, never
+ * in place of whatever the right area had up, and brings the thread on
+ * screen at that tab with its pane up. A middle or modified click asks for
+ * the same tab.
  */
 function HoldsInThread({
   children,
-  onOpen,
+  threadId,
 }: {
   children: ReactNode;
-  /** Opens the thread, which brings its group on screen. */
-  onOpen: () => void;
+  threadId: StoreId.Session;
 }) {
   const orchestrator = useOrchestrator();
-  const openFile = useContext(FileOpenContext);
+  const options = { group: threadId, newTab: true, show: true };
   return (
     <OrchestratorContext
       value={{
         ...orchestrator,
         openPage: (url) => {
-          onOpen();
-          orchestrator.openPage(url, { newTab: true });
+          orchestrator.openPage(url, options);
         },
         openScreen: (href) => {
-          onOpen();
-          orchestrator.openScreen(href, { newTab: true });
+          orchestrator.openScreen(href, options);
         },
         opensNewTab: true,
       }}
     >
       <FileOpenContext
         value={(path) => {
-          onOpen();
-          openFile?.(path, { newTab: true });
+          orchestrator.openPath(path, options);
         }}
       >
         <PageOpenContext
           value={(url) => {
-            onOpen();
-            orchestrator.openPage(url, { newTab: true });
+            orchestrator.openPage(url, options);
           }}
         >
           {children}

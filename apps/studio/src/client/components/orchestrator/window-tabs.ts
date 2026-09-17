@@ -168,14 +168,16 @@ export function useWindowTabs() {
    * Shows the screen tab already at that address, in the group on screen or
    * the group named, or opens one there. A file's tab may have become the
    * page that shows the file; it is still the file's tab, and the file is not
-   * opened twice.
+   * opened twice. Told to show it, the group comes on screen at the tab,
+   * rather than keeping it behind.
    */
   const openOrFocusScreen = (
     href: string,
     {
       group: into,
       isOpened = false,
-    }: { group?: string; isOpened?: boolean } = {},
+      show = false,
+    }: { group?: string; isOpened?: boolean; show?: boolean } = {},
   ) => {
     const key = into ?? group;
     const filePath = parseHref(href).search.get("file") ?? undefined;
@@ -187,12 +189,16 @@ export function useWindowTabs() {
           : filePath !== undefined && hostPathOfFileUrl(tab.url) === filePath),
     );
     if (existing) {
-      if (key === group) {
+      if (show || key === group) {
         select(existing.id);
       }
       return existing.id;
     }
-    return openScreen(href, { group: into, isOpened });
+    const id = openScreen(href, { group: into, isOpened });
+    if (show && id !== undefined) {
+      select(id);
+    }
+    return id;
   };
 
   /**

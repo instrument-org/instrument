@@ -3,6 +3,18 @@ import { createContext, useContext } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
 
+/**
+ * What an opener is told: a tab of its own; the group the thing belongs to,
+ * when not the one on screen; and whether to bring that group on screen at
+ * it, for what the user asked for by name rather than what an agent opened
+ * behind.
+ */
+export interface OpenOptions {
+  group?: string;
+  newTab?: boolean;
+  show?: boolean;
+}
+
 /** What every screen of the orchestrator window shares. */
 export interface OrchestratorWindow {
   /** Sends a line at the top level of the chat, as typing it would, which opens a thread with it. */
@@ -12,9 +24,11 @@ export interface OrchestratorWindow {
   /** Puts the caret in the conversation's composer, for a screen handing something over to be asked about. */
   focusComposer: () => void;
   /** Navigates this surface's tab; conversation surfaces open another tab. */
-  openPage: (url: string, options?: { newTab?: boolean }) => void;
+  openPage: (url: string, options?: OpenOptions) => void;
+  /** Opens a path the conversation named: a file in its viewer, a folder as the folder view standing in it. */
+  openPath: (path: string, options?: OpenOptions) => void;
   /** Navigates this surface's tab; conversation surfaces open another tab. */
-  openScreen: (href: string, options?: { newTab?: boolean }) => void;
+  openScreen: (href: string, options?: OpenOptions) => void;
   /**
    * Whether the openers above already land in a tab of their own.
    *

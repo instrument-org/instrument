@@ -49,6 +49,7 @@ function inOrchestrator(
     },
     focusComposer: vi.fn(),
     openPage,
+    openPath: vi.fn(),
     openScreen: vi.fn(),
     sessionId: SESSION_ID,
     taskId: TASK_ID,

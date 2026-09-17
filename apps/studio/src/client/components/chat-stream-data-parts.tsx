@@ -17,6 +17,7 @@ import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
+import { OutputFormatNote } from "./orchestrator/output-format-note";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
 import { TaskAppChangesNote } from "./task-app-changes-note";
@@ -68,6 +69,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // is the user's own choice, so naming the moment it changed describes
   // something they did rather than something our assembly did.
   "data-modelChange": "always",
+  // What the user asked to get back, on the record under their words.
+  "data-outputFormat": "always",
   "data-paneTabs": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
@@ -247,6 +250,9 @@ export function renderDataPart({
     }
     case "data-modelChange": {
       return <ModelChangeNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-outputFormat": {
+      return <OutputFormatNote data={part.data} key={part.metadata.id} />;
     }
     case "data-paneTabs": {
       return (

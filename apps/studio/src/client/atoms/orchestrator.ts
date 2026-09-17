@@ -50,6 +50,8 @@ export const screenViewAtom = atom<null | ScreenView>(null);
 export interface Draft {
   createdAt: number;
   id: string;
+  /** The kind of page the response should come back as: a page-skill template, by its folder's name. */
+  output?: string;
   topicId?: string;
   updatedAt: number;
   words: string;

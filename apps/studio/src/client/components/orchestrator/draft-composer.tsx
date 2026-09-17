@@ -30,15 +30,19 @@ import {
   useState,
 } from "react";
 
+import { OutputPicker } from "./output-picker";
 import { TopicPill } from "./thread-row";
 import { type Topic } from "./threads";
 import { TopicPickList } from "./topic-menu";
+import { useIdeas } from "./use-ideas";
 
 /** What the composer hands over to start the thread. */
 export interface DraftSend {
   files?: FileUpload.Input[];
   folders?: { access: FolderAttachment.Access; path: string }[];
   modelURI: AIGatewayModelURI.Type;
+  /** The kind of page the response should come back as, when one was picked. */
+  output?: { name: string; title: string };
   prompt: string;
 }
 
@@ -46,7 +50,8 @@ export interface DraftSend {
  * The conversation column while a draft is up: a head naming it, with the
  * controls over the whole draft, and under it the prompt box the new-task
  * page starts a task from, rounding, plus menu, model and all, with the
- * topic the thread will be filed under as the chip at its head. The words
+ * topic the thread will be filed under as the chip at its head and the
+ * output picker in the row beside the model. The words
  * ride in the draft's record, so the Drafts list can name it and a relaunch
  * keeps them; what else the box was given (files, a folder) is kept in
  * memory while the draft is away and put back when it comes up.
@@ -117,6 +122,8 @@ export function DraftComposer({
   }, [draft.id]);
 
   const topic = topics.find((entry) => entry.id === draft.topicId);
+  const ideas = useIdeas();
+  const output = ideas.data?.find((idea) => idea.name === draft.output);
 
   return (
     <FileDropRegion className="flex h-full min-h-0 flex-col">
@@ -146,6 +153,20 @@ export function DraftComposer({
           <PromptInput
             autoFocus
             autoResizeMaxHeight={300}
+            beforeModel={
+              <OutputPicker
+                disabled={isStarting}
+                onChange={(name) => {
+                  onChange((current) => {
+                    const { output: _dropped, ...rest } = current;
+                    return name === undefined
+                      ? rest
+                      : { ...rest, output: name };
+                  });
+                }}
+                value={draft.output}
+              />
+            }
             draftKey={key}
             isLoading={isStarting}
             lead={
@@ -159,7 +180,14 @@ export function DraftComposer({
             }
             modelURI={modelURI}
             onModelChange={onModelChange}
-            onSubmit={onStart}
+            onSubmit={(send) => {
+              onStart({
+                ...send,
+                ...(output
+                  ? { output: { name: output.name, title: output.title } }
+                  : {}),
+              });
+            }}
             placeholder="What do you need?"
             ref={inputRef}
           />

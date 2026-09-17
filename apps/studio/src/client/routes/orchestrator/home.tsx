@@ -15,13 +15,10 @@ import {
   folderOf,
   homeRelative,
 } from "@/client/components/orchestrator/host-path";
-import { IdeaSketch } from "@/client/components/orchestrator/idea-sketch";
-import { ideaHref } from "@/client/components/orchestrator/ideas";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
 import { ACTIVITY_HREF } from "@/client/components/orchestrator/screen-presentation";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
-import { useIdeas } from "@/client/components/orchestrator/use-ideas";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { RelativeTime } from "@/client/components/relative-time";
 import { Skeleton } from "@/client/components/ui/skeleton";
@@ -34,7 +31,6 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
-import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -64,7 +60,6 @@ type RecentFile = RPCOutput["workspace"]["computer"]["recents"][number];
 const PINS_SHOWN = 6;
 const APPS_SHOWN = 6;
 const PLACES_SHOWN = 6;
-const IDEAS_SHOWN = 4;
 const RECENTS_SHOWN = 5;
 
 /**
@@ -98,7 +93,6 @@ function HomeRoute() {
   const pins = useAtomValue(pinsAtom);
   useOnScreen({ screen: "home" });
 
-  const ideas = useIdeas();
   const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const appsBySlug = useAppsBySlug();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
@@ -239,45 +233,6 @@ function HomeRoute() {
                     openFolder(place.path);
                   }}
                   target={{ href: folderHref(place.path), kind: "screen" }}
-                />
-              ))}
-            </Tiles>
-          )}
-        </Section>
-
-        {/* The kinds of page Instrument can make, each the sketch of its
-            page, the way the Ideas screen draws it. */}
-        <Section
-          action={{
-            icon: <CompassIcon className="size-4" />,
-            label: "All ideas",
-            onOpen: () => {
-              void navigate({ to: "/orchestrator/ideas" });
-            },
-          }}
-          title="Ideas"
-        >
-          {ideas.data === undefined ? (
-            <TileSkeletons count={IDEAS_SHOWN} />
-          ) : (
-            <Tiles>
-              {ideas.data.slice(0, IDEAS_SHOWN).map((idea) => (
-                <Tile
-                  icon={
-                    <IdeaSketch
-                      className="h-11 w-auto rotate-3 drop-shadow-sm"
-                      rows={idea.sketch ?? []}
-                    />
-                  }
-                  key={idea.name}
-                  name={idea.title}
-                  onOpen={() => {
-                    void navigate({
-                      params: { idea: idea.name },
-                      to: "/orchestrator/ideas/$idea",
-                    });
-                  }}
-                  target={{ href: ideaHref(idea.name), kind: "screen" }}
                 />
               ))}
             </Tiles>

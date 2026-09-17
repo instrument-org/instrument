@@ -903,6 +903,7 @@ function OrchestratorLayout() {
           folders: send.folders,
           id: ids.taskId,
           modelURI: send.modelURI,
+          output: send.output,
           prompt: send.prompt,
           ...(draft.topicId ? { topics: [draft.topicId] } : {}),
           viewing,

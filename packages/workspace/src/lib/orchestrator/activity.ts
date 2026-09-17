@@ -19,6 +19,14 @@ const RunningTaskSchema = z.object({
   /** The thread it was filed from, by session id; absent for a task filed outside a turn. */
   thread: z.string().optional(),
   title: z.string(),
+  /** When something last happened in it, in ms. */
+  updatedAt: z.number(),
+  /**
+   * What it has stopped to ask the user for. Present while its agent is alive
+   * but paused on an ask, which is running to the machine and stalled to the
+   * user, so a reader takes this over the step.
+   */
+  waiting: z.string().optional(),
 });
 
 export const OrchestratorActivitySchema = z.object({
@@ -26,8 +34,40 @@ export const OrchestratorActivitySchema = z.object({
 });
 export type OrchestratorActivity = z.output<typeof OrchestratorActivitySchema>;
 
+/** What a pending ask is waiting for, in the user's terms. */
+const ASKS: Record<string, string> = {
+  choose: "Waiting for you to answer",
+  connect_app: "Waiting for you to sign in",
+  request_folder: "Waiting for you to pick a folder",
+};
+
 /** How much of a step's label the conversation shows. */
 const STEP_MAX_LENGTH = 80;
+
+/**
+ * What a transcript's last turn stopped to ask the user for, when it ended on
+ * an ask rather than on words: the ask's tool call is still waiting for its
+ * input to be answered.
+ */
+export function askIn(
+  messages: SessionMessage.WithParts[],
+): string | undefined {
+  const last = messages.findLast((message) => message.role === "assistant");
+  for (const part of last?.parts ?? []) {
+    const name = part.type.startsWith("tool-")
+      ? part.type.slice("tool-".length)
+      : undefined;
+    if (
+      name &&
+      ASKS[name] &&
+      "state" in part &&
+      (part.state === "input-available" || part.state === "input-streaming")
+    ) {
+      return ASKS[name];
+    }
+  }
+  return undefined;
+}
 
 export function isWorking(taskId: TaskId) {
   const status = getTaskAgentStatus({
@@ -43,18 +83,7 @@ export function isWorking(taskId: TaskId) {
 }
 
 export async function latestStep(taskId: TaskId): Promise<string | undefined> {
-  const sessionId = await latestSessionId(taskId);
-  if (sessionId.isErr() || !sessionId.value) {
-    return undefined;
-  }
-  const messages = await Store.getMessagesWithParts({
-    sessionId: sessionId.value,
-    taskId,
-  });
-  if (messages.isErr()) {
-    return undefined;
-  }
-  return latestStepIn(messages.value);
+  return latestStepIn(await latestMessages(taskId));
 }
 
 /**
@@ -124,13 +153,30 @@ export async function orchestratorActivity(
     children
       .filter((child) => isWorking(child.id))
       .map(async (child) => ({
-        step: await latestStep(child.id),
+        ...(await runningLines(child.id)),
         taskId: child.id,
         ...(threads[child.id] ? { thread: threads[child.id] } : {}),
         title: child.title,
+        updatedAt: child.updatedAt.getTime(),
       })),
   );
   return { running };
+}
+
+/**
+ * The lines a task at work is read by, from one read of its transcript: the
+ * label on its latest step, and what it has paused to ask the user for. Both
+ * can be present at once, since the ask sits where a step would; a reader
+ * takes the ask first, because a task paused on one is going nowhere until
+ * it is answered.
+ */
+export async function runningLines(
+  taskId: TaskId,
+): Promise<{ step?: string; waiting?: string }> {
+  const messages = await latestMessages(taskId);
+  const step = latestStepIn(messages);
+  const waiting = askIn(messages);
+  return { ...(step ? { step } : {}), ...(waiting ? { waiting } : {}) };
 }
 
 /**
@@ -152,4 +198,19 @@ export async function turnStartedAt(taskId: TaskId): Promise<Date | undefined> {
   }
   return messages.value.findLast((message) => message.role === "user")?.metadata
     .createdAt;
+}
+
+/** The transcript of the task's latest session; empty when it has none or the read fails. */
+async function latestMessages(
+  taskId: TaskId,
+): Promise<SessionMessage.WithParts[]> {
+  const sessionId = await latestSessionId(taskId);
+  if (sessionId.isErr() || !sessionId.value) {
+    return [];
+  }
+  const messages = await Store.getMessagesWithParts({
+    sessionId: sessionId.value,
+    taskId,
+  });
+  return messages.isOk() ? messages.value : [];
 }

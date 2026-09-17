@@ -5,6 +5,8 @@ import { SessionMessage } from "./message";
 
 export namespace Session {
   export const Schema = z.object({
+    /** When the thread was put away; absent while it is in the inbox. */
+    archivedAt: z.date().optional(),
     createdAt: z.date(),
     id: StoreId.SessionSchema,
     parentId: StoreId.SessionSchema.optional(),

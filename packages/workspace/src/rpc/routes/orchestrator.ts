@@ -23,11 +23,13 @@ import {
 } from "../../lib/orchestrator/output-folder";
 import { taskStanding } from "../../lib/orchestrator/standing";
 import {
+  archiveThread,
   listThreads,
   markThreadSeen,
   markThreadUnseen,
   setThreadTopics,
   ThreadSchema,
+  unarchiveThread,
 } from "../../lib/orchestrator/threads";
 import {
   createTopic,
@@ -283,6 +285,20 @@ const unseenThreadRoute = base
     await markThreadUnseen(input.id, input.sessionId);
   });
 
+/** Puts a thread away: out of the inbox, still in the list, marked. */
+const archiveThreadRoute = base
+  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .handler(async ({ input }) => {
+    await archiveThread(input.id, input.sessionId);
+  });
+
+/** Brings a thread back into the inbox. */
+const unarchiveThreadRoute = base
+  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .handler(async ({ input }) => {
+    await unarchiveThread(input.id, input.sessionId);
+  });
+
 /** The topics a thread carries, replaced whole. */
 const setThreadTopicsRoute = base
   .input(
@@ -357,7 +373,10 @@ const setActiveTab = base
     });
   });
 
-/** What the conversation asks its window to open, as it asks. */
+/**
+ * What the conversation asks its window to open, as it asks, each with the
+ * thread that asked when the command ran in one.
+ */
 const open = base
   .input(z.object({ id: TaskIdSchema }))
   .output(
@@ -366,9 +385,14 @@ const open = base
         z.object({
           kind: z.literal("page"),
           requestId: z.string(),
+          sessionId: StoreId.SessionSchema.optional(),
           url: z.string(),
         }),
-        z.object({ kind: z.literal("path"), mount: z.string() }),
+        z.object({
+          kind: z.literal("path"),
+          mount: z.string(),
+          sessionId: StoreId.SessionSchema.optional(),
+        }),
       ]),
     ),
   )
@@ -377,7 +401,10 @@ const open = base
       signal,
     })) {
       if (event.id === input.id) {
-        yield event.target;
+        yield {
+          ...event.target,
+          ...(event.sessionId ? { sessionId: event.sessionId } : {}),
+        };
       }
     }
   });
@@ -408,10 +435,12 @@ export const orchestrator = {
   opened,
   setActiveTab,
   threads: {
+    archive: archiveThreadRoute,
     list: listThreadsRoute,
     live: { list: liveListThreadsRoute },
     seen: seenThreadRoute,
     setTopics: setThreadTopicsRoute,
+    unarchive: unarchiveThreadRoute,
     unseen: unseenThreadRoute,
   },
   topics: {

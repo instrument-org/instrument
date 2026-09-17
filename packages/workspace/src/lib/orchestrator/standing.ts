@@ -1,14 +1,13 @@
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 
 import { AGENT_FILES_LANGUAGE } from "../../constants";
-import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
 import { Store } from "../store";
-import { latestStep } from "./activity";
+import { askIn, latestStep, runningLines } from "./activity";
 import { lastAssistantText, latestSessionId } from "./latest-session";
 
 /** How much of the agent's own words the list shows on a task's second line. */
@@ -35,34 +34,6 @@ export interface TaskStanding {
 
 /** Where a task stands, in the four words the list can say it in. */
 type TaskStandingKind = "done" | "failed" | "running" | "waiting";
-
-/** What a pending ask is waiting for, in the user's terms. */
-const ASKS: Record<string, string> = {
-  choose: "Waiting for you to answer",
-  connect_app: "Waiting for you to sign in",
-  request_folder: "Waiting for you to pick a folder",
-};
-
-/** The same question, read from a transcript already in hand. */
-export function askIn(
-  messages: SessionMessage.WithParts[],
-): string | undefined {
-  const last = messages.findLast((message) => message.role === "assistant");
-  for (const part of last?.parts ?? []) {
-    const name = part.type.startsWith("tool-")
-      ? part.type.slice("tool-".length)
-      : undefined;
-    if (
-      name &&
-      ASKS[name] &&
-      "state" in part &&
-      (part.state === "input-available" || part.state === "input-streaming")
-    ) {
-      return ASKS[name];
-    }
-  }
-  return undefined;
-}
 
 /**
  * How a turn that ended before the agent wrote any words ended. That happens
@@ -151,6 +122,10 @@ export function excerptOf(text: string, maxLength: number): string {
  * question: what happened. So a finished task's line is the agent's own last
  * words, a task that stopped to ask says what it is asking for, and one whose
  * turn ended without words says how it ended.
+ *
+ * A running task can be waiting too: its agent stays alive while an ask of
+ * its own sits unanswered, and the list says what it is waiting for rather
+ * than showing a step that is not moving.
  */
 export async function taskStanding({
   isRunning,
@@ -160,8 +135,10 @@ export async function taskStanding({
   taskId: TaskId;
 }): Promise<TaskStanding> {
   if (isRunning) {
-    const step = await latestStep(taskId);
-    return { kind: "running", line: step ?? "Working" };
+    const { step, waiting } = await runningLines(taskId);
+    return waiting
+      ? { kind: "waiting", line: waiting }
+      : { kind: "running", line: step ?? "Working" };
   }
   const waiting = await pendingAsk(taskId);
   if (waiting) {

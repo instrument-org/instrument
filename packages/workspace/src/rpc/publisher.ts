@@ -62,6 +62,8 @@ export const publisher = new EventPublisher<{
    */
   "orchestrator.open": {
     id: TaskId;
+    /** The thread the command ran in, so the window can open the tab beside it; absent outside one. */
+    sessionId?: StoreId.Session;
     target:
       | { kind: "page"; requestId: string; url: string }
       | { kind: "path"; mount: string };

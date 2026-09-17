@@ -567,7 +567,7 @@ export async function createBashEnv({
         }),
         createChatCommand({ orchestratorTaskId: taskId }),
         createAppCommand({ taskId }),
-        createOpenCommand({ taskId }),
+        createOpenCommand({ sessionId, taskId }),
       ]
     : [
         createShowCommand({ sessionId, taskId }),

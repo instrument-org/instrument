@@ -3,6 +3,7 @@ import { ulid } from "ulid";
 
 import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
+import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { isUnder } from "../path-containment";
 
@@ -32,11 +33,16 @@ const TAB_ID_TIMEOUT_MS = 2000;
  * A folder is handed on with the trailing slash that names one everywhere
  * else a path reaches the user, so the window has a single opener to answer
  * with rather than one per kind of thing a path can be.
+ *
+ * Every ask names the thread the command ran in, when it ran in one, so the
+ * window can put the tab beside the thread that asked for it.
  */
 export function createOpenCommand({
+  sessionId,
   tabIdTimeoutMs = TAB_ID_TIMEOUT_MS,
   taskId,
 }: {
+  sessionId?: StoreId.Session;
   tabIdTimeoutMs?: number;
   taskId: TaskId;
 }) {
@@ -53,6 +59,7 @@ export function createOpenCommand({
     for (const arg of args) {
       if (isUrl(arg)) {
         const tabId = await openPage({
+          sessionId,
           taskId,
           timeoutMs: tabIdTimeoutMs,
           url: arg,
@@ -84,6 +91,7 @@ export function createOpenCommand({
       const mount = stat.isDirectory ? `${virtualPath}/` : virtualPath;
       publisher.publish("orchestrator.open", {
         id: taskId,
+        ...(sessionId ? { sessionId } : {}),
         target: { kind: "path", mount },
       });
       opened.push(mount);
@@ -108,10 +116,12 @@ function isUrl(arg: string): boolean {
  * window that answers at once is not missed.
  */
 async function openPage({
+  sessionId,
   taskId,
   timeoutMs,
   url,
 }: {
+  sessionId: StoreId.Session | undefined;
   taskId: TaskId;
   timeoutMs: number;
   url: string;
@@ -126,6 +136,7 @@ async function openPage({
   }, timeoutMs);
   publisher.publish("orchestrator.open", {
     id: taskId,
+    ...(sessionId ? { sessionId } : {}),
     target: { kind: "page", requestId, url },
   });
   try {

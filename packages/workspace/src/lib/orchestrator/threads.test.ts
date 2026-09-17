@@ -9,11 +9,13 @@ import { taskDir } from "../task-dir-utils";
 import { setTaskState } from "../task-record";
 import { type OrchestratorActivity } from "./activity";
 import {
+  archiveThread,
   listThreads,
   markThreadSeen,
   markThreadUnseen,
   setThreadTopics,
   threadById,
+  unarchiveThread,
 } from "./threads";
 import { createTopic } from "./topics";
 
@@ -305,6 +307,24 @@ describe("listThreads", () => {
     expect(thread?.topics).toEqual([home.id]);
   });
 
+  it("puts a thread away and brings it back, without moving its stamp", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Groceries", 1);
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    const [before] = await listThreads(taskId);
+    expect(before?.archived).toBe(false);
+
+    await archiveThread(taskId, sessionId);
+    const [archived] = await listThreads(taskId);
+    expect(archived?.archived).toBe(true);
+    expect(archived?.updatedAt).toBe(before?.updatedAt);
+
+    await unarchiveThread(taskId, sessionId);
+    const [back] = await listThreads(taskId);
+    expect(back?.archived).toBe(false);
+  });
+
   it("is working while a task filed from it runs, and says its step", async () => {
     const taskId = freshTask();
     const sessionId = await session(taskId, "Groceries");
@@ -320,6 +340,7 @@ describe("listThreads", () => {
         taskId: child,
         thread: sessionId,
         title: "Grocery list",
+        updatedAt: at(3).getTime(),
       },
     ];
 
@@ -334,6 +355,60 @@ describe("listThreads", () => {
     expect(thread?.runningTasks).toEqual([
       { id: child, step: "Checking the pantry", title: "Grocery list" },
     ]);
+  });
+
+  it("waits, rather than works, while a task filed from it is stopped on an ask", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
+    const child = TaskIdSchema.parse("grocery-list");
+    await setTaskState(taskDir(taskId), {
+      taskThreads: { [child]: sessionId },
+    });
+    running.value = [
+      {
+        step: "Picking a store",
+        taskId: child,
+        thread: sessionId,
+        title: "Grocery list",
+        updatedAt: at(3).getTime(),
+        waiting: "Waiting for you to answer",
+      },
+    ];
+
+    const [thread] = await listThreads(taskId);
+
+    expect(thread?.state).toBe("waiting");
+    expect(thread?.latest).toEqual({
+      at: at(3).getTime(),
+      kind: "question",
+      text: "Waiting for you to answer",
+    });
+    expect(thread?.runningTasks).toEqual([
+      {
+        id: child,
+        step: "Picking a store",
+        title: "Grocery list",
+        waiting: "Waiting for you to answer",
+      },
+    ]);
+
+    // Another task still moving keeps the thread at work, and its step is
+    // the one shown rather than the stalled task's.
+    running.value = [
+      ...running.value,
+      {
+        step: "Checking the pantry",
+        taskId: TaskIdSchema.parse("pantry"),
+        thread: sessionId,
+        title: "Pantry",
+        updatedAt: at(4).getTime(),
+      },
+    ];
+    const [busy] = await listThreads(taskId);
+    expect(busy?.state).toBe("working");
+    expect(busy?.latest?.text).toBe("Checking the pantry");
   });
 
   it("is working while its own agent is alive, saying what it is doing", async () => {

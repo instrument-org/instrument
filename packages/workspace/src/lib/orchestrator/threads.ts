@@ -19,12 +19,13 @@ import { getTaskSettings } from "../task-settings";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
+  askIn,
   latestStepIn,
   type OrchestratorActivity,
   orchestratorActivity,
 } from "./activity";
 import { latestSessionId } from "./latest-session";
-import { askIn, excerptOf } from "./standing";
+import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 
 /** How much of the agent's last reply a thread's row shows. */
@@ -34,6 +35,11 @@ const LATEST_MAX = 160;
 const READ_LIMIT = 8;
 
 export const ThreadSchema = z.object({
+  /**
+   * Whether the thread has been put away. The list still carries it, and
+   * the window keeps it out of the inbox.
+   */
+  archived: z.boolean(),
   /** When the root was sent, in ms. */
   createdAt: z.number(),
   /**
@@ -75,11 +81,14 @@ export const ThreadSchema = z.object({
       id: TaskIdSchema,
       step: z.string().optional(),
       title: z.string(),
+      /** What it has stopped to ask the user for; present while it is stalled on that rather than moving. */
+      waiting: z.string().optional(),
     }),
   ),
   /**
    * Working while the thread's own agent is alive or a task filed from it is
-   * running; waiting while its last turn ended on an ask; idle otherwise.
+   * moving; waiting while a task filed from it is stopped on an ask, or its
+   * own last turn ended on one; idle otherwise.
    */
   state: z.enum(["idle", "waiting", "working"]),
   title: z.string(),
@@ -119,6 +128,17 @@ export function appSlugsIn(command: string): string[] {
       /(?:^|[\n;&|]|\$\()\s*app\s+(?:call|request)\s+([a-z0-9][a-z0-9_-]*)\b/g,
     ),
   ].flatMap((match) => (match[1] ? [match[1]] : []));
+}
+
+/**
+ * Puts a thread away. The list still carries it, marked, and its stamp stays
+ * where it was: putting a thread away is not something happening in it.
+ */
+export async function archiveThread(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<boolean> {
+  return saveArchivedAt(taskId, sessionId, new Date());
 }
 
 /** The command a shell call ran, once its input has arrived whole. */
@@ -300,6 +320,14 @@ export async function threadById(
   return threadFor(taskId, session.value, await loadShared(taskId));
 }
 
+/** Brings a thread back into the inbox. */
+export async function unarchiveThread(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<boolean> {
+  return saveArchivedAt(taskId, sessionId, undefined);
+}
+
 /** The app slugs a thread reached: its own calls and the grants of its tasks. */
 async function appsHeld(
   messages: SessionMessage.WithParts[],
@@ -312,6 +340,27 @@ async function appsHeld(
     slugs.push(...(settings?.apps ?? []));
   }
   return unique(knownAmong(slugs, known));
+}
+
+/**
+ * What the thread has stopped for, and when: a task filed from it that is
+ * paused on an ask comes first, since that is what the user can answer, then
+ * the thread's own last turn ending on one.
+ */
+function askOf(
+  messages: SessionMessage.WithParts[],
+  filed: OrchestratorActivity["running"],
+): undefined | { at: number; text: string } {
+  for (const task of filed) {
+    if (task.waiting) {
+      return { at: task.updatedAt, text: task.waiting };
+    }
+  }
+  const text = askIn(messages);
+  const last = messages.findLast((message) => message.role === "assistant");
+  return text && last
+    ? { at: last.metadata.createdAt.getTime(), text }
+    : undefined;
 }
 
 /** Every command the thread's agent ran in its shell, oldest first. */
@@ -369,14 +418,12 @@ function isRoot(
 
 function latestFor({
   ask,
-  lastAssistant,
   lastMessage,
   messages,
   runningStep,
   state,
 }: {
-  ask: string | undefined;
-  lastAssistant: SessionMessage.WithParts | undefined;
+  ask: undefined | { at: number; text: string };
   lastMessage: SessionMessage.WithParts | undefined;
   messages: SessionMessage.WithParts[];
   runningStep: string | undefined;
@@ -392,12 +439,8 @@ function latestFor({
         }
       : undefined;
   }
-  if (ask && lastAssistant) {
-    return {
-      at: lastAssistant.metadata.createdAt.getTime(),
-      kind: "question",
-      text: ask,
-    };
+  if (ask) {
+    return { at: ask.at, kind: "question", text: ask.text };
   }
   // The last reply with words in it, since a turn can end on a tool call
   // with nothing said, and the row wants the last thing the agent told them.
@@ -440,6 +483,28 @@ function newestSettledIn(
         message.metadata.finishedAt !== undefined),
   );
   return alphabetical(settled, (message) => message.id).at(-1)?.id;
+}
+
+/**
+ * Writes when the thread was put away, or takes it off the record. Saving
+ * the session announces the change, which is what makes the live list
+ * re-read.
+ */
+async function saveArchivedAt(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+  archivedAt: Date | undefined,
+): Promise<boolean> {
+  const session = await Store.getSession(sessionId, taskId);
+  if (session.isErr()) {
+    return false;
+  }
+  const { archivedAt: _was, ...rest } = session.value;
+  const saved = await Store.saveSession(
+    { ...rest, ...(archivedAt ? { archivedAt } : {}) },
+    taskId,
+  );
+  return saved.isOk();
 }
 
 /**
@@ -488,16 +553,22 @@ async function threadFor(
     ([filed, sessionId]) =>
       sessionId === session.id ? [TaskIdSchema.parse(filed)] : [],
   );
-  const runningTasks = shared.activity.running
-    .filter((task) => task.thread === session.id)
-    .map((task) => ({
-      id: task.taskId,
-      ...(task.step ? { step: task.step } : {}),
-      title: task.title,
-    }));
+  const filed = shared.activity.running.filter(
+    (task) => task.thread === session.id,
+  );
+  const runningTasks = filed.map((task) => ({
+    id: task.taskId,
+    ...(task.step ? { step: task.step } : {}),
+    title: task.title,
+    ...(task.waiting ? { waiting: task.waiting } : {}),
+  }));
 
-  const working = runningTasks.length > 0 || threadIsAlive(taskId, session.id);
-  const ask = working ? undefined : askIn(messages);
+  // A task stopped on an ask is running to the machine and stalled to the
+  // user, so it does not make the thread work; it makes it wait, unless
+  // something else in the thread is moving.
+  const working =
+    threadIsAlive(taskId, session.id) || filed.some((task) => !task.waiting);
+  const ask = working ? undefined : askOf(messages, filed);
   const state = working ? "working" : ask ? "waiting" : "idle";
 
   const seen = shared.seen[session.id];
@@ -508,16 +579,12 @@ async function threadFor(
       countsAsUnread(message) && (seen === undefined || message.id > seen),
   ).length;
 
-  const lastAssistant = messages.findLast(
-    (message) => message.role === "assistant",
-  );
   const lastMessage = messages.at(-1);
   const latest = latestFor({
     ask,
-    lastAssistant,
     lastMessage,
     messages,
-    runningStep: runningTasks.find((task) => task.step)?.step,
+    runningStep: runningTasks.find((task) => task.step && !task.waiting)?.step,
     state,
   });
 
@@ -530,6 +597,7 @@ async function threadFor(
   );
   const lastReply = replies.at(-1)?.metadata.finishedAt;
   return {
+    archived: session.archivedAt !== undefined,
     createdAt: root.metadata.createdAt.getTime(),
     holds: {
       apps: await appsHeld(messages, filedTasks, shared.knownApps),

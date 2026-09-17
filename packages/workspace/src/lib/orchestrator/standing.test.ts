@@ -312,4 +312,33 @@ describe("taskStanding", () => {
     expect(standing.kind).toBe("running");
     expect(standing.line).toBe("Working");
   });
+
+  it("says what a task at work has stopped to ask, rather than its step", async () => {
+    const taskId = freshTask();
+    const sessionId = await withSession(taskId);
+    await Store.saveMessageWithParts(
+      assistant(
+        sessionId,
+        [
+          activity("Picking a store"),
+          (ids) => ({
+            input: { choices: ["Costco", "Trader Joe's"], question: "Which?" },
+            metadata: partMetadata(ids),
+            state: "input-available",
+            toolCallId: "call_choose",
+            type: "tool-choose",
+          }),
+        ],
+        { finishReason: "tool-calls" },
+      ),
+      taskId,
+    );
+
+    const standing = await taskStanding({ isRunning: true, taskId });
+
+    expect(standing).toEqual({
+      kind: "waiting",
+      line: "Waiting for you to answer",
+    });
+  });
 });

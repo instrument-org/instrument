@@ -26,7 +26,10 @@ function answeringWindow() {
   return { tabIds, unsubscribe };
 }
 
-function run(options: { tabIdTimeoutMs?: number }, ...args: string[]) {
+function run(
+  options: { sessionId?: StoreId.Session; tabIdTimeoutMs?: number },
+  ...args: string[]
+) {
   const fsTree = new InMemoryFs();
   fsTree.writeFileSync("/mnt/Instrument/report.md", "# report");
   return createOpenCommand({ taskId, ...options }).execute(
@@ -90,5 +93,40 @@ describe("open", () => {
     );
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("Opened /mnt/Instrument/report.md\n");
+  });
+
+  it("names the thread that asked, for a page and for a path alike", async () => {
+    const sessionId = StoreId.newSessionId();
+    const asked: { kind: string; sessionId: StoreId.Session | undefined }[] =
+      [];
+    const unsubscribe = publisher.subscribe("orchestrator.open", (ask) => {
+      asked.push({ kind: ask.target.kind, sessionId: ask.sessionId });
+    });
+    try {
+      await run(
+        { sessionId, tabIdTimeoutMs: 20 },
+        "https://example.com/",
+        "/mnt/Instrument/report.md",
+      );
+      expect(asked).toEqual([
+        { kind: "page", sessionId },
+        { kind: "path", sessionId },
+      ]);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("leaves the thread off an ask from a command run outside one", async () => {
+    const asked: (StoreId.Session | undefined)[] = [];
+    const unsubscribe = publisher.subscribe("orchestrator.open", (ask) => {
+      asked.push(ask.sessionId);
+    });
+    try {
+      await run({ tabIdTimeoutMs: 20 }, "/mnt/Instrument/report.md");
+      expect(asked).toEqual([undefined]);
+    } finally {
+      unsubscribe();
+    }
   });
 });

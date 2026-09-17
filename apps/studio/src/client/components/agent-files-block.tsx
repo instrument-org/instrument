@@ -52,8 +52,8 @@ import { PreviewListItem } from "./preview-list-item";
 export function AgentFilesBlock({ content }: { content: string }) {
   const { isStreaming } = useContext(MarkdownTaskContext);
 
-  // A fence still arriving ends mid-path: the model has typed `output/ch` of
-  // `output/chart.png`, and an optimistic card would be drawn and replaced on
+  // A fence still arriving ends mid-path: the model has typed `work/ch` of
+  // `work/chart.png`, and an optimistic card would be drawn and replaced on
   // every further keystroke. A line is finished once a newline follows it.
   const lineBreak = content.lastIndexOf("\n");
   const settledContent =

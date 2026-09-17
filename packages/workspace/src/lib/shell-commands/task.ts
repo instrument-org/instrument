@@ -6,11 +6,9 @@ import {
 } from "@instrument-org/ai-gateway";
 import { type ByteString, defineCommand } from "just-bash";
 import ms from "ms";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
@@ -22,7 +20,6 @@ import {
   decodeBrowserTargetId,
   encodeBrowserTargetId,
 } from "../../types";
-import { absolutePathJoin } from "../absolute-path-join";
 import {
   describeConnection,
   isConnected,
@@ -53,11 +50,14 @@ import {
   modelTable,
   ownProviderConfigId,
 } from "../orchestrator/models";
+import { describeHoldings } from "../orchestrator/describe-holdings";
+import { taskFolderHoldings } from "../orchestrator/folder-holdings";
 import {
   type FolderMounts,
   mountPathOf,
   mountsOf,
   translateMountPaths,
+  translateTaskFolderPaths,
 } from "../orchestrator/mount-paths";
 import { outputFolderPath } from "../orchestrator/output-folder";
 import { renderSteps, sessionSteps } from "../orchestrator/steps";
@@ -122,8 +122,6 @@ const DEFAULT_LOG_TAIL_LINES = 120;
  */
 const MAX_ASKED_WAKE_MS = ms("2 hours");
 const LOG_MAX_BYTES = 24 * 1024;
-const OUTPUT_LISTING_MAX = 30;
-const SHOW_SUMMARY_MAX_LENGTH = 600;
 /** Held back from the yield window so a wait returns inside it. */
 const WAIT_MARGIN_MS = 500;
 const MAX_WAIT_MS = ms("10 minutes");
@@ -197,7 +195,7 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       the word is not a match. Takes the same dates as \`list\`, which narrow
       what is opened before the search runs.
   ${TASK_COMMAND.name} show <id>
-      Status, model, folders, output files, and what it last said.
+      Status, model, folders, what its folder holds, and what it last said, whole.
   ${TASK_COMMAND.name} log <id> [--steps] [--tail <lines>]
       Its transcript, last ${DEFAULT_LOG_TAIL_LINES} lines by default. Composes: \`${TASK_COMMAND.name} log <id> | rg error\`.
       \`--steps\` is the outline instead: what it set out to do, each call and how it ended, what it said, one line each and no tool output. Read this first to see what a task is doing; the transcript's tail is whatever printed last.
@@ -842,30 +840,6 @@ function handedFolders(
     .join(", ");
 }
 
-async function listOutputs(taskId: TaskId): Promise<string[]> {
-  const outputDir = absolutePathJoin(taskDir(taskId), TASK_FOLDER_NAMES.output);
-  try {
-    const entries = await fs.readdir(outputDir, {
-      recursive: true,
-      withFileTypes: true,
-    });
-    return entries
-      .filter((entry) => entry.isFile())
-      .map((entry) =>
-        path.posix.join(
-          MOUNT.tasks,
-          taskId,
-          TASK_FOLDER_NAMES.output,
-          path.relative(outputDir, path.join(entry.parentPath, entry.name)),
-        ),
-      )
-      .sort()
-      .slice(0, OUTPUT_LISTING_MAX);
-  } catch {
-    return [];
-  }
-}
-
 /**
  * The folder of a task's own that a `--remove` spec names.
  *
@@ -1343,12 +1317,13 @@ async function runShow(args: string[], context: TaskCommandContext) {
     (folder) =>
       `${mountPathOf(folder.path, orchestratorFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} (${effectiveFolderAccess(folder)})`,
   );
-  const outputs = await listOutputs(task.id);
+  const holds = await taskFolderHoldings(task.id);
   const sessionId = await latestSessionId(task.id);
+  // Whole, and in this conversation's paths: this is where the note's ceiling
+  // sends the conversation for the rest of a receipt it cut.
   const said =
     sessionId.isOk() && sessionId.value
       ? await lastAssistantText({
-          maxLength: SHOW_SUMMARY_MAX_LENGTH,
           sessionId: sessionId.value,
           taskId: task.id,
         })
@@ -1356,7 +1331,10 @@ async function runShow(args: string[], context: TaskCommandContext) {
   const lastSaid =
     said === undefined
       ? undefined
-      : translateMountPaths(said, taskFolders, orchestratorFolders);
+      : translateTaskFolderPaths(
+          translateMountPaths(said, taskFolders, orchestratorFolders),
+          task.id,
+        );
 
   const settings = await getTaskSettings(taskDir(task.id));
   const handedApps = settings?.apps ?? [];
@@ -1379,8 +1357,7 @@ async function runShow(args: string[], context: TaskCommandContext) {
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,
     `apps: ${handedApps.length > 0 ? handedApps.join(", ") : "none"}`,
     `tab: ${describeHandedTab(state.browserTargetId)}`,
-    `scratch: ${MOUNT.tasks}/${task.id}`,
-    `outputs: ${outputs.length > 0 ? `\n  ${outputs.join("\n  ")}` : "none yet"}`,
+    `folder: ${MOUNT.tasks}/${task.id}, holding ${describeHoldings(holds)}`,
     `last said: ${lastSaid ? `\n  ${lastSaid.replaceAll("\n", "\n  ")}` : "nothing yet"}`,
   ];
   return ok(`${lines.join("\n")}\n`);

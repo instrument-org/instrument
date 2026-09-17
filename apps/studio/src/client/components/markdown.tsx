@@ -90,8 +90,8 @@ interface MarkdownProps {
    * message.
    *
    * A file sits in a directory, so a relative image source in it means what a
-   * browser would mean by it: `./chart.png` beside `output/report.md` is the
-   * chart in `output/`. A message sits in no directory, so it passes nothing
+   * browser would mean by it: `./chart.png` beside `work/report.md` is the
+   * chart in `work/`. A message sits in no directory, so it passes nothing
    * here and its relative sources join from the task root instead.
    */
   documentUrl?: string;
@@ -799,7 +799,7 @@ const resolveAgainstDocument = (
  * is a path inside the task, resolved either against the document this markdown
  * is (`documentUrl`, the browser's own semantics for a relative URL) or from
  * the task root, which is where a message's file references start. Both cover
- * a bare `output/x.png` as well as `./` and `../`.
+ * a bare `work/x.png` as well as `./` and `../`.
  *
  * The kind of a source the document resolved is read before it is resolved,
  * because the URL that comes out cannot say what went in. A path joined to the
@@ -822,7 +822,7 @@ const resolveImageSource = (
       ? { kind: "task-relative", src: resolved }
       : { kind: "rejected", src };
   }
-  // A message's path is left as the path, a bare `output/chart.png` included:
+  // A message's path is left as the path, a bare `work/chart.png` included:
   // the image places it on the computer itself, once the task's layout has
   // said where that is.
   return { kind: "task-relative", src };

@@ -287,7 +287,7 @@ function TaskBrief({ task }: { task: Task }) {
  * Opens a file the task named, in the window's own terms.
  *
  * A reply writes the paths the task works in, which is the whole of what it
- * knows: `output/report.md` is its own folder, and a folder it was handed
+ * knows: `work/report.md` is its own folder, and a folder it was handed
  * wears the name it was mounted under there. The window addresses a tab by
  * where the file is on the computer, so the path is placed there through the
  * task's own layout before a tab is asked for it. A path the task cannot

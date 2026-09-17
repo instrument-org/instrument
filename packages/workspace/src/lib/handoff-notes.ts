@@ -17,7 +17,7 @@ import { taskDir } from "./task-dir-utils";
  * and `work/handoff.md` on the next, and nothing downstream could look for a
  * name chosen fresh each time.
  *
- * Under `work/` rather than `output/`: these are the agent's own working
+ * Under `work/`: these are the agent's own working
  * record, not a deliverable the user asked for.
  */
 const HANDOFF_NOTES_RELATIVE_PATH = `${TASK_FOLDER_NAMES.work}/handoff-notes.md`;

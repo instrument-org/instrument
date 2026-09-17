@@ -10,7 +10,7 @@ import { isUnder } from "../path-containment";
 const OPEN_NAME = "open";
 
 export const OPEN_COMMAND = {
-  description: `Put a page, a file, or a folder on the user's screen, as a tab of the window: \`${OPEN_NAME} https://...\` opens the page in a tab of its own and prints the tab's id, which a task takes with --tab; \`${OPEN_NAME} ${MOUNT.attachedFolders}/<folder>/report.md\` or \`${OPEN_NAME} ${MOUNT.tasks}/<id>/output/report.md\` opens the file; \`${OPEN_NAME} ${MOUNT.attachedFolders}/<folder>\` opens the folder itself, the way it does in a terminal. Several arguments open several tabs. It opens nothing in the user's own applications and downloads nothing.`,
+  description: `Put a page, a file, or a folder on the user's screen, as a tab of the window: \`${OPEN_NAME} https://...\` opens the page in a tab of its own and prints the tab's id, which a task takes with --tab; \`${OPEN_NAME} ${MOUNT.attachedFolders}/<folder>/report.md\` or \`${OPEN_NAME} ${MOUNT.tasks}/<id>/work/report.md\` opens the file; \`${OPEN_NAME} ${MOUNT.attachedFolders}/<folder>\` opens the folder itself, the way it does in a terminal. Several arguments open several tabs. It opens nothing in the user's own applications and downloads nothing.`,
   name: OPEN_NAME,
 } as const;
 

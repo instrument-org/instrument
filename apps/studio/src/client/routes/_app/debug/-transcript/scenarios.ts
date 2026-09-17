@@ -227,8 +227,8 @@ const LINKS = [
   "Rotation is written up on [the channels doc](https://channels.finalpoint.org), and the runbook it points at is [finalpoint.co/runbooks/rotation](https://finalpoint.co/runbooks/rotation). The status page is https://status.finalpoint.org and the one incident this month is https://status.finalpoint.org/incidents/4, which closed on the Tuesday.",
   "The one I would not follow is on the vendor page: it offers [github.com](https://keys.finalpoint-cdn.example/gh) for the signing keys, which is not GitHub. The real one is [github.com](https://github.com).",
   "### What I changed",
-  "Send [release-notes.md](output/release-notes.md) to [neil@finalpoint.co](mailto:neil@finalpoint.co) once [linear.app](https://linear.app) is updated, and copy jeremy@finalpoint.co on it.",
-  "- The changelog entry is in [output/CHANGELOG.md](output/CHANGELOG.md), alongside [the diff I generated](output/rotation.patch).\n- Upstream tracked it as [an issue with a title long enough that the label wraps across two lines before the origin arrives](https://github.com/instrument-org/instrument/issues/1)\n- The staging copy is [channels.finalpoint.org:8443](https://channels.finalpoint.org:8443), and the local one is http://localhost:5173/.",
+  "Send [release-notes.md](work/release-notes.md) to [neil@finalpoint.co](mailto:neil@finalpoint.co) once [linear.app](https://linear.app) is updated, and copy jeremy@finalpoint.co on it.",
+  "- The changelog entry is in [work/CHANGELOG.md](work/CHANGELOG.md), alongside [the diff I generated](work/rotation.patch).\n- Upstream tracked it as [an issue with a title long enough that the label wraps across two lines before the origin arrives](https://github.com/instrument-org/instrument/issues/1)\n- The staging copy is [channels.finalpoint.org:8443](https://channels.finalpoint.org:8443), and the local one is http://localhost:5173/.",
   "| Where | Link |\n| --- | --- |\n| Docs | [the channels doc](https://channels.finalpoint.org) |\n| Keys | [github.com](https://github.com) |\n| Owner | [neil@finalpoint.co](mailto:neil@finalpoint.co) |",
   "Nothing above needs a decision from you today; [reply on the doc](https://channels.finalpoint.org/c/rotation) if the staging host should move first.",
 ].join("\n\n");
@@ -483,13 +483,13 @@ const REAL_TURN: Act[] = [
   activity("Drawing the cover"),
   generated({
     explanation: "Drawing the cover for the write-up",
-    filePath: "./output/quarterly-cover",
+    filePath: "./work/quarterly-cover",
     parameters: { background: "opaque", quality: "high" },
     prompt:
       "Four quarterly bars in muted ink on paper, the third taller than the rest, drawn as a restrained editorial illustration.",
   }),
   wrote({
-    content: "![Q3](./output/quarterly-cover.png)\n",
+    content: "![Q3](./work/quarterly-cover.png)\n",
     explanation: "Putting the cover at the top of the write-up",
     filePath: "./summary.md",
   }),
@@ -615,17 +615,17 @@ export const scenarios: Scenario[] = [
       }),
       generated({
         explanation: "Drawing an icon for the library",
-        filePath: "./output/helpers-icon",
+        filePath: "./work/helpers-icon",
         parameters: { background: "opaque", quality: "high" },
         prompt:
           "A minimal flat vector icon of interlocking gear and wrench symbols in a blue gradient.",
       }),
       generated({
         explanation: "Drawing the dark variant from the first one",
-        filePath: "./output/helpers-icon-dark",
+        filePath: "./work/helpers-icon-dark",
         prompt:
           "The same icon on a deep navy background with glowing cyan accents.",
-        sourceImages: ["./output/helpers-icon.png"],
+        sourceImages: ["./work/helpers-icon.png"],
       }),
       // A tool the model invented. The runtime cannot dispatch it, so the row
       // is drawn from nothing but the fact that a call was made.
@@ -694,7 +694,7 @@ export const scenarios: Scenario[] = [
         error: "Image generation timed out after 120s",
         input: {
           explanation: "Drawing a logo",
-          filePath: "./output/logo",
+          filePath: "./work/logo",
           prompt: "A modern tech logo",
         },
         type: "tool-generate_image",
@@ -707,7 +707,7 @@ export const scenarios: Scenario[] = [
       }),
       imageUnavailable({
         explanation: "Drawing the sunset",
-        filePath: "./output/sunset",
+        filePath: "./work/sunset",
         prompt: "A sunset over mountains",
       }),
     ],
@@ -745,7 +745,7 @@ export const scenarios: Scenario[] = [
         text: "Keep the test options in `vitest.config.ts` and enable globals so test files do not import `describe`, `it` and `expect`.",
       }),
       generated({
-        filePath: "./output/icon",
+        filePath: "./work/icon",
         prompt: "A minimal flat vector icon.",
       }),
     ],
@@ -1189,12 +1189,12 @@ done`,
                 size: 512_000,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.output}/summary.pdf`,
+                filePath: `${TASK_FOLDER_NAMES.work}/summary.pdf`,
                 mimeType: "application/pdf",
                 size: 88_000,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.output}/demo.mp4`,
+                filePath: `${TASK_FOLDER_NAMES.work}/demo.mp4`,
                 mimeType: "video/mp4",
                 size: 1_024_000,
               }),

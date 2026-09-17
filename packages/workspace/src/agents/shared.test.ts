@@ -37,7 +37,6 @@ describe("getTaskLayoutContext", () => {
     }
     for (const folder of [
       TASK_FOLDER_NAMES.attachments,
-      TASK_FOLDER_NAMES.output,
       TASK_FOLDER_NAMES.work,
     ]) {
       await fs.mkdir(path.join(taskDir, folder));

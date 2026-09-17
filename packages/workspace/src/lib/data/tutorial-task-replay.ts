@@ -7,7 +7,7 @@ import { AGENT_FILES_LANGUAGE } from "../../constants";
  * agree on it: the tool call that writes it, the fence that hands it to the
  * user, and the pane the replay opens it in.
  */
-const TUTORIAL_FILE_PATH = "output/instrument-tutorial.md";
+const TUTORIAL_FILE_PATH = "work/instrument-tutorial.md";
 
 export const TUTORIAL_TASK_REPLAY = {
   steps: [

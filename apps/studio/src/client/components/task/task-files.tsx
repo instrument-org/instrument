@@ -8,7 +8,6 @@ import { shouldFilterTaskFile } from "@/client/lib/task-file-groups";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { rpcClient } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
 import {
   type Task,
   TASK_FOLDER_NAMES,
@@ -185,9 +184,7 @@ export function TaskFiles({
           <TreeNode
             activeFilePath={activeFilePath}
             defaultOpen={
-              node.kind === "dir" &&
-              (node.name === TASK_FOLDER_NAMES.attachments ||
-                node.name === TASK_FOLDER_NAMES.output)
+              node.kind === "dir" && node.name === TASK_FOLDER_NAMES.attachments
             }
             key={i}
             node={node}
@@ -313,9 +310,6 @@ function buildTree(files: TaskTreeFile[]): FileTreeNode[] {
 }
 
 function directorySectionLabel(dirName: string) {
-  if (dirName === TASK_FOLDER_NAMES.output) {
-    return `Made by ${APP_NAME}`;
-  }
   if (dirName === TASK_FOLDER_NAMES.attachments) {
     return "Attached files";
   }
@@ -413,11 +407,6 @@ function FilesItemMenu({ children }: { children: React.ReactNode }) {
   );
 }
 
-const DIR_RANK: Record<string, number> = {
-  [TASK_FOLDER_NAMES.attachments]: 1,
-  [TASK_FOLDER_NAMES.output]: 0,
-};
-
 function CollapsibleTreeSection({
   children,
   defaultOpen = false,
@@ -481,8 +470,12 @@ function dirContainsActive(
   return false;
 }
 
+// Attached files first, then every other folder, then the files at the root.
 function rankTreeNode(node: FileTreeNode) {
-  return node.kind === "dir" ? (DIR_RANK[node.name] ?? 2) : 2;
+  if (node.kind !== "dir") {
+    return 2;
+  }
+  return node.name === TASK_FOLDER_NAMES.attachments ? 0 : 1;
 }
 
 function TreeNode({
@@ -512,9 +505,7 @@ function TreeNode({
 
   const containsActive = dirContainsActive(node, activeFilePath);
   const isTopSpecialSection =
-    treeDepth === 0 &&
-    (node.name === TASK_FOLDER_NAMES.output ||
-      node.name === TASK_FOLDER_NAMES.attachments);
+    treeDepth === 0 && node.name === TASK_FOLDER_NAMES.attachments;
 
   return (
     <SidebarMenuItem>

@@ -13,7 +13,6 @@ export const TASK_FOLDER_NAMES = {
   // workspace root rather than in a task (see getExternalBrowserTmpDir): what
   // lands there is a copy of the host's browser state, not task content.
   externalBrowserTmp: "external-browser-tmp",
-  output: "output",
   private: TASK_PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
   skills: "skills",

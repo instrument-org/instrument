@@ -329,7 +329,7 @@ export function scriptFileVirtualPathError(
       `This script file references a ${MOUNT.task}/... absolute path, which ` +
       `real interpreter processes cannot resolve: ${MOUNT.task} is a virtual ` +
       `path only the sandbox shell and file tools see, and scripts run from the ` +
-      `task root. Use a task-relative path instead (output/report.txt, ` +
+      `task root. Use a task-relative path instead (work/report.txt, ` +
       `work/data.csv). Command-line path arguments and quoted ${MOUNT.task}/... ` +
       `strings in inline -e/-c code are translated automatically; paths written ` +
       `inside script files are not.`
@@ -402,7 +402,7 @@ export function unreachablePathArgError(
   return (
     `${commandName}: ${outside} is outside the task, and ${MOUNT.task} is the ` +
     `only mount a real subprocess can resolve. Use a task-relative path ` +
-    `(work/scratch.txt, output/report.pdf); scratch files belong under work/, ` +
+    `(work/scratch.txt, work/report.pdf); scratch files belong under work/, ` +
     `which is where mktemp puts them.\n`
   );
 }

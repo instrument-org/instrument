@@ -8,15 +8,13 @@ import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
 const PROMINENT_TOP_LEVEL_DIRS = new Set<string>([
   TASK_FOLDER_NAMES.attachments,
   TASK_FOLDER_NAMES.downloads,
-  TASK_FOLDER_NAMES.output,
 ]);
 
 /**
  * Hide anything that is not under a prominent top-level dir (`attachments/`,
- * `downloads/`, `output/`) and is not a root-level file. Root files are
- * surfaced (dotfiles excluded) so a deliverable an agent saved to the task root
- * (instead of `output/`) is still shown; nested scratch inside `work/` stays
- * hidden.
+ * `downloads/`) and is not a root-level file. Root files are surfaced
+ * (dotfiles excluded) so a deliverable an agent saved to the task root is still
+ * shown; nested scratch inside `work/` stays hidden.
  */
 export function shouldFilterTaskFile(filePath: string): boolean {
   const dir = topLevelDir(filePath);

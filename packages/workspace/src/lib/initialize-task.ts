@@ -70,11 +70,10 @@ export async function initializeTask(
 
     // Create standard directories so they appear in the file tree. Avoids agent
     // spending a tool call to create them. `work` normally arrives via the
-    // template copy above; creating it here too makes the agent-visible triad
+    // template copy above; creating it here too makes the agent-visible pair
     // a guarantee of task initialization rather than a template detail (venv
     // creation, pnpm guidance, and skill installs all assume it exists).
     const standardDirs = [
-      TASK_FOLDER_NAMES.output,
       TASK_FOLDER_NAMES.attachments,
       TASK_FOLDER_NAMES.work,
     ];

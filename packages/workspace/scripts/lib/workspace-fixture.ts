@@ -31,7 +31,7 @@ const TASK_FILES_DIR_NAME = "files";
 const FixtureFileSchema = z.object({
   // Path inside the fixture's `files/` dir.
   from: RelativeTaskPathSchema,
-  // Where it lands inside the seeded task, e.g. `output/report.pdf`.
+  // Where it lands inside the seeded task, e.g. `work/report.pdf`.
   to: RelativeTaskPathSchema,
 });
 

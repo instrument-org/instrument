@@ -149,7 +149,7 @@ export const CREATE_PAGE_SKILL_EVALS = [
     // that punished it would push the agent to override what the user asked.
     assertions: [leavesCreatePageAlone],
     name: "create-page-not-for-a-named-markdown-file",
-    prompt: "Write a short note on what a CDN is to output/cdn.md.",
+    prompt: "Write a short note on what a CDN is to work/cdn.md.",
     shouldStop: stopOnFirstWrite,
   }),
 

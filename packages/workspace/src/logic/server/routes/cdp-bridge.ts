@@ -228,7 +228,7 @@ function handleCdpClient(
         error: {
           code: -32_000,
           message:
-            "A file:// address is not a page the browser opens for you. Open a task file by its sandbox path (agent-browser open output/page.html) instead.",
+            "A file:// address is not a page the browser opens for you. Open a task file by its sandbox path (agent-browser open work/page.html) instead.",
         },
         id,
       });

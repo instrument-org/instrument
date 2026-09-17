@@ -28,8 +28,8 @@ const SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
  * stylesheets. The workspace already serves every task file over a per-task
  * static origin, so a navigation argument naming a sandbox path is rewritten
  * onto that origin. This keeps the origin an implementation detail: the agent
- * asks for `output/report.html`, `/task/output/report.html`, or
- * `file:///task/output/report.html` and gets a real page it can inspect.
+ * asks for `work/report.html`, `/task/work/report.html`, or
+ * `file:///task/work/report.html` and gets a real page it can inspect.
  */
 export async function rewriteNavigationArgToAssetUrl(
   args: string[],

@@ -206,8 +206,8 @@ const WORKSPACE_HELP_MANAGED = dedent`
     4. Re-run snapshot -i after navigation or DOM changes
 
   Inspecting a file you created:
-    agent-browser open output/report.html   Task files load in the browser
-    agent-browser open ${MOUNT.task}/output/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.attachedFolders}/...,
+    agent-browser open work/report.html     Task files load in the browser
+    agent-browser open ${MOUNT.task}/work/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.attachedFolders}/...,
                                             and file://${MOUNT.task}/... all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
 

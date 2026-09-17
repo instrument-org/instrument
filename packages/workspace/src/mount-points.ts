@@ -61,7 +61,7 @@ export const MOUNT = {
    *
    * A named home rather than the filesystem root, so the agent has a clear,
    * stable place to work and is less prone to hallucinating host paths.
-   * Relative paths (`work/`, `output/`, `attachments/`) are unaffected, since
+   * Relative paths (`work/`, `attachments/`) are unaffected, since
    * the working directory is this mount. Every virtual/real translator routes
    * through the layout, so this is the single value to change.
    */

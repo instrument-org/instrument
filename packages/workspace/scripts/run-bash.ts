@@ -152,13 +152,9 @@ const taskId = TaskIdSchema.parse(args.taskId ?? ulid().toLowerCase());
 
 const taskDir = path.join(tasksDir, taskId);
 await fs.mkdir(taskDir, { recursive: true });
-// Match initializeTask's guarantee: the agent-visible triad always exists
+// Match initializeTask's guarantee: the agent-visible pair always exists
 // (the repl skips the template copy that normally scaffolds `work/`).
-for (const dirName of [
-  TASK_FOLDER_NAMES.attachments,
-  TASK_FOLDER_NAMES.output,
-  TASK_FOLDER_NAMES.work,
-]) {
+for (const dirName of [TASK_FOLDER_NAMES.attachments, TASK_FOLDER_NAMES.work]) {
   await fs.mkdir(path.join(taskDir, dirName), { recursive: true });
 }
 

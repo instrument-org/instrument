@@ -154,7 +154,7 @@ export function shouldContinueWithToolCalls({
   );
 }
 
-/** What a fresh task's tree renders as: the template's files and the three empty folders. */
+/** What a fresh task's tree renders as: the template's files and the two empty folders. */
 async function scaffoldTree() {
   let templateFiles: string[] = [];
   try {
@@ -166,7 +166,6 @@ async function scaffoldTree() {
   }
   return generateTreeString(templateFiles, [
     TASK_FOLDER_NAMES.attachments,
-    TASK_FOLDER_NAMES.output,
     TASK_FOLDER_NAMES.work,
   ]);
 }

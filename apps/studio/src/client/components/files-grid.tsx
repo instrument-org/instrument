@@ -222,13 +222,9 @@ export function FilesGrid({
 
 // Groups a turn's changed files into the folders that reach the user, richest
 // preview first within each. Root files cover a deliverable an agent saved to
-// the task root instead of `output/`; see `isSurfacedTaskFile` for which paths
-// reach the user at all.
+// the task root; see `isSurfacedTaskFile` for which paths reach the user at all.
 function bucketByTaskFolder(files: ViewerFile[], prioritizeUserFiles: boolean) {
-  const [outputFiles, nonOutputFiles] = fork(files, (file) =>
-    isFileInTaskFolder(taskPathOf(file), TASK_FOLDER_NAMES.output),
-  );
-  const [attachmentFiles, nonAttachmentFiles] = fork(nonOutputFiles, (file) =>
+  const [attachmentFiles, nonAttachmentFiles] = fork(files, (file) =>
     isFileInTaskFolder(taskPathOf(file), TASK_FOLDER_NAMES.attachments),
   );
   const [downloadFiles, nonDownloadFiles] = fork(nonAttachmentFiles, (file) =>
@@ -238,24 +234,13 @@ function bucketByTaskFolder(files: ViewerFile[], prioritizeUserFiles: boolean) {
     isRootTaskFile(taskPathOf(file)),
   );
 
-  const sortedOutputFiles = sortByRichPreview(outputFiles);
   const sortedAttachmentFiles = sortByRichPreview(attachmentFiles);
   const sortedDownloadFiles = sortByRichPreview(downloadFiles);
   const sortedRootFiles = sortByRichPreview(rootFiles);
 
   return prioritizeUserFiles
-    ? [
-        ...sortedAttachmentFiles,
-        ...sortedOutputFiles,
-        ...sortedRootFiles,
-        ...sortedDownloadFiles,
-      ]
-    : [
-        ...sortedOutputFiles,
-        ...sortedRootFiles,
-        ...sortedAttachmentFiles,
-        ...sortedDownloadFiles,
-      ];
+    ? [...sortedAttachmentFiles, ...sortedRootFiles, ...sortedDownloadFiles]
+    : [...sortedRootFiles, ...sortedAttachmentFiles, ...sortedDownloadFiles];
 }
 
 // Which types get a full-width preview row rather than a compact chip. Images

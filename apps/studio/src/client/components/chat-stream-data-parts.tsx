@@ -7,7 +7,6 @@ import {
   messageGapModelNote,
   paneTabsModelNote,
   type SessionMessagePart,
-  TASK_FOLDER_NAMES,
   viewContextModelNote,
 } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
@@ -194,9 +193,10 @@ export function renderDataPart({
       );
     }
     case "data-fileChanges": {
-      // Only `output/`. The watcher behind this part reported everything a turn
-      // touched, and the overwhelming majority of that is `work/`: the scripts
-      // the agent wrote to make the deliverable, not the deliverable. Showing
+      // Only the `output/` folder tasks wrote deliverables to when this part
+      // was live. The watcher behind it reported everything a turn touched,
+      // and the overwhelming majority of that is `work/`: the scripts the
+      // agent wrote to make the deliverable, not the deliverable. Showing
       // those is what made the card worth deleting in the first place.
       //
       // A deleted file has nothing to show, and one the reply already fenced or
@@ -205,7 +205,7 @@ export function renderDataPart({
         .filter(
           (file) =>
             file.status !== "deleted" &&
-            file.filePath.startsWith(`${TASK_FOLDER_NAMES.output}/`) &&
+            file.filePath.startsWith("output/") &&
             isAddressableTaskFilePath(file.filePath) &&
             pathsAlreadyShown?.has(file.filePath) !== true,
         )

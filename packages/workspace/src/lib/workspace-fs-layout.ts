@@ -35,7 +35,7 @@ export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
  *
  * The task is mounted under a named home (`/task`) rather than the filesystem
  * root so the agent has a clear, stable place to work and is less prone to
- * hallucinating host paths. Relative paths (work/, output/, attachments/, ...)
+ * hallucinating host paths. Relative paths (work/, attachments/, ...)
  * are unaffected since the working directory is this mount. Every virtual<->real
  * translator routes through the layout, so this is the single value to change.
  */

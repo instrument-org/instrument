@@ -52,7 +52,6 @@ describe("initializeTask", () => {
         ".instrument/",
         ".instrument/settings.json",
         "attachments/",
-        "output/",
         "package.json",
         "pnpm-lock.yaml",
         "pnpm-workspace.yaml",

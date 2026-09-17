@@ -70,7 +70,7 @@ export const GenerateImage = setupTool({
         description: `Replace an existing file at ${INPUT_PARAMS.filePath} instead of saving under a new name. Only set when the user clearly wants to replace the earlier image in place.`,
       }),
     [INPUT_PARAMS.filePath]: z.string().meta({
-      description: `Relative path with filename but WITHOUT extension (e.g. ./output/image-name); the extension is added automatically. For a revised or alternative image, prefer a fresh descriptive name; reusing an existing path saves under a new name (image-name-2) so earlier versions are kept. Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
+      description: `Relative path with filename but WITHOUT extension (e.g. ./work/image-name); the extension is added automatically. For a revised or alternative image, prefer a fresh descriptive name; reusing an existing path saves under a new name (image-name-2) so earlier versions are kept. Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
     [INPUT_PARAMS.parameters]: z
       .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
@@ -166,7 +166,7 @@ export const GenerateImage = setupTool({
     if (filePathResult.value.mount) {
       yield executeError(
         `Images cannot be generated directly into "${filePathResult.value.displayPath}". ` +
-          `Generate into the task (e.g. ${TASK_FOLDER_NAMES.output}/image.png), then move it there with the bash tool if it belongs in the folder.`,
+          `Generate into the task (e.g. ${TASK_FOLDER_NAMES.work}/image.png), then move it there with the bash tool if it belongs in the folder.`,
       );
       return;
     }

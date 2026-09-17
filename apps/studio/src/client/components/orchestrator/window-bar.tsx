@@ -4,14 +4,17 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { type ReactNode } from "react";
 
 /**
- * The row across the top of the window: the traffic lights' band, then the
- * tabs. The corner past the lights is empty for now; the tabs start where the
- * chat pane ends below them, so the strip reads as the window's.
+ * The row across the top of the window: the traffic lights' band, the
+ * control over the inbox column past them, then the tabs. The corner past
+ * the lights is where the window keeps what is the window's alone.
  */
 export function WindowBar({
+  leading,
   tabs,
   trailing,
 }: {
+  /** What the window keeps past the lights, at its left edge. */
+  leading?: ReactNode;
   /** The window's tab strip, which fills the row. */
   tabs: ReactNode;
   /** What the window keeps at its right edge, past the tabs. */
@@ -41,6 +44,9 @@ export function WindowBar({
           : {}),
       }}
     >
+      {leading ? (
+        <div className="flex shrink-0 items-center gap-2">{leading}</div>
+      ) : null}
       {/* `min-w-0`: the strip measures its own width and never scrolls, so
         every wrapper between it and the bar has to be allowed to shrink. */}
       <div className="flex min-w-0 flex-1 items-center">{tabs}</div>

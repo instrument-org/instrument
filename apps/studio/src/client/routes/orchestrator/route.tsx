@@ -1,16 +1,16 @@
 import {
   type Draft,
-  draftFilesAtom,
   draftGroupOf,
   draftOfGroup,
   draftsAtom,
+  draftSnapshotsAtom,
+  inboxOpenAtom,
   NEW_TAB_HREF,
-  openDraftAtom,
   type OrchestratorRecent,
   orchestratorRecentsAtom,
   orchestratorSidebarWidthAtom,
+  paneOpenByGroupAtom,
   RECENTS_MAX,
-  rightAreaOpenAtom,
   screenViewAtom,
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
@@ -30,16 +30,19 @@ import {
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
 import {
-  DraftBar,
-  DraftHead,
-} from "@/client/components/orchestrator/draft-head";
+  DraftComposer,
+  type DraftSend,
+} from "@/client/components/orchestrator/draft-composer";
 import {
   fileHref,
   folderHref,
   mountOfHostPath,
 } from "@/client/components/orchestrator/file-tabs";
 import { segmentsOf } from "@/client/components/orchestrator/host-path";
-import { RightAreaToggle } from "@/client/components/orchestrator/right-area-toggle";
+import { InboxToggle } from "@/client/components/orchestrator/inbox-toggle";
+import { NewTopicDialog } from "@/client/components/orchestrator/new-topic-dialog";
+import { PaneToggle } from "@/client/components/orchestrator/pane-toggle";
+import { RightPane } from "@/client/components/orchestrator/right-pane";
 import {
   screenLocation,
   screenPresentation,
@@ -54,7 +57,7 @@ import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
-  isAnchor,
+  isHomeTab,
   PAGE_ROUTE,
   parseHref,
   threadOfHref,
@@ -278,19 +281,18 @@ function OrchestratorLayout() {
   const threadTitles = new Map<StoreId.Session, string>(
     threads.data?.map((thread) => [thread.id, thread.title]) ?? [],
   );
-  const [defaultModelURI] = useDefaultModelURI();
+  const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
+    useDefaultModelURI();
   const screenView = useAtomValue(screenViewAtom);
   const [drafts, setDrafts] = useAtom(draftsAtom);
-  const [draftFiles, setDraftFiles] = useAtom(draftFilesAtom);
+  const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   // Read at the moment of starting, since the context is gathered first, and
   // the reader of the screen is made further down.
-  const draftFilesRef = useRef(draftFiles);
-  draftFilesRef.current = draftFiles;
   const sendContextRef = useRef<
     () => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>
   >(() => Promise.resolve(undefined));
-  const [openDraft, setOpenDraft] = useAtom(openDraftAtom);
-  const [isRightAreaOpen, setRightAreaOpen] = useAtom(rightAreaOpenAtom);
+  const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
   const isDeveloperMode = useDeveloperMode();
   const router = useRouter();
   const location = useRouterState({
@@ -305,26 +307,70 @@ function OrchestratorLayout() {
   // made one; null while a screen is up and the row is the field itself.
   const [chromeSlot, setChromeSlot] = useState<HTMLElement | null>(null);
   const popClosed = usePopClosedTab();
-  const { active, activeId, tabs } = windowTabs;
+  const { active, tabs } = windowTabs;
   // Nothing is on screen with no group up: the right area belongs to a
   // thread or a draft, never to the window on its own.
-  const showsRightArea = isRightAreaOpen && windowTabs.group !== undefined;
+  const showsRightArea = windowTabs.group !== undefined;
   const draftUp = draftOfGroup(windowTabs.group);
-  const isExpanded =
-    openDraft?.placement === "expanded" && draftUp !== undefined;
-  const isPageOnScreen = active?.kind === "page";
-
-  // The router follows the tab on screen: a screen's own address, or the
-  // page route, which shows nothing of its own, while a page is up. Checked
-  // against the history's own address rather than the rendered one: two
-  // pushes in one tick reach the render one at a time, and a push made
-  // against the earlier of them would be a step backward.
+  const draftOnScreen =
+    draftUp === undefined
+      ? undefined
+      : drafts.find((entry) => entry.id === draftUp);
+  // A draft's group with no draft left for it (thrown away elsewhere, or a
+  // record that did not survive) is nothing to show: its tabs go with it.
+  const missingDraft = draftOnScreen === undefined ? draftUp : undefined;
   useEffect(() => {
-    if (!active) {
+    if (missingDraft !== undefined) {
+      windowTabs.dropGroup(draftGroupOf(missingDraft));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missingDraft]);
+  // The thread whose group is on screen, beside its tabs.
+  const threadUp = (() => {
+    const parsed = StoreId.SessionSchema.safeParse(windowTabs.group);
+    return parsed.success ? parsed.data : undefined;
+  })();
+  const isPageOnScreen = active?.kind === "page";
+  // The pane beside the conversation: open unless this group put it away,
+  // and shown only while there are tabs to show in it. Closing the last tab
+  // closes the pane; the toggle brings it back with a new tab in it.
+  const isPaneWanted =
+    windowTabs.group === undefined ||
+    (paneOpenByGroup[windowTabs.group] ?? true);
+  const showsPane = tabs.length > 0 && isPaneWanted;
+  const setPaneOpen = (group: string, isOpen: boolean) => {
+    setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
+  };
+  /** Brings the pane up for the group on screen, for something opened into it. */
+  const revealPane = () => {
+    if (windowTabs.group !== undefined) {
+      setPaneOpen(windowTabs.group, true);
+    }
+  };
+  const togglePane = () => {
+    const group = windowTabs.group;
+    if (group === undefined) {
       return;
     }
+    if (showsPane) {
+      setPaneOpen(group, false);
+      return;
+    }
+    setPaneOpen(group, true);
+    if (tabs.length === 0) {
+      windowTabs.openScreen(NEW_TAB_HREF);
+    }
+  };
+  const paneToggle = <PaneToggle isOpen={showsPane} onToggle={togglePane} />;
+
+  // The router follows the tab on screen: a screen's own address, or the
+  // page route, which shows nothing of its own, while a page is up or no tab
+  // is. Checked against the history's own address rather than the rendered
+  // one: two pushes in one tick reach the render one at a time, and a push
+  // made against the earlier of them would be a step backward.
+  useEffect(() => {
     const latest = router.history.location;
-    if (active.kind === "page") {
+    if (!active || active.kind === "page") {
       if (latest.pathname !== PAGE_ROUTE) {
         router.history.push(PAGE_ROUTE);
       }
@@ -332,11 +378,11 @@ function OrchestratorLayout() {
       router.history.push(active.href);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId]);
+  }, [active?.id]);
 
   // Route navigation stays in this tab, including when leaving a website.
   useEffect(() => {
-    if (tabs.length === 0) {
+    if (windowTabs.group === undefined) {
       return;
     }
     // An address the history has already moved past is not one to follow:
@@ -355,7 +401,11 @@ function OrchestratorLayout() {
       }
       return;
     }
-    if (active?.kind === "screen") {
+    if (!active) {
+      // Nothing under the head to move: a screen the router was sent to
+      // opens as the group's first tab.
+      windowTabs.openScreen(location.href);
+    } else if (active.kind === "screen") {
       windowTabs.setActiveHref(location.href);
     } else {
       windowTabs.navigateScreen(location.href);
@@ -374,8 +424,7 @@ function OrchestratorLayout() {
    * Opens a page: in the tab on screen when it is a page of the window's
    * own, in a tab of its own when asked for one, and into a named group when
    * the open belongs to a thread other than the one up, where it waits
-   * behind. A group's anchor is never replaced: a page opened from it opens
-   * beside it.
+   * behind. Opened into the group on screen, it brings the pane up.
    */
   const openPage = (
     url: string,
@@ -385,7 +434,12 @@ function OrchestratorLayout() {
       browser?.openOrFocus(url, { group: into });
       return;
     }
-    setRightAreaOpen(true);
+    if (windowTabs.group === undefined) {
+      // Nothing is on screen to open it in: a page belongs to a thread or a
+      // draft, never to the window on its own.
+      return;
+    }
+    revealPane();
     if (!newTab && active?.kind === "page" && !active.taskId) {
       browser?.navigate(url);
       return active.id;
@@ -398,10 +452,7 @@ function OrchestratorLayout() {
     }
     return browser?.open(
       url,
-      active &&
-        !isTaskTab &&
-        !isAnchor(active) &&
-        (!newTab || isFreshNewTab)
+      active && !isTaskTab && (!newTab || isFreshNewTab)
         ? { replacing: active }
         : undefined,
     );
@@ -414,8 +465,7 @@ function OrchestratorLayout() {
     if (thread) {
       // The thread's group comes up at the tab it last had up, and the
       // address follows that tab; pushing the thread's own address here
-      // would send the group back to the thread itself.
-      setRightAreaOpen(true);
+      // would send the tab on screen there.
       windowTabs.showThread(thread);
       return;
     }
@@ -428,8 +478,11 @@ function OrchestratorLayout() {
       // a draft, never to the window on its own.
       return;
     }
-    setRightAreaOpen(true);
-    if (newTab && !isFreshNewTab) {
+    revealPane();
+    if (!active) {
+      // Nothing in the pane to open it in place of.
+      windowTabs.openScreen(href);
+    } else if (newTab && !isFreshNewTab) {
       windowTabs.openOrFocusScreen(href);
     } else {
       windowTabs.navigateScreen(href);
@@ -728,15 +781,32 @@ function OrchestratorLayout() {
     }),
   );
   const topics = topicsQuery.data ?? [];
+  const createTopic = useMutation(
+    rpcClient.workspace.orchestrator.topics.create.mutationOptions({
+      onSuccess: () => void topicsQuery.refetch(),
+    }),
+  );
+  const setThreadTopics = useMutation(
+    rpcClient.workspace.orchestrator.threads.setTopics.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to tag the thread", {
+          description: error.message,
+        });
+      },
+    }),
+  );
+  const [isNewTopicOpen, setNewTopicOpen] = useState(false);
   const [isStarting, setStarting] = useState(false);
 
-  /** Brings a draft's group on screen with its head over it. */
-  const showDraft = (id: string, placement: "docked" | "expanded") => {
-    setOpenDraft({ id, placement });
-    setRightAreaOpen(true);
+  /** Brings a draft's group on screen with its composer beside it. */
+  const showDraft = (id: string) => {
     windowTabs.showDraft(id);
   };
-  /** Makes a draft, filed under a topic when the pane stands in one, and brings it up. */
+  /**
+   * Makes a draft, filed under a topic when the pane stands in one, and
+   * brings it up with the new-tab page as its first tab: the place to find
+   * a site, a folder, a file, or an app to gather.
+   */
   const startDraft = (topicId: string | undefined) => {
     const now = Date.now();
     const draft: Draft = {
@@ -747,7 +817,16 @@ function OrchestratorLayout() {
       words: "",
     };
     setDrafts((current) => [...current, draft]);
-    showDraft(draft.id, "docked");
+    showDraft(draft.id);
+    windowTabs.openScreen(NEW_TAB_HREF, { group: draftGroupOf(draft.id) });
+  };
+  /**
+   * Puts the group on screen away: the inbox takes the width, and comes
+   * back if it was hidden, since nothing else would be left on screen.
+   */
+  const leaveGroup = () => {
+    windowTabs.leaveGroup();
+    setInboxOpen(true);
   };
   /** Hands the screen back to the group the draft took it from, or to nothing. */
   const leaveDraft = () => {
@@ -758,23 +837,26 @@ function OrchestratorLayout() {
     if (thread?.success) {
       windowTabs.showThread(thread.data);
     } else {
-      windowTabs.leaveGroup();
+      leaveGroup();
     }
   };
-  /** Puts the draft away to a bar, keeping everything it has. */
-  const putDraftAway = (id: string, placement: "bar") => {
-    setOpenDraft({ id, placement });
-    leaveDraft();
-  };
-  /** Throws a draft away: its record, its files, and its tabs. */
+  // What a draft's composer held is kept only as long as the draft: a
+  // composer unmounting keeps its snapshot as it goes, so a draft sent or
+  // thrown away is pruned here, after that.
+  const draftIds = drafts.map((draft) => draft.id).join("\n");
+  useEffect(() => {
+    const keep = new Set(draftIds.split("\n"));
+    setDraftSnapshots((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([id]) => keep.has(id)),
+      ),
+    );
+  }, [draftIds, setDraftSnapshots]);
+  /** Throws a draft away: its record, what its composer held, and its tabs. */
   const deleteDraft = (id: string) => {
     setDrafts((current) => current.filter((draft) => draft.id !== id));
-    setDraftFiles(({ [id]: _dropped, ...rest }) => rest);
-    if (openDraft?.id === id) {
-      setOpenDraft(null);
-      if (draftUp === id) {
-        leaveDraft();
-      }
+    if (draftUp === id) {
+      leaveDraft();
     }
     windowTabs.dropGroup(draftGroupOf(id));
   };
@@ -784,11 +866,10 @@ function OrchestratorLayout() {
    */
   const closeDraft = (id: string) => {
     const draft = drafts.find((entry) => entry.id === id);
-    const hasTabs = windowTabs.allTabs.some(
-      (tab) => tab.group === draftGroupOf(id) && !isAnchor(tab),
+    const hasGathered = windowTabs.allTabs.some(
+      (tab) => tab.group === draftGroupOf(id) && !isHomeTab(tab),
     );
-    if (draft && (draft.words.trim() !== "" || hasTabs)) {
-      setOpenDraft(null);
+    if (draft && (draft.words.trim() !== "" || hasGathered)) {
       leaveDraft();
       toast("Saved to Drafts");
     } else {
@@ -796,31 +877,28 @@ function OrchestratorLayout() {
     }
   };
   /**
-   * Starts the thread the draft is for: its words, its files, and its topic
-   * as the first message, with what its tabs show as the context; then what
-   * the draft gathered becomes the thread's tabs as they are, and the
-   * thread comes on screen.
+   * Starts the thread the draft is for: what its composer sends (the words,
+   * the files, the folders, the model) and its topic as the first message,
+   * with what its tabs show as the context; then what the draft gathered
+   * becomes the thread's tabs exactly as they are, and the thread's
+   * conversation takes the column where the draft was.
    */
-  const startThread = (id: string) => {
+  const startThread = (id: string, send: DraftSend) => {
     const draft = drafts.find((entry) => entry.id === id);
     if (!draft || !ids) {
       return;
     }
-    if (!modelURI) {
-      toast.error("Choose a model before starting a thread");
-      return;
-    }
     setStarting(true);
+    // The model chosen for the thread is the one the next draft opens with.
+    saveDefaultModelURI(send.modelURI);
     void sendContextRef.current().then((viewing) => {
       createMessage.mutate(
         {
-          files: (draftFilesRef.current[id] ?? []).map((file) => ({
-            content: file.content,
-            filename: file.name,
-          })),
+          files: send.files,
+          folders: send.folders,
           id: ids.taskId,
-          modelURI,
-          prompt: draft.words,
+          modelURI: send.modelURI,
+          prompt: send.prompt,
           ...(draft.topicId ? { topics: [draft.topicId] } : {}),
           viewing,
         },
@@ -835,8 +913,6 @@ function OrchestratorLayout() {
           },
           onSuccess: ({ sessionId }) => {
             setDrafts((current) => current.filter((entry) => entry.id !== id));
-            setDraftFiles(({ [id]: _sent, ...rest }) => rest);
-            setOpenDraft(null);
             windowTabs.adoptGroup(draftGroupOf(id), sessionId);
           },
         },
@@ -867,19 +943,19 @@ function OrchestratorLayout() {
   /**
    * What the tab on screen says it shows, plus the page's words when that
    * tab is a page, read at the moment of sending; a screen that registered
-   * nothing sends nothing.
+   * nothing sends nothing, and so does a group with no tab under its head.
    */
   const sendContext = async (): Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   > => {
-    if (!screenView || !state.data) {
+    if (!screenView || !state.data || !active) {
       return;
     }
     // A file shown as a page is the file to the conversation: where it is,
     // and how the agent reaches it when a granted folder covers it, rather
     // than an address only this window can open.
     const activeFilePath =
-      screenView.screen === "browser" && active?.kind === "page"
+      screenView.screen === "browser" && active.kind === "page"
         ? hostPathOfFileUrl(active.url)
         : undefined;
     const page =
@@ -967,9 +1043,15 @@ function OrchestratorLayout() {
           <Frame
             bar={
               <WindowBar
-                // Nothing in the bar's middle for now: the tabs are each
-                // thread's and sit over the thread; the region is kept for
-                // tabs of the window's own, should they come back.
+                leading={
+                  // The one control the bar keeps at its left: the inbox
+                  // column, put away or brought back, so a thread and its
+                  // tabs can have the window. Only while something is on
+                  // screen to have it.
+                  <InboxToggle isCollapsible={showsRightArea} />
+                }
+                // Nothing in the bar's middle: the tabs are each thread's
+                // and sit beside the thread.
                 tabs={null}
                 trailing={
                   <>
@@ -989,10 +1071,6 @@ function OrchestratorLayout() {
                       }}
                       tasks={children.data ?? []}
                     />
-                    {/* The way out of the right area as a whole, at the
-                      bar's end: not perfectly the bar's business, but the
-                      one place a control over the whole area can sit. */}
-                    <RightAreaToggle />
                     {isDeveloperMode && (
                       <Suspense fallback={null}>
                         <DevPanel />
@@ -1008,7 +1086,7 @@ function OrchestratorLayout() {
             }
           >
             <ChatColumn
-              isHidden={isExpanded}
+              isHidden={!isInboxOpen && showsRightArea}
               isRightAreaOpen={showsRightArea}
             >
               {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
@@ -1037,15 +1115,11 @@ function OrchestratorLayout() {
                         drafts={drafts}
                         onDeleteDraft={deleteDraft}
                         onNew={startDraft}
-                        onOpenDraft={(id: string) => {
-                          showDraft(id, "docked");
-                        }}
+                        onOpenDraft={showDraft}
                         onOpenThread={(thread) => {
                           openScreen(`${THREADS_HREF}/${thread.id}`);
                         }}
-                        openThreadId={
-                          isRightAreaOpen ? windowTabs.group : undefined
-                        }
+                        openThreadId={windowTabs.group}
                         taskId={screens.taskId}
                       />
                     </PageOpenContext>
@@ -1053,7 +1127,7 @@ function OrchestratorLayout() {
                 </OrchestratorContext>
               </div>
             </ChatColumn>
-            {/* Hidden rather than unmounted while the area is closed, so
+            {/* Hidden rather than unmounted while nothing is on screen, so
               every tab keeps what it has for when something opens again. */}
             <main
               className={cn(
@@ -1061,124 +1135,164 @@ function OrchestratorLayout() {
                 showsRightArea ? undefined : "hidden",
               )}
             >
-              {/* A draft up: its words are the head of the right area, over
-                its tabs, and what a tab shows sits under both. */}
-              {openDraft && draftUp === openDraft.id && (
-                <DraftHead
-                  draft={drafts.find((draft) => draft.id === openDraft.id)}
-                  isExpanded={openDraft.placement === "expanded"}
-                  isStarting={isStarting}
-                  onChange={(update) => {
-                    setDrafts((current) =>
-                      current.map((draft) =>
-                        draft.id === openDraft.id
-                          ? { ...update(draft), updatedAt: Date.now() }
-                          : draft,
-                      ),
-                    );
-                  }}
-                  onClose={() => {
-                    closeDraft(openDraft.id);
-                  }}
-                  onExpand={(expanded) => {
-                    setOpenDraft({
-                      id: openDraft.id,
-                      placement: expanded ? "expanded" : "docked",
-                    });
-                  }}
-                  onMinimize={() => {
-                    putDraftAway(openDraft.id, "bar");
-                  }}
-                  onStart={() => {
-                    startThread(openDraft.id);
-                  }}
-                  topics={topics}
-                />
-              )}
-              {/* The tabs of the thread on screen, the thread itself first
-                and held there, or the window's own when no thread is up.
-                Switching threads swaps the whole row. */}
-              <div className="flex h-9 shrink-0 items-center border-b border-border bg-muted/40 px-2">
-                <WindowTabStrip
-                  childTitles={childTitles}
-                  groupKey={windowTabs.group ?? "window"}
-                  onClose={requestClose}
-                  onNew={() => {
-                    windowTabs.openScreen(NEW_TAB_HREF);
-                  }}
-                  onReorder={windowTabs.reorder}
-                  onSelect={windowTabs.select}
-                  selectedId={active?.id}
-                  tabs={tabs}
-                  threadTitles={threadTitles}
-                />
-              </div>
-              {/* Under the tabs and across the pane: what this tab is
-                showing, and the way back out of it; a thread's own tab has
-                nowhere to type or step to, so it wears its head instead. */}
-              {active && isAnchor(active) && tabLocation.kind === "thread" ? (
-                <ThreadHeader
-                  thread={threads.data?.find(
-                    (thread) => thread.id === windowTabs.group,
-                  )}
-                  topics={topics}
-                />
-              ) : (
-              <TabLocationRow
-                canGoBack={canGoBack}
-                canGoForward={canGoForward}
-                ref={locationRef}
-                // On a page the field sends the tab's own guest somewhere,
-                // and the page's controls (reload, the way out, the menu) are
-                // drawn into the row's tail by the panel that has the page. A
-                // file shown as a page is one too.
-                {...(tabLocation.kind === "page" ||
-                (tabLocation.kind === "file" && tabLocation.asPage)
-                  ? {
-                      onSite: (url: string) => openPage(url),
-                      trailing: (
-                        <div
-                          className="flex shrink-0 items-center gap-0.5"
-                          ref={setChromeSlot}
+              {/* The conversation, and the pane of the group's tabs beside
+                it, the way a task's page keeps its pane: put away and
+                brought back by the toggle over the conversation, sized by
+                the edge between them, and the pane's state each group's
+                own. */}
+              <RightPane
+                conversation={
+                  <div className="relative flex h-full min-h-0 flex-col">
+                    {/* The threads, kept mounted behind the one on screen so
+                      switching back is the transcript as it was, and kept
+                      laid out under a draft for the same reason. */}
+                    <div
+                      aria-hidden={draftOnScreen !== undefined}
+                      className={cn(
+                        "absolute inset-0 flex flex-col",
+                        draftOnScreen !== undefined &&
+                          "pointer-events-none invisible",
+                      )}
+                    >
+                      <ThreadHeader
+                        onClose={leaveGroup}
+                        onNewTopic={() => {
+                          setNewTopicOpen(true);
+                        }}
+                        onSetTopics={(next) => {
+                          if (threadUp) {
+                            setThreadTopics.mutate({
+                              id: screens.taskId,
+                              sessionId: threadUp,
+                              topics: next,
+                            });
+                          }
+                        }}
+                        thread={threads.data?.find(
+                          (thread) => thread.id === threadUp,
+                        )}
+                        topics={topics}
+                        trailing={showsPane ? null : paneToggle}
+                      />
+                      <div className="relative min-h-0 flex-1">
+                        <ThreadStage
+                          sendContext={() => sendContextRef.current()}
+                          sessionId={threadUp}
                         />
-                      ),
-                    }
-                  : {})}
-                location={tabLocation}
-                onBack={goBack}
-                onForward={goForward}
-              />
-              )}
-              <div className="relative min-h-0 flex-1">
-                <Outlet />
-                {/* The threads, kept mounted behind the one whose tab is up,
-                  so switching back is the transcript as it was. */}
-                <ThreadStage
-                  sessionId={
-                    active?.kind === "screen" && isAnchor(active)
-                      ? threadOfHref(active.href)
-                      : undefined
+                      </div>
+                    </div>
+                    {draftOnScreen && (
+                      <div className="absolute inset-0">
+                        <DraftComposer
+                          draft={draftOnScreen}
+                          isStarting={isStarting}
+                          key={draftOnScreen.id}
+                          modelURI={modelURI}
+                          onChange={(update) => {
+                            setDrafts((current) =>
+                              current.map((entry) =>
+                                entry.id === draftOnScreen.id
+                                  ? { ...update(entry), updatedAt: Date.now() }
+                                  : entry,
+                              ),
+                            );
+                          }}
+                          onClose={() => {
+                            closeDraft(draftOnScreen.id);
+                          }}
+                          onModelChange={setDefaultModelURI}
+                          onStart={(send) => {
+                            startThread(draftOnScreen.id, send);
+                          }}
+                          topics={topics}
+                          trailing={showsPane ? null : paneToggle}
+                        />
+                      </div>
+                    )}
+                  </div>
+                }
+                isOpen={showsPane}
+                onCollapse={() => {
+                  if (windowTabs.group !== undefined) {
+                    setPaneOpen(windowTabs.group, false);
                   }
-                />
-                {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
-                <div
-                  className={cn(
-                    "absolute inset-0 bg-background",
-                    isPageOnScreen && showsRightArea ? undefined : "invisible",
-                  )}
-                >
-                  {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
-                  <ActiveTabProvider
-                    isActive={isPageOnScreen && showsRightArea}
-                  >
-                    <BrowserTabs
-                      chromeInto={chromeSlot}
-                      groupOfTask={(id) => childThreads.get(id)}
-                      ref={setBrowser}
+                }}
+                paneKey={windowTabs.group ?? "window"}
+              >
+                <div className="flex h-full flex-col p-2 pl-0">
+                  {/* One card, with the strip as its first row: the tabs of
+                    the thread or the draft on screen, and at the row's end
+                    the toggle that puts the pane away. */}
+                  <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm">
+                    <div className="flex h-10 shrink-0 items-center border-b border-border pr-1 pl-1">
+                      <WindowTabStrip
+                        childTitles={childTitles}
+                        groupKey={windowTabs.group ?? "window"}
+                        onClose={requestClose}
+                        onNew={() => {
+                          windowTabs.openScreen(NEW_TAB_HREF);
+                        }}
+                        onReorder={windowTabs.reorder}
+                        onSelect={windowTabs.select}
+                        selectedId={active?.id}
+                        tabs={tabs}
+                        threadTitles={threadTitles}
+                        trailing={paneToggle}
+                      />
+                    </div>
+                    <TabLocationRow
+                      canGoBack={canGoBack}
+                      canGoForward={canGoForward}
+                      ref={locationRef}
+                      // On a page the field sends the tab's own guest
+                      // somewhere, and the page's controls (reload, the way
+                      // out, the menu) are drawn into the row's tail by the
+                      // panel that has the page. A file shown as a page is
+                      // one too.
+                      {...(tabLocation.kind === "page" ||
+                      (tabLocation.kind === "file" && tabLocation.asPage)
+                        ? {
+                            onSite: (url: string) => openPage(url),
+                            trailing: (
+                              <div
+                                className="flex shrink-0 items-center gap-0.5"
+                                ref={setChromeSlot}
+                              />
+                            ),
+                          }
+                        : {})}
+                      location={tabLocation}
+                      onBack={goBack}
+                      onForward={goForward}
                     />
-                  </ActiveTabProvider>
+                    <div className="relative min-h-0 flex-1">
+                      <Outlet />
+                      {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
+                      <div
+                        className={cn(
+                          "absolute inset-0 bg-background",
+                          isPageOnScreen && showsRightArea && showsPane
+                            ? undefined
+                            : "invisible",
+                        )}
+                      >
+                        {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
+                        <ActiveTabProvider
+                          isActive={
+                            isPageOnScreen && showsRightArea && showsPane
+                          }
+                        >
+                          <BrowserTabs
+                            chromeInto={chromeSlot}
+                            groupOfTask={(id) => childThreads.get(id)}
+                            ref={setBrowser}
+                          />
+                        </ActiveTabProvider>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </RightPane>
               <AlertDialog
                 onOpenChange={(open) => {
                   if (!open) {
@@ -1218,20 +1332,17 @@ function OrchestratorLayout() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            </main>
-            {/* A draft put away to a bar along the bottom edge, still there
-              to take up again. */}
-            {openDraft?.placement === "bar" && (
-              <DraftBar
-                draft={drafts.find((draft) => draft.id === openDraft.id)}
-                onClose={() => {
-                  closeDraft(openDraft.id);
+              <NewTopicDialog
+                onCreate={(topic) => {
+                  createTopic.mutate({ ...topic, id: screens.taskId });
                 }}
-                onOpen={() => {
-                  showDraft(openDraft.id, "docked");
-                }}
+                onOpenChange={setNewTopicOpen}
+                open={isNewTopicOpen}
+                taken={topics.flatMap((topic) =>
+                  topic.emoji ? [topic.emoji] : [],
+                )}
               />
-            )}
+            </main>
           </Frame>
         </PageOpenContext>
       </FileOpenContext>

@@ -17,13 +17,12 @@ import { stepTabVisit, visitInTab } from "./tab-history";
 /** The route that shows nothing of its own: what the router is at while a page is on screen. */
 export const PAGE_ROUTE = "/orchestrator/browser";
 
-/**
- * Whether a tab is its group's anchor: the thread's own screen, or a draft's
- * home page, always in its group, first, and never closed. Everything else
- * in the group was opened while the group was on screen.
- */
-export function isAnchor(tab: WindowTab): boolean {
-  return tab.anchor === true;
+/** Whether a tab is the new-tab page: what a draft gathers from, and nothing gathered itself. */
+export function isHomeTab(tab: WindowTab): boolean {
+  return (
+    tab.kind === "screen" &&
+    parseHref(tab.href).pathname === parseHref(NEW_TAB_HREF).pathname
+  );
 }
 
 /** A screen tab's address, taken apart: the route and its search. */
@@ -70,11 +69,12 @@ export function usePopClosedTab() {
 }
 
 /**
- * The window's tabs, in groups: every thread has a group of its own with the
- * thread's screen as its anchor, and every draft one with its home page as
- * the anchor. One group is on screen at a time, or none; its tabs are what
- * the strip shows and what `tabs` here lists, while the other groups keep
- * what they have for when their thread comes back. Pages and screens are one
+ * The window's tabs, in groups: every thread has a group of its own, keyed
+ * by its session, and every draft one under its key. One group is on screen
+ * at a time, or none; its tabs are what the strip shows and what `tabs` here
+ * lists, while the other groups keep what they have for when their thread
+ * comes back. A group may hold no tabs at all: the thread or the draft
+ * stands over the tabs rather than among them. Pages and screens are one
  * list; where the router goes when a tab is selected is the layout's
  * business, which watches `activeId`.
  */
@@ -93,66 +93,37 @@ export function useWindowTabs() {
 
   /**
    * Shows a group: it comes on screen at the tab it last had up, or at its
-   * anchor when it is the group already on screen, since asking for a thread
-   * again is asking for the conversation. The anchor is made the first time,
-   * at the head of the group, from the address given for it.
+   * first tab, or at none. Asking for the group already on screen changes
+   * nothing: the thread is over its tabs whichever of them is up.
    */
-  const showGroup = (
-    key: string,
-    anchorHref: string,
-    { anchorOnlyWhenEmpty = false } = {},
-  ) => {
+  const showGroup = (key: string) => {
     setTabs((current) => {
-      const own = current.tabs.filter((tab) => tab.group === key);
-      // A draft whose home page was closed keeps what it has rather than
-      // getting the home back.
-      const { anchor, tabs: next } =
-        anchorOnlyWhenEmpty && own.length > 0
-          ? { anchor: own.find(isAnchor) ?? own[0], tabs: current.tabs }
-          : withAnchor(current.tabs, key, anchorHref);
-      if (!anchor) {
+      if (current.group === key) {
         return current;
       }
+      const own = current.tabs.filter((tab) => tab.group === key);
       const remembered = current.activeByGroup?.[key];
       const resumeAt =
-        current.group !== key &&
-        remembered !== undefined &&
-        next.some((tab) => tab.id === remembered)
+        remembered !== undefined && own.some((tab) => tab.id === remembered)
           ? remembered
-          : anchor.id;
-      // Already there: the same state, so nothing downstream re-reads it.
-      if (
-        next === current.tabs &&
-        current.group === key &&
-        current.activeId === resumeAt
-      ) {
-        return current;
-      }
-      return {
-        ...current,
-        ...movingTo(current, key),
-        activeId: resumeAt,
-        tabs: next,
-      };
+          : (own[0]?.id ?? null);
+      return { ...current, ...movingTo(current, key), activeId: resumeAt };
     });
   };
 
   const showThread = (sessionId: StoreId.Session) => {
-    showGroup(sessionId, `${THREADS_HREF}/${sessionId}`);
+    showGroup(sessionId);
   };
 
-  /** Shows a draft's group, with the new-tab page as its home the first time. */
   const showDraft = (draftId: string) => {
-    showGroup(draftGroupOf(draftId), NEW_TAB_HREF, {
-      anchorOnlyWhenEmpty: true,
-    });
+    showGroup(draftGroupOf(draftId));
   };
 
   /**
    * Opens a screen at an address: in the group on screen and shown, or in
    * the group named, behind whatever is up, when that group is not the one
-   * on screen. A thread's group is made for it if it has none yet, so a
-   * thread that has not been opened still gets what was opened for it.
+   * on screen. A group that has nothing yet is made by the tab landing in it,
+   * so a thread that has not been opened still gets what was opened for it.
    */
   const openScreen = (
     href: string,
@@ -172,13 +143,12 @@ export function useWindowTabs() {
       if (key === undefined) {
         return current;
       }
-      const seeded = seedGroup(current.tabs, key);
       const shown = key === current.group;
       return {
         ...current,
         activeId: shown ? id : current.activeId,
         tabs: [
-          ...seeded,
+          ...current.tabs,
           {
             at: 0,
             group: key,
@@ -231,8 +201,7 @@ export function useWindowTabs() {
    * The address joins the tab's trail, and anything that was ahead of it is
    * dropped, the way a browser drops the forward stack when you go somewhere
    * new. Arriving at the address the trail is already standing on is a step
-   * taken by back or forward, so it moves nothing. An anchor never moves:
-   * what the group's home was sent to opens as a tab beside it instead.
+   * taken by back or forward, so it moves nothing.
    */
   const setActiveHref = (href: string) => {
     const thread = threadOfHref(href);
@@ -244,25 +213,6 @@ export function useWindowTabs() {
       const tab = current.tabs.find((entry) => entry.id === current.activeId);
       if (tab?.kind !== "screen" || sameHref(tab.href, href)) {
         return current;
-      }
-      if (isAnchor(tab)) {
-        const id = `screen-${crypto.randomUUID()}`;
-        return {
-          ...current,
-          activeId: id,
-          tabs: [
-            ...current.tabs,
-            {
-              at: 0,
-              group: tab.group,
-              href,
-              id,
-              isOpened: true,
-              kind: "screen",
-              trail: [href],
-            },
-          ],
-        };
       }
       const trail = tab.trail ?? [tab.href];
       const at = tab.at ?? trail.length - 1;
@@ -346,22 +296,15 @@ export function useWindowTabs() {
   };
 
   /**
-   * Closes a tab. A thread's anchor is never closed: a thread's group always
-   * has the thread. A draft's home page is closable like any tab, so long as
-   * the draft has another tab to show; the last tab of a draft stays.
+   * Closes a tab. A thread's last tab closes like any other, and its pane
+   * goes with it; a draft's last tab is replaced by the new-tab page, since
+   * the draft is what is gathered beside the words and the page is where
+   * gathering starts.
    */
   const close = (id: string) => {
     const closing = allTabs.find((tab) => tab.id === id);
     if (!closing) {
       return;
-    }
-    if (isAnchor(closing)) {
-      const others = allTabs.filter(
-        (tab) => tab.group === closing.group && tab.id !== id,
-      );
-      if (draftOfGroup(closing.group) === undefined || others.length === 0) {
-        return;
-      }
     }
     if (closing.kind === "screen" || closing.url) {
       setClosed((current) => [...current, closing]);
@@ -373,11 +316,29 @@ export function useWindowTabs() {
         return current;
       }
       const remaining = current.tabs.filter((tab) => tab.id !== id);
+      if (
+        draftOfGroup(closing.group) !== undefined &&
+        !remaining.some((tab) => tab.group === closing.group)
+      ) {
+        const home: WindowTab = {
+          at: 0,
+          group: closing.group,
+          href: NEW_TAB_HREF,
+          id: `screen-${crypto.randomUUID()}`,
+          kind: "screen",
+          trail: [NEW_TAB_HREF],
+        };
+        return {
+          ...current,
+          activeId: current.activeId === id ? home.id : current.activeId,
+          tabs: [...remaining.slice(0, index), home, ...remaining.slice(index)],
+        };
+      }
       if (current.activeId !== id) {
         return { ...current, tabs: remaining };
       }
-      // The neighbor before it within its group, which is the anchor at the
-      // least.
+      // The neighbor before it within its group, or the first left in the
+      // group, or nothing.
       const before = current.tabs
         .slice(0, index)
         .findLast((tab) => tab.group === closing.group);
@@ -394,34 +355,27 @@ export function useWindowTabs() {
 
   /**
    * Hands a group over to a thread: what a draft gathered becomes the
-   * thread's tabs as they are, guests and all, with the thread's own screen
-   * put first as the anchor and the draft's home page dropped. The thread's
-   * group comes on screen at the thread.
+   * thread's tabs exactly as they are, guests and all, the one up still up,
+   * so starting the thread moves nothing under it. The thread's group comes
+   * on screen.
    */
   const adoptGroup = (from: string, sessionId: StoreId.Session) => {
     setTabs((current) => {
-      const href = `${THREADS_HREF}/${sessionId}`;
-      const anchor: WindowTab = {
-        anchor: true,
-        at: 0,
-        group: sessionId,
-        href,
-        id: `screen-${crypto.randomUUID()}`,
-        kind: "screen",
-        trail: [href],
-      };
       const moved = current.tabs
-        .filter((tab) => tab.group === from && !isAnchor(tab))
+        .filter((tab) => tab.group === from)
         .map((tab) => ({ ...tab, group: sessionId }));
       const rest = current.tabs.filter(
         (tab) => tab.group !== from && tab.group !== sessionId,
       );
-      const { [from]: _left, ...activeByGroup } = current.activeByGroup ?? {};
+      const { [from]: left, ...activeByGroup } = current.activeByGroup ?? {};
       return {
         ...current,
         ...movingTo({ ...current, activeByGroup }, sessionId),
-        activeId: anchor.id,
-        tabs: [...rest, anchor, ...moved],
+        activeId:
+          current.group === from
+            ? current.activeId
+            : (left ?? moved[0]?.id ?? null),
+        tabs: [...rest, ...moved],
       };
     });
   };
@@ -478,7 +432,7 @@ export function useWindowTabs() {
     openScreen,
     /** The group the one on screen took over from, for going back to it when the draft is put away. */
     previousGroup: state.previousGroup,
-    /** The group's tabs in a new order; the anchor stays first whatever the order says. */
+    /** The group's tabs in a new order. */
     reorder: (keys: string[]) => {
       setTabs((current) => {
         const own = current.tabs.filter((tab) => tab.group === current.group);
@@ -489,22 +443,11 @@ export function useWindowTabs() {
         if (ordered.length !== own.length) {
           return current;
         }
-        const anchorAt = ordered.findIndex((tab) => isAnchor(tab));
-        const withAnchorFirst =
-          anchorAt > 0
-            ? [
-                ...ordered.slice(anchorAt, anchorAt + 1),
-                ...ordered.slice(0, anchorAt),
-                ...ordered.slice(anchorAt + 1),
-              ]
-            : ordered;
         let next = 0;
         return {
           ...current,
           tabs: current.tabs.map((tab) =>
-            tab.group === current.group
-              ? (withAnchorFirst[next++] ?? tab)
-              : tab,
+            tab.group === current.group ? (ordered[next++] ?? tab) : tab,
           ),
         };
       });
@@ -580,49 +523,7 @@ function searchEntries(search: URLSearchParams) {
   return [...search.entries()].sort().join("&");
 }
 
-/**
- * A thread's group with its anchor in place, made when a tab is opened for
- * a thread that has not been shown yet; a draft's group is made by showing
- * it, so a key that is not a thread's is left as it is.
- */
-function seedGroup(tabs: WindowTab[], key: string): WindowTab[] {
-  const thread = StoreId.SessionSchema.safeParse(key);
-  if (!thread.success) {
-    return tabs;
-  }
-  return withAnchor(tabs, key, `${THREADS_HREF}/${key}`).tabs;
-}
-
 /** Where a screen tab has been, and where along it the tab is standing. */
 function trailOf(tab: undefined | WindowTab) {
   return tab?.kind === "screen" ? (tab.trail ?? [tab.href]) : [];
-}
-
-/** The tabs with a group's anchor in them: the one it has, or a new one at the head of the group. */
-function withAnchor(
-  tabs: WindowTab[],
-  key: string,
-  href: string,
-): { anchor: WindowTab; tabs: WindowTab[] } {
-  const existing = tabs.find((tab) => tab.group === key && isAnchor(tab));
-  if (existing) {
-    return { anchor: existing, tabs };
-  }
-  const anchor: WindowTab = {
-    anchor: true,
-    at: 0,
-    group: key,
-    href,
-    id: `screen-${crypto.randomUUID()}`,
-    kind: "screen",
-    trail: [href],
-  };
-  const first = tabs.findIndex((tab) => tab.group === key);
-  return {
-    anchor,
-    tabs:
-      first === -1
-        ? [...tabs, anchor]
-        : [...tabs.slice(0, first), anchor, ...tabs.slice(first)],
-  };
 }

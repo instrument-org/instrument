@@ -71,6 +71,13 @@ function Navigation() {
       </button>
       <button
         onClick={() => {
+          tabs.openScreen(NEW_TAB_HREF);
+        }}
+      >
+        Home
+      </button>
+      <button
+        onClick={() => {
           tabs.adoptGroup(draftGroupOf("d1"), THREAD_B);
         }}
       >
@@ -161,10 +168,10 @@ describe("window navigation", () => {
 
 describe("a thread's tabs", () => {
   const strip = () => screen.getByTestId("strip").textContent;
-  const threadA = `${THREADS_HREF}/${THREAD_A}`;
-  const threadB = `${THREADS_HREF}/${THREAD_B}`;
+  const active = (read: () => { activeId: null | string; tabs: WindowTab[] }) =>
+    read().tabs.find((tab) => tab.id === read().activeId);
 
-  it("keeps each thread's tabs in a group of its own, the thread itself first and held there", () => {
+  it("keeps each thread's tabs in a group of its own, with the thread over them rather than among them", () => {
     const read = setup({
       href: "/orchestrator/apps",
       id: "apps",
@@ -172,49 +179,44 @@ describe("a thread's tabs", () => {
     });
     fireEvent.click(screen.getByText("Thread A"));
     expect(read().group).toBe(THREAD_A);
-    expect(strip()).toBe(threadA);
+    expect(strip()).toBe("");
+    expect(read().activeId).toBeNull();
     // Opened while the thread is up, so the thread's.
     fireEvent.click(screen.getByText("Open apps"));
-    expect(strip()).toBe(`${threadA}|/orchestrator/apps`);
-    expect(read().tabs.find((tab) => tab.id === read().activeId)?.group).toBe(
-      THREAD_A,
-    );
+    expect(strip()).toBe("/orchestrator/apps");
+    expect(active(read)?.group).toBe(THREAD_A);
     // Another thread swaps the whole row.
     fireEvent.click(screen.getByText("Thread B"));
-    expect(strip()).toBe(threadB);
+    expect(strip()).toBe("");
     // Coming back lands where the thread was left; asking again while it is
-    // up lands on the thread itself.
+    // up changes nothing.
     fireEvent.click(screen.getByText("Thread A"));
-    expect(strip()).toBe(`${threadA}|/orchestrator/apps`);
-    const active = () => read().tabs.find((tab) => tab.id === read().activeId);
-    expect(active()).toMatchObject({ href: "/orchestrator/apps" });
+    expect(strip()).toBe("/orchestrator/apps");
+    expect(active(read)).toMatchObject({ href: "/orchestrator/apps" });
+    const before = read();
     fireEvent.click(screen.getByText("Thread A"));
-    expect(active()).toMatchObject({ href: threadA });
+    expect(read()).toBe(before);
     // Leaving shows nothing; every group keeps what it has.
     fireEvent.click(screen.getByText("Leave"));
     expect(read().group).toBeUndefined();
     expect(strip()).toBe("");
-    expect(read().tabs).toHaveLength(4);
+    expect(read().tabs).toHaveLength(2);
   });
 
-  it("never closes the thread's own tab, and sends what the thread's screen is sent to beside it", () => {
+  it("closes a thread's last tab and keeps the thread up with nothing under it", () => {
     const read = setup({
       href: "/orchestrator/apps",
       id: "apps",
       kind: "screen",
     });
     fireEvent.click(screen.getByText("Thread A"));
+    fireEvent.click(screen.getByText("Open apps"));
     fireEvent.click(screen.getByText("Close active"));
-    expect(strip()).toBe(threadA);
-    // Navigating the thread's screen elsewhere opens a tab rather than
-    // moving the thread.
-    fireEvent.click(screen.getByText("Folder"));
-    expect(strip()).toBe(`${threadA}|/orchestrator/computer`);
-    expect(
-      read().tabs.find((tab) => tab.kind === "screen" && tab.href === threadA),
-    ).toMatchObject({ trail: [threadA] });
-    fireEvent.click(screen.getByText("Close active"));
-    expect(strip()).toBe(threadA);
+    expect(read().group).toBe(THREAD_A);
+    expect(strip()).toBe("");
+    expect(read().activeId).toBeNull();
+    fireEvent.click(screen.getByText("Open apps"));
+    expect(strip()).toBe("/orchestrator/apps");
   });
 
   it("files a tab opened for a thread that is not up in that thread's group, behind", () => {
@@ -225,20 +227,19 @@ describe("a thread's tabs", () => {
     });
     fireEvent.click(screen.getByText("Thread A"));
     fireEvent.click(screen.getByText("Open ideas for B"));
-    // Still on A, at the tab it had.
+    // Still on A, with nothing under it.
     expect(read().group).toBe(THREAD_A);
-    expect(strip()).toBe(threadA);
-    // B's group was made for it, its own screen first.
+    expect(strip()).toBe("");
+    // B's group was made by the tab landing in it.
     fireEvent.click(screen.getByText("Thread B"));
-    expect(strip()).toBe(`${threadB}|/orchestrator/ideas`);
+    expect(strip()).toBe("/orchestrator/ideas");
   });
 });
 
 describe("a draft's tabs", () => {
   const strip = () => screen.getByTestId("strip").textContent;
-  const threadB = `${THREADS_HREF}/${THREAD_B}`;
 
-  it("starts at the new-tab page, gathers beside it, and hands everything to the thread as it is", () => {
+  it("gathers from the new-tab page and hands everything to the thread exactly as it is", () => {
     const read = setup({
       href: "/orchestrator/apps",
       id: "apps",
@@ -246,35 +247,45 @@ describe("a draft's tabs", () => {
     });
     fireEvent.click(screen.getByText("Draft"));
     expect(read().group).toBe(draftGroupOf("d1"));
+    fireEvent.click(screen.getByText("Home"));
     expect(strip()).toBe(NEW_TAB_HREF);
-    // Opened from the home page: beside it, never in its place; a second
-    // thing asked for as a tab of its own lands beside that.
+    // The home page is a tab like any other: a screen it is sent to takes
+    // its place, and a second thing asked for as a tab of its own lands
+    // beside it.
     fireEvent.click(screen.getByText("Apps"));
     fireEvent.click(screen.getByText("Conversation file"));
-    expect(strip()).toBe(
-      `${NEW_TAB_HREF}|/orchestrator/apps|/orchestrator/computer`,
-    );
+    expect(strip()).toBe("/orchestrator/apps|/orchestrator/computer");
     const gathered = read()
       .tabs.filter((tab) => tab.group === draftGroupOf("d1"))
-      .slice(1)
       .map((tab) => tab.id);
+    const up = read().activeId;
     fireEvent.click(screen.getByText("Adopt"));
     expect(read().group).toBe(THREAD_B);
-    expect(strip()).toBe(
-      `${threadB}|/orchestrator/apps|/orchestrator/computer`,
-    );
-    // The same tabs, under the thread now; the draft's home is gone.
+    expect(strip()).toBe("/orchestrator/apps|/orchestrator/computer");
+    // The same tabs, under the thread now, the same one up.
     expect(
       read()
         .tabs.filter((tab) => tab.group === THREAD_B)
-        .slice(1)
         .map((tab) => tab.id),
     ).toEqual(gathered);
+    expect(read().activeId).toBe(up);
     expect(read().tabs.some((tab) => tab.group === draftGroupOf("d1"))).toBe(
       false,
     );
-    expect(read().tabs.find((tab) => tab.id === read().activeId)).toMatchObject(
-      { anchor: true, href: threadB },
-    );
+  });
+
+  it("never runs out of tabs: closing the last one puts the new-tab page back", () => {
+    const read = setup({
+      href: "/orchestrator/apps",
+      id: "apps",
+      kind: "screen",
+    });
+    fireEvent.click(screen.getByText("Draft"));
+    fireEvent.click(screen.getByText("Home"));
+    fireEvent.click(screen.getByText("Apps"));
+    expect(strip()).toBe("/orchestrator/apps");
+    fireEvent.click(screen.getByText("Close active"));
+    expect(strip()).toBe(NEW_TAB_HREF);
+    expect(read().activeId).not.toBeNull();
   });
 });

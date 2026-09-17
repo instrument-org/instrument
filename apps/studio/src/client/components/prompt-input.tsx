@@ -104,18 +104,18 @@ type AttachedItem =
 const MAX_PASTE_TEXT_LENGTH = 5000;
 const MAX_FILE_PREVIEW_SIZE = 10 * 1024 * 1024;
 
+/** Everything a submit clears, so a rejected one can put it back, and everything a surface keeps of a composer it puts away. */
+export interface PromptInputDraft {
+  items: AttachedItem[];
+  projectId: null | ProjectId;
+  prompt: string;
+}
+
 export interface PromptInputRef {
   clear: () => void;
   focus: () => void;
   restore: (draft: PromptInputDraft) => void;
   snapshot: () => PromptInputDraft;
-}
-
-/** Everything a submit clears, so a rejected one can put it back. */
-interface PromptInputDraft {
-  items: AttachedItem[];
-  projectId: null | ProjectId;
-  prompt: string;
 }
 
 interface PromptInputProps {

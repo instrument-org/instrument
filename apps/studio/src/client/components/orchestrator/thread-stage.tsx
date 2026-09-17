@@ -7,27 +7,34 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId } from "@instrument-org/workspace/client";
+import {
+  type SessionMessageDataPart,
+  type StoreId,
+} from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useContext, useEffect, useState } from "react";
 
 import { OrchestratorContext, useOrchestrator } from "./context";
-import { useOnScreen } from "./on-screen";
 
 /** How many threads stay mounted behind the one on screen. */
 const KEPT = 4;
 
 /**
  * The threads on screen and the few lately left, all mounted: the one whose
- * tab is up is shown, and the others stay laid out under it, hidden, so
- * coming back to a thread is the transcript as it was rather than a
- * transcript rebuilt, with its images and its scroll. Which thread is up is
- * the tab model's business; the stage only follows it.
+ * group is up is shown over its tabs, and the others stay laid out under it,
+ * hidden, so coming back to a thread is the transcript as it was rather than
+ * a transcript rebuilt, with its images and its scroll. Which thread is up
+ * is the tab model's business; the stage only follows it.
  */
 export function ThreadStage({
+  sendContext,
   sessionId,
 }: {
-  /** The thread whose own tab is up, or nothing while another kind of tab is. */
+  /** What the tab under the thread shows, read as a reply is sent, so the reply carries it. */
+  sendContext: () => Promise<
+    SessionMessageDataPart.ViewContextDataPart | undefined
+  >;
+  /** The thread whose group is up, or nothing while a draft's is. */
   sessionId: StoreId.Session | undefined;
 }) {
   // Newest last; the one up is always among them.
@@ -53,7 +60,11 @@ export function ThreadStage({
             key={id}
           >
             <ActiveTabProvider isActive={isUp}>
-              <ThreadScreen isUp={isUp} sessionId={id} />
+              <ThreadScreen
+                isUp={isUp}
+                sendContext={sendContext}
+                sessionId={id}
+              />
             </ActiveTabProvider>
           </div>
         );
@@ -63,18 +74,22 @@ export function ThreadStage({
 }
 
 /**
- * One thread as a screen: its transcript, opening at the end, and a
- * composer that replies in it. Nothing above the transcript: the head over
- * the tabs names the thread, and the top of the scroll is the ask itself.
- * The thread is a session of the orchestrator's, so the chat is the same
+ * One thread's conversation: its transcript, opening at the end, and a
+ * composer that replies in it. Nothing above the transcript: the row over
+ * it names the thread, and the top of the scroll is the ask itself. The
+ * thread is a session of the orchestrator's, so the chat is the same
  * conversation the inbox holds, narrowed to this one thread.
  */
 function ThreadScreen({
   isUp,
+  sendContext,
   sessionId,
 }: {
-  /** Whether this is the thread on screen: only that one says so, marks itself read, or takes the caret. */
+  /** Whether this is the thread on screen: only that one marks itself read or takes the caret. */
   isUp: boolean;
+  sendContext: () => Promise<
+    SessionMessageDataPart.ViewContextDataPart | undefined
+  >;
   sessionId: StoreId.Session;
 }) {
   const orchestrator = useOrchestrator();
@@ -89,33 +104,18 @@ function ThreadScreen({
       input: { id: taskId },
     }),
   );
-  // The thread as the list beside the tabs knows it: its title as the agent
-  // keeps renaming it, and the newest reply that has landed, which is what
-  // marks it read below.
+  // The thread as the list beside the tabs knows it, for the newest reply
+  // that has landed, which is what marks it read below.
   const threads = useQuery(
     rpcClient.workspace.orchestrator.threads.live.list.experimental_liveOptions(
       { input: { id: taskId } },
     ),
   );
   const thread = threads.data?.find((entry) => entry.id === sessionId);
-  // The session itself stands in until the list has it: a thread opened by
-  // address before the list is in still has a title.
-  const session = useQuery(
-    rpcClient.workspace.session.byId.queryOptions({
-      enabled: thread === undefined,
-      input: { id: taskId, sessionId },
-    }),
-  );
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
-  );
-
-  const title = thread?.title ?? session.data?.title ?? "Thread";
-
-  useOnScreen(
-    isUp ? { screen: "thread", thread: { id: sessionId, title } } : null,
   );
 
   // Reading the thread is what clears its count, so it is marked read on
@@ -144,9 +144,9 @@ function ThreadScreen({
   const modelURI = state.data.selectedModelURI ?? defaultModelURI;
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* The thread is a tab, so what a reply hands over opens as another
-          tab beside it rather than in its place: the openers all say so, and
-          a line a card asks the conversation lands in this thread. */}
+      {/* The thread stands over its tabs, so what a reply hands over opens
+          as a tab under it rather than in place of one: the openers all say
+          so, and a line a card asks the conversation lands in this thread. */}
       <div className="min-h-0 flex-1">
         <OrchestratorContext
           value={{
@@ -194,6 +194,7 @@ function ThreadScreen({
                   promptDraft={state.data.promptDraft ?? ""}
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
+                  sendContext={sendContext}
                   task={task.data}
                 />
               </TaskSessionProvider>

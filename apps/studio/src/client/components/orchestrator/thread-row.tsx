@@ -20,29 +20,20 @@ import {
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { ArchiveIcon } from "@phosphor-icons/react/Archive";
-import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
-import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
-import { EnvelopeSimpleOpenIcon } from "@phosphor-icons/react/EnvelopeSimpleOpen";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useContext, useState } from "react";
-import { toast } from "sonner";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { RowActionBar } from "./row-action-bar";
-import {
-  type RowAction,
-  rowClassName,
-  type RowDensity,
-  stopHere,
-} from "./row-shell";
+import { rowClassName, type RowDensity, stopHere } from "./row-shell";
+import { useThreadActions } from "./thread-actions";
 import { activityLabel, type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
@@ -601,117 +592,6 @@ function TagControl({
       </Popover>
     </span>
   );
-}
-
-/**
- * What a thread offers that no line of it carries, in the order the row's
- * edge and its menu list them: putting it away, or back in the inbox, with
- * an undo in the toast either way; and marking it read while something in
- * it is unseen, or unread again once it has replies to be unread, with no
- * toast at all, since the row itself says which it is.
- */
-function useThreadActions(thread: Thread): RowAction[] {
-  const { taskId } = useOrchestrator();
-  const input = { id: taskId, sessionId: thread.id };
-  // Each way's toast offers the other way back, so an undo can be undone.
-  // The toasts hang off the mutations rather than off the calls, since the
-  // row is gone from the list by the time either lands.
-  const archive = useMutation(
-    rpcClient.workspace.orchestrator.threads.archive.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to archive the thread", {
-          description: error.message,
-        });
-      },
-      onSuccess: () => {
-        toast("Archived", { action: { label: "Undo", onClick: bringBack } });
-      },
-    }),
-  );
-  const unarchive = useMutation(
-    rpcClient.workspace.orchestrator.threads.unarchive.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to move the thread to the inbox", {
-          description: error.message,
-        });
-      },
-      onSuccess: () => {
-        toast("Moved to Inbox", {
-          action: { label: "Undo", onClick: putAway },
-        });
-      },
-    }),
-  );
-  const seen = useMutation(
-    rpcClient.workspace.orchestrator.threads.seen.mutationOptions(),
-  );
-  const unseen = useMutation(
-    rpcClient.workspace.orchestrator.threads.unseen.mutationOptions(),
-  );
-  const star = useMutation(
-    rpcClient.workspace.orchestrator.threads.star.mutationOptions(),
-  );
-  function putAway() {
-    archive.mutate(input);
-  }
-  function bringBack() {
-    unarchive.mutate(input);
-  }
-  const put: RowAction = thread.archived
-    ? {
-        icon: <ArrowCounterClockwiseIcon className="size-3.5" />,
-        id: "unarchive",
-        label: "Unarchive",
-        run: bringBack,
-      }
-    : {
-        icon: <ArchiveIcon className="size-3.5" />,
-        id: "archive",
-        label: "Archive",
-        run: putAway,
-      };
-  const mark: RowAction[] =
-    thread.unread > 0
-      ? [
-          {
-            icon: <EnvelopeSimpleOpenIcon className="size-3.5" />,
-            id: "read",
-            label: "Mark as read",
-            run: () => {
-              seen.mutate(input);
-            },
-          },
-        ]
-      : thread.replyCount > 0
-        ? [
-            {
-              icon: <EnvelopeSimpleIcon className="size-3.5" />,
-              id: "unread",
-              label: "Mark as unread",
-              run: () => {
-                unseen.mutate(input);
-              },
-            },
-          ]
-        : [];
-  const starred: RowAction = thread.starred
-    ? {
-        icon: <StarIcon className="size-3.5" weight="fill" />,
-        id: "unstar",
-        label: "Unstar",
-        run: () => {
-          star.mutate({ ...input, starred: false });
-        },
-      }
-    : {
-        icon: <StarIcon className="size-3.5" />,
-        id: "star",
-        label: "Star",
-        run: () => {
-          star.mutate({ ...input, starred: true });
-        },
-      };
-  return [put, ...mark, { ...starred, menuOnly: true }];
 }
 
 /**

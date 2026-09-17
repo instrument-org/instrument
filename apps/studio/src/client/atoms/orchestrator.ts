@@ -214,7 +214,7 @@ export interface WindowTabs {
  * the ones in its group, and the thread itself is the first of them.
  */
 export const windowTabsAtom = atomWithStorage<WindowTabs>(
-  "orchestrator.tabs.v5",
+  "orchestrator.tabs.v6",
   { activeId: null, tabs: [] },
   undefined,
   { getOnInit: true },

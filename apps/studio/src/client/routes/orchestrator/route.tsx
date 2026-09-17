@@ -286,16 +286,20 @@ function OrchestratorLayout() {
   }, [tabs.length, windowTabs.group]);
 
   // The router follows the tab on screen: a screen's own address, or the
-  // page route, which shows nothing of its own, while a page is up.
+  // page route, which shows nothing of its own, while a page is up. Checked
+  // against the history's own address rather than the rendered one: two
+  // pushes in one tick reach the render one at a time, and a push made
+  // against the earlier of them would be a step backward.
   useEffect(() => {
     if (!active) {
       return;
     }
+    const latest = router.history.location;
     if (active.kind === "page") {
-      if (location.pathname !== PAGE_ROUTE) {
+      if (latest.pathname !== PAGE_ROUTE) {
         router.history.push(PAGE_ROUTE);
       }
-    } else if (location.href !== active.href) {
+    } else if (latest.href !== active.href) {
       router.history.push(active.href);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -304,6 +308,13 @@ function OrchestratorLayout() {
   // Route navigation stays in this tab, including when leaving a website.
   useEffect(() => {
     if (tabs.length === 0) {
+      return;
+    }
+    // An address the history has already moved past is not one to follow:
+    // the tabs were set for where the history is now, and following the
+    // stale one would move them back, and the effect above forward, without
+    // end.
+    if (router.history.location.href !== location.href) {
       return;
     }
     if (location.pathname === PAGE_ROUTE) {

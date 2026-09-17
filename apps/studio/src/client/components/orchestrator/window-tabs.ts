@@ -129,6 +129,14 @@ export function useWindowTabs() {
         next.some((tab) => tab.id === remembered)
           ? remembered
           : anchor.id;
+      // Already there: the same state, so nothing downstream re-reads it.
+      if (
+        next === current.tabs &&
+        current.group === sessionId &&
+        current.activeId === resumeAt
+      ) {
+        return current;
+      }
       return {
         ...current,
         ...movingTo(current, sessionId),

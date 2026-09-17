@@ -35,6 +35,7 @@ export async function newMessage({
   intent,
   model,
   modelURI,
+  output,
   projectContext,
   prompt,
   sessionId,
@@ -51,6 +52,8 @@ export async function newMessage({
   intent?: string;
   model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;
+  /** The kind of page the user asked for the response as; see the output-format part. */
+  output?: SessionMessageDataPart.OutputFormatDataPart;
   projectContext?: SessionMessageDataPart.ProjectContextDataPart;
   prompt: string;
   sessionId: StoreId.Session;
@@ -113,6 +116,19 @@ export async function newMessage({
         sessionId,
       },
       type: "data-viewContext",
+    });
+  }
+
+  if (output) {
+    parts.push({
+      data: output,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-outputFormat",
     });
   }
 

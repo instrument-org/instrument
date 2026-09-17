@@ -12,10 +12,10 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `attachments`,
-   *   `contextRollover`, `intent`, `maxSteps`, `skillChanges`,
-   *   `skillMentions`, and `projectContext` and `threadContext`, which are
-   *   written once at creation. A repeat is impossible by construction;
-   *   nothing to guard.
+   *   `contextRollover`, `intent`, `maxSteps`, `outputFormat`,
+   *   `skillChanges`, `skillMentions`, and `projectContext` and
+   *   `threadContext`, which are written once at creation. A repeat is
+   *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
    *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
    *   part.
@@ -48,6 +48,7 @@ export namespace SessionMessageDataPart {
     "maxSteps",
     "messageGap",
     "modelChange",
+    "outputFormat",
     "paneTabs",
     "projectChanges",
     "projectContext",
@@ -316,6 +317,22 @@ export namespace SessionMessageDataPart {
   });
 
   export type IntentDataPart = z.output<typeof IntentDataPartSchema>;
+
+  /**
+   * The kind of page the user asked to receive the response as, picked on
+   * the draft that opened the thread: a template of the page skill, by the
+   * name of its folder and the title the catalog gives it. Carried beside
+   * the user's own text so the agent briefs its task with it, and the record
+   * says what was asked for.
+   */
+  export const OutputFormatDataPartSchema = z.object({
+    name: z.string().trim().min(1),
+    title: z.string().trim().min(1),
+  });
+
+  export type OutputFormatDataPart = z.output<
+    typeof OutputFormatDataPartSchema
+  >;
 
   /**
    * Skills the agent installed or revised during the turn, detected by diffing
@@ -792,6 +809,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
+    [NameSchema.enum.outputFormat]: OutputFormatDataPartSchema,
     [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,

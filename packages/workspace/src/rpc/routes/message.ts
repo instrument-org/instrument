@@ -61,6 +61,8 @@ const create = base
         .optional(),
       id: TaskIdSchema,
       modelURI: AIGatewayModelURI.Schema,
+      /** The kind of page the user asked to receive the response as. */
+      output: SessionMessageDataPart.OutputFormatDataPartSchema.optional(),
       prompt: z.string(),
       sessionId: StoreId.SessionSchema.optional(),
       /** Topic ids for the thread this message opens, when it opens one. */
@@ -78,6 +80,7 @@ const create = base
         folders,
         id,
         modelURI,
+        output,
         prompt,
         sessionId,
         topics,
@@ -145,6 +148,7 @@ const create = base
         folders,
         model,
         modelURI,
+        output,
         prompt,
         sessionId: finalSessionId,
         taskId,

@@ -157,6 +157,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-modelChange": {
       return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
     }
+    case "data-outputFormat": {
+      return `<data-outputFormat name="${part.data.name}">${part.data.title}</data-outputFormat>`;
+    }
     case "data-paneTabs": {
       const tabs = part.data.tabs
         .map((tab) => (tab.type === "file" ? tab.filePath : "browser"))

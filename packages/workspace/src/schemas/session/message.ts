@@ -28,6 +28,7 @@ import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
+import { outputFormatModelNote } from "../../lib/output-format-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
@@ -602,6 +603,20 @@ export namespace SessionMessage {
             injectedParts.push({ text: note, type: "text" });
           }
           previousViewContextNote = note;
+        }
+
+        const outputFormatPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-outputFormat";
+          } => part.type === "data-outputFormat",
+        );
+        if (outputFormatPart) {
+          injectedParts.push({
+            text: outputFormatModelNote(outputFormatPart.data),
+            type: "text",
+          });
         }
 
         const threadContextPart = message.parts.find(

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { type SessionMessage } from "../../schemas/session/message";
+import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { listTaskBackgroundProcesses } from "../background-processes";
 import { getTaskAgentStatus } from "../get-task-agent-status";
@@ -63,7 +64,10 @@ export function askIn(
       "state" in part &&
       (part.state === "input-available" || part.state === "input-streaming")
     ) {
-      return ASKS[name];
+      // The question itself where there is one, since that is what the user
+      // is being asked; the generic line where the ask has no words of its
+      // own.
+      return (name === "choose" && questionOf(part)) || ASKS[name];
     }
   }
   return undefined;
@@ -213,4 +217,15 @@ async function latestMessages(
     taskId,
   });
   return messages.isOk() ? messages.value : [];
+}
+
+/** The words of a choice put to the user, when the call carries them. */
+function questionOf(part: SessionMessagePart.Type): string {
+  const input: unknown = "input" in part ? part.input : undefined;
+  return typeof input === "object" &&
+    input !== null &&
+    "question" in input &&
+    typeof input.question === "string"
+    ? input.question.trim()
+    : "";
 }

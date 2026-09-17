@@ -338,7 +338,7 @@ describe("taskStanding", () => {
 
     expect(standing).toEqual({
       kind: "waiting",
-      line: "Waiting for you to answer",
+      line: "Which?",
     });
   });
 });

@@ -445,13 +445,16 @@ function latestFor({
 }): Thread["latest"] {
   if (state === "working") {
     const step = runningStep ?? latestStepIn(messages);
-    return step && lastMessage
-      ? {
-          at: lastMessage.metadata.createdAt.getTime(),
-          kind: "step",
-          text: step,
-        }
-      : undefined;
+    if (step && lastMessage) {
+      return {
+        at: lastMessage.metadata.createdAt.getTime(),
+        kind: "step",
+        text: step,
+      };
+    }
+    // Working with no step to name yet, as right after a message is sent:
+    // the row keeps the last thing said rather than going blank under the
+    // title, which would shrink it.
   }
   if (ask) {
     return { at: ask.at, kind: "question", text: ask.text };
@@ -587,9 +590,13 @@ async function threadFor(
 
   // A task stopped on an ask is running to the machine and stalled to the
   // user, so it does not make the thread work; it makes it wait, unless
-  // something else in the thread is moving.
+  // something else in the thread is moving. The thread's own agent stopped
+  // on an ask of its own is the same: alive to the machine, waiting to the
+  // user.
+  const ownAsk = askIn(messages);
   const working =
-    threadIsAlive(taskId, session.id) || filed.some((task) => !task.waiting);
+    (threadIsAlive(taskId, session.id) && ownAsk === undefined) ||
+    filed.some((task) => !task.waiting);
   const ask = working ? undefined : askOf(messages, filed);
   const state = working ? "working" : ask ? "waiting" : "idle";
 

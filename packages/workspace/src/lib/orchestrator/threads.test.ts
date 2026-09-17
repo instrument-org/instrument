@@ -392,7 +392,7 @@ describe("listThreads", () => {
         thread: sessionId,
         title: "Grocery list",
         updatedAt: at(3).getTime(),
-        waiting: "Waiting for you to answer",
+        waiting: "Which one?",
       },
     ];
 
@@ -402,14 +402,14 @@ describe("listThreads", () => {
     expect(thread?.latest).toEqual({
       at: at(3).getTime(),
       kind: "question",
-      text: "Waiting for you to answer",
+      text: "Which one?",
     });
     expect(thread?.runningTasks).toEqual([
       {
         id: child,
         step: "Picking a store",
         title: "Grocery list",
-        waiting: "Waiting for you to answer",
+        waiting: "Which one?",
       },
     ]);
 
@@ -459,8 +459,24 @@ describe("listThreads", () => {
     expect(thread?.latest).toEqual({
       at: at(5).getTime(),
       kind: "question",
-      text: "Waiting for you to answer",
+      text: "Which one?",
     });
+  });
+
+  it("is waiting, not working, while its own agent stands on the question it asked", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentAsks(taskId, sessionId);
+    // The agent is alive to the machine: its turn is open on the tool call.
+    alive.value = new Set([sessionId]);
+    try {
+      const [thread] = await listThreads(taskId);
+      expect(thread?.state).toBe("waiting");
+      expect(thread?.latest?.kind).toBe("question");
+    } finally {
+      alive.value = new Set();
+    }
   });
 
   it("reads a reply that is only the files it handed over by what it wrote", async () => {

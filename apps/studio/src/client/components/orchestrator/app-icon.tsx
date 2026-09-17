@@ -22,14 +22,14 @@ export function AppIcon({
   site?: string | undefined;
   size?: "lg" | "md" | "sm";
 }) {
-  // A circle at every size: what tells an app from a site's rounded square
-  // and a file's own shape, wherever the three sit side by side.
+  // Corners rounded a little at every size, never a circle: most services'
+  // icons are square, and a square inside a circle reads as a mistake.
   const box =
     size === "lg"
-      ? "size-12 rounded-full"
+      ? "size-12 rounded-xl"
       : size === "sm"
-        ? "size-4 rounded-full"
-        : "size-9 rounded-full";
+        ? "size-4 rounded-sm"
+        : "size-9 rounded-lg";
   const glyph =
     size === "lg" ? "size-7" : size === "sm" ? "size-3.5" : "size-5";
   const label = name ?? hostOf(site);

@@ -121,11 +121,11 @@ export function translateTaskFolderPaths(text: string, taskId: TaskId): string {
   const root = `${MOUNT.tasks}/${taskId}`;
   return text
     .replaceAll(`${MOUNT.task}/`, `${root}/`)
-    .replace(FILES_FENCE, (fence: string, body: string) =>
+    .replaceAll(FILES_FENCE, (fence: string, body: string) =>
       fence.replace(
         body,
-        body.replace(
-          /^([ \t]*)(?!\/|[ \t]*$)(?:\.\/)?(\S.*)$/gmu,
+        body.replaceAll(
+          /^([ \t]*)(?!\/|$)(?:\.\/)?(\S.*)$/gmu,
           (_line, indent: string, taskPath: string) =>
             `${indent}${root}/${taskPath}`,
         ),

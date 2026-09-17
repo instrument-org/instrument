@@ -20,11 +20,11 @@ const COUNT_CAP = 100_000;
  * skill, which is the skill's rather than the task's.
  */
 const NOT_ITS_OWN = new Set([
-  "node_modules",
-  ".venv",
   ".git",
-  "__pycache__",
   ".pnpm",
+  ".venv",
+  "__pycache__",
+  "node_modules",
 ]);
 
 /**
@@ -81,16 +81,6 @@ export async function taskFolderHoldings(
   return holdings;
 }
 
-async function scaffoldEntries(): Promise<Set<string>> {
-  try {
-    return new Set(
-      await fs.readdir(getWorkspaceConfig().defaultTaskTemplateDir),
-    );
-  } catch {
-    return new Set();
-  }
-}
-
 async function countFiles(
   dir: string,
   { skipTop }: { skipTop: Set<string> },
@@ -126,4 +116,14 @@ async function countFiles(
     }
   }
   return { capped: false, files };
+}
+
+async function scaffoldEntries(): Promise<Set<string>> {
+  try {
+    return new Set(
+      await fs.readdir(getWorkspaceConfig().defaultTaskTemplateDir),
+    );
+  } catch {
+    return new Set();
+  }
 }

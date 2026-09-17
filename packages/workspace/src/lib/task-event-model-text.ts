@@ -102,15 +102,15 @@ export function taskEventModelNote(
   `;
 }
 
+function formatTokens(tokens: number) {
+  return tokens >= 1000
+    ? `${(tokens / 1000).toFixed(tokens >= 10_000 ? 0 : 1)}K`
+    : String(tokens);
+}
+
 function indent(text: string, prefix: string) {
   return text
     .split("\n")
     .map((line) => (line === "" ? line : `${prefix}${line}`))
     .join("\n");
-}
-
-function formatTokens(tokens: number) {
-  return tokens >= 1000
-    ? `${(tokens / 1000).toFixed(tokens >= 10_000 ? 0 : 1)}K`
-    : String(tokens);
 }

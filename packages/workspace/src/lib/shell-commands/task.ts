@@ -39,6 +39,8 @@ import { newTaskId } from "../new-task-id";
 import { isWorking, leftRunning } from "../orchestrator/activity";
 import { recordTaskThread } from "../orchestrator/attribution";
 import { listChildTasks } from "../orchestrator/children";
+import { describeHoldings } from "../orchestrator/describe-holdings";
+import { taskFolderHoldings } from "../orchestrator/folder-holdings";
 import {
   lastAssistantText,
   latestOrNewSessionId,
@@ -50,8 +52,6 @@ import {
   modelTable,
   ownProviderConfigId,
 } from "../orchestrator/models";
-import { describeHoldings } from "../orchestrator/describe-holdings";
-import { taskFolderHoldings } from "../orchestrator/folder-holdings";
 import {
   type FolderMounts,
   mountPathOf,

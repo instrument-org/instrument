@@ -1,11 +1,11 @@
 /** One top-level entry of a task's folder and how many files sit under it. */
 export interface FolderHolding {
-  /** The entry's name, with a trailing slash when it is a folder. */
-  name: string;
-  /** Files under it, counted to the cap and no further. */
-  files: number;
   /** True when the count stopped at the cap, so the number reads as at least. */
   capped?: boolean;
+  /** Files under it, counted to the cap and no further. */
+  files: number;
+  /** The entry's name, with a trailing slash when it is a folder. */
+  name: string;
 }
 
 /** The note's clause for a task's holdings, or its absence. */

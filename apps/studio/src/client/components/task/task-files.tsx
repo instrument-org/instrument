@@ -309,6 +309,69 @@ function buildTree(files: TaskTreeFile[]): FileTreeNode[] {
   return root;
 }
 
+function CollapsibleTreeSection({
+  children,
+  defaultOpen = false,
+  forceOpen,
+  icon: Icon,
+  label,
+  labelClassName,
+}: {
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  forceOpen?: boolean;
+  icon?: React.ComponentType<{ className?: string }>;
+  label: string;
+  labelClassName?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen || (forceOpen ?? false));
+  const [prevForceOpen, setPrevForceOpen] = useState(forceOpen);
+
+  if (forceOpen && forceOpen !== prevForceOpen) {
+    setPrevForceOpen(forceOpen);
+    setOpen(true);
+  }
+
+  return (
+    <Collapsible onOpenChange={setOpen} open={open}>
+      <CollapsibleTrigger asChild>
+        <SidebarMenuButton
+          className={cn(
+            "group/collapsible-trigger h-auto min-h-8 gap-2 px-3 py-2 text-xs font-medium text-foreground",
+            labelClassName,
+          )}
+        >
+          {Icon && <Icon className="size-3.5! shrink-0" />}
+          <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+          <CaretRightIcon className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible-trigger:rotate-90" />
+        </SidebarMenuButton>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ul className="flex min-w-0 flex-col overflow-hidden">{children}</ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function dirContainsActive(
+  node: Extract<FileTreeNode, { kind: "dir" }>,
+  activeFilePath: null | string,
+): boolean {
+  if (!activeFilePath) {
+    return false;
+  }
+  for (const child of node.children) {
+    if (child.kind === "file") {
+      if (child.file.taskFile.filePath === activeFilePath) {
+        return true;
+      }
+    } else if (dirContainsActive(child, activeFilePath)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function directorySectionLabel(dirName: string) {
   if (dirName === TASK_FOLDER_NAMES.attachments) {
     return "Attached files";
@@ -405,69 +468,6 @@ function FilesItemMenu({ children }: { children: React.ReactNode }) {
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
-
-function CollapsibleTreeSection({
-  children,
-  defaultOpen = false,
-  forceOpen,
-  icon: Icon,
-  label,
-  labelClassName,
-}: {
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-  forceOpen?: boolean;
-  icon?: React.ComponentType<{ className?: string }>;
-  label: string;
-  labelClassName?: string;
-}) {
-  const [open, setOpen] = useState(defaultOpen || (forceOpen ?? false));
-  const [prevForceOpen, setPrevForceOpen] = useState(forceOpen);
-
-  if (forceOpen && forceOpen !== prevForceOpen) {
-    setPrevForceOpen(forceOpen);
-    setOpen(true);
-  }
-
-  return (
-    <Collapsible onOpenChange={setOpen} open={open}>
-      <CollapsibleTrigger asChild>
-        <SidebarMenuButton
-          className={cn(
-            "group/collapsible-trigger h-auto min-h-8 gap-2 px-3 py-2 text-xs font-medium text-foreground",
-            labelClassName,
-          )}
-        >
-          {Icon && <Icon className="size-3.5! shrink-0" />}
-          <span className="min-w-0 flex-1 truncate text-left">{label}</span>
-          <CaretRightIcon className="size-3! shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible-trigger:rotate-90" />
-        </SidebarMenuButton>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <ul className="flex min-w-0 flex-col overflow-hidden">{children}</ul>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-function dirContainsActive(
-  node: Extract<FileTreeNode, { kind: "dir" }>,
-  activeFilePath: null | string,
-): boolean {
-  if (!activeFilePath) {
-    return false;
-  }
-  for (const child of node.children) {
-    if (child.kind === "file") {
-      if (child.file.taskFile.filePath === activeFilePath) {
-        return true;
-      }
-    } else if (dirContainsActive(child, activeFilePath)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 // Attached files first, then every other folder, then the files at the root.

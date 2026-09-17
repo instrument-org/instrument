@@ -8,11 +8,11 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { getTasks } from "../get-tasks";
+import { filesNamedIn } from "../parse-files-block";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getTaskSettings, recordTaskActivity } from "../task-settings";
-import { filesNamedIn } from "../parse-files-block";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";

@@ -39,6 +39,7 @@ import {
 } from "@/client/components/orchestrator/screen-presentation";
 import { type TabLocation } from "@/client/components/orchestrator/tab-location";
 import { TabLocationRow } from "@/client/components/orchestrator/tab-location-row";
+import { TasksBadge } from "@/client/components/orchestrator/tasks-badge";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
@@ -757,9 +758,25 @@ function OrchestratorLayout() {
                 tabs={null}
                 trailing={
                   <>
+                    {/* How many tasks are at work, and the list of them: a
+                      task pressed opens its thread and then the task as a
+                      tab of the thread's, since the tabs are each thread's. */}
+                    <TasksBadge
+                      onOpen={(task) => {
+                        if (task.threadId) {
+                          openScreen(`${THREADS_HREF}/${task.threadId}`);
+                        } else {
+                          windowTabs.showWindow();
+                        }
+                        openScreen(`/orchestrator/tasks/${task.id}`, {
+                          newTab: true,
+                        });
+                      }}
+                      tasks={children.data ?? []}
+                    />
                     {/* The way out of the right area as a whole, at the
-                      strip's end: not perfectly the strip's business, but
-                      the one place a control over the whole area can sit. */}
+                      bar's end: not perfectly the bar's business, but the
+                      one place a control over the whole area can sit. */}
                     <RightAreaToggle />
                     {isDeveloperMode && (
                       <Suspense fallback={null}>

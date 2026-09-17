@@ -559,18 +559,21 @@ describe("ThreadRow", () => {
     await userEvent.keyboard("{Escape}");
   });
 
-  it("opens a hold in place, or in a tab of its own on a middle click, never the thread", async () => {
+  it("opens a hold inside its thread: the thread first, then the hold as a tab of the thread's", async () => {
     const { onOpen, openScreen, row } = await renderRow(
       thread({ holds: { apps: ["github"], files: [], sites: [] } }),
     );
     const [app] = marksOf(row);
     app?.click();
-    expect(openScreen).toHaveBeenCalledWith("/orchestrator/apps/github");
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(openScreen).toHaveBeenCalledWith("/orchestrator/apps/github", {
+      newTab: true,
+    });
     app?.dispatchEvent(
       new MouseEvent("auxclick", { bubbles: true, button: 1 }),
     );
+    expect(onOpen).toHaveBeenCalledTimes(2);
     expect(openScreen).toHaveBeenCalledTimes(2);
-    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("opens the thread's topic list from the pill, which files the thread rather than opening it", async () => {

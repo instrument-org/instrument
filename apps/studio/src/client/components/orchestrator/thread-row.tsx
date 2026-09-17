@@ -1,3 +1,6 @@
+import { THREADS_HREF } from "@/client/atoms/orchestrator";
+import { FileOpenContext } from "@/client/components/file-open-context";
+import { PageOpenContext } from "@/client/components/page-open-context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,12 +19,16 @@ import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { useMutation } from "@tanstack/react-query";
-import { type SyntheticEvent, useState } from "react";
+import {
+  type ReactNode,
+  type SyntheticEvent,
+  useContext,
+  useState,
+} from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
-import { useOrchestrator } from "./context";
+import { OrchestratorContext, useOrchestrator } from "./context";
 import { HoldMarks } from "./hold-marks";
-import { THREADS_HREF } from "./screen-presentation";
 import { activityLabel, type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
@@ -166,12 +173,14 @@ export function ThreadRow({
           </span>
           <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
           {hasHolds && (
-            <HoldMarks
-              appsBySlug={appsBySlug}
-              className="ml-auto"
-              holds={thread.holds}
-              namedFiles
-            />
+            <HoldsInThread onOpen={onOpen}>
+              <HoldMarks
+                appsBySlug={appsBySlug}
+                className="ml-auto"
+                holds={thread.holds}
+                namedFiles
+              />
+            </HoldsInThread>
           )}
           <span className="w-14 shrink-0 text-right">{time}</span>
         </>
@@ -195,12 +204,14 @@ export function ThreadRow({
           </p>
           <Peek className="mt-0.5" lines={2} thread={thread} />
           {hasHolds && (
-            <HoldMarks
-              appsBySlug={appsBySlug}
-              className="mt-1 flex-wrap gap-1"
-              holds={thread.holds}
-              namedFiles
-            />
+            <HoldsInThread onOpen={onOpen}>
+              <HoldMarks
+                appsBySlug={appsBySlug}
+                className="mt-1 flex-wrap gap-1"
+                holds={thread.holds}
+                namedFiles
+              />
+            </HoldsInThread>
           )}
         </div>
       )}
@@ -243,6 +254,56 @@ export function TopicPill({
       )}
       <span className="truncate">{topic.name}</span>
     </button>
+  );
+}
+
+/**
+ * Names the openers for the marks of what a thread holds: a hold is the
+ * thread's, so opening one opens the thread first and then the hold as a
+ * tab inside the thread's group, never in place of whatever the right area
+ * had up. A middle or modified click asks for the same tab.
+ */
+function HoldsInThread({
+  children,
+  onOpen,
+}: {
+  children: ReactNode;
+  /** Opens the thread, which brings its group on screen. */
+  onOpen: () => void;
+}) {
+  const orchestrator = useOrchestrator();
+  const openFile = useContext(FileOpenContext);
+  return (
+    <OrchestratorContext
+      value={{
+        ...orchestrator,
+        openPage: (url) => {
+          onOpen();
+          orchestrator.openPage(url, { newTab: true });
+        },
+        openScreen: (href) => {
+          onOpen();
+          orchestrator.openScreen(href, { newTab: true });
+        },
+        opensNewTab: true,
+      }}
+    >
+      <FileOpenContext
+        value={(path) => {
+          onOpen();
+          openFile?.(path, { newTab: true });
+        }}
+      >
+        <PageOpenContext
+          value={(url) => {
+            onOpen();
+            orchestrator.openPage(url, { newTab: true });
+          }}
+        >
+          {children}
+        </PageOpenContext>
+      </FileOpenContext>
+    </OrchestratorContext>
   );
 }
 

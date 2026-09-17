@@ -17,6 +17,7 @@ import { useOrchestrator } from "./context";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { TabStrip } from "./tab-strip";
+import { isAnchor } from "./window-tabs";
 
 /** A screen's icon on its own, by its address: for a pin's row. */
 export function ScreenIcon({
@@ -186,6 +187,9 @@ export function WindowTabStrip({
           tabs.find((tab) => tab.id === selectedId)?.stripKey ?? selectedId
         }
         tabs={tabs.map((tab) => ({
+          // The thread's own screen holds the head of its group and is never
+          // closed from the strip.
+          isFixed: isAnchor(tab),
           key: tab.stripKey ?? tab.id,
           ...(tab.kind === "page"
             ? {

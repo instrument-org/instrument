@@ -1,4 +1,4 @@
-import { NEW_TAB_HREF } from "@/client/atoms/orchestrator";
+import { NEW_TAB_HREF, THREADS_HREF } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import { InstrumentGlyph } from "@/client/components/wordmark";
@@ -20,9 +20,6 @@ import { parseHref } from "./window-tabs";
 
 /** The route Activity is at: what happened across every thread, newest first. */
 export const ACTIVITY_HREF = "/orchestrator/activity";
-
-/** The route a thread's screen is at, followed by the thread's session id. */
-export const THREADS_HREF = "/orchestrator/threads";
 
 /**
  * What an address alone cannot say about a screen: the names of the things

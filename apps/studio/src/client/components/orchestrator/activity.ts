@@ -1,12 +1,13 @@
 import {
   type OrchestratorRecent,
+  THREADS_HREF,
   type VisitedPage,
 } from "@/client/atoms/orchestrator";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { type RPCOutput } from "@/client/rpc/client";
 
 import { folderOf, segmentsOf } from "./host-path";
-import { ACTIVITY_HREF, THREADS_HREF } from "./screen-presentation";
+import { ACTIVITY_HREF } from "./screen-presentation";
 import { dayLabel } from "./threads";
 import { parseHref } from "./window-tabs";
 

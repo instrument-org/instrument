@@ -9,6 +9,7 @@ import {
   VISITED_MAX,
   visitedPagesAtom,
   type WindowTab,
+  type WindowTabs,
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
 import { Favicon } from "@/client/components/favicon";
@@ -42,6 +43,7 @@ import { useOrchestrator } from "./context";
 import { fileHref } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { stepTabVisit, visitInTab } from "./tab-history";
+import { selectTab } from "./window-tabs";
 
 export interface BrowserPage {
   favicon?: string;
@@ -165,11 +167,14 @@ type PageTabsUpdate = (current: {
  */
 export function BrowserTabs({
   chromeInto,
+  groupOfTask,
   onPageChange,
   ref,
 }: {
   /** The element in the row above that the page's own bar is drawn into. */
   chromeInto?: HTMLElement | null;
+  /** The thread a task was filed from, by its session id, which is the group its browsing lands in; undefined for a task filed outside any thread. */
+  groupOfTask: (taskId: TaskId) => string | undefined;
   /** Told the page on screen whenever it changes, and undefined when none is. */
   onPageChange?: (page: BrowserPage | undefined) => void;
   ref: Ref<BrowserTabsHandle>;
@@ -178,10 +183,6 @@ export function BrowserTabs({
   const [{ activeId, tabs: allTabs }, setAllTabs] = useAtom(windowTabsAtom);
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab) => tab.kind === "page");
-  // A patch to a page tab lands in the window's list, where the tab lives.
-  const setTabs = (update: PageTabsUpdate) => {
-    setAllTabs(withPageTabs(update));
-  };
   const setSiteFavicons = useSetAtom(siteFaviconsAtom);
   const setVisited = useSetAtom(visitedPagesAtom);
   const setRecents = useSetAtom(orchestratorRecentsAtom);
@@ -333,13 +334,21 @@ export function BrowserTabs({
     if (newcomers.length === 0) {
       return;
     }
-    setAllTabs(
-      withPageTabs((current) => ({
-        ...current,
-        tabs: [...current.tabs, ...newcomers],
-      })),
-    );
-  }, [attached, everyTabId, setAllTabs, taskId]);
+    // In the group of the thread the task was filed from, so a task's
+    // browsing stays with its thread; a task filed outside any thread
+    // browses among the window's own tabs.
+    setAllTabs((current) => ({
+      ...current,
+      tabs: [
+        ...current.tabs,
+        ...newcomers.map((tab) => ({
+          ...tab,
+          group: groupOfTask(tab.taskId),
+          kind: "page" as const,
+        })),
+      ],
+    }));
+  }, [attached, everyTabId, groupOfTask, setAllTabs, taskId]);
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the
@@ -576,6 +585,7 @@ export function BrowserTabs({
           kind: "page",
         });
         return {
+          ...current,
           activeId: id,
           tabs:
             index === -1
@@ -588,12 +598,17 @@ export function BrowserTabs({
         };
       });
     } else {
-      setTabs((current) => ({
+      // In the group on screen: a page opened while a thread is up is the
+      // thread's.
+      setAllTabs((current) => ({
+        ...current,
         activeId: id,
         tabs: [
           ...current.tabs,
           {
             ...page,
+            group: current.group,
+            kind: "page",
             past: [
               {
                 href: NEW_TAB_HREF,
@@ -650,7 +665,7 @@ export function BrowserTabs({
             (tab) => origin !== undefined && originOf(tab.url) === origin,
           );
         if (existing) {
-          setTabs((current) => ({ ...current, activeId: existing.id }));
+          setAllTabs((current) => selectTab(current, existing.id));
           return "focused";
         }
         openTab(url, options?.replacing);
@@ -884,10 +899,7 @@ function trimAddress(url: string) {
  * end and the screens untouched.
  */
 function withPageTabs(update: PageTabsUpdate) {
-  return (current: {
-    activeId: null | string;
-    tabs: WindowTab[];
-  }): { activeId: null | string; tabs: WindowTab[] } => {
+  return (current: WindowTabs): WindowTabs => {
     const pages = current.tabs.filter((tab) => tab.kind === "page");
     const next = update({ activeId: current.activeId, tabs: pages });
     const byId = new Map(next.tabs.map((tab) => [tab.id, tab]));
@@ -907,6 +919,6 @@ function withPageTabs(update: PageTabsUpdate) {
         merged.push({ ...tab, kind: "page" });
       }
     }
-    return { activeId: next.activeId, tabs: merged };
+    return { ...current, activeId: next.activeId, tabs: merged };
   };
 }

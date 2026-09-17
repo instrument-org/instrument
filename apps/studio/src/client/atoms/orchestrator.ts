@@ -153,6 +153,12 @@ interface TabHistory {
   at?: number;
   future?: TabVisit[];
   /**
+   * The thread this tab belongs to, by its session id: what was opened while
+   * the thread was on screen stays with the thread. Absent for a tab of the
+   * window's own, opened outside any thread.
+   */
+  group?: string;
+  /**
    * True when this tab was opened from another one rather than by the user
    * asking for a tab. Back from the start of such a tab closes it, which is
    * what a tab opened to show one thing should do when you are done with it.
@@ -184,18 +190,29 @@ export function originOf(url: string | undefined): string | undefined {
 /** The address a new tab opens at: the page with the box that reaches everything. */
 export const NEW_TAB_HREF = "/orchestrator/home";
 
-/** What the window has open: its tabs in strip order, and which is on screen. */
+/** The route a thread's screen is at, followed by the thread's session id. */
+export const THREADS_HREF = "/orchestrator/threads";
+
+/**
+ * What the window has open: every group's tabs in strip order, which group
+ * is on screen, and which tab each group last had up.
+ */
 export interface WindowTabs {
+  /** The tab each group last had up, by the thread's session id or "window" for the window's own, so coming back lands there. */
+  activeByGroup?: Record<string, string>;
   activeId: null | string;
+  /** The thread whose group is on screen, by its session id; absent while the window's own group is. */
+  group?: string;
   tabs: WindowTab[];
 }
 
 /**
- * The window's tabs, one set, kept across launches. Every screen reads and
- * writes this one; a thread opens as a tab in it beside everything else.
+ * The window's tabs, one list across every group, kept across launches on
+ * this computer. Every screen reads and writes this one; a thread's tabs are
+ * the ones in its group, and the thread itself is the first of them.
  */
 export const windowTabsAtom = atomWithStorage<WindowTabs>(
-  "orchestrator.tabs.v4",
+  "orchestrator.tabs.v5",
   { activeId: null, tabs: [] },
   undefined,
   { getOnInit: true },

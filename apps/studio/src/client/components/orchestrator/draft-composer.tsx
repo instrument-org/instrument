@@ -15,6 +15,7 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
@@ -118,13 +119,21 @@ export function DraftComposer({
           topic={topic}
           topics={topics}
         />
+        {/* The same round brand arrow the prompt box sends with, and no
+          word on it: the right word for starting a thread is still to be
+          found, and a word learned here would have to be unlearned. */}
         <Button
-          className="h-8 rounded-md px-4"
+          aria-label="Start the thread"
+          className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
           disabled={!canStart}
           onClick={onStart}
           variant="brand"
         >
-          {isStarting ? <Spinner className="size-4" /> : "Start"}
+          {isStarting ? (
+            <Spinner className="size-4" />
+          ) : (
+            <ArrowUpIcon className="size-4" />
+          )}
         </Button>
       </div>
       <div

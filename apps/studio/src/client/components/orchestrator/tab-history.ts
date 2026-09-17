@@ -43,6 +43,8 @@ export function visitInTab(current: WindowTab, visit: TabVisit): WindowTab {
   return {
     ...visit,
     future: [],
+    // The tab stays the thread's whatever it visits.
+    group: current.group,
     isOpened: current.isOpened,
     past: [...(current.past ?? []), ...(previous ? [visitOf(previous)] : [])],
     stripKey: current.stripKey ?? current.id,

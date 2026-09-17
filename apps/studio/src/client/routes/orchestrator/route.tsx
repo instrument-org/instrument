@@ -11,6 +11,7 @@ import {
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
+  THREADS_HREF,
 } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { FileSystemIconSpriteSheet } from "@/client/components/extend/file-system";
@@ -35,7 +36,6 @@ import { RightAreaToggle } from "@/client/components/orchestrator/right-area-tog
 import {
   screenLocation,
   screenPresentation,
-  THREADS_HREF,
 } from "@/client/components/orchestrator/screen-presentation";
 import { type TabLocation } from "@/client/components/orchestrator/tab-location";
 import { TabLocationRow } from "@/client/components/orchestrator/tab-location-row";
@@ -237,6 +237,11 @@ function OrchestratorLayout() {
   const childTitles = new Map<TaskId, string>(
     children.data?.map((child) => [child.id, child.title]) ?? [],
   );
+  // The thread each task was filed from, which is the group its browsing
+  // lands in.
+  const childThreads = new Map<TaskId, string | undefined>(
+    children.data?.map((child) => [child.id, child.threadId]) ?? [],
+  );
   // The threads' titles, for the tabs standing on one; the pane reads the
   // same live list, so this is one subscription shared through the cache.
   const threads = useQuery(
@@ -269,14 +274,15 @@ function OrchestratorLayout() {
   const { active, activeId, tabs } = windowTabs;
   const isPageOnScreen = active?.kind === "page";
 
-  // The window is never empty: with no tab, it starts where a new tab starts.
-  // The one opener while the list is empty; the effects below wait for it.
+  // The window is never empty: with no tab of its own, it starts where a new
+  // tab starts. A thread's group always has the thread. The one opener while
+  // the list is empty; the effects below wait for it.
   useEffect(() => {
-    if (tabs.length === 0) {
+    if (windowTabs.group === undefined && tabs.length === 0) {
       windowTabs.openScreen(NEW_TAB_HREF);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabs.length]);
+  }, [tabs.length, windowTabs.group]);
 
   // The router follows the tab on screen: a screen's own address, or the
   // page route, which shows nothing of its own, while a page is up.
@@ -745,23 +751,10 @@ function OrchestratorLayout() {
           <Frame
             bar={
               <WindowBar
-                tabs={
-                  <WindowTabStrip
-                    childTitles={childTitles}
-                    onClose={requestClose}
-                    onNew={() => {
-                      windowTabs.openScreen(NEW_TAB_HREF);
-                    }}
-                    onReorder={windowTabs.reorder}
-                    onSelect={(id) => {
-                      setRightAreaOpen(true);
-                      windowTabs.select(id);
-                    }}
-                    selectedId={active?.id}
-                    tabs={tabs}
-                    threadTitles={threadTitles}
-                  />
-                }
+                // Nothing in the bar's middle for now: the tabs are each
+                // thread's and sit over the thread; the region is kept for
+                // tabs of the window's own, should they come back.
+                tabs={null}
                 trailing={
                   <>
                     {/* The way out of the right area as a whole, at the
@@ -835,7 +828,24 @@ function OrchestratorLayout() {
                 isRightAreaOpen ? undefined : "hidden",
               )}
             >
-              {/* Under the strip and across the pane: what this tab is
+              {/* The tabs of the thread on screen, the thread itself first
+                and held there, or the window's own when no thread is up.
+                Switching threads swaps the whole row. */}
+              <div className="flex h-9 shrink-0 items-center border-b border-border bg-muted/40 px-2">
+                <WindowTabStrip
+                  childTitles={childTitles}
+                  onClose={requestClose}
+                  onNew={() => {
+                    windowTabs.openScreen(NEW_TAB_HREF);
+                  }}
+                  onReorder={windowTabs.reorder}
+                  onSelect={windowTabs.select}
+                  selectedId={active?.id}
+                  tabs={tabs}
+                  threadTitles={threadTitles}
+                />
+              </div>
+              {/* Under the tabs and across the pane: what this tab is
                 showing, and the way back out of it. */}
               <TabLocationRow
                 canGoBack={canGoBack}
@@ -874,7 +884,11 @@ function OrchestratorLayout() {
                   <ActiveTabProvider
                     isActive={isPageOnScreen && isRightAreaOpen}
                   >
-                    <BrowserTabs chromeInto={chromeSlot} ref={setBrowser} />
+                    <BrowserTabs
+                      chromeInto={chromeSlot}
+                      groupOfTask={(id) => childThreads.get(id)}
+                      ref={setBrowser}
+                    />
                   </ActiveTabProvider>
                 </div>
               </div>
@@ -917,10 +931,11 @@ function OrchestratorLayout() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              {/* The draft of a new thread, over the right area's corner or
-                across it, wherever it was left. */}
-              <DraftWindow modelURI={modelURI} sendContext={sendContext} />
             </main>
+            {/* The draft of a new thread, over the window's corner or across
+              it, wherever it was left: outside the right area, so putting
+              that away leaves the draft where it is. */}
+            <DraftWindow modelURI={modelURI} sendContext={sendContext} />
           </Frame>
         </PageOpenContext>
       </FileOpenContext>

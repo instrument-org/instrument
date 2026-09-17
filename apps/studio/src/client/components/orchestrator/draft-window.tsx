@@ -3,6 +3,7 @@ import {
   type DraftFile,
   draftPlacementAtom,
   EMPTY_DRAFT,
+  THREADS_HREF,
 } from "@/client/atoms/orchestrator";
 import {
   Tooltip,
@@ -25,8 +26,8 @@ import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
 import { DraftComposer } from "./draft-composer";
+import { fileHref } from "./file-tabs";
 import { NewTopicDialog } from "./new-topic-dialog";
-import { THREADS_HREF } from "./screen-presentation";
 
 type Upload = NonNullable<
   RPCInput["workspace"]["message"]["create"]["files"]
@@ -107,9 +108,18 @@ export function DraftWindow({
             setStarting(false);
           },
           onSuccess: ({ sessionId }) => {
+            const threadHref = `${THREADS_HREF}/${sessionId}`;
             setDraft(EMPTY_DRAFT);
             setPlacement("closed");
-            openScreen(`${THREADS_HREF}/${sessionId}`);
+            // The thread's group comes up with the files gathered under the
+            // words as its tabs, then the thread itself is what is shown.
+            openScreen(threadHref);
+            for (const file of draft.files) {
+              if (file.path) {
+                openScreen(fileHref(file.path), { newTab: true });
+              }
+            }
+            openScreen(threadHref);
           },
         },
       );

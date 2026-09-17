@@ -1,8 +1,8 @@
+import { THREADS_HREF } from "@/client/atoms/orchestrator";
 import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useNewestSessionId } from "@/client/components/orchestrator/newest-session";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
-import { THREADS_HREF } from "@/client/components/orchestrator/screen-presentation";
 import { TaskMenu } from "@/client/components/orchestrator/task-menu";
 import { Spinner } from "@/client/components/ui/spinner";
 import { hasLiveAgent } from "@/client/lib/agent-status";

@@ -1,3 +1,4 @@
+import { THREADS_HREF } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { Favicon } from "@/client/components/favicon";
 import { FileIcon } from "@/client/components/file-icon";
@@ -31,7 +32,6 @@ import {
 } from "./activity";
 import { AppIcon } from "./app-icon";
 import { type AppsBySlug } from "./apps-by-slug";
-import { THREADS_HREF } from "./screen-presentation";
 import { SiteIcon } from "./sidebar";
 import { basename, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";

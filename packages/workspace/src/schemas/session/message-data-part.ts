@@ -392,9 +392,10 @@ export namespace SessionMessageDataPart {
            */
           ended: z.string().optional(),
           /**
-           * What the task wrote, in the paths the orchestrator can open. Read
-           * from its transcript rather than from what it said, so a file it
-           * made and forgot to mention still reaches the conversation.
+           * The files the task named in the files fence of its last message,
+           * in the paths the orchestrator can open. What the task said it
+           * made, not a reading of what its tools did: the card draws them as
+           * chips, and the note carries the message itself.
            */
           files: z.array(z.string()).optional(),
           /**

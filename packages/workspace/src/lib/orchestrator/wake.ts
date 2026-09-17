@@ -12,16 +12,12 @@ import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getTaskSettings, recordTaskActivity } from "../task-settings";
+import { filesNamedIn } from "../parse-files-block";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { threadOfTask } from "./attribution";
-import { filesWrittenBy } from "./files-written";
-import {
-  lastAssistantText,
-  latestOrNewSessionId,
-  latestSessionId,
-} from "./latest-session";
+import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
 import {
   mountsOf,
   translateMountPaths,
@@ -348,22 +344,23 @@ async function onSessionDone(
   // with `task send`, and leaves one the user stopped alone.
   const ending =
     said === undefined ? await endedWithoutWords(id, sessionId) : undefined;
+  const summary = await inOrchestratorPaths(said, {
+    orchestratorTaskId: orchestratorId,
+    taskId: id,
+  });
+  // What the task said it made, read from its receipt once the paths in it
+  // are the orchestrator's. The note carries the receipt itself; this is for
+  // the card, which draws the files as chips.
+  const files = summary === undefined ? [] : filesNamedIn(summary);
   schedule(
     orchestratorId,
     {
       activeMs: usage.activeMs,
       ...(ending ? { ended: ending.line } : {}),
-      files: await filesWrittenBy({
-        orchestratorTaskId: orchestratorId,
-        sessionId,
-        taskId: id,
-      }),
+      ...(files.length > 0 ? { files } : {}),
       ...(running.length > 0 ? { running } : {}),
       status: ending?.failed ? "error" : "done",
-      summary: await inOrchestratorPaths(said, {
-        orchestratorTaskId: orchestratorId,
-        taskId: id,
-      }),
+      summary,
       taskId: id,
       title: childSettings.name,
       tokens: usage.inputTokens + usage.outputTokens,
@@ -419,14 +416,9 @@ async function stillWorkingEvent({
       .slice(-OVERDUE_STEPS)
       .map((step) => inOrchestratorPaths(step, paths)),
   );
-  const sessionId = await latestSessionId(taskId);
   return {
     activeMs: usage.activeMs,
     cachedTokens: usage.inputTokenDetails.cacheReadTokens,
-    files:
-      sessionId.isOk() && sessionId.value
-        ? await filesWrittenBy({ ...paths, sessionId: sessionId.value })
-        : [],
     status: "overdue",
     steps: steps.filter((step) => step !== undefined),
     summary: await inOrchestratorPaths(await latestStep(taskId), paths),

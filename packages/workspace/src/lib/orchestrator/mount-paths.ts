@@ -1,8 +1,8 @@
 import path from "node:path";
 
-import { AGENT_FILES_LANGUAGE } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
+import { FILES_FENCE } from "../parse-files-block";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 
@@ -108,11 +108,6 @@ export function translateMountPaths(
     index = read?.end ?? subpathAt;
   }
 }
-
-const FILES_FENCE = new RegExp(
-  String.raw`^[ \t]*\x60{3,}[ \t]*${AGENT_FILES_LANGUAGE}[ \t]*$([\s\S]*?)^[ \t]*\x60{3,}[ \t]*$`,
-  "gmu",
-);
 
 /**
  * The same text with the task's own folder rewritten to the name the

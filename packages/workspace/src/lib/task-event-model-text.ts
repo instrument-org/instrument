@@ -61,17 +61,11 @@ export function taskEventModelNote(
       : event.ended || event.status === "overdue"
         ? ""
         : " It said nothing.";
-    const files =
-      event.files && event.files.length > 0
-        ? `\n  It ${event.status === "overdue" ? "has written so far" : "wrote"}: ${event.files.join(", ")}`
-        : event.status === "overdue"
-          ? "\n  It has written nothing yet."
-          : "";
     const running =
       event.running && event.running.length > 0
         ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} kill ${event.taskId} <bg id>\`, or all of it with \`${TASK_COMMAND.name} kill ${event.taskId}\`; a server they are using stays.`
         : "";
-    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${files}${running}`;
+    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${running}`;
   });
 
   // What to do about a wake is the prompt's business (When a task finishes);

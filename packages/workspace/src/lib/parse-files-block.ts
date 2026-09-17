@@ -1,4 +1,28 @@
+import { AGENT_FILES_LANGUAGE } from "../constants";
 import { normalizeTaskFilePath } from "./normalize-task-file-path";
+
+/**
+ * A ```files fence in a message, its body captured. Global, so a message with
+ * several fences yields each; callers iterate with `matchAll` or `replace`,
+ * which take the flag without sharing state through it.
+ */
+export const FILES_FENCE = new RegExp(
+  String.raw`^[ \t]*\x60{3,}[ \t]*${AGENT_FILES_LANGUAGE}[ \t]*$([\s\S]*?)^[ \t]*\x60{3,}[ \t]*$`,
+  "gmu",
+);
+
+/** Every path the files fences in a text name, each once, in order. */
+export function filesNamedIn(text: string): string[] {
+  const paths: string[] = [];
+  for (const match of text.matchAll(FILES_FENCE)) {
+    for (const path of parseFilesBlock(match[1] ?? "")) {
+      if (!paths.includes(path)) {
+        paths.push(path);
+      }
+    }
+  }
+  return paths;
+}
 
 // Bullets and numbers an agent adds when it reads the block as a list.
 const LIST_MARKER = /^(?:[*+-]|\d+[.)])\s+/;

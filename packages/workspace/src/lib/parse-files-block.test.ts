@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseFilesBlock } from "./parse-files-block";
+import { filesNamedIn, parseFilesBlock } from "./parse-files-block";
 
 describe("parseFilesBlock", () => {
   it("reads one path per line", () => {
@@ -66,5 +66,31 @@ describe("parseFilesBlock", () => {
           "output/a.png",
         ]
       `);
+  });
+});
+
+describe("filesNamedIn", () => {
+  it("reads every fence in a text, each path once", () => {
+    const text = [
+      "Done.",
+      "```files",
+      "/mnt/Instrument/report.md",
+      "work/build.mjs",
+      "```",
+      "And the chart:",
+      "```files",
+      "/mnt/Instrument/report.md",
+      "/mnt/Instrument/chart.png",
+      "```",
+    ].join("\n");
+    expect(filesNamedIn(text)).toEqual([
+      "/mnt/Instrument/report.md",
+      "work/build.mjs",
+      "/mnt/Instrument/chart.png",
+    ]);
+  });
+
+  it("finds nothing in a text with no fence", () => {
+    expect(filesNamedIn("Done, see work/report.md.")).toEqual([]);
   });
 });

@@ -1,12 +1,6 @@
-import { AGENT_FILES_LANGUAGE } from "../constants";
 import { type SessionMessage } from "../schemas/session/message";
-import { parseFilesBlock } from "./parse-files-block";
+import { filesNamedIn } from "./parse-files-block";
 import { isTaskFileHref, taskFilePathFromHref } from "./task-file-href";
-
-const FENCE = new RegExp(
-  String.raw`^[ \t]*\x60{3,}[ \t]*${AGENT_FILES_LANGUAGE}[ \t]*$([\s\S]*?)^[ \t]*\x60{3,}[ \t]*$`,
-  "gmu",
-);
 
 // A Markdown link target. Only a link: a path sitting in prose is text, and the
 // renderer draws no chip for it. Which targets name a file rather than a web
@@ -50,10 +44,8 @@ function collectPaths(message: SessionMessage.WithParts): Set<string> {
 
   const named = new Set<string>();
 
-  for (const match of text.matchAll(FENCE)) {
-    for (const path of parseFilesBlock(match[1] ?? "")) {
-      named.add(path);
-    }
+  for (const path of filesNamedIn(text)) {
+    named.add(path);
   }
 
   for (const match of text.matchAll(LINK_TARGET)) {

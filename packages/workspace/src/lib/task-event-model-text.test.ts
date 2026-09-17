@@ -6,12 +6,12 @@ import { taskEventModelNote } from "./task-event-model-text";
 const TASK_ID = TaskIdSchema.parse("2026-09-08-find-the-vault");
 
 describe("taskEventModelNote", () => {
-  it("names what a finished task left running, with each command cut to fit", () => {
+  it("carries the receipt as a block, and names what the task left running with each command cut to fit", () => {
     const note = taskEventModelNote({
       events: [
         {
           activeMs: 203_590,
-          files: ["/mnt/Instrument/output/report.md"],
+          files: ["/mnt/Instrument/report.md"],
           running: [
             {
               command:
@@ -26,7 +26,8 @@ describe("taskEventModelNote", () => {
             },
           ],
           status: "done",
-          summary: "Located the note.",
+          summary:
+            "Located the note and wrote the report beside it.\n\n```files\n/mnt/Instrument/report.md\n```",
           taskId: TASK_ID,
           title: "Find project status note",
           tokens: 424_546,
@@ -38,8 +39,11 @@ describe("taskEventModelNote", () => {
       <instrument-system-note>
       A task you created has finished:
       - 2026-09-08-find-the-vault ("Find project status note") finished a turn (3 minutes of work, 425K tokens so far). It said:
-            Located the note.
-        It wrote: /mnt/Instrument/output/report.md
+            Located the note and wrote the report beside it.
+
+            \`\`\`files
+            /mnt/Instrument/report.md
+            \`\`\`
         It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`task kill 2026-09-08-find-the-vault <bg id>\`, or all of it with \`task kill 2026-09-08-find-the-vault\`; a server they are using stays.
       Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
@@ -92,15 +96,14 @@ describe("taskEventModelNote", () => {
   });
 
   // An overdue note is read to decide whether to stop the task, so it carries
-  // where the turn has been going and what it has to show, and names the
-  // cache share of a total that would otherwise read as full-price spend.
-  it("gives an overdue task's steps, files, and cache share", () => {
+  // where the turn has been going, and names the cache share of a total that
+  // would otherwise read as full-price spend.
+  it("gives an overdue task's steps and cache share", () => {
     const note = taskEventModelNote({
       events: [
         {
           activeMs: 409_602,
           cachedTokens: 2_950_000,
-          files: [],
           status: "overdue",
           steps: [
             "Scoping commits without running runtime tests",
@@ -119,7 +122,6 @@ describe("taskEventModelNote", () => {
       <instrument-system-note>
       A task you created is taking a while:
       - 2026-09-08-find-the-vault ("Audit execution environment changes") is still working (7 minutes of work, 3271K tokens so far, 90% of them cached reads). Its steps this turn, latest last: "Scoping commits without running runtime tests", "Tracing runtime commits, entry points, and policy", "Checking whether the shell exposes worker cleanup".
-        It has written nothing yet.
       Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
     `);
@@ -129,7 +131,6 @@ describe("taskEventModelNote", () => {
     const note = taskEventModelNote({
       events: [
         {
-          files: ["/mnt/Instrument/runtime-audit.md"],
           status: "overdue",
           summary: "Reading the sandbox environment factory",
           taskId: TASK_ID,
@@ -139,9 +140,6 @@ describe("taskEventModelNote", () => {
     });
     expect(note).toContain(
       'Its latest step: "Reading the sandbox environment factory"',
-    );
-    expect(note).toContain(
-      "It has written so far: /mnt/Instrument/runtime-audit.md",
     );
   });
 });

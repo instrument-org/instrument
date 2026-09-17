@@ -135,8 +135,9 @@ differ from an ordinary case:
   scored happened in the tasks rather than in the conversation.
 
 `scripts/orchestrator-handoff-report.ts <workspace-dir>` prints what each task
-handed back and whether the 400-character wake summary cut it off, which is the
-number to watch: everything past that cut was composed, paid for, and dropped.
+handed back and whether the wake note's ceiling cut it, which is the number to
+watch: a task's last message travels whole up to that ceiling, and everything
+past it was composed, paid for, and dropped.
 
 ## Seeded workspaces
 

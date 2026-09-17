@@ -23,7 +23,7 @@ The task id doubles as the DNS label, which is what forces [`TaskIdSchema`](../.
 
 | URL path        | Virtual path      | Backed by                        |
 | --------------- | ----------------- | -------------------------------- |
-| `/output/a.png` | `/task/output/a.png` | The task directory            |
+| `/work/a.png` | `/task/work/a.png` | The task directory            |
 | `/mnt/Photos/cat.png` | `/mnt/Photos/cat.png` | An attached folder |
 | `/project/logo.png` | `/project/logo.png` | The folder of the task's project |
 | `/skills/...`   | `/task/skills/...` | Not the `/skills` mount — the workspace skills mount is not served |

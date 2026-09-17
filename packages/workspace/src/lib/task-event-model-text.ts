@@ -3,7 +3,7 @@ import ms from "ms";
 import { MOUNT } from "../mount-points";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { asClause } from "./as-clause";
-import { describeHoldings } from "./orchestrator/folder-holdings";
+import { describeHoldings } from "./orchestrator/describe-holdings";
 import { describeLeftRunning } from "./orchestrator/left-running";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";

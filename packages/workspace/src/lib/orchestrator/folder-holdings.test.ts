@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TaskDirSchema } from "../../schemas/paths";
 import { type TaskId } from "../../schemas/task-id";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
-import { describeHoldings, taskFolderHoldings } from "./folder-holdings";
+import { describeHoldings } from "./describe-holdings";
+import { taskFolderHoldings } from "./folder-holdings";
 
 let tmpDir: string;
 let taskRoot: string;

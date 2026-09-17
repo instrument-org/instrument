@@ -31,7 +31,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { mountsOf } from "../../src/lib/orchestrator/mount-paths";
+import { filesNamedIn } from "../../src/lib/parse-files-block";
+import { taskDir } from "../../src/lib/task-dir-utils";
+import { MOUNT } from "../../src/mount-points";
 import { type Session } from "../../src/schemas/session";
+import { TaskIdSchema } from "../../src/schemas/task-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
 /**
@@ -77,7 +82,7 @@ function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
  * Anchored the way the turn-ending rule anchors it, so both agree on what a
  * hand-off is.
  */
-const STARTS_A_TASK = /(?:^|[\n;&|])\s*task new\b/;
+const STARTS_A_TASK = /(?:^|[\n;&|])\s*task new\b/g;
 
 function delegated(atLeast: number): Assertion {
   const text =
@@ -111,9 +116,13 @@ function pass(text: string, evidence: string): AssertionResult {
 // Assertions
 // ---------------------------------------------------------------------------
 
+// Counted per start rather than per command: a conversation that fans out
+// three tasks in one call, one heredoc after another, started three.
 function taskNewCount(sessions: Session.WithMessagesAndParts[]): number {
-  return bashCommands(sessions).filter((command) => STARTS_A_TASK.test(command))
-    .length;
+  return bashCommands(sessions).reduce(
+    (count, command) => count + [...command.matchAll(STARTS_A_TASK)].length,
+    0,
+  );
 }
 
 /**
@@ -291,6 +300,87 @@ const tasksWroteFiles: Assertion = {
  * spend turns working out what it was really given -- and reports that it is
  * done in every one of those cases.
  */
+/**
+ * The receipt rule: a task's last message ends with a files fence naming what
+ * it made, which is the one thing about its files the orchestrator is handed.
+ */
+const tasksNamedTheirFiles: Assertion = {
+  check: async ({ childSessions }) => {
+    const text = "every task named what it made in a files fence";
+    const children = await childSessions();
+    if (children.length === 0) {
+      return fail(text, "no task was started");
+    }
+    const receipts = children.map((child) => ({
+      named: filesNamedIn(assistantTexts(child.sessions).at(-1) ?? ""),
+      title: child.title,
+    }));
+    const evidence = receipts
+      .map((one) => `${one.title}: ${one.named.join(", ") || "(no fence)"}`)
+      .join("; ");
+    return receipts.every((one) => one.named.length > 0)
+      ? pass(text, evidence)
+      : fail(text, evidence);
+  },
+  text: "every task named what it made in a files fence",
+};
+
+/**
+ * The conversation's last reply links at least one file, and every file it
+ * links is on disk: a fence naming a path nobody can open is the failure the
+ * receipt's paths, translated on the way in, exist to prevent.
+ */
+const linkedAFileThatExists: Assertion = {
+  check: async ({ sessions, taskId }) => {
+    const text = "the conversation's reply links files that exist";
+    const named = filesNamedIn(assistantTexts(sessions).at(-1) ?? "");
+    if (named.length === 0) {
+      return fail(text, "the last reply names no file in a fence");
+    }
+    const mounts = await mountsOf(taskId);
+    const resolved = named.map((named) => ({
+      host: hostPathOf(named, mounts),
+      named,
+    }));
+    const evidence = resolved
+      .map(
+        ({ host, named }) =>
+          `${named} -> ${host === undefined ? "(unresolved)" : fs.existsSync(host) ? "exists" : "missing"}`,
+      )
+      .join("; ");
+    return resolved.every(
+      ({ host }) => host !== undefined && fs.existsSync(host),
+    )
+      ? pass(text, evidence)
+      : fail(text, evidence);
+  },
+  text: "the conversation's reply links files that exist",
+};
+
+/** A path as the conversation writes it, on disk; undefined where no mount covers it. */
+function hostPathOf(
+  named: string,
+  mounts: Awaited<ReturnType<typeof mountsOf>>,
+): string | undefined {
+  const tasksPrefix = `${MOUNT.tasks}/`;
+  if (named.startsWith(tasksPrefix)) {
+    const [id, ...rest] = named.slice(tasksPrefix.length).split("/");
+    const parsed = TaskIdSchema.safeParse(id);
+    return parsed.success
+      ? path.join(taskDir(parsed.data), ...rest)
+      : undefined;
+  }
+  const mountPrefix = `${MOUNT.attachedFolders}/`;
+  if (!named.startsWith(mountPrefix)) {
+    return undefined;
+  }
+  const [name, ...rest] = named.slice(mountPrefix.length).split("/");
+  const mount = Object.values(mounts).find(
+    (folder) => folder.mountName === name,
+  );
+  return mount ? path.join(mount.path, ...rest) : undefined;
+}
+
 function wroteInto(folder: string): Assertion {
   const text = `a file landed in the user's ${folder} folder`;
   return {
@@ -325,7 +415,9 @@ export const ORCHESTRATOR_EVALS = [
       didNotDoTheWorkItself,
       saidAtMost(280),
       tasksWroteFiles,
-      childRepliedInAtMost(400),
+      tasksNamedTheirFiles,
+      linkedAFileThatExists,
+      childRepliedInAtMost(600),
     ],
     kind: "orchestrator",
     name: "orchestrator-one-file",
@@ -371,6 +463,8 @@ export const ORCHESTRATOR_EVALS = [
       delegated(1),
       didNotDoTheWorkItself,
       tasksWroteFiles,
+      tasksNamedTheirFiles,
+      linkedAFileThatExists,
       wroteInto("Downloads"),
     ],
     kind: "orchestrator",

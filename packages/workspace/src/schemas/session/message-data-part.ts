@@ -392,6 +392,21 @@ export namespace SessionMessageDataPart {
            */
           ended: z.string().optional(),
           /**
+           * What the task's folder holds when the note is composed: each
+           * top-level folder with the files under it, and the files at the
+           * root, the scaffold left out. Counts rather than names, so the
+           * orchestrator sees the shape of the folder without a listing of it.
+           */
+          holds: z
+            .array(
+              z.object({
+                capped: z.boolean().optional(),
+                files: z.number().nonnegative(),
+                name: z.string(),
+              }),
+            )
+            .optional(),
+          /**
            * The files the task named in the files fence of its last message,
            * in the paths the orchestrator can open. What the task said it
            * made, not a reading of what its tools did: the card draws them as

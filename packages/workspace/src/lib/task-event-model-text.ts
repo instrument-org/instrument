@@ -1,7 +1,9 @@
 import ms from "ms";
 
+import { MOUNT } from "../mount-points";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { asClause } from "./as-clause";
+import { describeHoldings } from "./orchestrator/folder-holdings";
 import { describeLeftRunning } from "./orchestrator/left-running";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
@@ -61,11 +63,17 @@ export function taskEventModelNote(
       : event.ended || event.status === "overdue"
         ? ""
         : " It said nothing.";
+    // The shape of its folder, as counts: enough to see a repository copied
+    // in or a build left behind, without a listing the orchestrator can make
+    // for itself when it wants the names.
+    const holds = event.holds
+      ? `\n  Its folder ${MOUNT.tasks}/${event.taskId} holds${event.status === "overdue" ? " so far" : ""}: ${describeHoldings(event.holds)}.`
+      : "";
     const running =
       event.running && event.running.length > 0
         ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} kill ${event.taskId} <bg id>\`, or all of it with \`${TASK_COMMAND.name} kill ${event.taskId}\`; a server they are using stays.`
         : "";
-    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${running}`;
+    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${holds}${running}`;
   });
 
   // What to do about a wake is the prompt's business (When a task finishes);

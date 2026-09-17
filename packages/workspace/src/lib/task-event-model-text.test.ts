@@ -12,6 +12,10 @@ describe("taskEventModelNote", () => {
         {
           activeMs: 203_590,
           files: ["/mnt/Instrument/report.md"],
+          holds: [
+            { files: 3, name: "work/" },
+            { files: 1, name: "." },
+          ],
           running: [
             {
               command:
@@ -44,6 +48,7 @@ describe("taskEventModelNote", () => {
             \`\`\`files
             /mnt/Instrument/report.md
             \`\`\`
+        Its folder /tasks/2026-09-08-find-the-vault holds: work/ 3 files, 1 file at the root.
         It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`task kill 2026-09-08-find-the-vault <bg id>\`, or all of it with \`task kill 2026-09-08-find-the-vault\`; a server they are using stays.
       Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
@@ -104,6 +109,7 @@ describe("taskEventModelNote", () => {
         {
           activeMs: 409_602,
           cachedTokens: 2_950_000,
+          holds: [{ capped: true, files: 100_000, name: "work/" }],
           status: "overdue",
           steps: [
             "Scoping commits without running runtime tests",
@@ -122,6 +128,7 @@ describe("taskEventModelNote", () => {
       <instrument-system-note>
       A task you created is taking a while:
       - 2026-09-08-find-the-vault ("Audit execution environment changes") is still working (7 minutes of work, 3271K tokens so far, 90% of them cached reads). Its steps this turn, latest last: "Scoping commits without running runtime tests", "Tracing runtime commits, entry points, and policy", "Checking whether the shell exposes worker cleanup".
+        Its folder /tasks/2026-09-08-find-the-vault holds so far: work/ at least 100,000 files.
       Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
     `);

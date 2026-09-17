@@ -70,7 +70,6 @@ import {
   PYTHON_NATIVE_COMMAND,
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
-import { createShowCommand, SHOW_COMMAND } from "./shell-commands/show";
 import { createTaskCommand, TASK_COMMAND } from "./shell-commands/task";
 import { createUvCommand, UV_COMMAND } from "./shell-commands/uv";
 import {
@@ -462,7 +461,6 @@ export function createBashDescription({
 
   const customLines = [
     `  ${AGENT_BROWSER_COMMAND.name} - ${agentBrowserCommandDescription()}`,
-    `  ${SHOW_COMMAND.name} - ${SHOW_COMMAND.description}`,
     ...CUSTOM_COMMAND_DEFS.filter((cmd) => cmd.listInDescription).map(
       (cmd) => `  ${cmd.name} - ${cmd.description}`,
     ),
@@ -554,10 +552,12 @@ export async function createBashEnv({
     ...(orchestrator ? [] : getNetworkCommandNames()),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
-  // What sets the two shells apart: the orchestrator gets `task` and nothing
-  // else beyond reading, the working agent gets `show` and the native hatches.
-  // Both get `app`, which does its network work host-side behind its own
-  // guards, so the orchestrator's shell stays network-free.
+  // What sets the two shells apart: the orchestrator gets `task`, `chat` and
+  // `open` and nothing else beyond reading, the working agent gets the native
+  // hatches. Both get `app`, which does its network work host-side behind its
+  // own guards, so the orchestrator's shell stays network-free. Putting a
+  // thing on the user's screen is the orchestrator's `open`: a task's reply is
+  // read by the orchestrator, and a pane of the task's own has nobody looking.
   const specializedCommands = orchestrator
     ? [
         createTaskCommand({
@@ -570,7 +570,6 @@ export async function createBashEnv({
         createOpenCommand({ sessionId, taskId }),
       ]
     : [
-        createShowCommand({ sessionId, taskId }),
         createAppCommand({ taskId }),
         ...CUSTOM_COMMAND_DEFS.map((cmd) =>
           cmd.factory({ attachedFolders, projectFolderName, taskId }),
@@ -584,7 +583,6 @@ export async function createBashEnv({
         OPEN_COMMAND.name,
       ]
     : [
-        SHOW_COMMAND.name,
         APP_COMMAND.name,
         ...CUSTOM_COMMAND_DEFS.map((cmd) => cmd.name),
       ];

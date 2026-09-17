@@ -1,3 +1,4 @@
+import { Button } from "@/client/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -213,17 +214,14 @@ export function FilterColumn({
         className="hidden min-h-0 flex-1 flex-col @[30rem]/chat:flex"
         role="group"
       >
-        {/* The way to a new thread, at the top left where mail keeps it: a
-          draft opens at the corner, not a field at the foot of the list. */}
+        {/* The way to a new thread, at the top of the column and across it,
+          in the brand's own green: a draft opens at the corner, not a field
+          at the foot of the list. */}
         <div className="shrink-0 px-2 pt-2">
-          <button
-            className="flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs shadow-xs hover:bg-foreground/5"
-            onClick={onNew}
-            type="button"
-          >
+          <Button className="h-8 w-full" onClick={onNew} variant="brand">
             <PencilSimpleIcon className="size-3.5" />
             New
-          </button>
+          </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           <section aria-label="Places" className="pt-2">

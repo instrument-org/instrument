@@ -6,6 +6,11 @@ import {
   THREADS_HREF,
 } from "@/client/atoms/orchestrator";
 import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -35,13 +40,15 @@ type Upload = NonNullable<
 
 /**
  * The draft of a new thread, drawn where the draft's placement says: a
- * window at the bottom right of the right area with a dark head carrying its
- * first words and the ways to shrink it to a bar, grow it across the area,
- * or put it away; a bar along the bottom edge that grows back on a click;
- * or the whole right area. The body is the same composer in each. Starting
+ * window at the bottom right of the app with a slim head carrying the ways
+ * to shrink it to a bar, grow it into a modal, or put it away; a bar along
+ * the bottom edge that grows back on a click; or a modal over the whole
+ * window, as large as the window allows, since a draft is apart from what
+ * is open. The body is the same composer in each, and grows taller once
+ * something is attached, because what is attached is shown in full. Starting
  * sends the words, the files, and the topic as the first message of a new
- * thread, opens the thread in place, and puts the draft away; the thread
- * lands at the top of the list on its own.
+ * thread, opens the thread with the files as its tabs, and puts the draft
+ * away; the thread lands at the top of the list on its own.
  */
 export function DraftWindow({
   modelURI,
@@ -83,7 +90,8 @@ export function DraftWindow({
     return null;
   }
 
-  const title = firstLineOf(draft.words) || "New";
+  const title = firstLineOf(draft.words) || "New thread";
+  const hasFiles = draft.files.length > 0;
   const close = () => {
     setPlacement("closed");
   };
@@ -112,7 +120,8 @@ export function DraftWindow({
             setDraft(EMPTY_DRAFT);
             setPlacement("closed");
             // The thread's group comes up with the files gathered under the
-            // words as its tabs, then the thread itself is what is shown.
+            // words as its tabs, as they were, then the thread itself is
+            // what is shown.
             openScreen(threadHref);
             for (const file of draft.files) {
               if (file.path) {
@@ -134,7 +143,7 @@ export function DraftWindow({
         setNewTopicOpen(true);
       }}
       onStart={start}
-      size={placement === "pane" ? "pane" : "window"}
+      size={placement === "modal" ? "modal" : "window"}
       topics={topics}
     />
   );
@@ -153,7 +162,7 @@ export function DraftWindow({
     return (
       <div
         aria-label="New thread"
-        className="absolute right-4 bottom-0 z-30 flex h-9 w-72 items-center gap-1 rounded-t-lg bg-foreground pr-1 pl-3 text-background shadow-lg"
+        className="absolute right-4 bottom-0 z-30 flex h-9 w-72 items-center gap-1 rounded-t-lg border border-b-0 border-border bg-card pr-1 pl-3 shadow-lg"
         role="region"
       >
         <button
@@ -163,13 +172,13 @@ export function DraftWindow({
           }}
           type="button"
         >
-          <PencilSimpleIcon className="size-3.5 shrink-0" />
+          <PencilSimpleIcon className="size-3.5 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate">{title}</span>
         </button>
         <HeadControl
           label="Expand"
           onClick={() => {
-            setPlacement("pane");
+            setPlacement("modal");
           }}
         >
           <ArrowsOutSimpleIcon className="size-3.5" />
@@ -181,40 +190,59 @@ export function DraftWindow({
     );
   }
 
-  if (placement === "pane") {
+  if (placement === "modal") {
     return (
-      <section
-        aria-label="New thread"
-        className="absolute inset-0 z-20 flex flex-col bg-background"
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setPlacement("window");
+          }
+        }}
+        open
       >
-        <div className="flex h-9 shrink-0 items-center justify-end gap-1 px-2">
-          <HeadControl
-            label="Shrink"
-            onClick={() => {
-              setPlacement("window");
-            }}
-            tone="light"
-          >
-            <ArrowsInSimpleIcon className="size-3.5" />
-          </HeadControl>
-          <HeadControl label="Close" onClick={close} tone="light">
-            <XIcon className="size-3.5" />
-          </HeadControl>
-        </div>
-        {composer}
-        {newTopic}
-      </section>
+        <DialogContent
+          aria-describedby={undefined}
+          className="flex h-full flex-col gap-0 rounded-2xl p-0"
+          maxHeight="72rem"
+          maxWidth="100rem"
+          showCloseButton={false}
+        >
+          <DialogTitle className="sr-only">New thread</DialogTitle>
+          <div className="flex h-9 shrink-0 items-center justify-end gap-1 px-2 pt-1">
+            <HeadControl
+              label="Shrink"
+              onClick={() => {
+                setPlacement("window");
+              }}
+            >
+              <ArrowsInSimpleIcon className="size-3.5" />
+            </HeadControl>
+            <HeadControl label="Close" onClick={close}>
+              <XIcon className="size-3.5" />
+            </HeadControl>
+          </div>
+          {composer}
+          {newTopic}
+        </DialogContent>
+      </Dialog>
     );
   }
 
   return (
     <section
       aria-label="New thread"
-      className="absolute right-4 bottom-4 z-30 flex max-h-[calc(100%-2rem)] w-[min(36rem,calc(100%-2rem))] flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl"
+      className={cn(
+        "absolute right-4 bottom-4 z-30 flex w-[min(40rem,calc(100%-2rem))] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl",
+        // Taller once something is attached: what is attached is shown in
+        // full, and a strip of tabs over a sliver is no use.
+        hasFiles ? "h-[min(46rem,calc(100%-2rem))]" : "max-h-[calc(100%-2rem)]",
+      )}
     >
-      <div className="flex h-9 shrink-0 items-center gap-2 bg-foreground pr-1 pl-3 text-background">
-        <PencilSimpleIcon className="size-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-sm">{title}</span>
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-muted/40 pr-1 pl-3">
+        <PencilSimpleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+          New thread
+        </span>
         <HeadControl
           label="Minimize"
           onClick={() => {
@@ -226,7 +254,7 @@ export function DraftWindow({
         <HeadControl
           label="Expand"
           onClick={() => {
-            setPlacement("pane");
+            setPlacement("modal");
           }}
         >
           <ArrowsOutSimpleIcon className="size-3.5" />
@@ -241,7 +269,7 @@ export function DraftWindow({
   );
 }
 
-/** The first line of the words, which is how the draft is named while it is small. */
+/** The first line of the words, which is how the draft is named while it is a bar. */
 function firstLineOf(words: string): string {
   return (
     words
@@ -251,29 +279,22 @@ function firstLineOf(words: string): string {
   );
 }
 
-/** One of the head's controls: a small tile that reads on the dark head, or on the page when the draft has no head. */
+/** One of the head's controls: a small tile in the window's own type. */
 function HeadControl({
   children,
   label,
   onClick,
-  tone = "dark",
 }: {
   children: ReactNode;
   label: string;
   onClick: () => void;
-  tone?: "dark" | "light";
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           aria-label={label}
-          className={cn(
-            "grid size-7 shrink-0 place-items-center rounded-md",
-            tone === "dark"
-              ? "text-background/80 hover:bg-background/15 hover:text-background"
-              : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
-          )}
+          className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
           onClick={onClick}
           type="button"
         >

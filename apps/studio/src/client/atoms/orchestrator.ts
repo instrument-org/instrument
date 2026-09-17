@@ -39,9 +39,11 @@ export type ScreenView = Omit<
 
 export const screenViewAtom = atom<null | ScreenView>(null);
 
-/** What is being composed at the top level: the words, the files under them, and the topic it will be filed under. */
+/** What is being composed at the top level: the words, the files under them as tabs, which of them is shown, and the topic it will be filed under. */
 export interface Draft {
   files: DraftFile[];
+  /** The file whose tab is up under the words. */
+  shownFileId?: string;
   topicId?: string;
   words: string;
 }
@@ -60,8 +62,8 @@ export interface DraftFile {
   url?: string;
 }
 
-/** Where the draft is drawn: a window at the corner, a bar along the bottom edge, the whole right area, or put away. */
-export type DraftPlacement = "bar" | "closed" | "pane" | "window";
+/** Where the draft is drawn: a window at the corner, a bar along the bottom edge, a modal over the whole window, or put away. */
+export type DraftPlacement = "bar" | "closed" | "modal" | "window";
 
 export const EMPTY_DRAFT: Draft = { files: [], words: "" };
 

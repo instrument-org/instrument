@@ -94,6 +94,7 @@ export function FilterColumn({
   appsBySlug,
   filters,
   onFiltersChange,
+  onNew,
   onNewTopic,
   onTopicDetails,
   threads,
@@ -102,6 +103,8 @@ export function FilterColumn({
   appsBySlug: AppsBySlug;
   filters: ThreadFilters;
   onFiltersChange: (filters: ThreadFilters) => void;
+  /** Opens a draft of a new thread. */
+  onNew: () => void;
   onNewTopic: () => void;
   /** Opens a topic's details: its name, its mark, and the way to delete it. */
   onTopicDetails: (topic: Topic) => void;
@@ -204,6 +207,18 @@ export function FilterColumn({
         className="hidden min-h-0 flex-1 flex-col @[30rem]/chat:flex"
         role="group"
       >
+        {/* The way to a new thread, at the top left where mail keeps it: a
+          draft opens at the corner, not a field at the foot of the list. */}
+        <div className="shrink-0 px-2 pt-2">
+          <button
+            className="flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs shadow-xs hover:bg-foreground/5"
+            onClick={onNew}
+            type="button"
+          >
+            <PencilSimpleIcon className="size-3.5" />
+            New
+          </button>
+        </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           <section aria-label="Places" className="pt-2">
             {PLACES.map((place) => (
@@ -280,6 +295,10 @@ export function FilterColumn({
         className="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto pt-2 pb-2 @[30rem]/chat:hidden"
         role="toolbar"
       >
+        <PlaceMark isOn={false} label="New" onChoose={onNew}>
+          <PencilSimpleIcon className="size-4" />
+        </PlaceMark>
+        <Rule />
         {PLACES.map((place) => (
           <PlaceMark
             isOn={isPlaceOn(place)}

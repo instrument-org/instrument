@@ -1,16 +1,7 @@
-import { useHydrateTaskDraft } from "@/client/atoms/prompt-value";
-import {
-  PromptInput,
-  type PromptInputRef,
-} from "@/client/components/prompt-input";
 import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import {
-  type SessionMessageDataPart,
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { type TaskId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -29,31 +20,21 @@ import { TopicBanner } from "./topic-banner";
 
 /**
  * The chat pane: the sections down its left, and beside them the inbox with
- * the composer at its foot. Sending here makes a thread; there is no session
- * to send into, and nothing to stop, since the reply lands in the thread
- * rather than under the field. Nothing shows before send. With one topic
- * chosen in the column, the thread a send makes is filed under it, and the
- * topic's banner stands above the rows.
+ * the search over it. Nothing is composed here: New in the column opens a
+ * draft at the window's corner, and the thread it starts lands at the top of
+ * the list. With one topic chosen in the column, the topic's banner stands
+ * above the rows and a draft opened from here is filed under it.
  */
 export function ThreadPane({
-  modelURI: initialModelURI,
+  onNew,
   onOpenThread,
-  promptDraft,
-  sendContext,
   taskId,
 }: {
-  modelURI: AIGatewayModelURI.Type | undefined;
+  /** Opens a draft of a new thread, filed under the topic the pane stands in when it stands in one. */
+  onNew: (topicId: string | undefined) => void;
   onOpenThread: (thread: Thread) => void;
-  promptDraft: string;
-  /** What the window has on screen when a message is sent, read at that moment. */
-  sendContext: () => Promise<
-    SessionMessageDataPart.ViewContextDataPart | undefined
-  >;
   taskId: TaskId;
 }) {
-  // The route does not render until the task's state has loaded, so the stored
-  // draft is in hand on the composer's very first render.
-  useHydrateTaskDraft(taskId, promptDraft);
   const appsBySlug = useAppsBySlug();
   const threadsQuery = useQuery(
     rpcClient.workspace.orchestrator.threads.live.list.experimental_liveOptions(
@@ -106,7 +87,7 @@ export function ThreadPane({
     matchesFilters(thread, filters, topicNames),
   );
   // One topic chosen is the place the pane is standing in: the banner names
-  // it, and the thread a send makes lands there.
+  // it, and a draft opened from here is filed there.
   const chosenTopic =
     filters.topics.length === 1
       ? topics.find((topic) => topic.id === filters.topics[0])
@@ -118,22 +99,6 @@ export function ThreadPane({
   const [editingId, setEditingId] = useState<string>();
   const editingTopic = topics.find((topic) => topic.id === editingId);
 
-  const promptInputRef = useRef<PromptInputRef>(null);
-  const [modelURI, setModelURI] = useState(initialModelURI);
-  const [lastInitialModelURI, setLastInitialModelURI] =
-    useState(initialModelURI);
-  if (initialModelURI !== lastInitialModelURI) {
-    setLastInitialModelURI(initialModelURI);
-    setModelURI(initialModelURI);
-  }
-  const createMessage = useMutation(
-    rpcClient.workspace.message.create.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to send", { description: error.message });
-      },
-    }),
-  );
-
   return (
     // The pane is the container the column sizes itself by: it is the pane's
     // own width, not the window's, that says whether there is room for words
@@ -143,6 +108,9 @@ export function ThreadPane({
         appsBySlug={appsBySlug}
         filters={filters}
         onFiltersChange={changeFilters}
+        onNew={() => {
+          onNew(chosenTopic?.id);
+        }}
         onNewTopic={() => {
           setNewTopicOpen(true);
         }}
@@ -189,59 +157,6 @@ export function ThreadPane({
           threads={shown}
           topics={topics}
         />
-        <div className="shrink-0 px-3 pb-3">
-          <PromptInput
-            // Beside the work, the row stays open: a tab switch moves the caret,
-            // and a row that folded and unfolded with it would animate on every
-            // switch.
-            alwaysOpen
-            className="relative z-10"
-            draftKey={{ scope: "task", taskId }}
-            folderTrayPlacement="above"
-            id={taskId}
-            isLoading={createMessage.isPending}
-            modelURI={modelURI}
-            onModelChange={setModelURI}
-            onSubmit={({
-              files,
-              folders,
-              modelURI: chosenModelURI,
-              prompt,
-            }) => {
-              // The composer empties on submit rather than on the reply, so a
-              // send the workspace rejects has to hand the prompt and its
-              // attachments back: nothing else holds them.
-              const draft = promptInputRef.current?.snapshot();
-              promptInputRef.current?.clear();
-              // The thread a send makes lands at the top of the list, so a
-              // reader who had scrolled down returns there to see it arrive.
-              setScrollSignal((signal) => signal + 1);
-              void sendContext().then((viewing) => {
-                createMessage.mutate(
-                  {
-                    files,
-                    folders,
-                    id: taskId,
-                    modelURI: chosenModelURI,
-                    prompt,
-                    ...(chosenTopic ? { topics: [chosenTopic.id] } : {}),
-                    viewing,
-                  },
-                  {
-                    onError: () => {
-                      if (draft) {
-                        promptInputRef.current?.restore(draft);
-                      }
-                    },
-                  },
-                );
-              });
-            }}
-            placeholder="What do you need?"
-            ref={promptInputRef}
-            variant="pill"
-          />
-        </div>
       </div>
       <NewTopicDialog
         onCreate={(topic) => {
@@ -293,6 +208,6 @@ function emptyLineFor(filters: ThreadFilters, total: number): string {
     return "Nothing unread.";
   }
   return total === 0
-    ? "Ask for something below. Each ask becomes a thread here."
+    ? "Press New to ask for something. Each ask becomes a thread here."
     : "Nothing matches.";
 }

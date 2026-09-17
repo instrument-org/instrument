@@ -1,4 +1,6 @@
 import {
+  draftAtom,
+  draftPlacementAtom,
   NEW_TAB_HREF,
   type OrchestratorRecent,
   orchestratorRecentsAtom,
@@ -22,6 +24,7 @@ import {
   OrchestratorContext,
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
+import { DraftWindow } from "@/client/components/orchestrator/draft-window";
 import {
   fileHref,
   folderHref,
@@ -212,8 +215,9 @@ function OrchestratorLayout() {
   );
   const [defaultModelURI] = useDefaultModelURI();
   const screenView = useAtomValue(screenViewAtom);
+  const setDraft = useSetAtom(draftAtom);
+  const setDraftPlacement = useSetAtom(draftPlacementAtom);
   const isDeveloperMode = useDeveloperMode();
-  const conversationRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const location = useRouterState({
     select: (routerState) => routerState.location,
@@ -594,12 +598,10 @@ function OrchestratorLayout() {
           createMessage.mutate({ id: ids.taskId, modelURI, prompt });
         },
         browser,
-        // The composer is the pane's, so a screen that wants the caret in it
-        // reaches through the box the chat is drawn in.
+        // The composer is the draft at the corner, which takes the caret as
+        // it opens.
         focusComposer: () => {
-          conversationRef.current
-            ?.querySelector<HTMLElement>('[contenteditable="true"], textarea')
-            ?.focus();
+          setDraftPlacement("window");
         },
         openPage,
         openScreen,
@@ -751,10 +753,7 @@ function OrchestratorLayout() {
               widthAtom={orchestratorSidebarWidthAtom}
             >
               {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
-              <div
-                className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]"
-                ref={conversationRef}
-              >
+              <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
                 {/* Names the openers for what the rows hold, so a file, an
                   app, or a page a thread made opens in the tab on screen the
                   way the thread itself does; a middle or modified click is
@@ -776,12 +775,20 @@ function OrchestratorLayout() {
                   >
                     <PageOpenContext value={(url) => openPage(url)}>
                       <ThreadPane
-                        modelURI={modelURI}
+                        onNew={(topicId) => {
+                          // A draft opened while standing in a topic is
+                          // filed there, unless it was already filed.
+                          if (topicId !== undefined) {
+                            setDraft((draft) => ({
+                              ...draft,
+                              topicId: draft.topicId ?? topicId,
+                            }));
+                          }
+                          setDraftPlacement("window");
+                        }}
                         onOpenThread={(thread) => {
                           openScreen(`${THREADS_HREF}/${thread.id}`);
                         }}
-                        promptDraft={state.data.promptDraft ?? ""}
-                        sendContext={sendContext}
                         taskId={screens.taskId}
                       />
                     </PageOpenContext>
@@ -870,6 +877,9 @@ function OrchestratorLayout() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+              {/* The draft of a new thread, over the right area's corner or
+                across it, wherever it was left. */}
+              <DraftWindow modelURI={modelURI} sendContext={sendContext} />
             </main>
           </Frame>
         </PageOpenContext>

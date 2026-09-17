@@ -139,10 +139,15 @@ function pillOf(row: HTMLElement) {
 async function renderRow(
   row: Thread,
   {
-    density = "tall" as RowDensity,
+    density = "tall",
     onOpen = vi.fn(),
     onSetTopics = vi.fn(),
     openScreen = vi.fn(),
+  }: {
+    density?: RowDensity;
+    onOpen?: Mock<() => void>;
+    onSetTopics?: Mock<(topics: string[]) => void>;
+    openScreen?: Mock<(href: string) => void>;
   } = {},
 ) {
   const { rows, ...rest } = await renderRows([{ density, thread: row }], {

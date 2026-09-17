@@ -39,6 +39,37 @@ export type ScreenView = Omit<
 
 export const screenViewAtom = atom<null | ScreenView>(null);
 
+/** What is being composed at the top level: the words, the files under them, and the topic it will be filed under. */
+export interface Draft {
+  files: DraftFile[];
+  topicId?: string;
+  words: string;
+}
+
+/** A file gathered into the draft: read into memory, or pointed at where it sits on disk. */
+export interface DraftFile {
+  /** The file's bytes, base64, when it was read in rather than pointed at. */
+  content?: string;
+  id: string;
+  mimeType: string;
+  name: string;
+  /** Where the file sits on this computer, when the drop said. */
+  path?: string;
+  size: number;
+  /** A preview to draw, for an image. */
+  url?: string;
+}
+
+/** Where the draft is drawn: a window at the corner, a bar along the bottom edge, the whole right area, or put away. */
+export type DraftPlacement = "bar" | "closed" | "pane" | "window";
+
+export const EMPTY_DRAFT: Draft = { files: [], words: "" };
+
+/** In memory only: the files in it cannot be stored, and a draft is a moment's work. */
+export const draftAtom = atom<Draft>(EMPTY_DRAFT);
+
+export const draftPlacementAtom = atom<DraftPlacement>("closed");
+
 /** A tab of the window's browser: a browser session of the orchestrator's. */
 export interface BrowserTab {
   /** The page's icon, as the page last announced it. */

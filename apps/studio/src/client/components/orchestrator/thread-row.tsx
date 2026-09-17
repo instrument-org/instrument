@@ -210,6 +210,43 @@ export function ThreadRow({
 }
 
 /**
+ * The topic the thread is filed under, as a pill in its tint no taller than
+ * the line it sits on: its emoji, or its mark's tile where it has none, then
+ * its name. Clicking it opens the thread's topic list rather than the thread.
+ */
+export function TopicPill({
+  onPick,
+  topic,
+}: {
+  onPick: () => void;
+  topic: Topic;
+}) {
+  return (
+    <button
+      // `leading-4` rather than none: the name's box has to hold its
+      // descenders, or the clip that truncates it cuts them off.
+      className="inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) pr-1.5 pl-1 text-[11px] leading-4 text-foreground/90 topic-tint hover:bg-(--topic-tint-edge) hover:text-foreground"
+      onAuxClick={stopHere}
+      onClick={(event) => {
+        stopHere(event);
+        onPick();
+      }}
+      onContextMenu={stopHere}
+      style={topicTint(topicColor(topic))}
+      title="Topics"
+      type="button"
+    >
+      {topic.emoji ? (
+        <span className="text-[10px]">{topic.emoji}</span>
+      ) : (
+        <TopicMark className="size-3.5 text-[10px]" topic={topic} />
+      )}
+      <span className="truncate">{topic.name}</span>
+    </button>
+  );
+}
+
+/**
  * The agent's latest line: the step while it works, in brand; the question
  * while it waits, behind an amber glyph with the words themselves in gray;
  * and the last reply's first words otherwise, in muted. Nothing when an idle
@@ -424,37 +461,6 @@ function TagControl({
         </PopoverContent>
       </Popover>
     </span>
-  );
-}
-
-/**
- * The topic the thread is filed under, as a pill in its tint no taller than
- * the line it sits on: its emoji, or its mark's tile where it has none, then
- * its name. Clicking it opens the thread's topic list rather than the thread.
- */
-function TopicPill({ onPick, topic }: { onPick: () => void; topic: Topic }) {
-  return (
-    <button
-      // `leading-4` rather than none: the name's box has to hold its
-      // descenders, or the clip that truncates it cuts them off.
-      className="inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) pr-1.5 pl-1 text-[11px] leading-4 text-foreground/90 topic-tint hover:bg-(--topic-tint-edge) hover:text-foreground"
-      onAuxClick={stopHere}
-      onClick={(event) => {
-        stopHere(event);
-        onPick();
-      }}
-      onContextMenu={stopHere}
-      style={topicTint(topicColor(topic))}
-      title="Topics"
-      type="button"
-    >
-      {topic.emoji ? (
-        <span className="text-[10px]">{topic.emoji}</span>
-      ) : (
-        <TopicMark className="size-3.5 text-[10px]" topic={topic} />
-      )}
-      <span className="truncate">{topic.name}</span>
-    </button>
   );
 }
 

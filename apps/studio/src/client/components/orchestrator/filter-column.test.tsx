@@ -57,6 +57,7 @@ function renderColumn({
   threads = THREADS,
 }: { filters?: ThreadFilters; threads?: Filterable[] } = {}) {
   const onFiltersChange = vi.fn();
+  const onNew = vi.fn();
   const onNewTopic = vi.fn();
   renderWithProviders(
     <FilterColumn
@@ -65,6 +66,7 @@ function renderColumn({
       }
       filters={filters}
       onFiltersChange={onFiltersChange}
+      onNew={onNew}
       onNewTopic={onNewTopic}
       onTopicDetails={vi.fn()}
       threads={threads}
@@ -74,12 +76,21 @@ function renderColumn({
   return {
     column: within(screen.getByRole("group", { name: "Filters" })),
     onFiltersChange,
+    onNew,
     onNewTopic,
     strip: within(screen.getByRole("toolbar", { name: "Filter marks" })),
   };
 }
 
 describe("FilterColumn", () => {
+  it("opens a draft from New at its top, and from the strip's first mark", () => {
+    const { column, onNew, strip } = renderColumn();
+    fireEvent.click(column.getByRole("button", { name: "New" }));
+    expect(onNew).toHaveBeenCalledOnce();
+    fireEvent.click(strip.getByRole("button", { name: "New" }));
+    expect(onNew).toHaveBeenCalledTimes(2);
+  });
+
   it("lists the places, then Topics and Apps, counting what a row holds and nothing where it holds nothing", () => {
     const { column } = renderColumn();
     expect(

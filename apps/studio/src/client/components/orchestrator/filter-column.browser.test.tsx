@@ -41,6 +41,7 @@ async function renderPane(width: number) {
         }
         filters={{ ...NO_FILTERS, topics: ["house"] }}
         onFiltersChange={vi.fn()}
+        onNew={vi.fn()}
         onNewTopic={vi.fn()}
         onTopicDetails={vi.fn()}
         threads={[THREAD]}
@@ -87,7 +88,7 @@ describe("FilterColumn", () => {
       [...strip.querySelectorAll("button")].map((mark) =>
         mark.getAttribute("aria-label"),
       ),
-    ).toEqual(["Inbox", "Unread", "Drafts", "House", "Gmail"]);
+    ).toEqual(["New", "Inbox", "Unread", "Drafts", "House", "Gmail"]);
     expect(
       strip.querySelector('[aria-label="House"]')?.getAttribute("data-chosen"),
     ).toBe("true");

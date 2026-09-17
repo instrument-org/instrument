@@ -9,7 +9,7 @@ export type Thread =
 export interface ThreadFilters {
   /** App slugs a thread has to have used one of. */
   apps: string[];
-  /** The place the column stands in, when it is not the inbox: the unread, or the drafts. */
+  /** The place the column stands in, when it is not the inbox: the unread, what needs the user, the drafts, or the archive. */
   place?: ThreadPlace;
   /** Words that all have to turn up somewhere on a thread's row, whatever their case. */
   search: string;
@@ -17,8 +17,8 @@ export interface ThreadFilters {
   topics: string[];
 }
 
-/** The places of the column apart from the inbox: threads with replies not yet seen, drafts not yet sent, and threads put away. */
-export type ThreadPlace = "archive" | "drafts" | "unread";
+/** The places of the column apart from the inbox: threads with replies not yet seen, threads waiting on the user, drafts not yet sent, and threads put away. */
+export type ThreadPlace = "archive" | "drafts" | "needsYou" | "unread";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic =
@@ -35,6 +35,8 @@ const NO_TOPIC_NAMES: ReadonlyMap<string, string> = new Map();
 
 /** The part of a thread the filters read, which is what its row shows, so the predicate is testable off any row shape. */
 export interface Filterable {
+  /** Whether the thread was put away: out of every place but the archive. */
+  archived: boolean;
   holds: { apps: string[]; files: string[]; sites: string[] };
   latest?: { text: string };
   root: { parts: { text?: string; type: string }[] };
@@ -96,6 +98,16 @@ export function foldSection<T extends { id: string }>(
   return { hidden: entries.length - shown.length, shown };
 }
 
+/** Whether every word searched for turns up in what a row shows, whatever its case. Nothing searched for matches everything. */
+export function hasWords(search: string, shown: string[]) {
+  const words = search.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return true;
+  }
+  const text = shown.join("\n").toLowerCase();
+  return words.every((word) => text.includes(word));
+}
+
 /** Whether the column stands in the inbox: nothing chosen, so every thread is in view. */
 export function isInbox(filters: ThreadFilters) {
   return (
@@ -126,22 +138,27 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
 }
 
 /**
- * Whether a thread is in the place the column stands in. The inbox is every
- * thread; the unread are those with replies not yet seen; drafts are not
- * threads at all yet, and nothing can be put away yet, so those places hold
- * none of them.
+ * Whether a thread is in the place the column stands in. A thread put away
+ * is in the archive and nowhere else, so the inbox is every other thread, the
+ * unread those of them with replies not yet seen, and Needs you those waiting
+ * on the user. Drafts are not threads at all yet, so that place holds none.
  */
 function matchesPlace(thread: Filterable, place: ThreadPlace | undefined) {
   switch (place) {
-    case "archive":
+    case "archive": {
+      return thread.archived;
+    }
     case "drafts": {
       return false;
     }
+    case "needsYou": {
+      return !thread.archived && thread.state === "waiting";
+    }
     case undefined: {
-      return true;
+      return !thread.archived;
     }
     case "unread": {
-      return thread.unread > 0;
+      return !thread.archived && thread.unread > 0;
     }
   }
 }
@@ -156,11 +173,7 @@ function matchesSearch(
   search: string,
   topicNames: ReadonlyMap<string, string>,
 ) {
-  const words = search.toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) {
-    return true;
-  }
-  const shown = [
+  return hasWords(search, [
     thread.title,
     askOf(thread),
     thread.latest?.text ?? "",
@@ -168,10 +181,7 @@ function matchesSearch(
     ...thread.holds.files.map(basename),
     ...thread.holds.sites,
     ...thread.holds.apps,
-  ]
-    .join("\n")
-    .toLowerCase();
-  return words.every((word) => shown.includes(word));
+  ]);
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -231,4 +241,14 @@ export function dayLabel(date: Date, now: Date): string {
     return format(date, "EEEE");
   }
   return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
+}
+
+/** What a draft's row calls it: the first line of its words that says anything, or a name for one with no words yet. */
+export function draftTitle(words: string): string {
+  return (
+    words
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean) ?? "New thread"
+  );
 }

@@ -8,8 +8,10 @@ import {
   byActivity,
   chooseOnly,
   dayLabel,
+  draftTitle,
   type Filterable,
   foldSection,
+  hasWords,
   isInbox,
   matchesFilters,
   NO_FILTERS,
@@ -23,6 +25,7 @@ function thread({
   holds?: Partial<Filterable["holds"]>;
 } = {}): Filterable {
   return {
+    archived: false,
     holds: { apps: [], files: [], sites: [], ...holds },
     root: { parts: [] },
     state: "idle",
@@ -59,6 +62,18 @@ describe("matchesFilters", () => {
 
   it.each<[string, Partial<ThreadFilters>, Filterable, Filterable]>([
     ["unread replies", { place: "unread" }, thread({ unread: 2 }), thread()],
+    [
+      "the user to answer",
+      { place: "needsYou" },
+      thread({ state: "waiting" }),
+      thread({ state: "working", unread: 2 }),
+    ],
+    [
+      "been put away",
+      { place: "archive" },
+      thread({ archived: true }),
+      thread({ unread: 2 }),
+    ],
     [
       "a topic",
       { topics: ["house"] },
@@ -98,11 +113,56 @@ describe("matchesFilters", () => {
     expect(matchesFilters(wordyThread(), filters, TOPIC_NAMES)).toBe(false);
   });
 
-  it("keeps every thread in the inbox, whatever it holds", () => {
+  it("keeps every thread not put away in the inbox, whatever it holds", () => {
     const filters: ThreadFilters = { ...NO_FILTERS, place: undefined };
     expect(matchesFilters(thread(), filters)).toBe(true);
     expect(matchesFilters(thread({ unread: 3 }), filters)).toBe(true);
     expect(matchesFilters(thread({ state: "waiting" }), filters)).toBe(true);
+    expect(matchesFilters(thread({ archived: true }), filters)).toBe(false);
+  });
+
+  it.each<[string, ThreadFilters, Filterable]>([
+    ["the unread", { ...NO_FILTERS, place: "unread" }, thread({ unread: 3 })],
+    [
+      "Needs you",
+      { ...NO_FILTERS, place: "needsYou" },
+      thread({ state: "waiting" }),
+    ],
+    [
+      "a topic",
+      { ...NO_FILTERS, topics: ["house"] },
+      thread({ topics: ["house"] }),
+    ],
+    [
+      "an app",
+      { ...NO_FILTERS, apps: ["gmail"] },
+      thread({ holds: { apps: ["gmail"] } }),
+    ],
+    [
+      "the words",
+      { ...NO_FILTERS, search: "protein" },
+      thread({ title: "Protein drink" }),
+    ],
+  ])("leaves a thread put away out of %s", (_, filters, kept) => {
+    expect(matchesFilters(kept, filters)).toBe(true);
+    expect(matchesFilters({ ...kept, archived: true }, filters)).toBe(false);
+  });
+
+  it("holds only what was put away in the archive, narrowed by the search", () => {
+    const filters: ThreadFilters = { ...NO_FILTERS, place: "archive" };
+    expect(matchesFilters(thread({ archived: true, unread: 3 }), filters)).toBe(
+      true,
+    );
+    expect(
+      matchesFilters(thread({ archived: true, state: "waiting" }), filters),
+    ).toBe(true);
+    expect(matchesFilters(thread({ unread: 3 }), filters)).toBe(false);
+    expect(
+      matchesFilters(thread({ archived: true, title: "MLS standings" }), {
+        ...filters,
+        search: "protein",
+      }),
+    ).toBe(false);
   });
 
   it.each([
@@ -143,6 +203,16 @@ describe("matchesFilters", () => {
     const filters = { ...NO_FILTERS, search: "shopping" };
     expect(matchesFilters(wordyThread(), filters)).toBe(false);
     expect(matchesFilters(wordyThread(), filters, TOPIC_NAMES)).toBe(true);
+  });
+
+  it("reads any row's words the same way, for the rows that are not threads", () => {
+    expect(hasWords("PROTEIN drink", ["Best priced protein", "drink"])).toBe(
+      true,
+    );
+    expect(hasWords("protein costco", ["Best priced protein drink"])).toBe(
+      false,
+    );
+    expect(hasWords("  ", [])).toBe(true);
   });
 
   it("wants any of a group's choices and all of the groups", () => {
@@ -278,7 +348,9 @@ describe("the inbox", () => {
 
   it.each<[string, ThreadFilters]>([
     ["a place", { ...NO_FILTERS, place: "unread" }],
+    ["what needs the user", { ...NO_FILTERS, place: "needsYou" }],
     ["the drafts", { ...NO_FILTERS, place: "drafts" }],
+    ["the archive", { ...NO_FILTERS, place: "archive" }],
     ["a topic", { ...NO_FILTERS, topics: ["house"] }],
     ["an app", { ...NO_FILTERS, apps: ["gmail"] }],
   ])("is left once %s is chosen", (_, filters) => {
@@ -395,5 +467,20 @@ describe("the ask", () => {
     expect(basename("/task/output/report.md")).toBe("report.md");
     expect(basename("report.md")).toBe("report.md");
     expect(basename("/mnt/home/notes/")).toBe("notes");
+  });
+});
+
+describe("a draft's title", () => {
+  it.each([
+    ["the first line", "Guard the Nest\nbefore five", "Guard the Nest"],
+    [
+      "the first line that says anything",
+      "\n  \n  Guard the Nest ",
+      "Guard the Nest",
+    ],
+    ["a name for none", "", "New thread"],
+    ["a name for only blank lines", " \n\t\n", "New thread"],
+  ])("is %s", (_, words, title) => {
+    expect(draftTitle(words)).toBe(title);
   });
 });

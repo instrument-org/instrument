@@ -1,3 +1,4 @@
+import { type Draft } from "@/client/atoms/orchestrator";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -11,6 +12,8 @@ import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
 import { SearchField } from "./search-field";
 import { ThreadList } from "./thread-list";
 import {
+  draftTitle,
+  hasWords,
   matchesFilters,
   NO_FILTERS,
   type Thread,
@@ -26,17 +29,28 @@ const threadFiltersAtom = atom<ThreadFilters>(NO_FILTERS);
  * The chat pane: the sections down its left, and beside them the inbox with
  * the search over it. Nothing is composed here: New in the column opens a
  * draft at the window's corner, and the thread it starts lands at the top of
- * the list. With one topic chosen in the column, the topic's banner stands
- * above the rows and a draft opened from here is filed under it.
+ * the list; until it is started it is a row of the Drafts place, which lists
+ * the drafts where the threads otherwise go. With one topic chosen in the
+ * column, the topic's banner stands above the rows and a draft opened from
+ * here is filed under it.
  */
 export function ThreadPane({
+  drafts,
+  onDeleteDraft,
   onNew,
+  onOpenDraft,
   onOpenThread,
   openThreadId,
   taskId,
 }: {
+  /** Every draft not yet started, for the Drafts place and its count. */
+  drafts: Draft[];
+  /** Deletes a draft outright; the caller says so and offers it back. */
+  onDeleteDraft: (id: string) => void;
   /** Opens a draft of a new thread, filed under the topic the pane stands in when it stands in one. */
   onNew: (topicId: string | undefined) => void;
+  /** Opens a draft to go on writing it. */
+  onOpenDraft: (id: string) => void;
   onOpenThread: (thread: Thread) => void;
   /** The thread open beside the list, if one is. */
   openThreadId: string | undefined;
@@ -93,6 +107,18 @@ export function ThreadPane({
   const shown = threads.filter((thread) =>
     matchesFilters(thread, filters, topicNames),
   );
+  // Standing in Drafts, the list holds the drafts, narrowed by the same
+  // search: by their words and the name of the topic each is filed under.
+  const shownDrafts =
+    filters.place === "drafts"
+      ? drafts.filter((draft) =>
+          hasWords(filters.search, [
+            draftTitle(draft.words),
+            draft.words,
+            topicNames.get(draft.topicId ?? "") ?? "",
+          ]),
+        )
+      : undefined;
   // One topic chosen is the place the pane is standing in: the banner names
   // it, and a draft opened from here is filed there.
   const chosenTopic =
@@ -113,6 +139,7 @@ export function ThreadPane({
     <div className="@container/chat flex h-full min-h-0">
       <FilterColumn
         appsBySlug={appsBySlug}
+        draftCount={drafts.length}
         filters={filters}
         onFiltersChange={changeFilters}
         onNew={() => {
@@ -148,12 +175,19 @@ export function ThreadPane({
         )}
         <ThreadList
           appsBySlug={appsBySlug}
+          drafts={shownDrafts}
           emptyLine={emptyLineFor(filters, threads.length)}
-          isLoading={threadsQuery.data === undefined}
+          // The drafts are kept on this computer, so they are never on
+          // their way.
+          isLoading={
+            shownDrafts === undefined && threadsQuery.data === undefined
+          }
+          onDeleteDraft={onDeleteDraft}
           onNewTopic={() => {
             setNewTopicOpen(true);
           }}
           onOpen={onOpenThread}
+          onOpenDraft={onOpenDraft}
           onSetTopics={(thread, next) => {
             setThreadTopics.mutate({
               id: taskId,
@@ -215,6 +249,9 @@ function emptyLineFor(filters: ThreadFilters, total: number): string {
   }
   if (filters.place === "archive") {
     return "Nothing put away yet.";
+  }
+  if (filters.place === "needsYou") {
+    return "Nothing needs you.";
   }
   if (filters.place === "unread") {
     return "Nothing unread.";

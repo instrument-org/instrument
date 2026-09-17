@@ -42,7 +42,9 @@ const MARKS_SHOWN = 5;
  * beside them. Each mark opens its thing where the surface says, and answers
  * a middle click, a modified click, and a right click the way every openable
  * thing does. None of it reaches the row underneath, and nothing here moves
- * when the row is hovered.
+ * when the row is hovered. Told not to wrap, the line keeps its height
+ * whatever it holds: the files come first, and what runs past the edge fades
+ * out there, the count with it.
  */
 export function HoldMarks({
   appsBySlug,
@@ -50,6 +52,7 @@ export function HoldMarks({
   holds,
   namedFiles = false,
   shown = MARKS_SHOWN,
+  wrap = true,
 }: {
   appsBySlug: AppsBySlug;
   className?: string;
@@ -58,6 +61,8 @@ export function HoldMarks({
   namedFiles?: boolean;
   /** How many marks are drawn before the rest fold into the count. */
   shown?: number;
+  /** Whether the marks may take a second line, or are clipped at the edge of the first with a fade. */
+  wrap?: boolean;
 }) {
   const items: Hold[] = [
     // The newest first, so what the thread made last is what shows before
@@ -106,7 +111,15 @@ export function HoldMarks({
   };
   return (
     <span
-      className={cn("flex shrink-0 items-center gap-0.5", className)}
+      className={cn(
+        "flex shrink-0 items-center gap-0.5",
+        // The fade is a fixed width past a padding of the same width, so a
+        // line that fits ends before the fade and only what runs past the
+        // edge is faded.
+        !wrap &&
+          "min-w-0 flex-nowrap overflow-hidden mask-r-from-[calc(100%-1.5rem)] pr-6",
+        className,
+      )}
       onAuxClick={stopHere}
       onClick={stopHere}
       onContextMenu={stopHere}

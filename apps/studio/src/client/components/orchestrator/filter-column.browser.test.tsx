@@ -16,6 +16,7 @@ const HOUSE: Topic = {
 };
 
 const THREAD: Filterable = {
+  archived: false,
   holds: { apps: ["gmail"], files: [], sites: ["amazon.com"] },
   root: { parts: [] },
   state: "idle",
@@ -39,6 +40,7 @@ async function renderPane(width: number) {
             ["gmail", { name: "Gmail", site: "https://mail.google.com" }],
           ])
         }
+        draftCount={0}
         filters={{ ...NO_FILTERS, topics: ["house"] }}
         onFiltersChange={vi.fn()}
         onNew={vi.fn()}
@@ -92,6 +94,7 @@ describe("FilterColumn", () => {
       "New",
       "Inbox",
       "Unread",
+      "Needs you",
       "Drafts",
       "Archive",
       "House",

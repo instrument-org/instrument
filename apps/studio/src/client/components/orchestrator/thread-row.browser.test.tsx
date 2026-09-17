@@ -1,13 +1,64 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
-import { describe, expect, it, type Mock, vi } from "vitest";
+import { toast, Toaster } from "sonner";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { OrchestratorContext, type OrchestratorWindow } from "./context";
-import { type RowDensity, ThreadRow } from "./thread-row";
+import { type RowDensity } from "./row-shell";
+import { ThreadRow } from "./thread-row";
 import { type Thread, type Topic } from "./threads";
 
+/** What each of the row's own routes was asked, by name. */
+const calls = vi.hoisted(() => ({
+  archive: vi.fn(),
+  seen: vi.fn(),
+  unarchive: vi.fn(),
+  unseen: vi.fn(),
+}));
+
+// The routes the row's actions reach, each answering at once so what hangs
+// off a success can be seen, and the one the open gestures bind whether or
+// not they are used.
+vi.mock("@/client/rpc/client", () => {
+  const routeOf = (call: Mock) => ({
+    mutationOptions: (options: object) => ({
+      ...options,
+      mutationFn: (input: unknown) => {
+        call(input);
+        return Promise.resolve();
+      },
+    }),
+  });
+  return {
+    rpcClient: {
+      utils: { openExternalLink: routeOf(vi.fn()) },
+      workspace: {
+        orchestrator: {
+          threads: {
+            archive: routeOf(calls.archive),
+            seen: routeOf(calls.seen),
+            unarchive: routeOf(calls.unarchive),
+            unseen: routeOf(calls.unseen),
+          },
+        },
+      },
+    },
+  };
+});
+
 const sessionId = StoreId.newSessionId();
+
+/** The input every route of the row's is asked with. */
+const INPUT = { id: "orchestrator", sessionId };
 
 /** The moment every row is read at: a Wednesday afternoon. */
 const NOW = new Date(2026, 8, 16, 14, 30);
@@ -31,6 +82,7 @@ const LONG_REPLY =
 function thread(overrides: Partial<Thread> = {}): Thread {
   const messageId = StoreId.newMessageId();
   return {
+    archived: false,
     createdAt: STARTED_AT.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: sessionId,
@@ -80,6 +132,33 @@ const MONEY: Topic = {
   id: "money",
   name: "Money",
 };
+
+/** The row's own action, by name, wherever on the row it stands. */
+function actionOf(row: HTMLElement, label: string) {
+  const action = row.querySelector<HTMLButtonElement>(
+    `button[aria-label="${label}"]`,
+  );
+  if (!action) {
+    throw new Error(`no ${label}`);
+  }
+  return action;
+}
+
+/** The bar of actions at the row's right end, and what it offers, in order. */
+function barOf(row: HTMLElement) {
+  const bar = [...row.querySelectorAll<HTMLElement>("span")].find((span) =>
+    span.className.includes("ring-1"),
+  );
+  if (!bar) {
+    throw new Error("no action bar");
+  }
+  return {
+    bar,
+    labels: [...bar.querySelectorAll("button")].map((button) =>
+      button.getAttribute("aria-label"),
+    ),
+  };
+}
 
 /** The state dot in the gutter, if the thread wears one. */
 function dotOf(row: HTMLElement) {
@@ -180,6 +259,8 @@ async function renderRows(
 ) {
   const rendered = await renderInBrowser(
     <OrchestratorContext value={paneWindow(openScreen)}>
+      {/* The toasts the row's actions raise land here, and stay until read. */}
+      <Toaster duration={Infinity} />
       {specs.map((spec, index) => (
         <div
           key={index}
@@ -526,6 +607,47 @@ describe("ThreadRow", () => {
     }
   });
 
+  it("keeps what it holds to one line when tall, the files first, clipped at the row's edge rather than wrapped", async () => {
+    const files = Array.from(
+      { length: 4 },
+      (_, index) => `/task/out/a-report-with-a-long-name-${index}.md`,
+    );
+    const holds = { apps: ["github"], files, sites: ["wakatime.com"] };
+    const { rows } = await renderRows([
+      { density: "tall", thread: thread({ holds }) },
+      {
+        density: "tall",
+        thread: thread({ holds: { ...holds, files: files.slice(0, 1) } }),
+      },
+    ]);
+    const [many, few] = rows;
+    if (!many || !few) {
+      throw new Error("no rows");
+    }
+    const marks = marksOf(many);
+    const line = marks[0]?.parentElement;
+    if (!line) {
+      throw new Error("no line of holds");
+    }
+    // One line whatever it holds: every mark at one height, and the row no
+    // taller than one holding what fits.
+    expect(
+      new Set(marks.map((mark) => Math.round(mark.getBoundingClientRect().top)))
+        .size,
+    ).toBe(1);
+    expect(many.getBoundingClientRect().height).toBe(
+      few.getBoundingClientRect().height,
+    );
+    // More than the row shows, and none of it past the row's edge.
+    expect(line.scrollWidth).toBeGreaterThan(line.clientWidth);
+    expect(line.getBoundingClientRect().right).toBeLessThanOrEqual(
+      many.getBoundingClientRect().right,
+    );
+    expect(marks.slice(0, 4).map((mark) => mark.textContent)).toEqual(
+      files.toReversed().map((path) => path.split("/").at(-1)),
+    );
+  });
+
   it("names a bare mark in its tooltip", async () => {
     const { row } = await renderRow(
       thread({ holds: { apps: [], files: [], sites: ["wakatime.com"] } }),
@@ -623,5 +745,138 @@ describe("ThreadRow", () => {
     expect(onSetTopics).toHaveBeenCalledWith(["house"]);
     expect(onOpen).not.toHaveBeenCalled();
     await userEvent.keyboard("{Escape}");
+  });
+});
+
+/** The Undo on the toast that says `message`, once the toast is up. */
+async function undoOf(message: string) {
+  const line = page.getByText(message);
+  await expect.element(line).toBeVisible();
+  const undo = line
+    .element()
+    .closest("[data-sonner-toast]")
+    ?.querySelector<HTMLButtonElement>("[data-button]");
+  if (!undo) {
+    throw new Error(`no undo on ${message}`);
+  }
+  return undo;
+}
+
+describe("the row's actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    toast.dismiss();
+  });
+
+  it.each<RowDensity>(["tall", "slim"])(
+    "stand over the time at the %s row's right end while the pointer is on it, out of the flow at rest",
+    async (density) => {
+      const { row } = await renderRow(thread(), { density });
+      const { bar, labels } = barOf(row);
+      expect(labels).toEqual(["Archive", "Mark as unread"]);
+      // The pointer is wherever the last test left it, which may be here.
+      await userEvent.unhover(row);
+      expect(bar.getClientRects().length).toBe(0);
+      const before = timeOf(row).getBoundingClientRect();
+      await userEvent.hover(gutterOf(row));
+      await vi.waitFor(() => {
+        expect(bar.getClientRects().length).toBeGreaterThan(0);
+      });
+      const box = bar.getBoundingClientRect();
+      const time = timeOf(row).getBoundingClientRect();
+      expect(box.right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
+      expect(box.left).toBeLessThan(time.right);
+      expect(box.top).toBeLessThan(time.bottom);
+      expect(box.bottom).toBeGreaterThan(time.top);
+      // Nothing on the row moved for them.
+      expect(time.right).toBe(before.right);
+      expect(time.top).toBe(before.top);
+      await userEvent.unhover(gutterOf(row));
+    },
+  );
+
+  it("puts the thread away from its edge, short of the door, and offers it back from the toast", async () => {
+    const { onOpen, row } = await renderRow(thread());
+    await userEvent.hover(gutterOf(row));
+    await userEvent.click(actionOf(row, "Archive"));
+    expect(calls.archive).toHaveBeenCalledWith(INPUT);
+    expect(onOpen).not.toHaveBeenCalled();
+    await userEvent.click(await undoOf("Archived"));
+    expect(calls.unarchive).toHaveBeenCalledWith(INPUT);
+    // The way back has its own undo, which is the way there again.
+    await userEvent.click(await undoOf("Moved to Inbox"));
+    expect(calls.archive).toHaveBeenCalledTimes(2);
+  });
+
+  it("offers a thread put away the way back", async () => {
+    const { row } = await renderRow(thread({ archived: true }));
+    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as unread"]);
+    await userEvent.hover(gutterOf(row));
+    await userEvent.click(actionOf(row, "Unarchive"));
+    expect(calls.unarchive).toHaveBeenCalledWith(INPUT);
+    expect(calls.archive).not.toHaveBeenCalled();
+    await expect.element(page.getByText("Moved to Inbox")).toBeVisible();
+  });
+
+  it.each<[string, Partial<Thread>, Mock]>([
+    ["Mark as read", { unread: 2 }, calls.seen],
+    ["Mark as unread", { replyCount: 3, unread: 0 }, calls.unseen],
+  ])(
+    "offers %s, which asks the route and says nothing",
+    async (label, overrides, call) => {
+      const { onOpen, row } = await renderRow(thread(overrides));
+      await userEvent.hover(gutterOf(row));
+      await userEvent.click(actionOf(row, label));
+      expect(call).toHaveBeenCalledWith(INPUT);
+      expect(onOpen).not.toHaveBeenCalled();
+      // The route has answered by now; no toast followed.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(document.querySelector("[data-sonner-toast]")).toBeNull();
+    },
+  );
+
+  it("offers no read or unread mark on a thread with no replies to have read", async () => {
+    const { row } = await renderRow(thread({ replyCount: 0, unread: 0 }));
+    expect(barOf(row).labels).toEqual(["Archive"]);
+  });
+
+  it("raises the row's menu on a right click: the ways in, the actions, and the topics", async () => {
+    const { onOpen, onSetTopics, openScreen, row } = await renderRow(
+      thread({ unread: 1 }),
+    );
+    await userEvent.click(titleOf(row), { button: "right" });
+    const menu = page.getByRole("menu");
+    await expect.element(menu).toBeVisible();
+    expect(
+      [...menu.element().querySelectorAll('[role="menuitem"]')].map(
+        (item) => item.textContent,
+      ),
+    ).toEqual(["Open", "Open in new tab", "Archive", "Mark as read", "Topics"]);
+    await userEvent.click(menu.getByText("Open in new tab"));
+    expect(openScreen).toHaveBeenCalledWith(
+      `/orchestrator/threads/${sessionId}`,
+    );
+    expect(onOpen).not.toHaveBeenCalled();
+
+    await userEvent.click(titleOf(row), { button: "right" });
+    await userEvent.click(
+      page.getByRole("menuitem", { exact: true, name: "Open" }),
+    );
+    expect(onOpen).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(titleOf(row), { button: "right" });
+    await userEvent.click(page.getByRole("menuitem", { name: "Archive" }));
+    expect(calls.archive).toHaveBeenCalledWith(INPUT);
+
+    await userEvent.click(titleOf(row), { button: "right" });
+    await userEvent.hover(page.getByRole("menuitem", { name: "Topics" }));
+    const house = page.getByRole("menuitemcheckbox", { name: "House" });
+    await expect.element(house).toBeVisible();
+    await userEvent.click(house);
+    expect(onSetTopics).toHaveBeenCalledWith(["house"]);
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 });

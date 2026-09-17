@@ -1,7 +1,10 @@
+import { type Draft } from "@/client/atoms/orchestrator";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
-import { type RowDensity, ThreadRow } from "./thread-row";
+import { DraftRow } from "./draft-row";
+import { type RowDensity } from "./row-shell";
+import { ThreadRow } from "./thread-row";
 import { byActivity, type Thread, type Topic } from "./threads";
 import { useNow } from "./use-now";
 
@@ -10,18 +13,22 @@ export const SLIM_FROM = 600;
 
 /**
  * The inbox: every thread by when something last happened in it, newest at
- * the top, so a reply landing lifts its thread to the head of the list. The
- * rows take one line each when the list is wide enough for a mailbox's
- * columns, and three when it is not; the list measures its own width for
- * that, since the pane and the column beside it set it. It opens at the top
- * and stays where the reader scrolled to.
+ * the top, so a reply landing lifts its thread to the head of the list, or,
+ * given drafts instead, every draft by when it was last touched. The rows
+ * take one line each when the list is wide enough for a mailbox's columns,
+ * and three when it is not; the list measures its own width for that, since
+ * the pane and the column beside it set it. It opens at the top and stays
+ * where the reader scrolled to.
  */
 export function ThreadList({
   appsBySlug,
+  drafts,
   emptyLine,
   isLoading,
+  onDeleteDraft,
   onNewTopic,
   onOpen,
+  onOpenDraft,
   onSetTopics,
   openId,
   scrollSignal,
@@ -29,12 +36,16 @@ export function ThreadList({
   topics,
 }: {
   appsBySlug: AppsBySlug;
+  /** The drafts to list in place of the threads, while the column stands in Drafts. */
+  drafts?: Draft[];
   /** What the list says when it has nothing to show. */
   emptyLine: string;
   /** Whether the threads are still on their way: nothing is said about an empty list until they have arrived. */
   isLoading: boolean;
+  onDeleteDraft: (id: string) => void;
   onNewTopic: () => void;
   onOpen: (thread: Thread) => void;
+  onOpenDraft: (id: string) => void;
   onSetTopics: (thread: Thread, topics: string[]) => void;
   /** The thread open beside the list, which its row is marked as. */
   openId: string | undefined;
@@ -49,7 +60,40 @@ export function ThreadList({
   useLayoutEffect(() => {
     ref.current?.scrollTo({ top: 0 });
   }, [scrollSignal]);
-  const rows = byActivity(threads);
+  const rows = drafts
+    ? byActivity(drafts).map((draft) => (
+        <DraftRow
+          density={density}
+          draft={draft}
+          key={draft.id}
+          now={now}
+          onDelete={() => {
+            onDeleteDraft(draft.id);
+          }}
+          onOpen={() => {
+            onOpenDraft(draft.id);
+          }}
+          topics={topics}
+        />
+      ))
+    : byActivity(threads).map((thread) => (
+        <ThreadRow
+          appsBySlug={appsBySlug}
+          density={density}
+          isOpen={thread.id === openId}
+          key={thread.id}
+          now={now}
+          onNewTopic={onNewTopic}
+          onOpen={() => {
+            onOpen(thread);
+          }}
+          onSetTopics={(next) => {
+            onSetTopics(thread, next);
+          }}
+          thread={thread}
+          topics={topics}
+        />
+      ));
   return (
     <div
       className="min-h-0 flex-1 overflow-y-auto pb-4"
@@ -63,26 +107,7 @@ export function ThreadList({
           </p>
         )
       ) : (
-        <div className="divide-y divide-border">
-          {rows.map((thread) => (
-            <ThreadRow
-              appsBySlug={appsBySlug}
-              density={density}
-              isOpen={thread.id === openId}
-              key={thread.id}
-              now={now}
-              onNewTopic={onNewTopic}
-              onOpen={() => {
-                onOpen(thread);
-              }}
-              onSetTopics={(next) => {
-                onSetTopics(thread, next);
-              }}
-              thread={thread}
-              topics={topics}
-            />
-          ))}
-        </div>
+        <div className="divide-y divide-border">{rows}</div>
       )}
     </div>
   );

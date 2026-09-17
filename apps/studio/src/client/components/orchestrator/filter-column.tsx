@@ -62,10 +62,16 @@ interface Section {
   onToggle: (id: string) => void;
 }
 
-/** The places in the order they are drawn: everything, what is new, what is not yet sent, and what was put away. */
+/** The places in the order they are drawn: everything, what is new, what waits on the user, what is not yet sent, and what was put away. */
 const PLACES: Place[] = [
   { icon: <TrayIcon className="size-4" />, id: "inbox", label: "Inbox" },
   { icon: <CircleIcon className="size-4" />, id: "unread", label: "Unread" },
+  {
+    // The same amber dot a waiting thread wears in its gutter.
+    icon: <span className="size-2 rounded-full bg-warning-500" />,
+    id: "needsYou",
+    label: "Needs you",
+  },
   {
     icon: <PencilSimpleIcon className="size-4" />,
     id: "drafts",
@@ -87,18 +93,21 @@ const UNCHOSEN =
 
 /**
  * The sections down the left of the inbox, inside the pane: the places
- * (Inbox, which is everything, Unread, and Drafts), then the topics as rows
- * with their marks, then the apps. A row is a place to click from and to
- * find again, which a menu is not, and the places and the topics carry how
- * many threads each holds at their right edge. The rows are one radio group
- * across the whole column: choosing one is standing in it, choosing another
- * is moving, and choosing it again is stepping back out to the inbox, so the
- * list is never narrowed by two kinds at once; only the search over the list
- * adds to whatever is chosen. When the pane is narrow the column shrinks in
- * place to a strip of marks, one per row; it never moves to the top.
+ * (Inbox, which is every thread not put away, Unread, Needs you, Drafts, and
+ * Archive), then the topics as rows with their marks, then the apps. A row is
+ * a place to click from and to find again, which a menu is not, and the
+ * places and the topics carry how many threads each holds at their right
+ * edge; a thread put away counts only in the archive, and its topics and
+ * apps are not offered for it. The rows are one radio group across the whole
+ * column: choosing one is standing in it, choosing another is moving, and
+ * choosing it again is stepping back out to the inbox, so the list is never
+ * narrowed by two kinds at once; only the search over the list adds to
+ * whatever is chosen. When the pane is narrow the column shrinks in place to
+ * a strip of marks, one per row; it never moves to the top.
  */
 export function FilterColumn({
   appsBySlug,
+  draftCount,
   filters,
   onFiltersChange,
   onNew,
@@ -108,6 +117,8 @@ export function FilterColumn({
   topics,
 }: {
   appsBySlug: AppsBySlug;
+  /** How many drafts are not yet sent, for the Drafts row's figure. */
+  draftCount: number;
   filters: ThreadFilters;
   onFiltersChange: (filters: ThreadFilters) => void;
   /** Opens a draft of a new thread. */
@@ -120,16 +131,32 @@ export function FilterColumn({
 }) {
   const live = topics.filter((topic) => !topic.retired);
   const topicsById = new Map(live.map((topic) => [topic.id, topic]));
+  // The threads the inbox, the topics, and the apps are counted over: what
+  // was put away is the archive's alone.
+  const kept = threads.filter((thread) => !thread.archived);
   const chooseIn = (group: Group, id: string) => {
     onFiltersChange(chooseOnly(filters, { group, id }));
   };
-  /** How many threads a place holds, said on its row above zero: drafts are not threads, so that row says nothing yet. */
-  const placeCount = (id: Place["id"]) =>
-    id === "inbox"
-      ? threads.length
-      : id === "unread"
-        ? threads.filter((thread) => thread.unread > 0).length
-        : 0;
+  /** How many a place holds, said on its row above zero. */
+  const placeCount = (id: Place["id"]) => {
+    switch (id) {
+      case "archive": {
+        return threads.length - kept.length;
+      }
+      case "drafts": {
+        return draftCount;
+      }
+      case "inbox": {
+        return kept.length;
+      }
+      case "needsYou": {
+        return kept.filter((thread) => thread.state === "waiting").length;
+      }
+      case "unread": {
+        return kept.filter((thread) => thread.unread > 0).length;
+      }
+    }
+  };
   const placeEntry = (place: Place): PickEntry => ({
     icon: place.icon,
     id: place.id,
@@ -154,7 +181,7 @@ export function FilterColumn({
         id: topic.id,
         label: topic.name,
         ...noteOf(
-          threads.filter((thread) => thread.topics.includes(topic.id)).length,
+          kept.filter((thread) => thread.topics.includes(topic.id)).length,
         ),
       })),
       findPlaceholder: "Find a topic",
@@ -166,7 +193,7 @@ export function FilterColumn({
     },
     {
       chosen: new Set(filters.apps),
-      entries: appsUsed(threads)
+      entries: appsUsed(kept)
         .map((slug) => ({
           icon: (
             <AppIcon

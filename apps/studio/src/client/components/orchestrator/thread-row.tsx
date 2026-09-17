@@ -2,11 +2,16 @@ import { THREADS_HREF } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
 import {
   Popover,
   PopoverContent,
@@ -15,29 +20,33 @@ import {
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { ArchiveIcon } from "@phosphor-icons/react/Archive";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
-import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { EnvelopeSimpleOpenIcon } from "@phosphor-icons/react/EnvelopeSimpleOpen";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { useMutation } from "@tanstack/react-query";
-import {
-  type ReactNode,
-  type SyntheticEvent,
-  useContext,
-  useState,
-} from "react";
+import { type ReactNode, useContext, useState } from "react";
+import { toast } from "sonner";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { HoldMarks } from "./hold-marks";
+import { RowActionBar } from "./row-action-bar";
+import {
+  type RowAction,
+  rowClassName,
+  type RowDensity,
+  stopHere,
+} from "./row-shell";
 import { activityLabel, type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicPickList } from "./topic-menu";
 import { topicTint } from "./topic-tint";
-
-/** The two shapes a row takes, by the room the list has: one line across a wide list, three down a narrow one. */
-export type RowDensity = "slim" | "tall";
 
 /**
  * One thread in the inbox, and the door into it: a plain click anywhere on it
@@ -51,12 +60,15 @@ export type RowDensity = "slim" | "tall";
  * marks of what it holds, and when anything last happened at the far right.
  * Slim, all of that is one line, the way a mailbox lists mail; tall, the
  * title has the first line with the reply count right after it and the time
- * at its end, the latest line gets two, and the files it made sit on a third
- * as chips with their names, the apps and sites as marks beside them. No
- * avatar, no name: every row
- * here is the user's. The pill, the marks, and the tag control that stands
- * in front of the pill while the pointer is on the row are the row's own
- * controls, and a click on one stops short of the door.
+ * at its end, the latest line gets two, and what it holds sits on a third
+ * line that never wraps: the files it made as chips with their names, the
+ * apps and sites as marks beside them, fading out at the row's edge. No
+ * avatar, no name: every row here is the user's. The pill, the marks, the
+ * tag control that stands in front of the pill while the pointer is on the
+ * row, and the actions that stand over the time then (putting the thread
+ * away or back, marking it read or unread) are the row's own controls, and a
+ * click on one stops short of the door. The menu offers the same, with the
+ * ways to open the thread and its topics.
  */
 export function ThreadRow({
   appsBySlug,
@@ -84,23 +96,31 @@ export function ThreadRow({
 }) {
   const topic = topics.find((entry) => entry.id === thread.topics[0]);
   const [isPicking, setPicking] = useState(false);
-  // The gestures that ask for a place of the thread's own: a middle click, a
-  // modified click, the menu on a right click. A plain click is the caller's.
+  // The gestures that ask for a place of the thread's own: a middle click or
+  // a modified click. A plain click is the caller's.
   const gestures = useOpenGestures({
     href: `${THREADS_HREF}/${thread.id}`,
     kind: "screen",
   });
+  const actions = useThreadActions(thread);
   const isUnseen = thread.unread > 0;
   const hasHolds =
     thread.holds.apps.length > 0 ||
     thread.holds.files.length > 0 ||
     thread.holds.sites.length > 0;
+  const toggleTopic = (id: string) => {
+    onSetTopics(
+      thread.topics.includes(id)
+        ? thread.topics.filter((entry) => entry !== id)
+        : [...thread.topics, id],
+    );
+  };
   const tagControl = (
     <TagControl
       isOpen={isPicking}
       onNewTopic={onNewTopic}
       onOpenChange={setPicking}
-      onSetTopics={onSetTopics}
+      onToggle={toggleTopic}
       thread={thread}
       topics={topics}
     />
@@ -146,119 +166,181 @@ export function ThreadRow({
   );
 
   return (
-    // A click target, not text: no selection and no text cursor over it. The
-    // controls inside stop their clicks short of it.
-    <div
-      className={cn(
-        "group/row relative flex cursor-default gap-2 px-2 select-none hover:bg-foreground/4 focus-visible:bg-foreground/4 focus-visible:outline-hidden has-[[data-state=open]]:bg-foreground/4",
-        density === "slim" ? "h-9 items-center" : "items-start py-2.5",
-        // The thread beside the list wears a tint the hover does not take
-        // away, with a bar down its edge in the brand's color.
-        isOpen &&
-          "bg-brand-500/8 shadow-[inset_2px_0_0_var(--color-brand-500)] hover:bg-brand-500/10",
-      )}
-      data-density={density}
-      data-open={isOpen || undefined}
-      onAuxClick={gestures.onAuxClick}
-      onClick={(event) => {
-        if (wantsNewTab(event)) {
-          gestures.separate?.run();
-          return;
-        }
-        onOpen();
-      }}
-      onContextMenu={gestures.onContextMenu}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" && event.target === event.currentTarget) {
-          onOpen();
-        }
-      }}
-      role="button"
-      tabIndex={0}
-    >
-      {/* The gutter: the state alone, on the first line's height so the dot
-        sits beside the title whatever the row's shape. */}
-      <span className="flex h-5 w-4 shrink-0 items-center justify-center">
-        <StateDot thread={thread} />
-      </span>
-      {density === "slim" ? (
-        <>
-          {/* The title's column is fixed, so every row's latest line starts
-            at one edge and the column reads down as a list of names. */}
-          <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
-            {tagControl}
-            {pill}
-            {title}
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          className={rowClassName(density, isOpen)}
+          data-density={density}
+          data-open={isOpen || undefined}
+          onAuxClick={gestures.onAuxClick}
+          onClick={(event) => {
+            if (wantsNewTab(event)) {
+              gestures.separate?.run();
+              return;
+            }
+            onOpen();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && event.target === event.currentTarget) {
+              onOpen();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          {/* The gutter: the state alone, on the first line's height so the
+            dot sits beside the title whatever the row's shape. */}
+          <span className="flex h-5 w-4 shrink-0 items-center justify-center">
+            <StateDot thread={thread} />
           </span>
-          <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
-          {hasHolds && (
-            <HoldsInThread onOpen={onOpen}>
-              <HoldMarks
-                appsBySlug={appsBySlug}
-                className="ml-auto"
-                holds={thread.holds}
-                namedFiles
+          {density === "slim" ? (
+            <>
+              {/* The title's column is fixed, so every row's latest line
+                starts at one edge and the column reads down as a list of
+                names. */}
+              <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
+                {tagControl}
+                {pill}
+                {title}
+              </span>
+              <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
+              {hasHolds && (
+                <HoldsInThread onOpen={onOpen}>
+                  <HoldMarks
+                    appsBySlug={appsBySlug}
+                    className="ml-auto"
+                    holds={thread.holds}
+                    namedFiles
+                  />
+                </HoldsInThread>
+              )}
+              {/* A slot of its own before the time, filled or not, so the
+                times line up down the list. */}
+              <span className="flex w-9 shrink-0 justify-end">{count}</span>
+              <span className="w-14 shrink-0 text-right">{time}</span>
+            </>
+          ) : (
+            <div className="min-w-0 flex-1">
+              <p className="flex h-5 items-center gap-1.5">
+                {tagControl}
+                {pill}
+                {title}
+                {/* The count under the time, out of the title's way and the
+                  time's: one column at the row's right, the second line of
+                  it hanging beside the latest line. */}
+                <span className="flex shrink-0 flex-col items-end gap-0.5">
+                  {time}
+                  {count}
+                </span>
+              </p>
+              <Peek
+                className={cn("mt-0.5", count && "pr-10")}
+                lines={2}
+                thread={thread}
               />
-            </HoldsInThread>
+              {hasHolds && (
+                <HoldsInThread onOpen={onOpen}>
+                  <HoldMarks
+                    appsBySlug={appsBySlug}
+                    className="mt-1 gap-1"
+                    holds={thread.holds}
+                    namedFiles
+                    wrap={false}
+                  />
+                </HoldsInThread>
+              )}
+            </div>
           )}
-          {/* A slot of its own before the time, filled or not, so the
-            times line up down the list. */}
-          <span className="flex w-9 shrink-0 justify-end">{count}</span>
-          <span className="w-14 shrink-0 text-right">{time}</span>
-        </>
-      ) : (
-        <div className="min-w-0 flex-1">
-          <p className="flex h-5 items-center gap-1.5">
-            {tagControl}
-            {pill}
-            {title}
-            {/* The count under the time, out of the title's way and the
-              time's: one column at the row's right, the second line of it
-              hanging beside the latest line. */}
-            <span className="flex shrink-0 flex-col items-end gap-0.5">
-              {time}
-              {count}
-            </span>
-          </p>
-          <Peek
-            className={cn("mt-0.5", count && "pr-10")}
-            lines={2}
-            thread={thread}
-          />
-          {hasHolds && (
-            <HoldsInThread onOpen={onOpen}>
-              <HoldMarks
-                appsBySlug={appsBySlug}
-                className="mt-1 flex-wrap gap-1"
-                holds={thread.holds}
-                namedFiles
-              />
-            </HoldsInThread>
-          )}
+          <RowActionBar actions={actions} density={density} />
         </div>
-      )}
-      <RowMenu density={density} thread={thread} />
-    </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={onOpen}>Open</ContextMenuItem>
+        {gestures.separate && (
+          <ContextMenuItem onSelect={gestures.separate.run}>
+            Open in new tab
+          </ContextMenuItem>
+        )}
+        <ContextMenuSeparator />
+        {actions.map((action) => (
+          <ContextMenuItem key={action.id} onSelect={action.run}>
+            {action.icon}
+            {action.label}
+          </ContextMenuItem>
+        ))}
+        <ContextMenuSeparator />
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <TagIcon className="size-4" />
+            Topics
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="max-h-80 overflow-y-auto">
+            {topics
+              .filter((entry) => !entry.retired)
+              .map((entry) => (
+                <ContextMenuCheckboxItem
+                  checked={thread.topics.includes(entry.id)}
+                  key={entry.id}
+                  onSelect={() => {
+                    toggleTopic(entry.id);
+                  }}
+                >
+                  <TopicMark topic={entry} />
+                  {entry.name}
+                </ContextMenuCheckboxItem>
+              ))}
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={onNewTopic}>
+              <PlusIcon className="size-4" />
+              New topic…
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
 /**
  * The topic the thread is filed under, as a pill in its tint no taller than
  * the line it sits on: its emoji, or its mark's tile where it has none, then
- * its name. Clicking it opens the thread's topic list rather than the thread.
+ * its name. Clicking it opens the thread's topic list rather than the thread;
+ * given nothing to open, it is the name alone and no control.
  */
 export function TopicPill({
   onPick,
   topic,
 }: {
-  onPick: () => void;
+  onPick?: () => void;
   topic: Topic;
 }) {
+  // `leading-4` rather than none: the name's box has to hold its descenders,
+  // or the clip that truncates it cuts them off.
+  const className =
+    "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) pr-1.5 pl-1 text-[11px] leading-4 text-foreground/90 topic-tint";
+  const inside = (
+    <>
+      {topic.emoji ? (
+        <span className="text-[10px]">{topic.emoji}</span>
+      ) : (
+        <TopicMark className="size-3.5 text-[10px]" topic={topic} />
+      )}
+      <span className="truncate">{topic.name}</span>
+    </>
+  );
+  if (!onPick) {
+    return (
+      <span className={className} style={topicTint(topicColor(topic))}>
+        {inside}
+      </span>
+    );
+  }
   return (
     <button
-      // `leading-4` rather than none: the name's box has to hold its
-      // descenders, or the clip that truncates it cuts them off.
-      className="inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) pr-1.5 pl-1 text-[11px] leading-4 text-foreground/90 topic-tint hover:bg-(--topic-tint-edge) hover:text-foreground"
+      className={cn(
+        className,
+        "hover:bg-(--topic-tint-edge) hover:text-foreground",
+      )}
       onAuxClick={stopHere}
       onClick={(event) => {
         stopHere(event);
@@ -269,12 +351,7 @@ export function TopicPill({
       title="Topics"
       type="button"
     >
-      {topic.emoji ? (
-        <span className="text-[10px]">{topic.emoji}</span>
-      ) : (
-        <TopicMark className="size-3.5 text-[10px]" topic={topic} />
-      )}
-      <span className="truncate">{topic.name}</span>
+      {inside}
     </button>
   );
 }
@@ -385,69 +462,6 @@ function Peek({
 }
 
 /**
- * The row's own menu, at its right edge while the pointer is on the row: the
- * one thing a thread offers that no line of it carries, which is putting it
- * back among the unread, or the reverse. A pick stops short of the door.
- */
-function RowMenu({ density, thread }: { density: RowDensity; thread: Thread }) {
-  const { taskId } = useOrchestrator();
-  const seen = useMutation(
-    rpcClient.workspace.orchestrator.threads.seen.mutationOptions(),
-  );
-  const unseen = useMutation(
-    rpcClient.workspace.orchestrator.threads.unseen.mutationOptions(),
-  );
-  const canUnread = thread.unread === 0 && thread.replyCount > 0;
-  const canRead = thread.unread > 0;
-  if (!canUnread && !canRead) {
-    return null;
-  }
-  return (
-    <span
-      className={cn(
-        "absolute right-1.5 hidden group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex",
-        density === "slim" ? "top-1/2 -translate-y-1/2" : "top-1.5",
-      )}
-      onAuxClick={stopHere}
-      onClick={stopHere}
-      onContextMenu={stopHere}
-      onKeyDown={stopHere}
-    >
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            aria-label="More"
-            className="grid size-5 place-items-center rounded-md bg-background/90 text-muted-foreground shadow-xs ring-1 ring-border hover:text-foreground data-[state=open]:text-foreground"
-            type="button"
-          >
-            <DotsThreeIcon className="size-4" weight="bold" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {canRead ? (
-            <DropdownMenuItem
-              onSelect={() => {
-                seen.mutate({ id: taskId, sessionId: thread.id });
-              }}
-            >
-              Mark as read
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              onSelect={() => {
-                unseen.mutate({ id: taskId, sessionId: thread.id });
-              }}
-            >
-              Mark as unread
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </span>
-  );
-}
-
-/**
  * Where the thread stands, as a dot: amber while it waits on the user, brand
  * while it works or holds replies not yet seen, and nothing at all while it
  * is quiet, so the gutter is empty down a list with nothing new in it.
@@ -472,11 +486,6 @@ function StateDot({ thread }: { thread: Thread }) {
   return null;
 }
 
-/** Keeps a control's gesture from reaching the row under it, which would open the thread. */
-function stopHere(event: SyntheticEvent) {
-  event.stopPropagation();
-}
-
 /**
  * The control that files the thread, in front of the pill and in the flow
  * only while the pointer is on the row or its list is open: it takes its
@@ -488,14 +497,14 @@ function TagControl({
   isOpen,
   onNewTopic,
   onOpenChange,
-  onSetTopics,
+  onToggle,
   thread,
   topics,
 }: {
   isOpen: boolean;
   onNewTopic: () => void;
   onOpenChange: (open: boolean) => void;
-  onSetTopics: (topics: string[]) => void;
+  onToggle: (id: string) => void;
   thread: Thread;
   topics: Topic[];
 }) {
@@ -532,19 +541,104 @@ function TagControl({
               onOpenChange(false);
               onNewTopic();
             }}
-            onToggle={(id) => {
-              onSetTopics(
-                thread.topics.includes(id)
-                  ? thread.topics.filter((entry) => entry !== id)
-                  : [...thread.topics, id],
-              );
-            }}
+            onToggle={onToggle}
             topics={topics}
           />
         </PopoverContent>
       </Popover>
     </span>
   );
+}
+
+/**
+ * What a thread offers that no line of it carries, in the order the row's
+ * edge and its menu list them: putting it away, or back in the inbox, with
+ * an undo in the toast either way; and marking it read while something in
+ * it is unseen, or unread again once it has replies to be unread, with no
+ * toast at all, since the row itself says which it is.
+ */
+function useThreadActions(thread: Thread): RowAction[] {
+  const { taskId } = useOrchestrator();
+  const input = { id: taskId, sessionId: thread.id };
+  // Each way's toast offers the other way back, so an undo can be undone.
+  // The toasts hang off the mutations rather than off the calls, since the
+  // row is gone from the list by the time either lands.
+  const archive = useMutation(
+    rpcClient.workspace.orchestrator.threads.archive.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to archive the thread", {
+          description: error.message,
+        });
+      },
+      onSuccess: () => {
+        toast("Archived", { action: { label: "Undo", onClick: bringBack } });
+      },
+    }),
+  );
+  const unarchive = useMutation(
+    rpcClient.workspace.orchestrator.threads.unarchive.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to move the thread to the inbox", {
+          description: error.message,
+        });
+      },
+      onSuccess: () => {
+        toast("Moved to Inbox", {
+          action: { label: "Undo", onClick: putAway },
+        });
+      },
+    }),
+  );
+  const seen = useMutation(
+    rpcClient.workspace.orchestrator.threads.seen.mutationOptions(),
+  );
+  const unseen = useMutation(
+    rpcClient.workspace.orchestrator.threads.unseen.mutationOptions(),
+  );
+  function putAway() {
+    archive.mutate(input);
+  }
+  function bringBack() {
+    unarchive.mutate(input);
+  }
+  const put: RowAction = thread.archived
+    ? {
+        icon: <ArrowCounterClockwiseIcon className="size-3.5" />,
+        id: "unarchive",
+        label: "Unarchive",
+        run: bringBack,
+      }
+    : {
+        icon: <ArchiveIcon className="size-3.5" />,
+        id: "archive",
+        label: "Archive",
+        run: putAway,
+      };
+  const mark: RowAction[] =
+    thread.unread > 0
+      ? [
+          {
+            icon: <EnvelopeSimpleOpenIcon className="size-3.5" />,
+            id: "read",
+            label: "Mark as read",
+            run: () => {
+              seen.mutate(input);
+            },
+          },
+        ]
+      : thread.replyCount > 0
+        ? [
+            {
+              icon: <EnvelopeSimpleIcon className="size-3.5" />,
+              id: "unread",
+              label: "Mark as unread",
+              run: () => {
+                unseen.mutate(input);
+              },
+            },
+          ]
+        : [];
+  return [put, ...mark];
 }
 
 /**

@@ -37,6 +37,7 @@ function thread({
   holds?: Partial<Filterable["holds"]>;
 } = {}): Filterable {
   return {
+    archived: false,
     holds: { apps: [], files: [], sites: [], ...holds },
     root: { parts: [] },
     state: "idle",
@@ -53,9 +54,14 @@ const THREADS = [
 ];
 
 function renderColumn({
+  draftCount = 0,
   filters = NO_FILTERS,
   threads = THREADS,
-}: { filters?: ThreadFilters; threads?: Filterable[] } = {}) {
+}: {
+  draftCount?: number;
+  filters?: ThreadFilters;
+  threads?: Filterable[];
+} = {}) {
   const onFiltersChange = vi.fn();
   const onNew = vi.fn();
   const onNewTopic = vi.fn();
@@ -64,6 +70,7 @@ function renderColumn({
       appsBySlug={
         new Map([["gmail", { name: "Gmail", site: "https://mail.google.com" }]])
       }
+      draftCount={draftCount}
       filters={filters}
       onFiltersChange={onFiltersChange}
       onNew={onNew}
@@ -104,7 +111,63 @@ describe("FilterColumn", () => {
       column
         .getAllByRole("button", { pressed: false })
         .map((row) => row.textContent),
-    ).toEqual(["Unread1", "Drafts", "Archive", "🏠House2", "💸Money", "Gmail"]);
+    ).toEqual([
+      "Unread1",
+      "Needs you",
+      "Drafts",
+      "Archive",
+      "🏠House2",
+      "💸Money",
+      "Gmail",
+    ]);
+  });
+
+  it("counts what waits on the user, and the drafts, on their rows", () => {
+    const { column } = renderColumn({
+      draftCount: 3,
+      threads: [
+        thread({ state: "waiting" }),
+        thread({ state: "waiting", unread: 1 }),
+        thread({ state: "working" }),
+      ],
+    });
+    expect(column.getByRole("button", { name: /Needs you/ }).textContent).toBe(
+      "Needs you2",
+    );
+    expect(column.getByRole("button", { name: /Drafts/ }).textContent).toBe(
+      "Drafts3",
+    );
+  });
+
+  it("counts a thread put away in the archive alone, and offers no topic or app for it", () => {
+    const { column } = renderColumn({
+      threads: [
+        thread({
+          archived: true,
+          holds: { apps: ["gmail"] },
+          state: "waiting",
+          topics: ["house", "money"],
+          unread: 2,
+        }),
+        thread({ topics: ["house"], unread: 1 }),
+      ],
+    });
+    expect(
+      column
+        .getAllByRole("button", { pressed: false })
+        .map((row) => row.textContent),
+    ).toEqual([
+      "Unread1",
+      "Needs you",
+      "Drafts",
+      "Archive1",
+      "🏠House1",
+      "💸Money",
+    ]);
+    expect(column.getByRole("button", { pressed: true }).textContent).toBe(
+      "Inbox1",
+    );
+    expect(column.queryByRole("region", { name: "Apps" })).toBeNull();
   });
 
   it("has no search of its own: that sits over the list", () => {
@@ -151,6 +214,20 @@ describe("FilterColumn", () => {
       ...NO_FILTERS,
       place: "unread",
       search: "fence",
+    });
+  });
+
+  it("stands in Needs you and in the archive from their rows", () => {
+    const { column, onFiltersChange } = renderColumn();
+    fireEvent.click(column.getByRole("button", { name: /Needs you/ }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith({
+      ...NO_FILTERS,
+      place: "needsYou",
+    });
+    fireEvent.click(column.getByRole("button", { name: /Archive/ }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith({
+      ...NO_FILTERS,
+      place: "archive",
     });
   });
 

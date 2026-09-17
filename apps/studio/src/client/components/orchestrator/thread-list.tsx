@@ -19,9 +19,11 @@ export const SLIM_FROM = 600;
 export function ThreadList({
   appsBySlug,
   emptyLine,
+  isLoading,
   onNewTopic,
   onOpen,
   onSetTopics,
+  openId,
   scrollSignal,
   threads,
   topics,
@@ -29,9 +31,13 @@ export function ThreadList({
   appsBySlug: AppsBySlug;
   /** What the list says when it has nothing to show. */
   emptyLine: string;
+  /** Whether the threads are still on their way: nothing is said about an empty list until they have arrived. */
+  isLoading: boolean;
   onNewTopic: () => void;
   onOpen: (thread: Thread) => void;
   onSetTopics: (thread: Thread, topics: string[]) => void;
+  /** The thread open beside the list, which its row is marked as. */
+  openId: string | undefined;
   /** Counts up whenever the list should be taken back to its top, whatever the reader was doing. */
   scrollSignal: number;
   threads: Thread[];
@@ -51,15 +57,18 @@ export function ThreadList({
       ref={ref}
     >
       {rows.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-          {emptyLine}
-        </p>
+        !isLoading && (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+            {emptyLine}
+          </p>
+        )
       ) : (
         <div className="divide-y divide-border">
           {rows.map((thread) => (
             <ThreadRow
               appsBySlug={appsBySlug}
               density={density}
+              isOpen={thread.id === openId}
               key={thread.id}
               now={now}
               onNewTopic={onNewTopic}

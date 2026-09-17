@@ -202,9 +202,11 @@ export function DraftWindow({
       >
         <DialogContent
           aria-describedby={undefined}
-          className="flex h-full flex-col gap-0 rounded-2xl p-0"
-          maxHeight="72rem"
-          maxWidth="100rem"
+          // Inset from the window's edges: what was on screen stays in view
+          // around it, and the band the window is dragged by stays clear.
+          className="flex h-[calc(100vh-7rem)] max-h-[calc(100vh-7rem)] w-[calc(100vw-8rem)] flex-col gap-0 rounded-2xl p-0"
+          maxHeight="60rem"
+          maxWidth="80rem"
           showCloseButton={false}
         >
           <DialogTitle className="sr-only">New thread</DialogTitle>

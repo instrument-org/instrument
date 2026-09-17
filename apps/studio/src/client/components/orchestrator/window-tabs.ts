@@ -6,6 +6,7 @@ import {
   type WindowTabs,
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
+import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { StoreId } from "@instrument-org/workspace/client";
 import { useAtom, useSetAtom } from "jotai";
 
@@ -175,8 +176,13 @@ export function useWindowTabs() {
 
   /** Shows the screen tab of this group already at that address, or opens one there. */
   const openOrFocusScreen = (href: string, { isOpened = false } = {}) => {
-    const existing = tabs.find(
-      (tab) => tab.kind === "screen" && sameHref(tab.href, href),
+    // A file's tab may have become the page that shows the file; it is still
+    // the file's tab, and the file is not opened twice.
+    const filePath = parseHref(href).search.get("file") ?? undefined;
+    const existing = tabs.find((tab) =>
+      tab.kind === "screen"
+        ? sameHref(tab.href, href)
+        : filePath !== undefined && hostPathOfFileUrl(tab.url) === filePath,
     );
     if (existing) {
       select(existing.id);

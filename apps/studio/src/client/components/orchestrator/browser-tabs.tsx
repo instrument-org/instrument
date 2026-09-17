@@ -180,7 +180,8 @@ export function BrowserTabs({
   ref: Ref<BrowserTabsHandle>;
 }) {
   const { openScreen, taskId } = useOrchestrator();
-  const [{ activeId, tabs: allTabs }, setAllTabs] = useAtom(windowTabsAtom);
+  const [{ activeId, group, tabs: allTabs }, setAllTabs] =
+    useAtom(windowTabsAtom);
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab) => tab.kind === "page");
   const setSiteFavicons = useSetAtom(siteFaviconsAtom);
@@ -296,9 +297,9 @@ export function BrowserTabs({
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
-  const latest = useRef({ active, tabs });
+  const latest = useRef({ active, group, tabs });
   useEffect(() => {
-    latest.current = { active, tabs };
+    latest.current = { active, group, tabs };
   });
 
   // A task the conversation started browses here too: its guest is mounted
@@ -659,9 +660,14 @@ export function BrowserTabs({
         // A tab still on that site, by where it is now: a tab that was opened
         // there and has since wandered off is not the site.
         const origin = originOf(url);
+        // Among the group on screen: a thread's page is the thread's, and
+        // another thread's tab at the same site is not this one's.
+        const own = latest.current.tabs.filter(
+          (tab) => tab.group === latest.current.group,
+        );
         const existing =
-          latest.current.tabs.find((tab) => sameAddress(tab.url, url)) ??
-          latest.current.tabs.find(
+          own.find((tab) => sameAddress(tab.url, url)) ??
+          own.find(
             (tab) => origin !== undefined && originOf(tab.url) === origin,
           );
         if (existing) {

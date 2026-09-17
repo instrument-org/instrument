@@ -192,6 +192,7 @@ async function renderRows(
               ])
             }
             density={spec.density}
+            isOpen={false}
             now={NOW}
             onNewTopic={vi.fn()}
             onOpen={onOpen}

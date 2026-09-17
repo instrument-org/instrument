@@ -8,6 +8,7 @@ import {
   StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
+import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -38,6 +39,7 @@ export function ScreenIcon({
  */
 export function WindowTabStrip({
   childTitles,
+  groupKey,
   onClose,
   onNew,
   onReorder,
@@ -48,6 +50,8 @@ export function WindowTabStrip({
   trailing,
 }: {
   childTitles: Map<TaskId, string>;
+  /** Which thread's tabs these are, so a swap to another thread's is not drawn as tabs arriving. */
+  groupKey: string;
   onClose: (id: string) => void;
   onNew: () => void;
   onReorder: (ids: string[]) => void;
@@ -171,6 +175,9 @@ export function WindowTabStrip({
         // many tabs fit, so it has to be told to fill the bar rather than
         // sizing to the tabs it currently holds.
         className="min-w-0 flex-1"
+        // Another thread's tabs are another set: the strip adopts them
+        // silently rather than sliding each one in.
+        groupKey={groupKey}
         onClose={(key) => {
           onClose(idOf(key));
         }}
@@ -188,26 +195,33 @@ export function WindowTabStrip({
         }
         tabs={tabs.map((tab) => ({
           // The thread's own screen holds the head of its group and is never
-          // closed from the strip.
+          // closed from the strip: one short word and its mark, the same
+          // width whatever the thread is called, so flipping between
+          // threads moves nothing in the row.
           isFixed: isAnchor(tab),
           key: tab.stripKey ?? tab.id,
-          ...(tab.kind === "page"
+          ...(isAnchor(tab)
             ? {
-                icon: <TabIcon favicon={tab.favicon} url={tab.url} />,
-                isWorking: tab.taskId
-                  ? working.has(tab.taskId)
-                  : driven.has(tab.id),
-                title:
-                  tab.title ||
-                  (tab.taskId && childTitles.get(tab.taskId)) ||
-                  pageTabTitle(tab) ||
-                  "New tab",
+                icon: <ChatTeardropTextIcon className="size-3.5" />,
+                title: "Thread",
               }
-            : screenPresentation(tab.href, {
-                appsBySlug,
-                childTitles,
-                threadTitles,
-              })),
+            : tab.kind === "page"
+              ? {
+                  icon: <TabIcon favicon={tab.favicon} url={tab.url} />,
+                  isWorking: tab.taskId
+                    ? working.has(tab.taskId)
+                    : driven.has(tab.id),
+                  title:
+                    tab.title ||
+                    (tab.taskId && childTitles.get(tab.taskId)) ||
+                    pageTabTitle(tab) ||
+                    "New tab",
+                }
+              : screenPresentation(tab.href, {
+                  appsBySlug,
+                  childTitles,
+                  threadTitles,
+                })),
         }))}
         trailing={trailing}
       />

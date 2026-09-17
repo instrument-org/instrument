@@ -321,17 +321,15 @@ export function TaskChat({
   const isActiveTab = useIsActiveTab();
   const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
-  // The conversation never takes the caret on its own: it shares a window with
-  // the page the user is reading, and switching channel is looking around
-  // rather than starting to type.
-  const takesFocus = presentation !== "orchestrator";
+  // A thread coming on screen is a place to reply from, so the caret lands
+  // in the field as it opens.
   useLayoutEffect(() => {
-    if (!isActiveTab || !takesFocus) {
+    if (!isActiveTab) {
       return;
     }
     promptEditor?.focus();
     promptEditor?.moveCaretToEnd();
-  }, [isActiveTab, focusSignal, selectedSessionId, promptEditor, takesFocus]);
+  }, [isActiveTab, focusSignal, selectedSessionId, promptEditor]);
 
   const [isTutorialDismissed, setIsTutorialDismissed] = useState(false);
   const [composerFolderCount, setComposerFolderCount] = useState(0);
@@ -357,7 +355,7 @@ export function TaskChat({
       // Beside the work, the row stays open: a tab switch moves the caret, and
       // a row that folded and unfolded with it would animate on every switch.
       alwaysOpen={presentation === "orchestrator"}
-      autoFocus={takesFocus}
+      autoFocus
       className="relative z-10"
       draftKey={draftKey}
       folderTrayPlacement="above"

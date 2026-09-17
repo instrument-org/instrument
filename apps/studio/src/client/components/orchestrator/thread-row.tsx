@@ -60,6 +60,7 @@ export type RowDensity = "slim" | "tall";
 export function ThreadRow({
   appsBySlug,
   density,
+  isOpen,
   now,
   onNewTopic,
   onOpen,
@@ -69,6 +70,8 @@ export function ThreadRow({
 }: {
   appsBySlug: AppsBySlug;
   density: RowDensity;
+  /** Whether this thread is the one open beside the list. */
+  isOpen: boolean;
   /** The moment the time at the row's end is read against. */
   now: Date;
   onNewTopic: () => void;
@@ -138,8 +141,13 @@ export function ThreadRow({
       className={cn(
         "group/row relative flex cursor-default gap-2 px-2 select-none hover:bg-foreground/4 focus-visible:bg-foreground/4 focus-visible:outline-hidden has-[[data-state=open]]:bg-foreground/4",
         density === "slim" ? "h-9 items-center" : "items-start py-2.5",
+        // The thread beside the list wears a tint the hover does not take
+        // away, with a bar down its edge in the brand's color.
+        isOpen &&
+          "bg-brand-500/8 shadow-[inset_2px_0_0_var(--color-brand-500)] hover:bg-brand-500/10",
       )}
       data-density={density}
+      data-open={isOpen || undefined}
       onAuxClick={gestures.onAuxClick}
       onClick={(event) => {
         if (wantsNewTab(event)) {

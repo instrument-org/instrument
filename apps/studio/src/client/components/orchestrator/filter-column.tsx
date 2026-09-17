@@ -263,7 +263,7 @@ export function FilterColumn({
                         onToggle={section.onToggle}
                         trailing={
                           <TopicActionsButton
-                            className="group-hover/row:opacity-100"
+                            className="bg-background opacity-100 shadow-xs ring-1 ring-border"
                             onDetails={onTopicDetails}
                             topic={topic}
                           />
@@ -394,7 +394,7 @@ function FilterRow({
   return (
     <div
       className={cn(
-        "group/row flex h-7 items-center rounded-md pr-1",
+        "group/row relative flex h-7 items-center rounded-md pr-1",
         isOn ? CHOSEN : UNCHOSEN,
       )}
     >
@@ -420,7 +420,13 @@ function FilterRow({
           </span>
         )}
       </button>
-      {trailing}
+      {/* Over the row's end while the pointer is on it, taking no room at
+        rest: the count stays where it is and the row reads as its words. */}
+      {trailing && (
+        <span className="absolute top-1 right-1 hidden group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex">
+          {trailing}
+        </span>
+      )}
     </div>
   );
 }

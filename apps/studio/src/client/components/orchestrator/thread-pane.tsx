@@ -32,11 +32,14 @@ const threadFiltersAtom = atom<ThreadFilters>(NO_FILTERS);
 export function ThreadPane({
   onNew,
   onOpenThread,
+  openThreadId,
   taskId,
 }: {
   /** Opens a draft of a new thread, filed under the topic the pane stands in when it stands in one. */
   onNew: (topicId: string | undefined) => void;
   onOpenThread: (thread: Thread) => void;
+  /** The thread open beside the list, if one is. */
+  openThreadId: string | undefined;
   taskId: TaskId;
 }) {
   const appsBySlug = useAppsBySlug();
@@ -146,6 +149,7 @@ export function ThreadPane({
         <ThreadList
           appsBySlug={appsBySlug}
           emptyLine={emptyLineFor(filters, threads.length)}
+          isLoading={threadsQuery.data === undefined}
           onNewTopic={() => {
             setNewTopicOpen(true);
           }}
@@ -157,6 +161,7 @@ export function ThreadPane({
               topics: next,
             });
           }}
+          openId={openThreadId}
           scrollSignal={scrollSignal}
           threads={shown}
           topics={topics}

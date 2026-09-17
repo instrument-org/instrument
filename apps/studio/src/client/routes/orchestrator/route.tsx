@@ -47,6 +47,7 @@ import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-stri
 import {
   PAGE_ROUTE,
   parseHref,
+  threadOfHref,
   usePopClosedTab,
   useWindowTabs,
 } from "@/client/components/orchestrator/window-tabs";
@@ -347,6 +348,12 @@ function OrchestratorLayout() {
       browser?.navigate(url);
       return active.id;
     }
+    // A tab of its own is asked for once per place: a page already open in
+    // this group at that address comes forward rather than opening again.
+    if (newTab && !isFreshNewTab) {
+      browser?.openOrFocus(url);
+      return;
+    }
     return browser?.open(
       url,
       active && !isTaskTab && (!newTab || isFreshNewTab)
@@ -356,6 +363,14 @@ function OrchestratorLayout() {
   };
   const openScreen = (href: string, { newTab = false } = {}) => {
     setRightAreaOpen(true);
+    const thread = threadOfHref(href);
+    if (thread) {
+      // The thread's group comes up at the tab it last had up, and the
+      // address follows that tab; pushing the thread's own address here
+      // would send the group back to the thread itself.
+      windowTabs.showThread(thread);
+      return;
+    }
     if (newTab && !isFreshNewTab) {
       windowTabs.openOrFocusScreen(href);
     } else {
@@ -841,6 +856,9 @@ function OrchestratorLayout() {
                         onOpenThread={(thread) => {
                           openScreen(`${THREADS_HREF}/${thread.id}`);
                         }}
+                        openThreadId={
+                          isRightAreaOpen ? windowTabs.group : undefined
+                        }
                         taskId={screens.taskId}
                       />
                     </PageOpenContext>
@@ -862,6 +880,7 @@ function OrchestratorLayout() {
               <div className="flex h-9 shrink-0 items-center border-b border-border bg-muted/40 px-2">
                 <WindowTabStrip
                   childTitles={childTitles}
+                  groupKey={windowTabs.group ?? "window"}
                   onClose={requestClose}
                   onNew={() => {
                     windowTabs.openScreen(NEW_TAB_HREF);

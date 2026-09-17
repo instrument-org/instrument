@@ -12,6 +12,7 @@ import { useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
 import { cn } from "../lib/utils";
+import { ASSISTANT_BUBBLE } from "./assistant-message";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
 import {
@@ -1115,24 +1116,25 @@ function TurnWordmark() {
 }
 
 /**
- * The conversation is composing: three dots, the way a messaging app says
- * someone is typing, in the place the reply will land. No words are shown
- * until the reply is whole.
+ * The conversation is composing: three dots in a bubble of their own, the
+ * way a messaging app says someone is typing, in the place the reply will
+ * land. No words are shown until the reply is whole.
  */
 function TypingRow() {
   return (
-    <div className={STEP_RUN}>
-      <div className={cn(TRANSCRIPT_ROW, "animate-in fill-mode-both fade-in")}>
-        <span aria-label="Typing" className="flex h-5 items-center gap-1">
-          {[0, 1, 2].map((index) => (
-            <span
-              className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60"
-              key={index}
-              style={{ animationDelay: `${index * 150}ms` }}
-            />
-          ))}
-        </span>
-      </div>
+    <div className="flex animate-in justify-start fill-mode-both fade-in">
+      <span
+        aria-label="Typing"
+        className={cn(ASSISTANT_BUBBLE, "flex h-9 items-center gap-1")}
+      >
+        {[0, 1, 2].map((index) => (
+          <span
+            className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60"
+            key={index}
+            style={{ animationDelay: `${index * 150}ms` }}
+          />
+        ))}
+      </span>
     </div>
   );
 }

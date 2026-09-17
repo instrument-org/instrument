@@ -168,7 +168,7 @@ function dotOf(row: HTMLElement) {
   return gutterOf(row).querySelector<HTMLElement>("[aria-label]");
 }
 
-/** The first line of a tall row: the pill, the title, its count, and the time. */
+/** The first line of a tall row: the pill and the title, beside the column the time heads. */
 function firstLineOf(row: HTMLElement) {
   const line = row.children[1]?.firstElementChild;
   if (!(line instanceof HTMLElement)) {
@@ -351,7 +351,15 @@ describe("ThreadRow", () => {
     const first = firstLineOf(row);
     expect(first.textContent).toContain("House");
     expect(first.textContent).toContain(TITLE);
-    expect(first.textContent).toContain("9:11 AM");
+    // The time on the title's line, in a column of its own at the right.
+    const time = timeOf(row).getBoundingClientRect();
+    expect(time.top).toBeGreaterThanOrEqual(first.getBoundingClientRect().top);
+    expect(time.bottom).toBeLessThanOrEqual(
+      first.getBoundingClientRect().bottom,
+    );
+    expect(time.left).toBeGreaterThanOrEqual(
+      first.getBoundingClientRect().right,
+    );
     expect(row.textContent).not.toContain(ASK);
     const peek = peekOf(row);
     expect(peek?.getBoundingClientRect().top).toBeGreaterThanOrEqual(
@@ -397,9 +405,9 @@ describe("ThreadRow", () => {
     }
     const countOf = (row: HTMLElement) =>
       row.querySelector<HTMLElement>('[aria-label="3 replies"]');
-    // The first line carries the title, the time, and the count under it;
-    // the count is no part of the title's line.
-    expect(firstLineOf(three).textContent).toBe(`${TITLE}9:11 AM3`);
+    // The count sits under the time in the column at the right; the title's
+    // line carries neither.
+    expect(firstLineOf(three).textContent).toBe(TITLE);
     const tallCount = countOf(three);
     expect(tallCount?.textContent).toBe("3");
     const time = timeOf(three).getBoundingClientRect();
@@ -410,7 +418,7 @@ describe("ThreadRow", () => {
       time.right + 1,
     );
     expect(countOf(one)).toBeNull();
-    expect(firstLineOf(one).textContent).toBe(`${TITLE}9:11 AM`);
+    expect(firstLineOf(one).textContent).toBe(TITLE);
     const slimCount = countOf(slim);
     expect(slimCount?.getBoundingClientRect().right).toBeLessThanOrEqual(
       timeOf(slim).getBoundingClientRect().left,
@@ -894,10 +902,21 @@ describe("the row's actions", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the star at the row's end at either width, out of the actions, and turns it on a click", async () => {
+  it("keeps the star at the row's end at either width, out of the actions and clear of the words, and turns it on a click", async () => {
     const { rows } = await renderRows([
       { density: "slim", thread: thread() },
-      { density: "tall", thread: thread({ starred: true }) },
+      {
+        density: "tall",
+        thread: thread({
+          holds: {
+            apps: [],
+            files: ["/task/out/a.md", "/task/out/b.md", "/task/out/c.md"],
+            sites: [],
+          },
+          latest: { at: MOVED_AT.getTime(), kind: "reply", text: LONG_REPLY },
+          starred: true,
+        }),
+      },
     ]);
     const [slim, tall] = rows;
     if (!slim || !tall) {
@@ -922,6 +941,15 @@ describe("the row's actions", () => {
     expect(given?.getBoundingClientRect().right).toBeLessThanOrEqual(
       tall.getBoundingClientRect().right,
     );
+    // Nothing runs under it: the latest line and the holds stop short of
+    // the column it stands in.
+    const starLeft = given?.getBoundingClientRect().left ?? 0;
+    expect(peekOf(tall)?.getBoundingClientRect().right).toBeLessThanOrEqual(
+      starLeft,
+    );
+    for (const mark of marksOf(tall)) {
+      expect(mark.getBoundingClientRect().left).toBeLessThan(starLeft);
+    }
     // The star is the row's own control, not one of the actions on hover.
     expect(
       [...tall.querySelectorAll('[aria-label="Unstar"]')].length,

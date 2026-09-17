@@ -74,6 +74,9 @@ export function renderChatPart({
       case "assistant": {
         return (
           <AssistantMessage
+            // The conversation reads as messages: each reply in a bubble at
+            // the left, facing the user's at the right.
+            bubble={ctx.presentation === "orchestrator"}
             key={part.metadata.id}
             part={part}
             taskId={ctx.task.id}

@@ -18,6 +18,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
+import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
@@ -68,6 +69,7 @@ export function ComposerAddMenu({
   actions,
   bounds,
   disabled,
+  label,
   onReturnFocus,
   onSelectProject,
   onSelectSkill,
@@ -81,6 +83,8 @@ export function ComposerAddMenu({
   /** The composer box this hangs off, rather than overlays. */
   bounds: HTMLElement | null;
   disabled?: boolean;
+  /** A word on the trigger beside its mark, where a bare plus would not say what it is for. */
+  label?: string;
   /** Puts the caret back in the prompt, once something has been chosen here. */
   onReturnFocus: () => void;
   /** Omitted where a task's project is not the composer's to choose. */
@@ -116,12 +120,13 @@ export function ComposerAddMenu({
     >
       <DropdownMenuTrigger asChild>
         <Button
-          aria-label="Add to this prompt"
+          aria-label={label ?? "Add to this prompt"}
           // A filled rest state rather than a ghost one, so the way in is
           // visible before it is pointed at. Its hover has to darken in one
           // theme and lighten in the other, which no single token does.
           className={cn(
-            "size-8 bg-muted p-0 text-foreground/60 not-disabled:hover:bg-black/10 dark:not-disabled:hover:bg-white/15",
+            "bg-muted text-foreground/60 not-disabled:hover:bg-black/10 dark:not-disabled:hover:bg-white/15",
+            label === undefined ? "size-8 p-0" : "h-7 gap-1 px-2 text-xs",
             triggerClassName,
           )}
           disabled={disabled}
@@ -129,7 +134,14 @@ export function ComposerAddMenu({
           size="sm"
           variant="ghost"
         >
-          <PlusIcon className="size-5" weight="regular" />
+          {label === undefined ? (
+            <PlusIcon className="size-5" weight="regular" />
+          ) : (
+            <>
+              <PaperclipIcon className="size-4" />
+              {label}
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

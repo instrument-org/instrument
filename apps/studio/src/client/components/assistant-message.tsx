@@ -7,15 +7,42 @@ import { memo } from "react";
 import { SessionMarkdown } from "./session-markdown";
 
 interface AssistantMessageProps {
+  /**
+   * The words in a bubble at the left, no wider than most of the column,
+   * the way a text message reads, facing the user's own bubble at the
+   * right; otherwise the words run the width of the column as prose.
+   */
+  bubble?: boolean;
   part: SessionMessagePart.TextPart;
   taskId: TaskId;
 }
 
+/** The face an assistant's bubble wears, mirroring the user's: its tail at the top left. */
+export const ASSISTANT_BUBBLE =
+  "max-w-[85%] rounded-tl rounded-tr-xl rounded-br-xl rounded-bl-xl bg-muted px-3 py-2 text-foreground";
+
 export const AssistantMessage = memo(function AssistantMessage({
+  bubble = false,
   part,
   taskId,
 }: AssistantMessageProps) {
   const messageText = part.text;
+
+  if (bubble) {
+    return (
+      <div className="flex flex-col items-start">
+        <div className={ASSISTANT_BUBBLE}>
+          <SessionMarkdown
+            assetVersion={part.metadata.id}
+            className="text-sm/[1.5]"
+            isStreaming={part.state === "streaming"}
+            markdown={messageText}
+            taskId={taskId}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-start">

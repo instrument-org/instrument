@@ -59,17 +59,18 @@ import { topicTint } from "./topic-tint";
  * while there is something unseen in it, the agent's latest line (the step it
  * is on, the question it is waiting on, or its last reply's first words), the
  * marks of what it holds, and when anything last happened at the far right.
- * Slim, all of that is one line, the way a mailbox lists mail; tall, the
- * title has the first line with the reply count right after it and the time
- * at its end, the latest line gets two, and what it holds sits on a third
- * line that never wraps: the files it made as chips with their names, the
- * apps and sites as marks beside them, fading out at the row's edge. No
- * avatar, no name: every row here is the user's. The pill, the marks, the
- * tag control that stands in front of the pill while the pointer is on the
- * row, and the actions that stand over the time then (putting the thread
- * away or back, marking it read or unread) are the row's own controls, and a
- * click on one stops short of the door. The menu offers the same, with the
- * ways to open the thread and its topics.
+ * Slim, all of that is one line, the way a mailbox lists mail, with the
+ * holds held to a share of it; tall, the title has the first line, the
+ * latest line gets two, and what it holds sits on a third line that never
+ * wraps: the files it made as chips with their names, the apps and sites as
+ * marks beside them, fading out at the row's edge; a column down the row's
+ * right carries the time, the reply count under it, and the star at the
+ * bottom. No avatar, no name: every row here is the user's. The pill, the
+ * marks, the star, the tag control that stands in front of the pill while
+ * the pointer is on the row, and the actions that stand over the time then
+ * (putting the thread away or back, marking it read or unread) are the
+ * row's own controls, and a click on one stops short of the door. The menu
+ * offers the same, with the ways to open the thread and its topics.
  */
 export function ThreadRow({
   appsBySlug,
@@ -205,13 +206,17 @@ export function ThreadRow({
                 {title}
               </span>
               <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
+              {/* No more than a share of the row, clipped with a fade past
+                it, so a thread with many files never pushes into the title's
+                column. */}
               {hasHolds && (
                 <HoldsInThread onOpen={onOpen}>
                   <HoldMarks
                     appsBySlug={appsBySlug}
-                    className="ml-auto"
+                    className="ml-auto max-w-[30%]"
                     holds={thread.holds}
                     namedFiles
+                    wrap={false}
                   />
                 </HoldsInThread>
               )}
@@ -225,43 +230,39 @@ export function ThreadRow({
               <StarControl thread={thread} />
             </>
           ) : (
-            <div className="min-w-0 flex-1">
-              <p className="flex h-5 items-center gap-1.5">
-                {tagControl}
-                {pill}
-                {title}
-                {/* A narrow row has no room for the control; the star shows
-                  once given, and the row's actions are where it is given. */}
-                {/* The count under the time, out of the title's way and the
-                  time's: one column at the row's right, the second line of
-                  it hanging beside the latest line. */}
-                <span className="flex shrink-0 flex-col items-end gap-0.5">
-                  {time}
-                  {count}
+            <>
+              <div className="min-w-0 flex-1">
+                <p className="flex h-5 items-center gap-1.5">
+                  {tagControl}
+                  {pill}
+                  {title}
+                </p>
+                <Peek className="mt-0.5" lines={2} thread={thread} />
+                {hasHolds && (
+                  <HoldsInThread onOpen={onOpen}>
+                    <HoldMarks
+                      appsBySlug={appsBySlug}
+                      className="mt-1 gap-1"
+                      holds={thread.holds}
+                      namedFiles
+                      wrap={false}
+                    />
+                  </HoldsInThread>
+                )}
+              </div>
+              {/* A column of the row's own down its right: the time on the
+                title's line, the count under it, and the star at the bottom,
+                in view and apart from the row's actions, where mail keeps
+                it. A column rather than a corner, so no line of words ever
+                runs under any of them. */}
+              <div className="flex shrink-0 flex-col items-end gap-0.5 self-stretch">
+                <span className="flex h-5 items-center">{time}</span>
+                {count}
+                <span className="mt-auto -mr-1">
+                  <StarControl thread={thread} />
                 </span>
-              </p>
-              {/* The star at the row's lower right, in view and apart from
-                the row's actions, where mail keeps it. */}
-              <span className="absolute right-2 bottom-2">
-                <StarControl thread={thread} />
-              </span>
-              <Peek
-                className={cn("mt-0.5", count && "pr-10")}
-                lines={2}
-                thread={thread}
-              />
-              {hasHolds && (
-                <HoldsInThread onOpen={onOpen}>
-                  <HoldMarks
-                    appsBySlug={appsBySlug}
-                    className="mt-1 gap-1"
-                    holds={thread.holds}
-                    namedFiles
-                    wrap={false}
-                  />
-                </HoldsInThread>
-              )}
-            </div>
+              </div>
+            </>
           )}
           <RowActionBar actions={actions} density={density} />
         </div>

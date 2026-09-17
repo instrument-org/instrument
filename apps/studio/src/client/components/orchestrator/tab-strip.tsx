@@ -271,12 +271,7 @@ export function TabStrip({
 
   return (
     <div
-      // The window drags by the strip's empty run, the way a browser's does;
-      // the tabs and the buttons in it stay theirs.
-      className={cn(
-        "flex h-10 shrink-0 items-center gap-1 px-2 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
-        className,
-      )}
+      className={cn("flex h-10 shrink-0 items-center gap-1 px-2", className)}
       style={TAB_MOTION}
     >
       <div

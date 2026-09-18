@@ -15,6 +15,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useContext, useEffect, useState } from "react";
 
 import { OrchestratorContext, useOrchestrator } from "./context";
+import { ThreadWork } from "./thread-work";
 
 /** How many threads stay mounted behind the one on screen. */
 const KEPT = 4;
@@ -185,6 +186,18 @@ function ThreadScreen({
               <TaskSessionProvider sessionId={sessionId} taskId={taskId}>
                 <TaskChat
                   alwaysSubmittable
+                  // What the thread is working on, over the composer: a
+                  // task pressed opens beside the thread, in the pane.
+                  beforeComposer={
+                    <ThreadWork
+                      onOpen={(id) => {
+                        orchestrator.openScreen(`/orchestrator/tasks/${id}`, {
+                          newTab: true,
+                        });
+                      }}
+                      tasks={thread?.runningTasks ?? []}
+                    />
+                  }
                   composerPlaceholder="Reply in thread"
                   // A key of the thread's own: the task's stored draft is the
                   // top-level field's, and a reply typed here is not that.

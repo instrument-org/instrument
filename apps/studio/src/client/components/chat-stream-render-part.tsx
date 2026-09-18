@@ -29,9 +29,9 @@ export interface RenderPartContext {
   lastMessageId: string | undefined;
   onRetry: (prompt: string) => void;
   /**
-   * The conversation the user talks to shows its words, its questions, and
-   * the tasks it started, and nothing of its machinery: no reasoning, no
-   * command rows, no notes from the harness.
+   * The conversation the user talks to shows its words and its questions,
+   * and nothing of its machinery: no reasoning, no command rows, no cards
+   * for the tasks it started, no notes from the harness.
    */
   presentation?: "orchestrator";
   task: Task;

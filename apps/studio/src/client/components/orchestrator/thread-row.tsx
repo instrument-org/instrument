@@ -32,7 +32,7 @@ import { HoldMarks } from "./hold-marks";
 import { RowActionBar } from "./row-action-bar";
 import { rowClassName, type RowDensity, stopHere } from "./row-shell";
 import { useThreadActions } from "./thread-actions";
-import { activityLabel, type Thread, type Topic } from "./threads";
+import { type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicPickList } from "./topic-menu";
@@ -43,29 +43,29 @@ import { topicTint } from "./topic-tint";
  * opens the thread beside the list (a thread is never a tab, so no gesture
  * asks for one), a right click raises its menu, and the keyboard opens it
  * with Enter. Its
- * state as a dot in a gutter at the left: brand while it works or holds
+ * state as a dot in front of the title: brand while it works or holds
  * replies not yet seen, amber while it waits on the user, nothing while it is
- * quiet. Then the topic it is filed under as a pill, the title in semibold
- * while there is something unseen in it, the agent's latest line (the step it
- * is on, the question it is waiting on, or its last reply's first words), the
- * marks of what it holds, and when anything last happened at the far right.
+ * quiet. Then the title in semibold while there is something unseen in it,
+ * the topics it is filed under as pills in the row's corner, the agent's
+ * latest line (the step it is on, the question it is waiting on, or its last
+ * reply's first words), and the marks of what it holds. No time on the row.
  * Slim, all of that is one line, the way a mailbox lists mail, with the
- * holds held to a share of it; tall, the title has the first line, the
- * latest line gets two, and what it holds sits on a third line that never
- * wraps: the files it made as chips with their names, the apps and sites as
- * marks beside them, fading out at the row's edge; a column down the row's
- * right carries the time and the star at the bottom. No avatar, no name: every row here is the user's. The pill, the
- * marks, the star, the tag control that stands in front of the pill while
- * the pointer is on the row, and the actions that stand over the time then
- * (putting the thread away or back, marking it read or unread) are the
- * row's own controls, and a click on one stops short of the door. The menu
- * offers the same, with the ways to open the thread and its topics.
+ * holds held to a share of it; tall, the title has the first line with the
+ * topics at its end, the latest line gets two, and what it holds sits on a
+ * third line that never wraps: the files it made as chips with their names,
+ * the apps and sites as marks beside them, fading out at the row's edge,
+ * with the star at that line's end in the row's bottom corner. No avatar,
+ * no name: every row here is the user's. The marks, the star, the tag
+ * control that stands in front of the title while the pointer is on the
+ * row, and the actions that stand over the corner then (putting the thread
+ * away or back, marking it read or unread) are the row's own controls, and a
+ * click on one stops short of the door. The menu offers the same, with the
+ * way to open the thread and its topics.
  */
 export function ThreadRow({
   appsBySlug,
   density,
   isOpen,
-  now,
   onNewTopic,
   onOpen,
   onSetTopics,
@@ -76,8 +76,6 @@ export function ThreadRow({
   density: RowDensity;
   /** Whether this thread is the one open beside the list. */
   isOpen: boolean;
-  /** The moment the time at the row's end is read against. */
-  now: Date;
   onNewTopic: () => void;
   /** A plain click: the thread in place of whatever the window shows. */
   onOpen: () => void;
@@ -114,11 +112,9 @@ export function ThreadRow({
       topics={topics}
     />
   );
-  // The first topic by name, and any others by their marks alone: a slim row
-  // has a title to keep, and the marks still say what else it is filed under.
-  const pills = filed.map((topic, index) => (
+  // The topics in the row's corner, each by name.
+  const pills = filed.map((topic) => (
     <TopicPill
-      compact={index > 0}
       key={topic.id}
       onPick={() => {
         setPicking(true);
@@ -134,16 +130,6 @@ export function ThreadRow({
       )}
     >
       {thread.title}
-    </span>
-  );
-  const time = (
-    <span
-      className={cn(
-        "shrink-0 text-right text-[11px] tabular-nums",
-        isUnseen ? "text-foreground" : "text-muted-foreground",
-      )}
-    >
-      {activityLabel(new Date(thread.updatedAt), now)}
     </span>
   );
   return (
@@ -162,19 +148,14 @@ export function ThreadRow({
           role="button"
           tabIndex={0}
         >
-          {/* The gutter: the state alone, on the first line's height so the
-            dot sits beside the title whatever the row's shape. */}
-          <span className="flex h-5 w-4 shrink-0 items-center justify-center">
-            <StateDot thread={thread} />
-          </span>
           {density === "slim" ? (
             <>
               {/* The title's column is fixed, so every row's latest line
                 starts at one edge and the column reads down as a list of
-                names. */}
+                names. The state sits in front of the title as a dot. */}
               <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
+                <StateDot thread={thread} />
                 {tagControl}
-                {pills}
                 {title}
               </span>
               <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
@@ -192,44 +173,46 @@ export function ThreadRow({
                   />
                 </HoldsInThread>
               )}
-              <span className="w-14 shrink-0 text-right">{time}</span>
-              {/* Past the time at the row's end, in view, where mail keeps
-                its star: a mark of the user's own, apart from the row's
-                actions. */}
+              {/* The topics at the row's end, then the star past them, in
+                view, where mail keeps its star: a mark of the user's own,
+                apart from the row's actions. */}
+              <span className="flex shrink-0 items-center gap-1">{pills}</span>
               <StarControl thread={thread} />
             </>
           ) : (
-            <>
-              <div className="min-w-0 flex-1">
-                <p className="flex h-5 items-center gap-1.5">
-                  {tagControl}
+            <div className="min-w-0 flex-1">
+              {/* The state as a dot in front of the title, and the topics
+                at the line's end in the row's corner. */}
+              <div className="flex h-5 items-center gap-1.5">
+                <StateDot thread={thread} />
+                {tagControl}
+                {title}
+                <span className="ml-auto flex shrink-0 items-center gap-1">
                   {pills}
-                  {title}
-                </p>
-                <Peek className="mt-0.5" lines={2} thread={thread} />
-                {hasHolds && (
+                </span>
+              </div>
+              <Peek className="mt-0.5" lines={2} thread={thread} />
+              {/* The holds and, at the line's end, the star in the row's
+                bottom corner, where mail keeps it. */}
+              <div className="mt-1 flex items-end gap-2">
+                {hasHolds ? (
                   <HoldsInThread threadId={thread.id}>
                     <HoldMarks
                       appsBySlug={appsBySlug}
-                      className="mt-1 gap-1"
+                      className="min-w-0 flex-1 gap-1"
                       holds={thread.holds}
                       namedFiles
                       wrap={false}
                     />
                   </HoldsInThread>
+                ) : (
+                  <span className="min-w-0 flex-1" />
                 )}
-              </div>
-              {/* A column of the row's own down its right: the time on the
-                title's line and the star at the bottom, in view and apart
-                from the row's actions, where mail keeps it. A column rather
-                than a corner, so no line of words ever runs under either. */}
-              <div className="flex shrink-0 flex-col items-end gap-0.5 self-stretch">
-                <span className="flex h-5 items-center">{time}</span>
-                <span className="mt-auto -mr-1">
+                <span className="-mr-1 -mb-0.5 shrink-0">
                   <StarControl thread={thread} />
                 </span>
               </div>
-            </>
+            </div>
           )}
           <RowActionBar actions={actions} density={density} />
         </div>
@@ -476,7 +459,7 @@ function StarControl({ thread }: { thread: Thread }) {
     >
       <StarIcon
         className="size-3.5"
-        weight={thread.starred ? "fill" : "regular"}
+        weight={thread.starred ? "fill" : "bold"}
       />
     </button>
   );
@@ -492,7 +475,7 @@ function StateDot({ thread }: { thread: Thread }) {
     return (
       <span
         aria-label="Needs you"
-        className="size-2 rounded-full bg-warning-500"
+        className="size-2 shrink-0 rounded-full bg-warning-500"
       />
     );
   }
@@ -500,7 +483,7 @@ function StateDot({ thread }: { thread: Thread }) {
     return (
       <span
         aria-label={thread.state === "working" ? "Working" : "Unread"}
-        className="size-2 rounded-full bg-brand-500"
+        className="size-2 shrink-0 rounded-full bg-brand-500"
       />
     );
   }

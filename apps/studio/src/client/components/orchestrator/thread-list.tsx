@@ -83,7 +83,6 @@ export function ThreadList({
           density={density}
           isOpen={thread.id === openId}
           key={thread.id}
-          now={now}
           onNewTopic={() => {
             onNewTopic(thread);
           }}

@@ -63,7 +63,6 @@ const sessionId = StoreId.newSessionId();
 const INPUT = { id: "orchestrator", sessionId };
 
 /** The moment every row is read at: a Wednesday afternoon. */
-const NOW = new Date(2026, 8, 16, 14, 30);
 
 /** When the fixture's thread last moved, earlier the same day. */
 const MOVED_AT = new Date(2026, 8, 16, 9, 11);
@@ -163,27 +162,20 @@ function barOf(row: HTMLElement) {
   };
 }
 
-/** The state dot in the gutter, if the thread wears one. */
+/** The state dot in front of the title, if the thread wears one. */
 function dotOf(row: HTMLElement) {
-  return gutterOf(row).querySelector<HTMLElement>("[aria-label]");
+  return row.querySelector<HTMLElement>(
+    '[aria-label="Unread"], [aria-label="Working"], [aria-label="Needs you"]',
+  );
 }
 
-/** The first line of a tall row: the pill and the title, beside the column the time heads. */
+/** The first line of a tall row: the dot, the title, and the pills at its end. */
 function firstLineOf(row: HTMLElement) {
-  const line = row.children[1]?.firstElementChild;
+  const line = row.firstElementChild?.firstElementChild;
   if (!(line instanceof HTMLElement)) {
     throw new TypeError("no first line");
   }
   return line;
-}
-
-/** The gutter at the row's left, which holds the state. */
-function gutterOf(row: HTMLElement) {
-  const gutter = row.firstElementChild;
-  if (!(gutter instanceof HTMLElement)) {
-    throw new TypeError("no gutter");
-  }
-  return gutter;
 }
 
 /** The marks of what the thread holds: every button that is not a control of the row's own. */
@@ -278,7 +270,6 @@ async function renderRows(
             }
             density={spec.density}
             isOpen={false}
-            now={NOW}
             onNewTopic={vi.fn()}
             onOpen={onOpen}
             onSetTopics={onSetTopics}
@@ -295,15 +286,6 @@ async function renderRows(
   return { ...rendered, onOpen, onSetTopics, openScreen, rows };
 }
 
-/** The time at the row's end. */
-function timeOf(row: HTMLElement) {
-  const time = row.querySelector<HTMLElement>(".text-right");
-  if (!time) {
-    throw new Error("no time");
-  }
-  return time;
-}
-
 /** The title, which is the one line of words every row has. */
 function titleOf(row: HTMLElement) {
   const title = [...row.querySelectorAll("span")].find(
@@ -316,35 +298,25 @@ function titleOf(row: HTMLElement) {
 }
 
 describe("ThreadRow", () => {
-  it("lies down to one line across a wide list, the time at the far right and no ask on it", async () => {
+  it("lies down to one line across a wide list, the pills and the star at the far right, no ask and no time on it", async () => {
     const { row } = await renderRow(thread({ topics: ["house"] }), {
       density: "slim",
     });
     expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(40);
-    expect(row.textContent).toContain(TITLE);
-    expect(row.textContent).toContain("9:11 AM");
-    expect(row.textContent).not.toContain(ASK);
-    expect(row.textContent).not.toContain("replies");
-    // Nothing past the time but the star, which is the row's own mark.
-    const time = timeOf(row).getBoundingClientRect();
-    for (const child of row.children) {
-      if (
-        child.querySelector('[aria-label="Star"]') ||
-        child.matches('[aria-label="Star"]')
-      ) {
-        continue;
-      }
-      expect(child.getBoundingClientRect().right).toBeLessThanOrEqual(
-        time.right,
-      );
-    }
+    expect(row.textContent).toBe(`${TITLE}${REPLY}🏠House`);
+    // Nothing past the pill but the star, which is the row's own mark.
+    const pill = pillOf(row)?.getBoundingClientRect();
+    const star = row
+      .querySelector('[aria-label="Star"]')
+      ?.getBoundingClientRect();
+    expect(star?.left).toBeGreaterThanOrEqual(pill?.right ?? 0);
     // The latest line starts past the title's column, never under it.
     expect(peekOf(row)?.getBoundingClientRect().left).toBeGreaterThan(
       titleOf(row).getBoundingClientRect().right,
     );
   });
 
-  it("stacks when the list is narrow: the title and the time on one line, the latest under it, the files under that", async () => {
+  it("stacks when the list is narrow: the title with the pill at its end on one line, the latest under it, the files under that", async () => {
     const { row } = await renderRow(
       thread({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
@@ -353,16 +325,12 @@ describe("ThreadRow", () => {
     );
     expect(row.getBoundingClientRect().height).toBeGreaterThan(40);
     const first = firstLineOf(row);
-    expect(first.textContent).toContain("House");
-    expect(first.textContent).toContain(TITLE);
-    // The time on the title's line, in a column of its own at the right.
-    const time = timeOf(row).getBoundingClientRect();
-    expect(time.top).toBeGreaterThanOrEqual(first.getBoundingClientRect().top);
-    expect(time.bottom).toBeLessThanOrEqual(
-      first.getBoundingClientRect().bottom,
-    );
-    expect(time.left).toBeGreaterThanOrEqual(
-      first.getBoundingClientRect().right,
+    expect(first.textContent).toBe(`${TITLE}🏠House`);
+    // The pill on the title's line, at its end in the row's corner.
+    const pill = pillOf(row)?.getBoundingClientRect();
+    expect(pill?.top).toBeGreaterThanOrEqual(first.getBoundingClientRect().top);
+    expect(pill?.left).toBeGreaterThan(
+      titleOf(row).getBoundingClientRect().right,
     );
     expect(row.textContent).not.toContain(ASK);
     const peek = peekOf(row);
@@ -397,7 +365,7 @@ describe("ThreadRow", () => {
     expect(slim.scrollWidth).toBe(slim.clientWidth);
   });
 
-  it("carries no reply count: the time is the only figure at the row's right", async () => {
+  it("carries no reply count and no time", async () => {
     const { rows } = await renderRows([
       { density: "tall", thread: thread({ replyCount: 3 }) },
       { density: "slim", thread: thread({ replyCount: 3 }) },
@@ -408,7 +376,7 @@ describe("ThreadRow", () => {
     }
     expect(tall.querySelector('[aria-label="3 replies"]')).toBeNull();
     expect(firstLineOf(tall).textContent).toBe(TITLE);
-    expect(slim.textContent).toBe(`${TITLE}${REPLY}9:11 AM`);
+    expect(slim.textContent).toBe(`${TITLE}${REPLY}`);
   });
 
   it.each<[string, Partial<Thread>, null | { color: string; label: string }]>([
@@ -450,25 +418,16 @@ describe("ThreadRow", () => {
       throw new Error("no rows");
     }
     expect(titleOf(unseen).className).toContain("font-semibold");
-    expect(timeOf(unseen).className).toContain("text-foreground");
     expect(titleOf(seen).className).not.toContain("font-semibold");
-    expect(timeOf(seen).className).toContain("text-muted-foreground");
   });
 
-  it("wears a pill per topic: the first by name, the rest by their marks", async () => {
+  it("wears a pill per topic, each by name, at the title's end", async () => {
     const { row } = await renderRow(thread({ topics: ["money", "house"] }));
     const pills = [...row.querySelectorAll("button.rounded-full")];
-    expect(pills.map((pill) => pill.textContent)).toEqual(["💸Money", "🏠"]);
-    expect(pills[1]?.getAttribute("title")).toBe("House");
-  });
-
-  it.each([
-    ["the clock while it is today", MOVED_AT, "9:11 AM"],
-    ["the weekday within the week", new Date(2026, 8, 13, 9, 11), "Sun"],
-    ["the date past that", new Date(2026, 8, 6, 9, 11), "Sep 6"],
-  ])("says when anything last happened as %s", async (_, at, label) => {
-    const { row } = await renderRow(thread({ updatedAt: at.getTime() }));
-    expect(timeOf(row).textContent).toBe(label);
+    expect(pills.map((pill) => pill.textContent)).toEqual([
+      "💸Money",
+      "🏠House",
+    ]);
   });
 
   it("shows the step in brand while working, and the question behind the amber glyph while waiting", async () => {
@@ -517,7 +476,7 @@ describe("ThreadRow", () => {
       thread({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
     );
     expect(peekOf(row)).toBeNull();
-    expect(row.textContent).toBe(`${TITLE}9:11 AM`);
+    expect(row.textContent).toBe(TITLE);
   });
 
   it("opens the thread from a click anywhere on it, and from Enter", async () => {
@@ -525,7 +484,7 @@ describe("ThreadRow", () => {
       thread({ topics: ["house"] }),
     );
     row.click();
-    gutterOf(row).click();
+    firstLineOf(row).click();
     titleOf(row).click();
     peekOf(row)?.click();
     expect(onOpen).toHaveBeenCalledTimes(4);
@@ -544,7 +503,7 @@ describe("ThreadRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("wears the hover ground across the whole row, and puts the tag control in front of the pill then", async () => {
+  it("wears the hover ground across the whole row, and puts the tag control in front of the title then", async () => {
     const { row } = await renderRow(
       thread({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
@@ -558,20 +517,20 @@ describe("ThreadRow", () => {
     // Out of the flow at rest: it takes no room until the pointer arrives.
     expect(control.getClientRects().length).toBe(0);
     const chipBefore = marksOf(row)[0]?.getBoundingClientRect();
-    const pillBefore = pillOf(row)?.getBoundingClientRect();
-    await userEvent.hover(gutterOf(row));
+    const titleBefore = titleOf(row).getBoundingClientRect();
+    await userEvent.hover(titleOf(row));
     await vi.waitFor(() => {
       expect(control.getClientRects().length).toBeGreaterThan(0);
     });
-    const pillAfter = pillOf(row)?.getBoundingClientRect();
+    const titleAfter = titleOf(row).getBoundingClientRect();
     expect(control.getBoundingClientRect().right).toBeLessThanOrEqual(
-      pillAfter?.left ?? 0,
+      titleAfter.left,
     );
-    expect(pillAfter?.left ?? 0).toBeGreaterThan(pillBefore?.left ?? 0);
+    expect(titleAfter.left).toBeGreaterThan(titleBefore.left);
     expect(getComputedStyle(row).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
     // Nothing under the first line moves with the pointer.
     expect(marksOf(row)[0]?.getBoundingClientRect()).toEqual(chipBefore);
-    await userEvent.unhover(gutterOf(row));
+    await userEvent.unhover(titleOf(row));
   });
 
   it("carries what it holds as chips named for the files and bare marks for the rest, behind a count past a few", async () => {
@@ -730,7 +689,7 @@ describe("ThreadRow", () => {
       throw new Error("no tag control");
     }
     // The control is in the flow only while the pointer is on the row.
-    await userEvent.hover(gutterOf(row));
+    await userEvent.hover(titleOf(row));
     await vi.waitFor(() => {
       expect(control.getClientRects().length).toBeGreaterThan(0);
     });
@@ -768,7 +727,7 @@ describe("the row's actions", () => {
   });
 
   it.each<RowDensity>(["tall", "slim"])(
-    "stand over the time at the %s row's right end while the pointer is on it, out of the flow at rest",
+    "stand over the %s row's right end while the pointer is on it, out of the flow at rest",
     async (density) => {
       const { row } = await renderRow(thread(), { density });
       const { bar, labels } = barOf(row);
@@ -776,27 +735,29 @@ describe("the row's actions", () => {
       // The pointer is wherever the last test left it, which may be here.
       await userEvent.unhover(row);
       expect(bar.getClientRects().length).toBe(0);
-      const before = timeOf(row).getBoundingClientRect();
-      await userEvent.hover(gutterOf(row));
+      const before = titleOf(row).getBoundingClientRect();
+      await userEvent.hover(titleOf(row));
       await vi.waitFor(() => {
         expect(bar.getClientRects().length).toBeGreaterThan(0);
       });
       const box = bar.getBoundingClientRect();
-      const time = timeOf(row).getBoundingClientRect();
-      expect(box.right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
-      expect(box.left).toBeLessThan(time.right);
-      expect(box.top).toBeLessThan(time.bottom);
-      expect(box.bottom).toBeGreaterThan(time.top);
-      // Nothing on the row moved for them.
-      expect(time.right).toBe(before.right);
-      expect(time.top).toBe(before.top);
-      await userEvent.unhover(gutterOf(row));
+      const edge = row.getBoundingClientRect();
+      expect(box.right).toBeLessThanOrEqual(edge.right);
+      expect(box.right).toBeGreaterThan(edge.right - 80);
+      expect(box.top).toBeGreaterThanOrEqual(edge.top);
+      // Nothing on the row moved for them but the tag control's arrival in
+      // front of the title.
+      expect(titleOf(row).getBoundingClientRect().top).toBeCloseTo(
+        before.top,
+        0,
+      );
+      await userEvent.unhover(titleOf(row));
     },
   );
 
   it("puts the thread away from its edge, short of the door, and offers it back from the toast", async () => {
     const { onOpen, row } = await renderRow(thread());
-    await userEvent.hover(gutterOf(row));
+    await userEvent.hover(titleOf(row));
     await userEvent.click(actionOf(row, "Archive"));
     expect(calls.archive).toHaveBeenCalledWith(INPUT);
     expect(onOpen).not.toHaveBeenCalled();
@@ -810,7 +771,7 @@ describe("the row's actions", () => {
   it("offers a thread put away the way back", async () => {
     const { row } = await renderRow(thread({ archived: true }));
     expect(barOf(row).labels).toEqual(["Unarchive", "Mark as unread"]);
-    await userEvent.hover(gutterOf(row));
+    await userEvent.hover(titleOf(row));
     await userEvent.click(actionOf(row, "Unarchive"));
     expect(calls.unarchive).toHaveBeenCalledWith(INPUT);
     expect(calls.archive).not.toHaveBeenCalled();
@@ -824,7 +785,7 @@ describe("the row's actions", () => {
     "offers %s, which asks the route and says nothing",
     async (label, overrides, call) => {
       const { onOpen, row } = await renderRow(thread(overrides));
-      await userEvent.hover(gutterOf(row));
+      await userEvent.hover(titleOf(row));
       await userEvent.click(actionOf(row, label));
       expect(call).toHaveBeenCalledWith(INPUT);
       expect(onOpen).not.toHaveBeenCalled();
@@ -889,35 +850,32 @@ describe("the row's actions", () => {
     if (!slim || !tall) {
       throw new Error("no rows");
     }
-    // Past the time on the wide row.
+    // At the wide row's end, past the latest line.
     const control = slim.querySelector<HTMLButtonElement>(
       '[aria-label="Star"]',
     );
     expect(control).not.toBeNull();
     expect(control?.getBoundingClientRect().left).toBeGreaterThanOrEqual(
-      timeOf(slim).getBoundingClientRect().right,
+      peekOf(slim)?.getBoundingClientRect().right ?? 0,
     );
     control?.click();
     await vi.waitFor(() => {
       expect(calls.star).toHaveBeenCalledWith({ ...INPUT, starred: true });
     });
-    // At the lower right of the narrow row, under the time, filled once given.
+    // At the lower right of the narrow row, under the first line, filled
+    // once given.
     const given = tall.querySelector<HTMLButtonElement>(
       '[aria-label="Unstar"]',
     );
     expect(given?.getAttribute("aria-pressed")).toBe("true");
     expect(given?.getBoundingClientRect().top).toBeGreaterThan(
-      timeOf(tall).getBoundingClientRect().bottom,
+      firstLineOf(tall).getBoundingClientRect().bottom,
     );
     expect(given?.getBoundingClientRect().right).toBeLessThanOrEqual(
       tall.getBoundingClientRect().right,
     );
-    // Nothing runs under it: the latest line and the holds stop short of
-    // the column it stands in.
+    // The holds on its line stop short of it.
     const starLeft = given?.getBoundingClientRect().left ?? 0;
-    expect(peekOf(tall)?.getBoundingClientRect().right).toBeLessThanOrEqual(
-      starLeft,
-    );
     for (const mark of marksOf(tall)) {
       expect(mark.getBoundingClientRect().left).toBeLessThan(starLeft);
     }

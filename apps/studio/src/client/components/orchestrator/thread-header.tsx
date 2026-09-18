@@ -30,8 +30,8 @@ import { TopicMark } from "./topic-mark";
 
 /**
  * The head over a thread's conversation, the way a task's page heads its
- * chat: the topic it is filed under and its title at the left with the
- * thread's own menu hugging them, and at the right the pane toggle while
+ * chat: its title at the left, the topics it is filed under after it, and
+ * the thread's own menu hugging them, and at the right the pane toggle while
  * the pane is closed. No way out of the thread here: the thread stays
  * beside the inbox until the inbox is dragged over it. Nothing under the
  * head but air: the transcript starts below.
@@ -58,12 +58,13 @@ export function ThreadHeader({
   return (
     <div className="flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
       <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2 select-none">
-        {filed.map((topic) => (
-          <TopicPill key={topic.id} topic={topic} />
-        ))}
         <h2 className="min-w-0 truncate text-sm font-medium">
           {thread?.title ?? "Thread"}
         </h2>
+        {/* After the title, the way mail puts a label after a subject. */}
+        {filed.map((topic) => (
+          <TopicPill key={topic.id} topic={topic} />
+        ))}
         {thread && (
           <ThreadMenu
             onNewTopic={onNewTopic}

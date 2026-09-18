@@ -3,6 +3,7 @@ import {
   everyTabIdAtom,
   NEW_TAB_HREF,
   orchestratorRecentsAtom,
+  paneOpenByGroupAtom,
   originOf,
   RECENTS_MAX,
   siteFaviconsAtom,
@@ -312,11 +313,13 @@ export function BrowserTabs({
   });
 
   // A task the conversation started browses here too: its guest is mounted
-  // in this window, and the moment one attaches it gets a tab, behind the one
-  // on screen, so the user can watch it work. Only a guest arriving is a tab
-  // to add: one the user closed is still attached until the close lands, and
-  // must not come straight back.
+  // in this window, and the moment one attaches it gets a tab in front of
+  // its thread's, with the pane up, so the user sees it work rather than
+  // finding it behind whatever they had open. Only a guest arriving is a
+  // tab to add: one the user closed is still attached until the close lands,
+  // and must not come straight back.
   const seenTargets = useRef(new Set<BrowserTargetId>());
+  const setPaneOpenByGroup = useSetAtom(paneOpenByGroupAtom);
   useEffect(() => {
     const arrived = [...attached].filter(
       (target) => !seenTargets.current.has(target),
@@ -347,18 +350,51 @@ export function BrowserTabs({
     // In the group of the thread the task was filed from, so a task's
     // browsing stays with its thread; a task filed outside any thread
     // browses among the window's own tabs.
-    setAllTabs((current) => ({
-      ...current,
-      tabs: [
-        ...current.tabs,
-        ...newcomers.map((tab) => ({
-          ...tab,
-          group: groupOfTask(tab.taskId),
-          kind: "page" as const,
-        })),
-      ],
+    const arriving = newcomers.map((tab) => ({
+      ...tab,
+      group: groupOfTask(tab.taskId),
+      kind: "page" as const,
     }));
-  }, [attached, everyTabId, groupOfTask, setAllTabs, taskId]);
+    setAllTabs((current) => {
+      // The last to arrive is the one in front: on screen when its group is
+      // up, and remembered for the group otherwise, so the thread comes
+      // back at the task's page.
+      const front = arriving.findLast(
+        (tab): tab is typeof tab & { group: string } => tab.group !== undefined,
+      );
+      if (!front) {
+        return { ...current, tabs: [...current.tabs, ...arriving] };
+      }
+      const isUp = front.group === current.group;
+      return {
+        ...current,
+        ...(isUp
+          ? { activeId: front.id }
+          : {
+              activeByGroup: {
+                ...current.activeByGroup,
+                [front.group]: front.id,
+              },
+            }),
+        tabs: [...current.tabs, ...arriving],
+      };
+    });
+    setPaneOpenByGroup((current) => ({
+      ...current,
+      ...Object.fromEntries(
+        arriving.flatMap((tab) =>
+          tab.group === undefined ? [] : [[tab.group, true]],
+        ),
+      ),
+    }));
+  }, [
+    attached,
+    everyTabId,
+    groupOfTask,
+    setAllTabs,
+    setPaneOpenByGroup,
+    taskId,
+  ]);
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the

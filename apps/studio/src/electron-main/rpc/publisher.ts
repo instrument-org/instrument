@@ -58,6 +58,7 @@ interface PublisherEvents {
   "orchestrator.command":
     | "back"
     | "closeTab"
+    | "findInPage"
     | "forward"
     | "newTab"
     | "nextTab"

@@ -34,6 +34,16 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
         },
         label: "Search or Ask",
       },
+      // A focused page guest takes the keyboard, so the chord reaches the
+      // window only as this accelerator; the renderer opens the find bar in
+      // the page on screen, and does nothing when none is.
+      {
+        accelerator: "CmdOrCtrl+F",
+        click: () => {
+          publisher.publish("orchestrator.command", "findInPage");
+        },
+        label: "Find in Page",
+      },
       { type: "separator" },
       {
         accelerator: "CmdOrCtrl+T",

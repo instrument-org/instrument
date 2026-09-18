@@ -91,6 +91,7 @@ import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { requestBrowserFind } from "@/client/lib/foreground-browser-registry";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
@@ -1613,6 +1614,12 @@ function useWindowCommands(handlers: {
             }
             case "closeTab": {
               latest.current.closeTab();
+              break;
+            }
+            case "findInPage": {
+              // The page on screen registers itself as the foreground
+              // browser; with none up there is nothing to search.
+              requestBrowserFind();
               break;
             }
             case "forward": {

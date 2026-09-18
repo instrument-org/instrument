@@ -50,6 +50,7 @@ interface RenderOptions {
   alwaysShowFooter?: boolean;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
+  presentation?: "orchestrator";
   releaseAutoScroll?: () => void;
   renderAsItems?: boolean;
 }
@@ -114,6 +115,7 @@ function chatStream(
     alwaysShowFooter = false,
     isAgentRunning = false,
     isDeveloperMode = false,
+    presentation,
     releaseAutoScroll,
     renderAsItems = false,
   }: RenderOptions = {},
@@ -130,6 +132,7 @@ function chatStream(
         onRetry={vi.fn()}
         onRunAgain={vi.fn()}
         onStartNewTask={vi.fn()}
+        {...(presentation ? { presentation } : {})}
         renderAsItems={renderAsItems}
         task={task}
       />
@@ -1094,5 +1097,49 @@ describe("ChatStream and a reasoning block that never wrote anything", () => {
     });
 
     expect(screen.getByText("Reading Q1")).toBeTruthy();
+  });
+});
+
+// The conversation's replies are one bubble per line said. A model that
+// retries a failed command says its line again before the retry, so the
+// same words landed twice in one turn; the second copy is not shown.
+describe("ChatStream in the conversation, and a line said twice in one turn", () => {
+  it("draws the line once within a turn, and again in the next turn", () => {
+    renderMessages(
+      [
+        userMessage("Check the listing"),
+        assistantMessage([prose("Rechecking the listing now.")], {
+          finishedAt: new Date(1),
+        }),
+        assistantMessage([prose("Rechecking the listing now.")], {
+          finishedAt: new Date(2),
+        }),
+        userMessage("Thanks"),
+        assistantMessage([prose("Rechecking the listing now.")], {
+          finishedAt: new Date(3),
+        }),
+      ],
+      { presentation: "orchestrator" },
+    );
+
+    expect(screen.getAllByText("Rechecking the listing now.")).toHaveLength(2);
+  });
+
+  it("keeps a line that differs from the one before it", () => {
+    renderMessages(
+      [
+        userMessage("Check the listing"),
+        assistantMessage([prose("Rechecking the listing now.")], {
+          finishedAt: new Date(1),
+        }),
+        assistantMessage([prose("It is out of stock.")], {
+          finishedAt: new Date(2),
+        }),
+      ],
+      { presentation: "orchestrator" },
+    );
+
+    expect(screen.getByText("Rechecking the listing now.")).toBeTruthy();
+    expect(screen.getByText("It is out of stock.")).toBeTruthy();
   });
 });

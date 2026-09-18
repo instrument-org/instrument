@@ -470,8 +470,15 @@ export function ChatStream({
     // by the message that opened it.
     let turnRows: React.ReactNode[] = [];
     let turnId: StoreId.Message | undefined;
+    // The words the conversation last said in this turn. A model that retries
+    // a failed command says its line again before the retry, and the second
+    // copy is the same reply twice, not a second reply.
+    let lastSaidInTurn: string | undefined;
 
     for (const [messageIndex, message] of regularMessages.entries()) {
+      if (message.role === "user") {
+        lastSaidInTurn = undefined;
+      }
       const messageRows: MessageRow[] = [];
 
       const nextMessage = regularMessages[messageIndex + 1];
@@ -499,6 +506,19 @@ export function ChatStream({
         if (isComposing && part.type === "text") {
           heldBackRowId ??= part.metadata.id;
           continue;
+        }
+        if (
+          presentation === "orchestrator" &&
+          message.role === "assistant" &&
+          part.type === "text"
+        ) {
+          const said = part.text.trim();
+          if (said !== "") {
+            if (said === lastSaidInTurn) {
+              continue;
+            }
+            lastSaidInTurn = said;
+          }
         }
         let browserStatusContextAdded = false;
         if (part.type === "data-browserStatus") {

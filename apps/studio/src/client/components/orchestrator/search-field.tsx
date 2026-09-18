@@ -2,12 +2,13 @@ import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
+import { useState } from "react";
 
 /**
  * The search as a field over the inbox, the way mail puts it: it narrows the
  * list as it is typed into, and an x or Escape empties it. A pill, with its
- * glass and its word centered while it holds nothing, the way a search box
- * rests; the words typed into it start at the left, behind the glass.
+ * glass and its word centered while it rests empty, the way a search box
+ * rests; the caret and the words typed start at the left, behind the glass.
  * Nothing here takes focus on its own unless asked to.
  */
 export function SearchField({
@@ -19,10 +20,11 @@ export function SearchField({
   onChange: (value: string) => void;
   value: string;
 }) {
-  const isEmpty = value === "";
+  const [isFocused, setFocused] = useState(false);
+  const isResting = value === "" && !isFocused;
   return (
     <div className="relative">
-      {isEmpty ? (
+      {isResting ? (
         // The resting face, over the field and out of the pointer's way: the
         // field's own placeholder cannot carry the glass beside the word.
         <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
@@ -37,11 +39,16 @@ export function SearchField({
         autoFocus={autoFocus}
         className={cn(
           "h-7 rounded-full pr-6 pl-8 text-xs",
-          // Centered while empty, so the caret waits beside the word.
-          isEmpty && "text-center",
+          isResting && "text-center",
         )}
+        onBlur={() => {
+          setFocused(false);
+        }}
         onChange={(event) => {
           onChange(event.target.value);
+        }}
+        onFocus={() => {
+          setFocused(true);
         }}
         onKeyDown={(event) => {
           if (event.key === "Escape" && value !== "") {
@@ -50,6 +57,7 @@ export function SearchField({
             onChange("");
           }
         }}
+        placeholder={isResting ? undefined : "Search"}
         type="text"
         value={value}
       />

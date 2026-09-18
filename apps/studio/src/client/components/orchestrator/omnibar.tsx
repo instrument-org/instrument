@@ -144,6 +144,10 @@ export function Omnibar({
   const [query, setQuery] = useState(initial);
   const [highlight, setHighlight] = useState(0);
   const [isEditing, setEditing] = useState(resting === undefined);
+  // Whether the caret is in the box: a new tab's box is editing whether or
+  // not it has focus, so this is the one that says where the placeholder
+  // sits.
+  const [isFocused, setFocused] = useState(false);
   // What was typed over the place, which is what the rows answer to; the
   // place itself, left as it was, asks for nothing.
   const typed = query.trim() === initial.trim() ? "" : query.trim();
@@ -490,8 +494,9 @@ export function Omnibar({
         className={cn(
           "h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground",
           // A new tab's empty box rests with its placeholder centered, the
-          // way a search box does; words typed into it start at the left.
-          resting === undefined && query === "" && "text-center",
+          // way a search box does; the caret and the words typed start at
+          // the left.
+          resting === undefined && query === "" && !isFocused && "text-center",
           // Kept in the box while the place is shown, so a press on the box
           // has something to put the caret in; it takes the box over on focus.
           // Out of the pointer's way while it lies over the place, so a press
@@ -502,6 +507,7 @@ export function Omnibar({
             "pointer-events-none absolute inset-0 opacity-0",
         )}
         onBlur={() => {
+          setFocused(false);
           // The list goes with the caret, wherever the box is; a place's own
           // name comes back into the box once it is left.
           setEditing(false);
@@ -514,6 +520,7 @@ export function Omnibar({
           setHighlight(0);
         }}
         onFocus={(event) => {
+          setFocused(true);
           setEditing(true);
           // The place, selected whole, so typing replaces it the way it does
           // in a browser's address bar.

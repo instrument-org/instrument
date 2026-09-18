@@ -133,11 +133,6 @@ export function matchesFilters(
   );
 }
 
-/** The address of a thread's own task list, which the strip's button opens or brings forward. */
-export function threadTasksHref(sessionId: string) {
-  return `/orchestrator/tasks?thread=${encodeURIComponent(sessionId)}`;
-}
-
 /** A group with nothing chosen narrows nothing; one with choices wants any of them. */
 function anyOf<T extends string>(chosen: T[], held: T[]) {
   return chosen.length === 0 || chosen.some((entry) => held.includes(entry));

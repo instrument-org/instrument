@@ -55,7 +55,7 @@ import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
 import { ThreadTasksButton } from "@/client/components/orchestrator/thread-tasks-button";
-import { threadTasksHref } from "@/client/components/orchestrator/threads";
+import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-view";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
@@ -390,13 +390,25 @@ function OrchestratorLayout() {
     return parsed.success ? parsed.data : undefined;
   })();
   const isPageOnScreen = active?.kind === "page";
+  // The thread whose task list is the pane's face, over whatever tab it has
+  // up: a fixed view rather than a tab, so it is never among the tabs to
+  // close or keep track of. Put away by picking a tab or opening anything,
+  // which both change the tab on screen, and by pressing its control again.
+  const [tasksViewFor, setTasksViewFor] = useState<StoreId.Session>();
+  const isTasksViewUp =
+    tasksViewFor !== undefined && tasksViewFor === threadUp;
+  const activeTabId = active?.id;
+  useEffect(() => {
+    setTasksViewFor(undefined);
+  }, [activeTabId]);
   // The pane beside the conversation: open unless this group put it away,
-  // and shown only while there are tabs to show in it. Closing the last tab
-  // closes the pane; the toggle brings it back with a new tab in it.
+  // and shown only while there are tabs to show in it or its tasks are its
+  // face. Closing the last tab closes the pane; the toggle brings it back
+  // with a new tab in it.
   const isPaneWanted =
     windowTabs.group === undefined ||
     (paneOpenByGroup[windowTabs.group] ?? true);
-  const showsPane = tabs.length > 0 && isPaneWanted;
+  const showsPane = (tabs.length > 0 || isTasksViewUp) && isPaneWanted;
   const setPaneOpen = (group: string, isOpen: boolean) => {
     setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
   };
@@ -671,6 +683,9 @@ function OrchestratorLayout() {
               threadTitles,
             })
           : { kind: "newTab" };
+    if (isTasksViewUp) {
+      return { kind: "tasks" };
+    }
     if (fromTab.kind === "folder" && screenView?.folder) {
       return { ...fromTab, path: screenView.folder.display };
     }
@@ -1303,8 +1318,11 @@ function OrchestratorLayout() {
                           windowTabs.openScreen(NEW_TAB_HREF);
                         }}
                         onReorder={windowTabs.reorder}
-                        onSelect={windowTabs.select}
-                        selectedId={active?.id}
+                        onSelect={(id) => {
+                          setTasksViewFor(undefined);
+                          windowTabs.select(id);
+                        }}
+                        selectedId={isTasksViewUp ? undefined : active?.id}
                         tabs={tabs}
                         threadTitles={threadTitles}
                         trailing={
@@ -1315,14 +1333,14 @@ function OrchestratorLayout() {
                               yet. */}
                             {threadUp !== undefined && (
                               <ThreadTasksButton
-                                isOpen={
-                                  active?.kind === "screen" &&
-                                  active.href === threadTasksHref(threadUp)
-                                }
+                                isOpen={isTasksViewUp}
                                 onOpen={() => {
-                                  openScreen(threadTasksHref(threadUp), {
-                                    newTab: true,
-                                  });
+                                  if (isTasksViewUp) {
+                                    setTasksViewFor(undefined);
+                                    return;
+                                  }
+                                  setTasksViewFor(threadUp);
+                                  setPaneOpen(threadUp, true);
                                 }}
                               />
                             )}
@@ -1361,7 +1379,10 @@ function OrchestratorLayout() {
                       <div
                         className={cn(
                           "absolute inset-0 bg-background",
-                          isPageOnScreen && showsRightArea && showsPane
+                          isPageOnScreen &&
+                            showsRightArea &&
+                            showsPane &&
+                            !isTasksViewUp
                             ? undefined
                             : "invisible",
                         )}
@@ -1369,7 +1390,10 @@ function OrchestratorLayout() {
                         {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
                         <ActiveTabProvider
                           isActive={
-                            isPageOnScreen && showsRightArea && showsPane
+                            isPageOnScreen &&
+                            showsRightArea &&
+                            showsPane &&
+                            !isTasksViewUp
                           }
                         >
                           <BrowserTabs
@@ -1379,6 +1403,21 @@ function OrchestratorLayout() {
                           />
                         </ActiveTabProvider>
                       </div>
+                      {/* The thread's tasks as the pane's face, over the tab
+                        up; a task pressed opens as a tab of the thread's,
+                        which puts the face away. */}
+                      {isTasksViewUp && tasksViewFor !== undefined && (
+                        <div className="absolute inset-0 bg-background">
+                          <ThreadTasksView
+                            onOpen={(id) => {
+                              openScreen(`/orchestrator/tasks/${id}`, {
+                                newTab: true,
+                              });
+                            }}
+                            sessionId={tasksViewFor}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

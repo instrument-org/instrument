@@ -484,15 +484,14 @@ export function Omnibar({
 
   return (
     <>
-      {isEditing || resting === undefined ? (
-        <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      ) : (
-        resting
-      )}
+      {!isEditing && resting !== undefined && resting}
       <input
         aria-label="Search or ask"
         className={cn(
           "h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground",
+          // A new tab's empty box rests with its placeholder centered, the
+          // way a search box does; words typed into it start at the left.
+          resting === undefined && query === "" && "text-center",
           // Kept in the box while the place is shown, so a press on the box
           // has something to put the caret in; it takes the box over on focus.
           // Out of the pointer's way while it lies over the place, so a press

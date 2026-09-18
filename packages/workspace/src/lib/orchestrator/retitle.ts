@@ -50,35 +50,41 @@ function isRoot(
   );
 }
 
-async function retitleThread({
+/**
+ * Names a thread again from its root and its latest reply, the way each
+ * finished turn does, and says what it is called now: the new title, the
+ * one it already had when the call agreed with it, or nothing when the
+ * thread has no reply to be named from or no model to ask.
+ */
+export async function retitleThread({
   id,
   parentSessionId,
   sessionId,
 }: {
   id: TaskId;
-  parentSessionId: StoreId.Session | undefined;
+  parentSessionId?: StoreId.Session | undefined;
   sessionId: StoreId.Session;
-}) {
+}): Promise<string | undefined> {
   if (parentSessionId) {
-    return;
+    return undefined;
   }
   const settings = await getTaskSettings(taskDir(id));
   if (settings?.kind !== "orchestrator") {
-    return;
+    return undefined;
   }
   const messages = await Store.getMessagesWithParts({ sessionId, taskId: id });
   if (messages.isErr()) {
-    return;
+    return undefined;
   }
   const sorted = alphabetical(messages.value, (message) => message.id);
   const root = sorted.find(isRoot);
   const reply = lastAssistantTextIn(sorted, REPLY_MAX);
   if (!root || !reply) {
-    return;
+    return undefined;
   }
   const state = await getTaskState(taskDir(id));
   if (!state.selectedModelURI) {
-    return;
+    return undefined;
   }
   const workspaceConfig = getWorkspaceConfig();
   const model = await fetchModel({
@@ -88,11 +94,11 @@ async function retitleThread({
     modelURI: AIGatewayModelURI.Schema.parse(state.selectedModelURI),
   });
   if (!model.ok) {
-    return;
+    return undefined;
   }
   const session = await Store.getSession(sessionId, id);
   if (session.isErr()) {
-    return;
+    return undefined;
   }
   const title = await generateTitleFromUserMessage({
     message: root,
@@ -100,8 +106,11 @@ async function retitleThread({
     reply,
     workspaceConfig,
   });
-  if (title.isErr() || title.value === session.value.title) {
-    return;
+  if (title.isErr()) {
+    return undefined;
+  }
+  if (title.value === session.value.title) {
+    return title.value;
   }
   // Replaced only while the title is still the one read above: a title that
   // landed meanwhile (the opening call finishing late) is the newer fact.
@@ -111,4 +120,5 @@ async function retitleThread({
     taskId: id,
     title: title.value,
   });
+  return title.value;
 }

@@ -1,3 +1,4 @@
+import { useTranscriptActions } from "@/client/components/task/transcript-actions";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -11,11 +12,17 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
+import { rpcClient } from "@/client/rpc/client";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { TagIcon } from "@phosphor-icons/react/Tag";
+import { TextAaIcon } from "@phosphor-icons/react/TextAa";
+import { useMutation } from "@tanstack/react-query";
 import { type ReactNode } from "react";
+import { toast } from "sonner";
 
+import { useOrchestrator } from "./context";
 import { useThreadActions } from "./thread-actions";
 import { TopicPill } from "./thread-row";
 import { type Thread, type Topic } from "./threads";
@@ -76,7 +83,8 @@ export function ThreadHeader({
 /**
  * The thread's own menu, beside its title: what the inbox row offers from
  * its edge and its menu (putting it away, marking it read, starring it),
- * and its topics.
+ * naming it again from where it stands, saving its transcript, and its
+ * topics.
  */
 function ThreadMenu({
   onNewTopic,
@@ -89,7 +97,33 @@ function ThreadMenu({
   thread: Thread;
   topics: Topic[];
 }) {
+  const { taskId } = useOrchestrator();
   const actions = useThreadActions(thread);
+  // The same call that names a thread after each finished turn, on the
+  // user's ask: the conversation moves on, and its name follows when asked.
+  const retitle = useMutation(
+    rpcClient.workspace.orchestrator.threads.retitle.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to rename the thread", {
+          description: error.message,
+        });
+      },
+      onSuccess: ({ title }) => {
+        if (title === undefined) {
+          toast("Nothing to name it from yet");
+        } else if (title === thread.title) {
+          toast("The name still fits");
+        } else {
+          toast(`Renamed to “${title}”`);
+        }
+      },
+    }),
+  );
+  const transcript = useTranscriptActions({
+    id: taskId,
+    label: thread.title,
+    sessionId: thread.id,
+  });
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -115,6 +149,26 @@ function ThreadMenu({
             {action.label}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={retitle.isPending}
+          onSelect={() => {
+            retitle.mutate({ id: taskId, sessionId: thread.id });
+          }}
+        >
+          <TextAaIcon className="size-4" />
+          Rename from the conversation
+        </DropdownMenuItem>
+        {/* Saves without opening anything: the transcript lands in
+          Downloads, named for the thread, and its path on the clipboard. */}
+        <DropdownMenuItem
+          onSelect={() => {
+            transcript.save("markdown");
+          }}
+        >
+          <ArrowLineDownIcon className="size-4" />
+          Save transcript
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>

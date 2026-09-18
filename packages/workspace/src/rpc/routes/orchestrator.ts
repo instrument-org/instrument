@@ -21,6 +21,7 @@ import {
   ensureHomeFolder,
   ensureOutputFolder,
 } from "../../lib/orchestrator/output-folder";
+import { retitleThread } from "../../lib/orchestrator/retitle";
 import { taskStanding } from "../../lib/orchestrator/standing";
 import {
   archiveThread,
@@ -313,6 +314,22 @@ const unarchiveThreadRoute = base
     await unarchiveThread(input.id, input.sessionId);
   });
 
+/**
+ * Names a thread again from where it stands now, the way a finished turn
+ * does, on the user's ask rather than the turn's; answers with the title it
+ * has afterward, or nothing when there was nothing to name it from.
+ */
+const retitleThreadRoute = base
+  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .output(z.object({ title: z.string().optional() }))
+  .handler(async ({ input }) => {
+    const title = await retitleThread({
+      id: input.id,
+      sessionId: input.sessionId,
+    });
+    return title === undefined ? {} : { title };
+  });
+
 /** The topics a thread carries, replaced whole. */
 const setThreadTopicsRoute = base
   .input(
@@ -452,6 +469,7 @@ export const orchestrator = {
     archive: archiveThreadRoute,
     list: listThreadsRoute,
     live: { list: liveListThreadsRoute },
+    retitle: retitleThreadRoute,
     seen: seenThreadRoute,
     setTopics: setThreadTopicsRoute,
     star: starThreadRoute,

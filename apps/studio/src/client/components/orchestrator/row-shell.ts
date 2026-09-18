@@ -17,16 +17,17 @@ export type RowDensity = "slim" | "tall";
 /**
  * The face every row of the inbox wears: a click target rather than text,
  * with no selection and no text cursor over it, a tint while the pointer is
- * on it or its menu is open, and, for the row whose thread is open beside the
- * list, a tint the hover does not take away with a bar down its edge in the
- * brand's color.
+ * on it or its menu is open, a hairline above it that stops short of the
+ * list's edges, and, for the row whose thread is open beside the list, the
+ * shape of a card lifted off the list: the card's ground, rounded corners,
+ * an edge, and no hairline of its own or on the row under it.
  */
 export function rowClassName(density: RowDensity, isOpen: boolean) {
   return cn(
-    "group/row relative flex cursor-default gap-2 px-2 select-none hover:bg-foreground/4 focus-visible:bg-foreground/4 focus-visible:outline-hidden has-[[data-state=open]]:bg-foreground/4 data-[state=open]:bg-foreground/4",
+    "group/row relative flex cursor-default gap-2 rounded-xl border-t border-border px-2 select-none first:border-t-0 hover:bg-foreground/4 focus-visible:bg-foreground/4 focus-visible:outline-hidden has-[[data-state=open]]:bg-foreground/4 data-[state=open]:bg-foreground/4 [[data-open]+&]:border-transparent",
     density === "slim" ? "h-9 items-center" : "items-start py-2.5",
     isOpen &&
-      "bg-brand-500/8 shadow-[inset_2px_0_0_var(--color-brand-500)] hover:bg-brand-500/10",
+      "my-1 border-transparent bg-card shadow-sm ring-1 ring-border hover:bg-card",
   );
 }
 

@@ -128,7 +128,7 @@ export function HoldMarks({
       {marked.map((item) =>
         item.named ? (
           <button
-            className="inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground/80 hover:bg-foreground/5 hover:text-foreground"
+            className="inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-md border border-border bg-foreground/4 px-1.5 text-[11px] text-foreground/80 hover:bg-foreground/8 hover:text-foreground"
             key={item.key}
             type="button"
             {...openOf(item)}

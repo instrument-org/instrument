@@ -110,7 +110,9 @@ export function ThreadList({
           </p>
         )
       ) : (
-        <div className="divide-y divide-border">{rows}</div>
+        // Inset from the list's edges, so the hairlines between rows stop
+        // short of them and the open row's card has air at its sides.
+        <div className="mx-2">{rows}</div>
       )}
     </div>
   );

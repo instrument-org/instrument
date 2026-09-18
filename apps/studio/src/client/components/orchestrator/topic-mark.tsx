@@ -65,7 +65,9 @@ function TopicFace({ topic }: { topic: TopicMarkSpec }) {
   return (
     <span
       className="font-semibold uppercase"
-      style={{ color: topicColor(topic) }}
+      // The tint's ink rather than the color itself: a pale pick's own hex
+      // would vanish on its own tile.
+      style={{ color: "var(--topic-tint-ink, currentColor)" }}
     >
       {first?.segment ?? "?"}
     </span>

@@ -3,10 +3,10 @@ import type { CSSProperties } from "react";
 import { isPaleTopicColor } from "@/client/components/orchestrator/topic-colors";
 
 /**
- * The one declaration the `topic-tint` utility reads: the topic's own
- * color, which the utility rebuilds at a fixed lightness and chroma before
- * mixing it into the theme's ground. Wear the class and this together, since
- * neither paints anything on its own.
+ * The declarations the `topic-tint` utility reads: the topic's own color,
+ * whose hue the utility rebuilds at a fixed lightness and chroma per theme,
+ * and the tier's chroma, which scales every surface it publishes. Wear the
+ * class and this together, since neither paints anything on its own.
  *
  * A topic with no color hands back nothing, leaving the surface whatever it
  * draws for a topic that was never marked.
@@ -22,8 +22,8 @@ export function topicTint(color: string | undefined): CSSProperties {
   // Cast because a custom property is not a key `CSSProperties` knows, which is
   // the one thing this object is for.
   return {
-    "--topic-chroma": pale ? "0.06" : "0.155",
+    "--topic-chroma": pale ? "0.09" : "0.16",
     "--topic-color": color,
-    "--topic-lightness": pale ? "0.86" : "0.54",
+    "--topic-lightness": pale ? "0.8" : "0.56",
   } as CSSProperties;
 }

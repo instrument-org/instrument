@@ -781,60 +781,56 @@ body {
 
 /* A surface tinted by a topic's color: its mark, a swatch in the picker, the tab being read.
  * Set `--topic-color` to the topic's palette hex (`topicTint()` writes
- * that declaration) and paint with the three colors this publishes:
- * `--topic-tint-surface` for the fill, `--topic-tint-edge` for the hairline
- * or ring around it, and `--topic-tint-raised` for something sitting on the
- * fill and standing off it, such as the tab being read.
+ * that declaration, with the tier's chroma) and paint with the colors this
+ * publishes: `--topic-tint-surface` for the fill, `--topic-tint-edge` for the
+ * hairline, ring, or hover around it, `--topic-tint-ink` for a letter or a
+ * glyph drawn on the fill, `--topic-tint-raised` for something sitting on the
+ * fill and standing off it, such as the tab being read, and
+ * `--topic-tint-base` for the swatch that shows the color itself.
  *
  * The hue of the chosen color survives, and the tier it was picked from; every
- * other thing about it is rebuilt, because the palette's hexes
- * are nowhere near perceptual equals: in OKLCH their lightness spans 0.583 to
- * 0.735 and their chroma 0.111 to 0.219. Laid on at one strength, their ranking
- * over the light ground is the reverse of their ranking over the dark one --
- * gold is the faintest of the eight in light and the loudest in dark, over a
- * spread of more than 1.6x -- so no pair of per-mode strengths can settle them,
- * the defect being per color rather than per mode. Rebuilding each hue at a
- * fixed lightness and chroma leaves all eight exactly as far from whichever
- * ground they land on. C 0.11 is what all of them can hold at L 0.62, and cyan
- * binds it twice over: it is the least saturated of the eight to begin with, at
- * C 0.111, and the first to leave sRGB, at C 0.114.
+ * other thing about it is rebuilt at a fixed lightness and chroma per theme,
+ * so every hue lands exactly as far from the ground as every other and two
+ * topics are told apart at a glance in either theme. Rebuilt rather than mixed
+ * into the ground: a mix at the strength a light ground wants came out muddy
+ * over a dark one, where the same hue needs less lightness and more chroma to
+ * read as a color at all. Light surfaces are the pastel tiles of the design
+ * reference (L 0.93, C 0.05); dark ones are deep tiles of the same hue.
  *
- * Both colors mix into `--background`, which is opaque in either theme. The
- * white-alpha tokens (`--muted`, `--accent`, `--border`) are not: mixing into
- * one of those under `.dark` gives back a translucent near-white, and the tint
- * goes with it. Dark takes the larger share, since the same step away from a
- * dark ground reads as a smaller one.
+ * The raised color still mixes into `--card`, since what stands on the fill
+ * is standing on the ground a card would, and lands clear of the fill beneath
+ * it while staying in the topic's hue.
  *
- * The raised color goes the other way, mixing into `--card`, since what stands
- * on the fill is standing on the ground a card would: in light that is a move
- * toward white, so it takes little of the tint, and in dark the color is the
- * lighter of the two, so it takes most of it. Either way it lands clear of the
- * fill beneath it while staying in the topic's hue, which a grey laid over a
- * colored bar does not.
- *
- * None of the three resolves without a `--topic-color`, so a surface that is
+ * None of these resolves without a `--topic-color`, so a surface that is
  * also drawn for a topic without one paints through a fallback:
  * `var(--topic-tint-surface, var(--background))`. */
 @utility topic-tint {
-  /* Only the strengths are themed, so the mixes are written once here rather
-     than restated per theme. */
-  --topic-tint-surface-strength: 30%;
-  --topic-tint-edge-strength: 52%;
-  --topic-tint-raised-strength: 12%;
+  /* Only the levels are themed, so the colors are written once here rather
+     than restated per theme. The tier's chroma scales each: a pale pick is
+     the same hue at a softer strength. */
+  --topic-tint-surface-l: 0.93;
+  --topic-tint-surface-c: 0.42;
+  --topic-tint-edge-l: 0.86;
+  --topic-tint-edge-c: 0.7;
+  --topic-tint-ink-l: 0.48;
+  --topic-tint-ink-c: 0.95;
+  --topic-tint-raised-strength: 16%;
 
   --topic-tint-base: oklch(
     from var(--topic-color) var(--topic-lightness, 0.62)
       var(--topic-chroma, 0.11) h
   );
-  --topic-tint-surface: color-mix(
-    in oklab,
-    var(--topic-tint-base) var(--topic-tint-surface-strength),
-    var(--background)
+  --topic-tint-surface: oklch(
+    from var(--topic-color) var(--topic-tint-surface-l)
+      calc(var(--topic-chroma, 0.11) * var(--topic-tint-surface-c)) h
   );
-  --topic-tint-edge: color-mix(
-    in oklab,
-    var(--topic-tint-base) var(--topic-tint-edge-strength),
-    var(--background)
+  --topic-tint-edge: oklch(
+    from var(--topic-color) var(--topic-tint-edge-l)
+      calc(var(--topic-chroma, 0.11) * var(--topic-tint-edge-c)) h
+  );
+  --topic-tint-ink: oklch(
+    from var(--topic-color) var(--topic-tint-ink-l)
+      calc(var(--topic-chroma, 0.11) * var(--topic-tint-ink-c)) h
   );
   --topic-tint-raised: color-mix(
     in oklab,
@@ -843,9 +839,13 @@ body {
   );
 
   :is(.dark *) & {
-    --topic-tint-surface-strength: 34%;
-    --topic-tint-edge-strength: 58%;
-    --topic-tint-raised-strength: 40%;
+    --topic-tint-surface-l: 0.38;
+    --topic-tint-surface-c: 0.75;
+    --topic-tint-edge-l: 0.46;
+    --topic-tint-edge-c: 0.9;
+    --topic-tint-ink-l: 0.84;
+    --topic-tint-ink-c: 0.7;
+    --topic-tint-raised-strength: 45%;
   }
 }
 

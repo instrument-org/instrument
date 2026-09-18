@@ -54,6 +54,10 @@ import { TasksBadge } from "@/client/components/orchestrator/tasks-badge";
 import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
+import {
+  ThreadTasksButton,
+  threadTasksHref,
+} from "@/client/components/orchestrator/thread-tasks-button";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
@@ -1305,7 +1309,27 @@ function OrchestratorLayout() {
                         selectedId={active?.id}
                         tabs={tabs}
                         threadTitles={threadTitles}
-                        trailing={paneToggle}
+                        trailing={
+                          <>
+                            {paneToggle}
+                            {/* The thread's own task list, one press from
+                              wherever the pane is; a draft has no tasks
+                              yet. */}
+                            {threadUp !== undefined && (
+                              <ThreadTasksButton
+                                isOpen={
+                                  active?.kind === "screen" &&
+                                  active.href === threadTasksHref(threadUp)
+                                }
+                                onOpen={() => {
+                                  openScreen(threadTasksHref(threadUp), {
+                                    newTab: true,
+                                  });
+                                }}
+                              />
+                            )}
+                          </>
+                        }
                       />
                     </div>
                     <TabLocationRow

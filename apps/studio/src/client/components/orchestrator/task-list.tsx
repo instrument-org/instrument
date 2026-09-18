@@ -136,7 +136,7 @@ export function TaskList({
                   {...(item.threadTitle
                     ? { threadTitle: item.threadTitle }
                     : {})}
-                  time={timeOf(item.updatedAt, now)}
+                  time={taskTimeLabel(item.updatedAt, now)}
                   title={item.title}
                 />
               ))}
@@ -195,7 +195,7 @@ function groupByDay(
  * "3h"); past that a clock time is no help and the date is what they are
  * looking for.
  */
-function timeOf(date: Date, now: Date): string {
+export function taskTimeLabel(date: Date, now: Date): string {
   const startOfToday = new Date(now).setHours(0, 0, 0, 0);
   const days = Math.floor((startOfToday - date.getTime()) / DAY_MS);
   if (days < 1) {

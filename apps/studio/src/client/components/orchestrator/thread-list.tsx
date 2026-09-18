@@ -43,7 +43,8 @@ export function ThreadList({
   /** Whether the threads are still on their way: nothing is said about an empty list until they have arrived. */
   isLoading: boolean;
   onDeleteDraft: (id: string) => void;
-  onNewTopic: () => void;
+  /** Opens the new-topic dialog for a thread: the topic it makes is filed on that thread. */
+  onNewTopic: (thread: Thread) => void;
   onOpen: (thread: Thread) => void;
   onOpenDraft: (id: string) => void;
   onSetTopics: (thread: Thread, topics: string[]) => void;
@@ -83,7 +84,9 @@ export function ThreadList({
           isOpen={thread.id === openId}
           key={thread.id}
           now={now}
-          onNewTopic={onNewTopic}
+          onNewTopic={() => {
+            onNewTopic(thread);
+          }}
           onOpen={() => {
             onOpen(thread);
           }}

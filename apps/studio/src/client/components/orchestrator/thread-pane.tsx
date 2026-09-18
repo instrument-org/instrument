@@ -4,7 +4,6 @@ import { type TaskId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { atom, useAtom } from "jotai";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { FilterColumn } from "./filter-column";
@@ -21,6 +20,7 @@ import {
   type Topic,
 } from "./threads";
 import { TopicBanner } from "./topic-banner";
+import { useSetThreadTopics } from "./use-set-thread-topics";
 
 /** Where the column stands and what the search says, kept outside the pane so the pane can be re-laid without losing them. */
 const threadFiltersAtom = atom<ThreadFilters>(NO_FILTERS);
@@ -85,15 +85,7 @@ export function ThreadPane({
       afterTopicChange,
     ),
   );
-  const setThreadTopics = useMutation(
-    rpcClient.workspace.orchestrator.threads.setTopics.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to tag the thread", {
-          description: error.message,
-        });
-      },
-    }),
-  );
+  const setThreadTopics = useSetThreadTopics(taskId);
 
   const [filters, setFilters] = useAtom(threadFiltersAtom);
   const [scrollSignal, setScrollSignal] = useState(0);
@@ -126,7 +118,10 @@ export function ThreadPane({
       ? topics.find((topic) => topic.id === filters.topics[0])
       : undefined;
 
-  const [isNewTopicOpen, setNewTopicOpen] = useState(false);
+  // Whether the new-topic dialog is up, and for which thread when a row
+  // opened it: a topic made from a row is filed on that thread as it lands,
+  // since that is what asking for one there means.
+  const [newTopic, setNewTopic] = useState<{ forThread?: Thread }>();
   // The topic whose details are open, by id, so a re-read of the list does
   // not close the dialog under the user.
   const [editingId, setEditingId] = useState<string>();
@@ -146,7 +141,7 @@ export function ThreadPane({
           onNew(chosenTopic?.id);
         }}
         onNewTopic={() => {
-          setNewTopicOpen(true);
+          setNewTopic({});
         }}
         onTopicDetails={(topic) => {
           setEditingId(topic.id);
@@ -183,17 +178,13 @@ export function ThreadPane({
             shownDrafts === undefined && threadsQuery.data === undefined
           }
           onDeleteDraft={onDeleteDraft}
-          onNewTopic={() => {
-            setNewTopicOpen(true);
+          onNewTopic={(thread) => {
+            setNewTopic({ forThread: thread });
           }}
           onOpen={onOpenThread}
           onOpenDraft={onOpenDraft}
           onSetTopics={(thread, next) => {
-            setThreadTopics.mutate({
-              id: taskId,
-              sessionId: thread.id,
-              topics: next,
-            });
+            setThreadTopics(thread.id, next);
           }}
           openId={openThreadId}
           scrollSignal={scrollSignal}
@@ -203,10 +194,27 @@ export function ThreadPane({
       </div>
       <NewTopicDialog
         onCreate={(topic) => {
-          createTopic.mutate({ ...topic, id: taskId });
+          const forThread = newTopic?.forThread;
+          createTopic.mutate(
+            { ...topic, id: taskId },
+            {
+              onSuccess: (created) => {
+                if (forThread) {
+                  setThreadTopics(forThread.id, [
+                    ...forThread.topics,
+                    created.id,
+                  ]);
+                }
+              },
+            },
+          );
         }}
-        onOpenChange={setNewTopicOpen}
-        open={isNewTopicOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNewTopic(undefined);
+          }
+        }}
+        open={newTopic !== undefined}
         taken={topics.flatMap((topic) => (topic.emoji ? [topic.emoji] : []))}
       />
       {editingTopic && (

@@ -55,6 +55,7 @@ import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
+import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
@@ -851,15 +852,7 @@ function OrchestratorLayout() {
       onSuccess: () => void topicsQuery.refetch(),
     }),
   );
-  const setThreadTopics = useMutation(
-    rpcClient.workspace.orchestrator.threads.setTopics.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to tag the thread", {
-          description: error.message,
-        });
-      },
-    }),
-  );
+  const setThreadTopics = useSetThreadTopics(ids?.taskId);
   const [isNewTopicOpen, setNewTopicOpen] = useState(false);
   const [isStarting, setStarting] = useState(false);
 
@@ -1243,11 +1236,7 @@ function OrchestratorLayout() {
                         }}
                         onSetTopics={(next) => {
                           if (threadUp) {
-                            setThreadTopics.mutate({
-                              id: screens.taskId,
-                              sessionId: threadUp,
-                              topics: next,
-                            });
+                            setThreadTopics(threadUp, next);
                           }
                         }}
                         thread={threads.data?.find(
@@ -1410,9 +1399,26 @@ function OrchestratorLayout() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+              {/* Asked for from the thread's own head, so the topic it
+                makes is filed on the thread as it lands. */}
               <NewTopicDialog
                 onCreate={(topic) => {
-                  createTopic.mutate({ ...topic, id: screens.taskId });
+                  const filedOn = threads.data?.find(
+                    (thread) => thread.id === threadUp,
+                  );
+                  createTopic.mutate(
+                    { ...topic, id: screens.taskId },
+                    {
+                      onSuccess: (created) => {
+                        if (filedOn) {
+                          setThreadTopics(filedOn.id, [
+                            ...filedOn.topics,
+                            created.id,
+                          ]);
+                        }
+                      },
+                    },
+                  );
                 }}
                 onOpenChange={setNewTopicOpen}
                 open={isNewTopicOpen}

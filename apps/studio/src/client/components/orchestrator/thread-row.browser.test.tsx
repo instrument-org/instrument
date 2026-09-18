@@ -20,8 +20,10 @@ import { type Thread, type Topic } from "./threads";
 /** What each of the row's own routes was asked, by name. */
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
+  retitle: vi.fn(),
   seen: vi.fn(),
   star: vi.fn(),
+  transcript: vi.fn(),
   unarchive: vi.fn(),
   unseen: vi.fn(),
 }));
@@ -41,11 +43,19 @@ vi.mock("@/client/rpc/client", () => {
   });
   return {
     rpcClient: {
-      utils: { openExternalLink: routeOf(vi.fn()) },
+      transcript: {
+        copy: routeOf(vi.fn()),
+        save: routeOf(calls.transcript),
+      },
+      utils: {
+        openExternalLink: routeOf(vi.fn()),
+        showFileInFolder: routeOf(vi.fn()),
+      },
       workspace: {
         orchestrator: {
           threads: {
             archive: routeOf(calls.archive),
+            retitle: routeOf(calls.retitle),
             seen: routeOf(calls.seen),
             star: routeOf(calls.star),
             unarchive: routeOf(calls.unarchive),
@@ -156,9 +166,10 @@ function barOf(row: HTMLElement) {
   }
   return {
     bar,
-    labels: [...bar.querySelectorAll("button")].map((button) =>
-      button.getAttribute("aria-label"),
-    ),
+    // The actions past the control that files the thread, which leads.
+    labels: [...bar.querySelectorAll("button")]
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((label) => label !== "Topics"),
   };
 }
 
@@ -206,9 +217,9 @@ function peekOf(row: HTMLElement) {
   return row.querySelector<HTMLElement>('[class*="text-[12px]"]');
 }
 
-/** The pill of the topic the thread is filed under. */
+/** The pill of the topic the thread is filed under: a label, not a control. */
 function pillOf(row: HTMLElement) {
-  return row.querySelector<HTMLButtonElement>("button.rounded-full");
+  return row.querySelector<HTMLElement>("span.rounded-full");
 }
 
 async function renderRow(
@@ -423,7 +434,7 @@ describe("ThreadRow", () => {
 
   it("wears a pill per topic, each by name, at the title's end", async () => {
     const { row } = await renderRow(thread({ topics: ["money", "house"] }));
-    const pills = [...row.querySelectorAll("button.rounded-full")];
+    const pills = [...row.querySelectorAll("span.rounded-full")];
     expect(pills.map((pill) => pill.textContent)).toEqual([
       "💸Money",
       "🏠House",
@@ -503,7 +514,7 @@ describe("ThreadRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("wears the hover ground across the whole row, and puts the tag control in front of the title then", async () => {
+  it("wears the hover ground across the whole row, and brings the corner's controls up in place of the pills then", async () => {
     const { row } = await renderRow(
       thread({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
@@ -511,24 +522,28 @@ describe("ThreadRow", () => {
       }),
     );
     const control = row.querySelector<HTMLElement>('[aria-label="Topics"]');
-    if (!control) {
-      throw new Error("no tag control");
+    const pill = pillOf(row);
+    if (!control || !pill) {
+      throw new Error("no tag control or pill");
     }
     // Out of the flow at rest: it takes no room until the pointer arrives.
     expect(control.getClientRects().length).toBe(0);
+    expect(getComputedStyle(pill).visibility).toBe("visible");
     const chipBefore = marksOf(row)[0]?.getBoundingClientRect();
     const titleBefore = titleOf(row).getBoundingClientRect();
     await userEvent.hover(titleOf(row));
     await vi.waitFor(() => {
       expect(control.getClientRects().length).toBeGreaterThan(0);
     });
-    const titleAfter = titleOf(row).getBoundingClientRect();
-    expect(control.getBoundingClientRect().right).toBeLessThanOrEqual(
-      titleAfter.left,
-    );
-    expect(titleAfter.left).toBeGreaterThan(titleBefore.left);
+    // In the row's top corner, where the pills were, which step aside.
+    expect(getComputedStyle(pill).visibility).toBe("hidden");
+    const box = control.getBoundingClientRect();
+    const edge = row.getBoundingClientRect();
+    expect(box.top).toBeLessThan(titleBefore.bottom);
+    expect(box.right).toBeLessThanOrEqual(edge.right);
     expect(getComputedStyle(row).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
-    // Nothing under the first line moves with the pointer.
+    // Nothing on the row moves with the pointer.
+    expect(titleOf(row).getBoundingClientRect()).toEqual(titleBefore);
     expect(marksOf(row)[0]?.getBoundingClientRect()).toEqual(chipBefore);
     await userEvent.unhover(titleOf(row));
   });
@@ -603,21 +618,49 @@ describe("ThreadRow", () => {
   });
 
   it("names a bare mark in its tooltip", async () => {
+    // An app the workspace does not know draws its initial, which needs no
+    // icon to arrive before the mark holds still under the pointer.
     const { row } = await renderRow(
-      thread({ holds: { apps: [], files: [], sites: ["wakatime.com"] } }),
+      thread({ holds: { apps: ["paper"], files: [], sites: [] } }),
       { density: "slim" },
     );
-    const [site] = marksOf(row);
-    if (!site) {
+    const [app] = marksOf(row);
+    if (!app) {
       throw new Error("no mark");
     }
-    await userEvent.hover(site);
+    await userEvent.hover(app);
     // The tooltip and the announcement it carries for the screen reader are
     // two elements with the role; either says the name.
     await expect
       .element(page.getByRole("tooltip").first())
-      .toHaveTextContent("wakatime.com");
-    await userEvent.unhover(site);
+      .toHaveTextContent("paper");
+    await userEvent.unhover(app);
+  });
+
+  it("leaves out a site whose icon resolves nowhere, rather than drawing a globe for it", async () => {
+    const { row } = await renderRow(
+      thread({
+        holds: {
+          apps: ["paper"],
+          files: [],
+          // A name no resolver answers, so the proxy and the site both fail
+          // it, and quickly.
+          sites: ["no-such-site.invalid"],
+        },
+      }),
+      { density: "slim" },
+    );
+    // The site's mark goes once its icon has failed everywhere; the app's
+    // stays.
+    await vi.waitFor(
+      () => {
+        expect(marksOf(row)).toHaveLength(1);
+      },
+      { timeout: 5000 },
+    );
+    expect(
+      row.querySelector('[aria-label="Favicon for no-such-site.invalid"]'),
+    ).toBe(null);
   });
 
   it("lists every hold by name behind the count, never a slug or a path", async () => {
@@ -626,7 +669,7 @@ describe("ThreadRow", () => {
       (_, index) => `/task/out/report-${index}.md`,
     );
     const { row } = await renderRow(
-      thread({ holds: { apps: ["github"], files, sites: ["wakatime.com"] } }),
+      thread({ holds: { apps: ["paper"], files, sites: [] } }),
       { density: "slim" },
     );
     const count = marksOf(row).at(-1);
@@ -639,10 +682,10 @@ describe("ThreadRow", () => {
     const names = [...list.element().querySelectorAll("button")].map(
       (entry) => entry.textContent,
     );
+    // The app's row carries its initial as its icon, then its name.
     expect(names).toEqual([
       ...files.toReversed().map((path) => path.split("/").at(-1)),
-      "GitHub",
-      "wakatime.com",
+      "Ppaper",
     ]);
     await userEvent.keyboard("{Escape}");
   });
@@ -665,25 +708,10 @@ describe("ThreadRow", () => {
     expect(openScreen).toHaveBeenCalledTimes(2);
   });
 
-  it("opens the thread's topic list from the pill, which files the thread rather than opening it", async () => {
+  it("opens the thread's topic list from the corner's tag control, which files the thread rather than opening it, and holds the corner while the list leaves", async () => {
     const { onOpen, onSetTopics, row } = await renderRow(
       thread({ topics: ["house"] }),
     );
-    const pill = pillOf(row);
-    if (!pill) {
-      throw new Error("no pill");
-    }
-    await userEvent.click(pill);
-    const list = page.getByRole("menu");
-    await expect.element(list).toBeVisible();
-    await userEvent.click(list.getByText("Money"));
-    expect(onSetTopics).toHaveBeenCalledWith(["house", "money"]);
-    expect(onOpen).not.toHaveBeenCalled();
-    await userEvent.keyboard("{Escape}");
-  });
-
-  it("opens the same list from the tag control, without opening the thread", async () => {
-    const { onOpen, onSetTopics, row } = await renderRow(thread());
     const control = row.querySelector<HTMLElement>('[aria-label="Topics"]');
     if (!control) {
       throw new Error("no tag control");
@@ -696,10 +724,17 @@ describe("ThreadRow", () => {
     await userEvent.click(control);
     const list = page.getByRole("menu");
     await expect.element(list).toBeVisible();
-    await userEvent.click(list.getByText("House"));
-    expect(onSetTopics).toHaveBeenCalledWith(["house"]);
+    await userEvent.click(list.getByText("Money"));
+    expect(onSetTopics).toHaveBeenCalledWith(["house", "money"]);
     expect(onOpen).not.toHaveBeenCalled();
+    // The pointer leaves as the list closes; the control stays for the
+    // list's way out, so the list is not left without an anchor.
     await userEvent.keyboard("{Escape}");
+    await userEvent.unhover(row);
+    expect(control.getClientRects().length).toBeGreaterThan(0);
+    await vi.waitFor(() => {
+      expect(control.getClientRects().length).toBe(0);
+    });
   });
 });
 
@@ -809,7 +844,15 @@ describe("the row's actions", () => {
       [...menu.element().querySelectorAll('[role="menuitem"]')].map(
         (item) => item.textContent,
       ),
-    ).toEqual(["Open", "Archive", "Mark as read", "Star", "Topics"]);
+    ).toEqual([
+      "Open",
+      "Archive",
+      "Mark as read",
+      "Star",
+      "Rename",
+      "Save transcript",
+      "Topics",
+    ]);
     expect(onOpen).not.toHaveBeenCalled();
 
     await userEvent.click(

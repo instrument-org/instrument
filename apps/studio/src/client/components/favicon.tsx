@@ -42,11 +42,14 @@ type Source = "none" | "proxy" | "site";
 export function Favicon({
   className,
   fallback,
+  onNone,
   url,
 }: {
   className?: string;
   /** What to draw when the site has no icon anywhere; the drawn globe otherwise. */
   fallback?: ReactNode;
+  /** Told once the site turns out to have no icon anywhere, for a caller that would rather draw nothing than a globe. */
+  onNone?: () => void;
   url: string;
 }) {
   const hostname = URL.canParse(url) ? new URL(url).hostname : url;
@@ -56,7 +59,11 @@ export function Favicon({
   // bitmap one scaled up.
   const [source, setSource] = useState<Source>("proxy");
   const fallBack = () => {
-    setSource(source === "proxy" && URL.canParse(url) ? "site" : "none");
+    const next = source === "proxy" && URL.canParse(url) ? "site" : "none";
+    setSource(next);
+    if (next === "none") {
+      onNone?.();
+    }
   };
   const faviconUrl =
     source === "site"

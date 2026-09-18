@@ -13,7 +13,12 @@ import {
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
-import { type MouseEvent, type ReactNode, type SyntheticEvent } from "react";
+import {
+  type MouseEvent,
+  type ReactNode,
+  type SyntheticEvent,
+  useState,
+} from "react";
 
 import { AppIcon } from "./app-icon";
 import { type AppsBySlug } from "./apps-by-slug";
@@ -64,6 +69,9 @@ export function HoldMarks({
   /** Whether the marks may take a second line, or are clipped at the edge of the first with a fade. */
   wrap?: boolean;
 }) {
+  const [unresolved, setUnresolved] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const items: Hold[] = [
     // The newest first, so what the thread made last is what shows before
     // the count folds the rest away.
@@ -83,12 +91,25 @@ export function HoldMarks({
         target: { href: `/orchestrator/apps/${slug}`, kind: "screen" as const },
       };
     }),
-    ...holds.sites.toReversed().map((site) => ({
-      icon: <Favicon className="size-4" url={addressOf(site)} />,
-      key: `site:${site}`,
-      name: hostOf(site),
-      target: { kind: "page" as const, url: addressOf(site) },
-    })),
+    // A site with no icon anywhere is left out rather than drawn as a globe:
+    // a row of globes says nothing about which sites the thread reached.
+    ...holds.sites
+      .toReversed()
+      .filter((site) => !unresolved.has(site))
+      .map((site) => ({
+        icon: (
+          <Favicon
+            className="size-4"
+            onNone={() => {
+              setUnresolved((current) => new Set([...current, site]));
+            }}
+            url={addressOf(site)}
+          />
+        ),
+        key: `site:${site}`,
+        name: hostOf(site),
+        target: { kind: "page" as const, url: addressOf(site) },
+      })),
   ];
   const gesturesFor = useGesturesFor();
   if (items.length === 0) {
@@ -128,7 +149,7 @@ export function HoldMarks({
       {marked.map((item) =>
         item.named ? (
           <button
-            className="inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-md border border-border bg-foreground/4 px-1.5 text-[11px] text-foreground/80 hover:bg-foreground/8 hover:text-foreground"
+            className="inline-flex h-5 max-w-40 shrink-0 items-center gap-1 rounded-md border border-border bg-card px-1.5 text-[11px] text-foreground/80 hover:bg-foreground/5 hover:text-foreground"
             key={item.key}
             type="button"
             {...openOf(item)}

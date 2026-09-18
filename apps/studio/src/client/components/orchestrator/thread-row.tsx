@@ -38,6 +38,9 @@ import { TopicMark } from "./topic-mark";
 import { TopicPickList } from "./topic-menu";
 import { topicTint } from "./topic-tint";
 
+/** How long the corner's bar stays after the topic list closes: the list's exit animation. */
+const PICKER_LEAVE_MS = 250;
+
 /**
  * One thread in the inbox, and the door into it: a click anywhere on it
  * opens the thread beside the list (a thread is never a tab, so no gesture
@@ -89,6 +92,19 @@ export function ThreadRow({
     return topic ? [topic] : [];
   });
   const [isPicking, setPicking] = useState(false);
+  // Held in the flow for a moment after the list closes: the list animates
+  // out anchored to the control, and a control that vanished with the
+  // pointer already gone left the list to fly to the window's corner.
+  const [isPickerLeaving, setPickerLeaving] = useState(false);
+  const pickTopics = (open: boolean) => {
+    setPicking(open);
+    if (!open) {
+      setPickerLeaving(true);
+      setTimeout(() => {
+        setPickerLeaving(false);
+      }, PICKER_LEAVE_MS);
+    }
+  };
   const actions = useThreadActions(thread);
   const isUnseen = thread.unread > 0;
   const hasHolds =
@@ -106,22 +122,15 @@ export function ThreadRow({
     <TagControl
       isOpen={isPicking}
       onNewTopic={onNewTopic}
-      onOpenChange={setPicking}
+      onOpenChange={pickTopics}
       onToggle={toggleTopic}
       thread={thread}
       topics={topics}
     />
   );
-  // The topics in the row's corner, each by name.
-  const pills = filed.map((topic) => (
-    <TopicPill
-      key={topic.id}
-      onPick={() => {
-        setPicking(true);
-      }}
-      topic={topic}
-    />
-  ));
+  // The topics in the row's corner, each by name; filing is the control in
+  // the corner's bar.
+  const pills = filed.map((topic) => <TopicPill key={topic.id} topic={topic} />);
   const title = (
     <span
       className={cn(
@@ -155,7 +164,6 @@ export function ThreadRow({
                 names. The state sits in front of the title as a dot. */}
               <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
                 <StateDot thread={thread} />
-                {tagControl}
                 {title}
               </span>
               <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
@@ -173,10 +181,19 @@ export function ThreadRow({
                   />
                 </HoldsInThread>
               )}
-              {/* The topics at the row's end, then the star past them, in
-                view, where mail keeps its star: a mark of the user's own,
+              {/* The topics at the row's end, stepping aside for the corner's
+                bar while the pointer is on the row, then the star past them,
+                in view, where mail keeps its star: a mark of the user's own,
                 apart from the row's actions. */}
-              <span className="flex shrink-0 items-center gap-1">{pills}</span>
+              <span className="flex shrink-0 items-center gap-1 group-hover/row:hidden">
+                {pills}
+              </span>
+              <RowActionBar
+                actions={actions}
+                density={density}
+                isHeld={isPickerLeaving}
+                leading={tagControl}
+              />
               <StarControl thread={thread} />
             </>
           ) : (
@@ -185,9 +202,10 @@ export function ThreadRow({
                 at the line's end in the row's corner. */}
               <div className="flex h-5 items-center gap-1.5">
                 <StateDot thread={thread} />
-                {tagControl}
                 {title}
-                <span className="ml-auto flex shrink-0 items-center gap-1">
+                {/* Stepping aside for the corner's bar while the pointer is
+                  on the row. */}
+                <span className="ml-auto flex shrink-0 items-center gap-1 group-hover/row:invisible">
                   {pills}
                 </span>
               </div>
@@ -214,7 +232,14 @@ export function ThreadRow({
               </div>
             </div>
           )}
-          <RowActionBar actions={actions} density={density} />
+          {density === "tall" && (
+            <RowActionBar
+              actions={actions}
+              density={density}
+              isHeld={isPickerLeaving}
+              leading={tagControl}
+            />
+          )}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -491,11 +516,10 @@ function StateDot({ thread }: { thread: Thread }) {
 }
 
 /**
- * The control that files the thread, in front of the pill and in the flow
- * only while the pointer is on the row or its list is open: it takes its
- * room then and gives it back after, with no motion, so the pill beside it
- * reads as the thing it adds to. The list is the one the pill opens too: the
- * row keeps its open state so either way in lands here.
+ * The control that files the thread, first in the corner's bar: its list
+ * is every topic with a check on each that is on, and a new one at the
+ * foot. The row keeps its open state, so the bar stays in the flow while
+ * the list is up and the list keeps its anchor as it closes.
  */
 function TagControl({
   isOpen,
@@ -516,7 +540,7 @@ function TagControl({
     // The list is drawn elsewhere on the page but is this span's in React's
     // eyes, so a pick inside it stops here rather than opening the thread.
     <span
-      className="hidden shrink-0 group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex"
+      className="flex shrink-0"
       onAuxClick={stopHere}
       onClick={stopHere}
       onContextMenu={stopHere}
@@ -525,7 +549,7 @@ function TagControl({
         <PopoverTrigger asChild>
           <button
             aria-label="Topics"
-            className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:text-foreground"
+            className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
             title="Topics"
             type="button"
           >
@@ -533,8 +557,13 @@ function TagControl({
           </button>
         </PopoverTrigger>
         <PopoverContent
-          align="start"
+          align="end"
           className="w-60 p-1"
+          // Focus does not come back to the control as the list closes: the
+          // bar would stay for it after the pointer had gone.
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+          }}
           role="menu"
           side="bottom"
           sideOffset={4}

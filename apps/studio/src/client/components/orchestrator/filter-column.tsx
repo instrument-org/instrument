@@ -1,28 +1,22 @@
 import { Button } from "@/client/components/ui/button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/client/components/ui/popover";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
-import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { TrayIcon } from "@phosphor-icons/react/Tray";
-import { Fragment, type ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { AppIcon } from "./app-icon";
 import { type AppsBySlug } from "./apps-by-slug";
-import { type PickEntry, PickList } from "./pick-list";
+import { type PickEntry } from "./pick-list";
 import {
   appsUsed,
   chooseOnly,
@@ -34,34 +28,16 @@ import {
   type ThreadPlace,
   type Topic,
 } from "./threads";
+import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
-import {
-  TopicActionsButton,
-  TopicContextMenu,
-  TopicPickList,
-} from "./topic-menu";
+import { TopicActionsButton, TopicContextMenu } from "./topic-menu";
+import { topicTint } from "./topic-tint";
 
-/** How many of a section's marks the strip shows before the rest fold behind a dots mark. */
-export const STRIP_SHOWN = 4;
-
-/** The groups whose rows carry ids of the user's things, in the order the column draws them under the places. */
-type Group = "apps" | "topics";
-
-/** One of the places above the topics: where the column stands when no topic or app is chosen. The inbox is no filter at all. */
+/** One of the places under the topics: where the column stands when no topic or app is chosen. The inbox is no filter at all. */
 interface Place {
   icon: ReactNode;
   id: "inbox" | ThreadPlace;
   label: string;
-}
-
-/** One section of the column: its rows, which are on, and how a row is turned. */
-interface Section {
-  chosen: ReadonlySet<string>;
-  entries: PickEntry[];
-  findPlaceholder: string;
-  id: Group;
-  label: string;
-  onToggle: (id: string) => void;
 }
 
 /** The places in the order they are drawn: the inbox, what is new, what waits on the user, what is starred, what is not yet sent, and the whole of it, put away included. */
@@ -94,34 +70,9 @@ const CHOSEN = "bg-foreground/8 text-foreground";
 const UNCHOSEN =
   "text-foreground/80 hover:bg-foreground/5 hover:text-foreground";
 
-/**
- * The sections down the left of the inbox, inside the pane: the places
- * (Inbox, which is every thread not put away, Unread, Needs you, Starred,
- * Drafts, and All, which is every thread, put away or not), then the topics
- * as rows with their marks, then the apps. A row is a place to click from
- * and to find again, which a menu is not, and the places and the topics
- * carry how many threads each holds at their right edge; a thread put away
- * counts only in All, and its topics and apps are not offered for it. The rows are one radio group across the whole
- * column: choosing one is standing in it, choosing another is moving, and
- * choosing it again is stepping back out to the inbox, so the list is never
- * narrowed by two kinds at once; only the search over the list adds to
- * whatever is chosen. When the pane is narrow the column shrinks in place to
- * a strip of marks, one per row; it never moves to the top.
- */
-export function FilterColumn({
-  appsBySlug,
-  draftCount,
-  filters,
-  onFiltersChange,
-  onNew,
-  onNewTopic,
-  onTopicDetails,
-  threads,
-  topics,
-}: {
+/** What both shapes of the column are built from. */
+interface FilterProps {
   appsBySlug: AppsBySlug;
-  /** How many drafts are not yet sent, for the Drafts row's figure. */
-  draftCount: number;
   filters: ThreadFilters;
   onFiltersChange: (filters: ThreadFilters) => void;
   /** Opens a draft of a new thread. */
@@ -131,49 +82,149 @@ export function FilterColumn({
   onTopicDetails: (topic: Topic) => void;
   threads: Filterable[];
   topics: Topic[];
-}) {
-  const live = topics.filter((topic) => !topic.retired);
-  const topicsById = new Map(live.map((topic) => [topic.id, topic]));
-  // The threads the inbox, the topics, and the apps are counted over: what
-  // was put away is in All alone.
-  const kept = threads.filter((thread) => !thread.archived);
-  const chooseIn = (group: Group, id: string) => {
-    onFiltersChange(chooseOnly(filters, { group, id }));
-  };
-  /** How many a place holds, said on its row above zero. */
-  const placeCount = (id: Place["id"]) => {
-    switch (id) {
-      case "all": {
-        return threads.length;
-      }
-      case "drafts": {
-        return draftCount;
-      }
-      case "inbox": {
-        return kept.length;
-      }
-      case "needsYou": {
-        return kept.filter((thread) => thread.state === "waiting").length;
-      }
-      case "starred": {
-        return threads.filter((thread) => thread.starred).length;
-      }
-      case "unread": {
-        return kept.filter((thread) => thread.unread > 0).length;
-      }
-    }
-  };
-  // Needs you is a place only while something needs the user: an empty
-  // amber row would be a warning about nothing.
-  const places = PLACES.filter(
-    (place) => place.id !== "needsYou" || placeCount("needsYou") > 0,
+}
+
+/**
+ * The sections at the inbox's side, inside the pane: the topics as a grid of
+ * tiles first, unlabeled, since a tile is its own label; the places under
+ * them (Inbox, which is every thread not put away, Unread, Needs you,
+ * Starred, Drafts, and All, which is every thread, put away or not); and past
+ * a rule the apps, as rows. No counts on any of them: a figure beside every
+ * row is detail nobody reads. The rows and tiles are one radio group across
+ * the whole column: choosing one is standing in it, choosing another is
+ * moving, and choosing it again is stepping back out to the inbox, so the
+ * list is never narrowed by two kinds at once; only the search over the list
+ * adds to whatever is chosen. When the pane is narrow the column gives way to
+ * `FilterHead` over the list, which holds the same choices.
+ */
+export function FilterColumn(props: FilterProps) {
+  const { apps, isPlaceOn, onNew, onNewTopic, onTopicDetails, places, topics } =
+    useFilterModel(props);
+  return (
+    <aside
+      aria-label="Filters"
+      className="hidden h-full w-40 shrink-0 flex-col border-r border-border bg-muted/40 @[30rem]/chat:flex"
+      role="group"
+    >
+      {/* The way to a new thread, at the top of the column and across it,
+        in the brand's own green: a draft opens at the corner, not a field
+        at the foot of the list. */}
+      <div className="shrink-0 px-2 pt-2">
+        <Button className="h-8 w-full" onClick={onNew} variant="brand">
+          <PencilSimpleIcon className="size-3.5" />
+          New
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        <TopicGrid
+          onDetails={onTopicDetails}
+          onNewTopic={onNewTopic}
+          topics={topics}
+        />
+        <section aria-label="Places" className="pt-1">
+          {places.map((place) => (
+            <FilterRow
+              entry={place.entry}
+              isOn={isPlaceOn(place)}
+              key={place.id}
+              onToggle={place.choose}
+            />
+          ))}
+        </section>
+        {apps.entries.length > 0 && (
+          <>
+            <Rule />
+            <AppRows section={apps} />
+          </>
+        )}
+      </div>
+    </aside>
   );
-  const placeEntry = (place: Place): PickEntry => ({
-    icon: place.icon,
-    id: place.id,
-    label: place.label,
-    ...noteOf(placeCount(place.id)),
-  });
+}
+
+/**
+ * The same choices over the list, for a pane too narrow for a column beside
+ * it: the places as marks on one line, the one stood in wearing its name,
+ * with the way to a new thread at the line's end; then the topics as tiles.
+ * The apps stay out of the head: a narrow pane has no room for a row of
+ * them, and the search over the list finds a thread by its app.
+ */
+export function FilterHead(props: FilterProps) {
+  const { isPlaceOn, onNew, onNewTopic, onTopicDetails, places, topics } =
+    useFilterModel(props);
+  return (
+    <div
+      aria-label="Filters"
+      className="flex shrink-0 flex-col gap-2 px-3 pt-2 @[30rem]/chat:hidden"
+      role="group"
+    >
+      <div
+        aria-label="Places"
+        className="flex items-center gap-1"
+        role="toolbar"
+      >
+        {places.map((place) => (
+          <PlaceMark
+            isOn={isPlaceOn(place)}
+            key={place.id}
+            label={place.label}
+            onChoose={place.choose}
+          >
+            {place.icon}
+          </PlaceMark>
+        ))}
+        <Button
+          aria-label="New"
+          className="ml-auto size-8 rounded-full"
+          onClick={onNew}
+          size="icon"
+          variant="brand"
+        >
+          <PencilSimpleIcon className="size-3.5" />
+        </Button>
+      </div>
+      <TopicGrid
+        onDetails={onTopicDetails}
+        onNewTopic={onNewTopic}
+        topics={topics}
+      />
+    </div>
+  );
+}
+
+/** One of the places as the column reads it: its row's entry, whether it is stood in, and how to stand in it. */
+interface PlaceModel extends Place {
+  choose: () => void;
+  entry: PickEntry;
+}
+
+/** The apps section: which are on, the rows, and how a row is turned. */
+interface AppSection {
+  chosen: ReadonlySet<string>;
+  entries: PickEntry[];
+  onToggle: (id: string) => void;
+}
+
+/**
+ * What both shapes draw from: the places with their choosers, the topics
+ * with their choosers, and the apps as a section. Needs you is a place only
+ * while something needs the user: an empty amber row would be a warning about
+ * nothing.
+ */
+function useFilterModel({
+  appsBySlug,
+  filters,
+  onFiltersChange,
+  onNew,
+  onNewTopic,
+  onTopicDetails,
+  threads,
+  topics,
+}: FilterProps) {
+  const live = topics.filter((topic) => !topic.retired);
+  // The threads the apps are read over: what was put away is in All alone.
+  const kept = threads.filter((thread) => !thread.archived);
+  const needsYou = kept.some((thread) => thread.state === "waiting");
   const isPlaceOn = (place: Place) =>
     place.id === "inbox" ? isInbox(filters) : filters.place === place.id;
   /** Standing in a place: the inbox is standing nowhere in particular, so choosing it steps out of everything. */
@@ -184,223 +235,144 @@ export function FilterColumn({
         : chooseOnly(filters, { group: "place", id }),
     );
   };
-  const sections: Section[] = [
-    {
-      chosen: new Set(filters.topics),
-      entries: live.map((topic) => ({
-        icon: <TopicMark topic={topic} />,
-        id: topic.id,
-        label: topic.name,
-        ...noteOf(
-          kept.filter((thread) => thread.topics.includes(topic.id)).length,
+  const places: PlaceModel[] = PLACES.filter(
+    (place) => place.id !== "needsYou" || needsYou,
+  ).map((place) => ({
+    ...place,
+    choose: () => {
+      choosePlace(place.id);
+    },
+    entry: { icon: place.icon, id: place.id, label: place.label },
+  }));
+  const chosenTopics = new Set(filters.topics);
+  const apps: AppSection = {
+    chosen: new Set(filters.apps),
+    entries: appsUsed(kept)
+      .map((slug) => ({
+        icon: (
+          <AppIcon
+            className="size-4"
+            name={appsBySlug.get(slug)?.name ?? slug}
+            site={appsBySlug.get(slug)?.site}
+            size="sm"
+          />
         ),
-      })),
-      findPlaceholder: "Find a topic",
-      id: "topics",
-      label: "Topics",
-      onToggle: (id) => {
-        chooseIn("topics", id);
-      },
+        id: slug,
+        label: appsBySlug.get(slug)?.name ?? slug,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    onToggle: (id) => {
+      onFiltersChange(chooseOnly(filters, { group: "apps", id }));
     },
-    {
-      chosen: new Set(filters.apps),
-      entries: appsUsed(kept)
-        .map((slug) => ({
-          icon: (
-            <AppIcon
-              className="size-4"
-              name={appsBySlug.get(slug)?.name ?? slug}
-              site={appsBySlug.get(slug)?.site}
-              size="sm"
-            />
-          ),
-          id: slug,
-          label: appsBySlug.get(slug)?.name ?? slug,
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
-      findPlaceholder: "Find an app",
-      id: "apps",
-      label: "Apps",
-      onToggle: (id) => {
-        chooseIn("apps", id);
+  };
+  return {
+    apps,
+    isPlaceOn,
+    onNew,
+    onNewTopic,
+    onTopicDetails,
+    places,
+    topics: live.map((topic) => ({
+      choose: () => {
+        onFiltersChange(chooseOnly(filters, { group: "topics", id: topic.id }));
       },
-    },
-  ];
-  /** The list a section's marks open in the strip: the topics' own, with its menus and its new-topic foot, or a plain pick list. */
-  const listOf = (section: Section) =>
-    section.id === "topics" ? (
-      <TopicPickList
-        chosen={section.chosen}
-        onDetails={onTopicDetails}
-        onNew={onNewTopic}
-        onToggle={section.onToggle}
-        topics={topics}
-      />
-    ) : (
-      <PickList
-        chosen={section.chosen}
-        entries={section.entries}
-        findPlaceholder={section.findPlaceholder}
-        onToggle={section.onToggle}
-      />
-    );
+      isOn: chosenTopics.has(topic.id),
+      topic,
+    })),
+  };
+}
 
+/**
+ * The topics as tiles in a grid, each the topic's mark on its own tinted
+ * tile, the way a home screen holds its apps: a tile is its own label, so
+ * the grid has none and the name is the tooltip. The tile stood in wears a
+ * ring. A right click, or the dots that show on hover, open the topic's
+ * details; the dashed tile at the end makes a new one.
+ */
+function TopicGrid({
+  onDetails,
+  onNewTopic,
+  topics,
+}: {
+  onDetails: (topic: Topic) => void;
+  onNewTopic: () => void;
+  topics: { choose: () => void; isOn: boolean; topic: Topic }[];
+}) {
   return (
-    <aside className="flex h-full w-9 shrink-0 flex-col border-r border-border bg-muted/40 @[30rem]/chat:w-40">
-      {/* The full column, at width. */}
-      <div
-        aria-label="Filters"
-        className="hidden min-h-0 flex-1 flex-col @[30rem]/chat:flex"
-        role="group"
-      >
-        {/* The way to a new thread, at the top of the column and across it,
-          in the brand's own green: a draft opens at the corner, not a field
-          at the foot of the list. */}
-        <div className="shrink-0 px-2 pt-2">
-          <Button className="h-8 w-full" onClick={onNew} variant="brand">
-            <PencilSimpleIcon className="size-3.5" />
-            New
-          </Button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-          <section aria-label="Places" className="pt-2">
-            {places.map((place) => (
-              <FilterRow
-                entry={placeEntry(place)}
-                isOn={isPlaceOn(place)}
-                key={place.id}
-                onToggle={() => {
-                  choosePlace(place.id);
-                }}
-              />
-            ))}
-          </section>
-          {sections.map((section) =>
-            section.id === "topics" ? (
-              <ColumnSection
-                headTrailing={
-                  <button
-                    aria-label="New topic"
-                    className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                    onClick={onNewTopic}
-                    type="button"
-                  >
-                    <PlusIcon className="size-3.5" weight="bold" />
-                  </button>
-                }
-                key={section.id}
-                rowOf={(entry, isOn) => {
-                  const topic = topicsById.get(entry.id);
-                  if (!topic) {
-                    return null;
-                  }
-                  return (
-                    <TopicContextMenu onDetails={onTopicDetails} topic={topic}>
-                      <FilterRow
-                        entry={entry}
-                        isOn={isOn}
-                        onToggle={section.onToggle}
-                        trailing={
-                          <TopicActionsButton
-                            className="bg-background opacity-100 shadow-xs ring-1 ring-border"
-                            onDetails={onTopicDetails}
-                            topic={topic}
-                          />
-                        }
-                      />
-                    </TopicContextMenu>
-                  );
-                }}
-                section={section}
-              />
-            ) : (
-              section.entries.length > 0 && (
-                <ColumnSection
-                  key={section.id}
-                  rowOf={(entry, isOn) => (
-                    <FilterRow
-                      entry={entry}
-                      isOn={isOn}
-                      onToggle={section.onToggle}
-                    />
+    <div
+      aria-label="Topics"
+      className="grid grid-cols-[repeat(auto-fill,2.75rem)] gap-1 py-2"
+      role="toolbar"
+    >
+      {topics.map(({ choose, isOn, topic }) => (
+        <TopicContextMenu key={topic.id} onDetails={onDetails} topic={topic}>
+          <div className="group/tile relative">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={topic.name}
+                  aria-pressed={isOn}
+                  className={cn(
+                    "grid size-11 place-items-center rounded-xl bg-(--topic-tint-surface) text-[22px] leading-none topic-tint hover:bg-(--topic-tint-edge)",
+                    isOn && "bg-(--topic-tint-edge) ring-2 ring-foreground/30",
                   )}
-                  section={section}
-                />
-              )
-            ),
-          )}
-        </div>
-      </div>
-      {/* The strip of marks the column shrinks to: the same order, the same place. */}
-      <div
-        aria-label="Filter marks"
-        aria-orientation="vertical"
-        className="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto pt-2 pb-2 @[30rem]/chat:hidden"
-        role="toolbar"
+                  data-chosen={isOn || undefined}
+                  onClick={choose}
+                  style={topicTint(topicColor(topic))}
+                  type="button"
+                >
+                  <TopicMark
+                    className="bg-transparent!"
+                    size="lg"
+                    topic={topic}
+                  />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{topic.name}</TooltipContent>
+            </Tooltip>
+            <span className="absolute -top-1 -right-1 hidden group-hover/tile:flex focus-within:flex has-[[data-state=open]]:flex">
+              <TopicActionsButton
+                className="bg-background opacity-100 shadow-xs ring-1 ring-border"
+                onDetails={onDetails}
+                topic={topic}
+              />
+            </span>
+          </div>
+        </TopicContextMenu>
+      ))}
+      <button
+        aria-label="New topic"
+        className="grid size-11 place-items-center rounded-xl border border-dashed border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+        onClick={onNewTopic}
+        type="button"
       >
-        <PlaceMark isOn={false} label="New" onChoose={onNew}>
-          <PencilSimpleIcon className="size-4" />
-        </PlaceMark>
-        <Rule />
-        {places.map((place) => (
-          <PlaceMark
-            isOn={isPlaceOn(place)}
-            key={place.id}
-            label={place.label}
-            onChoose={() => {
-              choosePlace(place.id);
-            }}
-          >
-            {place.icon}
-          </PlaceMark>
-        ))}
-        {sections.map((section) => {
-          if (section.id !== "topics" && section.entries.length === 0) {
-            return null;
-          }
-          return (
-            <Fragment key={section.id}>
-              <Rule />
-              <SectionMarks list={listOf(section)} section={section} />
-            </Fragment>
-          );
-        })}
-      </div>
-    </aside>
+        <PlusIcon className="size-4" weight="bold" />
+      </button>
+    </div>
   );
 }
 
 /**
- * A section at width: its head, its rows, and past the first several a row
+ * The apps as rows past the rule, folded past the first several behind a row
  * saying how many more there are that opens the rest, then reads "Less" and
  * folds them again. A chosen row past the fold shows regardless, so it can
  * be turned off from where it was turned on.
  */
-function ColumnSection({
-  headTrailing,
-  rowOf,
-  section,
-}: {
-  /** At the right of the head: the section's own action. */
-  headTrailing?: ReactNode;
-  rowOf: (entry: PickEntry, isOn: boolean) => ReactNode;
-  section: Section;
-}) {
+function AppRows({ section }: { section: AppSection }) {
   const [isExpanded, setExpanded] = useState(false);
   const folded = foldSection(section.entries, section.chosen);
   const shown = isExpanded ? section.entries : folded.shown;
   return (
-    <section aria-label={section.label}>
-      <div className="flex h-8 items-center justify-between pt-2 pl-1.5">
-        <p className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-          {section.label}
-        </p>
-        {headTrailing}
-      </div>
+    <section aria-label="Apps">
       {shown.map((entry) => (
-        <Fragment key={entry.id}>
-          {rowOf(entry, section.chosen.has(entry.id))}
-        </Fragment>
+        <FilterRow
+          entry={entry}
+          isOn={section.chosen.has(entry.id)}
+          key={entry.id}
+          onToggle={() => {
+            section.onToggle(entry.id);
+          }}
+        />
       ))}
       {folded.hidden > 0 && (
         <button
@@ -417,111 +389,43 @@ function ColumnSection({
   );
 }
 
-/** One row of the column: its mark, its name, its figure if it has one, and whether it is on, which the row's whole face says. */
+/** One row of the column: its mark, its name, and whether it is on, which the row's whole face says. */
 function FilterRow({
   entry,
   isOn,
   onToggle,
-  trailing,
 }: {
   entry: PickEntry;
   isOn: boolean;
-  onToggle: (id: string) => void;
-  /** Something at the row's edge past the name, for the row's own menu. */
-  trailing?: ReactNode;
+  onToggle: () => void;
 }) {
   return (
-    <div
+    <button
+      aria-pressed={isOn}
       className={cn(
-        "group/row relative flex h-7 items-center rounded-md pr-1",
+        "flex h-7 w-full min-w-0 items-center gap-2 rounded-md pl-1.5 text-left text-xs",
         isOn ? CHOSEN : UNCHOSEN,
       )}
+      onClick={onToggle}
+      type="button"
     >
-      <button
-        aria-pressed={isOn}
-        className="flex h-full min-w-0 flex-1 items-center gap-2 pl-1.5 text-left text-xs"
-        onClick={() => {
-          onToggle(entry.id);
-        }}
-        type="button"
+      {/* The row is named by its words; the mark beside them is decoration, whatever alt text it brings. */}
+      <span
+        aria-hidden
+        className="flex size-4 shrink-0 items-center justify-center"
       >
-        {/* The row is named by its words; the mark beside them is decoration, whatever alt text it brings. */}
-        <span
-          aria-hidden
-          className="flex size-4 shrink-0 items-center justify-center"
-        >
-          {entry.icon}
-        </span>
-        <span className="min-w-0 flex-1 truncate">{entry.label}</span>
-        {entry.note && (
-          <span className="shrink-0 pr-0.5 text-[10px] text-muted-foreground tabular-nums">
-            {entry.note}
-          </span>
-        )}
-      </button>
-      {/* Over the row's end while the pointer is on it, taking no room at
-        rest: the count stays where it is and the row reads as its words. */}
-      {trailing && (
-        <span className="absolute top-1 right-1 hidden group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex">
-          {trailing}
-        </span>
-      )}
-    </div>
+        {entry.icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+    </button>
   );
 }
 
-/** The strip's mark for the rows past the fold: a tile that is tinted when one of them is on, and opens the section's list beside it. */
-function Mark({
-  children,
-  isOn,
-  label,
-  list,
-}: {
-  children: ReactNode;
-  isOn: boolean;
-  label: string;
-  list: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              aria-label={label}
-              className={cn(
-                "grid size-7 shrink-0 place-items-center rounded-md data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground",
-                isOn ? CHOSEN : UNCHOSEN,
-              )}
-              data-chosen={isOn || undefined}
-              type="button"
-            >
-              {children}
-            </button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="right">{label}</TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        align="start"
-        className="w-60 p-1"
-        role="menu"
-        side="right"
-        sideOffset={6}
-      >
-        {list}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-/** A count as a row's note, and nothing when there is nothing to count. */
-function noteOf(count: number): { note?: string } {
-  return count > 0 ? { note: String(count) } : {};
-}
-
-/** A row's mark in the strip: the row itself at a smaller size, turned by a click the way the row is. */
+/**
+ * A place's mark in the head: its glyph alone, and its name beside the glyph
+ * while it is the place stood in, so the line says where the list is without
+ * a label on every mark.
+ */
 function PlaceMark({
   children,
   isOn,
@@ -533,73 +437,36 @@ function PlaceMark({
   label: string;
   onChoose: () => void;
 }) {
+  const mark = (
+    <button
+      aria-label={label}
+      aria-pressed={isOn}
+      className={cn(
+        "flex h-8 shrink-0 items-center gap-1.5 rounded-lg text-xs",
+        isOn
+          ? cn(CHOSEN, "px-2.5 font-medium")
+          : cn(UNCHOSEN, "w-8 justify-center"),
+      )}
+      data-chosen={isOn || undefined}
+      onClick={onChoose}
+      type="button"
+    >
+      {children}
+      {isOn && <span>{label}</span>}
+    </button>
+  );
+  if (isOn) {
+    return mark;
+  }
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          aria-label={label}
-          aria-pressed={isOn}
-          className={cn(
-            "grid size-7 shrink-0 place-items-center rounded-md",
-            isOn ? CHOSEN : UNCHOSEN,
-          )}
-          data-chosen={isOn || undefined}
-          onClick={onChoose}
-          type="button"
-        >
-          {children}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
+      <TooltipTrigger asChild>{mark}</TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
   );
 }
 
-/** A hairline between the strip's sections, where the column has a head. */
+/** A hairline between the column's sections. */
 function Rule() {
-  return <span aria-hidden className="my-1 h-px w-5 shrink-0 bg-border" />;
-}
-
-/**
- * A section's marks in the strip: one per row up to a few, each the row
- * itself at a smaller size, so a topic's mark files the list under it the
- * way its row does; then a dots mark for the rest, tinted when one of the
- * rest is on, which opens the whole list since the marks past the fold have
- * no tile of their own.
- */
-function SectionMarks({
-  list,
-  section,
-}: {
-  list: ReactNode;
-  section: Section;
-}) {
-  const { hidden, shown } = foldSection(
-    section.entries,
-    section.chosen,
-    STRIP_SHOWN,
-  );
-  const shownIds = new Set(shown.map((entry) => entry.id));
-  const isRestOn = [...section.chosen].some((id) => !shownIds.has(id));
-  return (
-    <>
-      {shown.map((entry) => (
-        <PlaceMark
-          isOn={section.chosen.has(entry.id)}
-          key={entry.id}
-          label={entry.label}
-          onChoose={() => {
-            section.onToggle(entry.id);
-          }}
-        >
-          {entry.icon}
-        </PlaceMark>
-      ))}
-      {hidden > 0 && (
-        <Mark isOn={isRestOn} label={`${hidden} more`} list={list}>
-          <DotsThreeIcon className="size-4" weight="bold" />
-        </Mark>
-      )}
-    </>
-  );
+  return <span aria-hidden className="my-2 block h-px w-full bg-border" />;
 }

@@ -1,10 +1,10 @@
 // The column's two forms are chosen by the pane's own width, which only a
-// layout engine can measure: at width the rows, narrow the strip of marks,
-// both in the same place.
+// layout engine can measure: at width the column beside the list, narrow the
+// head over it, never both.
 import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it, vi } from "vitest";
 
-import { FilterColumn } from "./filter-column";
+import { FilterColumn, FilterHead } from "./filter-column";
 import { type Filterable, NO_FILTERS, type Topic } from "./threads";
 
 const HOUSE: Topic = {
@@ -32,77 +32,73 @@ function isLaidOut(element: HTMLElement) {
 }
 
 async function renderPane(width: number) {
+  const props = {
+    appsBySlug: new Map([
+      ["gmail", { name: "Gmail", site: "https://mail.google.com" }],
+    ]),
+    filters: { ...NO_FILTERS, topics: ["house"] },
+    onFiltersChange: vi.fn(),
+    onNew: vi.fn(),
+    onNewTopic: vi.fn(),
+    onTopicDetails: vi.fn(),
+    threads: [THREAD],
+    topics: [HOUSE],
+  };
   const rendered = await renderInBrowser(
-    // The pane, as far as the column can tell: the box it sizes itself by.
+    // The pane, as far as the column can tell: the box it sizes itself by,
+    // laid out the way the pane lays them: the column beside the list, the
+    // head at the list's top.
     <div className="@container/chat flex h-96" style={{ width: `${width}px` }}>
-      <FilterColumn
-        appsBySlug={
-          new Map([
-            ["gmail", { name: "Gmail", site: "https://mail.google.com" }],
-          ])
-        }
-        draftCount={0}
-        filters={{ ...NO_FILTERS, topics: ["house"] }}
-        onFiltersChange={vi.fn()}
-        onNew={vi.fn()}
-        onNewTopic={vi.fn()}
-        onTopicDetails={vi.fn()}
-        threads={[THREAD]}
-        topics={[HOUSE]}
-      />
-      <div className="flex-1" />
+      <FilterColumn {...props} />
+      <div className="flex flex-1 flex-col">
+        <FilterHead {...props} />
+      </div>
     </div>,
   );
   const aside = rendered.container.querySelector("aside");
-  const column = rendered.container.querySelector<HTMLElement>(
-    '[role="group"][aria-label="Filters"]',
+  const head = rendered.container.querySelector<HTMLElement>(
+    'div[role="group"][aria-label="Filters"]',
   );
-  const strip = rendered.container.querySelector<HTMLElement>(
-    '[role="toolbar"][aria-label="Filter marks"]',
-  );
-  if (!aside || !column || !strip) {
+  if (!aside || !head) {
     throw new Error("no column");
   }
-  return { aside, column, strip };
+  return { aside, head };
 }
 
-describe("FilterColumn", () => {
-  it("is the full column of rows when the pane has room", async () => {
-    const { aside, column, strip } = await renderPane(520);
+describe("FilterColumn and FilterHead", () => {
+  it("is the column beside the list when the pane has room, and no head", async () => {
+    const { aside, head } = await renderPane(520);
     expect(aside.getBoundingClientRect().width).toBe(160);
-    expect(isLaidOut(column)).toBe(true);
-    expect(isLaidOut(strip)).toBe(false);
+    expect(isLaidOut(aside)).toBe(true);
+    expect(isLaidOut(head)).toBe(false);
     expect(
-      [...column.querySelectorAll("section")].map((section) =>
+      [...aside.querySelectorAll("section, [role=toolbar]")].map((section) =>
         section.getAttribute("aria-label"),
       ),
-    ).toEqual(["Places", "Topics", "Apps"]);
+    ).toEqual(["Topics", "Places", "Apps"]);
   });
 
-  it("shrinks in place to a strip of marks when the pane is narrow", async () => {
-    const { aside, column, strip } = await renderPane(320);
-    expect(aside.getBoundingClientRect().width).toBe(36);
-    expect(aside.getBoundingClientRect().left).toBe(
-      aside.parentElement?.getBoundingClientRect().left,
-    );
-    expect(isLaidOut(column)).toBe(false);
-    expect(isLaidOut(strip)).toBe(true);
+  it("gives way to the head over the list when the pane is narrow", async () => {
+    const { aside, head } = await renderPane(320);
+    expect(isLaidOut(aside)).toBe(false);
+    expect(isLaidOut(head)).toBe(true);
     expect(
-      [...strip.querySelectorAll("button")].map((mark) =>
+      [...head.querySelectorAll("button")].map((mark) =>
         mark.getAttribute("aria-label"),
       ),
     ).toEqual([
-      "New",
       "Inbox",
       "Unread",
       "Starred",
       "Drafts",
       "All",
+      "New",
       "House",
-      "Gmail",
+      "Actions for House",
+      "New topic",
     ]);
     expect(
-      strip.querySelector('[aria-label="House"]')?.getAttribute("data-chosen"),
+      head.querySelector('[aria-label="House"]')?.getAttribute("data-chosen"),
     ).toBe("true");
   });
 });

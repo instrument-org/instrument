@@ -6,7 +6,7 @@ import { atom, useAtom } from "jotai";
 import { useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { FilterColumn } from "./filter-column";
+import { FilterColumn, FilterHead } from "./filter-column";
 import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
 import { SearchField } from "./search-field";
 import { ThreadList } from "./thread-list";
@@ -126,30 +126,33 @@ export function ThreadPane({
   // not close the dialog under the user.
   const [editingId, setEditingId] = useState<string>();
   const editingTopic = topics.find((topic) => topic.id === editingId);
+  const filterProps = {
+    appsBySlug,
+    filters,
+    onFiltersChange: changeFilters,
+    onNew: () => {
+      onNew(chosenTopic?.id);
+    },
+    onNewTopic: () => {
+      setNewTopic({});
+    },
+    onTopicDetails: (topic: Topic) => {
+      setEditingId(topic.id);
+    },
+    threads,
+    topics,
+  };
 
   return (
     // The pane is the container the column sizes itself by: it is the pane's
     // own width, not the window's, that says whether there is room for words
     // beside the marks.
     <div className="@container/chat flex h-full min-h-0">
-      <FilterColumn
-        appsBySlug={appsBySlug}
-        draftCount={drafts.length}
-        filters={filters}
-        onFiltersChange={changeFilters}
-        onNew={() => {
-          onNew(chosenTopic?.id);
-        }}
-        onNewTopic={() => {
-          setNewTopic({});
-        }}
-        onTopicDetails={(topic) => {
-          setEditingId(topic.id);
-        }}
-        threads={threads}
-        topics={topics}
-      />
+      <FilterColumn {...filterProps} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* The column's choices over the list while the pane is too narrow
+          for the column beside it. */}
+        <FilterHead {...filterProps} />
         {/* Over the list rather than in the column, the way mail puts it:
           the search is about the rows, and it narrows whatever the column has
           chosen. */}

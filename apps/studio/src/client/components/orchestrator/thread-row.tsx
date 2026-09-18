@@ -88,7 +88,11 @@ export function ThreadRow({
   thread: Thread;
   topics: Topic[];
 }) {
-  const topic = topics.find((entry) => entry.id === thread.topics[0]);
+  // Every topic the thread is filed under, in the order it was filed.
+  const filed = thread.topics.flatMap((id) => {
+    const topic = topics.find((entry) => entry.id === id);
+    return topic ? [topic] : [];
+  });
   const [isPicking, setPicking] = useState(false);
   // The gestures that ask for a place of the thread's own: a middle click or
   // a modified click. A plain click is the caller's.
@@ -119,14 +123,18 @@ export function ThreadRow({
       topics={topics}
     />
   );
-  const pill = topic && (
+  // The first topic by name, and any others by their marks alone: a slim row
+  // has a title to keep, and the marks still say what else it is filed under.
+  const pills = filed.map((topic, index) => (
     <TopicPill
+      compact={index > 0}
+      key={topic.id}
       onPick={() => {
         setPicking(true);
       }}
       topic={topic}
     />
-  );
+  ));
   const title = (
     <span
       className={cn(
@@ -194,7 +202,7 @@ export function ThreadRow({
                 names. */}
               <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
                 {tagControl}
-                {pill}
+                {pills}
                 {title}
               </span>
               <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
@@ -226,7 +234,7 @@ export function ThreadRow({
               <div className="min-w-0 flex-1">
                 <p className="flex h-5 items-center gap-1.5">
                   {tagControl}
-                  {pill}
+                  {pills}
                   {title}
                 </p>
                 <Peek className="mt-0.5" lines={2} thread={thread} />
@@ -307,22 +315,28 @@ export function ThreadRow({
 }
 
 /**
- * The topic the thread is filed under, as a pill in its tint no taller than
+ * A topic the thread is filed under, as a pill in its tint no taller than
  * the line it sits on: its emoji, or its mark's tile where it has none, then
- * its name. Clicking it opens the thread's topic list rather than the thread;
+ * its name, or the mark alone when the pill is compact and the name is its
+ * tooltip. Clicking it opens the thread's topic list rather than the thread;
  * given nothing to open, it is the name alone and no control.
  */
 export function TopicPill({
+  compact = false,
   onPick,
   topic,
 }: {
+  /** The mark alone, for a topic past the first on a row with a title to keep. */
+  compact?: boolean;
   onPick?: () => void;
   topic: Topic;
 }) {
   // `leading-4` rather than none: the name's box has to hold its descenders,
   // or the clip that truncates it cuts them off.
-  const className =
-    "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) pr-1.5 pl-1 text-[11px] leading-4 text-foreground/90 topic-tint";
+  const className = cn(
+    "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) pl-1 text-[11px] leading-4 text-foreground/90 topic-tint",
+    compact ? "pr-1" : "pr-1.5",
+  );
   const inside = (
     <>
       {topic.emoji ? (
@@ -330,12 +344,16 @@ export function TopicPill({
       ) : (
         <TopicMark className="size-3.5 text-[10px]" topic={topic} />
       )}
-      <span className="truncate">{topic.name}</span>
+      {!compact && <span className="truncate">{topic.name}</span>}
     </>
   );
   if (!onPick) {
     return (
-      <span className={className} style={topicTint(topicColor(topic))}>
+      <span
+        className={className}
+        style={topicTint(topicColor(topic))}
+        title={compact ? topic.name : undefined}
+      >
         {inside}
       </span>
     );
@@ -353,7 +371,7 @@ export function TopicPill({
       }}
       onContextMenu={stopHere}
       style={topicTint(topicColor(topic))}
-      title="Topics"
+      title={compact ? topic.name : "Topics"}
       type="button"
     >
       {inside}

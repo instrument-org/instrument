@@ -43,11 +43,17 @@ export function ThreadHeader({
   /** What sits at the head's right: the pane toggle while the pane is closed. */
   trailing?: ReactNode;
 }) {
-  const topic = topics.find((entry) => entry.id === thread?.topics[0]);
+  // Every topic the thread is filed under, in the order it was filed.
+  const filed = (thread?.topics ?? []).flatMap((id) => {
+    const topic = topics.find((entry) => entry.id === id);
+    return topic ? [topic] : [];
+  });
   return (
     <div className="flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
       <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2 select-none">
-        {topic && <TopicPill topic={topic} />}
+        {filed.map((topic) => (
+          <TopicPill key={topic.id} topic={topic} />
+        ))}
         <h2 className="min-w-0 truncate text-sm font-medium">
           {thread?.title ?? "Thread"}
         </h2>

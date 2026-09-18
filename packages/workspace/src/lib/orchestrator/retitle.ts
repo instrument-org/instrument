@@ -18,39 +18,6 @@ import { lastAssistantTextIn } from "./latest-session";
 const REPLY_MAX = 600;
 
 /**
- * Keeps a thread's title current as the thread goes on.
- *
- * The title is written from the opening message, before anything has been
- * done; a thread that ran for days is about what it became. So each finished
- * turn of an orchestrator's thread names it again from the root and the
- * latest reply, through the same call that named it first. One subscriber
- * over the session-done topic for the life of the process; a turn that ended
- * without words, or in a task's session, is left alone.
- */
-export function startThreadRetitle(): void {
-  void (async () => {
-    for await (const payload of publisher.subscribe("session.done")) {
-      try {
-        await retitleThread(payload);
-      } catch (error) {
-        getWorkspaceConfig().captureException(error);
-      }
-    }
-  })();
-}
-
-function isRoot(
-  message: SessionMessage.WithParts,
-): message is SessionMessage.UserWithParts {
-  return (
-    message.role === "user" &&
-    message.parts.some(
-      (part) => part.type === "text" && part.text.trim() !== "",
-    )
-  );
-}
-
-/**
  * Names a thread again from its root and its latest reply, the way each
  * finished turn does, and says what it is called now: the new title, the
  * one it already had when the call agreed with it, or nothing when the
@@ -121,4 +88,37 @@ export async function retitleThread({
     title: title.value,
   });
   return title.value;
+}
+
+/**
+ * Keeps a thread's title current as the thread goes on.
+ *
+ * The title is written from the opening message, before anything has been
+ * done; a thread that ran for days is about what it became. So each finished
+ * turn of an orchestrator's thread names it again from the root and the
+ * latest reply, through the same call that named it first. One subscriber
+ * over the session-done topic for the life of the process; a turn that ended
+ * without words, or in a task's session, is left alone.
+ */
+export function startThreadRetitle(): void {
+  void (async () => {
+    for await (const payload of publisher.subscribe("session.done")) {
+      try {
+        await retitleThread(payload);
+      } catch (error) {
+        getWorkspaceConfig().captureException(error);
+      }
+    }
+  })();
+}
+
+function isRoot(
+  message: SessionMessage.WithParts,
+): message is SessionMessage.UserWithParts {
+  return (
+    message.role === "user" &&
+    message.parts.some(
+      (part) => part.type === "text" && part.text.trim() !== "",
+    )
+  );
 }

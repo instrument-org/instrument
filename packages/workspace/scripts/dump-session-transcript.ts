@@ -78,7 +78,7 @@ const rootSessions = sessionsResult.value.filter(
 );
 if (rootSessions.length > 1 && !wantedSessionId) {
   process.stderr.write(
-    `Warning: found ${rootSessions.length} root sessions; using the first. Pass --session <id> to pick one:\n${rootSessions.map((session) => `  ${session.id}  ${session.title ?? ""}`).join("\n")}\n`,
+    `Warning: found ${rootSessions.length} root sessions; using the first. Pass --session <id> to pick one:\n${rootSessions.map((session) => `  ${session.id}  ${session.title}`).join("\n")}\n`,
   );
 }
 

@@ -930,32 +930,6 @@ function requireAppsNamedInBrief(prompt: string, apps: string[]) {
   }
 }
 
-/**
- * The task named, and one this thread may act on: a task started in another
- * thread is that thread's to steer, since its outcome reports there and a
- * message sent into it from here would land in a conversation the user is not
- * having. Reading it (`show`, `log`, `list`) stays open to every thread; the
- * refusal says where to go instead.
- */
-async function requireOwnChild(
-  rawId: string | undefined,
-  context: TaskCommandContext,
-): Promise<Task> {
-  const task = await requireChild(rawId, context);
-  if (!context.sessionId) {
-    return task;
-  }
-  const filedIn = (await taskThreads(context.orchestratorTaskId))[task.id];
-  if (filedIn === undefined || filedIn === context.sessionId) {
-    return task;
-  }
-  const thread = await Store.getSession(filedIn, context.orchestratorTaskId);
-  const named = thread.isOk() ? ` ("${thread.value.title}")` : "";
-  throw new Error(
-    `"${task.id}" was started in another thread${named}, and is that thread's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it. Tell the user which thread it is in, or start a task of your own here.`,
-  );
-}
-
 async function requireChild(
   rawId: string | undefined,
   { orchestratorTaskId }: TaskCommandContext,
@@ -981,6 +955,33 @@ async function requireChild(
     );
   }
   return task.value;
+}
+
+/**
+ * The task named, and one this thread may act on: a task started in another
+ * thread is that thread's to steer, since its outcome reports there and a
+ * message sent into it from here would land in a conversation the user is not
+ * having. Reading it (`show`, `log`, `list`) stays open to every thread; the
+ * refusal says where to go instead.
+ */
+async function requireOwnChild(
+  rawId: string | undefined,
+  context: TaskCommandContext,
+): Promise<Task> {
+  const task = await requireChild(rawId, context);
+  if (!context.sessionId) {
+    return task;
+  }
+  const filed = await taskThreads(context.orchestratorTaskId);
+  const filedIn = filed[task.id];
+  if (filedIn === undefined || filedIn === context.sessionId) {
+    return task;
+  }
+  const thread = await Store.getSession(filedIn, context.orchestratorTaskId);
+  const named = thread.isOk() ? ` ("${thread.value.title}")` : "";
+  throw new Error(
+    `"${task.id}" was started in another thread${named}, and is that thread's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it. Tell the user which thread it is in, or start a task of your own here.`,
+  );
 }
 
 /**
@@ -1116,6 +1117,50 @@ async function runTrash(args: string[], context: TaskCommandContext) {
  */
 const NAME_MATCH_MENTIONS = 5;
 
+export async function runLog(args: string[], context: TaskCommandContext) {
+  const { positional, values } = parseFlags(args, {
+    boolean: ["steps"],
+    flags: ["tail"],
+    repeatable: [],
+  });
+  const task = await requireChild(positional[0], context);
+  const tailRaw = values.get("tail")?.[0];
+  const tail =
+    tailRaw === undefined
+      ? DEFAULT_LOG_TAIL_LINES
+      : Number.parseInt(tailRaw, 10);
+  if (!Number.isFinite(tail) || tail <= 0) {
+    throw new Error("--tail takes a number of lines.");
+  }
+  const sessionId = await latestSessionId(task.id);
+  if (sessionId.isErr()) {
+    throw sessionId.error;
+  }
+  if (!sessionId.value) {
+    return ok(`${task.id} has no transcript yet.\n`);
+  }
+  const rendered = values.has("steps")
+    ? // The outline rather than the transcript: one line per thing the task
+      // set out to do or called, with tool output left out. The transcript's
+      // tail is whatever printed last, which for a wide search is a page of
+      // paths that says nothing about what the task is doing.
+      renderSteps(
+        await sessionSteps({ sessionId: sessionId.value, taskId: task.id }),
+      )
+    : await renderTranscript({ sessionId: sessionId.value, taskId: task.id });
+  const lines = rendered.trimEnd().split("\n");
+  const omitted = Math.max(0, lines.length - tail);
+  let text = lines.slice(-tail).join("\n");
+  if (text.length > LOG_MAX_BYTES) {
+    text = `[...${text.length - LOG_MAX_BYTES} earlier characters omitted]\n${text.slice(-LOG_MAX_BYTES)}`;
+  }
+  const header =
+    omitted > 0
+      ? `[${omitted} earlier lines omitted; raise --tail to see more]\n`
+      : "";
+  return ok(`${header}${text}\n`);
+}
+
 /** The window and date flags `list` and `search` share. */
 function listQueryFrom(args: string[]): TaskListQuery {
   const { values } = parseFlags(args, {
@@ -1181,50 +1226,6 @@ async function runList(args: string[], context: TaskCommandContext) {
     );
   }
   return ok(renderTaskList(selection));
-}
-
-export async function runLog(args: string[], context: TaskCommandContext) {
-  const { positional, values } = parseFlags(args, {
-    boolean: ["steps"],
-    flags: ["tail"],
-    repeatable: [],
-  });
-  const task = await requireChild(positional[0], context);
-  const tailRaw = values.get("tail")?.[0];
-  const tail =
-    tailRaw === undefined
-      ? DEFAULT_LOG_TAIL_LINES
-      : Number.parseInt(tailRaw, 10);
-  if (!Number.isFinite(tail) || tail <= 0) {
-    throw new Error("--tail takes a number of lines.");
-  }
-  const sessionId = await latestSessionId(task.id);
-  if (sessionId.isErr()) {
-    throw sessionId.error;
-  }
-  if (!sessionId.value) {
-    return ok(`${task.id} has no transcript yet.\n`);
-  }
-  const rendered = values.has("steps")
-    ? // The outline rather than the transcript: one line per thing the task
-      // set out to do or called, with tool output left out. The transcript's
-      // tail is whatever printed last, which for a wide search is a page of
-      // paths that says nothing about what the task is doing.
-      renderSteps(
-        await sessionSteps({ sessionId: sessionId.value, taskId: task.id }),
-      )
-    : await renderTranscript({ sessionId: sessionId.value, taskId: task.id });
-  const lines = rendered.trimEnd().split("\n");
-  const omitted = Math.max(0, lines.length - tail);
-  let text = lines.slice(-tail).join("\n");
-  if (text.length > LOG_MAX_BYTES) {
-    text = `[...${text.length - LOG_MAX_BYTES} earlier characters omitted]\n${text.slice(-LOG_MAX_BYTES)}`;
-  }
-  const header =
-    omitted > 0
-      ? `[${omitted} earlier lines omitted; raise --tail to see more]\n`
-      : "";
-  return ok(`${header}${text}\n`);
 }
 
 async function runModel(args: string[], context: TaskCommandContext) {

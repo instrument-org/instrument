@@ -70,6 +70,13 @@ const CHOSEN = "bg-foreground/8 text-foreground";
 const UNCHOSEN =
   "text-foreground/80 hover:bg-foreground/5 hover:text-foreground";
 
+/** The apps section: which are on, the rows, and how a row is turned. */
+interface AppSection {
+  chosen: ReadonlySet<string>;
+  entries: PickEntry[];
+  onToggle: (id: string) => void;
+}
+
 /** What both shapes of the column are built from. */
 interface FilterProps {
   appsBySlug: AppsBySlug;
@@ -82,6 +89,12 @@ interface FilterProps {
   onTopicDetails: (topic: Topic) => void;
   threads: Filterable[];
   topics: Topic[];
+}
+
+/** One of the places as the column reads it: its row's entry, whether it is stood in, and how to stand in it. */
+interface PlaceModel extends Place {
+  choose: () => void;
+  entry: PickEntry;
 }
 
 /**
@@ -188,166 +201,6 @@ export function FilterHead(props: FilterProps) {
         onNewTopic={onNewTopic}
         topics={topics}
       />
-    </div>
-  );
-}
-
-/** One of the places as the column reads it: its row's entry, whether it is stood in, and how to stand in it. */
-interface PlaceModel extends Place {
-  choose: () => void;
-  entry: PickEntry;
-}
-
-/** The apps section: which are on, the rows, and how a row is turned. */
-interface AppSection {
-  chosen: ReadonlySet<string>;
-  entries: PickEntry[];
-  onToggle: (id: string) => void;
-}
-
-/**
- * What both shapes draw from: the places with their choosers, the topics
- * with their choosers, and the apps as a section. Needs you is a place only
- * while something needs the user: an empty amber row would be a warning about
- * nothing.
- */
-function useFilterModel({
-  appsBySlug,
-  filters,
-  onFiltersChange,
-  onNew,
-  onNewTopic,
-  onTopicDetails,
-  threads,
-  topics,
-}: FilterProps) {
-  const live = topics.filter((topic) => !topic.retired);
-  // The threads the apps are read over: what was put away is in All alone.
-  const kept = threads.filter((thread) => !thread.archived);
-  const needsYou = kept.some((thread) => thread.state === "waiting");
-  const isPlaceOn = (place: Place) =>
-    place.id === "inbox" ? isInbox(filters) : filters.place === place.id;
-  /** Standing in a place: the inbox is standing nowhere in particular, so choosing it steps out of everything. */
-  const choosePlace = (id: Place["id"]) => {
-    onFiltersChange(
-      id === "inbox"
-        ? { ...NO_FILTERS, search: filters.search }
-        : chooseOnly(filters, { group: "place", id }),
-    );
-  };
-  const places: PlaceModel[] = PLACES.filter(
-    (place) => place.id !== "needsYou" || needsYou,
-  ).map((place) => ({
-    ...place,
-    choose: () => {
-      choosePlace(place.id);
-    },
-    entry: { icon: place.icon, id: place.id, label: place.label },
-  }));
-  const chosenTopics = new Set(filters.topics);
-  const apps: AppSection = {
-    chosen: new Set(filters.apps),
-    entries: appsUsed(kept)
-      .map((slug) => ({
-        icon: (
-          <AppIcon
-            className="size-4"
-            name={appsBySlug.get(slug)?.name ?? slug}
-            site={appsBySlug.get(slug)?.site}
-            size="sm"
-          />
-        ),
-        id: slug,
-        label: appsBySlug.get(slug)?.name ?? slug,
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label)),
-    onToggle: (id) => {
-      onFiltersChange(chooseOnly(filters, { group: "apps", id }));
-    },
-  };
-  return {
-    apps,
-    isPlaceOn,
-    onNew,
-    onNewTopic,
-    onTopicDetails,
-    places,
-    topics: live.map((topic) => ({
-      choose: () => {
-        onFiltersChange(chooseOnly(filters, { group: "topics", id: topic.id }));
-      },
-      isOn: chosenTopics.has(topic.id),
-      topic,
-    })),
-  };
-}
-
-/**
- * The topics as tiles in a grid, each the topic's mark on its own tinted
- * tile, the way a home screen holds its apps: a tile is its own label, so
- * the grid has none and the name is the tooltip. The tile stood in wears a
- * ring. A right click, or the dots that show on hover, open the topic's
- * details; the dashed tile at the end makes a new one.
- */
-function TopicGrid({
-  onDetails,
-  onNewTopic,
-  topics,
-}: {
-  onDetails: (topic: Topic) => void;
-  onNewTopic: () => void;
-  topics: { choose: () => void; isOn: boolean; topic: Topic }[];
-}) {
-  return (
-    <div
-      aria-label="Topics"
-      className="grid grid-cols-[repeat(auto-fill,2.75rem)] gap-1 py-2"
-      role="toolbar"
-    >
-      {topics.map(({ choose, isOn, topic }) => (
-        <TopicContextMenu key={topic.id} onDetails={onDetails} topic={topic}>
-          <div className="group/tile relative">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  aria-label={topic.name}
-                  aria-pressed={isOn}
-                  className={cn(
-                    "grid size-11 place-items-center rounded-xl bg-(--topic-tint-surface) text-[22px] leading-none topic-tint hover:bg-(--topic-tint-edge)",
-                    isOn && "bg-(--topic-tint-edge) ring-2 ring-foreground/30",
-                  )}
-                  data-chosen={isOn || undefined}
-                  onClick={choose}
-                  style={topicTint(topicColor(topic))}
-                  type="button"
-                >
-                  <TopicMark
-                    className="bg-transparent!"
-                    size="lg"
-                    topic={topic}
-                  />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{topic.name}</TooltipContent>
-            </Tooltip>
-            <span className="absolute -top-1 -right-1 hidden group-hover/tile:flex focus-within:flex has-[[data-state=open]]:flex">
-              <TopicActionsButton
-                className="bg-background opacity-100 shadow-xs ring-1 ring-border"
-                onDetails={onDetails}
-                topic={topic}
-              />
-            </span>
-          </div>
-        </TopicContextMenu>
-      ))}
-      <button
-        aria-label="New topic"
-        className="grid size-11 place-items-center rounded-xl border border-dashed border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-        onClick={onNewTopic}
-        type="button"
-      >
-        <PlusIcon className="size-4" weight="bold" />
-      </button>
     </div>
   );
 }
@@ -469,4 +322,151 @@ function PlaceMark({
 /** A hairline between the column's sections. */
 function Rule() {
   return <span aria-hidden className="my-2 block h-px w-full bg-border" />;
+}
+
+/**
+ * The topics as tiles in a grid, each the topic's mark on its own tinted
+ * tile, the way a home screen holds its apps: a tile is its own label, so
+ * the grid has none and the name is the tooltip. The tile stood in wears a
+ * ring. A right click, or the dots that show on hover, open the topic's
+ * details; the dashed tile at the end makes a new one.
+ */
+function TopicGrid({
+  onDetails,
+  onNewTopic,
+  topics,
+}: {
+  onDetails: (topic: Topic) => void;
+  onNewTopic: () => void;
+  topics: { choose: () => void; isOn: boolean; topic: Topic }[];
+}) {
+  return (
+    <div
+      aria-label="Topics"
+      className="grid grid-cols-[repeat(auto-fill,2.75rem)] gap-1 py-2"
+      role="toolbar"
+    >
+      {topics.map(({ choose, isOn, topic }) => (
+        <TopicContextMenu key={topic.id} onDetails={onDetails} topic={topic}>
+          <div className="group/tile relative">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={topic.name}
+                  aria-pressed={isOn}
+                  className={cn(
+                    "grid size-11 place-items-center rounded-xl bg-(--topic-tint-surface) text-[22px] leading-none topic-tint hover:bg-(--topic-tint-edge)",
+                    isOn && "bg-(--topic-tint-edge) ring-2 ring-foreground/30",
+                  )}
+                  data-chosen={isOn || undefined}
+                  onClick={choose}
+                  style={topicTint(topicColor(topic))}
+                  type="button"
+                >
+                  <TopicMark
+                    className="bg-transparent!"
+                    size="lg"
+                    topic={topic}
+                  />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{topic.name}</TooltipContent>
+            </Tooltip>
+            <span className="absolute -top-1 -right-1 hidden group-hover/tile:flex focus-within:flex has-[[data-state=open]]:flex">
+              <TopicActionsButton
+                className="bg-background opacity-100 shadow-xs ring-1 ring-border"
+                onDetails={onDetails}
+                topic={topic}
+              />
+            </span>
+          </div>
+        </TopicContextMenu>
+      ))}
+      <button
+        aria-label="New topic"
+        className="grid size-11 place-items-center rounded-xl border border-dashed border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+        onClick={onNewTopic}
+        type="button"
+      >
+        <PlusIcon className="size-4" weight="bold" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * What both shapes draw from: the places with their choosers, the topics
+ * with their choosers, and the apps as a section. Needs you is a place only
+ * while something needs the user: an empty amber row would be a warning about
+ * nothing.
+ */
+function useFilterModel({
+  appsBySlug,
+  filters,
+  onFiltersChange,
+  onNew,
+  onNewTopic,
+  onTopicDetails,
+  threads,
+  topics,
+}: FilterProps) {
+  const live = topics.filter((topic) => !topic.retired);
+  // The threads the apps are read over: what was put away is in All alone.
+  const kept = threads.filter((thread) => !thread.archived);
+  const needsYou = kept.some((thread) => thread.state === "waiting");
+  const isPlaceOn = (place: Place) =>
+    place.id === "inbox" ? isInbox(filters) : filters.place === place.id;
+  /** Standing in a place: the inbox is standing nowhere in particular, so choosing it steps out of everything. */
+  const choosePlace = (id: Place["id"]) => {
+    onFiltersChange(
+      id === "inbox"
+        ? { ...NO_FILTERS, search: filters.search }
+        : chooseOnly(filters, { group: "place", id }),
+    );
+  };
+  const places: PlaceModel[] = PLACES.filter(
+    (place) => place.id !== "needsYou" || needsYou,
+  ).map((place) => ({
+    ...place,
+    choose: () => {
+      choosePlace(place.id);
+    },
+    entry: { icon: place.icon, id: place.id, label: place.label },
+  }));
+  const chosenTopics = new Set(filters.topics);
+  const apps: AppSection = {
+    chosen: new Set(filters.apps),
+    entries: appsUsed(kept)
+      .map((slug) => ({
+        icon: (
+          <AppIcon
+            className="size-4"
+            name={appsBySlug.get(slug)?.name ?? slug}
+            site={appsBySlug.get(slug)?.site}
+            size="sm"
+          />
+        ),
+        id: slug,
+        label: appsBySlug.get(slug)?.name ?? slug,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    onToggle: (id) => {
+      onFiltersChange(chooseOnly(filters, { group: "apps", id }));
+    },
+  };
+  return {
+    apps,
+    isPlaceOn,
+    onNew,
+    onNewTopic,
+    onTopicDetails,
+    places,
+    topics: live.map((topic) => ({
+      choose: () => {
+        onFiltersChange(chooseOnly(filters, { group: "topics", id: topic.id }));
+      },
+      isOn: chosenTopics.has(topic.id),
+      topic,
+    })),
+  };
 }

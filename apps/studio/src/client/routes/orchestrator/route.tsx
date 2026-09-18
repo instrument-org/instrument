@@ -395,8 +395,7 @@ function OrchestratorLayout() {
   // close or keep track of. Put away by picking a tab or opening anything,
   // which both change the tab on screen, and by pressing its control again.
   const [tasksViewFor, setTasksViewFor] = useState<StoreId.Session>();
-  const isTasksViewUp =
-    tasksViewFor !== undefined && tasksViewFor === threadUp;
+  const isTasksViewUp = tasksViewFor !== undefined && tasksViewFor === threadUp;
   const activeTabId = active?.id;
   useEffect(() => {
     setTasksViewFor(undefined);
@@ -1406,7 +1405,7 @@ function OrchestratorLayout() {
                       {/* The thread's tasks as the pane's face, over the tab
                         up; a task pressed opens as a tab of the thread's,
                         which puts the face away. */}
-                      {isTasksViewUp && tasksViewFor !== undefined && (
+                      {isTasksViewUp && (
                         <div className="absolute inset-0 bg-background">
                           <ThreadTasksView
                             onOpen={(id) => {

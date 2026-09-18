@@ -20,17 +20,20 @@ const { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {
     output: { short: "o", type: "string" },
+    session: { short: "s", type: "string" },
   },
 });
 
 const inputPath = positionals[0];
 const outputPath = values.output;
+// An orchestrator task has a root session per thread, so this names which one.
+const wantedSessionId = values.session;
 
 if (!inputPath) {
   throw new Error(
     [
       "Usage: pnpm run script:dump-session-transcript <task-dir-or.zip>",
-      "  [--output <file>]",
+      "  [--output <file>] [--session <id>]",
     ].join("\n"),
   );
 }
@@ -73,15 +76,21 @@ if (sessionsResult.isErr()) {
 const rootSessions = sessionsResult.value.filter(
   (session) => !session.parentId,
 );
-if (rootSessions.length > 1) {
+if (rootSessions.length > 1 && !wantedSessionId) {
   process.stderr.write(
-    `Warning: found ${rootSessions.length} root sessions; using the first.\n`,
+    `Warning: found ${rootSessions.length} root sessions; using the first. Pass --session <id> to pick one:\n${rootSessions.map((session) => `  ${session.id}  ${session.title ?? ""}`).join("\n")}\n`,
   );
 }
 
-const rootSession = rootSessions[0];
+const rootSession = wantedSessionId
+  ? rootSessions.find((session) => session.id === wantedSessionId)
+  : rootSessions[0];
 if (!rootSession) {
-  throw new Error(`No root session found in ${dir}`);
+  throw new Error(
+    wantedSessionId
+      ? `No root session ${wantedSessionId} in ${dir}`
+      : `No root session found in ${dir}`,
+  );
 }
 
 const markdown = await getSessionMarkdown({

@@ -9,7 +9,7 @@ export type Thread =
 export interface ThreadFilters {
   /** App slugs a thread has to have used one of. */
   apps: string[];
-  /** The place the column stands in, when it is not the inbox: the unread, what needs the user, the drafts, or the archive. */
+  /** The place the column stands in, when it is not the inbox: the unread, what needs the user, the starred, the drafts, or all of it. */
   place?: ThreadPlace;
   /** Words that all have to turn up somewhere on a thread's row, whatever their case. */
   search: string;
@@ -17,13 +17,8 @@ export interface ThreadFilters {
   topics: string[];
 }
 
-/** The places of the column apart from the inbox: threads with replies not yet seen, threads waiting on the user, threads the user starred, drafts not yet sent, and threads put away. */
-export type ThreadPlace =
-  | "archive"
-  | "drafts"
-  | "needsYou"
-  | "starred"
-  | "unread";
+/** The places of the column apart from the inbox: threads with replies not yet seen, threads waiting on the user, threads the user starred, drafts not yet sent, and every thread, the ones put away among them. */
+export type ThreadPlace = "all" | "drafts" | "needsYou" | "starred" | "unread";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic =
@@ -40,7 +35,7 @@ const NO_TOPIC_NAMES: ReadonlyMap<string, string> = new Map();
 
 /** The part of a thread the filters read, which is what its row shows, so the predicate is testable off any row shape. */
 export interface Filterable {
-  /** Whether the thread was put away: out of every place but the archive. */
+  /** Whether the thread was put away: out of every place but All. */
   archived: boolean;
   holds: { apps: string[]; files: string[]; sites: string[] };
   latest?: { text: string };
@@ -146,14 +141,15 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
 
 /**
  * Whether a thread is in the place the column stands in. A thread put away
- * is in the archive and nowhere else, so the inbox is every other thread, the
+ * is in All and nowhere else, the way mail keeps what was archived out of
+ * the inbox but in the whole of it, so the inbox is every other thread, the
  * unread those of them with replies not yet seen, and Needs you those waiting
  * on the user. Drafts are not threads at all yet, so that place holds none.
  */
 function matchesPlace(thread: Filterable, place: ThreadPlace | undefined) {
   switch (place) {
-    case "archive": {
-      return thread.archived;
+    case "all": {
+      return true;
     }
     case "drafts": {
       return false;

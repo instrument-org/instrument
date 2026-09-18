@@ -10,9 +10,10 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
-import { ArchiveIcon } from "@phosphor-icons/react/Archive";
-import { CircleIcon } from "@phosphor-icons/react/Circle";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -63,10 +64,14 @@ interface Section {
   onToggle: (id: string) => void;
 }
 
-/** The places in the order they are drawn: everything, what is new, what waits on the user, what is not yet sent, and what was put away. */
+/** The places in the order they are drawn: the inbox, what is new, what waits on the user, what is starred, what is not yet sent, and the whole of it, put away included. */
 const PLACES: Place[] = [
   { icon: <TrayIcon className="size-4" />, id: "inbox", label: "Inbox" },
-  { icon: <CircleIcon className="size-4" />, id: "unread", label: "Unread" },
+  {
+    icon: <EnvelopeSimpleIcon className="size-4" />,
+    id: "unread",
+    label: "Unread",
+  },
   {
     // The same amber dot a waiting thread wears in its gutter.
     icon: <span className="size-2 rounded-full bg-warning-500" />,
@@ -75,15 +80,11 @@ const PLACES: Place[] = [
   },
   { icon: <StarIcon className="size-4" />, id: "starred", label: "Starred" },
   {
-    icon: <PencilSimpleIcon className="size-4" />,
+    icon: <FileDashedIcon className="size-4" />,
     id: "drafts",
     label: "Drafts",
   },
-  {
-    icon: <ArchiveIcon className="size-4" />,
-    id: "archive",
-    label: "Archive",
-  },
+  { icon: <CardsThreeIcon className="size-4" />, id: "all", label: "All" },
 ];
 
 /** A chosen row or mark: a tint, never a fill, so the column reads the same in either theme. */
@@ -95,12 +96,12 @@ const UNCHOSEN =
 
 /**
  * The sections down the left of the inbox, inside the pane: the places
- * (Inbox, which is every thread not put away, Unread, Needs you, Drafts, and
- * Archive), then the topics as rows with their marks, then the apps. A row is
- * a place to click from and to find again, which a menu is not, and the
- * places and the topics carry how many threads each holds at their right
- * edge; a thread put away counts only in the archive, and its topics and
- * apps are not offered for it. The rows are one radio group across the whole
+ * (Inbox, which is every thread not put away, Unread, Needs you, Starred,
+ * Drafts, and All, which is every thread, put away or not), then the topics
+ * as rows with their marks, then the apps. A row is a place to click from
+ * and to find again, which a menu is not, and the places and the topics
+ * carry how many threads each holds at their right edge; a thread put away
+ * counts only in All, and its topics and apps are not offered for it. The rows are one radio group across the whole
  * column: choosing one is standing in it, choosing another is moving, and
  * choosing it again is stepping back out to the inbox, so the list is never
  * narrowed by two kinds at once; only the search over the list adds to
@@ -134,7 +135,7 @@ export function FilterColumn({
   const live = topics.filter((topic) => !topic.retired);
   const topicsById = new Map(live.map((topic) => [topic.id, topic]));
   // The threads the inbox, the topics, and the apps are counted over: what
-  // was put away is the archive's alone.
+  // was put away is in All alone.
   const kept = threads.filter((thread) => !thread.archived);
   const chooseIn = (group: Group, id: string) => {
     onFiltersChange(chooseOnly(filters, { group, id }));
@@ -142,8 +143,8 @@ export function FilterColumn({
   /** How many a place holds, said on its row above zero. */
   const placeCount = (id: Place["id"]) => {
     switch (id) {
-      case "archive": {
-        return threads.length - kept.length;
+      case "all": {
+        return threads.length;
       }
       case "drafts": {
         return draftCount;

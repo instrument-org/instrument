@@ -116,7 +116,7 @@ describe("FilterColumn", () => {
       "Unread1",
       "Starred",
       "Drafts",
-      "Archive",
+      "All2",
       "🏠House2",
       "💸Money",
       "Gmail",
@@ -140,7 +140,7 @@ describe("FilterColumn", () => {
     );
   });
 
-  it("counts a thread put away in the archive alone, and offers no topic or app for it", () => {
+  it("counts a thread put away in All alone, and offers no topic or app for it", () => {
     const { column } = renderColumn({
       threads: [
         thread({
@@ -162,7 +162,7 @@ describe("FilterColumn", () => {
       "Unread1",
       "Starred1",
       "Drafts",
-      "Archive1",
+      "All2",
       "🏠House1",
       "💸Money",
     ]);
@@ -219,7 +219,7 @@ describe("FilterColumn", () => {
     });
   });
 
-  it("stands in Needs you, which is a row only while something waits on the user, and in the archive", () => {
+  it("stands in Needs you, which is a row only while something waits on the user, and in All", () => {
     const { column, onFiltersChange } = renderColumn({
       threads: [thread({ state: "waiting" })],
     });
@@ -228,10 +228,10 @@ describe("FilterColumn", () => {
       ...NO_FILTERS,
       place: "needsYou",
     });
-    fireEvent.click(column.getByRole("button", { name: /Archive/ }));
+    fireEvent.click(column.getByRole("button", { name: /All/ }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
-      place: "archive",
+      place: "all",
     });
   });
 

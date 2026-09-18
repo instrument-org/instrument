@@ -76,12 +76,6 @@ describe("matchesFilters", () => {
       thread({ unread: 2 }),
     ],
     [
-      "been put away",
-      { place: "archive" },
-      thread({ archived: true }),
-      thread({ unread: 2 }),
-    ],
-    [
       "a topic",
       { topics: ["house"] },
       thread({ topics: ["house", "money"] }),
@@ -155,15 +149,15 @@ describe("matchesFilters", () => {
     expect(matchesFilters({ ...kept, archived: true }, filters)).toBe(false);
   });
 
-  it("holds only what was put away in the archive, narrowed by the search", () => {
-    const filters: ThreadFilters = { ...NO_FILTERS, place: "archive" };
+  it("holds every thread in All, put away or not, narrowed by the search", () => {
+    const filters: ThreadFilters = { ...NO_FILTERS, place: "all" };
     expect(matchesFilters(thread({ archived: true, unread: 3 }), filters)).toBe(
       true,
     );
     expect(
       matchesFilters(thread({ archived: true, state: "waiting" }), filters),
     ).toBe(true);
-    expect(matchesFilters(thread({ unread: 3 }), filters)).toBe(false);
+    expect(matchesFilters(thread({ unread: 3 }), filters)).toBe(true);
     expect(
       matchesFilters(thread({ archived: true, title: "MLS standings" }), {
         ...filters,
@@ -358,7 +352,7 @@ describe("the inbox", () => {
     ["what needs the user", { ...NO_FILTERS, place: "needsYou" }],
     ["the starred", { ...NO_FILTERS, place: "starred" }],
     ["the drafts", { ...NO_FILTERS, place: "drafts" }],
-    ["the archive", { ...NO_FILTERS, place: "archive" }],
+    ["all of it", { ...NO_FILTERS, place: "all" }],
     ["a topic", { ...NO_FILTERS, topics: ["house"] }],
     ["an app", { ...NO_FILTERS, apps: ["gmail"] }],
   ])("is left once %s is chosen", (_, filters) => {

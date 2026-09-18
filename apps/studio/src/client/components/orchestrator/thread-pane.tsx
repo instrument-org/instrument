@@ -255,9 +255,6 @@ function emptyLineFor(filters: ThreadFilters, total: number): string {
   if (filters.place === "drafts") {
     return "No drafts yet.";
   }
-  if (filters.place === "archive") {
-    return "Nothing put away yet.";
-  }
   if (filters.place === "needsYou") {
     return "Nothing needs you.";
   }

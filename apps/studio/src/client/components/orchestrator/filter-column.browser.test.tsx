@@ -97,7 +97,7 @@ describe("FilterColumn", () => {
       "Unread",
       "Starred",
       "Drafts",
-      "Archive",
+      "All",
       "House",
       "Gmail",
     ]);

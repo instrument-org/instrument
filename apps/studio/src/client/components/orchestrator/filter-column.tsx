@@ -349,7 +349,7 @@ function TopicGrid({
       className="grid grid-cols-[repeat(auto-fill,2.75rem)] gap-1 py-2"
       role="toolbar"
     >
-      {topics.map(({ choose, isOn, topic }) => (
+      {topics.map(({ choose: chooseTopic, isOn, topic }) => (
         <TopicContextMenu key={topic.id} onDetails={onDetails} topic={topic}>
           <div className="group/tile relative">
             <Tooltip>
@@ -362,7 +362,7 @@ function TopicGrid({
                     isOn && "bg-(--topic-tint-edge) ring-2 ring-foreground/30",
                   )}
                   data-chosen={isOn || undefined}
-                  onClick={choose}
+                  onClick={chooseTopic}
                   style={topicTint(topicColor(topic))}
                   type="button"
                 >

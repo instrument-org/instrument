@@ -54,10 +54,8 @@ import { TasksBadge } from "@/client/components/orchestrator/tasks-badge";
 import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
-import {
-  ThreadTasksButton,
-  threadTasksHref,
-} from "@/client/components/orchestrator/thread-tasks-button";
+import { ThreadTasksButton } from "@/client/components/orchestrator/thread-tasks-button";
+import { threadTasksHref } from "@/client/components/orchestrator/threads";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";

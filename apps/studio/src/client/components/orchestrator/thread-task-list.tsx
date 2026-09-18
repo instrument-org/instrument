@@ -1,7 +1,5 @@
-import {
-  type TaskListItem,
-  taskTimeLabel,
-} from "@/client/components/orchestrator/task-list";
+import { type TaskListItem } from "@/client/components/orchestrator/task-list";
+import { taskTimeLabel } from "@/client/components/orchestrator/task-time";
 import { useNow } from "@/client/components/orchestrator/use-now";
 import { cn } from "@/client/lib/utils";
 import { type TaskId } from "@instrument-org/workspace/client";

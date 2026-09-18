@@ -117,18 +117,17 @@ export function renderChatPart({
   }
 
   if (isToolPart(part)) {
-    if (ctx.presentation === "orchestrator") {
-      // What the conversation asks the user (a choice, a sign-in, a folder)
-      // and nothing else: every other call is its own business, a task it
-      // started included, since the tasks at work stand over the composer
-      // rather than in the transcript.
-      if (
-        part.type !== "tool-choose" &&
-        part.type !== "tool-connect_app" &&
-        part.type !== "tool-request_folder"
-      ) {
-        return null;
-      }
+    // What the conversation asks the user (a choice, a sign-in, a folder)
+    // and nothing else: every other call is its own business, a task it
+    // started included, since the tasks at work stand over the composer
+    // rather than in the transcript.
+    if (
+      ctx.presentation === "orchestrator" &&
+      part.type !== "tool-choose" &&
+      part.type !== "tool-connect_app" &&
+      part.type !== "tool-request_folder"
+    ) {
+      return null;
     }
     const streaming = ctx.isToolStreaming(part, message);
     if (

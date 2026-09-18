@@ -3,11 +3,6 @@ import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 
-/** The address of a thread's own task list, which the strip's button opens or brings forward. */
-export function threadTasksHref(sessionId: string) {
-  return `/orchestrator/tasks?thread=${encodeURIComponent(sessionId)}`;
-}
-
 /**
  * The fixed control at the strip's end that shows the thread's tasks in the
  * pane: a list scoped to this thread, brought forward if it is already among

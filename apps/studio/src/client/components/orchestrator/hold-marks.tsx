@@ -101,7 +101,7 @@ export function HoldMarks({
           <Favicon
             className="size-4"
             onNone={() => {
-              setUnresolved((current) => new Set([...current, site]));
+              setUnresolved((current) => new Set([site, ...current]));
             }}
             url={addressOf(site)}
           />

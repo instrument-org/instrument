@@ -474,10 +474,11 @@ describe("ThreadRow", () => {
     expect(timeOf(seen).className).toContain("text-muted-foreground");
   });
 
-  it("wears one pill, the first topic it is filed under", async () => {
+  it("wears a pill per topic: the first by name, the rest by their marks", async () => {
     const { row } = await renderRow(thread({ topics: ["money", "house"] }));
-    expect(row.querySelectorAll("button.rounded-full")).toHaveLength(1);
-    expect(pillOf(row)?.textContent).toBe("💸Money");
+    const pills = [...row.querySelectorAll("button.rounded-full")];
+    expect(pills.map((pill) => pill.textContent)).toEqual(["💸Money", "🏠"]);
+    expect(pills[1]?.getAttribute("title")).toBe("House");
   });
 
   it.each([
@@ -553,19 +554,13 @@ describe("ThreadRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("asks the window for a place of its own on a middle or a modified click", async () => {
+  it("opens the thread in place on a modified click too: a thread is never a tab", async () => {
     const { onOpen, openScreen, row } = await renderRow(thread());
-    titleOf(row).dispatchEvent(
-      new MouseEvent("auxclick", { bubbles: true, button: 1 }),
-    );
-    expect(openScreen).toHaveBeenCalledWith(
-      `/orchestrator/threads/${sessionId}`,
-    );
     titleOf(row).dispatchEvent(
       new MouseEvent("click", { bubbles: true, metaKey: true }),
     );
-    expect(openScreen).toHaveBeenCalledTimes(2);
-    expect(onOpen).not.toHaveBeenCalled();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(openScreen).not.toHaveBeenCalled();
   });
 
   it("wears the hover ground across the whole row, and puts the tag control in front of the pill then", async () => {
@@ -863,10 +858,8 @@ describe("the row's actions", () => {
     expect(barOf(row).labels).toEqual(["Archive"]);
   });
 
-  it("raises the row's menu on a right click: the ways in, the actions, and the topics", async () => {
-    const { onOpen, onSetTopics, openScreen, row } = await renderRow(
-      thread({ unread: 1 }),
-    );
+  it("raises the row's menu on a right click: the way in, the actions, and the topics", async () => {
+    const { onOpen, onSetTopics, row } = await renderRow(thread({ unread: 1 }));
     await userEvent.click(titleOf(row), { button: "right" });
     const menu = page.getByRole("menu");
     await expect.element(menu).toBeVisible();
@@ -874,21 +867,9 @@ describe("the row's actions", () => {
       [...menu.element().querySelectorAll('[role="menuitem"]')].map(
         (item) => item.textContent,
       ),
-    ).toEqual([
-      "Open",
-      "Open in new tab",
-      "Archive",
-      "Mark as read",
-      "Star",
-      "Topics",
-    ]);
-    await userEvent.click(menu.getByText("Open in new tab"));
-    expect(openScreen).toHaveBeenCalledWith(
-      `/orchestrator/threads/${sessionId}`,
-    );
+    ).toEqual(["Open", "Archive", "Mark as read", "Star", "Topics"]);
     expect(onOpen).not.toHaveBeenCalled();
 
-    await userEvent.click(titleOf(row), { button: "right" });
     await userEvent.click(
       page.getByRole("menuitem", { exact: true, name: "Open" }),
     );

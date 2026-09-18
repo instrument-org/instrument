@@ -1,4 +1,3 @@
-import { THREADS_HREF } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
@@ -17,8 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { useOpenGestures } from "@/client/hooks/use-open-target";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
@@ -42,9 +40,10 @@ import { TopicPickList } from "./topic-menu";
 import { topicTint } from "./topic-tint";
 
 /**
- * One thread in the inbox, and the door into it: a plain click anywhere on it
- * opens the thread in place, a middle or modified click in a tab of its own,
- * a right click raises its menu, and the keyboard opens it with Enter. Its
+ * One thread in the inbox, and the door into it: a click anywhere on it
+ * opens the thread beside the list (a thread is never a tab, so no gesture
+ * asks for one), a right click raises its menu, and the keyboard opens it
+ * with Enter. Its
  * state as a dot in a gutter at the left: brand while it works or holds
  * replies not yet seen, amber while it waits on the user, nothing while it is
  * quiet. Then the topic it is filed under as a pill, the title in semibold
@@ -94,12 +93,6 @@ export function ThreadRow({
     return topic ? [topic] : [];
   });
   const [isPicking, setPicking] = useState(false);
-  // The gestures that ask for a place of the thread's own: a middle click or
-  // a modified click. A plain click is the caller's.
-  const gestures = useOpenGestures({
-    href: `${THREADS_HREF}/${thread.id}`,
-    kind: "screen",
-  });
   const actions = useThreadActions(thread);
   const isUnseen = thread.unread > 0;
   const hasHolds =
@@ -174,14 +167,7 @@ export function ThreadRow({
           className={rowClassName(density, isOpen)}
           data-density={density}
           data-open={isOpen || undefined}
-          onAuxClick={gestures.onAuxClick}
-          onClick={(event) => {
-            if (wantsNewTab(event)) {
-              gestures.separate?.run();
-              return;
-            }
-            onOpen();
-          }}
+          onClick={onOpen}
           onKeyDown={(event) => {
             if (event.key === "Enter" && event.target === event.currentTarget) {
               onOpen();
@@ -269,11 +255,6 @@ export function ThreadRow({
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={onOpen}>Open</ContextMenuItem>
-        {gestures.separate && (
-          <ContextMenuItem onSelect={gestures.separate.run}>
-            Open in new tab
-          </ContextMenuItem>
-        )}
         <ContextMenuSeparator />
         {actions.map((action) => (
           <ContextMenuItem key={action.id} onSelect={action.run}>
@@ -607,13 +588,4 @@ function TagControl({
       </Popover>
     </span>
   );
-}
-
-/**
- * Whether a click asks for a tab of its own. One modifier, the one the
- * platform means it by: on macOS Ctrl and a click is the secondary click, so
- * answering it with a tab would take the gesture away from the menu.
- */
-function wantsNewTab(event: { ctrlKey: boolean; metaKey: boolean }) {
-  return isMacOS() ? event.metaKey : event.ctrlKey;
 }

@@ -6,7 +6,7 @@ import {
   askOf,
   basename,
   byActivity,
-  chooseOnly,
+  choose,
   dayLabel,
   draftTitle,
   type Filterable,
@@ -62,7 +62,6 @@ describe("matchesFilters", () => {
   });
 
   it.each<[string, Partial<ThreadFilters>, Filterable, Filterable]>([
-    ["unread replies", { place: "unread" }, thread({ unread: 2 }), thread()],
     [
       "the user to answer",
       { place: "needsYou" },
@@ -99,14 +98,6 @@ describe("matchesFilters", () => {
     expect(matchesFilters(dropped, filters)).toBe(false);
   });
 
-  it("keeps a waiting thread among the unread only by its unread count", () => {
-    const filters: ThreadFilters = { ...NO_FILTERS, place: "unread" };
-    expect(matchesFilters(thread({ state: "waiting" }), filters)).toBe(false);
-    expect(
-      matchesFilters(thread({ state: "working", unread: 1 }), filters),
-    ).toBe(true);
-  });
-
   it("holds no thread in the drafts, since a draft is not a thread yet", () => {
     const filters: ThreadFilters = { ...NO_FILTERS, place: "drafts" };
     expect(matchesFilters(thread(), filters)).toBe(false);
@@ -123,7 +114,6 @@ describe("matchesFilters", () => {
   });
 
   it.each<[string, ThreadFilters, Filterable]>([
-    ["the unread", { ...NO_FILTERS, place: "unread" }, thread({ unread: 3 })],
     [
       "Needs you",
       { ...NO_FILTERS, place: "needsYou" },
@@ -245,14 +235,14 @@ describe("matchesFilters", () => {
   it("narrows a place by the search too", () => {
     const filters: ThreadFilters = {
       ...NO_FILTERS,
-      place: "unread",
+      place: "starred",
       search: "protein",
     };
     expect(
-      matchesFilters(thread({ title: "Protein drink", unread: 1 }), filters),
+      matchesFilters(thread({ starred: true, title: "Protein drink" }), filters),
     ).toBe(true);
     expect(
-      matchesFilters(thread({ title: "MLS standings", unread: 1 }), filters),
+      matchesFilters(thread({ starred: true, title: "MLS standings" }), filters),
     ).toBe(false);
     expect(matchesFilters(thread({ title: "Protein drink" }), filters)).toBe(
       false,
@@ -274,87 +264,78 @@ describe("what the column offers", () => {
 describe("choosing a row of the column", () => {
   const searched = { ...NO_FILTERS, search: "fence" };
 
-  it("turns the row on alone, whatever was on before", () => {
+  it("narrows the place stood in to a topic, keeping the place", () => {
     expect(
-      chooseOnly(
-        { ...searched, apps: ["gmail"], place: "unread" },
+      choose(
+        { ...searched, apps: ["gmail"], place: "starred" },
         { group: "topics", id: "house" },
       ),
-    ).toEqual({ ...searched, topics: ["house"] });
+    ).toEqual({ ...searched, place: "starred", topics: ["house"] });
+  });
+
+  it("stands in a place, keeping the topic", () => {
     expect(
-      chooseOnly(
-        { ...searched, apps: ["gmail"], topics: ["house"] },
-        { group: "place", id: "unread" },
+      choose(
+        { ...searched, topics: ["house"] },
+        { group: "place", id: "drafts" },
       ),
-    ).toEqual({ ...searched, place: "unread" });
+    ).toEqual({ ...searched, place: "drafts", topics: ["house"] });
   });
 
   it("moves between rows of one section", () => {
     expect(
-      chooseOnly(
+      choose(
         { ...searched, topics: ["house"] },
         { group: "topics", id: "money" },
       ),
     ).toEqual({ ...searched, topics: ["money"] });
     expect(
-      chooseOnly(
-        { ...searched, place: "unread" },
+      choose(
+        { ...searched, place: "starred" },
         { group: "place", id: "drafts" },
       ),
     ).toEqual({ ...searched, place: "drafts" });
   });
 
-  it("moves between a topic and a place", () => {
+  it("moves between a topic and an app, which are one group", () => {
     expect(
-      chooseOnly(
-        { ...searched, topics: ["house"] },
-        { group: "place", id: "drafts" },
-      ),
-    ).toEqual({ ...searched, place: "drafts" });
-    expect(
-      chooseOnly(
-        { ...searched, place: "drafts" },
-        { group: "topics", id: "house" },
-      ),
-    ).toEqual({ ...searched, topics: ["house"] });
+      choose({ ...searched, topics: ["house"] }, { group: "apps", id: "gmail" }),
+    ).toEqual({ ...searched, apps: ["gmail"] });
   });
 
-  it("turns the chosen row off again, keeping the search", () => {
+  it("turns the chosen row off again, keeping the search and the rest", () => {
     expect(
-      chooseOnly(
-        { ...searched, apps: ["gmail"] },
+      choose(
+        { ...searched, apps: ["gmail"], place: "starred" },
         { group: "apps", id: "gmail" },
       ),
-    ).toEqual(searched);
+    ).toEqual({ ...searched, place: "starred" });
     expect(
-      chooseOnly(
-        { ...searched, place: "unread" },
-        { group: "place", id: "unread" },
+      choose(
+        { ...searched, place: "starred", topics: ["house"] },
+        { group: "place", id: "starred" },
       ),
-    ).toEqual(searched);
+    ).toEqual({ ...searched, topics: ["house"] });
     expect(
-      chooseOnly(
-        { ...searched, place: "unread" },
-        { group: "place", id: "unread" },
-      ).place,
+      choose({ ...searched, place: "starred" }, { group: "place", id: "starred" })
+        .place,
     ).toBeUndefined();
   });
 });
 
 describe("the inbox", () => {
-  it("is where nothing is chosen, whatever the search says", () => {
+  it("is where no place is chosen, whatever the search or a topic says", () => {
     expect(isInbox(NO_FILTERS)).toBe(true);
     expect(isInbox({ ...NO_FILTERS, search: "fence" })).toBe(true);
+    expect(isInbox({ ...NO_FILTERS, topics: ["house"] })).toBe(true);
+    expect(isInbox({ ...NO_FILTERS, apps: ["gmail"] })).toBe(true);
   });
 
   it.each<[string, ThreadFilters]>([
-    ["a place", { ...NO_FILTERS, place: "unread" }],
     ["what needs the user", { ...NO_FILTERS, place: "needsYou" }],
     ["the starred", { ...NO_FILTERS, place: "starred" }],
     ["the drafts", { ...NO_FILTERS, place: "drafts" }],
     ["all of it", { ...NO_FILTERS, place: "all" }],
-    ["a topic", { ...NO_FILTERS, topics: ["house"] }],
-    ["an app", { ...NO_FILTERS, apps: ["gmail"] }],
   ])("is left once %s is chosen", (_, filters) => {
     expect(isInbox(filters)).toBe(false);
   });

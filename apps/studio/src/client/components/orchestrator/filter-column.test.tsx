@@ -1,6 +1,6 @@
 // The sections column beside the list and the head it gives way to over a
-// narrow list: topic tiles that choose, places and app rows that choose the
-// same way, one radio group across all of them, and no counts on any.
+// narrow list: topic tiles that narrow the place stood in, places and app
+// rows, and the unread count on the places that keep one.
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -65,7 +65,6 @@ function renderColumn({
 } = {}) {
   const onFiltersChange = vi.fn();
   const onNew = vi.fn();
-  const onNewTopic = vi.fn();
   const props = {
     appsBySlug: new Map([
       ["gmail", { name: "Gmail", site: "https://mail.google.com" }],
@@ -73,7 +72,6 @@ function renderColumn({
     filters,
     onFiltersChange,
     onNew,
-    onNewTopic,
     onTopicDetails: vi.fn(),
     threads,
     topics: [HOUSE, MONEY],
@@ -89,7 +87,6 @@ function renderColumn({
     column: within(screen.getByRole("group", { name: "Filters" })),
     onFiltersChange,
     onNew,
-    onNewTopic,
   };
 }
 
@@ -100,32 +97,25 @@ describe("FilterColumn", () => {
     expect(onNew).toHaveBeenCalledOnce();
   });
 
-  it("holds the topics as tiles first, then the places, then the apps past a rule, with no count on any", () => {
+  it("holds the topics as tiles first, then the places, then the apps past a rule, counting the unread on the inbox alone", () => {
     const { column } = renderColumn();
     expect(
       column.getAllByRole("region").map((section) => section.ariaLabel),
     ).toEqual(["Places", "Apps"]);
     expect(column.getByRole("toolbar", { name: "Topics" })).toBeTruthy();
-    // The inbox is where the column stands with nothing chosen.
+    // The inbox is where the column stands with nothing chosen, and it
+    // counts the one thread with replies not yet seen.
     expect(column.getByRole("button", { pressed: true }).textContent).toBe(
-      "Inbox",
+      "Inbox1",
     );
     expect(
       column
         .getAllByRole("button", { pressed: false })
         .map((row) => row.getAttribute("aria-label") ?? row.textContent),
-    ).toEqual([
-      "House",
-      "Money",
-      "Unread",
-      "Starred",
-      "Drafts",
-      "All",
-      "Gmail",
-    ]);
+    ).toEqual(["House", "Money", "Starred", "Drafts", "All", "Gmail"]);
   });
 
-  it("offers no topic or app for a thread put away", () => {
+  it("counts the unread among the starred, keeps a thread put away out of the inbox's count, and offers no topic or app for it", () => {
     const { column } = renderColumn({
       threads: [
         thread({
@@ -136,11 +126,26 @@ describe("FilterColumn", () => {
           topics: ["house", "money"],
           unread: 2,
         }),
-        thread({ topics: ["house"], unread: 1 }),
+        thread({ starred: true, topics: ["house"], unread: 1 }),
+        thread({ unread: 1 }),
       ],
     });
+    expect(column.getByRole("button", { name: /Inbox/ }).textContent).toBe(
+      "Inbox2",
+    );
+    expect(column.getByRole("button", { name: /Starred/ }).textContent).toBe(
+      "Starred2",
+    );
+    expect(column.getByRole("button", { name: /^All/ }).textContent).toBe(
+      "All",
+    );
     expect(column.queryByRole("region", { name: "Apps" })).toBeNull();
     expect(column.queryByRole("button", { name: /Needs you/ })).toBeNull();
+  });
+
+  it("has no Unread place: the count on the inbox is what says so", () => {
+    const { column } = renderColumn();
+    expect(column.queryByRole("button", { name: /Unread/ })).toBeNull();
   });
 
   it("has no search of its own: that sits over the list", () => {
@@ -148,9 +153,14 @@ describe("FilterColumn", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("steps back out to the inbox from its row, keeping the search", () => {
+  it("stands in the inbox while a topic narrows it, and steps back to it from a place keeping the topic and the search", () => {
     const { column, onFiltersChange } = renderColumn({
-      filters: { ...NO_FILTERS, search: "fence", topics: ["house"] },
+      filters: {
+        ...NO_FILTERS,
+        place: "starred",
+        search: "fence",
+        topics: ["house"],
+      },
     });
     expect(column.getByRole("button", { name: /Inbox/ }).ariaPressed).toBe(
       "false",
@@ -162,31 +172,37 @@ describe("FilterColumn", () => {
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
       search: "fence",
+      topics: ["house"],
     });
   });
 
-  it("stands in one topic at a time from its tile: choosing moves, choosing again clears", () => {
+  it("narrows the place stood in to one topic from its tile: choosing moves, choosing again lifts it", () => {
     const { column, onFiltersChange } = renderColumn({
-      filters: { ...NO_FILTERS, topics: ["house"] },
+      filters: { ...NO_FILTERS, place: "starred", topics: ["house"] },
     });
     fireEvent.click(column.getByRole("button", { name: "Money" }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
+      place: "starred",
       topics: ["money"],
     });
     fireEvent.click(column.getByRole("button", { name: "House" }));
-    expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
+    expect(onFiltersChange).toHaveBeenLastCalledWith({
+      ...NO_FILTERS,
+      place: "starred",
+    });
   });
 
-  it("is one radio group across the places and the sections, with the search apart from it", () => {
+  it("keeps the topic when a place is chosen, with the search apart from both", () => {
     const { column, onFiltersChange } = renderColumn({
       filters: { ...NO_FILTERS, search: "fence", topics: ["house"] },
     });
-    fireEvent.click(column.getByRole("button", { name: /Unread/ }));
+    fireEvent.click(column.getByRole("button", { name: /Starred/ }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
-      place: "unread",
+      place: "starred",
       search: "fence",
+      topics: ["house"],
     });
   });
 
@@ -208,19 +224,18 @@ describe("FilterColumn", () => {
 
   it("steps out of a place by choosing it again", () => {
     const { column, onFiltersChange } = renderColumn({
-      filters: { ...NO_FILTERS, place: "unread" },
+      filters: { ...NO_FILTERS, place: "starred" },
     });
-    expect(column.getByRole("button", { name: /Unread/ }).ariaPressed).toBe(
+    expect(column.getByRole("button", { name: /Starred/ }).ariaPressed).toBe(
       "true",
     );
-    fireEvent.click(column.getByRole("button", { name: /Unread/ }));
+    fireEvent.click(column.getByRole("button", { name: /Starred/ }));
     expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
   });
 
-  it("opens the new-topic dialog from the dashed tile at the grid's end", () => {
-    const { column, onNewTopic } = renderColumn();
-    fireEvent.click(column.getByRole("button", { name: "New topic" }));
-    expect(onNewTopic).toHaveBeenCalledOnce();
+  it("makes no topic of its own: that happens from a thread's topic list", () => {
+    const { column } = renderColumn();
+    expect(column.queryByRole("button", { name: "New topic" })).toBeNull();
   });
 
   it("folds a long apps section behind a more row that opens it and a less row that folds it again", () => {
@@ -247,7 +262,7 @@ describe("FilterColumn", () => {
 });
 
 describe("FilterHead", () => {
-  it("puts the places on one line with the one stood in named, New at its end, and the topic tiles under them", () => {
+  it("puts the places on one line with the one stood in named and the inbox counting its unread, New at its end, and the topic tiles under them", () => {
     const { column, onFiltersChange, onNew } = renderColumn({
       filters: { ...NO_FILTERS, place: "starred" },
       shape: "head",
@@ -258,8 +273,7 @@ describe("FilterHead", () => {
         .getAllByRole("button")
         .map((mark) => [mark.getAttribute("aria-label"), mark.textContent]),
     ).toEqual([
-      ["Inbox", ""],
-      ["Unread", ""],
+      ["Inbox", "1"],
       ["Starred", "Starred"],
       ["Drafts", ""],
       ["All", ""],
@@ -267,15 +281,16 @@ describe("FilterHead", () => {
     ]);
     fireEvent.click(places.getByRole("button", { name: "New" }));
     expect(onNew).toHaveBeenCalledOnce();
-    fireEvent.click(places.getByRole("button", { name: "Unread" }));
+    fireEvent.click(places.getByRole("button", { name: "Drafts" }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
-      place: "unread",
+      place: "drafts",
     });
     const topics = within(column.getByRole("toolbar", { name: "Topics" }));
     fireEvent.click(topics.getByRole("button", { name: "House" }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
+      place: "starred",
       topics: ["house"],
     });
     expect(column.queryByRole("region", { name: "Apps" })).toBeNull();

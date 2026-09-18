@@ -9,7 +9,7 @@ export type Thread =
 export interface ThreadFilters {
   /** App slugs a thread has to have used one of. */
   apps: string[];
-  /** The place the column stands in, when it is not the inbox: the unread, what needs the user, the starred, the drafts, or all of it. */
+  /** The place the column stands in, when it is not the inbox: what needs the user, the starred, the drafts, or all of it. */
   place?: ThreadPlace;
   /** Words that all have to turn up somewhere on a thread's row, whatever their case. */
   search: string;
@@ -17,8 +17,8 @@ export interface ThreadFilters {
   topics: string[];
 }
 
-/** The places of the column apart from the inbox: threads with replies not yet seen, threads waiting on the user, threads the user starred, drafts not yet sent, and every thread, the ones put away among them. */
-export type ThreadPlace = "all" | "drafts" | "needsYou" | "starred" | "unread";
+/** The places of the column apart from the inbox: threads waiting on the user, threads the user starred, drafts not yet sent, and every thread, the ones put away among them. What is unread is a count on a place, the way mail counts it, rather than a place of its own. */
+export type ThreadPlace = "all" | "drafts" | "needsYou" | "starred";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic =
@@ -59,23 +59,26 @@ export function appsUsed(threads: Filterable[]): string[] {
 }
 
 /**
- * The filters with one row chosen and every other row off, or with nothing
- * chosen when the row was the one already on: the column is one radio group
- * across all of its sections, so the list is never narrowed by two kinds at
- * once, and stepping out of any row lands in the inbox. The search is its own
- * thing and stays as it was. The predicate still reads lists, so nothing
- * downstream knows the column only ever fills one.
+ * The filters with a row turned: a place chosen stands in that place, or
+ * steps back out to the inbox when it was the place already stood in, and
+ * a topic or app chosen narrows whatever place the column stands in to
+ * that one, or lifts the narrowing when it was the one already on. So a
+ * place and a topic can be on together (the unread filed under House),
+ * while topics and apps are one radio group between them, since a thread
+ * under one topic and using one app is a narrower question than the column
+ * asks. The search is its own thing and stays as it was. The predicate
+ * still reads lists, so nothing downstream knows the column only ever fills
+ * one per group.
  */
-export function chooseOnly(
+export function choose(
   filters: ThreadFilters,
   choice: FilterChoice,
 ): ThreadFilters {
-  const cleared = { ...NO_FILTERS, search: filters.search };
   if (choice.group === "place") {
-    return filters.place === choice.id
-      ? cleared
-      : { ...cleared, place: choice.id };
+    const { place: _place, ...rest } = filters;
+    return filters.place === choice.id ? rest : { ...rest, place: choice.id };
   }
+  const cleared = { ...filters, apps: [], topics: [] };
   return filters[choice.group].includes(choice.id)
     ? cleared
     : { ...cleared, [choice.group]: [choice.id] };
@@ -110,13 +113,9 @@ export function hasWords(search: string, shown: string[]) {
   return words.every((word) => text.includes(word));
 }
 
-/** Whether the column stands in the inbox: nothing chosen, so every thread is in view. */
+/** Whether the column stands in the inbox: no place chosen, whatever topic or app narrows it. */
 export function isInbox(filters: ThreadFilters) {
-  return (
-    filters.place === undefined &&
-    filters.topics.length === 0 &&
-    filters.apps.length === 0
-  );
+  return filters.place === undefined;
 }
 
 /** Whether a thread passes every filter that is set. */
@@ -142,9 +141,9 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
 /**
  * Whether a thread is in the place the column stands in. A thread put away
  * is in All and nowhere else, the way mail keeps what was archived out of
- * the inbox but in the whole of it, so the inbox is every other thread, the
- * unread those of them with replies not yet seen, and Needs you those waiting
- * on the user. Drafts are not threads at all yet, so that place holds none.
+ * the inbox but in the whole of it, so the inbox is every other thread and
+ * Needs you those of them waiting on the user. Drafts are not threads at all
+ * yet, so that place holds none.
  */
 function matchesPlace(thread: Filterable, place: ThreadPlace | undefined) {
   switch (place) {
@@ -163,9 +162,6 @@ function matchesPlace(thread: Filterable, place: ThreadPlace | undefined) {
     }
     case undefined: {
       return !thread.archived;
-    }
-    case "unread": {
-      return !thread.archived && thread.unread > 0;
     }
   }
 }

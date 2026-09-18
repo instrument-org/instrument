@@ -133,9 +133,6 @@ export function ThreadPane({
     onNew: () => {
       onNew(chosenTopic?.id);
     },
-    onNewTopic: () => {
-      setNewTopic({});
-    },
     onTopicDetails: (topic: Topic) => {
       setEditingId(topic.id);
     },
@@ -260,9 +257,6 @@ function emptyLineFor(filters: ThreadFilters, total: number): string {
   }
   if (filters.place === "needsYou") {
     return "Nothing needs you.";
-  }
-  if (filters.place === "unread") {
-    return "Nothing unread.";
   }
   return total === 0
     ? "Press New to ask for something. Each ask becomes a thread here."

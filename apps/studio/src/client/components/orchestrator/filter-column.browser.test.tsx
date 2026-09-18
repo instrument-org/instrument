@@ -67,7 +67,7 @@ async function renderPane(width: number) {
 
 describe("FilterColumn and FilterHead", () => {
   it("is the column beside the list when the pane has room, and no head", async () => {
-    const { aside, head } = await renderPane(520);
+    const { aside, head } = await renderPane(420);
     expect(aside.getBoundingClientRect().width).toBe(160);
     expect(isLaidOut(aside)).toBe(true);
     expect(isLaidOut(head)).toBe(false);
@@ -79,7 +79,7 @@ describe("FilterColumn and FilterHead", () => {
   });
 
   it("gives way to the head over the list when the pane is narrow", async () => {
-    const { aside, head } = await renderPane(320);
+    const { aside, head } = await renderPane(300);
     expect(isLaidOut(aside)).toBe(false);
     expect(isLaidOut(head)).toBe(true);
     expect(
@@ -88,14 +88,12 @@ describe("FilterColumn and FilterHead", () => {
       ),
     ).toEqual([
       "Inbox",
-      "Unread",
       "Starred",
       "Drafts",
       "All",
       "New",
       "House",
       "Actions for House",
-      "New topic",
     ]);
     expect(
       head.querySelector('[aria-label="House"]')?.getAttribute("data-chosen"),

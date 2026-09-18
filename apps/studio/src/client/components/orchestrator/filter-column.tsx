@@ -7,7 +7,6 @@ import {
 import { cn } from "@/client/lib/utils";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
-import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -19,11 +18,10 @@ import { type AppsBySlug } from "./apps-by-slug";
 import { type PickEntry } from "./pick-list";
 import {
   appsUsed,
-  chooseOnly,
+  choose,
   type Filterable,
   foldSection,
   isInbox,
-  NO_FILTERS,
   type ThreadFilters,
   type ThreadPlace,
   type Topic,
@@ -40,14 +38,9 @@ interface Place {
   label: string;
 }
 
-/** The places in the order they are drawn: the inbox, what is new, what waits on the user, what is starred, what is not yet sent, and the whole of it, put away included. */
+/** The places in the order they are drawn: the inbox, what waits on the user, what is starred, what is not yet sent, and the whole of it, put away included. */
 const PLACES: Place[] = [
   { icon: <TrayIcon className="size-4" />, id: "inbox", label: "Inbox" },
-  {
-    icon: <NotificationIcon className="size-4" />,
-    id: "unread",
-    label: "Unread",
-  },
   {
     // The same amber dot a waiting thread wears in its gutter.
     icon: <span className="size-2 rounded-full bg-warning-500" />,
@@ -84,39 +77,41 @@ interface FilterProps {
   onFiltersChange: (filters: ThreadFilters) => void;
   /** Opens a draft of a new thread. */
   onNew: () => void;
-  onNewTopic: () => void;
   /** Opens a topic's details: its name, its mark, and the way to delete it. */
   onTopicDetails: (topic: Topic) => void;
   threads: Filterable[];
   topics: Topic[];
 }
 
-/** One of the places as the column reads it: its row's entry, whether it is stood in, and how to stand in it. */
+/** One of the places as the column reads it: its row's entry, how to stand in it, and how many threads in it hold replies not yet seen, where the place counts them. */
 interface PlaceModel extends Place {
   choose: () => void;
   entry: PickEntry;
+  unread?: number;
 }
 
 /**
  * The sections at the inbox's side, inside the pane: the topics as a grid of
  * tiles first, unlabeled, since a tile is its own label; the places under
- * them (Inbox, which is every thread not put away, Unread, Needs you,
- * Starred, Drafts, and All, which is every thread, put away or not); and past
- * a rule the apps, as rows. No counts on any of them: a figure beside every
- * row is detail nobody reads. The rows and tiles are one radio group across
- * the whole column: choosing one is standing in it, choosing another is
- * moving, and choosing it again is stepping back out to the inbox, so the
- * list is never narrowed by two kinds at once; only the search over the list
- * adds to whatever is chosen. When the pane is narrow the column gives way to
+ * them (Inbox, which is every thread not put away, Needs you, Starred,
+ * Drafts, and All, which is every thread, put away or not); and past a rule
+ * the apps, as rows. The one figure on any of them is how many threads in
+ * the place hold replies not yet seen, on Inbox and on Starred while there
+ * are any, the way mail counts its unread on the inbox rather than keeping
+ * a place for them. The places are one radio group and the topics and apps
+ * another: a topic chosen narrows whatever place the column stands in, so
+ * the unread filed under one topic is a click on each; choosing the same
+ * row again turns it off. The search over the list adds to whatever is
+ * chosen. Under twenty-three rem of pane the column gives way to
  * `FilterHead` over the list, which holds the same choices.
  */
 export function FilterColumn(props: FilterProps) {
-  const { apps, isPlaceOn, onNew, onNewTopic, onTopicDetails, places, topics } =
+  const { apps, isPlaceOn, onNew, onTopicDetails, places, topics } =
     useFilterModel(props);
   return (
     <aside
       aria-label="Filters"
-      className="hidden h-full w-40 shrink-0 flex-col border-r border-border bg-muted/40 @[30rem]/chat:flex"
+      className="hidden h-full w-40 shrink-0 flex-col border-r border-border bg-muted/40 @[23rem]/chat:flex"
       role="group"
     >
       {/* The way to a new thread, at the top of the column and across it,
@@ -129,11 +124,7 @@ export function FilterColumn(props: FilterProps) {
         </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-        <TopicGrid
-          onDetails={onTopicDetails}
-          onNewTopic={onNewTopic}
-          topics={topics}
-        />
+        <TopicGrid onDetails={onTopicDetails} topics={topics} />
         <section aria-label="Places" className="pt-1">
           {places.map((place) => (
             <FilterRow
@@ -141,6 +132,7 @@ export function FilterColumn(props: FilterProps) {
               isOn={isPlaceOn(place)}
               key={place.id}
               onToggle={place.choose}
+              unread={place.unread}
             />
           ))}
         </section>
@@ -157,18 +149,19 @@ export function FilterColumn(props: FilterProps) {
 
 /**
  * The same choices over the list, for a pane too narrow for a column beside
- * it: the places as marks on one line, the one stood in wearing its name,
- * with the way to a new thread at the line's end; then the topics as tiles.
- * The apps stay out of the head: a narrow pane has no room for a row of
- * them, and the search over the list finds a thread by its app.
+ * it: the places as marks on one line, the one stood in wearing its name
+ * and the inbox its unread count, with the way to a new thread at the
+ * line's end as a round plus; then the topics as tiles. The apps stay out
+ * of the head: a narrow pane has no room for a row of them, and the search
+ * over the list finds a thread by its app.
  */
 export function FilterHead(props: FilterProps) {
-  const { isPlaceOn, onNew, onNewTopic, onTopicDetails, places, topics } =
+  const { isPlaceOn, onNew, onTopicDetails, places, topics } =
     useFilterModel(props);
   return (
     <div
       aria-label="Filters"
-      className="flex shrink-0 flex-col gap-2 px-3 pt-2 @[30rem]/chat:hidden"
+      className="flex shrink-0 flex-col gap-2 px-3 pt-2 @[23rem]/chat:hidden"
       role="group"
     >
       <div
@@ -182,6 +175,7 @@ export function FilterHead(props: FilterProps) {
             key={place.id}
             label={place.label}
             onChoose={place.choose}
+            unread={place.unread}
           >
             {place.icon}
           </PlaceMark>
@@ -193,14 +187,10 @@ export function FilterHead(props: FilterProps) {
           size="icon"
           variant="brand"
         >
-          <PencilSimpleIcon className="size-3.5" />
+          <PlusIcon className="size-4" weight="bold" />
         </Button>
       </div>
-      <TopicGrid
-        onDetails={onTopicDetails}
-        onNewTopic={onNewTopic}
-        topics={topics}
-      />
+      <TopicGrid onDetails={onTopicDetails} topics={topics} />
     </div>
   );
 }
@@ -242,15 +232,18 @@ function AppRows({ section }: { section: AppSection }) {
   );
 }
 
-/** One row of the column: its mark, its name, and whether it is on, which the row's whole face says. */
+/** One row of the column: its mark, its name, its unread count where it has one, and whether it is on, which the row's whole face says. */
 function FilterRow({
   entry,
   isOn,
   onToggle,
+  unread,
 }: {
   entry: PickEntry;
   isOn: boolean;
   onToggle: () => void;
+  /** How many threads in the place hold replies not yet seen; nothing where none do or the place does not count. */
+  unread?: number;
 }) {
   return (
     <button
@@ -270,6 +263,11 @@ function FilterRow({
         {entry.icon}
       </span>
       <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+      {unread !== undefined && (
+        <span className="shrink-0 pr-1.5 text-[11px] font-medium tabular-nums">
+          {unread}
+        </span>
+      )}
     </button>
   );
 }
@@ -284,11 +282,14 @@ function PlaceMark({
   isOn,
   label,
   onChoose,
+  unread,
 }: {
   children: ReactNode;
   isOn: boolean;
   label: string;
   onChoose: () => void;
+  /** How many threads in the place hold replies not yet seen, said beside the glyph whether or not the place is stood in. */
+  unread?: number;
 }) {
   const mark = (
     <button
@@ -298,7 +299,7 @@ function PlaceMark({
         "flex h-8 shrink-0 items-center gap-1.5 rounded-lg text-xs",
         isOn
           ? cn(CHOSEN, "px-2.5 font-medium")
-          : cn(UNCHOSEN, "w-8 justify-center"),
+          : cn(UNCHOSEN, unread === undefined ? "w-8 justify-center" : "px-2"),
       )}
       data-chosen={isOn || undefined}
       onClick={onChoose}
@@ -306,6 +307,9 @@ function PlaceMark({
     >
       {children}
       {isOn && <span>{label}</span>}
+      {unread !== undefined && (
+        <span className="text-[11px] font-medium tabular-nums">{unread}</span>
+      )}
     </button>
   );
   if (isOn) {
@@ -329,15 +333,14 @@ function Rule() {
  * tile, the way a home screen holds its apps: a tile is its own label, so
  * the grid has none and the name is the tooltip. The tile stood in wears a
  * ring. A right click, or the dots that show on hover, open the topic's
- * details; the dashed tile at the end makes a new one.
+ * details. Nothing here makes a topic: one is made where it is first
+ * needed, from a thread's topic list.
  */
 function TopicGrid({
   onDetails,
-  onNewTopic,
   topics,
 }: {
   onDetails: (topic: Topic) => void;
-  onNewTopic: () => void;
   topics: { choose: () => void; isOn: boolean; topic: Topic }[];
 }) {
   return (
@@ -382,16 +385,13 @@ function TopicGrid({
           </div>
         </TopicContextMenu>
       ))}
-      <button
-        aria-label="New topic"
-        className="grid size-11 place-items-center rounded-xl border border-dashed border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-        onClick={onNewTopic}
-        type="button"
-      >
-        <PlusIcon className="size-4" weight="bold" />
-      </button>
     </div>
   );
+}
+
+/** How many of these threads hold replies not yet seen. */
+function unreadIn(held: Filterable[]) {
+  return held.filter((thread) => thread.unread > 0).length;
 }
 
 /**
@@ -405,7 +405,6 @@ function useFilterModel({
   filters,
   onFiltersChange,
   onNew,
-  onNewTopic,
   onTopicDetails,
   threads,
   topics,
@@ -416,23 +415,42 @@ function useFilterModel({
   const needsYou = kept.some((thread) => thread.state === "waiting");
   const isPlaceOn = (place: Place) =>
     place.id === "inbox" ? isInbox(filters) : filters.place === place.id;
-  /** Standing in a place: the inbox is standing nowhere in particular, so choosing it steps out of everything. */
+  /** Standing in a place: the inbox is standing in no place, whatever topic narrows it. */
   const choosePlace = (id: Place["id"]) => {
-    onFiltersChange(
-      id === "inbox"
-        ? { ...NO_FILTERS, search: filters.search }
-        : chooseOnly(filters, { group: "place", id }),
-    );
+    if (id === "inbox") {
+      const { place: _place, ...rest } = filters;
+      onFiltersChange(rest);
+      return;
+    }
+    onFiltersChange(choose(filters, { group: "place", id }));
+  };
+  /** How many of a place's threads hold replies not yet seen, for the places that count them. */
+  const unreadOf = (id: Place["id"]): number | undefined => {
+    switch (id) {
+      case "inbox": {
+        return unreadIn(kept);
+      }
+      case "starred": {
+        return unreadIn(threads.filter((thread) => thread.starred));
+      }
+      default: {
+        return undefined;
+      }
+    }
   };
   const places: PlaceModel[] = PLACES.filter(
     (place) => place.id !== "needsYou" || needsYou,
-  ).map((place) => ({
-    ...place,
-    choose: () => {
-      choosePlace(place.id);
-    },
-    entry: { icon: place.icon, id: place.id, label: place.label },
-  }));
+  ).map((place) => {
+    const unread = unreadOf(place.id);
+    return {
+      ...place,
+      choose: () => {
+        choosePlace(place.id);
+      },
+      entry: { icon: place.icon, id: place.id, label: place.label },
+      ...(unread ? { unread } : {}),
+    };
+  });
   const chosenTopics = new Set(filters.topics);
   const apps: AppSection = {
     chosen: new Set(filters.apps),
@@ -451,19 +469,18 @@ function useFilterModel({
       }))
       .sort((a, b) => a.label.localeCompare(b.label)),
     onToggle: (id) => {
-      onFiltersChange(chooseOnly(filters, { group: "apps", id }));
+      onFiltersChange(choose(filters, { group: "apps", id }));
     },
   };
   return {
     apps,
     isPlaceOn,
     onNew,
-    onNewTopic,
     onTopicDetails,
     places,
     topics: live.map((topic) => ({
       choose: () => {
-        onFiltersChange(chooseOnly(filters, { group: "topics", id: topic.id }));
+        onFiltersChange(choose(filters, { group: "topics", id: topic.id }));
       },
       isOn: chosenTopics.has(topic.id),
       topic,

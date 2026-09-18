@@ -59,7 +59,10 @@ export function ToolChoose({
 
       <ToolCardSection collapsedHeight={256}>
         <p className="mb-3 text-sm">{part.input.question}</p>
-        <div className="space-y-1.5" role={isPending ? "radiogroup" : undefined}>
+        <div
+          className="space-y-1.5"
+          role={isPending ? "radiogroup" : undefined}
+        >
           {part.input.choices?.map((choice, index) => {
             const isSelected = choice === selected;
             // A radio, so a choice reads as one thing to pick among several
@@ -76,7 +79,9 @@ export function ToolChoose({
                       : "border-border bg-background",
                   )}
                 >
-                  {isSelected && <CheckIcon className="size-2.5" weight="bold" />}
+                  {isSelected && (
+                    <CheckIcon className="size-2.5" weight="bold" />
+                  )}
                 </span>
                 <span className="min-w-0 flex-1">{choice}</span>
               </>

@@ -79,7 +79,11 @@ function renderColumn({
     topics: [HOUSE, MONEY],
   };
   renderWithProviders(
-    shape === "column" ? <FilterColumn {...props} /> : <FilterHead {...props} />,
+    shape === "column" ? (
+      <FilterColumn {...props} />
+    ) : (
+      <FilterHead {...props} />
+    ),
   );
   return {
     column: within(screen.getByRole("group", { name: "Filters" })),

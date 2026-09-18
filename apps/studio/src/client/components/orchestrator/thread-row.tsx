@@ -19,7 +19,6 @@ import {
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId } from "@instrument-org/workspace/client";
-import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -55,8 +54,7 @@ import { topicTint } from "./topic-tint";
  * latest line gets two, and what it holds sits on a third line that never
  * wraps: the files it made as chips with their names, the apps and sites as
  * marks beside them, fading out at the row's edge; a column down the row's
- * right carries the time, the reply count under it, and the star at the
- * bottom. No avatar, no name: every row here is the user's. The pill, the
+ * right carries the time and the star at the bottom. No avatar, no name: every row here is the user's. The pill, the
  * marks, the star, the tag control that stands in front of the pill while
  * the pointer is on the row, and the actions that stand over the time then
  * (putting the thread away or back, marking it read or unread) are the
@@ -148,18 +146,6 @@ export function ThreadRow({
       {activityLabel(new Date(thread.updatedAt), now)}
     </span>
   );
-  // How many replies, once there is a conversation to count: the thread's
-  // own mark and a number, in muted, never a word.
-  const count = thread.replyCount > 1 && (
-    <span
-      aria-label={`${thread.replyCount} replies`}
-      className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground tabular-nums"
-    >
-      <ChatTeardropTextIcon className="size-3" />
-      {thread.replyCount}
-    </span>
-  );
-
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -206,9 +192,6 @@ export function ThreadRow({
                   />
                 </HoldsInThread>
               )}
-              {/* A slot of its own before the time, filled or not, so the
-                times line up down the list. */}
-              <span className="flex w-9 shrink-0 justify-end">{count}</span>
               <span className="w-14 shrink-0 text-right">{time}</span>
               {/* Past the time at the row's end, in view, where mail keeps
                 its star: a mark of the user's own, apart from the row's
@@ -237,13 +220,11 @@ export function ThreadRow({
                 )}
               </div>
               {/* A column of the row's own down its right: the time on the
-                title's line, the count under it, and the star at the bottom,
-                in view and apart from the row's actions, where mail keeps
-                it. A column rather than a corner, so no line of words ever
-                runs under any of them. */}
+                title's line and the star at the bottom, in view and apart
+                from the row's actions, where mail keeps it. A column rather
+                than a corner, so no line of words ever runs under either. */}
               <div className="flex shrink-0 flex-col items-end gap-0.5 self-stretch">
                 <span className="flex h-5 items-center">{time}</span>
-                {count}
                 <span className="mt-auto -mr-1">
                   <StarControl thread={thread} />
                 </span>

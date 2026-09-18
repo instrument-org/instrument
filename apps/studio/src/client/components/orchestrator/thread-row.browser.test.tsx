@@ -397,37 +397,18 @@ describe("ThreadRow", () => {
     expect(slim.scrollWidth).toBe(slim.clientWidth);
   });
 
-  it("counts the replies at the row's right, under the time when tall and before it when slim, once there is a conversation", async () => {
+  it("carries no reply count: the time is the only figure at the row's right", async () => {
     const { rows } = await renderRows([
       { density: "tall", thread: thread({ replyCount: 3 }) },
-      { density: "tall", thread: thread({ replyCount: 1 }) },
       { density: "slim", thread: thread({ replyCount: 3 }) },
     ]);
-    const [three, one, slim] = rows;
-    if (!three || !one || !slim) {
+    const [tall, slim] = rows;
+    if (!tall || !slim) {
       throw new Error("no rows");
     }
-    const countOf = (row: HTMLElement) =>
-      row.querySelector<HTMLElement>('[aria-label="3 replies"]');
-    // The count sits under the time in the column at the right; the title's
-    // line carries neither.
-    expect(firstLineOf(three).textContent).toBe(TITLE);
-    const tallCount = countOf(three);
-    expect(tallCount?.textContent).toBe("3");
-    const time = timeOf(three).getBoundingClientRect();
-    expect(tallCount?.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-      time.bottom,
-    );
-    expect(tallCount?.getBoundingClientRect().right).toBeLessThanOrEqual(
-      time.right + 1,
-    );
-    expect(countOf(one)).toBeNull();
-    expect(firstLineOf(one).textContent).toBe(TITLE);
-    const slimCount = countOf(slim);
-    expect(slimCount?.getBoundingClientRect().right).toBeLessThanOrEqual(
-      timeOf(slim).getBoundingClientRect().left,
-    );
-    expect(slim.textContent).toBe(`${TITLE}${REPLY}39:11 AM`);
+    expect(tall.querySelector('[aria-label="3 replies"]')).toBeNull();
+    expect(firstLineOf(tall).textContent).toBe(TITLE);
+    expect(slim.textContent).toBe(`${TITLE}${REPLY}9:11 AM`);
   });
 
   it.each<[string, Partial<Thread>, null | { color: string; label: string }]>([

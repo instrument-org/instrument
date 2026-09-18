@@ -130,7 +130,9 @@ export function ThreadRow({
   );
   // The topics in the row's corner, each by name; filing is the control in
   // the corner's bar.
-  const pills = filed.map((topic) => <TopicPill key={topic.id} topic={topic} />);
+  const pills = filed.map((topic) => (
+    <TopicPill key={topic.id} topic={topic} />
+  ));
   const title = (
     <span
       className={cn(

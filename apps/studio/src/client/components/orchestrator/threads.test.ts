@@ -239,10 +239,16 @@ describe("matchesFilters", () => {
       search: "protein",
     };
     expect(
-      matchesFilters(thread({ starred: true, title: "Protein drink" }), filters),
+      matchesFilters(
+        thread({ starred: true, title: "Protein drink" }),
+        filters,
+      ),
     ).toBe(true);
     expect(
-      matchesFilters(thread({ starred: true, title: "MLS standings" }), filters),
+      matchesFilters(
+        thread({ starred: true, title: "MLS standings" }),
+        filters,
+      ),
     ).toBe(false);
     expect(matchesFilters(thread({ title: "Protein drink" }), filters)).toBe(
       false,
@@ -299,7 +305,10 @@ describe("choosing a row of the column", () => {
 
   it("moves between a topic and an app, which are one group", () => {
     expect(
-      choose({ ...searched, topics: ["house"] }, { group: "apps", id: "gmail" }),
+      choose(
+        { ...searched, topics: ["house"] },
+        { group: "apps", id: "gmail" },
+      ),
     ).toEqual({ ...searched, apps: ["gmail"] });
   });
 
@@ -317,8 +326,10 @@ describe("choosing a row of the column", () => {
       ),
     ).toEqual({ ...searched, topics: ["house"] });
     expect(
-      choose({ ...searched, place: "starred" }, { group: "place", id: "starred" })
-        .place,
+      choose(
+        { ...searched, place: "starred" },
+        { group: "place", id: "starred" },
+      ).place,
     ).toBeUndefined();
   });
 });

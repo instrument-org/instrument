@@ -143,6 +143,10 @@ function ThreadScreen({
     );
   }
   const modelURI = state.data.selectedModelURI ?? defaultModelURI;
+  // Into this thread's own group, shown: an open from a thread's chat is the
+  // thread's whatever the window has up at that moment, and never a silent
+  // nothing because the group on screen was another's.
+  const into = { group: sessionId, newTab: true, show: true };
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* The thread stands over its tabs, so what a reply hands over opens
@@ -164,10 +168,10 @@ function ThreadScreen({
               });
             },
             openPage: (url) => {
-              orchestrator.openPage(url, { newTab: true });
+              orchestrator.openPage(url, into);
             },
             openScreen: (href) => {
-              orchestrator.openScreen(href, { newTab: true });
+              orchestrator.openScreen(href, into);
             },
             opensNewTab: true,
             sessionId,
@@ -175,12 +179,12 @@ function ThreadScreen({
         >
           <FileOpenContext
             value={(path) => {
-              openFile?.(path, { newTab: true });
+              openFile?.(path, into);
             }}
           >
             <PageOpenContext
               value={(url) => {
-                orchestrator.openPage(url, { newTab: true });
+                orchestrator.openPage(url, into);
               }}
             >
               <TaskSessionProvider sessionId={sessionId} taskId={taskId}>
@@ -191,9 +195,10 @@ function ThreadScreen({
                   beforeComposer={
                     <ThreadWork
                       onOpen={(id) => {
-                        orchestrator.openScreen(`/orchestrator/tasks/${id}`, {
-                          newTab: true,
-                        });
+                        orchestrator.openScreen(
+                          `/orchestrator/tasks/${id}`,
+                          into,
+                        );
                       }}
                       tasks={thread?.runningTasks ?? []}
                     />

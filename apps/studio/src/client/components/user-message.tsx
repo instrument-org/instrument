@@ -76,8 +76,13 @@ export const UserMessage = memo(function UserMessage({
     <div className="group flex w-full flex-col items-end">
       <div
         className={cn(
-          "relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 text-foreground shadow-sm dark:from-card dark:to-card",
-          compact ? "px-3 py-2" : "px-4 py-3",
+          "relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl text-foreground",
+          // In the conversation the user's bubble wears the brand's tint,
+          // facing the assistant's on the card's ground; on a task page it
+          // is a card of its own.
+          compact
+            ? "bg-brand-200 px-3 py-2 dark:bg-brand-800"
+            : "bg-linear-to-b from-card to-gray-25 px-4 py-3 shadow-sm dark:from-card dark:to-card",
         )}
       >
         <Collapsible
@@ -118,7 +123,14 @@ export const UserMessage = memo(function UserMessage({
           )}
 
           {!isExpanded && isOverflowing && (
-            <div className="pointer-events-none absolute right-0 bottom-0 left-0 h-12 rounded-br-xl rounded-bl-xl bg-linear-to-t from-gray-25 from-50% to-gray-25/0 dark:from-card dark:to-card/0" />
+            <div
+              className={cn(
+                "pointer-events-none absolute right-0 bottom-0 left-0 h-12 rounded-br-xl rounded-bl-xl bg-linear-to-t from-50%",
+                compact
+                  ? "from-brand-200 to-brand-200/0 dark:from-brand-800 dark:to-brand-800/0"
+                  : "from-gray-25 to-gray-25/0 dark:from-card dark:to-card/0",
+              )}
+            />
           )}
 
           <CollapsibleContent>

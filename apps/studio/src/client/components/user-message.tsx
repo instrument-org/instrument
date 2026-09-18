@@ -78,10 +78,11 @@ export const UserMessage = memo(function UserMessage({
         className={cn(
           "relative max-w-[80%] rounded-tl-xl rounded-tr rounded-br-xl rounded-bl-xl text-foreground",
           // In the conversation the user's bubble wears the brand's tint,
-          // facing the assistant's on the card's ground; on a task page it
-          // is a card of its own.
+          // rebuilt light and soft from the brand's hue since no token of the
+          // scale sits there, facing the assistant's on the card's ground; on
+          // a task page it is a card of its own.
           compact
-            ? "bg-brand-200 px-3 py-2 dark:bg-brand-800"
+            ? "bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] px-3 py-2 dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]"
             : "bg-linear-to-b from-card to-gray-25 px-4 py-3 shadow-sm dark:from-card dark:to-card",
         )}
       >
@@ -127,7 +128,7 @@ export const UserMessage = memo(function UserMessage({
               className={cn(
                 "pointer-events-none absolute right-0 bottom-0 left-0 h-12 rounded-br-xl rounded-bl-xl bg-linear-to-t from-50%",
                 compact
-                  ? "from-brand-200 to-brand-200/0 dark:from-brand-800 dark:to-brand-800/0"
+                  ? "from-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] to-[oklch(from_var(--color-brand-500)_0.85_0.05_h/0)] dark:from-[oklch(from_var(--color-brand-500)_0.36_0.06_h)] dark:to-[oklch(from_var(--color-brand-500)_0.36_0.06_h/0)]"
                   : "from-gray-25 to-gray-25/0 dark:from-card dark:to-card/0",
               )}
             />

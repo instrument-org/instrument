@@ -22,13 +22,13 @@ interface AssistantMessageProps {
 
 /**
  * The face an assistant's bubble wears, mirroring the user's: its tail at
- * the top left, on the card's ground with a faint edge, where the user's is
+ * the top left, on the card's ground with barely an edge, where the user's is
  * the brand's tint. `--transcript-room` is zeroed inside it so a wide table
  * scrolls within the bubble rather than bleeding past its edge into the room
  * the transcript has: the bubble is the reply's whole width.
  */
 export const ASSISTANT_BUBBLE =
-  "max-w-[85%] min-w-0 rounded-tl rounded-tr-xl rounded-br-xl rounded-bl-xl bg-card px-3 py-2 text-foreground shadow-xs ring-1 ring-foreground/6 [--transcript-room:0px]";
+  "max-w-[85%] min-w-0 rounded-tl rounded-tr-xl rounded-br-xl rounded-bl-xl bg-card px-3 py-2 text-foreground shadow-xs ring-1 ring-foreground/3 [--transcript-room:0px]";
 
 export const AssistantMessage = memo(function AssistantMessage({
   bubble = false,

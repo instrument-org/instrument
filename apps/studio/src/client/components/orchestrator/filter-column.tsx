@@ -6,8 +6,8 @@ import {
 } from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
-import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
+import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -44,7 +44,7 @@ interface Place {
 const PLACES: Place[] = [
   { icon: <TrayIcon className="size-4" />, id: "inbox", label: "Inbox" },
   {
-    icon: <EnvelopeSimpleIcon className="size-4" />,
+    icon: <NotificationIcon className="size-4" />,
     id: "unread",
     label: "Unread",
   },

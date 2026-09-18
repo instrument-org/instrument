@@ -17,9 +17,14 @@ interface AssistantMessageProps {
   taskId: TaskId;
 }
 
-/** The face an assistant's bubble wears, mirroring the user's: its tail at the top left. */
+/**
+ * The face an assistant's bubble wears, mirroring the user's: its tail at
+ * the top left. `--transcript-room` is zeroed inside it so a wide table
+ * scrolls within the bubble rather than bleeding past its edge into the room
+ * the transcript has: the bubble is the reply's whole width.
+ */
 export const ASSISTANT_BUBBLE =
-  "max-w-[85%] rounded-tl rounded-tr-xl rounded-br-xl rounded-bl-xl bg-muted px-3 py-2 text-foreground";
+  "max-w-[85%] min-w-0 rounded-tl rounded-tr-xl rounded-br-xl rounded-bl-xl bg-muted px-3 py-2 text-foreground [--transcript-room:0px]";
 
 export const AssistantMessage = memo(function AssistantMessage({
   bubble = false,

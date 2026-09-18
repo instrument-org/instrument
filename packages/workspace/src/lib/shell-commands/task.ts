@@ -37,7 +37,7 @@ import { initializeTask } from "../initialize-task";
 import { newMessage } from "../new-message";
 import { newTaskId } from "../new-task-id";
 import { isWorking, leftRunning } from "../orchestrator/activity";
-import { recordTaskThread } from "../orchestrator/attribution";
+import { recordTaskThread, taskThreads } from "../orchestrator/attribution";
 import { listChildTasks } from "../orchestrator/children";
 import { describeHoldings } from "../orchestrator/describe-holdings";
 import { taskFolderHoldings } from "../orchestrator/folder-holdings";
@@ -314,7 +314,7 @@ export async function runApp(args: string[], context: TaskCommandContext) {
     flags: ["add", "remove"],
     repeatable: ["add", "remove"],
   });
-  const task = await requireChild(positional[0], context);
+  const task = await requireOwnChild(positional[0], context);
   const askedAdds = values.get("add") ?? [];
   const askedRemoves = values.get("remove") ?? [];
   if (askedAdds.length === 0 && askedRemoves.length === 0) {
@@ -379,7 +379,7 @@ export async function runFolder(args: string[], context: TaskCommandContext) {
     flags: ["add", "remove"],
     repeatable: ["add", "remove"],
   });
-  const task = await requireChild(positional[0], context);
+  const task = await requireOwnChild(positional[0], context);
   const askedAdds = values.get("add") ?? [];
   const askedRemoves = values.get("remove") ?? [];
   if (askedAdds.length === 0 && askedRemoves.length === 0) {
@@ -445,7 +445,7 @@ export async function runFolder(args: string[], context: TaskCommandContext) {
  * same act as the stop button beside the task's title.
  */
 export async function runKill(args: string[], context: TaskCommandContext) {
-  const task = await requireChild(args[0], context);
+  const task = await requireOwnChild(args[0], context);
   const wanted = args[1];
   const running = listTaskBackgroundProcesses(task.id).filter(
     (process) => process.status === "running",
@@ -638,7 +638,7 @@ export async function runSend(
   context: TaskCommandContext,
   stdin: ByteString,
 ) {
-  const task = await requireChild(args[0], context);
+  const task = await requireOwnChild(args[0], context);
   const prompt = promptFrom(args.slice(1).join(" "), stdin);
   if (!prompt) {
     throw new Error(
@@ -700,7 +700,7 @@ export async function runSend(
 }
 
 export async function runStop(args: string[], context: TaskCommandContext) {
-  const task = await requireChild(args[0], context);
+  const task = await requireOwnChild(args[0], context);
   const running = isWorking(task.id);
   if (!running) {
     return ok(`${task.id} is not running.\n`);
@@ -722,7 +722,7 @@ export async function runStop(args: string[], context: TaskCommandContext) {
  * a browser of its own the next time it needs a page.
  */
 export async function runTab(args: string[], context: TaskCommandContext) {
-  const task = await requireChild(args[0], context);
+  const task = await requireOwnChild(args[0], context);
   const wanted = args[1];
   if (!wanted) {
     throw new Error(
@@ -761,7 +761,7 @@ export async function runWake(args: string[], context: TaskCommandContext) {
     flags: ["in"],
     repeatable: [],
   });
-  const task = await requireChild(positional[0], context);
+  const task = await requireOwnChild(positional[0], context);
   if (values.has("cancel")) {
     return ok(
       cancelAskedWake(task.id)
@@ -930,6 +930,32 @@ function requireAppsNamedInBrief(prompt: string, apps: string[]) {
   }
 }
 
+/**
+ * The task named, and one this thread may act on: a task started in another
+ * thread is that thread's to steer, since its outcome reports there and a
+ * message sent into it from here would land in a conversation the user is not
+ * having. Reading it (`show`, `log`, `list`) stays open to every thread; the
+ * refusal says where to go instead.
+ */
+async function requireOwnChild(
+  rawId: string | undefined,
+  context: TaskCommandContext,
+): Promise<Task> {
+  const task = await requireChild(rawId, context);
+  if (!context.sessionId) {
+    return task;
+  }
+  const filedIn = (await taskThreads(context.orchestratorTaskId))[task.id];
+  if (filedIn === undefined || filedIn === context.sessionId) {
+    return task;
+  }
+  const thread = await Store.getSession(filedIn, context.orchestratorTaskId);
+  const named = thread.isOk() ? ` ("${thread.value.title}")` : "";
+  throw new Error(
+    `"${task.id}" was started in another thread${named}, and is that thread's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it. Tell the user which thread it is in, or start a task of your own here.`,
+  );
+}
+
 async function requireChild(
   rawId: string | undefined,
   { orchestratorTaskId }: TaskCommandContext,
@@ -1068,7 +1094,7 @@ async function resolveTab(
 }
 
 async function runTrash(args: string[], context: TaskCommandContext) {
-  const task = await requireChild(args[0], context);
+  const task = await requireOwnChild(args[0], context);
   const result = await trashTask({
     id: task.id,
     workspaceConfig: getWorkspaceConfig(),
@@ -1157,7 +1183,7 @@ async function runList(args: string[], context: TaskCommandContext) {
   return ok(renderTaskList(selection));
 }
 
-async function runLog(args: string[], context: TaskCommandContext) {
+export async function runLog(args: string[], context: TaskCommandContext) {
   const { positional, values } = parseFlags(args, {
     boolean: ["steps"],
     flags: ["tail"],
@@ -1202,7 +1228,7 @@ async function runLog(args: string[], context: TaskCommandContext) {
 }
 
 async function runModel(args: string[], context: TaskCommandContext) {
-  const task = await requireChild(args[0], context);
+  const task = await requireOwnChild(args[0], context);
   const rawURI = args[1];
   if (!rawURI) {
     throw new Error("model: a model URI is required.");
@@ -1233,7 +1259,7 @@ async function runModels(args: string[], context: TaskCommandContext) {
 }
 
 async function runRename(args: string[], context: TaskCommandContext) {
-  const task = await requireChild(args[0], context);
+  const task = await requireOwnChild(args[0], context);
   const title = args.slice(1).join(" ").trim();
   if (!title) {
     throw new Error("rename takes the new title after the id.");

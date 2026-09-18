@@ -14,8 +14,10 @@ import {
   startBackgroundRun,
 } from "../background-processes";
 import { initializeTask } from "../initialize-task";
+import { recordTaskThread } from "../orchestrator/attribution";
+import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { runKill, type TaskCommandContext } from "./task";
+import { runKill, runLog, type TaskCommandContext } from "./task";
 
 const ORCHESTRATOR_ID = TaskIdSchema.parse("orchestrator");
 const CHILD_ID = TaskIdSchema.parse("find-the-vault");
@@ -31,12 +33,24 @@ let sessionId: StoreId.Session;
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-kill-"));
   createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID));
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", ORCHESTRATOR_ID));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
     ),
   });
+  const orchestrator = await initializeTask(
+    {
+      initialSettings: { kind: "orchestrator", name: "Instrument" },
+      taskId: ORCHESTRATOR_ID,
+      workspaceConfig: getWorkspaceConfig(),
+    },
+    {},
+  );
+  if (orchestrator.isErr()) {
+    throw orchestrator.error;
+  }
   const created = await initializeTask(
     {
       initialSettings: {
@@ -139,6 +153,39 @@ describe("task kill", () => {
         orchestratorTaskId: TaskIdSchema.parse("someone-else"),
       }),
     ).rejects.toThrow(/no task "find-the-vault" of yours/);
+  });
+
+  // A task started in another thread reports there, so steering it from here
+  // would move a conversation the user is not having; reading it stays open.
+  it("refuses to act on a task another thread started, naming the thread, and still reads it", async () => {
+    const theirs = StoreId.newSessionId();
+    const saved = await Store.saveSession(
+      {
+        createdAt: new Date(),
+        id: theirs,
+        title: "Vault hunt",
+      },
+      ORCHESTRATOR_ID,
+    );
+    if (saved.isErr()) {
+      throw saved.error;
+    }
+    await recordTaskThread({
+      orchestratorTaskId: ORCHESTRATOR_ID,
+      sessionId: theirs,
+      taskId: CHILD_ID,
+    });
+    const server = leave("node work/server.js");
+    const here = { ...context, sessionId: StoreId.newSessionId() };
+    await expect(runKill([CHILD_ID], here)).rejects.toThrow(
+      `"find-the-vault" was started in another thread ("Vault hunt"), and is that thread's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it.`,
+    );
+    expect(stillRunning()).toEqual([server.id]);
+    await expect(runLog([CHILD_ID], here)).resolves.toBeDefined();
+    // Its own thread, and a command outside any turn, still steer it.
+    await expect(
+      runKill([CHILD_ID], { ...context, sessionId: theirs }),
+    ).resolves.toBeDefined();
   });
 
   // An id guessed from a task's title gets most of the words right, and the

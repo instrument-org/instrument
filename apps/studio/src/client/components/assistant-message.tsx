@@ -1,9 +1,12 @@
 import {
+  FILES_FENCE,
   type SessionMessagePart,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { memo } from "react";
 
+import { AgentFilesBlock } from "./agent-files-block";
+import { MarkdownTaskContext } from "./markdown-task-context";
 import { SessionMarkdown } from "./session-markdown";
 
 interface AssistantMessageProps {
@@ -34,17 +37,41 @@ export const AssistantMessage = memo(function AssistantMessage({
   const messageText = part.text;
 
   if (bubble) {
+    // The bubble is for the words. The files a reply hands over stand under
+    // it at the column's width, as the cards a task page draws them, where
+    // a card is not squeezed by a bubble sized to a sentence.
+    const fences = [...messageText.matchAll(FILES_FENCE)].map(
+      (match) => match[1] ?? "",
+    );
+    const words = messageText.replace(FILES_FENCE, "").trim();
     return (
-      <div className="flex flex-col items-start">
-        <div className={ASSISTANT_BUBBLE}>
-          <SessionMarkdown
-            assetVersion={part.metadata.id}
-            className="text-sm/[1.5]"
-            isStreaming={part.state === "streaming"}
-            markdown={messageText}
-            taskId={taskId}
-          />
-        </div>
+      <div className="flex flex-col items-start gap-2">
+        {words !== "" && (
+          <div className={ASSISTANT_BUBBLE}>
+            <SessionMarkdown
+              assetVersion={part.metadata.id}
+              className="text-sm/[1.5]"
+              isStreaming={part.state === "streaming"}
+              markdown={words}
+              taskId={taskId}
+            />
+          </div>
+        )}
+        {fences.length > 0 && (
+          <MarkdownTaskContext
+            value={{
+              assetVersion: part.metadata.id,
+              isStreaming: part.state === "streaming",
+              taskId,
+            }}
+          >
+            <div className="w-full">
+              {fences.map((content, index) => (
+                <AgentFilesBlock content={content} key={index} />
+              ))}
+            </div>
+          </MarkdownTaskContext>
+        )}
       </div>
     );
   }

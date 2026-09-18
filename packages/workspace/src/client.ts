@@ -20,7 +20,7 @@ export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export type { ComputerListing } from "./lib/orchestrator/computer";
 export { paneTabsModelNote } from "./lib/pane-tabs-model-text";
-export { parseFilesBlock } from "./lib/parse-files-block";
+export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { systemNoteBody } from "./lib/system-note";

@@ -1,5 +1,4 @@
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { FilesLayoutContext } from "@/client/components/files-layout-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { TaskChat } from "@/client/components/task/chat";
 import { Spinner } from "@/client/components/ui/spinner";
@@ -184,24 +183,20 @@ function ThreadScreen({
               }}
             >
               <TaskSessionProvider sessionId={sessionId} taskId={taskId}>
-                {/* One thin row per file: the column is narrow, and a card
-                    as tall as a task page's would take the bubble over. */}
-                <FilesLayoutContext value="list">
-                  <TaskChat
-                    alwaysSubmittable
-                    composerPlaceholder="Reply in thread"
-                    // A key of the thread's own: the task's stored draft is the
-                    // top-level field's, and a reply typed here is not that.
-                    draftKey={{ id: sessionId, scope: "transient" }}
-                    navigateOnSend={false}
-                    presentation="orchestrator"
-                    promptDraft={state.data.promptDraft ?? ""}
-                    selectedModelURI={modelURI}
-                    selectedSessionId={sessionId}
-                    sendContext={sendContext}
-                    task={task.data}
-                  />
-                </FilesLayoutContext>
+                <TaskChat
+                  alwaysSubmittable
+                  composerPlaceholder="Reply in thread"
+                  // A key of the thread's own: the task's stored draft is the
+                  // top-level field's, and a reply typed here is not that.
+                  draftKey={{ id: sessionId, scope: "transient" }}
+                  navigateOnSend={false}
+                  presentation="orchestrator"
+                  promptDraft={state.data.promptDraft ?? ""}
+                  selectedModelURI={modelURI}
+                  selectedSessionId={sessionId}
+                  sendContext={sendContext}
+                  task={task.data}
+                />
               </TaskSessionProvider>
             </PageOpenContext>
           </FileOpenContext>

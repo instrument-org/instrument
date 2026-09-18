@@ -41,7 +41,7 @@ import {
 } from "./topic-menu";
 
 /** How many of a section's marks the strip shows before the rest fold behind a dots mark. */
-const STRIP_SHOWN = 4;
+export const STRIP_SHOWN = 4;
 
 /** The groups whose rows carry ids of the user's things, in the order the column draws them under the places. */
 type Group = "apps" | "topics";
@@ -469,7 +469,7 @@ function FilterRow({
   );
 }
 
-/** One mark of the strip: a tile that is tinted when its row is on, and opens a list beside it. */
+/** The strip's mark for the rows past the fold: a tile that is tinted when one of them is on, and opens the section's list beside it. */
 function Mark({
   children,
   isOn,
@@ -520,7 +520,7 @@ function noteOf(count: number): { note?: string } {
   return count > 0 ? { note: String(count) } : {};
 }
 
-/** A place's mark in the strip: the row itself at a smaller size, since a place has no list to open. */
+/** A row's mark in the strip: the row itself at a smaller size, turned by a click the way the row is. */
 function PlaceMark({
   children,
   isOn,
@@ -560,9 +560,11 @@ function Rule() {
 }
 
 /**
- * A section's marks in the strip: one per row up to a few, then a dots mark
- * for the rest, tinted when one of the rest is on. Every mark opens the same
- * list, since a mark alone says what is on and not what else there is.
+ * A section's marks in the strip: one per row up to a few, each the row
+ * itself at a smaller size, so a topic's mark files the list under it the
+ * way its row does; then a dots mark for the rest, tinted when one of the
+ * rest is on, which opens the whole list since the marks past the fold have
+ * no tile of their own.
  */
 function SectionMarks({
   list,
@@ -581,14 +583,16 @@ function SectionMarks({
   return (
     <>
       {shown.map((entry) => (
-        <Mark
+        <PlaceMark
           isOn={section.chosen.has(entry.id)}
           key={entry.id}
           label={entry.label}
-          list={list}
+          onChoose={() => {
+            section.onToggle(entry.id);
+          }}
         >
           {entry.icon}
-        </Mark>
+        </PlaceMark>
       ))}
       {hidden > 0 && (
         <Mark isOn={isRestOn} label={`${hidden} more`} list={list}>

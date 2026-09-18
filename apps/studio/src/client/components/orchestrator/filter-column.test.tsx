@@ -1,11 +1,11 @@
 // The sections column at width and as the strip it shrinks to: places and
-// rows that choose, marks that open a section's list, and a count where a
-// row holds threads.
+// rows that choose, marks that choose the same way, a more mark that opens a
+// section's list, and a count where a row holds threads.
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { FilterColumn } from "./filter-column";
+import { FilterColumn, STRIP_SHOWN } from "./filter-column";
 import {
   type Filterable,
   NO_FILTERS,
@@ -279,31 +279,41 @@ describe("FilterColumn", () => {
     );
   });
 
-  it("opens the section's list beside a mark of the strip, where the choice is the same one", () => {
+  it("turns a topic straight from its mark in the strip, the way its row does", () => {
     const { onFiltersChange, strip } = renderColumn({
       filters: { ...NO_FILTERS, topics: ["house"] },
     });
     const house = strip.getByRole("button", { name: "House" });
     expect(house.dataset.chosen).toBe("true");
-    expect(strip.getByRole("button", { name: "Money" }).dataset.chosen).toBe(
-      undefined,
-    );
-    fireEvent.click(house);
-    const list = screen.getByRole("menu");
-    expect(
-      within(list)
-        .getAllByRole("menuitemcheckbox")
-        .map((row) => [row.textContent, row.ariaChecked]),
-    ).toEqual([
-      ["🏠House", "true"],
-      ["💸Money", "false"],
-    ]);
-    fireEvent.click(
-      within(list).getByRole("menuitemcheckbox", { name: "Money" }),
-    );
+    const money = strip.getByRole("button", { name: "Money" });
+    expect(money.dataset.chosen).toBe(undefined);
+    fireEvent.click(money);
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
       topics: ["money"],
+    });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("opens the section's list from the strip's more mark, where the rows past the fold are", () => {
+    const apps = Array.from(
+      { length: STRIP_SHOWN + 2 },
+      (_, index) => `app-${index}`,
+    );
+    const { onFiltersChange, strip } = renderColumn({
+      threads: apps.map((slug) => thread({ holds: { apps: [slug] } })),
+    });
+    fireEvent.click(strip.getByRole("button", { name: "2 more" }));
+    const list = screen.getByRole("menu");
+    expect(within(list).getAllByRole("menuitemcheckbox")).toHaveLength(
+      apps.length,
+    );
+    fireEvent.click(
+      within(list).getByRole("menuitemcheckbox", { name: /app-5/ }),
+    );
+    expect(onFiltersChange).toHaveBeenLastCalledWith({
+      ...NO_FILTERS,
+      apps: ["app-5"],
     });
   });
 

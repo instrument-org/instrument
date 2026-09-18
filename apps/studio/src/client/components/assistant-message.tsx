@@ -21,14 +21,15 @@ interface AssistantMessageProps {
 }
 
 /**
- * The face an assistant's bubble wears, mirroring the user's: its tail at
- * the top left, on the card's ground lifted by a shadow alone, where the user's is
- * the brand's tint. `--transcript-room` is zeroed inside it so a wide table
- * scrolls within the bubble rather than bleeding past its edge into the room
- * the transcript has: the bubble is the reply's whole width.
+ * The face an assistant's bubble wears, the user's shape mirrored: the same
+ * soft corners with the short one at the top left, on the card's ground with
+ * no edge and no shadow, where the user's is the brand's tint.
+ * `--transcript-room` is zeroed inside it so a wide table scrolls within the
+ * bubble rather than bleeding past its edge into the room the transcript
+ * has: the bubble is the reply's whole width.
  */
 export const ASSISTANT_BUBBLE =
-  "max-w-[85%] min-w-0 rounded-tl rounded-tr-xl rounded-br-xl rounded-bl-xl bg-card px-3 py-2 text-foreground shadow-xs [--transcript-room:0px]";
+  "max-w-[85%] min-w-0 rounded-2xl rounded-tl-md bg-card px-3.5 py-2 text-foreground [--transcript-room:0px]";
 
 export const AssistantMessage = memo(function AssistantMessage({
   bubble = false,

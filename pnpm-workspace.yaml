@@ -23,11 +23,11 @@ allowBuilds:
 blockExoticSubdeps: true
 
 catalog:
-  "@orpc/client": ^1.14.3
-  "@orpc/contract": ^1.14.3
-  "@orpc/server": ^1.14.3
-  "@orpc/shared": ^1.14.3
-  "@orpc/tanstack-query": ^1.14.3
+  "@orpc/client": ^1.15.2
+  "@orpc/contract": ^1.15.2
+  "@orpc/server": ^1.15.2
+  "@orpc/shared": ^1.15.2
+  "@orpc/tanstack-query": ^1.15.2
   "@types/node": 24.13.1
   "@types/react": ^19.2.7
   "@types/react-dom": ^19.2.3
@@ -60,6 +60,22 @@ minimumReleaseAgeExclude:
   - "@extend-ai/react-xlsx"
   # Transitive, version-locked by @extend-ai/react-xlsx.
   - "@dukelib/sheets-wasm"
+  # Security release (GHSA-4p2c-m292-ghmh, DoS in RPCHandler deserialization)
+  # taken the day it shipped. Exact versions, so the age guard still covers
+  # every later oRPC release; the entries go inert once 1.15.2 passes the
+  # cutoff and can be dropped.
+  - "@orpc/client@1.15.2"
+  - "@orpc/contract@1.15.2"
+  - "@orpc/interop@1.15.2"
+  - "@orpc/server@1.15.2"
+  - "@orpc/shared@1.15.2"
+  - "@orpc/standard-server-aws-lambda@1.15.2"
+  - "@orpc/standard-server-fastify@1.15.2"
+  - "@orpc/standard-server-fetch@1.15.2"
+  - "@orpc/standard-server-node@1.15.2"
+  - "@orpc/standard-server-peer@1.15.2"
+  - "@orpc/standard-server@1.15.2"
+  - "@orpc/tanstack-query@1.15.2"
 
 overrides:
   "@electron/rebuild>node-abi": 4.31.0

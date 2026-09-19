@@ -84,6 +84,49 @@ function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
  */
 const STARTS_A_TASK = /(?:^|[\n;&|])\s*task new\b/g;
 
+/**
+ * Every task the conversation started, as the flags it passed and the brief
+ * it wrote: the `task new` line, then the heredoc's body up to its
+ * terminator, or to the command's end when the model left the terminator
+ * off, which bash accepts too. A brief passed as a quoted argument instead is
+ * the rest of the line, so a conversation that skipped the heredoc is still
+ * scored on what it said.
+ */
+function briefsOf(
+  sessions: Session.WithMessagesAndParts[],
+): { brief: string; flags: string }[] {
+  return bashCommands(sessions).flatMap((command) => {
+    const lines = command.split("\n");
+    const briefs: { brief: string; flags: string }[] = [];
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index] ?? "";
+      const start = /^\s*(?:[;&|]\s*)?task new\b(.*)$/.exec(line);
+      if (!start) {
+        continue;
+      }
+      const flags = start[1] ?? "";
+      const heredoc = /<<-?\s*(['"]?)(\w+)\1/.exec(flags);
+      if (!heredoc) {
+        briefs.push({ brief: flags, flags });
+        continue;
+      }
+      const terminator = heredoc[2];
+      const body: string[] = [];
+      let cursor = index + 1;
+      while (cursor < lines.length && lines[cursor]?.trim() !== terminator) {
+        body.push(lines[cursor] ?? "");
+        cursor += 1;
+      }
+      briefs.push({
+        brief: body.join("\n"),
+        flags: flags.slice(0, heredoc.index),
+      });
+      index = cursor;
+    }
+    return briefs;
+  });
+}
+
 function delegated(atLeast: number): Assertion {
   const text =
     atLeast === 1
@@ -214,6 +257,136 @@ const revisedATaskInPlace: Assertion = {
   },
   text: "changed a running task's setup rather than starting another",
 };
+
+/**
+ * The brief said what and not how. A skill named for a question, a tool
+ * named as the way to find something, sites listed to check: each is a step
+ * the task follows to the letter, the wrong ones included, and a question
+ * that was one search becomes a survey. The exception is a skill the user
+ * asked for by the thing it makes, which the page case scores the other way.
+ */
+const PRESCRIBES_HOW =
+  /\bskills?\b|load_skill|agent-browser|\bbrowser\b|web_search|\bsearch (?:the web|online) (?:with|using|via)\b|\b(?:reddit|discord|twitter|downdetector)\b/i;
+
+const briefedWhatNotHow: Assertion = {
+  check: ({ sessions }) => {
+    const text = "the brief named no skill, tool, or site to use";
+    const briefs = briefsOf(sessions);
+    if (briefs.length === 0) {
+      return fail(text, "no task was started");
+    }
+    const offending = briefs.filter(({ brief }) => PRESCRIBES_HOW.test(brief));
+    return offending.length === 0
+      ? pass(text, briefs.map(({ brief }) => JSON.stringify(brief)).join(" | "))
+      : fail(
+          text,
+          offending
+            .map(
+              ({ brief }) =>
+                `${PRESCRIBES_HOW.exec(brief)?.[0]}: ${JSON.stringify(brief)}`,
+            )
+            .join(" | "),
+        );
+  },
+  text: "the brief named no skill, tool, or site to use",
+};
+
+/**
+ * A brief that names a path, a file type, or the fence is a brief asking for
+ * a file, which a question does not want: the answer travels in the task's
+ * last message whole.
+ */
+const ASKS_FOR_A_FILE =
+  /\/mnt\/|\/tasks\/|\.(?:md|html?|pdf|docx|pptx|xlsx|csv|txt|json)\b|files? fence|\b(?:write|save|put|create) [^.]{0,40}(?:file|report|document)\b/i;
+
+const briefedWithoutAFile: Assertion = {
+  check: ({ sessions }) => {
+    const text = "the brief asked for an answer, not a file";
+    const briefs = briefsOf(sessions);
+    if (briefs.length === 0) {
+      return fail(text, "no task was started");
+    }
+    const offending = briefs.filter(({ brief }) => ASKS_FOR_A_FILE.test(brief));
+    return offending.length === 0
+      ? pass(text, briefs.map(({ brief }) => JSON.stringify(brief)).join(" | "))
+      : fail(
+          text,
+          offending
+            .map(
+              ({ brief }) =>
+                `${ASKS_FOR_A_FILE.exec(brief)?.[0]}: ${JSON.stringify(brief)}`,
+            )
+            .join(" | "),
+        );
+  },
+  text: "the brief asked for an answer, not a file",
+};
+
+/** A brief the size of the ask: a question is a sentence or two. */
+function briefAtMost(chars: number): Assertion {
+  const text = `each brief was at most ${chars} characters`;
+  return {
+    check: ({ sessions }) => {
+      const briefs = briefsOf(sessions);
+      if (briefs.length === 0) {
+        return fail(text, "no task was started");
+      }
+      const evidence = briefs
+        .map(({ brief }) => `${brief.length} chars: ${JSON.stringify(brief)}`)
+        .join(" | ");
+      return briefs.every(({ brief }) => brief.length <= chars)
+        ? pass(text, evidence)
+        : fail(text, evidence);
+    },
+    text,
+  };
+}
+
+/**
+ * The task inherits the conversation's effort unless there is a reason not
+ * to, and a quick question is no reason to raise it: that is minutes the
+ * user waits. Lowering it for a lookup is the prompt's own suggestion.
+ */
+const didNotRaiseEffort: Assertion = {
+  check: ({ sessions }) => {
+    const text = "did not raise --effort for a quick question";
+    const briefs = briefsOf(sessions);
+    if (briefs.length === 0) {
+      return fail(text, "no task was started");
+    }
+    const raised = briefs.filter(({ flags }) =>
+      /--effort\s+(?:high|max)\b/.test(flags),
+    );
+    return raised.length === 0
+      ? pass(text, "no --effort high or max on any task new")
+      : fail(text, raised.map(({ flags }) => flags.trim()).join(" | "));
+  },
+  text: "did not raise --effort for a quick question",
+};
+
+/** The one skill a brief is meant to name: the kind of thing the user asked for. */
+function briefNamedSkill(name: string): Assertion {
+  const text = `the brief named the ${name} skill`;
+  return {
+    check: ({ sessions }) => {
+      const briefs = briefsOf(sessions);
+      if (briefs.length === 0) {
+        return fail(text, "no task was started");
+      }
+      const naming = briefs.filter(({ brief }) => brief.includes(name));
+      return naming.length > 0
+        ? pass(
+            text,
+            naming.map(({ brief }) => JSON.stringify(brief)).join(" | "),
+          )
+        : fail(
+            text,
+            briefs.map(({ brief }) => JSON.stringify(brief)).join(" | "),
+          );
+    },
+    text,
+  };
+}
 
 const answeredWithoutATask: Assertion = {
   check: ({ sessions }) => {
@@ -522,5 +695,58 @@ export const ORCHESTRATOR_EVALS = [
     name: "orchestrator-hands-over-an-app",
     prompt:
       "Write me a short markdown note in my Instrument folder about what makes a good bug report.",
+  }),
+
+  // A question about the world, in the words one was asked in. The failure
+  // measured in real use: a brief that named the browser skill, listed the
+  // sites to check, asked for a findings report on disk, and raised the
+  // effort, which turned a one-search question into four minutes and five
+  // million tokens of survey. The task has no search here, so what is scored
+  // is the brief alone.
+  defineEval({
+    assertions: [
+      delegated(1),
+      didNotDoTheWorkItself,
+      saidAtMost(280),
+      briefedWhatNotHow,
+      briefedWithoutAFile,
+      briefAtMost(500),
+      didNotRaiseEffort,
+    ],
+    kind: "orchestrator",
+    name: "orchestrator-quick-question-outage",
+    prompt:
+      "are folks having issues getting disconnected from wow forever today",
+  }),
+
+  defineEval({
+    // The same shape with a smaller answer: a number and a word.
+    assertions: [
+      delegated(1),
+      didNotDoTheWorkItself,
+      saidAtMost(280),
+      briefedWhatNotHow,
+      briefedWithoutAFile,
+      briefAtMost(400),
+      didNotRaiseEffort,
+    ],
+    kind: "orchestrator",
+    name: "orchestrator-quick-question-weather",
+    prompt: "what's the weather in Nashville right now",
+  }),
+
+  defineEval({
+    // The other side of the same rule: the user asked for the kind of thing a
+    // skill makes, and the brief names that skill and nothing about how.
+    assertions: [
+      delegated(1),
+      didNotDoTheWorkItself,
+      saidAtMost(280),
+      briefNamedSkill("create-page"),
+    ],
+    kind: "orchestrator",
+    name: "orchestrator-asks-for-a-page",
+    prompt:
+      "Make me a page comparing the three best-known static site generators, in my Instrument folder.",
   }),
 ];

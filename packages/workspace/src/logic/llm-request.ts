@@ -26,6 +26,7 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages } from "../lib/prepare-model-messages";
+import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
 import { Store } from "../lib/store";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskSettings } from "../lib/task-settings";
@@ -35,7 +36,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { ToolNameSchema } from "../tools/name";
+import { TOOL_NAMES, ToolNameSchema } from "../tools/name";
 
 // A streaming save writes the part's entire accumulated text through a full
 // schema parse, serialization, and synchronous SQLite write, and publishes a
@@ -304,6 +305,24 @@ export const llmRequestLogic = fromPromise<
     requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
       abortSignal: signal,
+      // A shell command called as though it were a tool becomes the bash call
+      // the model meant. See `shellCommandFromToolName` for what that failure
+      // looks like and why it is repaired here rather than prompted away.
+      experimental_repairToolCall: ({ toolCall }) => {
+        const command = shellCommandFromToolName({
+          availableToolNames: Object.keys(tools),
+          toolName: toolCall.toolName,
+        });
+        return Promise.resolve(
+          command === undefined
+            ? null
+            : {
+                ...toolCall,
+                input: JSON.stringify({ command }),
+                toolName: TOOL_NAMES.bash,
+              },
+        );
+      },
       // Groups this session's generations into one trace in the analytics our
       // gateway reports.
       headers: { [CLIENT_SESSION_ID_HEADER]: input.sessionId },

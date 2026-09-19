@@ -5,7 +5,7 @@ import { memoryModelNote } from "./memory-model-text";
 const sentAt = Date.parse("2026-09-19T12:00:00.000Z");
 
 describe("memoryModelNote", () => {
-  it("lists each memory with where it came from and how long ago", () => {
+  it("lists each memory by name with where it came from and how long ago", () => {
     expect(
       memoryModelNote({
         memories: [
@@ -28,8 +28,8 @@ describe("memoryModelNote", () => {
       "
       <instrument-system-note>
       What you remember about the user, kept for every thread (2):
-      - You are on Pacific time and mornings are best for calls. (from "Roofer call", 2 minutes ago)
-      - Your address is 1420 Alder St, Portland. (18 days ago)
+      - pacific-time: You are on Pacific time and mornings are best for calls. (from "Roofer call", 2 minutes ago)
+      - address: Your address is 1420 Alder St, Portland. (18 days ago)
       Each is what was true when it was saved. When one disagrees with what the user says now or a task reports, the present wins, and \`memory save\` under the same name corrects it.
       </instrument-system-note>"
     `);
@@ -49,7 +49,7 @@ describe("memoryModelNote", () => {
         sentAt,
       }),
     ).toContain(
-      "(71):\n- One. (0 seconds ago)\n...and 70 more; `memory list` names them all.",
+      "(71):\n- one: One. (0 seconds ago)\n...and 70 more; `memory list` names them all.",
     );
   });
 

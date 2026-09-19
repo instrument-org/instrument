@@ -5,9 +5,12 @@ import { MEMORY_COMMAND } from "./shell-commands/memory-command";
 import { systemNote } from "./system-note";
 
 /**
- * Tells the agent what it remembers about the user: each memory's first line,
- * the thread it came from, and how long ago. Rendered only when it differs
- * from the last note, so a thread is told once and again only on a change.
+ * Tells the agent what it remembers about the user: each memory's name and
+ * first line, the thread it came from, and how long ago. The name is what
+ * `memory show` and `memory save` take and what a link to the memory
+ * carries, so the note names each one rather than leaving the agent to list
+ * them again to find it. Rendered only when it differs from the last note,
+ * so a thread is told once and again only on a change.
  */
 export function memoryModelNote(data: SessionMessageDataPart.MemoryDataPart) {
   if (data.memories.length === 0) {
@@ -25,7 +28,7 @@ export function memoryModelNote(data: SessionMessageDataPart.MemoryDataPart) {
         { addSuffix: true },
       );
       const from = memory.from ? `from "${memory.from}", ` : "";
-      return `- ${memory.text} (${from}${when})`;
+      return `- ${memory.name}: ${memory.text} (${from}${when})`;
     })
     .join("\n");
   const more =

@@ -98,7 +98,8 @@ export async function ownModelParams(
 export async function ownProviderConfigId(
   orchestratorTaskId: TaskId,
 ): Promise<AIProviderConfigId | undefined> {
-  return (await ownModelParams(orchestratorTaskId))?.providerConfigId;
+  const params = await ownModelParams(orchestratorTaskId);
+  return params?.providerConfigId;
 }
 
 const ALL_MODEL_COLUMNS: ModelColumn[] = [

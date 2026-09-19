@@ -1,6 +1,6 @@
 import {
   type AIGatewayModel,
-  AIGatewayModelURI,
+  type AIGatewayModelURI,
   fetchModel,
   REASONING_EFFORTS,
 } from "@instrument-org/ai-gateway";

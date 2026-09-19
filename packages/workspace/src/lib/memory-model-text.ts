@@ -52,6 +52,10 @@ export function memoryModelNote(data: SessionMessageDataPart.MemoryDataPart) {
   `;
 }
 
+function day(at: number): string {
+  return new Date(at).toISOString().slice(0, 10);
+}
+
 /**
  * The rows under a heading per source: the thread the run of memories came
  * from and how long ago, or that they came from no thread. A group holds one
@@ -59,19 +63,21 @@ export function memoryModelNote(data: SessionMessageDataPart.MemoryDataPart) {
  * is its newest memory's.
  */
 function groupedRows(memories: MemoryRow[], sentAt: number): string {
-  const groups: { rows: MemoryRow[]; source: string }[] = [];
+  const groups: { newest: MemoryRow; rows: MemoryRow[]; source: string }[] = [];
   for (const memory of memories) {
     const source = `${memory.from ?? ""}\n${day(memory.at)}`;
     const group = groups.at(-1);
-    if (group && group.source === source) {
+    if (group?.source === source) {
       group.rows.push(memory);
+      if (memory.at > group.newest.at) {
+        group.newest = memory;
+      }
     } else {
-      groups.push({ rows: [memory], source });
+      groups.push({ newest: memory, rows: [memory], source });
     }
   }
   return groups
-    .map(({ rows }) => {
-      const newest = rows.reduce((a, b) => (b.at > a.at ? b : a));
+    .map(({ newest, rows }) => {
       // Two stored instants a fixed distance apart, so the words come out the
       // same every time the transcript is rebuilt.
       const when = formatDistanceStrict(new Date(newest.at), new Date(sentAt), {
@@ -82,8 +88,4 @@ function groupedRows(memories: MemoryRow[], sentAt: number): string {
       return [`${from}, ${when}:`, ...lines].join("\n");
     })
     .join("\n");
-}
-
-function day(at: number): string {
-  return new Date(at).toISOString().slice(0, 10);
 }

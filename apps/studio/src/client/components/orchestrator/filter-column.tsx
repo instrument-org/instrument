@@ -399,8 +399,8 @@ function unreadIn(held: Filterable[]) {
 /**
  * What both shapes draw from: the places with their choosers, the topics
  * with their choosers, and the apps as a section. Needs you is a place only
- * while something needs the user: an empty amber row would be a warning about
- * nothing.
+ * while something needs the user, or while the user stands in it: an empty
+ * amber row would be a warning about nothing.
  */
 function useFilterModel({
   appsBySlug,
@@ -440,8 +440,12 @@ function useFilterModel({
       }
     }
   };
+  // Needs you stays a row while it is the place stood in, whether or not
+  // anything still waits: the row is how the place is stepped out of, and a
+  // filter with no row is one nothing on screen accounts for.
   const places: PlaceModel[] = PLACES.filter(
-    (place) => place.id !== "needsYou" || needsYou,
+    (place) =>
+      place.id !== "needsYou" || needsYou || filters.place === "needsYou",
   ).map((place) => {
     const unread = unreadOf(place.id);
     return {

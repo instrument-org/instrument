@@ -222,6 +222,20 @@ describe("FilterColumn", () => {
     });
   });
 
+  // Answering the last waiting thread must not strand the filter: the row
+  // stays while it is the place stood in, pressed, and choosing it again
+  // steps out.
+  it("keeps the Needs you row while stood in it after nothing waits", () => {
+    const { column, onFiltersChange } = renderColumn({
+      filters: { ...NO_FILTERS, place: "needsYou" },
+      threads: [thread({ state: "idle" })],
+    });
+    const row = column.getByRole("button", { name: /Needs you/ });
+    expect(row.ariaPressed).toBe("true");
+    fireEvent.click(row);
+    expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
+  });
+
   it("steps out of a place by choosing it again", () => {
     const { column, onFiltersChange } = renderColumn({
       filters: { ...NO_FILTERS, place: "starred" },

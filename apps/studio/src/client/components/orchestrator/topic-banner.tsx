@@ -1,9 +1,11 @@
+import { XIcon } from "@phosphor-icons/react/X";
 import { format } from "date-fns";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { HoldMarks } from "./hold-marks";
 import { type Thread, type Topic } from "./threads";
 import { TopicMark } from "./topic-mark";
+import { TopicActionsButton } from "./topic-menu";
 
 /** How many marks the banner's strip shows before the rest fold into a count: a banner has more room than a row. */
 const MARKS_SHOWN = 12;
@@ -11,15 +13,23 @@ const MARKS_SHOWN = 12;
 /**
  * What sits above the rows while the list is filtered to one topic: the
  * topic's mark and name, one line about it, and a strip of what its threads
- * hold as marks. The name is said once and the count once, in that line,
- * and only when the topic has no words of its own about what it is for.
+ * hold as marks, clipped at the banner's edge. The name is said once and the
+ * count once, in that line, and only when the topic has no words of its own
+ * about what it is for. At its right, the topic's own menu (its details) and
+ * the way out of the topic: the banner is the one place that says the list
+ * is narrowed, so it is where the narrowing is undone.
  */
 export function TopicBanner({
   appsBySlug,
+  onClear,
+  onDetails,
   threads,
   topic,
 }: {
   appsBySlug: AppsBySlug;
+  /** Takes the topic off the filter, so the list shows every thread again. */
+  onClear: () => void;
+  onDetails: (topic: Topic) => void;
   /** The threads filed under the topic, which is what it holds. */
   threads: Thread[];
   topic: Topic;
@@ -41,8 +51,25 @@ export function TopicBanner({
             className="mt-1.5 -ml-0.5"
             holds={holds}
             shown={MARKS_SHOWN}
+            wrap={false}
           />
         )}
+      </div>
+      <div className="-mt-0.5 -mr-1.5 flex shrink-0 items-center">
+        <TopicActionsButton
+          className="opacity-100"
+          onDetails={onDetails}
+          topic={topic}
+        />
+        <button
+          aria-label={`Show all threads, not only ${topic.name}`}
+          className="grid size-5 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+          onClick={onClear}
+          title="Show all threads"
+          type="button"
+        >
+          <XIcon className="size-4" weight="bold" />
+        </button>
       </div>
     </div>
   );

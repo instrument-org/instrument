@@ -33,7 +33,7 @@ export function TopicMark({
     <span
       aria-hidden
       className={cn(
-        "inline-grid shrink-0 place-items-center leading-none topic-tint",
+        "inline-grid shrink-0 place-items-center leading-none topic-tint select-none",
         box,
         className,
       )}

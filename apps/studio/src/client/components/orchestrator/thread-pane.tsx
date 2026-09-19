@@ -176,6 +176,12 @@ export function ThreadPane({
         {chosenTopic && (
           <TopicBanner
             appsBySlug={appsBySlug}
+            onClear={() => {
+              changeFilters({ ...filters, topics: [] });
+            }}
+            onDetails={(topic) => {
+              setEditingId(topic.id);
+            }}
             threads={shown}
             topic={chosenTopic}
           />

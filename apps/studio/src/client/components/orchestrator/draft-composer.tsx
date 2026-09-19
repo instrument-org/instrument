@@ -11,11 +11,14 @@ import {
   type FolderAttachment,
 } from "@instrument-org/workspace/client";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useHydrateAtoms } from "jotai/utils";
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 
 import { OutputPicker } from "./output-picker";
+import { TopicPill } from "./thread-row";
+import { type Topic } from "./threads";
 import { useIdeas } from "./use-ideas";
 
 /** What the composer hands over to start the thread. */
@@ -33,11 +36,12 @@ export interface DraftSend {
  * pane toggle while the pane is closed, and centered under it the prompt
  * box the new-task page starts a task from, rounding, plus menu, model and
  * all, with the output picker in the row beside the model. A topic the
- * draft was started under rides along unseen; the thread's head is where
- * topics are given. The words
- * ride in the draft's record, so the Drafts list can name it and a relaunch
- * keeps them; what else the box was given (files, a folder) is kept in
- * memory while the draft is away and put back when it comes up.
+ * draft was started under is named in the head, as the pill the thread will
+ * wear, with a way to take it off: the draft opened from inside a topic is
+ * filed there, and that has to be seen to be undone. The words ride in the
+ * draft's record, so the Drafts list can name it and a relaunch keeps them;
+ * what else the box was given (files, a folder) is kept in memory while the
+ * draft is away and put back when it comes up.
  */
 export function DraftComposer({
   draft,
@@ -46,6 +50,7 @@ export function DraftComposer({
   onChange,
   onModelChange,
   onStart,
+  topic,
   trailing,
 }: {
   draft: Draft;
@@ -54,6 +59,8 @@ export function DraftComposer({
   onChange: (update: (draft: Draft) => Draft) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onStart: (send: DraftSend) => void;
+  /** The topic the thread will be filed under, when the draft was opened inside one. */
+  topic?: Topic;
   /** What sits at the head's right: the pane toggle while the pane is closed. */
   trailing?: ReactNode;
 }) {
@@ -109,6 +116,25 @@ export function DraftComposer({
         <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2 select-none">
           <PencilSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
           <h2 className="min-w-0 truncate text-sm font-medium">New thread</h2>
+          {topic && (
+            <span className="flex min-w-0 items-center gap-0.5">
+              <TopicPill topic={topic} />
+              <button
+                aria-label={`Don't file under ${topic.name}`}
+                className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+                onClick={() => {
+                  onChange((current) => {
+                    const { topicId: _dropped, ...rest } = current;
+                    return rest;
+                  });
+                }}
+                title={`Don't file under ${topic.name}`}
+                type="button"
+              >
+                <XIcon className="size-3.5" weight="bold" />
+              </button>
+            </span>
+          )}
         </div>
         {trailing && (
           <div className="flex shrink-0 items-center gap-x-1">{trailing}</div>

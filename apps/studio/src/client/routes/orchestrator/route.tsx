@@ -1400,6 +1400,9 @@ function OrchestratorLayout() {
                           onStart={(send) => {
                             startThread(draftOnScreen.id, send);
                           }}
+                          topic={topics.find(
+                            (topic) => topic.id === draftOnScreen.topicId,
+                          )}
                           trailing={showsPane ? null : paneToggle}
                         />
                       </div>

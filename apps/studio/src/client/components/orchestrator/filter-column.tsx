@@ -28,7 +28,7 @@ import {
 } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
-import { TopicActionsButton, TopicContextMenu } from "./topic-menu";
+import { TopicContextMenu } from "./topic-menu";
 import { topicTint } from "./topic-tint";
 
 /** One of the places under the topics: where the column stands when no topic or app is chosen. The inbox is no filter at all. */
@@ -332,9 +332,9 @@ function Rule() {
  * The topics as tiles in a grid, each the topic's mark on its own tinted
  * tile, the way a home screen holds its apps: a tile is its own label, so
  * the grid has none and the name is the tooltip. The tile stood in wears a
- * ring. A right click, or the dots that show on hover, open the topic's
- * details. Nothing here makes a topic: one is made where it is first
- * needed, from a thread's topic list.
+ * ring. A right click opens the topic's details; the banner over the list
+ * offers them too once the topic is stood in. Nothing here makes a topic:
+ * one is made where it is first needed, from a thread's topic list.
  */
 function TopicGrid({
   onDetails,
@@ -351,38 +351,29 @@ function TopicGrid({
     >
       {topics.map(({ choose: chooseTopic, isOn, topic }) => (
         <TopicContextMenu key={topic.id} onDetails={onDetails} topic={topic}>
-          <div className="group/tile relative">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  aria-label={topic.name}
-                  aria-pressed={isOn}
-                  className={cn(
-                    "grid size-11 place-items-center rounded-xl bg-(--topic-tint-surface) text-[22px] leading-none topic-tint hover:bg-(--topic-tint-edge)",
-                    isOn && "bg-(--topic-tint-edge) ring-2 ring-foreground/30",
-                  )}
-                  data-chosen={isOn || undefined}
-                  onClick={chooseTopic}
-                  style={topicTint(topicColor(topic))}
-                  type="button"
-                >
-                  <TopicMark
-                    className="bg-transparent!"
-                    size="lg"
-                    topic={topic}
-                  />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{topic.name}</TooltipContent>
-            </Tooltip>
-            <span className="absolute -top-1 -right-1 hidden group-hover/tile:flex focus-within:flex has-[[data-state=open]]:flex">
-              <TopicActionsButton
-                className="bg-background opacity-100 shadow-xs ring-1 ring-border"
-                onDetails={onDetails}
-                topic={topic}
-              />
-            </span>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                aria-label={topic.name}
+                aria-pressed={isOn}
+                className={cn(
+                  "grid size-11 place-items-center rounded-xl bg-(--topic-tint-surface) text-[22px] leading-none topic-tint select-none hover:bg-(--topic-tint-edge)",
+                  isOn && "bg-(--topic-tint-edge) ring-2 ring-foreground/30",
+                )}
+                data-chosen={isOn || undefined}
+                onClick={chooseTopic}
+                style={topicTint(topicColor(topic))}
+                type="button"
+              >
+                <TopicMark
+                  className="bg-transparent!"
+                  size="lg"
+                  topic={topic}
+                />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{topic.name}</TooltipContent>
+          </Tooltip>
         </TopicContextMenu>
       ))}
     </div>

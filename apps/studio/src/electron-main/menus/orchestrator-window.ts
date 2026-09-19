@@ -2,6 +2,10 @@ import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  ORCHESTRATOR_SHORTCUTS,
+  type OrchestratorShortcutId,
+} from "@/shared/orchestrator-shortcuts";
+import {
   BrowserWindow,
   type MenuItemConstructorOptions,
   type WebContents,
@@ -22,7 +26,8 @@ const IS_MAC = process.platform === "darwin";
 /**
  * One chord of the window's own: the keys, what the menu calls it, and what
  * it does. The same row draws the menu item and answers the key, so a chord
- * cannot be in one place and not the other.
+ * cannot be in one place and not the other; the keys and the label come from
+ * the shared table, which is what the renderer's tooltips read too.
  */
 interface WindowChord {
   accelerator: string;
@@ -32,53 +37,33 @@ interface WindowChord {
   visible?: boolean;
 }
 
-/** Sends a command to the window's renderer, which holds the tabs and the inbox. */
-const command =
-  (
-    name:
-      | "back"
-      | "closeTab"
-      | "findInPage"
-      | "forward"
-      | "newTab"
-      | "newThread"
-      | "nextTab"
-      | "nextThread"
-      | "previousTab"
-      | "previousThread"
-      | "reopenTab"
-      | "toggleInbox",
-  ) =>
-  () => {
-    publisher.publish("orchestrator.command", name);
-  };
+/** Sends a command to the window's renderer, which holds the tabs and the inbox: every chord's id is one. */
+const command = (name: OrchestratorShortcutId) => () => {
+  publisher.publish("orchestrator.command", name);
+};
+
+/** A chord from the shared table, answered by the command of the same name unless told otherwise. */
+function chord(
+  id: OrchestratorShortcutId,
+  run: () => void = command(id),
+): WindowChord {
+  return { ...ORCHESTRATOR_SHORTCUTS[id], run };
+}
 
 const FILE_CHORDS: WindowChord[] = [
   // Where mail keeps New Message: a draft of a new thread, at the corner.
-  {
-    accelerator: "CmdOrCtrl+N",
-    label: "New Thread",
-    run: command("newThread"),
-  },
-  {
-    accelerator: "CmdOrCtrl+L",
-    label: "Search or Ask",
-    run: () => {
-      // The chord reaches the menu when a page guest has the keyboard, since
-      // its keys never reach the window's own renderer. The field is the
-      // window's, so the window (the one in front, which is this one while
-      // its menu is up) takes the keyboard back before it is asked for.
-      BrowserWindow.getFocusedWindow()?.webContents.focus();
-      publisher.publish("orchestrator.command", "search");
-    },
-  },
+  chord("newThread"),
+  chord("search", () => {
+    // The chord reaches the menu when a page guest has the keyboard, since
+    // its keys never reach the window's own renderer. The field is the
+    // window's, so the window (the one in front, which is this one while
+    // its menu is up) takes the keyboard back before it is asked for.
+    BrowserWindow.getFocusedWindow()?.webContents.focus();
+    publisher.publish("orchestrator.command", "search");
+  }),
   // The renderer opens the find bar in the page on screen, and does nothing
   // when none is.
-  {
-    accelerator: "CmdOrCtrl+F",
-    label: "Find in Page",
-    run: command("findInPage"),
-  },
+  chord("findInPage"),
 ];
 
 /**
@@ -86,26 +71,16 @@ const FILE_CHORDS: WindowChord[] = [
  * user may be keeping; the window closes on Shift+Cmd+W, a role below.
  */
 const TAB_CHORDS: WindowChord[] = [
-  { accelerator: "CmdOrCtrl+T", label: "New Tab", run: command("newTab") },
-  { accelerator: "CmdOrCtrl+W", label: "Close Tab", run: command("closeTab") },
-  {
-    accelerator: "Shift+CmdOrCtrl+T",
-    label: "Reopen Closed Tab",
-    run: command("reopenTab"),
-  },
+  chord("newTab"),
+  chord("closeTab"),
+  chord("reopenTab"),
 ];
 
 /**
  * The inbox column put away and brought back, on the chord the classic
  * window keeps for its sidebar: the column is this window's sidebar.
  */
-const VIEW_CHORDS: WindowChord[] = [
-  {
-    accelerator: "CmdOrCtrl+B",
-    label: "Toggle Inbox",
-    run: command("toggleInbox"),
-  },
-];
+const VIEW_CHORDS: WindowChord[] = [chord("toggleInbox")];
 
 /**
  * Down and up the inbox from the thread on screen, in the order the list
@@ -113,16 +88,8 @@ const VIEW_CHORDS: WindowChord[] = [
  * caret by a word in the composer.
  */
 const THREAD_CHORDS: WindowChord[] = [
-  {
-    accelerator: "Alt+CmdOrCtrl+Down",
-    label: "Next Thread",
-    run: command("nextThread"),
-  },
-  {
-    accelerator: "Alt+CmdOrCtrl+Up",
-    label: "Previous Thread",
-    run: command("previousThread"),
-  },
+  chord("nextThread"),
+  chord("previousThread"),
 ];
 
 /**
@@ -131,22 +98,16 @@ const THREAD_CHORDS: WindowChord[] = [
  * place with Cmd+1 through Cmd+8, and the last with Cmd+9, as browsers do.
  */
 const TAB_SWITCH_CHORDS: WindowChord[] = [
-  { accelerator: "Ctrl+Tab", label: "Show Next Tab", run: command("nextTab") },
+  chord("nextTab"),
   {
+    ...chord("nextTab"),
     accelerator: "CmdOrCtrl+Shift+]",
-    label: "Show Next Tab",
-    run: command("nextTab"),
     visible: false,
   },
+  chord("previousTab"),
   {
-    accelerator: "Ctrl+Shift+Tab",
-    label: "Show Previous Tab",
-    run: command("previousTab"),
-  },
-  {
+    ...chord("previousTab"),
     accelerator: "CmdOrCtrl+Shift+[",
-    label: "Show Previous Tab",
-    run: command("previousTab"),
     visible: false,
   },
   ...Array.from({ length: 9 }, (_, index) => ({
@@ -166,24 +127,16 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
  * window's does; otherwise the window's screens do.
  */
 const HISTORY_CHORDS: WindowChord[] = [
-  {
-    accelerator: "CmdOrCtrl+[",
-    label: "Back",
-    run: () => {
-      if (!getBrowserViewManager()?.navigateFocusedGuest("back")) {
-        publisher.publish("orchestrator.command", "back");
-      }
-    },
-  },
-  {
-    accelerator: "CmdOrCtrl+]",
-    label: "Forward",
-    run: () => {
-      if (!getBrowserViewManager()?.navigateFocusedGuest("forward")) {
-        publisher.publish("orchestrator.command", "forward");
-      }
-    },
-  },
+  chord("back", () => {
+    if (!getBrowserViewManager()?.navigateFocusedGuest("back")) {
+      publisher.publish("orchestrator.command", "back");
+    }
+  }),
+  chord("forward", () => {
+    if (!getBrowserViewManager()?.navigateFocusedGuest("forward")) {
+      publisher.publish("orchestrator.command", "forward");
+    }
+  }),
 ];
 
 const WINDOW_CHORDS = [

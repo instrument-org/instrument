@@ -13,7 +13,7 @@ export function InboxToggle({ isCollapsible }: { isCollapsible: boolean }) {
   const [isOpen, setOpen] = useAtom(inboxOpenAtom);
   const label = isOpen ? "Hide the inbox" : "Show the inbox";
   return (
-    <ToolbarTooltip label={label}>
+    <ToolbarTooltip chord="toggleInbox" label={label}>
       <Button
         aria-label={label}
         className="size-7 shrink-0 text-foreground/80"

@@ -1,3 +1,4 @@
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { cn } from "@/client/lib/utils";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -364,14 +365,15 @@ export function TabStrip({
               once they fill it. It is not one of the values, so the drag
               never counts it. */}
           {onNew ? (
-            <button
-              aria-label="New tab"
-              className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-              onClick={onNew}
-              type="button"
-            >
-              <PlusIcon className="size-4" />
-            </button>
+            <ToolbarTooltip chord="newTab" label="New tab">
+              <button
+                className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                onClick={onNew}
+                type="button"
+              >
+                <PlusIcon className="size-4" />
+              </button>
+            </ToolbarTooltip>
           ) : null}
         </Reorder.Group>
       </div>

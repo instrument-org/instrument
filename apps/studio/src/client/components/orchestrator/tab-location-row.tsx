@@ -4,6 +4,7 @@ import { FileIcon } from "@/client/components/file-icon";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import {
   useGesturesFor,
@@ -11,6 +12,7 @@ import {
 } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { type OrchestratorShortcutId } from "@/shared/orchestrator-shortcuts";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -81,12 +83,14 @@ export function TabLocationRow({
       ref={ref}
     >
       <Control
+        chord="back"
         disabled={!canGoBack}
         icon={<CaretLeftIcon className="size-4" />}
         label="Back"
         onClick={onBack}
       />
       <Control
+        chord="forward"
         disabled={!canGoForward}
         icon={<CaretRightIcon className="size-4" />}
         label="Forward"
@@ -143,8 +147,12 @@ export function TabLocationRow({
   );
 }
 
-/** One of the row's own controls: a mark, what it is called, and what it does. */
+/**
+ * One of the row's own controls: a mark, what it is called, and what it
+ * does, with the chord that does the same in the tooltip where it has one.
+ */
 function Control({
+  chord,
   disabled,
   icon,
   label,
@@ -152,6 +160,7 @@ function Control({
   onClick,
   onContextMenu,
 }: {
+  chord?: OrchestratorShortcutId;
   disabled: boolean;
   icon: ReactNode;
   label: string;
@@ -161,23 +170,23 @@ function Control({
   onContextMenu?: MouseEventHandler;
 }) {
   return (
-    <button
-      aria-label={label}
-      className={cn(
-        "grid size-7 shrink-0 place-items-center rounded-md",
-        disabled
-          ? "text-foreground/25"
-          : "text-foreground/60 hover:bg-foreground/8 hover:text-foreground",
-      )}
-      disabled={disabled}
-      onAuxClick={onAuxClick}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      title={label}
-      type="button"
-    >
-      {icon}
-    </button>
+    <ToolbarTooltip chord={chord} label={label}>
+      <button
+        className={cn(
+          "grid size-7 shrink-0 place-items-center rounded-md",
+          disabled
+            ? "text-foreground/25"
+            : "text-foreground/60 hover:bg-foreground/8 hover:text-foreground",
+        )}
+        disabled={disabled}
+        onAuxClick={onAuxClick}
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+        type="button"
+      >
+        {icon}
+      </button>
+    </ToolbarTooltip>
   );
 }
 

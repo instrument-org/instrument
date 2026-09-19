@@ -1,3 +1,4 @@
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
   Tooltip,
@@ -118,10 +119,12 @@ export function FilterColumn(props: FilterProps) {
         in the brand's own green: a draft opens at the corner, not a field
         at the foot of the list. */}
       <div className="shrink-0 px-2 pt-2">
-        <Button className="h-8 w-full" onClick={onNew} variant="brand">
-          <PencilSimpleIcon className="size-3.5" />
-          New
-        </Button>
+        <ToolbarTooltip chord="newThread" label="New">
+          <Button className="h-8 w-full" onClick={onNew} variant="brand">
+            <PencilSimpleIcon className="size-3.5" />
+            New
+          </Button>
+        </ToolbarTooltip>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         <TopicGrid onDetails={onTopicDetails} topics={topics} />
@@ -180,15 +183,16 @@ export function FilterHead(props: FilterProps) {
             {place.icon}
           </PlaceMark>
         ))}
-        <Button
-          aria-label="New"
-          className="ml-auto size-8 rounded-full"
-          onClick={onNew}
-          size="icon"
-          variant="brand"
-        >
-          <PlusIcon className="size-4" weight="bold" />
-        </Button>
+        <ToolbarTooltip chord="newThread" label="New">
+          <Button
+            className="ml-auto size-8 rounded-full"
+            onClick={onNew}
+            size="icon"
+            variant="brand"
+          >
+            <PlusIcon className="size-4" weight="bold" />
+          </Button>
+        </ToolbarTooltip>
       </div>
       <TopicGrid onDetails={onTopicDetails} topics={topics} />
     </div>

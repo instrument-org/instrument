@@ -243,16 +243,22 @@ export function renderDataPart({
     }
     case "data-memory": {
       const count = part.data.memories.length + part.data.more;
+      const texts = part.data.memories.map((memory) => memory.text);
+      const text =
+        part.data.tells === "changes"
+          ? `Memory changed: ${[
+              ...texts,
+              ...part.data.forgotten.map((name) => `forgot ${name}`),
+            ].join(" · ")}`
+          : count === 0
+            ? "Memory is empty"
+            : `Memory (${count}): ${texts.join(" · ")}`;
       return (
         <ModelContextDebugCard
           className={noteClassName}
           compact={compact}
           key={part.metadata.id}
-          text={
-            count === 0
-              ? "Memory is empty"
-              : `Memory (${count}): ${part.data.memories.map((memory) => memory.text).join(" · ")}`
-          }
+          text={text}
         />
       );
     }

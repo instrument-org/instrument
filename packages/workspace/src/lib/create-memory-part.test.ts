@@ -13,7 +13,6 @@ import {
   forgetMemory,
   listMemories,
   memoryDir,
-  memoryRevision,
   saveMemory,
 } from "./memory/store";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
@@ -64,6 +63,7 @@ describe("createMemoryPart", () => {
 
     expect(await build()).toMatchObject({
       data: {
+        forgotten: [],
         memories: [
           {
             from: "Roofer call",
@@ -73,15 +73,36 @@ describe("createMemoryPart", () => {
         ],
         more: 0,
         sentAt: Date.parse("2026-09-19T12:00:00.000Z"),
+        tells: "whole",
       },
       type: "data-memory",
     });
     expect(await build()).toBeUndefined();
+  });
 
+  it("tells only what was saved, corrected, or forgotten once the whole has been told", async () => {
     await saveMemory(memoryDir(), { name: "address", text: "Portland." });
+    await saveMemory(memoryDir(), { name: "roofer", text: "Dale." });
+    await saveMemory(memoryDir(), { name: "stevia", text: "No stevia." });
+    await build();
+
+    await saveMemory(memoryDir(), { name: "roofer", text: "Dale at Summit." });
+    await saveMemory(memoryDir(), { name: "pacific-time", text: "Pacific." });
+    await forgetMemory(memoryDir(), "stevia");
+
+    // Two rows and no more: the address the thread already knows stays out.
     expect(await build()).toMatchObject({
-      data: { memories: [{ name: "address" }, { name: "pacific-time" }] },
+      data: {
+        forgotten: ["stevia"],
+        memories: [
+          { name: "pacific-time", text: "Pacific." },
+          { name: "roofer", text: "Dale at Summit." },
+        ],
+        more: 0,
+        tells: "changes",
+      },
     });
+    expect(await build()).toBeUndefined();
   });
 
   it("says memory is empty after the last one is forgotten", async () => {
@@ -90,14 +111,16 @@ describe("createMemoryPart", () => {
 
     await forgetMemory(memoryDir(), "one");
 
-    expect(await build()).toMatchObject({ data: { memories: [] } });
+    expect(await build()).toMatchObject({
+      data: { memories: [], tells: "whole" },
+    });
     expect(await build()).toBeUndefined();
   });
 
   it("stays quiet about a change the thread was told of by its own command", async () => {
     await saveMemory(memoryDir(), { name: "one", text: "One." });
     await recordMemoryReported({
-      revision: memoryRevision(await listMemories(memoryDir())),
+      memories: await listMemories(memoryDir()),
       sessionId,
       taskId,
     });

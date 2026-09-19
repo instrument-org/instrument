@@ -138,19 +138,19 @@ export function memoryHeadline(text: string): string {
 }
 
 /**
- * A fingerprint of what memory holds, so a session can be told only when it
- * changed. The empty set's revision is the empty string, which is also what a
- * session that has been told nothing is taken to know.
+ * What memory holds, as a fingerprint per name: what a session is recorded
+ * as having been told, and what the memories of a later moment are compared
+ * against to find which were saved, corrected, or forgotten since. The empty
+ * set's digests are the empty record, which is also what a session that has
+ * been told nothing is taken to know.
  */
-export function memoryRevision(memories: Memory[]): string {
-  if (memories.length === 0) {
-    return "";
-  }
-  const hash = createHash("sha1");
-  for (const memory of memories) {
-    hash.update(`${memory.name}\n${memory.at}\n${memory.text}\n\n`);
-  }
-  return hash.digest("hex");
+export function memoryDigests(memories: Memory[]): Record<string, string> {
+  return Object.fromEntries(
+    memories.map((memory) => [
+      memory.name,
+      createHash("sha1").update(`${memory.at}\n${memory.text}`).digest("hex"),
+    ]),
+  );
 }
 
 /** One memory by name, or nothing when there is no such file. */

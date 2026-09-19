@@ -10,7 +10,6 @@ import {
   memoryDir,
   memoryHeadline,
   MemoryNameSchema,
-  memoryRevision,
   readMemory,
   saveMemory,
 } from "../memory/store";
@@ -121,9 +120,8 @@ async function rememberTold({
   orchestratorTaskId,
   sessionId,
 }: MemoryCommandContext) {
-  const memories = await listMemories(memoryDir());
   await recordMemoryReported({
-    revision: memoryRevision(memories),
+    memories: await listMemories(memoryDir()),
     sessionId,
     taskId: orchestratorTaskId,
   });

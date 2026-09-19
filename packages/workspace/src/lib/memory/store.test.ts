@@ -8,9 +8,9 @@ import {
   forgetMemories,
   forgetMemory,
   listMemories,
+  memoryDigests,
   memoryHeadline,
   MemoryNameSchema,
-  memoryRevision,
   readMemory,
   saveMemory,
 } from "./store";
@@ -183,20 +183,22 @@ describe("forgetMemories", () => {
   });
 });
 
-describe("memoryRevision", () => {
-  it("is empty for nothing, and moves with every change", async () => {
-    expect(memoryRevision([])).toBe("");
+describe("memoryDigests", () => {
+  it("is empty for nothing, and a memory's digest moves only when it changes", async () => {
+    expect(memoryDigests([])).toEqual({});
 
     await saveMemory(dir, { name: "one", text: "One." });
-    const first = memoryRevision(await listMemories(dir));
-    expect(first).not.toBe("");
+    await saveMemory(dir, { name: "two", text: "Two." });
+    const first = memoryDigests(await listMemories(dir));
+    expect(Object.keys(first).sort()).toEqual(["one", "two"]);
 
     await saveMemory(dir, { name: "one", text: "One, corrected." });
-    const second = memoryRevision(await listMemories(dir));
-    expect(second).not.toBe(first);
+    const second = memoryDigests(await listMemories(dir));
+    expect(second.one).not.toBe(first.one);
+    expect(second.two).toBe(first.two);
 
     await forgetMemory(dir, "one");
-    expect(memoryRevision(await listMemories(dir))).toBe("");
+    expect(memoryDigests(await listMemories(dir))).toEqual({ two: first.two });
   });
 });
 

@@ -698,12 +698,20 @@ export namespace SessionMessageDataPart {
 
   /**
    * What the conversation's agent remembers about the user, on a thread's
-   * user message when memory changed since the thread was last told: each
-   * memory's first line, the thread it was learned in, and when. State
-   * cadence: attached only on a change, and rendered only when it differs
-   * from the note before it. `sentAt` is what "when" is measured from.
+   * user message when memory changed since the thread was last told: the
+   * whole of it the first time, and after that only what was saved,
+   * corrected, or forgotten since. Each memory is its first line, the thread
+   * it was learned in, and when. State cadence: attached only on a change,
+   * and rendered only when it differs from the note before it. `sentAt` is
+   * what "when" is measured from.
    */
   const MemoryDataPartSchema = z.object({
+    /** Names forgotten since the thread was last told; only on a change. */
+    forgotten: z.array(z.string()).default([]),
+    /**
+     * The whole of memory up to the note's ceiling, or, on a change, only the
+     * memories saved or corrected since the thread was last told.
+     */
     memories: z.array(
       z.object({
         at: z.number(),
@@ -714,9 +722,11 @@ export namespace SessionMessageDataPart {
         text: z.string(),
       }),
     ),
-    /** How many memories the note left out past its ceiling. */
+    /** How many memories a whole note left out past its ceiling. */
     more: z.number().int().nonnegative().default(0),
     sentAt: z.number(),
+    /** Whether the note carries the whole of memory or the change since the thread was last told. */
+    tells: z.enum(["whole", "changes"]).default("whole"),
   });
 
   export type MemoryDataPart = z.output<typeof MemoryDataPartSchema>;

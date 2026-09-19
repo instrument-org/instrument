@@ -46,10 +46,12 @@ const isHost = (host: string): host is Host => host in HOSTS;
 
 /**
  * A name as it may appear in an address: one path segment of the characters
- * every kind's names are made of. What it names is the opener's question; a
- * deleted memory or a task from a thread since closed is still an address.
+ * every kind's names are made of, which for a skill includes the colon its
+ * qualified name carries (`instrument:create-page`). What it names is the
+ * opener's question; a deleted memory or a task from a thread since closed
+ * is still an address.
  */
-const NAME = /^[\w.-]+$/;
+const NAME = /^[\w.:-]+$/;
 
 /**
  * The scheme the app answers to. The build's own protocol is what the OS
@@ -72,7 +74,7 @@ export function instrumentLinkOf(url: string): InstrumentLink | undefined {
   }
   const { kind, prefix } = HOSTS[host];
   const segments = parsed.pathname.split("/").filter(Boolean);
-  const name = segments[0];
+  const name = segments[0] === undefined ? undefined : decoded(segments[0]);
   if (segments.length > 1 || (name !== undefined && !NAME.test(name))) {
     return undefined;
   }
@@ -98,9 +100,22 @@ export function instrumentUrlOf(href: string): string | undefined {
       return host === "discover" ? `${APP_NAME_SLUG}://${host}` : undefined;
     }
     if (pathname.startsWith(`${prefix}/`)) {
-      const name = pathname.slice(prefix.length + 1);
+      const name = decoded(pathname.slice(prefix.length + 1));
       return NAME.test(name) ? `${APP_NAME_SLUG}://${host}/${name}` : undefined;
     }
   }
   return undefined;
+}
+
+/**
+ * A path segment as it was written, whichever way it reached here. The
+ * router writes a skill's colon as `%3A` into a screen href, and a name is
+ * the same name either way; what is not valid encoding is taken as written.
+ */
+function decoded(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }

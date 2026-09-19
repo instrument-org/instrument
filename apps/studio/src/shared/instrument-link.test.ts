@@ -41,6 +41,14 @@ describe("instrumentLinkOf", () => {
       },
     ],
     [
+      "instrument://skill/instrument:create-page",
+      {
+        href: "/orchestrator/skills/instrument:create-page",
+        kind: "skill",
+        name: "instrument:create-page",
+      },
+    ],
+    [
       "instrument://discover/timeline",
       { href: "/orchestrator/ideas/timeline", kind: "idea", name: "timeline" },
     ],
@@ -85,6 +93,10 @@ describe("instrumentUrlOf", () => {
     ["/orchestrator/memory/no-stevia", "instrument://memory/no-stevia"],
     ["/orchestrator/apps/linear", "instrument://app/linear"],
     ["/orchestrator/skills/create-page", "instrument://skill/create-page"],
+    [
+      "/orchestrator/skills/instrument%3Acreate-page",
+      "instrument://skill/instrument:create-page",
+    ],
     ["/orchestrator/ideas/timeline", "instrument://discover/timeline"],
     ["/orchestrator/ideas", "instrument://discover"],
     ["/orchestrator/threads/ses_01J9?tab=1", "instrument://thread/ses_01J9"],

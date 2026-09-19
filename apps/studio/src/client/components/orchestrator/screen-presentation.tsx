@@ -71,7 +71,7 @@ export function screenLocation(
   // A skill is addressed by its name, which is also what it is called: the
   // exact name a task loads it by is the one the reader has for it too.
   if (pathname.startsWith(`${SKILLS_HREF}/`)) {
-    return { kind: "skill", name: pathname.slice(SKILLS_HREF.length + 1) };
+    return { kind: "skill", name: skillNameOf(pathname) };
   }
   if (pathname === SKILLS_HREF) {
     return { kind: "skills" };
@@ -143,7 +143,7 @@ export function screenPresentation(
   if (pathname.startsWith(`${SKILLS_HREF}/`)) {
     return {
       icon: <GraduationCapIcon className="size-3.5" />,
-      title: pathname.slice(SKILLS_HREF.length + 1),
+      title: skillNameOf(pathname),
     };
   }
   if (pathname === SKILLS_HREF) {
@@ -185,6 +185,20 @@ function folderTitle(search: URLSearchParams) {
     return "Recents";
   }
   return segmentsOf(root).at(-1) ?? computerName();
+}
+
+/**
+ * The skill a screen address stands on, by the name the reader has for it.
+ * The router writes the colon of a qualified name (`workspace:tdd`) into the
+ * address as `%3A`, which is not a name anyone should read.
+ */
+function skillNameOf(pathname: string) {
+  const segment = pathname.slice(`${SKILLS_HREF}/`.length);
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 /** The thread a screen address stands on, by the title the window has for it. */

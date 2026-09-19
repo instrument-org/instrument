@@ -44,6 +44,18 @@ describe("screenPresentation", () => {
   ])("names a folder tab at %s", (_, href, title) => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });
+
+  // The router writes a qualified name's colon as `%3A`; the tab reads the name.
+  it.each([
+    ["a plain name", "/orchestrator/skills/create-page", "create-page"],
+    [
+      "a qualified name",
+      "/orchestrator/skills/workspace%3Atdd",
+      "workspace:tdd",
+    ],
+  ])("names a skill tab by %s", (_, href, title) => {
+    expect(screenPresentation(href, CONTEXT).title).toBe(title);
+  });
 });
 
 describe("screenLocation", () => {

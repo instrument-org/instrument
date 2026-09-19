@@ -21,8 +21,6 @@ const LINE_MAX = 240;
 const DEFAULT_TAIL = 20;
 const DEFAULT_THREADS = 20;
 const SEARCH_MAX = 20;
-/** How much of a session id a listing prints, and what a reference may abbreviate it to. */
-const SHORT_ID_LENGTH = 8;
 
 /**
  * The conversation's way of reading itself.
@@ -109,7 +107,7 @@ function findThread(
     };
   }
   return {
-    error: `"${reference}" matches ${matches.length} threads; say which:\n${matches.map((thread) => `  ${shortId(thread.id)}  ${thread.title}`).join("\n")}`,
+    error: `"${reference}" matches ${matches.length} threads; say which:\n${matches.map((thread) => `  ${thread.id}  ${thread.title}`).join("\n")}`,
   };
 }
 
@@ -160,7 +158,7 @@ async function runRead(taskId: TaskId, args: string[]) {
   return {
     exitCode: 0,
     stderr: "",
-    stdout: `${shortId(found.thread.id)}  "${found.thread.title}"\n${shown.join("\n")}\n`,
+    stdout: `${found.thread.id}  "${found.thread.title}"\n${shown.join("\n")}\n`,
   };
 }
 
@@ -174,7 +172,7 @@ async function runSearch(taskId: TaskId, args: string[]) {
   for (const thread of threads) {
     for (const line of await lines(taskId, thread.id)) {
       if (line.toLowerCase().includes(words)) {
-        hits.push(`${shortId(thread.id)}  "${thread.title}"  ${line}`);
+        hits.push(`${thread.id}  "${thread.title}"  ${line}`);
       }
     }
   }
@@ -271,10 +269,6 @@ async function runTopics(taskId: TaskId) {
   };
 }
 
-function shortId(sessionId: StoreId.Session): string {
-  return sessionId.slice(0, SHORT_ID_LENGTH);
-}
-
 /** One thread as a listing prints it. */
 function threadRow(thread: Thread, names: Map<string, string>): string {
   const topics = thread.topics
@@ -284,7 +278,11 @@ function threadRow(thread: Thread, names: Map<string, string>): string {
     })
     .join(" ");
   const columns = [
-    shortId(thread.id),
+    // Whole, never cut: a session id opens with its time, so the first
+    // characters of every thread from the same fortnight are the same ones,
+    // and an id printed short here is one that names nothing when it comes
+    // back, in a reference or in a link a reply writes.
+    thread.id,
     thread.state,
     `"${thread.title}"`,
     ...(topics ? [topics] : []),

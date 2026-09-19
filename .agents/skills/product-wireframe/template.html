@@ -141,10 +141,50 @@
         cursor: zoom-in;
       }
       .frame > * {
+        position: relative;
         width: var(--w);
         height: var(--h);
         transform: scale(var(--s));
         transform-origin: top left;
+      }
+
+      /* Annotation marks are drawn on a layer over the whole frame, measured
+         from the element they annotate after layout, so no overflow-hidden
+         column, pane, or bar can clip a ring or a tag. The marker an author
+         leaves inside the element takes no space of its own. */
+      .frame i.mark {
+        display: none;
+      }
+      .marks {
+        position: absolute;
+        inset: 0;
+        z-index: 60;
+        pointer-events: none;
+      }
+      .mark-ring {
+        position: absolute;
+        border-radius: 8px;
+        box-shadow:
+          0 0 0 2px var(--tone),
+          0 0 0 6px color-mix(in srgb, var(--tone) 16%, transparent);
+      }
+      .mark-tag {
+        position: absolute;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 18px;
+        padding: 0 6px;
+        border-radius: 5px;
+        background: var(--tone);
+        color: #fff;
+        font: 600 10px/1 Inter, ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .mark-tag i {
+        font-size: 11px;
       }
 
       /* Every tile reserves the same vertical space for its frame, whatever
@@ -371,26 +411,28 @@
         </div>`;
 
       // ---- annotations -----------------------------------------------------
-      // For the reader, not the product: a pointer on what is being clicked,
-      // and a dashed ring with a label in two colors the app never uses. Orange
-      // is a click; violet is what just appeared or changed. Put the click on
-      // the frame where it happens and let the next frame be the result; when
-      // the clicked thing survives into the result (a card in the chat), put
-      // the click there instead. One click per frame, and never a green row
-      // or a check mark standing in for either.
-
-      /** The pointer, on the bottom-right of a `relative` parent. */
-      const cursor = `<i class="ph-fill ph-cursor pointer-events-none absolute -right-2.5 -bottom-2.5 z-30 text-lg text-gray-900" style="filter: drop-shadow(0 1px 1px rgba(255,255,255,0.9))"></i>`;
+      // For the reader, not the product: a ring with a tag in two colors the
+      // app never uses. Orange with a pointer is the thing about to be clicked,
+      // drawn on the frame before the result, in its pre-click state; violet
+      // is what appeared or changed, drawn on the result. A frame that is only
+      // a state carries neither. One click per frame, and never a green row or
+      // a check mark standing in for either.
+      //
+      // The helpers leave an invisible marker inside the element; the drawing
+      // happens after render, on a layer over the whole frame (see drawMarks),
+      // so the element needs no `relative` and nothing can clip the ring.
 
       const TONE = { click: "#ff5a1f", new: "#7c3aed" };
 
-      /** The ring and its tag. Drop it inside any `relative` element. */
-      const ann = (label, tone = "click") =>
-        `<span class="pointer-events-none absolute -inset-1.5 rounded-md outline-2 outline-dashed" style="outline-color:${TONE[tone]}"></span><span class="pointer-events-none absolute -top-5 left-0 z-30 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide whitespace-nowrap text-white uppercase" style="background:${TONE[tone]}">${label}</span>`;
+      /** A mark on the element that contains it: `label` is the tag's word, `tone` its color. */
+      const ann = (label, tone = "click") => `<i class="mark" data-label="${label}" data-tone="${tone}"></i>`;
 
-      /** Wraps a block so it can be ringed: a row, a card, a page section. */
+      /** The pointer: marks the element that contains it as the thing being clicked. */
+      const cursor = `<i class="mark" data-label="click" data-tone="click" data-pointer></i>`;
+
+      /** Wraps a block so it can be marked: a row, a card, a page section. */
       const noted = (inner, label, tone = "click", { pointer = false, cls = "" } = {}) =>
-        `<div class="relative ${cls}">${inner}${ann(label, tone)}${pointer ? cursor : ""}</div>`;
+        `<div class="${cls}">${inner}${pointer ? cursor : ann(label, tone)}</div>`;
       const clickable = (inner, cls = "") => noted(inner, "click", "click", { pointer: true, cls });
       const fresh = (inner, cls = "") => noted(inner, "new", "new", { cls });
 
@@ -440,6 +482,84 @@
       document.querySelector("#count").textContent = `${states.length} frames`;
 
       document.querySelector("#subtitle").textContent = SUBTITLE;
+
+      // ---- marks -----------------------------------------------------------
+      // Each frame's markers are measured and drawn as a layer over the frame
+      // in the frame's own (unscaled) coordinates, so the layer scales with
+      // it and is cloned with it into the viewer. Measuring happens after the
+      // fonts and the runtime Tailwind build have settled, and once more on
+      // load, since either can move text. The tag goes above the ring when
+      // there is room, below it when there is not, and inside it as the last
+      // resort; a pointer mark carries the pointer inside its tag rather than
+      // over the content.
+      const MARK_PAD = 5;
+      const TAG_H = 18;
+      const drawMarks = () => {
+        for (const root of rack.querySelectorAll(".frame > *")) {
+          root.querySelector(".marks")?.remove();
+          const marks = [...root.querySelectorAll("i.mark")];
+          if (marks.length === 0) continue;
+          const frame = root.parentElement;
+          const s = parseFloat(frame.style.getPropertyValue("--s")) || 1;
+          const fw = Number(frame.dataset.w);
+          const fh = Number(frame.dataset.h);
+          const rr = root.getBoundingClientRect();
+          // Two markers on one element (a ring and a pointer) draw as one mark.
+          const groups = new Map();
+          for (const m of marks) {
+            const el = m.parentElement;
+            const g = groups.get(el) || { el, label: m.dataset.label, tone: m.dataset.tone, pointer: false };
+            if ("pointer" in m.dataset) g.pointer = true;
+            else Object.assign(g, { label: m.dataset.label, tone: m.dataset.tone });
+            groups.set(el, g);
+          }
+          const layer = document.createElement("div");
+          layer.className = "marks";
+          for (const g of groups.values()) {
+            const r = g.el.getBoundingClientRect();
+            if (r.width === 0 || r.height === 0) continue;
+            const left = (r.left - rr.left) / s - MARK_PAD;
+            const top = (r.top - rr.top) / s - MARK_PAD;
+            const width = r.width / s + MARK_PAD * 2;
+            const height = r.height / s + MARK_PAD * 2;
+            // A narrow thing (a button, a tile, a word) takes its tag beside it
+            // at the right, where it covers the least; a wide one (a row) takes
+            // it above; a tall one (a pane, a column) takes it inside its own
+            // corner. Each falls back to the next, then to below.
+            const tagW = g.label.length * 7 + (g.pointer ? 15 : 0) + 12;
+            const beside = left + width + 6 + tagW <= fw;
+            const above = top - TAG_H - 4 >= 0;
+            let tagLeft = Math.max(0, Math.min(left, fw - tagW));
+            let tagTop = top - TAG_H - 4;
+            if (height > 240) {
+              // A whole pane or column: the tag inside its corner covers less
+              // of the frame than anything outside it would.
+              tagLeft = left + 8;
+              tagTop = top + 8;
+            } else if (beside && (width < fw * 0.4 || !above)) {
+              tagLeft = left + width + 6;
+              tagTop = top + (height - TAG_H) / 2;
+            } else if (!above) {
+              tagTop = top + height + 4 + TAG_H <= fh ? top + height + 4 : top + 3;
+            }
+            const tone = TONE[g.tone] || TONE.click;
+            layer.insertAdjacentHTML(
+              "beforeend",
+              `<span class="mark-ring" style="left:${left}px;top:${top}px;width:${width}px;height:${height}px;--tone:${tone}"></span>` +
+                `<span class="mark-tag" style="left:${tagLeft}px;top:${tagTop}px;--tone:${tone}">${g.pointer ? `<i class="ph-fill ph-cursor"></i>` : ""}${g.label}</span>`,
+            );
+          }
+          root.appendChild(layer);
+        }
+      };
+      // Drawing is idempotent, so it runs at every point text can have moved:
+      // now, a beat later once the runtime Tailwind build has applied, when
+      // the fonts settle, and after load.
+      drawMarks();
+      setTimeout(drawMarks, 250);
+      document.fonts?.ready.then(() => setTimeout(drawMarks, 0));
+      document.fonts?.addEventListener("loadingdone", drawMarks);
+      window.addEventListener("load", () => setTimeout(drawMarks, 300));
 
       // ---- density ---------------------------------------------------------
       // Fit as many tiles per row as the width allows, then derive the scale

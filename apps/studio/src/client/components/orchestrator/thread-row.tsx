@@ -427,11 +427,12 @@ function Peek({
     >
       {isWorking ? (
         // `brand-shiny-text` is an inline-block, which a parent's truncate
-        // cannot shrink, so the step carries its own clamp.
+        // cannot shrink, so the step carries its own clamp. With no step to
+        // name yet the line says that Instrument is at it, rather than
+        // repeating the last thing said as if it were happening now.
         <span className={cn("brand-shiny-text min-w-0", clamp)}>
           {thread.runningTasks.find((task) => task.step)?.step ??
-            thread.latest?.text ??
-            "Working"}
+            "Instrument is working"}
         </span>
       ) : isWaiting ? (
         <>
@@ -494,8 +495,9 @@ function StarControl({ thread }: { thread: Thread }) {
 
 /**
  * Where the thread stands, as a dot: amber while it waits on the user, brand
- * while it works or holds replies not yet seen, and nothing at all while it
- * is quiet, so the gutter is empty down a list with nothing new in it.
+ * and breathing while it works, brand and still while it holds replies not
+ * yet seen, and nothing at all while it is quiet, so the gutter is empty down
+ * a list with nothing new in it.
  */
 function StateDot({ thread }: { thread: Thread }) {
   if (thread.state === "waiting") {
@@ -506,10 +508,20 @@ function StateDot({ thread }: { thread: Thread }) {
       />
     );
   }
-  if (thread.state === "working" || thread.unread > 0) {
+  if (thread.state === "working") {
+    // Breathing, the way the agent's own dot breathes while it plans, so a
+    // thread at work reads apart from one merely holding something unread.
     return (
       <span
-        aria-label={thread.state === "working" ? "Working" : "Unread"}
+        aria-label="Working"
+        className="planning-dot-core size-2 shrink-0 rounded-full bg-brand-500 motion-reduce:animate-none"
+      />
+    );
+  }
+  if (thread.unread > 0) {
+    return (
+      <span
+        aria-label="Unread"
         className="size-2 shrink-0 rounded-full bg-brand-500"
       />
     );

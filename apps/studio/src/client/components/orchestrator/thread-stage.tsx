@@ -3,6 +3,7 @@ import { PageOpenContext } from "@/client/components/page-open-context";
 import { TaskChat } from "@/client/components/task/chat";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
+import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { cn } from "@/client/lib/utils";
@@ -16,6 +17,7 @@ import { useContext, useEffect, useState } from "react";
 
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { ThreadWork } from "./thread-work";
+import { WorkingRow } from "./working-row";
 
 /** How many threads stay mounted behind the one on screen. */
 const KEPT = 4;
@@ -113,6 +115,11 @@ function ThreadScreen({
     ),
   );
   const thread = threads.data?.find((entry) => entry.id === sessionId);
+  // While the thread's own agent composes, the transcript shows the typing
+  // dots; the thread is otherwise at work when a task filed from it is, and
+  // that is said at the transcript's tail too.
+  const { isAgentRunning } = useAgentSessionStatus({ id: taskId, sessionId });
+  const isWorkingElsewhere = thread?.state === "working" && !isAgentRunning;
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(
@@ -214,6 +221,7 @@ function ThreadScreen({
                   selectedSessionId={sessionId}
                   sendContext={sendContext}
                   task={task.data}
+                  transcriptTrailing={isWorkingElsewhere ? <WorkingRow /> : null}
                 />
               </TaskSessionProvider>
             </PageOpenContext>

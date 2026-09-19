@@ -476,6 +476,33 @@ function OrchestratorLayout() {
     }));
   };
 
+  // A task the thread on screen has just started brings the thread's tasks
+  // up as the pane's face, so someone watching the conversation sees what it
+  // is working through and can open any of them. The face already up stays
+  // as it is, on the list or on a task; a task's browser arriving still takes
+  // the pane, as it does. Nothing on the first read, which lists what was
+  // there before the window, and nothing for a task another thread started.
+  const knownChildren = useRef<Set<TaskId>>(null);
+  useEffect(() => {
+    const listed = children.data;
+    if (!listed) {
+      return;
+    }
+    const known = knownChildren.current;
+    knownChildren.current = new Set(listed.map((child) => child.id));
+    if (!known || threadUp === undefined || isTasksViewUp) {
+      return;
+    }
+    const arrived = listed.some(
+      (child) => !known.has(child.id) && child.threadId === threadUp,
+    );
+    if (arrived) {
+      showTasksFace(undefined, threadUp);
+    }
+    // On each read of the tasks; the rest is read as it is then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [children.data]);
+
   // A tab at the tasks' address from before the tasks became the pane's
   // face has no screen behind it: closed as the window opens, and opened
   // again as the face if it is asked for back.

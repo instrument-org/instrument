@@ -8,6 +8,19 @@ import { createSession } from "../create-session";
 import { type TypedError } from "../errors";
 import { Store } from "../store";
 
+/**
+ * The words cut at a length for a note to the conversation, saying so where
+ * they stop: the cut names itself, so a reader never mistakes the first part
+ * of a long reply for the whole of a short one. For the conversation alone;
+ * a prompt to any other model wants a plain cut, since the line is addressed
+ * to the conversation and reads as an instruction anywhere else.
+ */
+export function cutForNote(text: string, maxLength: number): string {
+  return text.length > maxLength
+    ? `${text.slice(0, maxLength)}\n[cut here at ${maxLength.toLocaleString("en-US")} characters; the transcript has the rest]`
+    : text;
+}
+
 /** What a task's agent last wrote in a session, whole. */
 export async function lastAssistantText({
   sessionId,
@@ -33,19 +46,6 @@ export function lastAssistantTextIn(
     .join("\n")
     .trim();
   return text || undefined;
-}
-
-/**
- * The words cut at a length for a note to the conversation, saying so where
- * they stop: the cut names itself, so a reader never mistakes the first part
- * of a long reply for the whole of a short one. For the conversation alone;
- * a prompt to any other model wants a plain cut, since the line is addressed
- * to the conversation and reads as an instruction anywhere else.
- */
-export function cutForNote(text: string, maxLength: number): string {
-  return text.length > maxLength
-    ? `${text.slice(0, maxLength)}\n[cut here at ${maxLength.toLocaleString("en-US")} characters; the transcript has the rest]`
-    : text;
 }
 
 /**

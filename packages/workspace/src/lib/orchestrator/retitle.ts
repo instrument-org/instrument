@@ -6,12 +6,12 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
+import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { updateSessionTitle } from "../update-session-title";
-import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { getWorkspaceConfig } from "../workspace-config";
 import { lastAssistantTextIn } from "./latest-session";
 

@@ -72,7 +72,7 @@ async function newestModelsText(orchestratorTaskId: TaskId): Promise<string[]> {
   return [
     `The newest models you can hand a task, newest first. \`${TASK_COMMAND.name} models\` lists every one, with more about each:\n${modelTable(
       models.slice(0, NEWEST_MODELS_IN_CONTEXT),
-      ["uri", "name", "released", "price", "takes"],
+      ["model", "name", "released", "price", "takes"],
     )}`,
   ];
 }
@@ -136,7 +136,7 @@ ${
   TASK_TOOL_ENABLED
     ? ""
     : `
-        ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'
+        ${TASK_COMMAND.name} new --name '<title>' [--model <model>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'
         <the brief, as many lines as it needs>
         EOF
         ${TASK_COMMAND.name} send <id> <<'EOF'
@@ -150,7 +150,7 @@ ${
         ${TASK_COMMAND.name} folder <id> [--add <mount>[/<folder>][:rw|:ro]]... [--remove <mount>]...
         ${TASK_COMMAND.name} app <id> [--add <slug>]... [--remove <slug>]...
         ${TASK_COMMAND.name} tab <id> <tab id>|--none
-        ${TASK_COMMAND.name} model <id> <uri>
+        ${TASK_COMMAND.name} model <id> <model>
         ${TASK_COMMAND.name} rename <id> '<title>'
         ${TASK_COMMAND.name} trash <id>
         ${TASK_COMMAND.name} models [--author <name>]`
@@ -170,7 +170,7 @@ ${
       - Cost: a task spends the user's money, and a pricier model spends it faster. Run tasks on this conversation's model unless the user asked for another or the work plainly needs one, and when you choose a model for its strength, say so and pick the cheapest that has it. A task's brief that is scoped to one job costs a fraction of one told to explore.
       - Several tasks in one turn is how the same brief runs on several models, or a job splits into parts. Give each its own file name in its brief so they do not overwrite one another, and when the point is comparing models, put the model's name in the file name and give none of them an earlier result to look at: a folder holding the last one, or a brief that says "as before", turns the comparison into a copy.
       - A task's transcript is \`${TASK_COMMAND.name} log <id>\`, and \`${TASK_COMMAND.name} show <id>\` says where it stands. What it made is in the folder you gave it.
-      - A task's setup is yours to change while it runs, and changing it beats starting over, which throws away everything the task has worked out: \`${TASK_COMMAND.name} folder <id> --add ${MOUNT.attachedFolders}/<mount>\` hands it a folder it turns out to need (\`:ro\` to narrow, \`--remove\` to take one back, naming one it already has to re-grant it), \`${TASK_COMMAND.name} app <id> --add <slug>\` hands it a connected app, \`${TASK_COMMAND.name} tab <id> <tab id>\` hands it a page of the user's (\`--none\` takes it back), \`${TASK_COMMAND.name} model <id> <uri>\` moves its next turn to another model, and \`${TASK_COMMAND.name} rename\` gives it a better title. A task that stopped because it could not reach something is one of these and one \`${TASK_COMMAND.name} send\` from carrying on: it learns what it was given on that message, so say what the folder or app is for.
+      - A task's setup is yours to change while it runs, and changing it beats starting over, which throws away everything the task has worked out: \`${TASK_COMMAND.name} folder <id> --add ${MOUNT.attachedFolders}/<mount>\` hands it a folder it turns out to need (\`:ro\` to narrow, \`--remove\` to take one back, naming one it already has to re-grant it), \`${TASK_COMMAND.name} app <id> --add <slug>\` hands it a connected app, \`${TASK_COMMAND.name} tab <id> <tab id>\` hands it a page of the user's (\`--none\` takes it back), \`${TASK_COMMAND.name} model <id> <model>\` moves its next turn to another model, and \`${TASK_COMMAND.name} rename\` gives it a better title. A task that stopped because it could not reach something is one of these and one \`${TASK_COMMAND.name} send\` from carrying on: it learns what it was given on that message, so say what the folder or app is for.
       - A task that needs a service it was not handed cannot ask for one: it has no ${agentTools.ConnectApp.name} and no way to reach an app you did not give it, so it stops and says so. That is yours to finish: connect the app if it is not connected, \`${TASK_COMMAND.name} app <id> --add <slug>\`, then \`${TASK_COMMAND.name} send\` telling it to carry on. Never start the work again for want of an app.
 
       # Apps

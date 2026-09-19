@@ -13,13 +13,37 @@ import { getWorkspaceConfig } from "../workspace-config";
 export type ModelColumn =
   | "context"
   | "effort"
+  | "model"
   | "name"
   | "price"
   | "provider"
   | "released"
   | "tags"
-  | "takes"
-  | "uri";
+  | "takes";
+
+/**
+ * The URI of a model named by `author/id` alone, on the conversation's own
+ * provider. A task runs on no other provider, so the bare name is the whole
+ * of what a command has to say, and it is what the model table prints. A
+ * name that already carries its parameters is handed back as it is.
+ */
+export function completeModelURI(
+  name: string,
+  params: AIGatewayModelURI.Params,
+): AIGatewayModelURI.Type {
+  if (name.includes("?")) {
+    return AIGatewayModelURI.Schema.parse(name);
+  }
+  const [author, canonicalId, ...rest] = name.split("/");
+  if (!author || !canonicalId || rest.length > 0) {
+    throw new Error(`"${name}" is not a model. A model is named author/id.`);
+  }
+  return AIGatewayModelURI.fromModel({
+    author,
+    canonicalId: AIGatewayModelURI.CanonicalIdSchema.parse(canonicalId),
+    params,
+  });
+}
 
 /**
  * Every model the orchestrator can hand a task, newest first. One provider
@@ -55,23 +79,30 @@ export async function listRunnableModels(
 }
 
 /**
- * The provider config a conversation runs on, and so the only one its tasks
- * may run on. Undefined until it has been messaged, since a conversation has
- * no model before then.
+ * The provider a conversation runs on, as the parameters its model URIs
+ * carry, and so the only provider its tasks may run on. Undefined until it
+ * has been messaged, since a conversation has no model before then.
  */
-export async function ownProviderConfigId(
+export async function ownModelParams(
   orchestratorTaskId: TaskId,
-): Promise<AIProviderConfigId | undefined> {
+): Promise<AIGatewayModelURI.Params | undefined> {
   const state = await getTaskState(taskDir(orchestratorTaskId));
   if (!state.selectedModelURI) {
     return undefined;
   }
   const parsed = AIGatewayModelURI.parse(state.selectedModelURI);
-  return parsed.ok ? parsed.value.params.providerConfigId : undefined;
+  return parsed.ok ? parsed.value.params : undefined;
+}
+
+/** The provider config a conversation runs on; see `ownModelParams`. */
+export async function ownProviderConfigId(
+  orchestratorTaskId: TaskId,
+): Promise<AIProviderConfigId | undefined> {
+  return (await ownModelParams(orchestratorTaskId))?.providerConfigId;
 }
 
 const ALL_MODEL_COLUMNS: ModelColumn[] = [
-  "uri",
+  "model",
   "name",
   "provider",
   "released",
@@ -85,23 +116,34 @@ const ALL_MODEL_COLUMNS: ModelColumn[] = [
 const HEADER: Record<ModelColumn, string> = {
   context: "context",
   effort: "effort",
+  model: "model",
   name: "name",
   price: "$/M in/out",
   provider: "provider",
   released: "released",
   tags: "tags",
   takes: "takes",
-  uri: "uri",
 };
 
-/** Models as an aligned text table, one row each, the last column ragged. */
+/**
+ * Models as an aligned text table, one row each, the last column ragged. A
+ * column the provider answers for no model at all (a price list it does not
+ * publish) is left out rather than printed as a column of question marks.
+ */
 export function modelTable(
   models: AIGatewayModel.Type[],
   columns: ModelColumn[] = ALL_MODEL_COLUMNS,
 ): string {
+  const cells = models.map((model) =>
+    columns.map((column) => cell(model, column)),
+  );
+  const known = columns.map(
+    (_, index) =>
+      models.length === 0 || cells.some((row) => row[index] !== "?"),
+  );
   return table(
-    columns.map((column) => HEADER[column]),
-    models.map((model) => columns.map((column) => cell(model, column))),
+    columns.filter((_, index) => known[index]).map((column) => HEADER[column]),
+    cells.map((row) => row.filter((_, index) => known[index])),
   );
 }
 
@@ -129,6 +171,9 @@ function cell(model: AIGatewayModel.Type, column: ModelColumn): string {
         ? `${rungs} (${reasoning.defaultEffort})`
         : rungs;
     }
+    case "model": {
+      return `${model.author}/${model.canonicalId}`;
+    }
     case "name": {
       return model.name;
     }
@@ -148,9 +193,6 @@ function cell(model: AIGatewayModel.Type, column: ModelColumn): string {
     }
     case "takes": {
       return abilities(model).join(",") || "-";
-    }
-    case "uri": {
-      return model.uri;
     }
   }
 }

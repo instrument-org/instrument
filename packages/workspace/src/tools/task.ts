@@ -51,7 +51,7 @@ export const Task = setupTool({
       }),
     model: z.string().optional().meta({
       description:
-        "new: the model URI this task runs on for its whole life. Omit to use this conversation's.",
+        "new: the model this task runs on for its whole life, named author/id as `task models` prints it. Omit to use this conversation's.",
     }),
     name: z.string().optional().meta({
       description: "new: a short title, in the user's words.",

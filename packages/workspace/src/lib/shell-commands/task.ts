@@ -48,9 +48,10 @@ import {
 } from "../orchestrator/latest-session";
 import { describeLeftRunning } from "../orchestrator/left-running";
 import {
+  completeModelURI,
   listRunnableModels,
   modelTable,
-  ownProviderConfigId,
+  ownModelParams,
 } from "../orchestrator/models";
 import {
   type FolderMounts,
@@ -128,7 +129,7 @@ const MAX_WAIT_MS = ms("10 minutes");
 
 const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
-  ${TASK_COMMAND.name} new --name '<title>' [--model <uri>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'
+  ${TASK_COMMAND.name} new --name '<title>' [--model <model>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'
   <prompt>
   EOF
       Create a task and start it. The prompt is its whole brief: it knows nothing
@@ -199,8 +200,8 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
   ${TASK_COMMAND.name} log <id> [--steps] [--tail <lines>]
       Its transcript, last ${DEFAULT_LOG_TAIL_LINES} lines by default. Composes: \`${TASK_COMMAND.name} log <id> | rg error\`.
       \`--steps\` is the outline instead: what it set out to do, each call and how it ended, what it said, one line each and no tool output. Read this first to see what a task is doing; the transcript's tail is whatever printed last.
-  ${TASK_COMMAND.name} model <id> <uri>
-      The model its next turn runs on, named from the list \`models\` gives.
+  ${TASK_COMMAND.name} model <id> <model>
+      The model its next turn runs on, named author/id as \`models\` prints it.
   ${TASK_COMMAND.name} models [--author <name>]
       Every model you can run, newest first: release date, context window, price
       in dollars per million tokens in and out, what it takes besides text, and
@@ -520,10 +521,10 @@ export async function runNew(
   const rawURI = values.get("model")?.[0] ?? orchestratorState.selectedModelURI;
   if (!rawURI) {
     throw new Error(
-      "new: no model. This conversation has not chosen one yet; pass --model <uri>.",
+      "new: no model. This conversation has not chosen one yet; pass --model <model>.",
     );
   }
-  const { model, modelURI } = await resolveModel(rawURI);
+  const { model, modelURI } = await resolveModel(rawURI, context);
   await requireOwnProvider(model, context);
   const askedFolders = values.get("folder") ?? [];
   const orchestratorFolders = orchestratorState.attachedFolders ?? {};
@@ -653,7 +654,7 @@ export async function runSend(
   if (!rawURI) {
     throw new Error("send: the task has no model; set one with `task model`.");
   }
-  const { model, modelURI } = await resolveModel(rawURI);
+  const { model, modelURI } = await resolveModel(rawURI, context);
   const session = await latestOrNewSessionId(task.id);
   if (session.isErr()) {
     throw session.error;
@@ -985,6 +986,20 @@ async function requireOwnChild(
 }
 
 /**
+ * The provider this conversation runs on, as the parameters its model URIs
+ * carry: the only provider it may put a task on.
+ */
+async function requireOwnModelParams(context: TaskCommandContext) {
+  const params = await ownModelParams(context.orchestratorTaskId);
+  if (params === undefined) {
+    throw new Error(
+      "this conversation has not chosen a model yet, so it has no provider to run a task on.",
+    );
+  }
+  return params;
+}
+
+/**
  * Refuses a model from any other provider. Another provider is another account
  * and another bill, spent without anything here reporting the difference until
  * it had been. The user is still free to move a task to any model themselves.
@@ -993,28 +1008,12 @@ async function requireOwnProvider(
   model: AIGatewayModel.Type,
   context: TaskCommandContext,
 ) {
-  const providerConfigId = await requireOwnProviderConfigId(context);
+  const { providerConfigId } = await requireOwnModelParams(context);
   if (model.params.providerConfigId !== providerConfigId) {
     throw new Error(
       `${model.uri} is not on this conversation's provider, and a task runs on no other. \`${TASK_COMMAND.name} models\` lists every model you can hand one.`,
     );
   }
-}
-
-/**
- * The provider config this conversation runs on, which is the only one it may
- * put a task on.
- */
-async function requireOwnProviderConfigId(context: TaskCommandContext) {
-  const providerConfigId = await ownProviderConfigId(
-    context.orchestratorTaskId,
-  );
-  if (providerConfigId === undefined) {
-    throw new Error(
-      "this conversation has not chosen a model yet, so it has no provider to run a task on.",
-    );
-  }
-  return providerConfigId;
 }
 
 /**
@@ -1043,22 +1042,31 @@ async function resolveApps(slugs: string[]): Promise<string[]> {
   return apps;
 }
 
-async function resolveModel(rawURI: string) {
-  const parsed = AIGatewayModelURI.Schema.safeParse(rawURI);
-  if (!parsed.success) {
-    throw new Error(`"${rawURI}" is not a model URI.`);
+/**
+ * The model a command names, as `author/id` the way `task models` prints it
+ * or as a whole URI. A bare name is completed on the conversation's own
+ * provider, the only one a task may run on.
+ */
+async function resolveModel(rawName: string, context: TaskCommandContext) {
+  let modelURI: AIGatewayModelURI.Type;
+  try {
+    modelURI = completeModelURI(rawName, await requireOwnModelParams(context));
+  } catch (error) {
+    throw new Error(
+      `"${rawName}" is not a model: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   const workspaceConfig = getWorkspaceConfig();
   const result = await fetchModel({
     captureException: workspaceConfig.captureException,
     configs: workspaceConfig.getAIProviderConfigs(),
     modelCache: workspaceConfig.modelCache,
-    modelURI: parsed.data,
+    modelURI,
   });
   if (!result.ok) {
-    throw new Error(`model ${rawURI}: ${result.error.message}`);
+    throw new Error(`model ${rawName}: ${result.error.message}`);
   }
-  return { model: result.value, modelURI: parsed.data };
+  return { model: result.value, modelURI };
 }
 
 /**
@@ -1232,9 +1240,11 @@ async function runModel(args: string[], context: TaskCommandContext) {
   const task = await requireOwnChild(args[0], context);
   const rawURI = args[1];
   if (!rawURI) {
-    throw new Error("model: a model URI is required.");
+    throw new Error(
+      "model: a model is required, named author/id as `models` prints it.",
+    );
   }
-  const { model, modelURI } = await resolveModel(rawURI);
+  const { model, modelURI } = await resolveModel(rawURI, context);
   await requireOwnProvider(model, context);
   await setTaskState(taskDir(task.id), { selectedModelURI: modelURI });
   return ok(`${task.id} will run its next turn on ${modelURI}.\n`);
@@ -1243,9 +1253,8 @@ async function runModel(args: string[], context: TaskCommandContext) {
 async function runModels(args: string[], context: TaskCommandContext) {
   const { values } = parseFlags(args, { flags: ["author"], repeatable: [] });
   const author = values.get("author")?.[0]?.toLowerCase();
-  const runnable = await listRunnableModels(
-    await requireOwnProviderConfigId(context),
-  );
+  const { providerConfigId } = await requireOwnModelParams(context);
+  const runnable = await listRunnableModels(providerConfigId);
   const models = runnable.filter(
     (model) => author === undefined || model.author.toLowerCase() === author,
   );

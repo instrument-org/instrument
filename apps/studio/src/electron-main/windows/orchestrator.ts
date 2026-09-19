@@ -9,6 +9,7 @@ import {
 } from "@/electron-main/lib/quit-guard";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
+import { bindOrchestratorWindowChords } from "@/electron-main/menus/orchestrator-window";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   getAppZoom,
@@ -175,6 +176,7 @@ export function openOrchestratorWindow(): BrowserWindow {
   });
 
   guardNavigation(orchestratorWindow.webContents);
+  bindOrchestratorWindowChords(orchestratorWindow.webContents);
 
   // A trackpad swipe or a mouse thumb button asks for history, and both reach
   // the main process rather than the page; the window's own router answers.

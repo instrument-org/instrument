@@ -1,9 +1,9 @@
 import { type Draft } from "@/client/atoms/orchestrator";
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { atom, useAtom } from "jotai";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { FilterColumn, FilterHead } from "./filter-column";
@@ -11,6 +11,7 @@ import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
 import { SearchField } from "./search-field";
 import { ThreadList } from "./thread-list";
 import {
+  byActivity,
   draftTitle,
   hasWords,
   matchesFilters,
@@ -37,6 +38,7 @@ const threadFiltersAtom = atom<ThreadFilters>(NO_FILTERS);
 export function ThreadPane({
   drafts,
   onDeleteDraft,
+  onListed,
   onNew,
   onOpenDraft,
   onOpenThread,
@@ -47,6 +49,8 @@ export function ThreadPane({
   drafts: Draft[];
   /** Deletes a draft outright; the caller says so and offers it back. */
   onDeleteDraft: (id: string) => void;
+  /** Told the threads the list shows, in its order, whenever that changes: what a chord steps through. */
+  onListed?: (ids: StoreId.Session[]) => void;
   /** Opens a draft of a new thread, filed under the topic the pane stands in when it stands in one. */
   onNew: (topicId: string | undefined) => void;
   /** Opens a draft to go on writing it. */
@@ -99,6 +103,14 @@ export function ThreadPane({
   const shown = threads.filter((thread) =>
     matchesFilters(thread, filters, topicNames),
   );
+  const listed = byActivity(shown).map((thread) => thread.id);
+  // Keyed by value: the list is rebuilt on every read of the threads, and
+  // the callback is written fresh each render; the ids are what matter.
+  const listedKey = listed.join("\n");
+  useEffect(() => {
+    onListed?.(listed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listedKey]);
   // Standing in Drafts, the list holds the drafts, narrowed by the same
   // search: by their words and the name of the topic each is filed under.
   const shownDrafts =

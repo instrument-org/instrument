@@ -903,6 +903,9 @@ function OrchestratorLayout() {
     field?.select();
   };
 
+  // The inbox's rows as the pane lists them, for stepping through them by
+  // chord; the pane says what it shows, since it holds the filters.
+  const listedThreads = useRef<StoreId.Session[]>([]);
   useWindowCommands({
     back: goBack,
     closeTab: () => {
@@ -913,6 +916,9 @@ function OrchestratorLayout() {
     forward: goForward,
     newTab: () => {
       windowTabs.openScreen(NEW_TAB_HREF);
+    },
+    newThread: () => {
+      startDraft(undefined);
     },
     openScreen: (href) => {
       openScreen(href, { newTab: true });
@@ -931,6 +937,17 @@ function OrchestratorLayout() {
     search: focusOmnibar,
     selectRelative: windowTabs.selectRelative,
     selectTab: windowTabs.selectIndex,
+    // The next or previous row of the inbox from the thread on screen; from
+    // no thread, the list's first or last.
+    selectThread: (direction) => {
+      const ids = listedThreads.current;
+      const at = threadUp === undefined ? -1 : ids.indexOf(threadUp);
+      const next =
+        at === -1 ? (direction === 1 ? ids[0] : ids.at(-1)) : ids[at + direction];
+      if (next !== undefined) {
+        openScreen(`${THREADS_HREF}/${next}`);
+      }
+    },
   });
   useRecordRecents();
 
@@ -1298,6 +1315,9 @@ function OrchestratorLayout() {
                       <ThreadPane
                         drafts={drafts}
                         onDeleteDraft={deleteDraft}
+                        onListed={(ids) => {
+                          listedThreads.current = ids;
+                        }}
                         onNew={startDraft}
                         onOpenDraft={showDraft}
                         onOpenThread={(thread) => {
@@ -1660,6 +1680,8 @@ function useWindowCommands(handlers: {
   closeTab: () => void;
   forward: () => void;
   newTab: () => void;
+  /** A draft of a new thread, at the corner. */
+  newThread: () => void;
   /** A screen by its route, in a tab of its own, since what asked is not in any tab. */
   openScreen: (href: string) => void;
   reopenTab: () => void;
@@ -1667,6 +1689,8 @@ function useWindowCommands(handlers: {
   search: () => void;
   selectRelative: (direction: -1 | 1) => void;
   selectTab: (index: number) => void;
+  /** The next or previous thread of the inbox, as listed. */
+  selectThread: (direction: -1 | 1) => void;
 }) {
   const router = useRouter();
   // The stream is opened once; what a chord means is read at the moment it
@@ -1757,8 +1781,16 @@ function useWindowCommands(handlers: {
               latest.current.newTab();
               break;
             }
+            case "newThread": {
+              latest.current.newThread();
+              break;
+            }
             case "nextTab": {
               latest.current.selectRelative(1);
+              break;
+            }
+            case "nextThread": {
+              latest.current.selectThread(1);
               break;
             }
             case "openSettings": {
@@ -1767,6 +1799,10 @@ function useWindowCommands(handlers: {
             }
             case "previousTab": {
               latest.current.selectRelative(-1);
+              break;
+            }
+            case "previousThread": {
+              latest.current.selectThread(-1);
               break;
             }
             case "reopenTab": {

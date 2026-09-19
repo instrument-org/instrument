@@ -61,9 +61,12 @@ interface PublisherEvents {
     | "findInPage"
     | "forward"
     | "newTab"
+    | "newThread"
     | "nextTab"
+    | "nextThread"
     | "openSettings"
     | "previousTab"
+    | "previousThread"
     | "reopenTab"
     | "search"
     | { href: string; type: "openScreen" }

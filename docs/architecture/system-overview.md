@@ -53,6 +53,7 @@ Rooted at the workspace folder ([`get-workspace-folder`](../../apps/studio/src/e
 
 - `tasks/<id>/` — one folder per task, with `.instrument/{task.db, settings.json}` (per-task SQLite plus one JSON record: what the app knows about the task at the top level, where the user left off under `state`). Legacy layouts are normalized on boot by `migrateWorkspaceLayout`.
 - `projects/` — project folders tasks reference.
+- `memory/` — what the conversation's agent remembers about the user, one Markdown file per memory, written through its `memory` command and read back into every thread ([memory plan](../plans/active/memory.md)). Readable and editable in a file manager; Settings lists them.
 - `skills/` — user-authored and imported skills, mounted writable into the agent at `/skills`. Skills discovered elsewhere on the machine (co-installed agent homes like `~/.claude` and its peers, enumerated by `getSkillSources` in `packages/workspace/src/lib/skills.ts`) stay where they are.
 - The bundled skills registry is **not** here: `registryDir` points at the `registry/` git submodule in development and at the app's `resources/` when packaged, read-only either way, with the bundled system skills (`systemSkillsDir`) beside it.
 - Model cache and `uv` data live under Electron's `userData`, not the workspace folder.

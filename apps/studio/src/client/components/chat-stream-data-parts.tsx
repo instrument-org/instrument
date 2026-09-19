@@ -61,6 +61,9 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-fileChanges": "always",
   "data-intent": "dev",
   "data-maxSteps": "dev",
+  // What the agent is told it remembers about the user. Context for the
+  // model; the user's copy is the Memory section of Settings.
+  "data-memory": "dev",
   // The same treatment the date correction gets, and for the same reason: a
   // note telling the model how long the user was away, which the user knows
   // better than the model does.
@@ -235,6 +238,21 @@ export function renderDataPart({
           compact={compact}
           key={part.metadata.id}
           text={maxStepsModelNote(part.data)}
+        />
+      );
+    }
+    case "data-memory": {
+      const count = part.data.memories.length + part.data.more;
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={
+            count === 0
+              ? "Memory is empty"
+              : `Memory (${count}): ${part.data.memories.map((memory) => memory.text).join(" · ")}`
+          }
         />
       );
     }

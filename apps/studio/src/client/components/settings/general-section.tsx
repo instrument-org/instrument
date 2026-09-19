@@ -7,6 +7,8 @@ import {
 } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import { ExternalLink } from "@/client/components/external-link";
+import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { RelativeTime } from "@/client/components/relative-time";
 import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
@@ -33,7 +35,7 @@ import {
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTabActions } from "@/client/hooks/use-tab-actions";
-import { cn, isLinux } from "@/client/lib/utils";
+import { cn, getRevealInFolderLabel, isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   APP_NAME,
@@ -45,6 +47,7 @@ import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft
 import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { type ReactNode, useState } from "react";
@@ -75,6 +78,7 @@ export function GeneralSection() {
       <AccountInfo />
       <InterfaceAndTheme />
       <Notifications />
+      <Memory />
       <About />
       <SettingsSection title="Advanced">
         <UsageMetrics />
@@ -382,6 +386,98 @@ function InterfaceAndTheme() {
             </div>
             <ZoomStepper />
           </div>
+        </div>
+      </Card>
+    </SettingsSection>
+  );
+}
+
+/**
+ * What the conversation remembers about the user, the folder it keeps it in,
+ * and a way to drop one. The agent saves and corrects these on its own; this
+ * is where a person checks its work, with the files themselves a click away.
+ */
+function Memory() {
+  const { data } = useQuery(
+    rpcClient.workspace.orchestrator.memory.live.list.experimental_liveOptions(),
+  );
+  const forgetMutation = useMutation(
+    rpcClient.workspace.orchestrator.memory.forget.mutationOptions({
+      onError: () => {
+        toast.error("Couldn't forget that memory");
+      },
+    }),
+  );
+  const revealMutation = useMutation(
+    rpcClient.utils.openFolder.mutationOptions({
+      onError: () => {
+        toast.error("Couldn't open the memory folder");
+      },
+    }),
+  );
+  const memories = data?.memories ?? [];
+
+  return (
+    <SettingsSection title="Memory">
+      <Card className="p-4">
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <div className="text-sm font-medium">
+                What {APP_NAME} remembers
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Things it learned about you in conversation and keeps for every
+                thread. It saves and corrects these itself, one file each;
+                forget one here, or edit the files.
+              </p>
+            </div>
+            <Button
+              className="shrink-0"
+              disabled={!data}
+              onClick={() => {
+                if (data) {
+                  revealMutation.mutate({ folderPath: data.dir });
+                }
+              }}
+              size="sm"
+              variant="outline"
+            >
+              <RevealInFolderIcon className="size-4" />
+              {getRevealInFolderLabel()}
+            </Button>
+          </div>
+          {memories.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Nothing remembered yet.
+            </p>
+          ) : (
+            <ul className="divide-y overflow-hidden rounded-lg border">
+              {memories.map((memory) => (
+                <li className="flex items-start gap-3 p-3" key={memory.path}>
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className="text-sm whitespace-pre-wrap">{memory.text}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {memory.from ? `From “${memory.from.title}” · ` : ""}
+                      <RelativeTime date={new Date(memory.at)} />
+                    </p>
+                  </div>
+                  <Button
+                    aria-label={`Forget “${memory.name}”`}
+                    className="shrink-0"
+                    disabled={forgetMutation.isPending}
+                    onClick={() => {
+                      forgetMutation.mutate({ name: memory.name });
+                    }}
+                    size="icon-sm"
+                    variant="ghost"
+                  >
+                    <TrashIcon className="size-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </Card>
     </SettingsSection>

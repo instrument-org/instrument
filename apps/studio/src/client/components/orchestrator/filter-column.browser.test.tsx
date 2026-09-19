@@ -93,7 +93,6 @@ describe("FilterColumn and FilterHead", () => {
       "All",
       "New",
       "House",
-      "Actions for House",
     ]);
     expect(
       head.querySelector('[aria-label="House"]')?.getAttribute("data-chosen"),

@@ -6,6 +6,7 @@ import {
 import { getMainWindow } from "@/electron-main/windows/main/instance";
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
+  FILES_FENCE,
   type StoreId,
   type TaskId,
   type WorkspaceActorRef,
@@ -71,7 +72,12 @@ export function startAgentCompletionNotifications({
    * a task is shown in is the app's business, and reaching the modules that
    * answer that from here would pull every window's machinery in behind them.
    */
-  revealTask: (task: { id: TaskId; sessionId: StoreId.Session }) => void;
+  revealTask: (task: {
+    id: TaskId;
+    /** A thread of the conversation, which the inbox lists by its session. */
+    isThread: boolean;
+    sessionId: StoreId.Session;
+  }) => void;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }) {
@@ -92,8 +98,16 @@ export function startAgentCompletionNotifications({
     const context = { workspaceConfig, workspaceRef };
 
     let taskTitle = "Task complete";
+    let isThread = false;
     try {
       const task = await call(workspaceRouter.task.byId, { id }, { context });
+      // A task the conversation started reports into its thread, and the
+      // thread's reply is the news; a notification for each would say the
+      // same thing twice, the first time in words meant for the conversation.
+      if (task.parentTaskId !== undefined) {
+        return;
+      }
+      isThread = task.kind === "orchestrator";
       taskTitle = task.title;
     } catch (error) {
       logger
@@ -108,11 +122,21 @@ export function startAgentCompletionNotifications({
         { id, sessionId },
         { context },
       );
-      body = latestAssistantText(messages);
+      body = isThread
+        ? latestTurnText(messages)
+        : latestAssistantText(messages);
     } catch (error) {
       logger
         .scope("agentCompletionNotifications")
         .warn("Failed to read agent response for notification", error);
+    }
+    // A thread's turn that said nothing (a task steered, a note read) is not
+    // a reply, and the user was not waiting on it.
+    if (isThread && body === undefined) {
+      return;
+    }
+    if (isThread) {
+      taskTitle = (await threadTitle({ context, id, sessionId })) ?? taskTitle;
     }
 
     // Reading the task is asynchronous, so the window may have regained
@@ -124,10 +148,38 @@ export function startAgentCompletionNotifications({
     presentNotification({
       body,
       onClick: () => {
-        revealTask({ id, sessionId });
+        revealTask({ id, isThread, sessionId });
       },
       title: taskTitle,
     });
+  }
+
+  /** What the thread is called in the inbox, which is what its reply is filed under. */
+  async function threadTitle({
+    context,
+    id,
+    sessionId,
+  }: {
+    context: {
+      workspaceConfig: WorkspaceConfig;
+      workspaceRef: WorkspaceActorRef;
+    };
+    id: TaskId;
+    sessionId: StoreId.Session;
+  }): Promise<string | undefined> {
+    try {
+      const threads = await call(
+        workspaceRouter.orchestrator.threads.list,
+        { id },
+        { context },
+      );
+      return threads.find((thread) => thread.id === sessionId)?.title;
+    } catch (error) {
+      logger
+        .scope("agentCompletionNotifications")
+        .warn("Failed to read the thread for notification", error);
+      return undefined;
+    }
   }
 
   async function subscribe() {
@@ -166,19 +218,39 @@ function canShowAgentCompletionNotification({
   });
 }
 
-// Reduces the last assistant turn to a short plain-text body. Notifications
-// render a couple of lines, so collapse whitespace and truncate.
-function latestAssistantText(
-  messages: InferRouterOutputs<typeof workspaceRouter>["message"]["list"],
-): string | undefined {
-  const latest = messages.findLast((message) => message.role === "assistant");
-  if (!latest) {
-    return undefined;
-  }
+type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
 
-  const raw = latest.parts
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("");
+// Reduces the last assistant message to a short plain-text body. Notifications
+// render a couple of lines, so collapse whitespace and truncate.
+function latestAssistantText(messages: Messages): string | undefined {
+  const latest = messages.findLast((message) => message.role === "assistant");
+  return latest ? bodyOf([latest]) : undefined;
+}
+
+/**
+ * What a thread's turn said: every assistant message since the last thing
+ * that woke it, since a turn is one message per step and the words can sit
+ * on a step before the last. Nothing when the turn only acted.
+ */
+function latestTurnText(messages: Messages): string | undefined {
+  const turnStart = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+  return bodyOf(messages.slice(turnStart + 1));
+}
+
+function bodyOf(messages: Messages): string | undefined {
+  const raw = messages
+    .filter((message) => message.role === "assistant")
+    .flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "text" ? [part.text] : [],
+      ),
+    )
+    .join("\n")
+    // A files fence is a list of paths for the app to draw as cards, not
+    // words to read.
+    .replaceAll(FILES_FENCE, "");
   // Notifications render no formatting, so strip Markdown before collapsing
   // whitespace to avoid showing literal syntax like ** or [text](url).
   const text = stripMarkdown(raw).replaceAll(/\s+/g, " ").trim();

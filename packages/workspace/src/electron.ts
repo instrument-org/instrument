@@ -49,6 +49,7 @@ export {
 } from "./lib/background-processes";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
 export { findAvailableName } from "./lib/find-available-name";
+export { FILES_FENCE } from "./lib/parse-files-block";
 export {
   migrateWorkspaceLayout,
   type WorkspaceLayoutMigration,

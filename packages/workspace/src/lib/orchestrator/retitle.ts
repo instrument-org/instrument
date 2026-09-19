@@ -11,6 +11,7 @@ import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { updateSessionTitle } from "../update-session-title";
+import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { getWorkspaceConfig } from "../workspace-config";
 import { lastAssistantTextIn } from "./latest-session";
 
@@ -45,7 +46,11 @@ export async function retitleThread({
   }
   const sorted = alphabetical(messages.value, (message) => message.id);
   const root = sorted.find(isRoot);
-  const reply = lastAssistantTextIn(sorted, REPLY_MAX);
+  // Cut plainly: the note-shaped cut addresses the conversation, and this
+  // reply is going to the title model.
+  const said = lastAssistantTextIn(sorted);
+  const reply =
+    said === undefined ? undefined : truncateAtWordBoundary(said, REPLY_MAX);
   if (!root || !reply) {
     return undefined;
   }

@@ -5,6 +5,7 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { Store } from "../store";
 import {
+  cutForNote,
   lastAssistantTextIn,
   latestOrNewSessionId,
   latestSessionId,
@@ -53,15 +54,20 @@ describe("lastAssistantTextIn", () => {
       role: "assistant",
     }) as unknown as Parameters<typeof lastAssistantTextIn>[0][number];
 
-  it("gives the words whole when they fit", () => {
-    expect(lastAssistantTextIn([message("Done, in work/x.md.")], 4000)).toBe(
+  it("gives the words whole", () => {
+    expect(lastAssistantTextIn([message("Done, in work/x.md.")])).toBe(
       "Done, in work/x.md.",
     );
   });
+});
+
+describe("cutForNote", () => {
+  it("gives the words whole when they fit", () => {
+    expect(cutForNote("Done, in work/x.md.", 4000)).toBe("Done, in work/x.md.");
+  });
 
   it("says where it cut, so the first part is not taken for the whole", () => {
-    expect(lastAssistantTextIn([message("a".repeat(12))], 8))
-      .toMatchInlineSnapshot(`
+    expect(cutForNote("a".repeat(12), 8)).toMatchInlineSnapshot(`
       "aaaaaaaa
       [cut here at 8 characters; the transcript has the rest]"
     `);

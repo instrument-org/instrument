@@ -8,13 +8,11 @@ import { createSession } from "../create-session";
 import { type TypedError } from "../errors";
 import { Store } from "../store";
 
-/** What a task's agent last wrote in a session, cut at a length when given one and saying so where it stops; whole otherwise. */
+/** What a task's agent last wrote in a session, whole. */
 export async function lastAssistantText({
-  maxLength,
   sessionId,
   taskId,
 }: {
-  maxLength?: number;
   sessionId: StoreId.Session;
   taskId: TaskId;
 }): Promise<string | undefined> {
@@ -22,25 +20,30 @@ export async function lastAssistantText({
   if (messages.isErr()) {
     return undefined;
   }
-  return lastAssistantTextIn(messages.value, maxLength);
+  return lastAssistantTextIn(messages.value);
 }
 
 /** The same words, read from a transcript already in hand. */
 export function lastAssistantTextIn(
   messages: SessionMessage.WithParts[],
-  maxLength?: number,
 ): string | undefined {
   const last = messages.findLast((message) => message.role === "assistant");
   const text = last?.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n")
     .trim();
-  if (!text) {
-    return undefined;
-  }
-  // The cut names itself, so a reader never mistakes the first part of a long
-  // reply for the whole of a short one.
-  return maxLength !== undefined && text.length > maxLength
+  return text || undefined;
+}
+
+/**
+ * The words cut at a length for a note to the conversation, saying so where
+ * they stop: the cut names itself, so a reader never mistakes the first part
+ * of a long reply for the whole of a short one. For the conversation alone;
+ * a prompt to any other model wants a plain cut, since the line is addressed
+ * to the conversation and reads as an instruction anywhere else.
+ */
+export function cutForNote(text: string, maxLength: number): string {
+  return text.length > maxLength
     ? `${text.slice(0, maxLength)}\n[cut here at ${maxLength.toLocaleString("en-US")} characters; the transcript has the rest]`
     : text;
 }

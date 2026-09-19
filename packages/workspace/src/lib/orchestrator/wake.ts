@@ -18,7 +18,11 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { threadOfTask } from "./attribution";
 import { taskFolderHoldings } from "./folder-holdings";
-import { lastAssistantText, latestOrNewSessionId } from "./latest-session";
+import {
+  cutForNote,
+  lastAssistantText,
+  latestOrNewSessionId,
+} from "./latest-session";
 import {
   mountsOf,
   translateMountPaths,
@@ -335,24 +339,26 @@ async function onSessionDone(
   // Read as the turn ends rather than at delivery, a debounce later: a process
   // that exits in between was the task's own doing and is not news.
   const running = leftRunning(id);
-  const said = await lastAssistantText({
-    maxLength: WAKE_SUMMARY_MAX_LENGTH,
-    sessionId,
-    taskId: id,
-  });
+  const said = await lastAssistantText({ sessionId, taskId: id });
   // A turn with no words ended on a stop, the step limit, or a model error,
   // and the note has to say which: the orchestrator continues one of those
   // with `task send`, and leaves one the user stopped alone.
   const ending =
     said === undefined ? await endedWithoutWords(id, sessionId) : undefined;
-  const summary = await inOrchestratorPaths(said, {
+  const receipt = await inOrchestratorPaths(said, {
     orchestratorTaskId: orchestratorId,
     taskId: id,
   });
-  // What the task said it made, read from its receipt once the paths in it
-  // are the orchestrator's. The note carries the receipt itself; this is for
-  // the card, which draws the files as chips.
-  const files = summary === undefined ? [] : filesNamedIn(summary);
+  // What the task said it made, read from the whole receipt once the paths
+  // in it are the orchestrator's, before the ceiling cuts it: the fence is
+  // the receipt's last lines, and a long receipt would otherwise lose it.
+  // The note carries the receipt itself; this is for the card, which draws
+  // the files as chips.
+  const files = receipt === undefined ? [] : filesNamedIn(receipt);
+  const summary =
+    receipt === undefined
+      ? undefined
+      : cutForNote(receipt, WAKE_SUMMARY_MAX_LENGTH);
   schedule(
     orchestratorId,
     {

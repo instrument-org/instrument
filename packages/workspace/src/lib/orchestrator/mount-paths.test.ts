@@ -222,7 +222,6 @@ describe("translateTaskFolderPaths", () => {
       /tasks/2026-09-17-build-the-digest/work/digest.html
       /tasks/2026-09-17-build-the-digest/work/build.mjs
       /mnt/Instrument/digest.html
-
       \`\`\`"
     `);
   });
@@ -230,5 +229,45 @@ describe("translateTaskFolderPaths", () => {
   it("leaves a relative path in prose alone, since a sentence is not a fence", () => {
     const text = "The script is in work/build.mjs beside the page.";
     expect(translateTaskFolderPaths(text, taskId)).toBe(text);
+  });
+
+  // The task's root is a whole path's start, never a segment of another
+  // path or an address: a folder of the user's and a page on a site both
+  // stay as they were written.
+  it("leaves the same word inside another path or an address alone", () => {
+    const text = [
+      "Filed at https://app.example.com/task/42 and copied to /mnt/Home/Projects/task/notes.md.",
+      "The build is at /task/work/build.mjs (log in `/task/work/build.log`).",
+    ].join("\n");
+    expect(translateTaskFolderPaths(text, taskId)).toMatchInlineSnapshot(`
+      "Filed at https://app.example.com/task/42 and copied to /mnt/Home/Projects/task/notes.md.
+      The build is at /tasks/2026-09-17-build-the-digest/work/build.mjs (log in \`/tasks/2026-09-17-build-the-digest/work/build.log\`)."
+    `);
+  });
+
+  // The decorations the parser tolerates come off before the root goes on,
+  // so a bulleted or backticked line becomes a path rather than a bullet
+  // with a path inside it.
+  it("reads a fence the way the parser does before prefixing its lines", () => {
+    const receipt = [
+      "Done.",
+      "",
+      "```files",
+      "- work/report.html",
+      "`work/data.csv`",
+      "[the page](work/index.html)",
+      "/mnt/Instrument/digest.html",
+      "```",
+    ].join("\n");
+    expect(translateTaskFolderPaths(receipt, taskId)).toMatchInlineSnapshot(`
+      "Done.
+
+      \`\`\`files
+      /tasks/2026-09-17-build-the-digest/work/report.html
+      /tasks/2026-09-17-build-the-digest/work/data.csv
+      /tasks/2026-09-17-build-the-digest/work/index.html
+      /mnt/Instrument/digest.html
+      \`\`\`"
+    `);
   });
 });

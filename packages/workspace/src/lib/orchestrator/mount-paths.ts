@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { MOUNT } from "../../mount-points";
 import { type TaskId } from "../../schemas/task-id";
-import { FILES_FENCE } from "../parse-files-block";
+import { FILES_FENCE, parseFilesBlock } from "../parse-files-block";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 
@@ -110,27 +110,36 @@ export function translateMountPaths(
 }
 
 /**
+ * The task's own root wherever a path starts with it: at the start of the
+ * text, after whitespace, or after an opening quote, bracket, or backtick.
+ * Not the same segment inside another path or an address, where the word
+ * belongs to that path: `/mnt/Home/Projects/task/notes.md` names a folder of
+ * the user's, and `https://example.com/task/42` names a page. The mount's
+ * name has nothing a pattern reads specially.
+ */
+const TASK_ROOT = new RegExp(String.raw`(?<![\w./-])${MOUNT.task}/`, "gu");
+
+/**
  * The same text with the task's own folder rewritten to the name the
  * conversation that started it reaches that folder by. A task writes
  * `work/report.html` or `/task/work/report.html` for a file the conversation
  * reaches as `/tasks/<id>/work/report.html`. The absolute form is rewritten
- * wherever it appears; the relative one only on the lines of a files fence,
+ * wherever a path starts with it; the relative one only in a files fence,
  * where a line that is not an absolute path can be nothing but a task path.
+ * The fence comes out as the parser reads it, one path per line with the
+ * bullets and backticks an agent adds taken off, so what the conversation
+ * is handed is a path it can open.
  */
 export function translateTaskFolderPaths(text: string, taskId: TaskId): string {
   const root = `${MOUNT.tasks}/${taskId}`;
   return text
-    .replaceAll(`${MOUNT.task}/`, `${root}/`)
-    .replaceAll(FILES_FENCE, (fence: string, body: string) =>
-      fence.replace(
-        body,
-        body.replaceAll(
-          /^([ \t]*)(?!\/|$)(?:\.\/)?(\S.*)$/gmu,
-          (_line, indent: string, taskPath: string) =>
-            `${indent}${root}/${taskPath}`,
-        ),
-      ),
-    );
+    .replaceAll(TASK_ROOT, `${root}/`)
+    .replaceAll(FILES_FENCE, (fence: string, body: string) => {
+      const lines = parseFilesBlock(body).map((filePath) =>
+        filePath.startsWith("/") ? filePath : `${root}/${filePath}`,
+      );
+      return fence.replace(body, () => `\n${lines.join("\n")}\n`);
+    });
 }
 
 /**

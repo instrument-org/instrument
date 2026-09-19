@@ -36,7 +36,13 @@ Tasks do not see memory. The conversation carries what matters into a brief in i
 
 ## The user's side
 
-Settings, General, a Memory section: what Instrument remembers, one row per memory with its text, the thread it came from, and how long ago, a trash button that forgets it, and a button that opens the folder in the file manager. Live over `orchestrator.memory.live.list`, which re-reads the folder on every `memory.changed` event the store publishes. In developer mode the transcript shows the note as a context card, the way the topics note shows.
+A Memory tab in Settings, beside General and Providers: one row per memory, the memory itself, and under it the thread it was learned in and how long ago. A memory that runs past a line opens on its caret; the thread's name is a link that closes Settings and opens that thread, and it is drawn only where there are threads to open, since a name the reader cannot reach is worth less than the room it takes. A trash button forgets one. Live over `orchestrator.memory.live.list`, which re-reads the folder on every `memory.changed` event the store publishes. Revealing the folder in the file manager is still there, quiet, at the foot. In developer mode the transcript shows the note as a context card, the way the topics note shows.
+
+A tab rather than a block under General because this is a list that grows and none of it is a setting. Not a screen of its own in the window: every screen there is a tab inside a thread or a draft, by design, and a global list has no thread to belong to.
+
+## Importing from another tool
+
+Under the list, one product button per chat tool worth asking: ChatGPT, Claude, Gemini, Grok, Copilot, Perplexity. Pressing one opens a thread whose first message asks Instrument to open that tool, check the user is signed in, ask it in a chat what it remembers about them, bring the answer back, and save the durable facts here. Nothing is parsed and nothing is scraped by the app: the conversation drives the page and decides what is worth keeping, so a tool that redesigns its screens next month costs a sentence rather than a parser. The prompt is explicit that the saving happens back in the thread, because a task has no memory command and a brief that told one to save would end in a task reporting a thing it could not do.
 
 ## Next
 

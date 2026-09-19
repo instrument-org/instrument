@@ -5,6 +5,7 @@ import {
 import { DebugSection } from "@/client/components/settings/debug-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
+import { MemorySection } from "@/client/components/settings/memory-section";
 import { ProvidersSection } from "@/client/components/settings/providers-section";
 import { StorageSection } from "@/client/components/settings/storage-section";
 import { Button } from "@/client/components/ui/button";
@@ -27,6 +28,7 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
+import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
@@ -182,6 +184,9 @@ function SettingsSectionBody({
     case "General": {
       return <GeneralSection />;
     }
+    case "Memory": {
+      return <MemorySection />;
+    }
     case "Providers": {
       return <ProvidersSection autoOpenAddProvider={autoAddProvider} />;
     }
@@ -207,6 +212,11 @@ function useNavItems(): NavItem[] {
       icon: FadersHorizontalIcon,
       tab: "General",
       title: "General",
+    },
+    {
+      icon: BrainIcon,
+      tab: "Memory",
+      title: "Memory",
     },
     {
       icon: CpuIcon,

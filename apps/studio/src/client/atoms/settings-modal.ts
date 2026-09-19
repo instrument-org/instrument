@@ -5,6 +5,7 @@ export type SettingsTab =
   | "Debug"
   | "Features"
   | "General"
+  | "Memory"
   | "Providers"
   | "Storage";
 

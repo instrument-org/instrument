@@ -1091,9 +1091,6 @@ function OrchestratorLayout() {
     },
     // Put away only while something is on screen to have the window; with
     // nothing beside it the column is the window, and stays.
-    toggleInbox: () => {
-      setInboxOpen((isOpen) => !isOpen || !showsRightArea);
-    },
     openScreen: (href) => {
       openScreen(href, { newTab: true });
     },
@@ -1111,6 +1108,9 @@ function OrchestratorLayout() {
     search: focusOmnibar,
     selectRelative: windowTabs.selectRelative,
     selectTab: windowTabs.selectIndex,
+    toggleInbox: () => {
+      setInboxOpen((isOpen) => !isOpen || !showsRightArea);
+    },
     // The next or previous row of the inbox from the thread on screen; from
     // no thread, the list's first or last.
     selectThread: (direction) => {

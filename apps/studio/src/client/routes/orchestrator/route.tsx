@@ -711,7 +711,11 @@ function OrchestratorLayout() {
   const goForward = () => {
     if (isTasksViewUp) {
       if (tasksFace.forward !== undefined) {
-        setTasksFace({ ...tasksFace, forward: undefined, task: tasksFace.forward });
+        setTasksFace({
+          ...tasksFace,
+          forward: undefined,
+          task: tasksFace.forward,
+        });
       }
       return;
     }
@@ -942,7 +946,11 @@ function OrchestratorLayout() {
       const ids = listedThreads.current;
       const at = threadUp === undefined ? -1 : ids.indexOf(threadUp);
       const next =
-        at === -1 ? (direction === 1 ? ids[0] : ids.at(-1)) : ids[at + direction];
+        at === -1
+          ? direction === 1
+            ? ids[0]
+            : ids.at(-1)
+          : ids[at + direction];
       if (next !== undefined) {
         openScreen(`${THREADS_HREF}/${next}`);
       }
@@ -953,7 +961,12 @@ function OrchestratorLayout() {
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
   );
-  const modelURI = state.data?.selectedModelURI ?? defaultModelURI;
+  // The default first, since it is what the draft's picker edits: every send
+  // stores its model on the orchestrator's own state, so once any thread has
+  // been started that field is always set, and a pick that only ever reached
+  // the fallback would change nothing on screen. The stored model stands in
+  // for a window whose default was never saved.
+  const modelURI = defaultModelURI ?? state.data?.selectedModelURI;
   const topicsQuery = useQuery(
     rpcClient.workspace.orchestrator.topics.list.queryOptions({
       input: ids ? { id: ids.taskId } : skipToken,
@@ -1208,8 +1221,12 @@ function OrchestratorLayout() {
     const describe = (child: (typeof own)[number]) => ({
       id: child.id,
       status:
-        child.standing.kind === "running" ? ("working" as const) : ("done" as const),
-      ...(child.standing.kind === "running" ? { step: child.standing.line } : {}),
+        child.standing.kind === "running"
+          ? ("working" as const)
+          : ("done" as const),
+      ...(child.standing.kind === "running"
+        ? { step: child.standing.line }
+        : {}),
       title: child.title,
     });
     if (face.task === undefined) {

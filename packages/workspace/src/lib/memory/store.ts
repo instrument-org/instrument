@@ -127,16 +127,6 @@ export async function listMemories(dir: AbsolutePath): Promise<Memory[]> {
     .sort((a, b) => b.at - a.at || a.name.localeCompare(b.name));
 }
 
-/** Where memory lives in this workspace. */
-export function memoryDir(): AbsolutePath {
-  return absolutePathJoin(getWorkspaceConfig().rootDir, MEMORY_DIR_NAME);
-}
-
-/** The first line of a memory, which is the fact when the rest is detail. */
-export function memoryHeadline(text: string): string {
-  return text.split("\n")[0]?.trim() ?? "";
-}
-
 /**
  * What memory holds, as a fingerprint per name: what a session is recorded
  * as having been told, and what the memories of a later moment are compared
@@ -151,6 +141,16 @@ export function memoryDigests(memories: Memory[]): Record<string, string> {
       createHash("sha1").update(`${memory.at}\n${memory.text}`).digest("hex"),
     ]),
   );
+}
+
+/** Where memory lives in this workspace. */
+export function memoryDir(): AbsolutePath {
+  return absolutePathJoin(getWorkspaceConfig().rootDir, MEMORY_DIR_NAME);
+}
+
+/** The first line of a memory, which is the fact when the rest is detail. */
+export function memoryHeadline(text: string): string {
+  return text.split("\n")[0]?.trim() ?? "";
 }
 
 /**

@@ -7,9 +7,8 @@ import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
  * The fixed control at the strip's end that shows the thread's tasks in the
  * pane: a list scoped to this thread as the pane's face over whatever tab is
  * up, never a tab of its own, so it is one press from wherever the pane is
- * and nothing to close afterward. Pressed while the list is up; pressing it
- * again puts it away. The window's badge still opens every task across the
- * app.
+ * and nothing to close afterward. Pressed while the face is up; pressing it
+ * again puts it away.
  */
 export function ThreadTasksButton({
   isOpen,

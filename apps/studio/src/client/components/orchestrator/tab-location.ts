@@ -14,7 +14,7 @@ export interface LocationCrumb {
 }
 
 /** The address of a thread's tasks, which the pane shows as its face rather than as a screen. */
-export const TASKS_HREF = "/orchestrator/tasks";
+const TASKS_HREF = "/orchestrator/tasks";
 
 /**
  * What an address under the tasks names: the list, or one task by id.

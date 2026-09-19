@@ -48,14 +48,17 @@ import {
   screenLocation,
   screenPresentation,
 } from "@/client/components/orchestrator/screen-presentation";
-import { type TabLocation } from "@/client/components/orchestrator/tab-location";
+import {
+  type TabLocation,
+  tasksFaceOfHref,
+} from "@/client/components/orchestrator/tab-location";
 import { TabLocationRow } from "@/client/components/orchestrator/tab-location-row";
-import { TasksBadge } from "@/client/components/orchestrator/tasks-badge";
 import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
 import { ThreadTasksButton } from "@/client/components/orchestrator/thread-tasks-button";
 import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-view";
+import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-view";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
@@ -390,16 +393,52 @@ function OrchestratorLayout() {
     return parsed.success ? parsed.data : undefined;
   })();
   const isPageOnScreen = active?.kind === "page";
-  // The thread whose task list is the pane's face, over whatever tab it has
-  // up: a fixed view rather than a tab, so it is never among the tabs to
-  // close or keep track of. Put away by picking a tab or opening anything,
-  // which both change the tab on screen, and by pressing its control again.
-  const [tasksViewFor, setTasksViewFor] = useState<StoreId.Session>();
-  const isTasksViewUp = tasksViewFor !== undefined && tasksViewFor === threadUp;
+  // The thread's tasks as the pane's face, over whatever tab it has up: a
+  // fixed view rather than a tab, so it is never among the tabs to close or
+  // keep track of, holding the thread's list or one task's page. Put away by
+  // picking a tab or opening anything, which both change the tab under it,
+  // and by pressing its control again.
+  const [tasksFace, setTasksFace] = useState<TasksFace>();
+  const isTasksViewUp =
+    tasksFace !== undefined && tasksFace.thread === threadUp;
   const activeTabId = active?.id;
   useEffect(() => {
-    setTasksViewFor(undefined);
+    // Opened over the tab the thread had up then; a change under it is the
+    // user, or a task's browser arriving, asking for the tab.
+    setTasksFace((current) =>
+      current === undefined || current.overTab === activeTabId
+        ? current
+        : undefined,
+    );
   }, [activeTabId]);
+  /**
+   * Brings the face up over a thread: its list, or one of its tasks, with
+   * the thread on screen and its pane open. A task is shown in the thread it
+   * was filed from; one filed from none goes over the thread on screen.
+   */
+  const showTasksFace = (task?: TaskId, group?: string) => {
+    const filedFrom = task === undefined ? undefined : childThreads.get(task);
+    const parsed = StoreId.SessionSchema.safeParse(
+      filedFrom ?? group ?? windowTabs.group,
+    );
+    if (!parsed.success) {
+      return;
+    }
+    const thread = parsed.data;
+    windowTabs.showThread(thread);
+    setPaneOpen(thread, true);
+    setTasksFace((current) => ({
+      // What was left behind stays forward of the list, so back and then
+      // forward lands where it was.
+      forward:
+        task === undefined && current?.thread === thread
+          ? current.task
+          : undefined,
+      overTab: windowTabs.tabUpIn(thread)?.id,
+      task,
+      thread,
+    }));
+  };
   // The pane beside the conversation: open unless this group put it away,
   // and shown only while there are tabs to show in it or its tasks are its
   // face. Closing the last tab closes the pane; the toggle brings it back
@@ -432,6 +471,19 @@ function OrchestratorLayout() {
     }
   };
   const paneToggle = <PaneToggle isOpen={showsPane} onToggle={togglePane} />;
+
+  // A tab at the tasks' address from before the tasks became the pane's
+  // face has no screen behind it: closed as the window opens, and opened
+  // again as the face if it is asked for back.
+  useEffect(() => {
+    for (const tab of windowTabs.allTabs) {
+      if (tab.kind === "screen" && tasksFaceOfHref(tab.href)) {
+        windowTabs.close(tab.id);
+      }
+    }
+    // Once, over the tabs as they were restored.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The router follows the tab on screen: a screen's own address, or the
   // page route, which shows nothing of its own, while a page is up or no tab
@@ -542,6 +594,13 @@ function OrchestratorLayout() {
       windowTabs.showThread(thread);
       return;
     }
+    // A task, or the tasks, are the face of their thread's pane rather than
+    // a screen of their own: every way of asking for one lands there.
+    const face = tasksFaceOfHref(href);
+    if (face) {
+      showTasksFace(face.task, into);
+      return;
+    }
     if (into !== undefined && into !== windowTabs.group) {
       windowTabs.openOrFocusScreen(href, {
         group: into,
@@ -607,13 +666,27 @@ function OrchestratorLayout() {
 
   // Walk the current screen or guest first, then cross into the preceding or
   // following visit in this tab. Guests stay alive while a screen is up.
+  // The face over the tab is walked first of all: a task back to the list,
+  // the list back to the tab under it, and forward from the list to the
+  // task that was left.
   const canGoBack =
+    isTasksViewUp ||
     Boolean(active?.past?.length) ||
     (isPageOnScreen ? true : windowTabs.canStepBack);
-  const canGoForward = isPageOnScreen
-    ? Boolean(active.future?.length) || (browser?.canGoForward ?? false)
-    : Boolean(active?.future?.length) || windowTabs.canStepForward;
+  const canGoForward = isTasksViewUp
+    ? tasksFace.task === undefined && tasksFace.forward !== undefined
+    : isPageOnScreen
+      ? Boolean(active.future?.length) || (browser?.canGoForward ?? false)
+      : Boolean(active?.future?.length) || windowTabs.canStepForward;
   const goBack = () => {
+    if (isTasksViewUp) {
+      setTasksFace(
+        tasksFace.task === undefined
+          ? undefined
+          : { ...tasksFace, forward: tasksFace.task, task: undefined },
+      );
+      return;
+    }
     if (!active) {
       return;
     }
@@ -637,6 +710,12 @@ function OrchestratorLayout() {
     }
   };
   const goForward = () => {
+    if (isTasksViewUp) {
+      if (tasksFace.forward !== undefined) {
+        setTasksFace({ ...tasksFace, forward: undefined, task: tasksFace.forward });
+      }
+      return;
+    }
     if (active?.kind === "page") {
       if (active.future?.length && !active.pageBackSteps) {
         windowTabs.stepVisit(1);
@@ -676,14 +755,15 @@ function OrchestratorLayout() {
               path: activeFilePath,
             }
         : active?.kind === "screen"
-          ? screenLocation(active.href, {
-              appsBySlug,
-              childTitles,
-              threadTitles,
-            })
+          ? screenLocation(active.href, { appsBySlug, threadTitles })
           : { kind: "newTab" };
     if (isTasksViewUp) {
-      return { kind: "tasks" };
+      return tasksFace.task === undefined
+        ? { kind: "tasks" }
+        : {
+            kind: "task",
+            title: childTitles.get(tasksFace.task) ?? "Task",
+          };
     }
     if (fromTab.kind === "folder" && screenView?.folder) {
       return { ...fromTab, path: screenView.folder.display };
@@ -845,14 +925,14 @@ function OrchestratorLayout() {
       if (tab.kind === "page") {
         browser?.open(tab.url);
       } else {
-        windowTabs.openScreen(tab.href);
+        openScreen(tab.href, { newTab: true });
       }
     },
     search: focusOmnibar,
     selectRelative: windowTabs.selectRelative,
     selectTab: windowTabs.selectIndex,
   });
-  useRecordRecents({ childTitles });
+  useRecordRecents();
 
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
@@ -1035,6 +1115,12 @@ function OrchestratorLayout() {
   const sendContext = async (): Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   > => {
+    // The face over the tab is what the user is looking at while it is up,
+    // and it is the window's rather than any screen's to describe.
+    const faceView = isTasksViewUp ? tasksFaceView(tasksFace) : undefined;
+    if (faceView && state.data) {
+      return { ...faceView, tabs: [], url: location.href };
+    }
     if (!screenView || !state.data || !active) {
       return;
     }
@@ -1071,11 +1157,8 @@ function OrchestratorLayout() {
         if (tab.kind !== "page") {
           return {
             at: tab.href,
-            title: screenPresentation(tab.href, {
-              appsBySlug,
-              childTitles,
-              threadTitles,
-            }).title,
+            title: screenPresentation(tab.href, { appsBySlug, threadTitles })
+              .title,
           };
         }
         // A file page has no id to hand a task: a task is pointed at sites,
@@ -1094,6 +1177,30 @@ function OrchestratorLayout() {
       }),
       url: location.href,
     };
+  };
+
+  /**
+   * What the face has on it, in the terms a screen reports: one task and
+   * where it stands, or the thread's tasks each with theirs.
+   */
+  const tasksFaceView = (
+    face: TasksFace,
+  ): SessionMessageDataPart.ViewContextDataPart | undefined => {
+    const own = (children.data ?? []).filter(
+      (child) => child.threadId === face.thread,
+    );
+    const describe = (child: (typeof own)[number]) => ({
+      id: child.id,
+      status:
+        child.standing.kind === "running" ? ("working" as const) : ("done" as const),
+      ...(child.standing.kind === "running" ? { step: child.standing.line } : {}),
+      title: child.title,
+    });
+    if (face.task === undefined) {
+      return { screen: "tasks", tasks: own.map(describe) };
+    }
+    const task = own.find((child) => child.id === face.task);
+    return task ? { screen: "task", task: describe(task) } : undefined;
   };
 
   sendContextRef.current = sendContext;
@@ -1142,22 +1249,6 @@ function OrchestratorLayout() {
                 tabs={null}
                 trailing={
                   <>
-                    {/* How many tasks are at work, and the list of them: a
-                      task pressed opens its thread and then the task as a
-                      tab of the thread's, since the tabs are each thread's. */}
-                    <TasksBadge
-                      onOpen={(task) => {
-                        // A task filed outside any thread opens among the
-                        // group up, if there is one.
-                        if (task.threadId) {
-                          openScreen(`${THREADS_HREF}/${task.threadId}`);
-                        }
-                        openScreen(`/orchestrator/tasks/${task.id}`, {
-                          newTab: true,
-                        });
-                      }}
-                      tasks={children.data ?? []}
-                    />
                     {isDeveloperMode && (
                       <Suspense fallback={null}>
                         <DevPanel />
@@ -1318,7 +1409,7 @@ function OrchestratorLayout() {
                         }}
                         onReorder={windowTabs.reorder}
                         onSelect={(id) => {
-                          setTasksViewFor(undefined);
+                          setTasksFace(undefined);
                           windowTabs.select(id);
                         }}
                         selectedId={isTasksViewUp ? undefined : active?.id}
@@ -1335,11 +1426,10 @@ function OrchestratorLayout() {
                                 isOpen={isTasksViewUp}
                                 onOpen={() => {
                                   if (isTasksViewUp) {
-                                    setTasksViewFor(undefined);
+                                    setTasksFace(undefined);
                                     return;
                                   }
-                                  setTasksViewFor(threadUp);
-                                  setPaneOpen(threadUp, true);
+                                  showTasksFace(undefined, threadUp);
                                 }}
                               />
                             )}
@@ -1403,17 +1493,15 @@ function OrchestratorLayout() {
                         </ActiveTabProvider>
                       </div>
                       {/* The thread's tasks as the pane's face, over the tab
-                        up; a task pressed opens as a tab of the thread's,
-                        which puts the face away. */}
+                        up: the list, or the task pressed in it. */}
                       {isTasksViewUp && (
                         <div className="absolute inset-0 bg-background">
                           <ThreadTasksView
                             onOpen={(id) => {
-                              openScreen(`/orchestrator/tasks/${id}`, {
-                                newTab: true,
-                              });
+                              showTasksFace(id, tasksFace.thread);
                             }}
-                            sessionId={tasksViewFor}
+                            sessionId={tasksFace.thread}
+                            taskId={tasksFace.task}
                           />
                         </div>
                       )}
@@ -1499,62 +1587,41 @@ function recentFor({
   href,
   pathname,
   search,
-  taskTitle,
 }: {
   href: string;
   pathname: string;
   search: Record<string, unknown>;
-  taskTitle: string | undefined;
 }): Omit<OrchestratorRecent, "at"> | undefined {
-  switch (pathname) {
-    case "/orchestrator/computer": {
-      const file = typeof search.file === "string" ? search.file : "";
-      if (file) {
-        return { href, kind: "file", title: file.split("/").at(-1) || "File" };
-      }
-      const path = typeof search.path === "string" ? search.path : "";
-      const folder = path.replace(/\/$/, "").split("/").at(-1);
-      // The roots are doors on the new tab page already.
-      if (!folder) {
-        return undefined;
-      }
-      return { href, kind: "folder", title: folder };
-    }
-    default: {
-      if (pathname.startsWith("/orchestrator/tasks/")) {
-        return { href, kind: "task", title: taskTitle ?? "Task" };
-      }
-      return undefined;
-    }
+  if (pathname !== "/orchestrator/computer") {
+    return undefined;
   }
+  const file = typeof search.file === "string" ? search.file : "";
+  if (file) {
+    return { href, kind: "file", title: file.split("/").at(-1) || "File" };
+  }
+  const path = typeof search.path === "string" ? search.path : "";
+  const folder = path.replace(/\/$/, "").split("/").at(-1);
+  // The roots are doors on the new tab page already.
+  if (!folder) {
+    return undefined;
+  }
+  return { href, kind: "folder", title: folder };
 }
 
 /**
- * Keeps the Recent list: every screen the window lands on goes to the top,
- * one entry per address. Pages keep their own list, by the browser.
+ * Keeps the Recent list: every file and folder the window lands on goes to
+ * the top, one entry per address. Pages keep their own list, by the browser.
  */
-function useRecordRecents({
-  childTitles,
-}: {
-  childTitles: Map<TaskId, string>;
-}) {
+function useRecordRecents() {
   const location = useRouterState({
     select: (routerState) => routerState.location,
   });
   const setRecents = useSetAtom(orchestratorRecentsAtom);
   const { href, pathname } = location;
   const search = location.search as Record<string, unknown>;
-  const taskTitle =
-    pathname.startsWith("/orchestrator/tasks/") &&
-    childTitles.get(pathname.slice("/orchestrator/tasks/".length) as TaskId);
 
   useEffect(() => {
-    const entry = recentFor({
-      href,
-      pathname,
-      search,
-      taskTitle: taskTitle || undefined,
-    });
+    const entry = recentFor({ href, pathname, search });
     if (!entry) {
       return;
     }
@@ -1573,7 +1640,7 @@ function useRecordRecents({
     };
     // The search object is a new one each render; its address is what matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [href, pathname, taskTitle, setRecents]);
+  }, [href, pathname, setRecents]);
 }
 
 /**

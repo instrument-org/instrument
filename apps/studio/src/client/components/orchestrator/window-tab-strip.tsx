@@ -26,7 +26,7 @@ export function ScreenIcon({
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
   href: string;
 }) {
-  return screenPresentation(href, { appsBySlug, childTitles: new Map() }).icon;
+  return screenPresentation(href, { appsBySlug }).icon;
 }
 
 /**
@@ -89,11 +89,7 @@ export function WindowTabStrip({
     const title =
       tab.kind === "page"
         ? pageTabTitle(tab) || target
-        : screenPresentation(tab.href, {
-            appsBySlug,
-            childTitles,
-            threadTitles,
-          }).title;
+        : screenPresentation(tab.href, { appsBySlug, threadTitles }).title;
     setPins((pins) =>
       pins.some((pinned) => pinned.target === target)
         ? pins
@@ -205,11 +201,7 @@ export function WindowTabStrip({
                   pageTabTitle(tab) ||
                   "New tab",
               }
-            : screenPresentation(tab.href, {
-                appsBySlug,
-                childTitles,
-                threadTitles,
-              })),
+            : screenPresentation(tab.href, { appsBySlug, threadTitles })),
         }))}
         trailing={trailing}
       />

@@ -1,8 +1,17 @@
-import { type TaskListItem } from "@/client/components/orchestrator/task-list";
 import { taskTimeLabel } from "@/client/components/orchestrator/task-time";
 import { useNow } from "@/client/components/orchestrator/use-now";
 import { cn } from "@/client/lib/utils";
 import { type TaskId } from "@instrument-org/workspace/client";
+
+/** One task as the list needs it. */
+export interface TaskListItem {
+  id: TaskId;
+  line: string;
+  /** Where it stands, as the list draws it. */
+  standing: "done" | "failed" | "running" | "waiting";
+  title: string;
+  updatedAt: Date;
+}
 
 /**
  * A thread's tasks, in the pane beside it: headed Tasks, newest first, one

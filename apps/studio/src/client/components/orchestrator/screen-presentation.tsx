@@ -1,8 +1,7 @@
 import { NEW_TAB_HREF, THREADS_HREF } from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
-import { InstrumentGlyph } from "@/client/components/wordmark";
-import { StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
@@ -27,7 +26,6 @@ export const ACTIVITY_HREF = "/orchestrator/activity";
  */
 interface ScreenNames {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
-  childTitles: Map<TaskId, string>;
   /** Each thread's title by its session, for a tab standing on one; a thread not in it is a "Thread". */
   threadTitles?: Map<StoreId.Session, string>;
 }
@@ -35,7 +33,7 @@ interface ScreenNames {
 /** Where a screen tab is, in the terms the row above it says a place in. */
 export function screenLocation(
   href: string,
-  { appsBySlug, childTitles, threadTitles }: ScreenNames,
+  { appsBySlug, threadTitles }: ScreenNames,
 ): TabLocation {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -73,25 +71,21 @@ export function screenLocation(
   if (pathname === IDEAS_HREF) {
     return { kind: "ideas" };
   }
-  if (pathname.startsWith("/orchestrator/tasks/")) {
-    const id = pathname.slice("/orchestrator/tasks/".length) as TaskId;
-    return { kind: "task", title: childTitles.get(id) ?? "Task" };
-  }
   if (pathname.startsWith(`${THREADS_HREF}/`)) {
     return { kind: "thread", title: threadTitleOf(pathname, threadTitles) };
   }
   if (pathname === ACTIVITY_HREF) {
     return { kind: "activity" };
   }
-  // Every other screen is the work, which is the one place a tab can be that
-  // is neither a file nor an app nor a site.
-  return { kind: "tasks" };
+  // A screen the window has no words for reads as the new tab: the place
+  // with nothing in particular in it.
+  return { kind: "newTab" };
 }
 
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(
   href: string,
-  { appsBySlug, childTitles, threadTitles }: ScreenNames,
+  { appsBySlug, threadTitles }: ScreenNames,
 ): { icon: ReactNode; title: string } {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -113,16 +107,6 @@ export function screenPresentation(
       icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
       title: folderTitle(search),
     };
-  }
-  if (pathname.startsWith("/orchestrator/tasks/")) {
-    const id = pathname.slice("/orchestrator/tasks/".length) as TaskId;
-    return {
-      icon: <InstrumentGlyph className="size-3.5" />,
-      title: childTitles.get(id) ?? "Task",
-    };
-  }
-  if (pathname === "/orchestrator/tasks") {
-    return { icon: <InstrumentGlyph className="size-3.5" />, title: "Tasks" };
   }
   if (pathname.startsWith(`${THREADS_HREF}/`)) {
     return {

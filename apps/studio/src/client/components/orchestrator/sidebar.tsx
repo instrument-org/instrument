@@ -11,10 +11,7 @@ export function RecentIcon({ recent }: { recent: OrchestratorRecent }) {
     return <SiteIcon favicon={recent.favicon} url={recent.href} />;
   }
   // The same icon the strip gives the screen's tab, read off the address.
-  return screenPresentation(recent.href, {
-    appsBySlug: new Map(),
-    childTitles: new Map(),
-  }).icon;
+  return screenPresentation(recent.href, { appsBySlug: new Map() }).icon;
 }
 
 /**

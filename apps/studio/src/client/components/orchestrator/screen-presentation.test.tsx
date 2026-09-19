@@ -7,7 +7,7 @@ import {
   screenPresentation,
 } from "./screen-presentation";
 
-const CONTEXT = { appsBySlug: new Map(), childTitles: new Map() };
+const CONTEXT = { appsBySlug: new Map() };
 
 const THREAD_ID = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 const THREAD_HREF = `/orchestrator/threads/${THREAD_ID}`;

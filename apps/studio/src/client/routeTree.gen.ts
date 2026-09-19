@@ -24,18 +24,15 @@ import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/pro
 import { Route as AppTutorialTaskRouteImport } from './routes/_app/tutorial-task'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
-import { Route as OrchestratorTasksRouteRouteImport } from './routes/orchestrator/tasks/route'
 import { Route as AppSkillsRouteRouteImport } from './routes/_app/skills/route'
 import { Route as AppDebugRouteRouteImport } from './routes/_app/debug/route'
 import { Route as AppAuthenticatedRouteRouteImport } from './routes/_app/_authenticated/route'
-import { Route as OrchestratorTasksIndexRouteImport } from './routes/orchestrator/tasks/index'
 import { Route as OrchestratorIdeasIndexRouteImport } from './routes/orchestrator/ideas/index'
 import { Route as OrchestratorAppsIndexRouteImport } from './routes/orchestrator/apps/index'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
 import { Route as OrchestratorThreadsIdRouteImport } from './routes/orchestrator/threads/$id'
-import { Route as OrchestratorTasksIdRouteImport } from './routes/orchestrator/tasks/$id'
 import { Route as OrchestratorIdeasIdeaRouteImport } from './routes/orchestrator/ideas/$idea'
 import { Route as OrchestratorAppsSlugRouteImport } from './routes/orchestrator/apps/$slug'
 import { Route as AppSkillsNameRouteImport } from './routes/_app/skills/$name'
@@ -137,11 +134,6 @@ const AppNewTabRoute = AppNewTabRouteImport.update({
   path: '/new-tab',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const OrchestratorTasksRouteRoute = OrchestratorTasksRouteRouteImport.update({
-  id: '/tasks',
-  path: '/tasks',
-  getParentRoute: () => OrchestratorRouteRoute,
-} as any)
 const AppSkillsRouteRoute = AppSkillsRouteRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -155,11 +147,6 @@ const AppDebugRouteRoute = AppDebugRouteRouteImport.update({
 const AppAuthenticatedRouteRoute = AppAuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => AppRouteRoute,
-} as any)
-const OrchestratorTasksIndexRoute = OrchestratorTasksIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => OrchestratorTasksRouteRoute,
 } as any)
 const OrchestratorIdeasIndexRoute = OrchestratorIdeasIndexRouteImport.update({
   id: '/ideas/',
@@ -190,11 +177,6 @@ const OrchestratorThreadsIdRoute = OrchestratorThreadsIdRouteImport.update({
   id: '/threads/$id',
   path: '/threads/$id',
   getParentRoute: () => OrchestratorRouteRoute,
-} as any)
-const OrchestratorTasksIdRoute = OrchestratorTasksIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => OrchestratorTasksRouteRoute,
 } as any)
 const OrchestratorIdeasIdeaRoute = OrchestratorIdeasIdeaRouteImport.update({
   id: '/ideas/$idea',
@@ -349,7 +331,6 @@ export interface FileRoutesByFullPath {
   '/orchestrator': typeof OrchestratorRouteRouteWithChildren
   '/debug': typeof AppDebugRouteRouteWithChildren
   '/skills': typeof AppSkillsRouteRouteWithChildren
-  '/orchestrator/tasks': typeof OrchestratorTasksRouteRouteWithChildren
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/tutorial-task': typeof AppTutorialTaskRoute
@@ -369,14 +350,12 @@ export interface FileRoutesByFullPath {
   '/skills/$name': typeof AppSkillsNameRoute
   '/orchestrator/apps/$slug': typeof OrchestratorAppsSlugRoute
   '/orchestrator/ideas/$idea': typeof OrchestratorIdeasIdeaRoute
-  '/orchestrator/tasks/$id': typeof OrchestratorTasksIdRoute
   '/orchestrator/threads/$id': typeof OrchestratorThreadsIdRoute
   '/debug/': typeof AppDebugIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
   '/tasks/': typeof AppTasksIndexRoute
   '/orchestrator/apps/': typeof OrchestratorAppsIndexRoute
   '/orchestrator/ideas/': typeof OrchestratorIdeasIndexRoute
-  '/orchestrator/tasks/': typeof OrchestratorTasksIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/debug/components/colors': typeof AppDebugComponentsColorsRoute
@@ -416,14 +395,12 @@ export interface FileRoutesByTo {
   '/skills/$name': typeof AppSkillsNameRoute
   '/orchestrator/apps/$slug': typeof OrchestratorAppsSlugRoute
   '/orchestrator/ideas/$idea': typeof OrchestratorIdeasIdeaRoute
-  '/orchestrator/tasks/$id': typeof OrchestratorTasksIdRoute
   '/orchestrator/threads/$id': typeof OrchestratorThreadsIdRoute
   '/debug': typeof AppDebugIndexRoute
   '/skills': typeof AppSkillsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
   '/orchestrator/apps': typeof OrchestratorAppsIndexRoute
   '/orchestrator/ideas': typeof OrchestratorIdeasIndexRoute
-  '/orchestrator/tasks': typeof OrchestratorTasksIndexRoute
   '/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/debug/components/colors': typeof AppDebugComponentsColorsRoute
@@ -451,7 +428,6 @@ export interface FileRoutesById {
   '/_app/_authenticated': typeof AppAuthenticatedRouteRouteWithChildren
   '/_app/debug': typeof AppDebugRouteRouteWithChildren
   '/_app/skills': typeof AppSkillsRouteRouteWithChildren
-  '/orchestrator/tasks': typeof OrchestratorTasksRouteRouteWithChildren
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/_app/tutorial-task': typeof AppTutorialTaskRoute
@@ -471,14 +447,12 @@ export interface FileRoutesById {
   '/_app/skills/$name': typeof AppSkillsNameRoute
   '/orchestrator/apps/$slug': typeof OrchestratorAppsSlugRoute
   '/orchestrator/ideas/$idea': typeof OrchestratorIdeasIdeaRoute
-  '/orchestrator/tasks/$id': typeof OrchestratorTasksIdRoute
   '/orchestrator/threads/$id': typeof OrchestratorThreadsIdRoute
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
   '/orchestrator/apps/': typeof OrchestratorAppsIndexRoute
   '/orchestrator/ideas/': typeof OrchestratorIdeasIndexRoute
-  '/orchestrator/tasks/': typeof OrchestratorTasksIndexRoute
   '/_app/debug/browser-view/$targetId': typeof AppDebugBrowserViewTargetIdRoute
   '/_app/debug/components/alerts': typeof AppDebugComponentsAlertsRoute
   '/_app/debug/components/colors': typeof AppDebugComponentsColorsRoute
@@ -506,7 +480,6 @@ export interface FileRouteTypes {
     | '/orchestrator'
     | '/debug'
     | '/skills'
-    | '/orchestrator/tasks'
     | '/new-tab'
     | '/release-notes'
     | '/tutorial-task'
@@ -526,14 +499,12 @@ export interface FileRouteTypes {
     | '/skills/$name'
     | '/orchestrator/apps/$slug'
     | '/orchestrator/ideas/$idea'
-    | '/orchestrator/tasks/$id'
     | '/orchestrator/threads/$id'
     | '/debug/'
     | '/skills/'
     | '/tasks/'
     | '/orchestrator/apps/'
     | '/orchestrator/ideas/'
-    | '/orchestrator/tasks/'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/colors'
@@ -573,14 +544,12 @@ export interface FileRouteTypes {
     | '/skills/$name'
     | '/orchestrator/apps/$slug'
     | '/orchestrator/ideas/$idea'
-    | '/orchestrator/tasks/$id'
     | '/orchestrator/threads/$id'
     | '/debug'
     | '/skills'
     | '/tasks'
     | '/orchestrator/apps'
     | '/orchestrator/ideas'
-    | '/orchestrator/tasks'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/colors'
@@ -607,7 +576,6 @@ export interface FileRouteTypes {
     | '/_app/_authenticated'
     | '/_app/debug'
     | '/_app/skills'
-    | '/orchestrator/tasks'
     | '/_app/new-tab'
     | '/_app/release-notes'
     | '/_app/tutorial-task'
@@ -627,14 +595,12 @@ export interface FileRouteTypes {
     | '/_app/skills/$name'
     | '/orchestrator/apps/$slug'
     | '/orchestrator/ideas/$idea'
-    | '/orchestrator/tasks/$id'
     | '/orchestrator/threads/$id'
     | '/_app/debug/'
     | '/_app/skills/'
     | '/_app/tasks/'
     | '/orchestrator/apps/'
     | '/orchestrator/ideas/'
-    | '/orchestrator/tasks/'
     | '/_app/debug/browser-view/$targetId'
     | '/_app/debug/components/alerts'
     | '/_app/debug/components/colors'
@@ -769,13 +735,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNewTabRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/orchestrator/tasks': {
-      id: '/orchestrator/tasks'
-      path: '/tasks'
-      fullPath: '/orchestrator/tasks'
-      preLoaderRoute: typeof OrchestratorTasksRouteRouteImport
-      parentRoute: typeof OrchestratorRouteRoute
-    }
     '/_app/skills': {
       id: '/_app/skills'
       path: '/skills'
@@ -796,13 +755,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AppAuthenticatedRouteRouteImport
       parentRoute: typeof AppRouteRoute
-    }
-    '/orchestrator/tasks/': {
-      id: '/orchestrator/tasks/'
-      path: '/'
-      fullPath: '/orchestrator/tasks/'
-      preLoaderRoute: typeof OrchestratorTasksIndexRouteImport
-      parentRoute: typeof OrchestratorTasksRouteRoute
     }
     '/orchestrator/ideas/': {
       id: '/orchestrator/ideas/'
@@ -845,13 +797,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/orchestrator/threads/$id'
       preLoaderRoute: typeof OrchestratorThreadsIdRouteImport
       parentRoute: typeof OrchestratorRouteRoute
-    }
-    '/orchestrator/tasks/$id': {
-      id: '/orchestrator/tasks/$id'
-      path: '/$id'
-      fullPath: '/orchestrator/tasks/$id'
-      preLoaderRoute: typeof OrchestratorTasksIdRouteImport
-      parentRoute: typeof OrchestratorTasksRouteRoute
     }
     '/orchestrator/ideas/$idea': {
       id: '/orchestrator/ideas/$idea'
@@ -1188,24 +1133,7 @@ const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
   OnboardingRouteRouteChildren,
 )
 
-interface OrchestratorTasksRouteRouteChildren {
-  OrchestratorTasksIdRoute: typeof OrchestratorTasksIdRoute
-  OrchestratorTasksIndexRoute: typeof OrchestratorTasksIndexRoute
-}
-
-const OrchestratorTasksRouteRouteChildren: OrchestratorTasksRouteRouteChildren =
-  {
-    OrchestratorTasksIdRoute: OrchestratorTasksIdRoute,
-    OrchestratorTasksIndexRoute: OrchestratorTasksIndexRoute,
-  }
-
-const OrchestratorTasksRouteRouteWithChildren =
-  OrchestratorTasksRouteRoute._addFileChildren(
-    OrchestratorTasksRouteRouteChildren,
-  )
-
 interface OrchestratorRouteRouteChildren {
-  OrchestratorTasksRouteRoute: typeof OrchestratorTasksRouteRouteWithChildren
   OrchestratorActivityRoute: typeof OrchestratorActivityRoute
   OrchestratorBrowserRoute: typeof OrchestratorBrowserRoute
   OrchestratorComputerRoute: typeof OrchestratorComputerRoute
@@ -1219,7 +1147,6 @@ interface OrchestratorRouteRouteChildren {
 }
 
 const OrchestratorRouteRouteChildren: OrchestratorRouteRouteChildren = {
-  OrchestratorTasksRouteRoute: OrchestratorTasksRouteRouteWithChildren,
   OrchestratorActivityRoute: OrchestratorActivityRoute,
   OrchestratorBrowserRoute: OrchestratorBrowserRoute,
   OrchestratorComputerRoute: OrchestratorComputerRoute,

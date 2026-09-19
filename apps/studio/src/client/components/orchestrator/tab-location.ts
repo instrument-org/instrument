@@ -1,4 +1,5 @@
 import { type OpenTarget } from "@/client/lib/open-target";
+import { type TaskId, TaskIdSchema } from "@instrument-org/workspace/client";
 
 import { folderHref } from "./file-tabs";
 import { homeRelative, segmentsOf, separatorOf } from "./host-path";
@@ -10,6 +11,29 @@ export interface LocationCrumb {
   label: string;
   /** Where a press on it goes; absent on the last, which is where the tab is. */
   to?: OpenTarget;
+}
+
+/** The address of a thread's tasks, which the pane shows as its face rather than as a screen. */
+export const TASKS_HREF = "/orchestrator/tasks";
+
+/**
+ * What an address under the tasks names: the list, or one task by id.
+ * Nothing for any other address, and nothing for an id that is not one.
+ */
+export function tasksFaceOfHref(
+  href: string,
+): undefined | { task?: TaskId } {
+  const pathname = new URL(href, "http://tabs").pathname;
+  if (pathname === TASKS_HREF) {
+    return {};
+  }
+  if (!pathname.startsWith(`${TASKS_HREF}/`)) {
+    return undefined;
+  }
+  const parsed = TaskIdSchema.safeParse(
+    pathname.slice(TASKS_HREF.length + 1),
+  );
+  return parsed.success ? { task: parsed.data } : undefined;
 }
 
 /** What the tab on screen is showing, in the terms that page has for itself. */
@@ -84,7 +108,7 @@ export function locationCrumbs(
     }
     case "task": {
       return [
-        { label: "Tasks", to: { href: "/orchestrator/tasks", kind: "screen" } },
+        { label: "Tasks", to: { href: TASKS_HREF, kind: "screen" } },
         { label: location.title },
       ];
     }

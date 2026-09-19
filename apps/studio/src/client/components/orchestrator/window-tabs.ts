@@ -220,15 +220,24 @@ export function useWindowTabs() {
   };
 
   /**
-   * The new-tab page a group has up, when that is what it has up: the tab it
-   * last showed, or its first, which is the tab the group comes on screen at.
+   * The tab a group has up: the one it last showed, or its first, which is
+   * the tab the group comes on screen at; the tab on screen for the group
+   * that is.
    */
-  const newTabUpIn = (key: string | undefined): undefined | WindowTab => {
+  const tabUpIn = (key: string | undefined): undefined | WindowTab => {
     if (key === undefined) {
       return undefined;
     }
+    if (key === group) {
+      return active;
+    }
     const own = allTabs.filter((tab) => tab.group === key);
-    const up = own.find((tab) => tab.id === activeByGroup?.[key]) ?? own[0];
+    return own.find((tab) => tab.id === activeByGroup?.[key]) ?? own[0];
+  };
+
+  /** The new-tab page a group has up, when that is what it has up. */
+  const newTabUpIn = (key: string | undefined): undefined | WindowTab => {
+    const up = tabUpIn(key);
     return up && isHomeTab(up) ? up : undefined;
   };
 
@@ -509,6 +518,8 @@ export function useWindowTabs() {
     showGroup,
     showThread,
     step,
+    /** The tab a group has up, or would come on screen at. */
+    tabUpIn,
     stepVisit,
     /** The tabs of the group on screen, in strip order. */
     tabs,

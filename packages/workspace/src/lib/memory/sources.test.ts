@@ -43,9 +43,8 @@ describe("listMemorySources", () => {
   it("finds one kept under .config as readily as one in home", async () => {
     await install(".config", "opencode", "AGENTS.md");
 
-    expect(
-      (await listMemorySources(home)).map((source) => source.home),
-    ).toEqual(["~/.config/opencode"]);
+    const found = await listMemorySources(home);
+    expect(found.map((source) => source.home)).toEqual(["~/.config/opencode"]);
   });
 
   it("passes over a folder with nothing in it to import", async () => {
@@ -59,8 +58,11 @@ describe("listMemorySources", () => {
     await install(".claude", "CLAUDE.md");
     await install(".cursor", "rules");
 
-    expect(
-      (await listMemorySources(home)).map((source) => source.name),
-    ).toEqual(["Claude Code", "Codex", "Cursor"]);
+    const found = await listMemorySources(home);
+    expect(found.map((source) => source.name)).toEqual([
+      "Claude Code",
+      "Codex",
+      "Cursor",
+    ]);
   });
 });

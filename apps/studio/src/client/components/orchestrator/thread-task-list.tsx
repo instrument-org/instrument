@@ -1,3 +1,4 @@
+import { ROW_TINT } from "@/client/components/orchestrator/row-shell";
 import { taskTimeLabel } from "@/client/components/orchestrator/task-time";
 import { useNow } from "@/client/components/orchestrator/use-now";
 import { cn } from "@/client/lib/utils";
@@ -36,18 +37,24 @@ export function ThreadTaskList({
   );
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
-        <h1 className="pt-6 pb-2 text-lg font-medium text-muted-foreground">
+      {/* The rows carry their own side padding, so the tint a row wears
+          under the pointer is as wide as the hairlines and the words sit in
+          from its rounded edge. */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+        <h1 className="px-2 pt-6 pb-2 text-lg font-medium text-muted-foreground">
           Tasks
         </h1>
         {rows.length === 0 ? (
-          <p className="py-3 text-sm text-muted-foreground">
+          <p className="px-2 py-3 text-sm text-muted-foreground">
             Nothing yet. Ask for something in the thread and it shows up here.
           </p>
         ) : (
           rows.map((item) => (
             <button
-              className="flex w-full flex-col gap-1 border-b border-border py-3 text-left hover:bg-foreground/3"
+              className={cn(
+                "relative flex w-full flex-col gap-1 border-b border-border px-2 py-3 text-left focus-visible:outline-hidden",
+                ROW_TINT,
+              )}
               key={item.id}
               onClick={() => {
                 onOpen(item.id);

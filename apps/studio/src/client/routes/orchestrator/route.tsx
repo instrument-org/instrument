@@ -1464,8 +1464,12 @@ function OrchestratorLayout() {
                               <ThreadTasksButton
                                 isOpen={isTasksViewUp}
                                 onOpen={() => {
-                                  if (isTasksViewUp) {
-                                    setTasksFace(undefined);
+                                  // A place to go, never a switch: pressed
+                                  // with the list already up, nothing moves;
+                                  // with a task up, it goes back to the
+                                  // list. A tab picked is what puts the
+                                  // face away.
+                                  if (isTasksViewUp && tasksFace.task === undefined) {
                                     return;
                                   }
                                   showTasksFace(undefined, threadUp);

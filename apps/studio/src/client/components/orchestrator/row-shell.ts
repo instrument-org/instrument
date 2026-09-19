@@ -15,20 +15,32 @@ export interface RowAction {
 export type RowDensity = "slim" | "tall";
 
 /**
+ * The tint a row of a divided list wears while the pointer is on it, its
+ * menu is open, or it has the keyboard: a rounded field drawn inside the
+ * row, a hair in from the hairlines above and below it, rather than the
+ * row's whole box tinted edge to edge. The hairlines go on reading as one
+ * list, and the row under the pointer reads as a thing in it. The row is
+ * the field's box, so it has to be positioned.
+ */
+export const ROW_TINT =
+  "before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-0.5 before:rounded-lg before:bg-foreground/4 before:opacity-0 hover:before:opacity-100 focus-visible:before:opacity-100 has-[[data-state=open]]:before:opacity-100 data-[state=open]:before:opacity-100";
+
+/**
  * The face every row of the inbox wears: a click target rather than text,
- * with no selection and no text cursor over it, a tint while the pointer is
- * on it or its menu is open, a hairline above it that stops short of the
- * list's edges and square corners, and, for the row whose thread is open
- * beside the list, the shape of a card lifted off the list: the card's
- * ground, rounded corners, an edge, and no hairline of its own or on the row
- * under it.
+ * with no selection and no text cursor over it, the tint above while the
+ * pointer is on it or its menu is open, a hairline above it that stops short
+ * of the list's edges and square corners, and, for the row whose thread is
+ * open beside the list, the shape of a card lifted off the list: the card's
+ * ground, rounded corners, an edge, no tint, and no hairline of its own or
+ * on the row under it.
  */
 export function rowClassName(density: RowDensity, isOpen: boolean) {
   return cn(
-    "group/row relative flex cursor-default gap-2 border-t border-border px-2 select-none first:border-t-0 hover:bg-foreground/4 focus-visible:bg-foreground/4 focus-visible:outline-hidden has-[[data-state=open]]:bg-foreground/4 data-[state=open]:bg-foreground/4 [[data-open]+&]:border-transparent",
+    "group/row relative flex cursor-default gap-2 border-t border-border px-2 select-none first:border-t-0 focus-visible:outline-hidden [[data-open]+&]:border-transparent",
     density === "slim" ? "h-9 items-center" : "items-start py-2.5",
-    isOpen &&
-      "my-1 rounded-xl border-transparent bg-card shadow-sm ring-1 ring-border hover:bg-card",
+    isOpen
+      ? "my-1 rounded-xl border-transparent bg-card shadow-sm ring-1 ring-border"
+      : ROW_TINT,
   );
 }
 

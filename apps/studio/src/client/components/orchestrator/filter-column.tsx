@@ -331,8 +331,8 @@ function Rule() {
 /**
  * The topics as tiles in a grid, each the topic's mark on its own tinted
  * tile, the way a home screen holds its apps: a tile is its own label, so
- * the grid has none and the name is the tooltip. The tile stood in wears a
- * ring. A right click opens the topic's details; the banner over the list
+ * the grid has none and the name is the tooltip. The tile stood in wears an
+ * edge in its own color. A right click opens the topic's details; the banner over the list
  * offers them too once the topic is stood in. Nothing here makes a topic:
  * one is made where it is first needed, from a thread's topic list.
  */
@@ -358,7 +358,14 @@ function TopicGrid({
                 aria-pressed={isOn}
                 className={cn(
                   "grid size-11 place-items-center rounded-xl bg-(--topic-tint-surface) text-[22px] leading-none topic-tint select-none hover:bg-(--topic-tint-edge)",
-                  isOn && "bg-(--topic-tint-edge) ring-2 ring-foreground/30",
+                  // Stood in: an edge in the topic's own color drawn inside
+                  // the tile, on the deeper of its pastels, the way a swatch
+                  // marks the color picked. Inside rather than around it, so
+                  // nothing reaches the tiles beside it and the grid stays a
+                  // grid; and never a gray ring, which reads as disabled
+                  // beside the tints.
+                  isOn &&
+                    "bg-(--topic-tint-edge) ring-2 ring-(--topic-tint-base) ring-inset",
                 )}
                 data-chosen={isOn || undefined}
                 onClick={chooseTopic}

@@ -514,7 +514,7 @@ describe("ThreadRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("wears the hover ground across the whole row, and brings the corner's controls up in place of the pills then", async () => {
+  it("wears the hover tint inside the row, and brings the corner's controls up in place of the pills then", async () => {
     const { row } = await renderRow(
       thread({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
@@ -541,7 +541,13 @@ describe("ThreadRow", () => {
     const edge = row.getBoundingClientRect();
     expect(box.top).toBeLessThan(titleBefore.bottom);
     expect(box.right).toBeLessThanOrEqual(edge.right);
-    expect(getComputedStyle(row).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    // The tint is a rounded field drawn inside the row, a hair in from its
+    // hairlines, rather than the row's own box tinted edge to edge.
+    expect(getComputedStyle(row).backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    const tint = getComputedStyle(row, "::before");
+    expect(tint.opacity).toBe("1");
+    expect(tint.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(tint.borderRadius).not.toBe("0px");
     // Nothing on the row moves with the pointer.
     expect(titleOf(row).getBoundingClientRect()).toEqual(titleBefore);
     expect(marksOf(row)[0]?.getBoundingClientRect()).toEqual(chipBefore);

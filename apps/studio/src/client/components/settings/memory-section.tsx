@@ -68,7 +68,7 @@ export function MemorySection() {
       <div>
         <h3 className="text-base font-semibold">Memory</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          What {APP_NAME} remembers about you, across every thread
+          What {APP_NAME} knows about you
         </p>
       </div>
 
@@ -85,7 +85,7 @@ export function MemorySection() {
         </div>
         {memories.length === 0 ? (
           <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-            Nothing yet. {APP_NAME} saves what it learns about you as you talk.
+            No memories yet.
           </p>
         ) : (
           <ul className="divide-y overflow-hidden rounded-lg border">
@@ -168,7 +168,7 @@ function Import() {
     <section className="space-y-3">
       {/* Never folded. It is the one thing on this screen someone would not
           think to look for, and a fold is how a feature goes unfound. */}
-      <h4 className="text-sm font-medium">Import what you have elsewhere</h4>
+      <h4 className="text-sm font-medium">Import</h4>
 
       {sources && sources.length > 0 && (
         <SourceList caption="On this computer">

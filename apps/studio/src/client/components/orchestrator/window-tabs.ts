@@ -80,7 +80,7 @@ export function usePopClosedTab() {
  */
 export function useWindowTabs() {
   const [state, setTabs] = useAtom(windowTabsAtom);
-  const { activeByGroup, activeId, group, tabs: allTabs } = state;
+  const { activeId, group, tabs: allTabs } = state;
   const setClosed = useSetAtom(closedTabsAtom);
   const tabs =
     group === undefined ? [] : allTabs.filter((tab) => tab.group === group);
@@ -165,6 +165,28 @@ export function useWindowTabs() {
   };
 
   /**
+   * The tab a group has up: the one it last showed, or its first, which is
+   * the tab the group comes on screen at; the tab on screen for the group
+   * that is.
+   */
+  const tabUpIn = (key: string | undefined): undefined | WindowTab => {
+    if (key === undefined) {
+      return undefined;
+    }
+    if (key === group) {
+      return active;
+    }
+    const own = allTabs.filter((tab) => tab.group === key);
+    return own.find((tab) => tab.id === state.activeByGroup?.[key]) ?? own[0];
+  };
+
+  /** The new-tab page a group has up, when that is what it has up. */
+  const newTabUpIn = (key: string | undefined): undefined | WindowTab => {
+    const up = tabUpIn(key);
+    return up && isHomeTab(up) ? up : undefined;
+  };
+
+  /**
    * Shows the screen tab already at that address, in the group on screen or
    * the group named, or opens one there. A file's tab may have become the
    * page that shows the file; it is still the file's tab, and the file is not
@@ -217,28 +239,6 @@ export function useWindowTabs() {
       select(id);
     }
     return id;
-  };
-
-  /**
-   * The tab a group has up: the one it last showed, or its first, which is
-   * the tab the group comes on screen at; the tab on screen for the group
-   * that is.
-   */
-  const tabUpIn = (key: string | undefined): undefined | WindowTab => {
-    if (key === undefined) {
-      return undefined;
-    }
-    if (key === group) {
-      return active;
-    }
-    const own = allTabs.filter((tab) => tab.group === key);
-    return own.find((tab) => tab.id === activeByGroup?.[key]) ?? own[0];
-  };
-
-  /** The new-tab page a group has up, when that is what it has up. */
-  const newTabUpIn = (key: string | undefined): undefined | WindowTab => {
-    const up = tabUpIn(key);
-    return up && isHomeTab(up) ? up : undefined;
   };
 
   /**

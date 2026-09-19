@@ -411,34 +411,6 @@ function OrchestratorLayout() {
         : undefined,
     );
   }, [activeTabId]);
-  /**
-   * Brings the face up over a thread: its list, or one of its tasks, with
-   * the thread on screen and its pane open. A task is shown in the thread it
-   * was filed from; one filed from none goes over the thread on screen.
-   */
-  const showTasksFace = (task?: TaskId, group?: string) => {
-    const filedFrom = task === undefined ? undefined : childThreads.get(task);
-    const parsed = StoreId.SessionSchema.safeParse(
-      filedFrom ?? group ?? windowTabs.group,
-    );
-    if (!parsed.success) {
-      return;
-    }
-    const thread = parsed.data;
-    windowTabs.showThread(thread);
-    setPaneOpen(thread, true);
-    setTasksFace((current) => ({
-      // What was left behind stays forward of the list, so back and then
-      // forward lands where it was.
-      forward:
-        task === undefined && current?.thread === thread
-          ? current.task
-          : undefined,
-      overTab: windowTabs.tabUpIn(thread)?.id,
-      task,
-      thread,
-    }));
-  };
   // The pane beside the conversation: open unless this group put it away,
   // and shown only while there are tabs to show in it or its tasks are its
   // face. Closing the last tab closes the pane; the toggle brings it back
@@ -471,6 +443,35 @@ function OrchestratorLayout() {
     }
   };
   const paneToggle = <PaneToggle isOpen={showsPane} onToggle={togglePane} />;
+
+  /**
+   * Brings the face up over a thread: its list, or one of its tasks, with
+   * the thread on screen and its pane open. A task is shown in the thread it
+   * was filed from; one filed from none goes over the thread on screen.
+   */
+  const showTasksFace = (task?: TaskId, group?: string) => {
+    const filedFrom = task === undefined ? undefined : childThreads.get(task);
+    const parsed = StoreId.SessionSchema.safeParse(
+      filedFrom ?? group ?? windowTabs.group,
+    );
+    if (!parsed.success) {
+      return;
+    }
+    const thread = parsed.data;
+    windowTabs.showThread(thread);
+    setPaneOpen(thread, true);
+    setTasksFace((current) => ({
+      // What was left behind stays forward of the list, so back and then
+      // forward lands where it was.
+      forward:
+        task === undefined && current?.thread === thread
+          ? current.task
+          : undefined,
+      overTab: windowTabs.tabUpIn(thread)?.id,
+      task,
+      thread,
+    }));
+  };
 
   // A tab at the tasks' address from before the tasks became the pane's
   // face has no screen behind it: closed as the window opens, and opened
@@ -906,56 +907,6 @@ function OrchestratorLayout() {
     field?.select();
   };
 
-  // The inbox's rows as the pane lists them, for stepping through them by
-  // chord; the pane says what it shows, since it holds the filters.
-  const listedThreads = useRef<StoreId.Session[]>([]);
-  useWindowCommands({
-    back: goBack,
-    closeTab: () => {
-      if (active) {
-        requestClose(active.id);
-      }
-    },
-    forward: goForward,
-    newTab: () => {
-      windowTabs.openScreen(NEW_TAB_HREF);
-    },
-    newThread: () => {
-      startDraft(undefined);
-    },
-    openScreen: (href) => {
-      openScreen(href, { newTab: true });
-    },
-    reopenTab: () => {
-      const tab = popClosed();
-      if (!tab) {
-        return;
-      }
-      if (tab.kind === "page") {
-        browser?.open(tab.url);
-      } else {
-        openScreen(tab.href, { newTab: true });
-      }
-    },
-    search: focusOmnibar,
-    selectRelative: windowTabs.selectRelative,
-    selectTab: windowTabs.selectIndex,
-    // The next or previous row of the inbox from the thread on screen; from
-    // no thread, the list's first or last.
-    selectThread: (direction) => {
-      const ids = listedThreads.current;
-      const at = threadUp === undefined ? -1 : ids.indexOf(threadUp);
-      const next =
-        at === -1
-          ? direction === 1
-            ? ids[0]
-            : ids.at(-1)
-          : ids[at + direction];
-      if (next !== undefined) {
-        openScreen(`${THREADS_HREF}/${next}`);
-      }
-    },
-  });
   useRecordRecents();
 
   const createMessage = useMutation(
@@ -1070,6 +1021,56 @@ function OrchestratorLayout() {
     // Runs as the draft on screen changes; the rest is read as it is then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftUp]);
+  // The inbox's rows as the pane lists them, for stepping through them by
+  // chord; the pane says what it shows, since it holds the filters.
+  const listedThreads = useRef<StoreId.Session[]>([]);
+  useWindowCommands({
+    back: goBack,
+    closeTab: () => {
+      if (active) {
+        requestClose(active.id);
+      }
+    },
+    forward: goForward,
+    newTab: () => {
+      windowTabs.openScreen(NEW_TAB_HREF);
+    },
+    newThread: () => {
+      startDraft(undefined);
+    },
+    openScreen: (href) => {
+      openScreen(href, { newTab: true });
+    },
+    reopenTab: () => {
+      const tab = popClosed();
+      if (!tab) {
+        return;
+      }
+      if (tab.kind === "page") {
+        browser?.open(tab.url);
+      } else {
+        openScreen(tab.href, { newTab: true });
+      }
+    },
+    search: focusOmnibar,
+    selectRelative: windowTabs.selectRelative,
+    selectTab: windowTabs.selectIndex,
+    // The next or previous row of the inbox from the thread on screen; from
+    // no thread, the list's first or last.
+    selectThread: (direction) => {
+      const listed = listedThreads.current;
+      const at = threadUp === undefined ? -1 : listed.indexOf(threadUp);
+      const next =
+        at === -1
+          ? direction === 1
+            ? listed[0]
+            : listed.at(-1)
+          : listed[at + direction];
+      if (next !== undefined) {
+        openScreen(`${THREADS_HREF}/${next}`);
+      }
+    },
+  });
   /**
    * Starts the thread the draft is for: what its composer sends (the words,
    * the files, the folders, the model) and its topic as the first message,
@@ -1135,6 +1136,34 @@ function OrchestratorLayout() {
         taskId: ids.taskId,
       }
     : null;
+
+  /**
+   * What the face has on it, in the terms a screen reports: one task and
+   * where it stands, or the thread's tasks each with theirs.
+   */
+  const tasksFaceView = (
+    face: TasksFace,
+  ): SessionMessageDataPart.ViewContextDataPart | undefined => {
+    const own = (children.data ?? []).filter(
+      (child) => child.threadId === face.thread,
+    );
+    const describe = (child: (typeof own)[number]) => ({
+      id: child.id,
+      status:
+        child.standing.kind === "running"
+          ? ("working" as const)
+          : ("done" as const),
+      ...(child.standing.kind === "running"
+        ? { step: child.standing.line }
+        : {}),
+      title: child.title,
+    });
+    if (face.task === undefined) {
+      return { screen: "tasks", tasks: own.map(describe) };
+    }
+    const task = own.find((child) => child.id === face.task);
+    return task ? { screen: "task", task: describe(task) } : undefined;
+  };
 
   /**
    * What the tab on screen says it shows, plus the page's words when that
@@ -1206,34 +1235,6 @@ function OrchestratorLayout() {
       }),
       url: location.href,
     };
-  };
-
-  /**
-   * What the face has on it, in the terms a screen reports: one task and
-   * where it stands, or the thread's tasks each with theirs.
-   */
-  const tasksFaceView = (
-    face: TasksFace,
-  ): SessionMessageDataPart.ViewContextDataPart | undefined => {
-    const own = (children.data ?? []).filter(
-      (child) => child.threadId === face.thread,
-    );
-    const describe = (child: (typeof own)[number]) => ({
-      id: child.id,
-      status:
-        child.standing.kind === "running"
-          ? ("working" as const)
-          : ("done" as const),
-      ...(child.standing.kind === "running"
-        ? { step: child.standing.line }
-        : {}),
-      title: child.title,
-    });
-    if (face.task === undefined) {
-      return { screen: "tasks", tasks: own.map(describe) };
-    }
-    const task = own.find((child) => child.id === face.task);
-    return task ? { screen: "task", task: describe(task) } : undefined;
   };
 
   sendContextRef.current = sendContext;
@@ -1331,8 +1332,8 @@ function OrchestratorLayout() {
                       <ThreadPane
                         drafts={drafts}
                         onDeleteDraft={deleteDraft}
-                        onListed={(ids) => {
-                          listedThreads.current = ids;
+                        onListed={(listed) => {
+                          listedThreads.current = listed;
                         }}
                         onNew={startDraft}
                         onOpenDraft={showDraft}

@@ -3,6 +3,7 @@ import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { Favicon } from "@/client/components/favicon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OrchestratorContext } from "@/client/components/orchestrator/context";
+import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { RelativeTime } from "@/client/components/relative-time";
 import {
   AlertDialog,
@@ -19,7 +20,6 @@ import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -74,18 +74,11 @@ export function MemorySection() {
 
       {/* Open only once the list is known to be empty; while it is loading
           there is nothing to decide from. */}
-      <Import startOpen={data !== undefined && memories.length === 0} />
+      <Import />
 
       <section className="space-y-2">
         <div className="flex items-baseline justify-between gap-2">
-          <h4 className="text-sm font-medium">
-            Remembered
-            {memories.length > 0 && (
-              <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">
-                {memories.length}
-              </span>
-            )}
-          </h4>
+          <h4 className="text-sm font-medium">Memories</h4>
           {data && (
             <RevealFolder dir={data.dir} hidden={memories.length === 0} />
           )}
@@ -156,13 +149,9 @@ function hostOf(site: string) {
  * what is on the web needs a browser, a sign-in that is the person's to give,
  * and a conversation with another product to get there.
  */
-function Import({ startOpen }: { startOpen: boolean }) {
+function Import() {
   const orchestrator = useContext(OrchestratorContext);
   const closeSettings = useSetAtom(settingsModalAtom);
-  // Undefined until someone says otherwise, so the rule below keeps deciding
-  // while the list is still arriving and stops the moment it is theirs.
-  const [choice, setChoice] = useState<boolean | undefined>(undefined);
-  const isOpen = choice ?? startOpen;
   const { data: sources } = useQuery(
     rpcClient.workspace.orchestrator.memory.sources.queryOptions(),
   );
@@ -177,26 +166,11 @@ function Import({ startOpen }: { startOpen: boolean }) {
 
   return (
     <section className="space-y-3">
-      {/* Folded once there is a list to read, since importing is done once
-          and the list is what someone comes back for. */}
-      <button
-        aria-expanded={isOpen}
-        className="flex w-full items-center gap-1.5 text-left"
-        onClick={() => {
-          setChoice(!isOpen);
-        }}
-        type="button"
-      >
-        <CaretRightIcon
-          className={cn(
-            "size-3.5 shrink-0 text-muted-foreground transition-transform",
-            isOpen && "rotate-90",
-          )}
-        />
-        <span className="text-sm font-medium">Import what you have elsewhere</span>
-      </button>
+      {/* Never folded. It is the one thing on this screen someone would not
+          think to look for, and a fold is how a feature goes unfound. */}
+      <h4 className="text-sm font-medium">Import what you have elsewhere</h4>
 
-      {isOpen && sources && sources.length > 0 && (
+      {sources && sources.length > 0 && (
         <SourceList caption="On this computer">
           {sources.map((source) => (
             <SourceRow
@@ -212,7 +186,6 @@ function Import({ startOpen }: { startOpen: boolean }) {
         </SourceList>
       )}
 
-      {isOpen && (
       <SourceList caption="On the web">
         {WEB_SOURCES.map((source) => (
           <SourceRow
@@ -226,7 +199,6 @@ function Import({ startOpen }: { startOpen: boolean }) {
           />
         ))}
       </SourceList>
-      )}
     </section>
   );
 }
@@ -246,9 +218,9 @@ function localPrompt({ home, name }: { home: string; name: string }) {
   const folder = home.replace(/^~\//, "");
   return `Import what ${name} knows about me from this computer.
 
-Look in the ${folder} folder inside my home folder for what it has been told to remember about me: its instructions file and anything it keeps alongside. Read what is there.
+Look in the ${folder} folder inside my home folder for what it has been told to remember about me: its instructions file and anything it keeps alongside. Read it yourself rather than handing it to a task, and only read: never write, move, rename, or delete anything in there. That folder is another tool's memory and losing it would cost me work.
 
-Save the durable facts about me here as memories, one fact each, in my words where you can. Most of what is in a file like that is about a codebase rather than about me, so keep only what would still be true in a conversation that has nothing to do with code: how I like things done, how I want to be spoken to, standing facts about me and my work. Leave the rest. Never save a key, a token, or anything else secret, whatever the file says. Tell me what you saved.`;
+Save the durable facts about me here as memories, one fact each, in my words where you can. Most of what is in a file like that is about a codebase rather than about me, so keep only what would still be true in a conversation that has nothing to do with code: how I like things done, how I want to be spoken to, standing facts about me and my work. What it was told about me is worth more than what it worked out about one project, and a fact that names a repository, a branch, or a file is almost never about me. Leave the rest. Never save a key, a token, or anything else secret, whatever the file says. Tell me what you saved.`;
 }
 
 /** One memory, folded when it runs long, over where it came from. */
@@ -427,14 +399,9 @@ function SourceRow({
           {detail}
         </span>
       </span>
-      <Button
-        className="h-7 shrink-0 px-2 text-xs"
-        onClick={onStart}
-        size="sm"
-        variant="ghost"
-      >
+      <GlyphButton onClick={onStart} size="sm">
         Import
-      </Button>
+      </GlyphButton>
     </li>
   );
 }

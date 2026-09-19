@@ -50,13 +50,25 @@ Two groups, because the difference decides what happens next. **On this computer
 
 **On the web** is the chat tools, whose memory is on their own servers. The only road that works across all of them is the one they all answer: ask in a chat.
 
+The folder is only ever read. The home folder is attached whole, and a folder holding the workspace is read-only by rule (`effectiveFolderAccess`), so a write into `~/.claude` fails with EROFS: verified in the running app, where `mkdir` there was refused and nothing was created. The prompt says the same thing in words, and says to read it in the conversation rather than hand it to a task, since a task can be granted write access to a folder inside home and this one is another tool's memory.
+
 Either way the app parses nothing. Pressing a row opens a thread whose first message asks Instrument to do it, and the conversation reads, judges, and saves. A tool that redesigns its screens or moves its file next month costs a sentence rather than a parser. The prompts say plainly that the saving happens back in the thread, because a task has no memory command and a brief that told one to save would end in a task reporting a thing it could not do; and the local one names the folder rather than `~`, which is not a path the agent can open.
+
+## What the local import does on a weak model
+
+Measured 2026-09-19, four runs on GLM 5.3 Flash and one on Qwen3.8 27B, each against a copy of a real `~/.claude`: an 8 KB instructions file and 87 project memory files. A copy rather than the real folder, so a bad run could cost nothing; the content is the genuine article, which is what the question was about.
+
+Two of the four GLM runs imported, and Qwen imported first try. The two failures are the ones already recorded above and neither is particular to importing: one said "Looking in the .claude folder" and called nothing, the other died on a malformed tool call the provider rejects before any repair can see it.
+
+What the runs that worked did is the encouraging part. None started a task. None attempted a write. One read the instructions file, then the memory index, then named the dozen files it wanted rather than reading all 87. What they saved was genuinely about the person: how they dictate, how they want prose wrapped, American English, terse reports, the shape of an end-of-turn block, the machines they work across. The esoterica risk is real but mild: the richest run also kept a few facts that are really about how one project works. A clause was added for that, preferring what a tool was told about the person over what it worked out about a project, and calling a fact that names a repository, a branch, or a file almost never about the person.
+
+Cost is the thing to watch rather than safety: reading a memory store that size ran 160K to 310K tokens for one import. One run's habit of reading the index first is what keeps that bounded, and nothing enforces it.
 
 ## Next
 
 - Per-topic memory: a `topic` on the frontmatter or a folder per topic, the note split into the thread's topics' memories and everyone's, and the topic overview's "What I know" list from the wireframe.
 - The row in the reply and its popup, once saving is drawn as a row rather than read off the command's label.
-- Editing a memory in place. The files are editable and the folder is a click away, but the screen only reads and forgets.
+- The voice of an imported memory wobbles: the prompt asks for the user's own words and models write half of them in the third person.
 - The watcher covers the screen that lists memories; an open thread still hears only about changes made through the command.
 - Whether a task may read memory, and whether the conversation should hand a task the memories that bear on its brief.
 - A turn that hands off ends, which is why the save has to ride in the hand-off command. If prompt wording turns out not to hold across models, the alternative is letting the turn-ending rule grant one more step to a turn that handed off without saving what it said it saved, the way it already grants one to a turn that promised a task and started none.

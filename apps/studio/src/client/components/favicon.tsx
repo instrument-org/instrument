@@ -7,26 +7,23 @@ import { type ReactNode, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 /**
- * The surface a favicon is drawn on: a light one, whichever theme is on.
+ * The lift under a favicon, for the theme that needs one.
  *
- * An icon is authored for the light chrome a browser draws it in, so a good
- * share of them are dark ink on a transparent background. Left to sit on the
- * page in dark mode that ink is the page, and the link leads with a gap where
- * its icon should be. On a light surface every icon sits on the background it
- * was drawn against, and the theme stops deciding whether it can be seen.
+ * An icon is authored for the light chrome a browser draws it in, so it sits
+ * on a light page exactly as its author meant and wants nothing from us
+ * there. On a dark page the same icon is on a ground it was never drawn for,
+ * and a faint tile under it separates the mark from the page and gives the
+ * ones carrying a dark background of their own an edge.
  *
- * The ring is that same surface a pixel further out, for the icons that bring a
- * dark background of their own: those cover the plate entirely, and what would
- * otherwise be a black square on a near-black page keeps a light edge saying
- * where it ends. A ring rather than an inset because it is painted rather than
- * laid out, so the icon keeps every pixel of the box its caller sized.
- *
- * In light mode this is a shade under the page it replaces, so nothing there
- * changes. The mirror case does not need it to: an icon light enough to be
- * lost against a light page is one an author would have to have drawn for no
- * browser at all.
+ * Faint on purpose. This used to be a near-white plate with a ring, which did
+ * make the rare dark-ink-on-transparent icon legible and made every other
+ * icon in dark mode look like a sticker. That trade is the wrong way round:
+ * most icons carry their own color and need nothing, so the tile lifts them
+ * all a little rather than rescuing a few at the cost of the rest. An icon
+ * that is dark ink on nothing is dim in dark mode, the way it is in any other
+ * dark chrome that draws it.
  */
-export const FAVICON_SURFACE_CLASS_NAME = "bg-gray-100 ring-1 ring-gray-100";
+export const FAVICON_SURFACE_CLASS_NAME = "dark:bg-white/10";
 
 /**
  * The widest image the proxy sends when it has no icon for a site: a 16px

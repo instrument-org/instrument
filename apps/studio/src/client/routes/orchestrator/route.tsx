@@ -15,6 +15,7 @@ import {
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
+  threadFiltersAtom,
   THREADS_HREF,
 } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
@@ -59,6 +60,7 @@ import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
 import { ThreadTasksButton } from "@/client/components/orchestrator/thread-tasks-button";
 import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-view";
 import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-view";
+import { NO_FILTERS } from "@/client/components/orchestrator/threads";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
@@ -322,6 +324,7 @@ function OrchestratorLayout() {
   const screenView = useAtomValue(screenViewAtom);
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
+  const setThreadFilters = useSetAtom(threadFiltersAtom);
   // Read at the moment of starting, since the context is gathered first, and
   // the reader of the screen is made further down.
   const sendContextRef = useRef<
@@ -1117,12 +1120,35 @@ function OrchestratorLayout() {
   };
   const screens: null | OrchestratorWindow = ids
     ? {
-        // No session: a line sent at the top level opens a thread of its own.
+        // No session: a line sent at the top level opens a thread of its own,
+        // and the window goes to it. A thread nobody is shown is one a button
+        // press did nothing visible for, which is a button someone presses
+        // again; and a list narrowed to a topic or a place is a list the new
+        // thread is very likely not in, so the narrowing goes first.
         ask: (prompt) => {
           if (!modelURI) {
+            // The other way a press does nothing visible: no model set up, so
+            // there is nothing to send with. Silence here reads as a broken
+            // button rather than as a thing left undone.
+            toast.error("No model is set up yet", {
+              description: "Add one in Settings, then try again.",
+            });
             return;
           }
-          createMessage.mutate({ id: ids.taskId, modelURI, prompt });
+          createMessage.mutate(
+            { id: ids.taskId, modelURI, prompt },
+            {
+              onError: (error) => {
+                toast.error("Failed to start the thread", {
+                  description: error.message,
+                });
+              },
+              onSuccess: ({ sessionId }) => {
+                setThreadFilters(NO_FILTERS);
+                windowTabs.showThread(sessionId);
+              },
+            },
+          );
         },
         browser,
         // The composer is the draft at the corner, which takes the caret as

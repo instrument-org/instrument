@@ -1,8 +1,8 @@
-import { type Draft } from "@/client/atoms/orchestrator";
+import { type Draft, threadFiltersAtom } from "@/client/atoms/orchestrator";
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { atom, useAtom } from "jotai";
+import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -15,16 +15,12 @@ import {
   draftTitle,
   hasWords,
   matchesFilters,
-  NO_FILTERS,
   type Thread,
   type ThreadFilters,
   type Topic,
 } from "./threads";
 import { TopicBanner } from "./topic-banner";
 import { useSetThreadTopics } from "./use-set-thread-topics";
-
-/** Where the column stands and what the search says, kept outside the pane so the pane can be re-laid without losing them. */
-const threadFiltersAtom = atom<ThreadFilters>(NO_FILTERS);
 
 /**
  * The chat pane: the sections down its left, and beside them the inbox with

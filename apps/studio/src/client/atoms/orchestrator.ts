@@ -1,5 +1,9 @@
 import { TASK_PANE_DEFAULT_SHARE } from "@/client/atoms/task-pane";
 import { type FileSystemSortState } from "@/client/components/extend/file-system";
+import {
+  NO_FILTERS,
+  type ThreadFilters,
+} from "@/client/components/orchestrator/threads";
 import { type PromptInputDraft } from "@/client/components/prompt-input";
 import {
   type SessionMessageDataPart,
@@ -7,6 +11,17 @@ import {
 } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
+
+/**
+ * What the thread column is narrowed to.
+ *
+ * Here rather than in the pane that reads it, because anything that opens a
+ * brand new thread has to put the list back where that thread is visible: a
+ * column standing in a topic or a place is a column the new thread is very
+ * likely not in, and a button that appears to do nothing is a button someone
+ * presses again.
+ */
+export const threadFiltersAtom = atom<ThreadFilters>(NO_FILTERS);
 
 /** A screen the window was on, so the sidebar can take the user back to it. */
 export interface OrchestratorRecent {

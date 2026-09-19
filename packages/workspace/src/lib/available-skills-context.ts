@@ -3,34 +3,19 @@ import { dedent } from "radashi";
 
 import { TOOL_NAMES } from "../tools/name";
 import { renderSkillCatalog } from "./skill-catalog";
-import {
-  findSkills,
-  getSkillSources,
-  type SkillInfo,
-  type SkillSourceKind,
-} from "./skills";
+import { DELIVERABLE_SKILLS } from "./skill-names";
+import { findSkills, getSkillSources, type SkillInfo } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
-
-/**
- * The sources whose skills the product stands behind: what it ships, and what
- * the user wrote in this workspace. A brief names one of these by what it
- * makes, so its description has to be in front of the agent writing the brief.
- * A skill another agent left in its home directory is named only when the
- * user names it, which its name alone serves.
- */
-const OWN_SOURCES = new Set<SkillSourceKind>([
-  APP_NAME_SLUG,
-  "system",
-  "workspace",
-]);
 
 interface SkillsContextOptions {
   /**
-   * Which skills get their description. `all` for the agent that loads
-   * skills, since it may load any of them; `ours` for the agent that briefs
-   * tasks, which lists the rest by name alone.
+   * Which skills are listed. `all` for the agent that loads skills, since it
+   * may load any of them; `deliverables` for the agent that briefs tasks,
+   * which is told only about the skills that make a thing a user asks for by
+   * kind, and the ones the user wrote in this workspace, since those are the
+   * only ones a brief has reason to name.
    */
-  described?: "all" | "ours";
+  described?: "all" | "deliverables";
   /** Who loads a skill: the agent reading the catalog, or a task it briefs. */
   intro?: string;
 }
@@ -60,25 +45,27 @@ export function renderAvailableSkillsContext(
   }: SkillsContextOptions = {},
 ) {
   const invocable = skills.filter((skill) => skill.modelInvocable);
-  const withDescription =
+  const listed =
     described === "all"
       ? invocable
-      : invocable.filter((skill) => OWN_SOURCES.has(skill.source));
-  const byNameOnly = invocable.filter(
-    (skill) => !withDescription.includes(skill),
-  );
-  const catalog = renderSkillCatalog(withDescription);
+      : invocable.filter(
+          (skill) =>
+            (skill.source === APP_NAME_SLUG &&
+              DELIVERABLE_SKILLS.has(skill.name)) ||
+            skill.source === "workspace",
+        );
+  const catalog = renderSkillCatalog(listed);
 
   const notes = [
     catalog.shortened > 0 &&
       `${catalog.shortened} description(s) were shortened to fit the skills context budget; a skill's full instructions come with loading it.`,
     catalog.omitted > 0 &&
       `${catalog.omitted} further skill(s) were left out of this list entirely. \`${TOOL_NAMES.loadSkill}\` still accepts them by name.`,
-    byNameOnly.length > 0 &&
-      `Also installed, from other agents on this machine, and loaded the same way when the user asks for one by name: ${byNameOnly
-        .map((skill) => skill.id)
-        .sort()
-        .join(", ")}.`,
+    // The agent that briefs is told the rest exist and no more: a name in
+    // front of it is a name it puts in a brief.
+    described === "deliverables" &&
+      listed.length < invocable.length &&
+      `A task has more skills than these, for ways of working (its browser, media, images, archives, code, and the like), and reaches for one itself when its work calls for it; they are not for a brief to name.`,
   ].filter((note) => typeof note === "string");
 
   return dedent`

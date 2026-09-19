@@ -27,6 +27,7 @@ const skill = (
 
 const skills = [
   skill("pdf", "Work with PDF files.", "instrument"),
+  skill("agent-browser", "Drive a browser.", "instrument"),
   skill("skill-creator", "Create a reusable skill.", "system"),
   skill("house-style", "Write the way we write.", "workspace"),
   skill("vitest", "Vitest API and config reference.", "agents"),
@@ -42,6 +43,7 @@ describe("renderAvailableSkillsContext", () => {
       <available_skills>
         <skill name="system:skill-creator">Create a reusable skill.</skill>
         <skill name="workspace:house-style">Write the way we write.</skill>
+        <skill name="instrument:agent-browser">Drive a browser.</skill>
         <skill name="instrument:pdf">Work with PDF files.</skill>
         <skill name="cursor:commit-message">Generate a commit message.</skill>
         <skill name="agents:vitest">Vitest API and config reference.</skill>
@@ -49,25 +51,25 @@ describe("renderAvailableSkillsContext", () => {
     `);
   });
 
-  // The agent that briefs tasks names a shipped skill by what it makes, which
-  // takes its description, and a skill from another agent's home only when
-  // the user names it, which takes its name.
-  it("lists other agents' skills by name alone for the agent that briefs", () => {
+  // The agent that briefs tasks is told about the skills that make a thing a
+  // user asks for by kind, and the user's own; a way of working like the
+  // browser is the task's to reach for, and a name in front of the briefing
+  // agent is a name it puts in a brief.
+  it("lists only the deliverable and workspace skills for the agent that briefs", () => {
     expect(
       renderAvailableSkillsContext(skills, {
-        described: "ours",
+        described: "deliverables",
         intro: "Skills a task can load.",
       }),
     ).toMatchInlineSnapshot(`
       "Skills a task can load.
 
       <available_skills>
-        <skill name="system:skill-creator">Create a reusable skill.</skill>
         <skill name="workspace:house-style">Write the way we write.</skill>
         <skill name="instrument:pdf">Work with PDF files.</skill>
       </available_skills>
 
-      Also installed, from other agents on this machine, and loaded the same way when the user asks for one by name: agents:vitest, cursor:commit-message."
+      A task has more skills than these, for ways of working (its browser, media, images, archives, code, and the like), and reaches for one itself when its work calls for it; they are not for a brief to name."
     `);
   });
 });

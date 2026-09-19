@@ -49,12 +49,12 @@ export {
 } from "./lib/background-processes";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
 export { findAvailableName } from "./lib/find-available-name";
-export { FILES_FENCE } from "./lib/parse-files-block";
 export {
   migrateWorkspaceLayout,
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { attachOrchestrator } from "./lib/orchestrator/attach";
+export { FILES_FENCE } from "./lib/parse-files-block";
 export { clearOrphanedProjectRefs, resolveProjectDir } from "./lib/project";
 export { readTaskFile } from "./lib/read-task-file";
 export { resolveWorkspaceFilePath } from "./lib/resolve-workspace-file-path";

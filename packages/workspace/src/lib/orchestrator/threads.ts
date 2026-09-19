@@ -119,20 +119,6 @@ interface Shared {
 }
 
 /**
- * The app slugs a shell command calls or asks the user to connect: `app call`
- * or `app request` where a command begins, followed by a slug's own letters.
- * Anchored to the command's start and to a slug's shape so the same words
- * inside a brief's prose ("keep the app request intact.") name nothing.
- */
-export function appSlugsIn(command: string): string[] {
-  return [
-    ...command.matchAll(
-      /(?:^|[\n;&|]|\$\()\s*app\s+(?:call|request)\s+([a-z0-9][a-z0-9_-]*)\b/g,
-    ),
-  ].flatMap((match) => (match[1] ? [match[1]] : []));
-}
-
-/**
  * Puts a thread away. The list still carries it, marked, and its stamp stays
  * where it was: putting a thread away is not something happening in it.
  */
@@ -141,52 +127,6 @@ export async function archiveThread(
   sessionId: StoreId.Session,
 ): Promise<boolean> {
   return saveArchivedAt(taskId, sessionId, new Date());
-}
-
-/** The command a shell call ran, once its input has arrived whole. */
-export function bashCommandOf(
-  part: SessionMessagePart.Type,
-): string | undefined {
-  if (part.type !== "tool-bash") {
-    return undefined;
-  }
-  const input: unknown = part.input;
-  return typeof input === "object" &&
-    input !== null &&
-    "command" in input &&
-    typeof input.command === "string"
-    ? input.command
-    : undefined;
-}
-
-/**
- * The first line with words, cut to what a row can show. Fenced blocks are
- * skipped whole: a reply that opens with the files it hands over is read by
- * its words, and one that is only that fence by what it wrote.
- */
-export function firstLine(text: string): string {
-  return excerptOf(text, LATEST_MAX);
-}
-
-export function hasWords(message: SessionMessage.WithParts): boolean {
-  return message.parts.some(
-    (part) => part.type === "text" && part.text.trim() !== "",
-  );
-}
-
-/** The slugs among `slugs` that name an app the workspace has, when it has any. */
-export function knownAmong(slugs: string[], known: Set<string>): string[] {
-  return known.size === 0 ? slugs : slugs.filter((slug) => known.has(slug));
-}
-
-/**
- * The slugs of the apps this workspace has, for telling a real app apart from
- * a word that looked like one. Empty when the workspace has no apps folder
- * yet, in which case nothing is known and nothing is filtered.
- */
-export async function knownAppSlugs(): Promise<Set<string>> {
-  const { apps } = await listApps(getWorkspaceConfig().appsDir);
-  return new Set(apps.map((app) => app.slug));
 }
 
 /**
@@ -263,21 +203,6 @@ export async function markThreadUnseen(
   publisher.publish("session.updated", { id: taskId, sessionId });
 }
 
-/** The hostnames a shell command opens for the user with `open <url>`. */
-export function openedHostsIn(command: string): string[] {
-  const hosts: string[] = [];
-  for (const match of command.matchAll(
-    /(?:^|[\n;&|])\s*open\s+['"]?(https?:\/\/[^\s'"]+)/g,
-  )) {
-    try {
-      hosts.push(new URL(match[1] ?? "").hostname);
-    } catch {
-      // Not an address the shell would have opened either.
-    }
-  }
-  return hosts.filter((host) => host !== "");
-}
-
 /** Stars a thread, or takes the star off. The stamp stays where it was, as with putting a thread away. */
 export async function setThreadStarred(
   taskId: TaskId,
@@ -316,12 +241,6 @@ export async function setThreadTopics(
   return saved.isOk();
 }
 
-export function textOf(message: SessionMessage.WithParts): string {
-  return message.parts
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join("\n");
-}
-
 /** One thread by its session id, or none for a session that is not one. */
 export async function threadById(
   taskId: TaskId,
@@ -357,6 +276,20 @@ async function appsHeld(
 }
 
 /**
+ * The app slugs a shell command calls or asks the user to connect: `app call`
+ * or `app request` where a command begins, followed by a slug's own letters.
+ * Anchored to the command's start and to a slug's shape so the same words
+ * inside a brief's prose ("keep the app request intact.") name nothing.
+ */
+function appSlugsIn(command: string): string[] {
+  return [
+    ...command.matchAll(
+      /(?:^|[\n;&|]|\$\()\s*app\s+(?:call|request)\s+([a-z0-9][a-z0-9_-]*)\b/g,
+    ),
+  ].flatMap((match) => (match[1] ? [match[1]] : []));
+}
+
+/**
  * What the thread has stopped for, and when: a task filed from it that is
  * paused on an ask comes first, since that is what the user can answer, then
  * the thread's own last turn ending on one.
@@ -374,6 +307,20 @@ function askOf(
   const last = messages.findLast((message) => message.role === "assistant");
   return text && last
     ? { at: last.metadata.createdAt.getTime(), text }
+    : undefined;
+}
+
+/** The command a shell call ran, once its input has arrived whole. */
+function bashCommandOf(part: SessionMessagePart.Type): string | undefined {
+  if (part.type !== "tool-bash") {
+    return undefined;
+  }
+  const input: unknown = part.input;
+  return typeof input === "object" &&
+    input !== null &&
+    "command" in input &&
+    typeof input.command === "string"
+    ? input.command
     : undefined;
 }
 
@@ -413,6 +360,21 @@ function filesHeld(messages: SessionMessage.WithParts[]): string[] {
   return [...files];
 }
 
+/**
+ * The first line with words, cut to what a row can show. Fenced blocks are
+ * skipped whole: a reply that opens with the files it hands over is read by
+ * its words, and one that is only that fence by what it wrote.
+ */
+function firstLine(text: string): string {
+  return excerptOf(text, LATEST_MAX);
+}
+
+function hasWords(message: SessionMessage.WithParts): boolean {
+  return message.parts.some(
+    (part) => part.type === "text" && part.text.trim() !== "",
+  );
+}
+
 /** Whether a user message opens a thread: it has words, or it brought files. */
 function isRoot(
   message: SessionMessage.WithParts,
@@ -428,6 +390,21 @@ function isRoot(
         (part.data.files.length > 0 || (part.data.folders?.length ?? 0) > 0),
     )
   );
+}
+
+/** The slugs among `slugs` that name an app the workspace has, when it has any. */
+function knownAmong(slugs: string[], known: Set<string>): string[] {
+  return known.size === 0 ? slugs : slugs.filter((slug) => known.has(slug));
+}
+
+/**
+ * The slugs of the apps this workspace has, for telling a real app apart from
+ * a word that looked like one. Empty when the workspace has no apps folder
+ * yet, in which case nothing is known and nothing is filtered.
+ */
+async function knownAppSlugs(): Promise<Set<string>> {
+  const { apps } = await listApps(getWorkspaceConfig().appsDir);
+  return new Set(apps.map((app) => app.slug));
 }
 
 function latestFor({
@@ -502,6 +479,21 @@ function newestSettledIn(
   return alphabetical(settled, (message) => message.id).at(-1)?.id;
 }
 
+/** The hostnames a shell command opens for the user with `open <url>`. */
+function openedHostsIn(command: string): string[] {
+  const hosts: string[] = [];
+  for (const match of command.matchAll(
+    /(?:^|[\n;&|])\s*open\s+['"]?(https?:\/\/[^\s'"]+)/g,
+  )) {
+    try {
+      hosts.push(new URL(match[1] ?? "").hostname);
+    } catch {
+      // Not an address the shell would have opened either.
+    }
+  }
+  return hosts.filter((host) => host !== "");
+}
+
 /**
  * Writes when the thread was put away, or takes it off the record. Saving
  * the session announces the change, which is what makes the live list
@@ -554,6 +546,12 @@ async function sitesHeld(
     }
   }
   return unique(hosts);
+}
+
+function textOf(message: SessionMessage.WithParts): string {
+  return message.parts
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n");
 }
 
 async function threadFor(

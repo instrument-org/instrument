@@ -26,7 +26,6 @@ export type TabLocation =
       /** Where the file sits on the computer, which makes the folders above it places the tab can go. */
       path: string;
     }
-  | { kind: "activity" }
   | { kind: "app"; name: string; site?: string }
   | { kind: "apps" }
   | { kind: "folder"; path: string }
@@ -52,11 +51,6 @@ export function locationCrumbs(
   { home }: { home: string | undefined },
 ): LocationCrumb[] {
   switch (location.kind) {
-    // Activity is the whole chat laid flat, so like a thread it hangs from
-    // the chat and sits under no screen.
-    case "activity": {
-      return [{ label: "Activity" }];
-    }
     case "app": {
       return [
         { label: "Apps", to: { href: "/orchestrator/apps", kind: "screen" } },

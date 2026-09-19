@@ -1,11 +1,7 @@
 import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import {
-  ACTIVITY_HREF,
-  screenLocation,
-  screenPresentation,
-} from "./screen-presentation";
+import { screenLocation, screenPresentation } from "./screen-presentation";
 
 const CONTEXT = { appsBySlug: new Map() };
 
@@ -19,10 +15,6 @@ describe("screenPresentation", () => {
       screenPresentation(THREAD_HREF, { ...CONTEXT, threadTitles }).title,
     ).toBe("Caffeine mixes, plus Zevia");
     expect(screenPresentation(THREAD_HREF, CONTEXT).title).toBe("Thread");
-  });
-
-  it("names the activity tab", () => {
-    expect(screenPresentation(ACTIVITY_HREF, CONTEXT).title).toBe("Activity");
   });
 
   it.each([
@@ -82,12 +74,6 @@ describe("screenLocation", () => {
     expect(screenLocation(THREAD_HREF, { ...CONTEXT, threadTitles })).toEqual({
       kind: "thread",
       title: "Caffeine mixes",
-    });
-  });
-
-  it("places the activity tab on activity rather than on the work", () => {
-    expect(screenLocation(ACTIVITY_HREF, CONTEXT)).toEqual({
-      kind: "activity",
     });
   });
 });

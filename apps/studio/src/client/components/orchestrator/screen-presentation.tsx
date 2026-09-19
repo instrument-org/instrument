@@ -4,7 +4,6 @@ import { FileIcon } from "@/client/components/file-icon";
 import { StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
@@ -16,9 +15,6 @@ import { joinHostPath, segmentsOf } from "./host-path";
 import { IDEAS_HREF, ideaTitleOf } from "./ideas";
 import { type TabLocation } from "./tab-location";
 import { parseHref } from "./window-tabs";
-
-/** The route Activity is at: what happened across every thread, newest first. */
-export const ACTIVITY_HREF = "/orchestrator/activity";
 
 /**
  * What an address alone cannot say about a screen: the names of the things
@@ -74,9 +70,6 @@ export function screenLocation(
   if (pathname.startsWith(`${THREADS_HREF}/`)) {
     return { kind: "thread", title: threadTitleOf(pathname, threadTitles) };
   }
-  if (pathname === ACTIVITY_HREF) {
-    return { kind: "activity" };
-  }
   // A screen the window has no words for reads as the new tab: the place
   // with nothing in particular in it.
   return { kind: "newTab" };
@@ -112,12 +105,6 @@ export function screenPresentation(
     return {
       icon: <ChatTeardropTextIcon className="size-3.5" />,
       title: threadTitleOf(pathname, threadTitles),
-    };
-  }
-  if (pathname === ACTIVITY_HREF) {
-    return {
-      icon: <ClockCounterClockwiseIcon className="size-3.5" />,
-      title: "Activity",
     };
   }
   if (pathname.startsWith("/orchestrator/apps/")) {

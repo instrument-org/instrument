@@ -123,11 +123,6 @@ describe("locationCrumbs", () => {
         "Caffeine mixes",
       ]
     `);
-    expect(readable({ kind: "activity" })).toMatchInlineSnapshot(`
-      [
-        "Activity",
-      ]
-    `);
   });
 
   it("says an address whole, and a new tab not at all", () => {

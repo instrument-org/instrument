@@ -17,7 +17,6 @@ import {
 } from "@/client/components/orchestrator/host-path";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
-import { ACTIVITY_HREF } from "@/client/components/orchestrator/screen-presentation";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { RelativeTime } from "@/client/components/relative-time";
@@ -273,26 +272,6 @@ function HomeRoute() {
               {...quickLook.props}
             />
           )}
-        </Section>
-
-        {/* What Instrument keeps across every thread: the record of what was
-            asked, done, and looked at, as one list. Last, since it is the
-            least of what the page offers. */}
-        <Section title="Instrument">
-          <Tiles>
-            <Tile
-              icon={
-                <span className={MARK_CARD}>
-                  <ClockCounterClockwiseIcon className="size-6" />
-                </span>
-              }
-              name="Activity"
-              onOpen={() => {
-                void navigate({ to: ACTIVITY_HREF });
-              }}
-              target={{ href: ACTIVITY_HREF, kind: "screen" }}
-            />
-          </Tiles>
         </Section>
       </div>
 

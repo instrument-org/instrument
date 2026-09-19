@@ -594,7 +594,6 @@ export namespace SessionMessageDataPart {
       .optional(),
     /** The screen up in the window, by the name the sidebar gives it. */
     screen: z.enum([
-      "activity",
       "apps",
       "browser",
       "computer",

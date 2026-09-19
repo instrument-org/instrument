@@ -120,11 +120,6 @@ function pageNote(data: ViewContext) {
 
 function screenNote(data: ViewContext) {
   switch (data.screen) {
-    case "activity": {
-      return systemNote`
-        When the user sent this, the window showed Activity: one list, newest first, of what was asked, replied, started, finished, made, and used across every thread of the chat, and what they looked at. Nothing in particular is in view unless they name an entry.
-      `;
-    }
     case "apps": {
       if (data.app) {
         return systemNote`

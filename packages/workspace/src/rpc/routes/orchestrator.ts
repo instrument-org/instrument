@@ -22,10 +22,6 @@ import {
   orchestratorActivity,
   OrchestratorActivitySchema,
 } from "../../lib/orchestrator/activity";
-import {
-  ActivityEntrySchema,
-  listActivityLog,
-} from "../../lib/orchestrator/activity-log";
 import { taskThreads } from "../../lib/orchestrator/attribution";
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
@@ -239,46 +235,6 @@ const liveListThreadsRoute = base
       yield await listThreads(input.id);
       for await (const _change of changes) {
         yield await listThreads(input.id);
-      }
-    } finally {
-      await changes.return();
-    }
-  });
-
-/**
- * What happened across every thread, newest first, with the thread each
- * entry belongs to; nothing is stored for it.
- */
-const listActivityLogRoute = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      limit: z.number().int().positive().optional(),
-    }),
-  )
-  .output(ActivityEntrySchema.array())
-  .handler(({ input }) =>
-    listActivityLog(input.id, {
-      ...(input.limit === undefined ? {} : { limit: input.limit }),
-    }),
-  );
-
-/** The same log, re-read on every change in any thread, bursts collapsed. */
-const liveListActivityLogRoute = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      limit: z.number().int().positive().optional(),
-    }),
-  )
-  .output(eventIterator(ActivityEntrySchema.array()))
-  .handler(async function* ({ input, signal }) {
-    const options = input.limit === undefined ? {} : { limit: input.limit };
-    const changes = threadChanges(input.id, signal);
-    try {
-      yield await listActivityLog(input.id, options);
-      for await (const _change of changes) {
-        yield await listActivityLog(input.id, options);
       }
     } finally {
       await changes.return();
@@ -514,10 +470,6 @@ const opened = base
 
 export const orchestrator = {
   activity,
-  activityLog: {
-    list: listActivityLogRoute,
-    live: { list: liveListActivityLogRoute },
-  },
   children,
   childStatus,
   ensure,

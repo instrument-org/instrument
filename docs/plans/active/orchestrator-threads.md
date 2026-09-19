@@ -1,6 +1,6 @@
 # Plan: threads, topics, and activity in the orchestrator conversation
 
-Status: built, first version, and then reshaped: the pane, its filter column and rows, the composer under the list, and the window's tab strip described below were replaced by the inbox, the draft window, and each thread's own tabs in `orchestrator-inbox.md`. The nouns, the flows, the agent's side, and the legacy notes here still hold. Still to come from the sections below: `@topic` mentions in the composer, suggested-topic chips on rows, the topic overview page, and adopting tasks from before the orchestrator.
+Status: built, first version, and then reshaped: the pane, its filter column and rows, the composer under the list, and the window's tab strip described below were replaced by the inbox, the draft window, and each thread's own tabs in `orchestrator-inbox.md`. Activity, the third piece below, was built and then dropped: [decisions/2026-09-19-drop-the-activity-screen.md](../../decisions/2026-09-19-drop-the-activity-screen.md). The nouns, the flows, the agent's side, and the legacy notes here still hold. Still to come from the sections below: `@topic` mentions in the composer, suggested-topic chips on rows, the topic overview page, and adopting tasks from before the orchestrator.
 
 ## The rule
 

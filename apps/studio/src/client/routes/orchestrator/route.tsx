@@ -250,8 +250,8 @@ function Frame({
         at, so a viewport height would apply that zoom a second time. */}
       <div className="relative flex h-full flex-col bg-background">
         {/* The file browser's own type icons, drawn by reference, so a file
-          named anywhere in the window (a thread's marks, a row in Activity)
-          wears the same colored mark it has in the computer view. */}
+          named anywhere in the window (a thread's marks, say) wears the same
+          colored mark it has in the computer view. */}
         <FileSystemIconSpriteSheet />
         {/* The bar is the window's own row and reserves the band the traffic
           lights are drawn in, so no column below has to leave a gap for them. */}

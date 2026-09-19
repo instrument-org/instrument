@@ -16,6 +16,7 @@ import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -359,6 +360,14 @@ function locationMark(location: TabLocation): ReactNode {
         <LockSimpleIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
+    // The skills, and one of them: a skill is under Skills the way an app
+    // page is under Apps.
+    case "skill":
+    case "skills": {
+      return (
+        <GraduationCapIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
     // The work, and one of its tasks: a task is under the list it was opened
     // from, the way an app page is under Apps.
     case "task":
@@ -397,6 +406,12 @@ function locationText(location: TabLocation) {
     }
     case "page": {
       return location.url;
+    }
+    case "skill": {
+      return location.name;
+    }
+    case "skills": {
+      return "Skills";
     }
     case "task": {
       return location.title;

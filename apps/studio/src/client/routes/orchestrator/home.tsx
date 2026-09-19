@@ -18,6 +18,7 @@ import {
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
+import { SKILLS_HREF } from "@/client/components/orchestrator/tab-location";
 import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { RelativeTime } from "@/client/components/relative-time";
 import { Skeleton } from "@/client/components/ui/skeleton";
@@ -30,6 +31,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -272,6 +274,26 @@ function HomeRoute() {
               {...quickLook.props}
             />
           )}
+        </Section>
+
+        {/* What Instrument brings to every thread: the skills its tasks can
+            load, and where each comes from. Last, since it is the least of
+            what the page offers. */}
+        <Section title="Instrument">
+          <Tiles>
+            <Tile
+              icon={
+                <span className={MARK_CARD}>
+                  <GraduationCapIcon className="size-6" />
+                </span>
+              }
+              name="Skills"
+              onOpen={() => {
+                void navigate({ to: SKILLS_HREF });
+              }}
+              target={{ href: SKILLS_HREF, kind: "screen" }}
+            />
+          </Tiles>
         </Section>
       </div>
 

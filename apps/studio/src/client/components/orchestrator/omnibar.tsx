@@ -22,6 +22,7 @@ import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GearIcon } from "@phosphor-icons/react/Gear";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
@@ -61,6 +62,11 @@ const SCREENS: {
     icon: CompassIcon,
     name: "Ideas",
     open: (navigate) => void navigate({ to: "/orchestrator/ideas" }),
+  },
+  {
+    icon: GraduationCapIcon,
+    name: "Skills",
+    open: (navigate) => void navigate({ to: "/orchestrator/skills" }),
   },
 ];
 

@@ -5,6 +5,7 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
 
@@ -13,7 +14,7 @@ import { computerName } from "./computer-name";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { IDEAS_HREF, ideaTitleOf } from "./ideas";
-import { type TabLocation } from "./tab-location";
+import { SKILLS_HREF, type TabLocation } from "./tab-location";
 import { parseHref } from "./window-tabs";
 
 /**
@@ -66,6 +67,14 @@ export function screenLocation(
   }
   if (pathname === IDEAS_HREF) {
     return { kind: "ideas" };
+  }
+  // A skill is addressed by its name, which is also what it is called: the
+  // exact name a task loads it by is the one the reader has for it too.
+  if (pathname.startsWith(`${SKILLS_HREF}/`)) {
+    return { kind: "skill", name: pathname.slice(SKILLS_HREF.length + 1) };
+  }
+  if (pathname === SKILLS_HREF) {
+    return { kind: "skills" };
   }
   if (pathname.startsWith(`${THREADS_HREF}/`)) {
     return { kind: "thread", title: threadTitleOf(pathname, threadTitles) };
@@ -130,6 +139,18 @@ export function screenPresentation(
   }
   if (pathname === IDEAS_HREF) {
     return { icon: <CompassIcon className="size-3.5" />, title: "Ideas" };
+  }
+  if (pathname.startsWith(`${SKILLS_HREF}/`)) {
+    return {
+      icon: <GraduationCapIcon className="size-3.5" />,
+      title: pathname.slice(SKILLS_HREF.length + 1),
+    };
+  }
+  if (pathname === SKILLS_HREF) {
+    return {
+      icon: <GraduationCapIcon className="size-3.5" />,
+      title: "Skills",
+    };
   }
   return { icon: <MagnifyingGlassIcon className="size-3.5" />, title: "Tab" };
 }

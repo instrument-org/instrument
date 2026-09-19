@@ -156,6 +156,16 @@ function screenNote(data: ViewContext) {
         When the user sent this, the window showed the Ideas screen: the kinds of page Instrument can make, each a template of the \`${SKILL_NAMES.createPage}\` skill, with examples of each. Nothing in particular is in view unless they name one.
       `;
     }
+    case "skills": {
+      if (data.skill) {
+        return systemNote`
+          When the user sent this, the window showed the skill "${data.skill.title}", loaded by a task as \`${data.skill.name}\`: ${data.skill.description} "This", "this skill", and "it" refer to it. Work they ask for here that the skill fits is a brief naming that skill by its exact name.
+        `;
+      }
+      return systemNote`
+        When the user sent this, the window showed the Skills screen: every skill a task can load, grouped by where it comes from. Nothing in particular is in view unless they name one.
+      `;
+    }
     case "task": {
       return taskNote(data);
     }

@@ -16,6 +16,9 @@ export interface LocationCrumb {
 /** The address of a thread's tasks, which the pane shows as its face rather than as a screen. */
 const TASKS_HREF = "/orchestrator/tasks";
 
+/** The route the Skills screen is at: every skill a task can load, and each one's page under it. */
+export const SKILLS_HREF = "/orchestrator/skills";
+
 /** What the tab on screen is showing, in the terms that page has for itself. */
 export type TabLocation =
   | {
@@ -33,6 +36,8 @@ export type TabLocation =
   | { kind: "ideas" }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
+  | { kind: "skill"; name: string }
+  | { kind: "skills" }
   | { kind: "task"; title: string }
   | { kind: "tasks" }
   | { kind: "thread"; title: string };
@@ -79,6 +84,15 @@ export function locationCrumbs(
     case "newTab":
     case "page": {
       return [];
+    }
+    case "skill": {
+      return [
+        { label: "Skills", to: { href: SKILLS_HREF, kind: "screen" } },
+        { label: location.name },
+      ];
+    }
+    case "skills": {
+      return [{ label: "Skills" }];
     }
     case "task": {
       return [

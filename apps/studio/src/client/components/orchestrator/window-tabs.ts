@@ -56,6 +56,38 @@ export function threadOfHref(href: string): StoreId.Session | undefined {
   return id.success ? id.data : undefined;
 }
 
+/**
+ * The thread an address names by the start of its id, among the threads the
+ * window has.
+ *
+ * The agent's own listing prints a thread as the first characters of its id,
+ * and a link written from that listing carries the same, so an address with
+ * a whole id is one case of this rather than the only one. Case is ignored
+ * the way the listing's own lookup ignores it. Exactly one thread starting
+ * with it is the thread; none or several is no thread, since a link that
+ * could mean two things should open neither.
+ */
+export function threadOfHrefPrefix(
+  href: string,
+  threads: Iterable<StoreId.Session>,
+): StoreId.Session | undefined {
+  const { pathname } = parseHref(href);
+  if (!pathname.startsWith(`${THREADS_HREF}/`)) {
+    return undefined;
+  }
+  const prefix = pathname
+    .slice(THREADS_HREF.length + 1)
+    .replace(/\/$/, "")
+    .toLowerCase();
+  if (!prefix) {
+    return undefined;
+  }
+  const matches = [...threads].filter((id) =>
+    id.toLowerCase().startsWith(prefix),
+  );
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
 /** Takes the tab closed last off the pile, for whoever can bring it back. */
 export function usePopClosedTab() {
   const [closed, setClosed] = useAtom(closedTabsAtom);

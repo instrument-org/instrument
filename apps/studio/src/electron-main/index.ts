@@ -28,6 +28,7 @@ import {
   updateOrchestratorWindowBackgroundColor,
 } from "@/electron-main/windows/orchestrator";
 import { revealTask } from "@/electron-main/windows/reveal-task";
+import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -317,38 +318,18 @@ function focusForegroundWindow() {
   void ensureForegroundWindowVisible();
 }
 
+/**
+ * A link from outside the app: the website's "Try in Instrument", a reply's
+ * address pasted somewhere else. What it names is a screen of the 2.0
+ * window, read the way a reply's link is; with that window off, the link has
+ * brought the app forward, which is all the classic window can do.
+ */
 function handleDeepLink(url: string) {
   focusForegroundWindow();
-  const screen = screenOfDeepLink(url);
-  // The screens a link can name are the 2.0 window's; with it off, the link
-  // has brought the app forward, which is all the classic window can do.
-  if (screen && isFeatureEnabled("instrument_2")) {
-    openOrchestratorScreen(screen);
+  const link = instrumentLinkOf(url);
+  if (link && isFeatureEnabled("instrument_2")) {
+    openOrchestratorScreen(link.href);
   }
-}
-
-/**
- * The screen of the 2.0 window a link names, as its route: the website's
- * `instrument://discover` is the Ideas screen and `instrument://discover/<idea>`
- * one idea's page, which is what its "Try in Instrument" opens. Discover is
- * the site's word for the section and stays in the link; the screen is Ideas.
- * Any other link names no screen.
- */
-function screenOfDeepLink(url: string): string | undefined {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return;
-  }
-  if (parsed.host !== "discover") {
-    return;
-  }
-  const idea = parsed.pathname.split("/").find(Boolean);
-  // A template's folder name, which is all an idea is addressed by.
-  return idea && /^[a-z0-9-]+$/.test(idea)
-    ? `/orchestrator/ideas/${idea}`
-    : "/orchestrator/ideas";
 }
 
 function shouldShowOnboarding(): boolean {

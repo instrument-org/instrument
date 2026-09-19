@@ -1,21 +1,28 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
+
 /** One link found in a line of text somebody typed, and the text around it. */
 export type LinkTextSegment =
   | { href: string; label: string; type: "link" }
   | { text: string; type: "text" };
 
-// A Markdown inline link whose destination is a page or an address. The label
-// may not cross a line or hold a bracket, and the destination may hold one level
-// of balanced parentheses, which is what a URL ending in one needs. A label has
-// to open with something to read: `[](…)` is a typo, and there is nothing there
-// to click.
-const MARKDOWN_LINK =
-  /\[([^\s\]][^\]\n]*)\]\(((?:https?:\/\/|mailto:)(?:[^\s()]|\([^\s()]*\))+)\)/gu;
+// A Markdown inline link whose destination is a page, an address, or a thing
+// inside the app by its own scheme, which is what "Copy Link" on a thread or a
+// task puts on the clipboard. The label may not cross a line or hold a
+// bracket, and the destination may hold one level of balanced parentheses,
+// which is what a URL ending in one needs. A label has to open with something
+// to read: `[](…)` is a typo, and there is nothing there to click.
+const MARKDOWN_LINK = new RegExp(
+  String.raw`\[([^\s\]][^\]\n]*)\]\(((?:https?://|mailto:|${APP_NAME_SLUG}://)(?:[^\s()]|\([^\s()]*\))+)\)`,
+  "gu",
+);
 
 // A destination written on its own, which is how nearly everyone actually
 // writes one. Bounded by whitespace and by the brackets a Markdown link puts
 // around its own destination, so the two passes can never claim the same run.
-const BARE_LINK =
-  /https?:\/\/[^\s<>[\]]+|[^\s<>[\]()@,;:]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+/giu;
+const BARE_LINK = new RegExp(
+  String.raw`(?:https?|${APP_NAME_SLUG})://[^\s<>[\]]+|[^\s<>[\]()@,;:]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+`,
+  "giu",
+);
 
 // What a sentence puts after a link rather than inside one.
 const TRAILING_PUNCTUATION = /[.,;:!?'"]+$/u;

@@ -50,6 +50,7 @@ import {
   screenPresentation,
 } from "@/client/components/orchestrator/screen-presentation";
 import {
+  memoryOfHref,
   type TabLocation,
   tasksFaceOfHref,
 } from "@/client/components/orchestrator/tab-location";
@@ -70,6 +71,7 @@ import {
   PAGE_ROUTE,
   parseHref,
   threadOfHref,
+  threadOfHrefPrefix,
   usePopClosedTab,
   useWindowTabs,
 } from "@/client/components/orchestrator/window-tabs";
@@ -616,7 +618,9 @@ function OrchestratorLayout() {
     href: string,
     { group: into, newTab = false, show = false }: OpenOptions = {},
   ) => {
-    const thread = threadOfHref(href);
+    // A whole id, or the start of one the way a reply's link carries it.
+    const thread =
+      threadOfHref(href) ?? threadOfHrefPrefix(href, threadTitles.keys());
     if (thread) {
       // The thread's group comes up at the tab it last had up, and the
       // address follows that tab; pushing the thread's own address here
@@ -624,11 +628,28 @@ function OrchestratorLayout() {
       windowTabs.showThread(thread);
       return;
     }
+    if (parseHref(href).pathname.startsWith(`${THREADS_HREF}/`)) {
+      // A thread's address that names none of the threads here: a screen
+      // at it would be a thread with nothing in it.
+      toast("No thread at that address", {
+        description:
+          "It may have been deleted, or the link is not for this chat.",
+      });
+      return;
+    }
     // A task, or the tasks, are the face of their thread's pane rather than
     // a screen of their own: every way of asking for one lands there.
     const face = tasksFaceOfHref(href);
     if (face) {
       showTasksFace(face.task, into);
+      return;
+    }
+    // A memory is shown where all of them are, in Settings, brought to the
+    // one named; a screen of its own would be one memory with nothing to do
+    // to it.
+    const memory = memoryOfHref(href);
+    if (memory) {
+      openSettings({ memory, tab: "Memory" });
       return;
     }
     if (into !== undefined && into !== windowTabs.group) {
@@ -1523,7 +1544,10 @@ function OrchestratorLayout() {
                                   // with a task up, it goes back to the
                                   // list. A tab picked is what puts the
                                   // face away.
-                                  if (isTasksViewUp && tasksFace.task === undefined) {
+                                  if (
+                                    isTasksViewUp &&
+                                    tasksFace.task === undefined
+                                  ) {
                                     return;
                                   }
                                   showTasksFace(undefined, threadUp);

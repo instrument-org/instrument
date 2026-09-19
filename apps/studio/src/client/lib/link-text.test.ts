@@ -34,6 +34,15 @@ describe("splitLinks", () => {
     );
   });
 
+  it("finds a link into the app, written either way", () => {
+    expect(shape("like instrument://thread/ses_01JC, but shorter")).toBe(
+      "like <instrument://thread/ses_01JC -> instrument://thread/ses_01JC>, but shorter",
+    );
+    expect(shape("like [that one](instrument://thread/ses_01JC)")).toBe(
+      "like <that one -> instrument://thread/ses_01JC>",
+    );
+  });
+
   // The end of a sentence is not part of the address it follows, and getting
   // this wrong is what makes an autolinked URL look broken.
   it.each([

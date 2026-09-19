@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { locationCrumbs, type TabLocation } from "./tab-location";
+import { locationCrumbs, memoryOfHref, type TabLocation } from "./tab-location";
 
 const HOME = "/Users/casey";
 
@@ -145,5 +145,18 @@ describe("locationCrumbs", () => {
         "Instrument",
       ]
     `);
+  });
+});
+
+describe("memoryOfHref", () => {
+  it.each([
+    ["/orchestrator/memory/no-stevia", "no-stevia"],
+    ["/orchestrator/memory/no-stevia?from=link", "no-stevia"],
+    ["/orchestrator/memory", undefined],
+    ["/orchestrator/memory/", undefined],
+    ["/orchestrator/memory/no-stevia/edit", undefined],
+    ["/orchestrator/tasks/no-stevia", undefined],
+  ])("reads %s as %s", (href, name) => {
+    expect(memoryOfHref(href)).toBe(name);
   });
 });

@@ -11,6 +11,10 @@ import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Markdown } from "./markdown";
+import {
+  OrchestratorContext,
+  type OrchestratorWindow,
+} from "./orchestrator/context";
 
 // The chip navigates on click and the file grid reads the task it is drawn in
 // from the route; the route tree itself is not what these tests are about.
@@ -231,6 +235,44 @@ describe("Markdown links", () => {
     expect(
       screen.getByRole("link", { name: "neil@finalpoint.co" }),
     ).toHaveProperty("href", "mailto:neil@finalpoint.co");
+  });
+
+  // A link into the app is a chip wherever it is drawn; where nothing can open
+  // it, it is a mention rather than a link that goes nowhere.
+  it("draws a link into the app as a chip with nothing to open outside the window", () => {
+    const { container } = renderMarkdown(
+      "Noted: [no stevia](instrument://memory/no-stevia).",
+    );
+
+    expect(container.textContent).toBe("Noted: no stevia.");
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("opens a link into the app at its screen", () => {
+    const openScreen = vi.fn();
+    const context = {
+      ask: vi.fn(),
+      browser: null,
+      focusComposer: vi.fn(),
+      openPage: vi.fn(),
+      openPath: vi.fn(),
+      openScreen,
+      opensNewTab: true,
+      taskId: TASK_ID,
+    } satisfies OrchestratorWindow;
+    renderWithProviders(
+      <OrchestratorContext value={context}>
+        <Markdown
+          markdown="I started [the hotel search](instrument://task/lisbon-hotel)."
+          taskId={TASK_ID}
+        />
+      </OrchestratorContext>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "the hotel search" }));
+
+    expect(openScreen).toHaveBeenCalledWith("/orchestrator/tasks/lisbon-hotel");
   });
 });
 

@@ -233,7 +233,7 @@ function useDestinationsFor(): (
 
     const { href } = target;
     if (!orchestrator) {
-      return [];
+      return copy;
     }
     return [
       {
@@ -254,6 +254,7 @@ function useDestinationsFor(): (
               },
             },
           ]),
+      ...copy,
     ];
   };
 }

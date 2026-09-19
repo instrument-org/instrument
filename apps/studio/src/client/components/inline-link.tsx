@@ -1,4 +1,5 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { getFaviconUrl } from "@/client/lib/favicon-url";
 import {
   destinationParts,
@@ -7,12 +8,24 @@ import {
   webUrl,
 } from "@/client/lib/link-target";
 import { cn } from "@/client/lib/utils";
+import {
+  type InstrumentLink,
+  instrumentLinkOf,
+} from "@/shared/instrument-link";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { BrainIcon } from "@phosphor-icons/react/Brain";
+import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
+import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
+import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { type ReactNode, useState } from "react";
 
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
 import { FAVICON_SURFACE_CLASS_NAME } from "./favicon";
+import { AppIcon } from "./orchestrator/app-icon";
+import { useAppsBySlug } from "./orchestrator/apps-by-slug";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 /**
@@ -111,11 +124,117 @@ export function InlineLink({
     );
   }
 
+  const link = instrumentLinkOf(href);
+  if (link) {
+    return (
+      <AppLink className={className} link={link}>
+        {children ?? label}
+      </AppLink>
+    );
+  }
+
   return (
     <WebLink {...props} className={className} href={href} label={label}>
       {children ?? label}
     </WebLink>
   );
+}
+
+/**
+ * An app's own icon at the chip's size, looked up by slug the way the tab
+ * strip looks one up; a slug the window has no app for gets the generic mark.
+ */
+function AppChipIcon({ slug }: { slug: string }) {
+  const app = useAppsBySlug().get(slug);
+  if (!app) {
+    return <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+  }
+  return (
+    <AppIcon
+      className="size-3! rounded-xs"
+      name={app.name}
+      site={app.site}
+      size="sm"
+    />
+  );
+}
+
+/**
+ * A link to something inside the app, as a chip naming what kind of thing.
+ *
+ * A chip for the same reason a file is one: what it opens is not a page, and
+ * the glyph in front says which of the app's own things it is, a task or a
+ * memory or a thread, the way a site's icon says which site. Drawn from the
+ * address alone, with nothing asked of the server, so it renders as the reply
+ * streams; a memory since forgotten or a thread since gone is still a chip,
+ * and what it opens says so.
+ *
+ * The gestures are the ones every openable thing answers, so a middle click
+ * gives it a tab of its own and a right click offers the list. A surface with
+ * nowhere to open one -- a transcript outside the window the thing lives in
+ * -- draws the chip and nothing happens on it, which reads as a mention
+ * rather than a broken link.
+ */
+function AppLink({
+  children,
+  className,
+  link,
+}: {
+  children: ReactNode;
+  className?: string;
+  link: InstrumentLink;
+}) {
+  const gestures = useOpenGestures({ href: link.href, kind: "screen" });
+  const open = gestures.destinations.find((entry) => entry.id === "open");
+  const icon = <AppLinkIcon link={link} />;
+
+  if (!open) {
+    return (
+      <span
+        className={cn(INLINE_CHIP_CLASS_NAME, "hover:bg-muted/50", className)}
+      >
+        {icon}
+        <span className="truncate">{children}</span>
+      </span>
+    );
+  }
+  return (
+    <button
+      className={cn(INLINE_CHIP_CLASS_NAME, className)}
+      onAuxClick={gestures.onAuxClick}
+      onClick={open.run}
+      onContextMenu={gestures.onContextMenu}
+      type="button"
+    >
+      {icon}
+      <span className="truncate">{children}</span>
+    </button>
+  );
+}
+
+/** The glyph for a kind of thing, and for an app, the app's own icon. */
+function AppLinkIcon({ link }: { link: InstrumentLink }) {
+  switch (link.kind) {
+    case "app": {
+      return <AppChipIcon slug={link.name} />;
+    }
+    case "idea":
+    case "ideas": {
+      return <CompassIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    case "memory": {
+      return <BrainIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    case "skill": {
+      return <GraduationCapIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    case "task": {
+      return <ListChecksIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    case "thread": {
+      return <ChatTeardropTextIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+  }
 }
 
 /**

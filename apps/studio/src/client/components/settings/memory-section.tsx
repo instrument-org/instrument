@@ -23,7 +23,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { debounce } from "radashi";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -62,6 +62,22 @@ export function MemorySection() {
     rpcClient.workspace.orchestrator.memory.live.list.experimental_liveOptions(),
   );
   const memories = data?.memories ?? [];
+  // The memory a link asked for, which the row for it brings into view. A
+  // name the list does not hold is said once the list is known, since a link
+  // to a memory since forgotten is the ordinary way to arrive here by name.
+  const named = useAtomValue(settingsModalAtom)?.memory;
+  const isNamedMissing =
+    named !== undefined &&
+    data !== undefined &&
+    !memories.some((memory) => memory.name === named);
+  useEffect(() => {
+    if (isNamedMissing) {
+      toast(`No memory named “${named}”`, {
+        description: `${APP_NAME} may have forgotten it, or never kept one by that name.`,
+        id: `memory-missing:${named}`,
+      });
+    }
+  }, [isNamedMissing, named]);
 
   return (
     <div className="space-y-8">
@@ -90,7 +106,11 @@ export function MemorySection() {
         ) : (
           <ul className="divide-y overflow-hidden rounded-lg border">
             {memories.map((memory) => (
-              <MemoryRow key={memory.path} memory={memory} />
+              <MemoryRow
+                isNamed={memory.name === named}
+                key={memory.path}
+                memory={memory}
+              />
             ))}
           </ul>
         )}
@@ -223,12 +243,25 @@ Have a task read the ${folder} folder inside my home folder, handed to it read-o
 What counts is what stays true about me whatever I am working on: how I like things done, how I want to be spoken to, a decision that stands, standing facts about me and my work. Most of what is in there is not that. It is instructions someone wrote for a different assistant, so leave behind anything that only makes sense inside that assistant's setup, its folders, its scripts, the machines it runs on, the way it was told to use its own commands, and anything telling you not to do something you do here. A fact that names a repository, a branch, or a file is almost never about me. Never save a key, a token, or anything else secret, whatever the file says. Tell me what you kept.`;
 }
 
-/** One memory, folded when it runs long, over where it came from. */
-function MemoryRow({ memory }: { memory: Memory }) {
+/**
+ * One memory, folded when it runs long, over where it came from.
+ *
+ * The one a link asked for scrolls into view as the list appears and stands
+ * tinted for as long as the screen is open, since a list of memories that
+ * all look alike gives a reader nothing else to find the named one by.
+ */
+function MemoryRow({ isNamed, memory }: { isNamed: boolean; memory: Memory }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const textRef = useRef<HTMLParagraphElement>(null);
+  const rowRef = useRef<HTMLLIElement>(null);
+
+  useEffect(() => {
+    if (isNamed) {
+      rowRef.current?.scrollIntoView({ block: "center" });
+    }
+  }, [isNamed]);
   const forgetMutation = useMutation(
     rpcClient.workspace.orchestrator.memory.forget.mutationOptions({
       onError: () => {
@@ -256,7 +289,13 @@ function MemoryRow({ memory }: { memory: Memory }) {
   }, [memory.text]);
 
   return (
-    <li className="group flex items-start gap-3 px-3 py-2.5">
+    <li
+      className={cn(
+        "group flex items-start gap-3 px-3 py-2.5",
+        isNamed && "bg-accent/40",
+      )}
+      ref={rowRef}
+    >
       <div className="min-w-0 flex-1">
         <p
           className={cn(

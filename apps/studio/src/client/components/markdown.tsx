@@ -4,6 +4,8 @@ import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
+import { instrumentLinkOf } from "@/shared/instrument-link";
+import { APP_NAME_SLUG, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   AGENT_FILES_LANGUAGE,
   isAddressableTaskFilePath,
@@ -153,9 +155,12 @@ function containsMathSyntax(markdown: string) {
  * download or a folder the user shared -- so the allow-list is what makes
  * parsing it at all safe.
  *
- * Three departures from the default. `file:` is how a model spells a link to a
+ * Four departures from the default. `file:` is how a model spells a link to a
  * file it just wrote, which `markdownUrlTransform` reduces to a path and
- * `TaskFileLink` then judges against the task and its mounts.
+ * `TaskFileLink` then judges against the task and its mounts. The app's own
+ * scheme is how a reply links a thing inside the app, a task or a memory,
+ * which `InlineLink` draws as a chip and opens in the window rather than
+ * handing to the OS.
  *
  * Then `data:` on a `src`, without which an embedded image is dropped by the
  * pass rather than by any policy: the default admits `http` and `https` there
@@ -177,7 +182,12 @@ const sanitizeSchema = {
   ...defaultSchema,
   protocols: {
     ...defaultSchema.protocols,
-    href: [...(defaultSchema.protocols?.href ?? []), "file"],
+    href: [
+      ...(defaultSchema.protocols?.href ?? []),
+      "file",
+      APP_NAME_SLUG,
+      APP_PROTOCOL,
+    ],
     src: [...(defaultSchema.protocols?.src ?? []), "data"],
   },
   tagNames: (defaultSchema.tagNames ?? []).filter(
@@ -585,8 +595,16 @@ const MarkdownLink: Components["a"] = ({
 // as any other file reference. Passing it through instead only ever reaches
 // `ExternalLink`, where the protocol allowlist refuses it: a blocked-link toast
 // and a captured exception, never an opened file.
+//
+// A link into the app is the same scheme the default drops, passed through
+// whole for `InlineLink` to read: only an address that names something here
+// goes, so one with a noun the app has no screen for is dropped as any unknown
+// scheme is, rather than reaching the OS as a link to nothing.
 const markdownUrlTransform: UrlTransform = (url, key, node) => {
   if (key === "src" && node.tagName === "img" && url.startsWith("data:")) {
+    return url;
+  }
+  if (key === "href" && instrumentLinkOf(url)) {
     return url;
   }
   if (!/^file:/i.test(url)) {

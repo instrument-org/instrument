@@ -10,6 +10,8 @@ export type SettingsTab =
   | "Storage";
 
 interface SettingsModalState {
+  /** The memory to bring into view on the Memory tab, by its name, for a link to one. */
+  memory?: string;
   // Deep-link the Providers tab straight to the add-provider dialog.
   showNewProviderDialog?: boolean;
   tab?: SettingsTab;

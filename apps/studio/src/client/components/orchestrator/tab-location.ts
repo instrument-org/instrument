@@ -107,9 +107,7 @@ export function locationCrumbs(
  * What an address under the tasks names: the list, or one task by id.
  * Nothing for any other address, and nothing for an id that is not one.
  */
-export function tasksFaceOfHref(
-  href: string,
-): undefined | { task?: TaskId } {
+export function tasksFaceOfHref(href: string): undefined | { task?: TaskId } {
   const pathname = new URL(href, "http://tabs").pathname;
   if (pathname === TASKS_HREF) {
     return {};
@@ -117,10 +115,25 @@ export function tasksFaceOfHref(
   if (!pathname.startsWith(`${TASKS_HREF}/`)) {
     return undefined;
   }
-  const parsed = TaskIdSchema.safeParse(
-    pathname.slice(TASKS_HREF.length + 1),
-  );
+  const parsed = TaskIdSchema.safeParse(pathname.slice(TASKS_HREF.length + 1));
   return parsed.success ? { task: parsed.data } : undefined;
+}
+
+/** The address of the memories, which the window shows in Settings rather than as a screen. */
+const MEMORY_HREF = "/orchestrator/memory";
+
+/**
+ * The memory an address names, by its name. Nothing for any other address,
+ * and nothing for the memories as a whole, which have no address: the
+ * Settings tab is where they are, and a tab is not a place a link goes.
+ */
+export function memoryOfHref(href: string): string | undefined {
+  const pathname = new URL(href, "http://tabs").pathname;
+  if (!pathname.startsWith(`${MEMORY_HREF}/`)) {
+    return undefined;
+  }
+  const name = pathname.slice(MEMORY_HREF.length + 1);
+  return name && !name.includes("/") ? name : undefined;
 }
 
 /** A name that is a whole volume on Windows, which is where a path there starts. */

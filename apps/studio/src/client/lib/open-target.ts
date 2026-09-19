@@ -1,3 +1,5 @@
+import { instrumentUrlOf } from "@/shared/instrument-link";
+
 /**
  * Something in the app that a click can open, named the way the surface
  * drawing it already knows it.
@@ -17,7 +19,14 @@ export type OpenTarget =
   /** A file or a folder, by the path the conversation reaches it through. A trailing slash names a folder. */
   | { kind: "path"; path: string };
 
-/** What "copy" puts on the clipboard for a target, and what the row is called. */
+/**
+ * What "copy" puts on the clipboard for a target, and what the row is called.
+ *
+ * A screen copies as the app's own address for the thing on it, which is the
+ * same address a reply links it by, so a thread or a task can be pasted
+ * anywhere a link can and comes back here. A screen no address names copies
+ * as nothing.
+ */
 export function copyableOf(target: OpenTarget):
   | undefined
   | {
@@ -30,7 +39,8 @@ export function copyableOf(target: OpenTarget):
   if (target.kind === "path") {
     return { label: "Copy Path", value: target.path };
   }
-  return undefined;
+  const url = instrumentUrlOf(target.href);
+  return url ? { label: "Copy Link", value: url } : undefined;
 }
 
 /** Whether a page is one the app can show, as opposed to one the OS resolves to some other program. */

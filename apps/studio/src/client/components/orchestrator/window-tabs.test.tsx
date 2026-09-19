@@ -10,7 +10,7 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { useWindowTabs } from "./window-tabs";
+import { threadOfHrefPrefix, useWindowTabs } from "./window-tabs";
 
 const THREAD_A = StoreId.newSessionId();
 const THREAD_B = StoreId.newSessionId();
@@ -287,5 +287,29 @@ describe("a draft's tabs", () => {
     fireEvent.click(screen.getByText("Close active"));
     expect(strip()).toBe(NEW_TAB_HREF);
     expect(read().activeId).not.toBeNull();
+  });
+});
+
+describe("threadOfHrefPrefix", () => {
+  const threads = [
+    StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA"),
+    StoreId.SessionSchema.parse("ses_01JABBBBBBBBBBBBBBBBBBBBBB"),
+    StoreId.SessionSchema.parse("ses_01JCCCCCCCCCCCCCCCCCCCCCCC"),
+  ];
+
+  it.each([
+    ["the start of one id", "/orchestrator/threads/ses_01JC", threads[2]],
+    [
+      "a whole id",
+      "/orchestrator/threads/ses_01JAAAAAAAAAAAAAAAAAAAAAAA",
+      threads[0],
+    ],
+    ["an id in the wrong case", "/orchestrator/threads/SES_01jcc", threads[2]],
+    ["a start two ids share", "/orchestrator/threads/ses_01JA", undefined],
+    ["a start no id has", "/orchestrator/threads/ses_01JZ", undefined],
+    ["the threads as a whole", "/orchestrator/threads", undefined],
+    ["another screen", "/orchestrator/tasks/ses_01JC", undefined],
+  ])("resolves %s", (_case, href, expected) => {
+    expect(threadOfHrefPrefix(href, threads)).toBe(expected);
   });
 });

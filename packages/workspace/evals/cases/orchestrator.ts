@@ -283,7 +283,7 @@ const briefedWhatNotHow: Assertion = {
           offending
             .map(
               ({ brief }) =>
-                `${PRESCRIBES_HOW.exec(brief)?.[0]}: ${JSON.stringify(brief)}`,
+                `${PRESCRIBES_HOW.exec(brief)?.[0] ?? ""}: ${JSON.stringify(brief)}`,
             )
             .join(" | "),
         );
@@ -314,7 +314,7 @@ const briefedWithoutAFile: Assertion = {
           offending
             .map(
               ({ brief }) =>
-                `${ASKS_FOR_A_FILE.exec(brief)?.[0]}: ${JSON.stringify(brief)}`,
+                `${ASKS_FOR_A_FILE.exec(brief)?.[0] ?? ""}: ${JSON.stringify(brief)}`,
             )
             .join(" | "),
         );

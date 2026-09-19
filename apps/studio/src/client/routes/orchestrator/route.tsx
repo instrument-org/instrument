@@ -1089,6 +1089,11 @@ function OrchestratorLayout() {
     newThread: () => {
       startDraft(undefined);
     },
+    // Put away only while something is on screen to have the window; with
+    // nothing beside it the column is the window, and stays.
+    toggleInbox: () => {
+      setInboxOpen((isOpen) => !isOpen || !showsRightArea);
+    },
     openScreen: (href) => {
       openScreen(href, { newTab: true });
     },
@@ -1792,6 +1797,8 @@ function useWindowCommands(handlers: {
   selectTab: (index: number) => void;
   /** The next or previous thread of the inbox, as listed. */
   selectThread: (direction: -1 | 1) => void;
+  /** The inbox column put away or brought back. */
+  toggleInbox: () => void;
 }) {
   const router = useRouter();
   // The stream is opened once; what a chord means is read at the moment it
@@ -1912,6 +1919,10 @@ function useWindowCommands(handlers: {
             }
             case "search": {
               latest.current.search();
+              break;
+            }
+            case "toggleInbox": {
+              latest.current.toggleInbox();
               break;
             }
           }

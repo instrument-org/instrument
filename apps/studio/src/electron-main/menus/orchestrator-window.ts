@@ -46,7 +46,8 @@ const command =
       | "nextThread"
       | "previousTab"
       | "previousThread"
-      | "reopenTab",
+      | "reopenTab"
+      | "toggleInbox",
   ) =>
   () => {
     publisher.publish("orchestrator.command", name);
@@ -91,6 +92,18 @@ const TAB_CHORDS: WindowChord[] = [
     accelerator: "Shift+CmdOrCtrl+T",
     label: "Reopen Closed Tab",
     run: command("reopenTab"),
+  },
+];
+
+/**
+ * The inbox column put away and brought back, on the chord the classic
+ * window keeps for its sidebar: the column is this window's sidebar.
+ */
+const VIEW_CHORDS: WindowChord[] = [
+  {
+    accelerator: "CmdOrCtrl+B",
+    label: "Toggle Inbox",
+    run: command("toggleInbox"),
   },
 ];
 
@@ -175,6 +188,7 @@ const HISTORY_CHORDS: WindowChord[] = [
 
 const WINDOW_CHORDS = [
   ...FILE_CHORDS,
+  ...VIEW_CHORDS,
   ...TAB_CHORDS,
   ...THREAD_CHORDS,
   ...TAB_SWITCH_CHORDS,
@@ -244,11 +258,22 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
     submenu: menuItems(HISTORY_CHORDS),
   };
 
+  // The other windows' View menu with the inbox's chord at its head.
+  const shared = createOtherWindowViewMenu();
+  const viewMenu: MenuItemConstructorOptions = {
+    ...shared,
+    submenu: [
+      ...menuItems(VIEW_CHORDS),
+      { type: "separator" },
+      ...(Array.isArray(shared.submenu) ? shared.submenu : []),
+    ],
+  };
+
   return [
     createAppMenu(),
     fileMenu,
     createEditMenu(),
-    createOtherWindowViewMenu(),
+    viewMenu,
     threadsMenu,
     tabMenu,
     historyMenu,

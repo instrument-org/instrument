@@ -69,6 +69,7 @@ interface PublisherEvents {
     | "previousThread"
     | "reopenTab"
     | "search"
+    | "toggleInbox"
     | { href: string; type: "openScreen" }
     | { index: number; type: "selectTab" };
   "preferences.updated": null;

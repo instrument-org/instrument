@@ -434,25 +434,35 @@ export function useWindowTabs() {
   /**
    * Hands a group over to a thread: what a draft gathered becomes the
    * thread's tabs exactly as they are, guests and all, the one up still up,
-   * so starting the thread moves nothing under it. The thread's group comes
-   * on screen.
+   * so starting the thread moves nothing under it. A tab already filed
+   * under the thread (a task's browser that arrived before the start came
+   * back) stays where it is, beside them. The thread's group comes on
+   * screen, and the group handed over is gone, its remembered tab and all.
    */
   const adoptGroup = (from: string, sessionId: StoreId.Session) => {
     setTabs((current) => {
       const moved = current.tabs
         .filter((tab) => tab.group === from)
         .map((tab) => ({ ...tab, group: sessionId }));
-      const rest = current.tabs.filter(
-        (tab) => tab.group !== from && tab.group !== sessionId,
-      );
+      const rest = current.tabs.filter((tab) => tab.group !== from);
       const { [from]: left, ...activeByGroup } = current.activeByGroup ?? {};
+      // Leaving the group being handed over is leaving nothing: what it had
+      // up is what the thread has up, not a place to come back to.
+      const leaving =
+        current.group === from
+          ? { ...current, activeByGroup, group: undefined }
+          : { ...current, activeByGroup };
       return {
         ...current,
-        ...movingTo({ ...current, activeByGroup }, sessionId),
+        ...movingTo(leaving, sessionId),
         activeId:
           current.group === from
             ? current.activeId
-            : (left ?? moved[0]?.id ?? null),
+            : (left ??
+              activeByGroup[sessionId] ??
+              moved[0]?.id ??
+              rest.find((tab) => tab.group === sessionId)?.id ??
+              null),
         tabs: [...rest, ...moved],
       };
     });
@@ -550,8 +560,8 @@ export function useWindowTabs() {
     showGroup,
     showThread,
     step,
-    /** The tab a group has up, or would come on screen at. */
     stepVisit,
+    /** The tab a group has up, or would come on screen at. */
     tabUpIn,
     /** The tabs of the group on screen, in strip order. */
     tabs,

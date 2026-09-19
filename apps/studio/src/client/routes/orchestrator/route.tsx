@@ -618,9 +618,13 @@ function OrchestratorLayout() {
     href: string,
     { group: into, newTab = false, show = false }: OpenOptions = {},
   ) => {
-    // A whole id, or the start of one the way a reply's link carries it.
-    const thread =
-      threadOfHref(href) ?? threadOfHrefPrefix(href, threadTitles.keys());
+    // A whole id, or the start of one the way a reply's link carries it,
+    // among the threads the window has: a whole id that names none of them
+    // is a link to a thread since deleted, not a thread with nothing in it.
+    // Until the list has been read, a whole id is taken on its own.
+    const thread = threads.data
+      ? threadOfHrefPrefix(href, threadTitles.keys())
+      : threadOfHref(href);
     if (thread) {
       // The thread's group comes up at the tab it last had up, and the
       // address follows that tab; pushing the thread's own address here
@@ -1613,7 +1617,7 @@ function OrchestratorLayout() {
                         >
                           <BrowserTabs
                             chromeInto={chromeSlot}
-                            groupOfTask={(id) => childThreads.get(id)}
+                            threadOfTask={childThreads}
                             ref={setBrowser}
                           />
                         </ActiveTabProvider>

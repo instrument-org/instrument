@@ -272,6 +272,32 @@ describe("a draft's tabs", () => {
     expect(read().tabs.some((tab) => tab.group === draftGroupOf("d1"))).toBe(
       false,
     );
+    // The group handed over is gone from the memory of what each group had
+    // up, so a window that starts many drafts does not keep a key per one.
+    expect(read().activeByGroup ?? {}).not.toHaveProperty(draftGroupOf("d1"));
+  });
+
+  // A task the thread started can open its browser before the start comes
+  // back, and its tab is filed under the thread's own id then; adoption
+  // keeps it beside what the draft gathered rather than dropping it.
+  it("keeps a tab already filed under the thread when the draft is handed over", () => {
+    const read = setup({
+      href: "/orchestrator/apps",
+      id: "apps",
+      kind: "screen",
+    });
+    fireEvent.click(screen.getByText("Draft"));
+    fireEvent.click(screen.getByText("Home"));
+    fireEvent.click(screen.getByText("Apps"));
+    fireEvent.click(screen.getByText("Open ideas for B"));
+    expect(read().tabs.filter((tab) => tab.group === THREAD_B)).toHaveLength(1);
+    fireEvent.click(screen.getByText("Adopt"));
+    expect(
+      read()
+        .tabs.filter((tab) => tab.group === THREAD_B)
+        .map((tab) => (tab.kind === "screen" ? tab.href : tab.url)),
+    ).toEqual(["/orchestrator/ideas", "/orchestrator/apps"]);
+    expect(strip()).toBe("/orchestrator/ideas|/orchestrator/apps");
   });
 
   it("never runs out of tabs: closing the last one puts the new-tab page back", () => {

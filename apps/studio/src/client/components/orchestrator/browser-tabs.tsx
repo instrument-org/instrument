@@ -178,17 +178,24 @@ type PageTabsUpdate = (current: {
  */
 export function BrowserTabs({
   chromeInto,
-  groupOfTask,
   onPageChange,
   ref,
+  threadOfTask,
 }: {
   /** The element in the row above that the page's own bar is drawn into. */
   chromeInto?: HTMLElement | null;
-  /** The thread a task was filed from, by its session id, which is the group its browsing lands in; undefined for a task filed outside any thread. */
-  groupOfTask: (taskId: TaskId) => string | undefined;
   /** Told the page on screen whenever it changes, and undefined when none is. */
   onPageChange?: (page: BrowserPage | undefined) => void;
   ref: Ref<BrowserTabsHandle>;
+  /**
+   * The thread each task the conversation started was filed from, by its
+   * session id, which is the group the task's browsing lands in; a task
+   * filed outside any thread is in the map with no thread. A task not in
+   * it is one the window has not read yet, since the list is polled while
+   * a guest's arrival is live, and its guest waits for the next read rather
+   * than landing in no group.
+   */
+  threadOfTask: ReadonlyMap<TaskId, string | undefined>;
 }) {
   const { openScreen, taskId } = useOrchestrator();
   const [{ activeByGroup, activeId, group, tabs: allTabs }, setAllTabs] =
@@ -325,7 +332,9 @@ export function BrowserTabs({
     const arrived = [...attached].filter(
       (target) => !seenTargets.current.has(target),
     );
-    seenTargets.current = new Set(attached);
+    // A guest whose task the window has not read yet is not seen: it is
+    // still arriving, and is placed by the read that names its thread.
+    const waiting = new Set<BrowserTargetId>();
     const newcomers = arrived.flatMap((target) => {
       const decoded = decodeBrowserTargetId(target);
       // Checked against every visit the window holds, not only the tabs on the
@@ -337,6 +346,10 @@ export function BrowserTabs({
       ) {
         return [];
       }
+      if (!threadOfTask.has(decoded.id)) {
+        waiting.add(target);
+        return [];
+      }
       return [
         {
           id: decoded.sessionId,
@@ -345,6 +358,9 @@ export function BrowserTabs({
         } satisfies BrowserTab,
       ];
     });
+    seenTargets.current = new Set(
+      [...attached].filter((target) => !waiting.has(target)),
+    );
     if (newcomers.length === 0) {
       return;
     }
@@ -353,7 +369,7 @@ export function BrowserTabs({
     // browses among the window's own tabs.
     const arriving = newcomers.map((tab) => ({
       ...tab,
-      group: groupOfTask(tab.taskId),
+      group: threadOfTask.get(tab.taskId),
       kind: "page" as const,
     }));
     setAllTabs((current) => {
@@ -391,10 +407,10 @@ export function BrowserTabs({
   }, [
     attached,
     everyTabId,
-    groupOfTask,
     setAllTabs,
     setPaneOpenByGroup,
     taskId,
+    threadOfTask,
   ]);
 
   // Titles, addresses and icons come off the guests as the pages announce
@@ -802,9 +818,12 @@ export function BrowserTabs({
         if (!url) {
           return;
         }
-        // The window's own tabs are the ones a task can be handed; a task's
-        // tab is already that task's.
-        const own = all.filter((tab) => !tab.taskId);
+        // The tabs a task can be handed: the group on screen's own, since a
+        // note is written for the thread that is up and another thread's tab
+        // is that thread's; a task's tab is already that task's.
+        const own = all.filter(
+          (tab) => tab.group === latest.current.group && !tab.taskId,
+        );
         const base: PageContext = {
           ...(current.taskId ? {} : { tab: current.id }),
           tabs: own.map((tab) => ({

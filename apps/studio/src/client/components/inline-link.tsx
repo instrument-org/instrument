@@ -18,7 +18,6 @@ import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
-import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { type ReactNode, useState } from "react";
 
 import { EmailLink } from "./email-link";
@@ -27,6 +26,7 @@ import { FAVICON_SURFACE_CLASS_NAME } from "./favicon";
 import { AppIcon } from "./orchestrator/app-icon";
 import { useAppsBySlug } from "./orchestrator/apps-by-slug";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { InstrumentGlyph } from "./wordmark";
 
 /**
  * A chip drawn inside a sentence: a small icon, then a short label naming what
@@ -228,8 +228,10 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     case "skill": {
       return <GraduationCapIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
+    // A task wears the app's own mark, the way the tab's location row draws
+    // one: a task is the app at work rather than a thing it holds.
     case "task": {
-      return <ListChecksIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+      return <InstrumentGlyph className="size-3 shrink-0 text-brand-600" />;
     }
     case "thread": {
       return <ChatTeardropTextIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;

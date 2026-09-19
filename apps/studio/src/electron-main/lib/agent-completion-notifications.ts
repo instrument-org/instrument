@@ -26,6 +26,8 @@ const MAX_NOTIFICATION_BODY_LENGTH = 200;
 // handlers stay alive.
 const liveNotifications = new Set<Notification>();
 
+type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
+
 export function shouldShowAgentCompletionNotification({
   isAppWindowFocused,
   isRootSession,
@@ -203,42 +205,6 @@ export function startAgentCompletionNotifications({
   void subscribe();
 }
 
-function canShowAgentCompletionNotification({
-  isRootSession,
-}: {
-  isRootSession: boolean;
-}) {
-  const mainWindow = getMainWindow();
-  return shouldShowAgentCompletionNotification({
-    isAppWindowFocused: BrowserWindow.getFocusedWindow() !== null,
-    isRootSession,
-    isSupported: Notification.isSupported(),
-    mainWindowAvailable: Boolean(mainWindow && !mainWindow.isDestroyed()),
-    mode: getPreferencesStore().get("agentCompletionNotifications"),
-  });
-}
-
-type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
-
-// Reduces the last assistant message to a short plain-text body. Notifications
-// render a couple of lines, so collapse whitespace and truncate.
-function latestAssistantText(messages: Messages): string | undefined {
-  const latest = messages.findLast((message) => message.role === "assistant");
-  return latest ? bodyOf([latest]) : undefined;
-}
-
-/**
- * What a thread's turn said: every assistant message since the last thing
- * that woke it, since a turn is one message per step and the words can sit
- * on a step before the last. Nothing when the turn only acted.
- */
-function latestTurnText(messages: Messages): string | undefined {
-  const turnStart = messages.findLastIndex(
-    (message) => message.role === "user",
-  );
-  return bodyOf(messages.slice(turnStart + 1));
-}
-
 function bodyOf(messages: Messages): string | undefined {
   const raw = messages
     .filter((message) => message.role === "assistant")
@@ -262,6 +228,40 @@ function bodyOf(messages: Messages): string | undefined {
   return text.length > MAX_NOTIFICATION_BODY_LENGTH
     ? `${text.slice(0, MAX_NOTIFICATION_BODY_LENGTH).trimEnd()}…`
     : text;
+}
+
+function canShowAgentCompletionNotification({
+  isRootSession,
+}: {
+  isRootSession: boolean;
+}) {
+  const mainWindow = getMainWindow();
+  return shouldShowAgentCompletionNotification({
+    isAppWindowFocused: BrowserWindow.getFocusedWindow() !== null,
+    isRootSession,
+    isSupported: Notification.isSupported(),
+    mainWindowAvailable: Boolean(mainWindow && !mainWindow.isDestroyed()),
+    mode: getPreferencesStore().get("agentCompletionNotifications"),
+  });
+}
+
+// Reduces the last assistant message to a short plain-text body. Notifications
+// render a couple of lines, so collapse whitespace and truncate.
+function latestAssistantText(messages: Messages): string | undefined {
+  const latest = messages.findLast((message) => message.role === "assistant");
+  return latest ? bodyOf([latest]) : undefined;
+}
+
+/**
+ * What a thread's turn said: every assistant message since the last thing
+ * that woke it, since a turn is one message per step and the words can sit
+ * on a step before the last. Nothing when the turn only acted.
+ */
+function latestTurnText(messages: Messages): string | undefined {
+  const turnStart = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+  return bodyOf(messages.slice(turnStart + 1));
 }
 
 function presentNotification({

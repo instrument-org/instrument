@@ -519,8 +519,8 @@ export function useWindowTabs() {
     showThread,
     step,
     /** The tab a group has up, or would come on screen at. */
-    tabUpIn,
     stepVisit,
+    tabUpIn,
     /** The tabs of the group on screen, in strip order. */
     tabs,
   };

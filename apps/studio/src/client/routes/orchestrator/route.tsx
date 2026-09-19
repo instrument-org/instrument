@@ -553,11 +553,11 @@ function OrchestratorLayout() {
     { group: into, newTab = false, show = false }: OpenOptions = {},
   ) => {
     if (into !== undefined && into !== windowTabs.group) {
-      browser?.openOrFocus(url, { group: into, show });
+      const id = browser?.openOrFocus(url, { group: into, show });
       if (show) {
         setPaneOpen(into, true);
       }
-      return;
+      return id;
     }
     if (windowTabs.group === undefined) {
       // Nothing is on screen to open it in: a page belongs to a thread or a
@@ -572,8 +572,7 @@ function OrchestratorLayout() {
     // A tab of its own is asked for once per place: a page already open in
     // this group at that address comes forward rather than opening again.
     if (newTab && !isFreshNewTab) {
-      browser?.openOrFocus(url);
-      return;
+      return browser?.openOrFocus(url);
     }
     return browser?.open(
       url,

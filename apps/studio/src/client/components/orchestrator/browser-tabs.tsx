@@ -75,7 +75,8 @@ export interface BrowserTabsHandle {
    * takes that tab's place in the strip rather than arriving beside it, and
    * says which of the two it did.
    */
-  openOrFocus: (url: string, options?: OpenOptions) => "focused" | "opened";
+  /** Returns the tab the page is in: the site's tab it went to, or the one opened for it. */
+  openOrFocus: (url: string, options?: OpenOptions) => string;
   /** Reads the page on screen as it is at that moment; undefined while none is. */
   readPage: () => Promise<PageContext | undefined>;
 }
@@ -763,7 +764,7 @@ export function BrowserTabs({
               void webview.loadURL(url);
             }
           }
-          return "focused";
+          return onSite.id;
         }
         // A group waiting behind with its new tab up gets the page in that
         // tab, the way the group on screen does: the tab that was there to
@@ -779,7 +780,7 @@ export function BrowserTabs({
         if (options?.show) {
           setAllTabs((current) => selectTab(current, id));
         }
-        return "opened";
+        return id;
       },
       readPage: async () => {
         const { active: current, tabs: all } = latest.current;

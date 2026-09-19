@@ -502,7 +502,10 @@ export function ChatStream({
           message.metadata.error?.kind === "aborted");
       let heldBackRowId: StoreId.Part | undefined;
 
-      for (const [partIndex, part] of message.parts.entries()) {
+      for (const [partIndex, stored] of message.parts.entries()) {
+        // What is drawn for the part: the part itself, or the part with the
+        // words the turn already said taken off it.
+        let part = stored;
         if (isComposing && part.type === "text") {
           heldBackRowId ??= part.metadata.id;
           continue;
@@ -514,8 +517,15 @@ export function ChatStream({
         ) {
           const said = part.text.trim();
           if (said !== "") {
-            if (said === lastSaidInTurn) {
-              continue;
+            if (lastSaidInTurn !== undefined && said.startsWith(lastSaidInTurn)) {
+              // The line again, on its own or with something after it (a
+              // files fence, once the file exists): the line stands where it
+              // was, and only what follows it is new.
+              const rest = said.slice(lastSaidInTurn.length).trim();
+              if (rest === "") {
+                continue;
+              }
+              part = { ...part, text: rest };
             }
             lastSaidInTurn = said;
           }

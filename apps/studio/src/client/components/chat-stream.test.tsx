@@ -31,6 +31,23 @@ vi.mock("@/client/components/theme-provider", () => ({
   }),
 }));
 
+// The grid a ```files fence resolves to is a router-bound tree of preview
+// cards with its own tests; what is asked here is only that the fence reached
+// it.
+vi.mock("./files-grid", () => ({
+  FilesGrid: ({
+    files,
+  }: {
+    files: { hostPath: string; taskFile?: { filePath: string } }[];
+  }) => (
+    <ul>
+      {files.map((file) => (
+        <li key={file.hostPath}>{file.taskFile?.filePath}</li>
+      ))}
+    </ul>
+  ),
+}));
+
 // What `GROUP_INDENT` puts on a row drawn inside a group. Matched as a class
 // token rather than written `.pl-6.5`, which a selector parser reads as two
 // classes and finds nothing.
@@ -1123,6 +1140,30 @@ describe("ChatStream in the conversation, and a line said twice in one turn", ()
     );
 
     expect(screen.getAllByText("Rechecking the listing now.")).toHaveLength(2);
+  });
+
+  // The line again with the files fence after it, which is how a reply that
+  // linked its file after a command lands: the words are not drawn a second
+  // time, and the file is.
+  it("draws only what a repeated line adds after itself", () => {
+    const { container } = renderMessages(
+      [
+        userMessage("Check the listing"),
+        assistantMessage([prose("It is out of stock.")], {
+          finishedAt: new Date(1),
+        }),
+        assistantMessage(
+          [prose("It is out of stock.\n\n```files\nwork/listing.md\n```")],
+          { finishedAt: new Date(2) },
+        ),
+      ],
+      { presentation: "orchestrator" },
+    );
+
+    expect(screen.getAllByText("It is out of stock.")).toHaveLength(1);
+    // The grid stands in for the cards; the paths reach it through a lookup
+    // this environment has no answer for.
+    expect(container.querySelector("ul")).not.toBeNull();
   });
 
   it("keeps a line that differs from the one before it", () => {

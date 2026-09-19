@@ -80,7 +80,7 @@ export function usePopClosedTab() {
  */
 export function useWindowTabs() {
   const [state, setTabs] = useAtom(windowTabsAtom);
-  const { activeId, group, tabs: allTabs } = state;
+  const { activeByGroup, activeId, group, tabs: allTabs } = state;
   const setClosed = useSetAtom(closedTabsAtom);
   const tabs =
     group === undefined ? [] : allTabs.filter((tab) => tab.group === group);
@@ -194,11 +194,42 @@ export function useWindowTabs() {
       }
       return existing.id;
     }
+    // A group waiting behind with its new tab up is told where to go, the
+    // way the tab on screen is: the screen lands in that tab rather than
+    // beside it. The tab keeps its id, so what remembered it still finds it.
+    const fresh = key === group ? undefined : newTabUpIn(key);
+    if (fresh) {
+      setTabs((current) => ({
+        ...current,
+        tabs: current.tabs.map((tab) =>
+          tab.id === fresh.id
+            ? { ...tab, at: 0, future: [], href, isOpened, trail: [href] }
+            : tab,
+        ),
+      }));
+      if (show) {
+        select(fresh.id);
+      }
+      return fresh.id;
+    }
     const id = openScreen(href, { group: into, isOpened });
     if (show && id !== undefined) {
       select(id);
     }
     return id;
+  };
+
+  /**
+   * The new-tab page a group has up, when that is what it has up: the tab it
+   * last showed, or its first, which is the tab the group comes on screen at.
+   */
+  const newTabUpIn = (key: string | undefined): undefined | WindowTab => {
+    if (key === undefined) {
+      return undefined;
+    }
+    const own = allTabs.filter((tab) => tab.group === key);
+    const up = own.find((tab) => tab.id === activeByGroup?.[key]) ?? own[0];
+    return up && isHomeTab(up) ? up : undefined;
   };
 
   /**

@@ -44,7 +44,7 @@ import { useOrchestrator } from "./context";
 import { fileHref } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { stepTabVisit, visitInTab } from "./tab-history";
-import { selectTab } from "./window-tabs";
+import { isHomeTab, selectTab } from "./window-tabs";
 
 export interface BrowserPage {
   favicon?: string;
@@ -190,7 +190,7 @@ export function BrowserTabs({
   ref: Ref<BrowserTabsHandle>;
 }) {
   const { openScreen, taskId } = useOrchestrator();
-  const [{ activeId, group, tabs: allTabs }, setAllTabs] =
+  const [{ activeByGroup, activeId, group, tabs: allTabs }, setAllTabs] =
     useAtom(windowTabsAtom);
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab) => tab.kind === "page");
@@ -307,9 +307,9 @@ export function BrowserTabs({
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
-  const latest = useRef({ active, group, tabs });
+  const latest = useRef({ active, activeByGroup, allTabs, group, tabs });
   useEffect(() => {
-    latest.current = { active, group, tabs };
+    latest.current = { active, activeByGroup, allTabs, group, tabs };
   });
 
   // A task the conversation started browses here too: its guest is mounted
@@ -613,6 +613,17 @@ export function BrowserTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePage?.favicon, activePage?.title, activePage?.url]);
 
+  /**
+   * The new-tab page a group has up, when that is what it has up: the tab
+   * it last showed, or its first, the way the group comes on screen.
+   */
+  const newTabUpIn = (key: string): undefined | WindowTab => {
+    const own = latest.current.allTabs.filter((tab) => tab.group === key);
+    const remembered = latest.current.activeByGroup?.[key];
+    const up = own.find((tab) => tab.id === remembered) ?? own[0];
+    return up && isHomeTab(up) ? up : undefined;
+  };
+
   const openTab = (
     url?: string,
     { group: into, replacing }: OpenOptions = {},
@@ -633,9 +644,17 @@ export function BrowserTabs({
           ...page,
           kind: "page",
         });
+        // On screen, the page is what is up; in a group waiting behind, it
+        // is what that group has up when it next comes on screen.
+        const waitingIn =
+          replacing.group === current.group ? undefined : replacing.group;
         return {
           ...current,
-          activeId: id,
+          ...(waitingIn === undefined
+            ? { activeId: id }
+            : {
+                activeByGroup: { ...current.activeByGroup, [waitingIn]: id },
+              }),
           tabs:
             index === -1
               ? [...current.tabs, tab]
@@ -746,7 +765,17 @@ export function BrowserTabs({
           }
           return "focused";
         }
-        const id = openTab(url, options);
+        // A group waiting behind with its new tab up gets the page in that
+        // tab, the way the group on screen does: the tab that was there to
+        // be told where to go is told, rather than left beside the page.
+        const fresh =
+          key === undefined || key === latest.current.group
+            ? undefined
+            : newTabUpIn(key);
+        const id = openTab(
+          url,
+          fresh ? { ...options, replacing: fresh } : options,
+        );
         if (options?.show) {
           setAllTabs((current) => selectTab(current, id));
         }

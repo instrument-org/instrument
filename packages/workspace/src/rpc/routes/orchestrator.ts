@@ -5,6 +5,13 @@ import { z } from "zod";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { getTask } from "../../lib/get-tasks";
 import {
+  ensureMemoryDir,
+  forgetMemory,
+  listMemories,
+  memoryDir,
+  MemorySchema,
+} from "../../lib/memory/store";
+import {
   isWorking,
   latestStep,
   orchestratorActivity,
@@ -440,6 +447,41 @@ const open = base
     }
   });
 
+const MemoryFolderSchema = z.object({
+  /** Where the files are, for a viewer that opens the folder. */
+  dir: z.string(),
+  memories: MemorySchema.array(),
+});
+
+/** What the conversation remembers about the user: the folder, and every memory in it newest first. */
+async function readMemoryFolder() {
+  const dir = memoryDir();
+  await ensureMemoryDir(dir);
+  return { dir, memories: await listMemories(dir) };
+}
+
+const listMemoryRoute = base
+  .output(MemoryFolderSchema)
+  .handler(() => readMemoryFolder());
+
+/** The same folder, re-read whenever a memory is saved, corrected, or forgotten. */
+const liveListMemoryRoute = base
+  .output(eventIterator(MemoryFolderSchema))
+  .handler(async function* ({ signal }) {
+    const changes = publisher.subscribe("memory.changed", { signal });
+    yield await readMemoryFolder();
+    for await (const _change of changes) {
+      yield await readMemoryFolder();
+    }
+  });
+
+/** Drops one memory by name. Nothing happens when there is none by it. */
+const forgetMemoryRoute = base
+  .input(z.object({ name: z.string() }))
+  .handler(async ({ input }) => {
+    await forgetMemory(memoryDir(), input.name);
+  });
+
 /** The window's answer to an `open`: the tab it made for the page, by the id a task takes. */
 const opened = base
   .input(
@@ -463,6 +505,11 @@ export const orchestrator = {
   childStatus,
   ensure,
   events: { open },
+  memory: {
+    forget: forgetMemoryRoute,
+    list: listMemoryRoute,
+    live: { list: liveListMemoryRoute },
+  },
   opened,
   setActiveTab,
   threads: {

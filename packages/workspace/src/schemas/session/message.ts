@@ -27,6 +27,7 @@ import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
+import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { outputFormatModelNote } from "../../lib/output-format-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
@@ -294,6 +295,8 @@ export namespace SessionMessage {
     let previousViewContextNote: string | undefined;
     // The thread's topics, told again only when they changed.
     let previousThreadTopicsNote: string | undefined;
+    // What the agent remembers, told again only when it changed.
+    let previousMemoryNote: string | undefined;
     // A max-steps stop is recorded on the assistant message where the run
     // halted, but the note belongs on the user turn that resumes it (injection
     // only runs for user messages). Carry it forward to the next user message.
@@ -646,6 +649,21 @@ export namespace SessionMessage {
             injectedParts.push({ text: note, type: "text" });
           }
           previousThreadTopicsNote = note;
+        }
+
+        const memoryPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-memory";
+          } => part.type === "data-memory",
+        );
+        if (memoryPart) {
+          const note = memoryModelNote(memoryPart.data);
+          if (note !== previousMemoryNote) {
+            injectedParts.push({ text: note, type: "text" });
+          }
+          previousMemoryNote = note;
         }
 
         if (pendingMaxStepsNote) {

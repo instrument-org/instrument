@@ -31,6 +31,10 @@ export const TASKS_DIR_NAME = "tasks";
 // One folder per app at the workspace root, mounted at /apps for the
 // orchestrator. Secrets never live here; the app's stores hold them.
 export const APPS_DIR_NAME = "apps";
+// One Markdown file per memory at the workspace root: what the conversation's
+// agent keeps about the user across every thread, readable and editable in a
+// file manager.
+export const MEMORY_DIR_NAME = "memory";
 // Projects are real folders at the workspace root, named by the (sanitized)
 // project name. Their identity + instructions live inside each folder.
 export const PROJECTS_DIR_NAME = "projects";

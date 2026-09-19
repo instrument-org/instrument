@@ -151,6 +151,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-maxSteps": {
       return `<data-maxSteps maxStepCount="${part.data.maxStepCount}" />`;
     }
+    case "data-memory": {
+      return `<data-memory>${part.data.memories.map((memory) => memory.name).join(",")}</data-memory>`;
+    }
     case "data-messageGap": {
       return `<data-messageGap minutes="${part.data.minutes}" />`;
     }

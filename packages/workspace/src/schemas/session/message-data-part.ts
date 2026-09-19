@@ -20,7 +20,7 @@ export namespace SessionMessageDataPart {
    *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
    *   part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
-   *   `browserStatus`, `paneTabs`, `threadTopics`, `viewContext`.
+   *   `browserStatus`, `memory`, `paneTabs`, `threadTopics`, `viewContext`.
    *   These are the ones that will restate an unchanged fact on every single
    *   turn unless their producer compares against what this session was last
    *   told. `createBrowserStatusPart` and `createPaneTabsPart` each do, by
@@ -46,6 +46,7 @@ export namespace SessionMessageDataPart {
     "skillChanges",
     "skillMentions",
     "maxSteps",
+    "memory",
     "messageGap",
     "modelChange",
     "outputFormat",
@@ -685,6 +686,31 @@ export namespace SessionMessageDataPart {
   >;
 
   /**
+   * What the conversation's agent remembers about the user, on a thread's
+   * user message when memory changed since the thread was last told: each
+   * memory's first line, the thread it was learned in, and when. State
+   * cadence: attached only on a change, and rendered only when it differs
+   * from the note before it. `sentAt` is what "when" is measured from.
+   */
+  const MemoryDataPartSchema = z.object({
+    memories: z.array(
+      z.object({
+        at: z.number(),
+        /** The title of the thread it was learned in, when a thread saved it. */
+        from: z.string().optional(),
+        name: z.string(),
+        /** The first line, cut to a note's width; the whole is read by name. */
+        text: z.string(),
+      }),
+    ),
+    /** How many memories the note left out past its ceiling. */
+    more: z.number().int().nonnegative().default(0),
+    sentAt: z.number(),
+  });
+
+  export type MemoryDataPart = z.output<typeof MemoryDataPartSchema>;
+
+  /**
    * The topics the thread carries, on every user message sent in a thread
    * that has any: each one's name, mark, and the line saying what goes
    * there. State cadence: rendered only when it differs from the note before
@@ -807,6 +833,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
+    [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.outputFormat]: OutputFormatDataPartSchema,

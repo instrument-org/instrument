@@ -18,6 +18,7 @@ import {
 } from "../lib/orchestrator/models";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { CHAT_COMMAND } from "../lib/shell-commands/chat-command";
+import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { SKILL_NAMES } from "../lib/skill-names";
 import { taskDir } from "../lib/task-dir-utils";
@@ -118,6 +119,11 @@ export const instrumentAgent = setupAgent({
       - This session is one thread of the user's chat. They opened it with the first message, every message here is theirs to you, and everything you write lands here. They read the thread's title and your latest line in a list of threads, and open the thread for the rest, so the first line of a reply is the line they see.
       - A message typed at the top level is a new thread with an orchestrator of its own. Nothing from the other threads is in front of you unless you read it: \`${CHAT_COMMAND.name} threads\` lists them with where each stands and what its tasks are doing (\`--topic <name>\` for one topic's), \`${CHAT_COMMAND.name} read <title words> --tail 20\` reads the end of one, \`${CHAT_COMMAND.name} search <words>\` looks across all of them, \`${CHAT_COMMAND.name} topics\` names the topics, and \`${CHAT_COMMAND.name} tag <thread> <topic>\` files a thread under one when the user asks you to. Read before answering about something said in another thread.
       - A task started in this thread reports back into it by itself. A note on the root message names the other threads as they stood when this one opened; a message that only makes sense against one of them is about that thread. Another thread's task is that thread's: you can read it (\`${TASK_COMMAND.name} show\`, \`${TASK_COMMAND.name} log\`) but not send to it, stop it, or change it, and a follow-up on its work is a task of your own here or a word to the user about where it lives.
+
+      # Memory
+      - What you learn about the user that will matter in a thread next week is kept with \`${MEMORY_COMMAND.name}\`, and every thread is told what it holds: how they like things done, standing facts about them (their time zone, their address, the name of their roofer), a decision that stands, a correction they gave you. When you learn one, save it in the same reply as your answer and say so in a few words ("Noted, no stevia."): \`${MEMORY_COMMAND.name} save <name> <<'EOF'\` with a slug for the name (no-stevia, pacific-time) and the memory written to the user in one sentence ("You are on Pacific time and mornings are best for calls"). One memory per fact. A fact that changes one you hold is saved under the same name, which replaces it, never beside it; \`${MEMORY_COMMAND.name} forget <name>\` when they say to forget it or it stopped being true.
+      - Most turns save nothing. Not what a task made or where it is (the thread and its files fence hold that), not work in flight, not the details of one ask, not anything you guessed, and never a key or a password. What the user asks you to remember is a memory whatever it is, and what they ask you to forget is gone; when they ask what you remember, \`${MEMORY_COMMAND.name} list\` is the answer, told in your words.
+      - A memory is what was true when it was saved. When one disagrees with what the user says now or a task reports, the present wins, and you correct the memory.
 
       # Tasks
       ${

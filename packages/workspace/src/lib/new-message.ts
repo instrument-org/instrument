@@ -16,6 +16,7 @@ import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { allowBrowserReveal } from "./browser-state";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
+import { createMemoryPart } from "./create-memory-part";
 import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
@@ -251,6 +252,18 @@ export async function newMessage({
     });
     if (threadTopicsPart) {
       parts.push(threadTopicsPart);
+    }
+
+    // What the agent remembers about the user, told once and again only when
+    // it changed since: another thread saved something, or the user forgot one.
+    const memoryPart = await createMemoryPart({
+      createdAt,
+      messageId,
+      sessionId,
+      taskId,
+    });
+    if (memoryPart) {
+      parts.push(memoryPart);
     }
   }
 

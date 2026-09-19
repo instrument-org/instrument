@@ -43,6 +43,11 @@ export const publisher = new EventPublisher<{
     /** The guest the command went to: a task's own, or a tab of the window's it was handed. */
     targetId: BrowserTargetId;
   };
+  /**
+   * A memory was saved, corrected, or forgotten. Carries no payload because
+   * every listener re-reads the folder.
+   */
+  "memory.changed": null;
   "message.removed": {
     id: TaskId;
     messageId: StoreId.Message;

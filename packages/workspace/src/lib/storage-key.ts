@@ -50,6 +50,16 @@ export namespace StorageKey {
     return StoreId.SessionSchema.parse(sessionKey.split(SEPARATOR).at(-1));
   }
 
+  // Per-session record of the pane tabs the agent was last told about, so a
+  // turn only carries the list when it has changed. Keyed by session because
+  // what a given conversation has been told is a fact about that conversation.
+  // The revision of memory a session was last told, so a turn only carries the
+  // list when something changed since. Keyed by session for the same reason
+  // the pane report is.
+  export function memoryReported(sessionId: StoreId.Session) {
+    return ["memory-reported", sessionId].join(SEPARATOR);
+  }
+
   export function message(
     sessionId: StoreId.Session,
     messageId: StoreId.Message,
@@ -61,9 +71,6 @@ export namespace StorageKey {
     return [MESSAGES_KEY, sessionId].join(SEPARATOR);
   }
 
-  // Per-session record of the pane tabs the agent was last told about, so a
-  // turn only carries the list when it has changed. Keyed by session because
-  // what a given conversation has been told is a fact about that conversation.
   export function paneTabsReported(sessionId: StoreId.Session) {
     return ["pane-tabs-reported", sessionId].join(SEPARATOR);
   }

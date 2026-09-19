@@ -155,6 +155,25 @@ describe("memory", () => {
     expect(noText.stderr).toMatch(/^memory: save: the memory is required/);
   });
 
+  // The memory folder sits inside the workspace, and the workspace inside the
+  // user's files: a name that walks out of the folder is answered as no
+  // memory, and the file it would have reached stays.
+  it("neither shows nor forgets a file outside the memory folder", async () => {
+    await fs.writeFile(path.join(root, "notes.md"), "Not a memory.\n");
+
+    const shown = await run(["show", "../notes"]);
+    expect(shown.exitCode).toBe(1);
+    expect(shown.stderr).toBe(
+      'memory: no memory named "../notes". memory list names them.\n',
+    );
+
+    const forgotten = await run(["forget", "../notes"]);
+    expect(forgotten.exitCode).toBe(1);
+    expect(await fs.readFile(path.join(root, "notes.md"), "utf8")).toBe(
+      "Not a memory.\n",
+    );
+  });
+
   it("refuses a subcommand it does not have", async () => {
     const result = await run(["remember", "x"]);
 

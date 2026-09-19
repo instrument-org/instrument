@@ -153,11 +153,18 @@ export function memoryDigests(memories: Memory[]): Record<string, string> {
   );
 }
 
-/** One memory by name, or nothing when there is no such file. */
+/**
+ * One memory by name, or nothing when there is no such file. A name the
+ * schema refuses is no memory either, before it reaches the path: the name
+ * is joined onto the folder, and only a slug stays inside it.
+ */
 export async function readMemory(
   dir: AbsolutePath,
   name: string,
 ): Promise<Memory | undefined> {
+  if (!MemoryNameSchema.safeParse(name).success) {
+    return undefined;
+  }
   return readMemoryFile(dir, `${name}${FILE_EXTENSION}`);
 }
 

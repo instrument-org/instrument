@@ -181,6 +181,23 @@ describe("forgetMemories", () => {
     const left = await listMemories(dir);
     expect(left).toHaveLength(1);
   });
+
+  // The name is joined onto the folder, so a name that is not a slug is
+  // refused before it becomes a path: `..` would otherwise reach out of the
+  // folder to any Markdown file, and forget would delete it.
+  it("refuses a name that would read or delete outside the folder", async () => {
+    const outside = path.join(dir, "..", `outside-${path.basename(dir)}.md`);
+    await fs.writeFile(outside, "Not a memory.\n");
+    try {
+      const escaped = `../outside-${path.basename(dir)}`;
+      expect(await readMemory(dir, escaped)).toBeUndefined();
+      expect(await forgetMemories(dir, [escaped])).toEqual([]);
+      expect(await forgetMemory(dir, escaped)).toBeUndefined();
+      expect(await fs.readFile(outside, "utf8")).toBe("Not a memory.\n");
+    } finally {
+      await fs.rm(outside, { force: true });
+    }
+  });
 });
 
 describe("memoryDigests", () => {

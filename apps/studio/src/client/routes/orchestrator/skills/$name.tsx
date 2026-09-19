@@ -71,11 +71,16 @@ function SkillRoute() {
     <div className="@container/skill flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-10">
       <div className="max-w-5xl">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-mono text-xl font-semibold">
-            {skill.userInvocable ? `/${skill.name}` : skill.name}
-          </h1>
+          <h1 className="text-xl font-semibold">{skill.title}</h1>
           <SkillBadges className="flex flex-wrap gap-2" skill={skill} />
         </div>
+        {/* The name a task loads it by, whole: the title above is for
+            people, and this is the address. */}
+        <p className="mt-1 font-mono text-sm text-muted-foreground">
+          {skill.userInvocable
+            ? `/${skill.qualifiedName}`
+            : skill.qualifiedName}
+        </p>
         <p className="mt-2 max-w-lg text-sm/relaxed text-muted-foreground">
           {skill.description}
         </p>

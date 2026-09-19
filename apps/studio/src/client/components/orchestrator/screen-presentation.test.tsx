@@ -45,14 +45,11 @@ describe("screenPresentation", () => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });
 
-  // The router writes a qualified name's colon as `%3A`; the tab reads the name.
+  // The router writes a qualified name's colon as `%3A`; the tab reads the
+  // name after the source's prefix.
   it.each([
     ["a plain name", "/orchestrator/skills/create-page", "create-page"],
-    [
-      "a qualified name",
-      "/orchestrator/skills/workspace%3Atdd",
-      "workspace:tdd",
-    ],
+    ["a qualified name", "/orchestrator/skills/workspace%3Atdd", "tdd"],
   ])("names a skill tab by %s", (_, href, title) => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });

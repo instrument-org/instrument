@@ -188,17 +188,20 @@ function folderTitle(search: URLSearchParams) {
 }
 
 /**
- * The skill a screen address stands on, by the name the reader has for it.
- * The router writes the colon of a qualified name (`workspace:tdd`) into the
- * address as `%3A`, which is not a name anyone should read.
+ * The skill a screen address stands on, by the name the reader has for it:
+ * the part after the source's prefix, since `workspace:tdd` is an address
+ * for a task to load and `tdd` is what the tab is called. The router writes
+ * that colon into the address as `%3A`, so the segment is decoded first.
  */
 function skillNameOf(pathname: string) {
   const segment = pathname.slice(`${SKILLS_HREF}/`.length);
+  let name = segment;
   try {
-    return decodeURIComponent(segment);
+    name = decodeURIComponent(segment);
   } catch {
-    return segment;
+    // Not valid encoding, so the segment is the name as written.
   }
+  return name.slice(name.lastIndexOf(":") + 1);
 }
 
 /** The thread a screen address stands on, by the title the window has for it. */

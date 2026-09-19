@@ -30,8 +30,12 @@ export function AppIcon({
       : size === "sm"
         ? "size-4 rounded-sm"
         : "size-9 rounded-lg";
-  const glyph =
-    size === "lg" ? "size-7" : size === "sm" ? "size-3.5" : "size-5";
+  // The icon is the tile rather than a mark sitting in the middle of one. A
+  // service's own icon is square and usually carries its own background, so
+  // one drawn small inside a rounded plate reads as two icons: a sharp square
+  // floating in a soft one. Filling the box means the parent's rounding and
+  // its clip are what shape it, and the plate below only ever shows through
+  // an icon that brought no background of its own.
   const label = name ?? hostOf(site);
   const initial = label ? (
     <span
@@ -56,7 +60,7 @@ export function AppIcon({
     >
       {site ? (
         <Favicon
-          className={cn("rounded-none border-0 ring-0", glyph)}
+          className="size-full rounded-none border-0 bg-transparent ring-0"
           fallback={initial}
           url={site}
         />

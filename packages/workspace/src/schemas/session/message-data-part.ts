@@ -682,6 +682,8 @@ export namespace SessionMessageDataPart {
     threads: z.array(
       z.object({
         at: z.number(),
+        /** The session id, which a link to the thread carries; absent on a note stored before the agent could link one. */
+        id: z.string().optional(),
         latest: z.string().optional(),
         title: z.string(),
         /** Topic names, since the agent reads names and never ids. */

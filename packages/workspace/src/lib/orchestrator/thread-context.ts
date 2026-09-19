@@ -10,8 +10,8 @@ const THREADS_IN_CONTEXT = 12;
 
 /**
  * What a new thread is told about the others: the ones that moved most
- * recently, newest first, each by its title, its topic names, its latest
- * line, and when it last moved. Read at the moment the thread opens and
+ * recently, newest first, each by its id, its title, its topic names, its
+ * latest line, and when it last moved. Read at the moment the thread opens and
  * stored on its root, so the note is the same every time the transcript is
  * rebuilt.
  */
@@ -29,6 +29,7 @@ export async function threadContextFor(
       .slice(0, THREADS_IN_CONTEXT)
       .map((thread) => ({
         at: thread.updatedAt,
+        id: thread.id,
         ...(thread.latest ? { latest: thread.latest.text } : {}),
         title: thread.title,
         topics: thread.topics.flatMap((id) => {

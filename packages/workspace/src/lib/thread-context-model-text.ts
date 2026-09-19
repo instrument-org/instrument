@@ -30,12 +30,15 @@ export function threadContextModelNote(
       const topics =
         thread.topics.length > 0 ? ` [${thread.topics.join(", ")}]` : "";
       const latest = thread.latest ? ` · ${thread.latest}` : "";
-      return `- ${when} · "${thread.title}"${topics}${latest}`;
+      // The id leads the row where the note has one, since it is what a link
+      // to the thread carries and what `chat read` takes without guessing.
+      const id = thread.id ? `${thread.id} · ` : "";
+      return `- ${id}${when} · "${thread.title}"${topics}${latest}`;
     })
     .join("\n");
   return systemNote`
-    Other threads in the user's chat, newest first, each as when it last moved, its title, its topics, and its latest line:
+    Other threads in the user's chat, newest first, each by its id, when it last moved, its title, its topics, and its latest line:
     ${rows}
-    A message here that only makes sense against one of them is about that thread: \`chat read <title words>\` reads it before you answer.
+    A message here that only makes sense against one of them is about that thread: \`chat read <id or title words>\` reads it before you answer.
   `;
 }

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import {
+  forgetMemories,
   forgetMemory,
   listMemories,
   memoryHeadline,
@@ -157,6 +158,28 @@ describe("forgetMemory", () => {
     expect(forgotten?.text).toBe("Your roofer is Dave.");
     expect(await listMemories(dir)).toEqual([]);
     expect(await forgetMemory(dir, "roofer")).toBeUndefined();
+  });
+});
+
+describe("forgetMemories", () => {
+  it("drops several at once and says what they held", async () => {
+    await saveMemory(dir, { name: "one", text: "One." });
+    await saveMemory(dir, { name: "two", text: "Two." });
+    await saveMemory(dir, { name: "three", text: "Three." });
+
+    const forgotten = await forgetMemories(dir, ["one", "three", "missing"]);
+
+    expect(forgotten.map((memory) => memory.name)).toEqual(["one", "three"]);
+    const left = await listMemories(dir);
+    expect(left.map((memory) => memory.name)).toEqual(["two"]);
+  });
+
+  it("does nothing for names it does not hold", async () => {
+    await saveMemory(dir, { name: "one", text: "One." });
+
+    expect(await forgetMemories(dir, ["nope"])).toEqual([]);
+    const left = await listMemories(dir);
+    expect(left).toHaveLength(1);
   });
 });
 

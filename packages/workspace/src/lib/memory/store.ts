@@ -68,17 +68,36 @@ export async function ensureMemoryDir(dir: AbsolutePath): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
-/** Deletes a memory's file. Returns what it held, or nothing when there was none. */
+/**
+ * Deletes the named memories' files and hands back what they held. Names with
+ * no file are simply absent from the answer.
+ *
+ * Several at once rather than one at a time, because forgetting a dozen is
+ * one decision a person made once: a call each would publish a change each,
+ * and the list on screen would redraw its way down to the answer.
+ */
+export async function forgetMemories(
+  dir: AbsolutePath,
+  names: readonly string[],
+): Promise<Memory[]> {
+  const found = await Promise.all(names.map((name) => readMemory(dir, name)));
+  const memories = found.flatMap((memory) => (memory ? [memory] : []));
+  if (memories.length === 0) {
+    return [];
+  }
+  await Promise.all(
+    memories.map((memory) => fs.rm(memory.path, { force: true })),
+  );
+  publisher.publish("memory.changed", null);
+  return memories;
+}
+
+/** Deletes one memory's file. Returns what it held, or nothing when there was none. */
 export async function forgetMemory(
   dir: AbsolutePath,
   name: string,
 ): Promise<Memory | undefined> {
-  const memory = await readMemory(dir, name);
-  if (!memory) {
-    return undefined;
-  }
-  await fs.rm(memory.path, { force: true });
-  publisher.publish("memory.changed", null);
+  const [memory] = await forgetMemories(dir, [name]);
   return memory;
 }
 

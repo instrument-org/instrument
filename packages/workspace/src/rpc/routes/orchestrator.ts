@@ -10,7 +10,7 @@ import {
 } from "../../lib/memory/sources";
 import {
   ensureMemoryDir,
-  forgetMemory,
+  forgetMemories,
   listMemories,
   memoryDir,
   MemorySchema,
@@ -494,9 +494,9 @@ const listMemorySourcesRoute = base
 
 /** Drops one memory by name. Nothing happens when there is none by it. */
 const forgetMemoryRoute = base
-  .input(z.object({ name: z.string() }))
+  .input(z.object({ names: z.array(z.string()).min(1) }))
   .handler(async ({ input }) => {
-    await forgetMemory(memoryDir(), input.name);
+    await forgetMemories(memoryDir(), input.names);
   });
 
 /** The window's answer to an `open`: the tab it made for the page, by the id a task takes. */

@@ -27,6 +27,9 @@ const MAX_NOTIFICATION_BODY_LENGTH = 200;
 const liveNotifications = new Set<Notification>();
 
 type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
+type Thread = InferRouterOutputs<
+  typeof workspaceRouter
+>["orchestrator"]["threads"]["list"][number];
 
 export function shouldShowAgentCompletionNotification({
   isAppWindowFocused,
@@ -132,13 +135,21 @@ export function startAgentCompletionNotifications({
         .scope("agentCompletionNotifications")
         .warn("Failed to read agent response for notification", error);
     }
-    // A thread's turn that said nothing (a task steered, a note read) is not
-    // a reply, and the user was not waiting on it.
-    if (isThread && body === undefined) {
-      return;
-    }
     if (isThread) {
-      taskTitle = (await threadTitle({ context, id, sessionId })) ?? taskTitle;
+      // A thread's turn that said nothing (a task steered, a note read) is not
+      // a reply, and the user was not waiting on it.
+      if (body === undefined) {
+        return;
+      }
+      const thread = await threadOf({ context, id, sessionId });
+      // A reply while a task of the thread's is still at work is a step on
+      // the way: the line said before a hand-off, a task sent back. The news
+      // is the reply that leaves the thread at rest, with nothing of its own
+      // running and the next move the user's.
+      if (thread?.state === "working") {
+        return;
+      }
+      taskTitle = thread?.title ?? taskTitle;
     }
 
     // Reading the task is asynchronous, so the window may have regained
@@ -156,8 +167,12 @@ export function startAgentCompletionNotifications({
     });
   }
 
-  /** What the thread is called in the inbox, which is what its reply is filed under. */
-  async function threadTitle({
+  /**
+   * The thread as the inbox lists it: what its reply is filed under, and
+   * whether it is still at work, read once its own turn has ended so only its
+   * tasks count.
+   */
+  async function threadOf({
     context,
     id,
     sessionId,
@@ -168,14 +183,14 @@ export function startAgentCompletionNotifications({
     };
     id: TaskId;
     sessionId: StoreId.Session;
-  }): Promise<string | undefined> {
+  }): Promise<Thread | undefined> {
     try {
       const threads = await call(
         workspaceRouter.orchestrator.threads.list,
         { id },
         { context },
       );
-      return threads.find((thread) => thread.id === sessionId)?.title;
+      return threads.find((thread) => thread.id === sessionId);
     } catch (error) {
       logger
         .scope("agentCompletionNotifications")

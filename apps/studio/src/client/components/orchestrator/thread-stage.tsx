@@ -213,7 +213,9 @@ function ThreadScreen({
                   composerPlaceholder="Reply in thread"
                   // A key of the thread's own: the task's stored draft is the
                   // top-level field's, and a reply typed here is not that.
-                  draftKey={{ id: sessionId, scope: "transient" }}
+                  // Kept past this screen's unmount, so the row in the inbox
+                  // can say the thread holds a draft while it does.
+                  draftKey={{ scope: "thread", sessionId }}
                   navigateOnSend={false}
                   presentation="orchestrator"
                   promptDraft={state.data.promptDraft ?? ""}
@@ -221,7 +223,9 @@ function ThreadScreen({
                   selectedSessionId={sessionId}
                   sendContext={sendContext}
                   task={task.data}
-                  transcriptTrailing={isWorkingElsewhere ? <WorkingRow /> : null}
+                  transcriptTrailing={
+                    isWorkingElsewhere ? <WorkingRow /> : null
+                  }
                 />
               </TaskSessionProvider>
             </PageOpenContext>

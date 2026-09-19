@@ -2,6 +2,7 @@ import { type PromptEditorRef } from "@/client/components/prompt-editor";
 import { type TabId } from "@/shared/tabs";
 import {
   MAX_PROMPT_STORAGE_LENGTH,
+  type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
@@ -17,6 +18,10 @@ import { rpcClient } from "../rpc/client";
 //  - compose: the "new task" input on the new-tab / project pages, keyed by the
 //    owning tab so each tab composes independently. Ephemeral by design; a
 //    half-written new task isn't worth persisting across restarts.
+//  - thread: the reply in one thread of the orchestrator's, kept in memory for
+//    the window's life so a reply left half-typed is there on coming back,
+//    and so the inbox can say the thread has one. The threads share a task,
+//    whose stored draft is the top-level field's, so none of them writes it.
 //  - transient: a composer that starts from a prefill and is meant to be thrown
 //    away, like the one on a skill page. Nothing is shared or retained, so
 //    walking away from the surface loses the draft instead of carrying it to
@@ -24,7 +29,8 @@ import { rpcClient } from "../rpc/client";
 export type PromptDraftKey =
   | { id: string; scope: "transient" }
   | { scope: "compose"; tabId: TabId }
-  | { scope: "task"; taskId: TaskId };
+  | { scope: "task"; taskId: TaskId }
+  | { scope: "thread"; sessionId: StoreId.Session };
 
 /** One string per draft, for keying anything that has to re-key with the scope. */
 export function draftKeyString(key: PromptDraftKey): string {
@@ -34,6 +40,9 @@ export function draftKeyString(key: PromptDraftKey): string {
     }
     case "task": {
       return `task:${key.taskId}`;
+    }
+    case "thread": {
+      return `thread:${key.sessionId}`;
     }
     case "transient": {
       return `transient:${key.id}`;
@@ -116,6 +125,11 @@ const composeDraftFamily = atomFamily((_tabId: TabId) => atom(""));
 // Transient drafts, discarded by the composer when it unmounts or re-keys.
 const transientDraftFamily = atomFamily((_id: string) => atom(""));
 
+// Thread replies, one per thread, kept as long as the window is: read by the
+// thread's composer and by its row in the inbox alike, so the atom for a
+// thread is always the same one, whether or not its composer is mounted.
+const threadDraftFamily = atomFamily((_sessionId: StoreId.Session) => atom(""));
+
 // What the composer is editing, before any of it is written back.
 const taskDraftValueFamily = atomFamily((_taskId: TaskId) => atom(""));
 
@@ -143,6 +157,9 @@ export function promptDraftAtom(key: PromptDraftKey) {
     }
     case "task": {
       return taskDraftFamily(key.taskId);
+    }
+    case "thread": {
+      return threadDraftFamily(key.sessionId);
     }
     case "transient": {
       return transientDraftFamily(key.id);

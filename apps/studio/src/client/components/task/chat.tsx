@@ -103,7 +103,7 @@ export function TaskChat({
   /**
    * Which draft the composer edits. The task's own, stored with it, unless
    * this chat is one of several over the same task: a thread's composer takes
-   * a transient key of its own, or it would share the top-level field's words.
+   * a key of its own, or it would share the top-level field's words.
    */
   draftKey?: PromptDraftKey;
   isReplayActive?: boolean;

@@ -1,59 +1,65 @@
 import { THREADS_HREF } from "@/client/atoms/orchestrator";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { Favicon } from "@/client/components/favicon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OrchestratorContext } from "@/client/components/orchestrator/context";
-import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { RelativeTime } from "@/client/components/relative-time";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
-import { Card } from "@/client/components/ui/card";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { useContext, useState } from "react";
+import { debounce } from "radashi";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type Memory =
   RPCOutput["workspace"]["orchestrator"]["memory"]["list"]["memories"][number];
+/** How tall a memory is allowed to stand before it is folded. */
+const COLLAPSED_MAX_HEIGHT_PX = 60;
 
 /**
- * The chat tools worth asking what they already know about the user, each by
- * the name the user knows it as and the page their own account is behind.
+ * The chat tools worth asking what they already know about the user.
  *
- * Every one of them keeps something like memory, and every one of them will
- * say what it holds when asked in a chat, which is the one road that works
- * across all of them: their settings screens agree on nothing.
+ * These keep their memory on their own servers, so the only way to it is the
+ * one every one of them answers: ask in a chat. Their settings screens agree
+ * on nothing, and a page that moves breaks nothing here.
  */
-const MEMORY_SOURCES = [
-  { name: "ChatGPT", url: "https://chatgpt.com" },
-  { name: "Claude", url: "https://claude.ai" },
-  { name: "Gemini", url: "https://gemini.google.com" },
-  { name: "Grok", url: "https://grok.com" },
-  { name: "Copilot", url: "https://copilot.microsoft.com" },
-  { name: "Perplexity", url: "https://www.perplexity.ai" },
+const WEB_SOURCES = [
+  { name: "ChatGPT", site: "https://chatgpt.com" },
+  { name: "Claude", site: "https://claude.ai" },
+  { name: "Gemini", site: "https://gemini.google.com" },
+  { name: "Grok", site: "https://grok.com" },
+  { name: "Copilot", site: "https://copilot.microsoft.com" },
+  { name: "Perplexity", site: "https://www.perplexity.ai" },
 ] as const;
 
 /**
- * What the conversation remembers about the user, to read and to prune.
+ * What the conversation remembers about the user: where it comes from, and
+ * what it holds.
  *
- * A tab of its own rather than a block under General: this is a list that
- * grows, each row opens, and none of it is a setting. The agent writes and
- * corrects these itself, so nothing here adds one.
+ * Import stands above the list because an empty list is exactly when someone
+ * needs it, and because it is read once and then ignored, while the list is
+ * the thing they came back for.
  */
 export function MemorySection() {
   const { data } = useQuery(
     rpcClient.workspace.orchestrator.memory.live.list.experimental_liveOptions(),
-  );
-  const revealMutation = useMutation(
-    rpcClient.utils.openFolder.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't open the memory folder");
-      },
-    }),
   );
   const memories = data?.memories ?? [];
 
@@ -66,35 +72,36 @@ export function MemorySection() {
         </p>
       </div>
 
-      {memories.length === 0 ? (
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">
-            Nothing remembered yet. {APP_NAME} saves what it learns about you as
-            you talk.
+      {/* Open only once the list is known to be empty; while it is loading
+          there is nothing to decide from. */}
+      <Import startOpen={data !== undefined && memories.length === 0} />
+
+      <section className="space-y-2">
+        <div className="flex items-baseline justify-between gap-2">
+          <h4 className="text-sm font-medium">
+            Remembered
+            {memories.length > 0 && (
+              <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">
+                {memories.length}
+              </span>
+            )}
+          </h4>
+          {data && (
+            <RevealFolder dir={data.dir} hidden={memories.length === 0} />
+          )}
+        </div>
+        {memories.length === 0 ? (
+          <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+            Nothing yet. {APP_NAME} saves what it learns about you as you talk.
           </p>
-        </Card>
-      ) : (
-        <ul className="divide-y overflow-hidden rounded-lg border">
-          {memories.map((memory) => (
-            <MemoryRow key={memory.path} memory={memory} />
-          ))}
-        </ul>
-      )}
-
-      <Import />
-
-      {data && (
-        <Button
-          className="h-auto p-0 text-xs font-normal text-muted-foreground"
-          onClick={() => {
-            revealMutation.mutate({ folderPath: data.dir });
-          }}
-          variant="link"
-        >
-          <RevealInFolderIcon className="size-3.5" />
-          {getRevealInFolderLabel()}
-        </Button>
-      )}
+        ) : (
+          <ul className="divide-y overflow-hidden rounded-lg border">
+            {memories.map((memory) => (
+              <MemoryRow key={memory.path} memory={memory} />
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
@@ -112,12 +119,9 @@ function FromThread({ from }: { from: NonNullable<Memory["from"]> }) {
     href: `${THREADS_HREF}/${from.sessionId ?? ""}`,
     kind: "screen",
   });
-
-  if (!from.sessionId) {
-    return <span className="truncate">{from.title}</span>;
-  }
   const open = gestures.destinations.find((entry) => entry.id === "open");
-  if (!open) {
+
+  if (!from.sessionId || !open) {
     return <span className="truncate">{from.title}</span>;
   }
   return (
@@ -136,76 +140,123 @@ function FromThread({ from }: { from: NonNullable<Memory["from"]> }) {
   );
 }
 
+/** The site a link points at, as a person reads it. */
+function hostOf(site: string) {
+  return URL.canParse(site)
+    ? new URL(site).hostname.replace(/^www\./, "")
+    : site;
+}
+
 /**
- * A way to start from what another chat tool already knows about the user.
+ * Where memory can be started from: the agents already on this computer, then
+ * the chat tools on the web.
  *
- * Each button opens a thread with its words as the first message, which is
- * all a button on a screen ever does here. Nothing is imported by this
- * component: the conversation drives the page, reads the answer, and decides
- * what is worth keeping, so a tool that changes its screens next month costs
- * a sentence rather than a parser.
- *
- * Only where there is a conversation to send them to.
+ * Two lists rather than one, because the difference decides what happens
+ * next. What is on the computer is read straight off the disk in a moment;
+ * what is on the web needs a browser, a sign-in that is the person's to give,
+ * and a conversation with another product to get there.
  */
-function Import() {
+function Import({ startOpen }: { startOpen: boolean }) {
   const orchestrator = useContext(OrchestratorContext);
   const closeSettings = useSetAtom(settingsModalAtom);
+  // Undefined until someone says otherwise, so the rule below keeps deciding
+  // while the list is still arriving and stops the moment it is theirs.
+  const [choice, setChoice] = useState<boolean | undefined>(undefined);
+  const isOpen = choice ?? startOpen;
+  const { data: sources } = useQuery(
+    rpcClient.workspace.orchestrator.memory.sources.queryOptions(),
+  );
 
   if (!orchestrator) {
     return null;
   }
+  const start = (prompt: string) => {
+    orchestrator.ask(prompt);
+    closeSettings(null);
+  };
+
   return (
-    <section className="space-y-2">
-      <h4 className="text-sm font-medium">Import from another tool</h4>
-      <p className="text-xs text-muted-foreground">
-        {APP_NAME} opens the tool, asks it what it knows about you, and keeps
-        what is worth keeping. You will need to be signed in there.
-      </p>
-      <div className="flex flex-wrap gap-2 pt-1">
-        {MEMORY_SOURCES.map((source) => (
-          <GlyphButton
+    <section className="space-y-3">
+      {/* Folded once there is a list to read, since importing is done once
+          and the list is what someone comes back for. */}
+      <button
+        aria-expanded={isOpen}
+        className="flex w-full items-center gap-1.5 text-left"
+        onClick={() => {
+          setChoice(!isOpen);
+        }}
+        type="button"
+      >
+        <CaretRightIcon
+          className={cn(
+            "size-3.5 shrink-0 text-muted-foreground transition-transform",
+            isOpen && "rotate-90",
+          )}
+        />
+        <span className="text-sm font-medium">Import what you have elsewhere</span>
+      </button>
+
+      {isOpen && sources && sources.length > 0 && (
+        <SourceList caption="On this computer">
+          {sources.map((source) => (
+            <SourceRow
+              detail={source.home}
+              icon={<Favicon fallback={<FolderIcon />} url={source.site} />}
+              key={source.path}
+              name={source.name}
+              onStart={() => {
+                start(localPrompt(source));
+              }}
+            />
+          ))}
+        </SourceList>
+      )}
+
+      {isOpen && (
+      <SourceList caption="On the web">
+        {WEB_SOURCES.map((source) => (
+          <SourceRow
+            detail={hostOf(source.site)}
+            icon={<Favicon url={source.site} />}
             key={source.name}
-            onClick={() => {
-              orchestrator.ask(importPrompt(source));
-              closeSettings(null);
+            name={source.name}
+            onStart={() => {
+              start(webPrompt(source));
             }}
-            size="sm"
-          >
-            {source.name}
-          </GlyphButton>
+          />
         ))}
-      </div>
+      </SourceList>
+      )}
     </section>
   );
 }
 
 /**
- * What one of those buttons says to the conversation.
+ * What an import from this computer says to the conversation.
  *
- * Written as the user would say it, because that is what it becomes: the
- * thread opens with these words as the first message. It names the road
- * rather than the result, since the agent owns how it drives a page, and it
- * is explicit that the saving happens back in the thread -- a task has no
- * memory command, so a brief that tells one to save would end in a task
- * reporting a thing it could not do.
+ * The agent has the home folder already, so this is a read and a judgment
+ * rather than a permission: it is told where to start and left to decide what
+ * in there is a standing fact about the person rather than a note about one
+ * repository.
  */
-function importPrompt({ name, url }: { name: string; url: string }) {
-  return `Import what ${name} knows about me.
+function localPrompt({ home, name }: { home: string; name: string }) {
+  // The folder named the way a person writes it, minus the shell's shorthand
+  // for home, which is not a path the agent can open: home reaches it as one
+  // of its own mounts, and its context already says which.
+  const folder = home.replace(/^~\//, "");
+  return `Import what ${name} knows about me from this computer.
 
-Open ${url} and check I am signed in; if I am not, say so and wait for me rather than guessing. Then ask ${name} in a chat to list everything it remembers about me, including anything it has saved about my preferences, my work, and how I like answers written, and read the whole reply.
+Look in the ${folder} folder inside my home folder for what it has been told to remember about me: its instructions file and anything it keeps alongside. Read what is there.
 
-Bring what it says back to this thread and save the durable facts here as memories, one fact each, in my words where you can. Skip anything that was only about one old conversation, anything you already remember about me, and anything sensitive such as keys, passwords, or payment details. Tell me what you saved and what you left out.`;
+Save the durable facts about me here as memories, one fact each, in my words where you can. Most of what is in a file like that is about a codebase rather than about me, so keep only what would still be true in a conversation that has nothing to do with code: how I like things done, how I want to be spoken to, standing facts about me and my work. Leave the rest. Never save a key, a token, or anything else secret, whatever the file says. Tell me what you saved.`;
 }
 
-/**
- * One memory: its first line, opening to the whole of it, with the thread it
- * came from and when underneath.
- *
- * Most are a sentence, so the row is the memory and the caret only earns its
- * place on the ones that run longer.
- */
+/** One memory, folded when it runs long, over where it came from. */
 function MemoryRow({ memory }: { memory: Memory }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
   const forgetMutation = useMutation(
     rpcClient.workspace.orchestrator.memory.forget.mutationOptions({
       onError: () => {
@@ -213,68 +264,186 @@ function MemoryRow({ memory }: { memory: Memory }) {
       },
     }),
   );
-  const [headline, ...rest] = memory.text.split("\n");
-  const hasMore = rest.join("\n").trim() !== "";
+
+  useEffect(() => {
+    const element = textRef.current;
+    if (!element) {
+      return;
+    }
+    // The full content height under either clamp, so the answer is the same
+    // whether it is folded or open.
+    const check = () => {
+      setIsOverflowing(element.scrollHeight > COLLAPSED_MAX_HEIGHT_PX);
+    };
+    check();
+    const observer = new ResizeObserver(debounce({ delay: 100 }, check));
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [memory.text]);
 
   return (
-    <li className="flex items-start gap-2 p-3">
-      <div className="flex min-w-0 flex-1 items-start gap-2">
-        {/* The caret and the memory open the rest of it; the line beneath
-            carries a link of its own, so it stays outside the control. */}
-        {hasMore ? (
+    <li className="group flex items-start gap-3 px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <p
+          className={cn(
+            "text-sm whitespace-pre-wrap",
+            !isExpanded && "overflow-hidden",
+          )}
+          ref={textRef}
+          style={
+            isExpanded ? undefined : { maxHeight: COLLAPSED_MAX_HEIGHT_PX }
+          }
+        >
+          {memory.text}
+        </p>
+        {isOverflowing && (
           <button
-            aria-expanded={isOpen}
-            aria-label={isOpen ? "Show less" : "Show the whole memory"}
-            className="mt-0.5 shrink-0"
+            className="mt-0.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
             onClick={() => {
-              setIsOpen((open) => !open);
+              setIsExpanded((expanded) => !expanded);
             }}
             type="button"
           >
-            <CaretRightIcon
-              className={`size-3.5 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
-            />
+            {isExpanded ? "Show less" : "Show more"}
           </button>
-        ) : (
-          <span className="mt-0.5 size-3.5 shrink-0" />
         )}
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <p
-            className={hasMore ? "cursor-default text-sm" : "text-sm"}
-            onClick={
-              hasMore
-                ? () => {
-                    setIsOpen((open) => !open);
-                  }
-                : undefined
-            }
-          >
-            {headline}
-          </p>
-          {hasMore && isOpen && (
-            <p className="pt-1 text-sm whitespace-pre-wrap text-muted-foreground">
-              {rest.join("\n").trim()}
-            </p>
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+          {memory.from && (
+            <>
+              <FromThread from={memory.from} />
+              <span aria-hidden>·</span>
+            </>
           )}
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            {memory.from && <FromThread from={memory.from} />}
-            {memory.from && <span aria-hidden>·</span>}
-            <RelativeTime date={new Date(memory.at)} />
-          </p>
-        </div>
+          <RelativeTime date={new Date(memory.at)} />
+        </p>
       </div>
       <Button
-        aria-label={`Forget “${memory.name}”`}
-        className="shrink-0"
-        disabled={forgetMutation.isPending}
+        aria-label="Forget this memory"
+        className="shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
         onClick={() => {
-          forgetMutation.mutate({ name: memory.name });
+          setIsConfirming(true);
         }}
         size="icon-sm"
         variant="ghost"
       >
         <TrashIcon className="size-4" />
       </Button>
+      <AlertDialog onOpenChange={setIsConfirming} open={isConfirming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Forget this?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {APP_NAME} will stop taking this into account. It may learn it
+              again if you say it again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <p className="rounded-md bg-muted/50 px-3 py-2 text-sm whitespace-pre-wrap">
+            {memory.text}
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                forgetMutation.mutate({ name: memory.name });
+              }}
+            >
+              Forget
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </li>
   );
+}
+
+/** The way to the files themselves, beside the list they hold. */
+function RevealFolder({ dir, hidden }: { dir: string; hidden: boolean }) {
+  const revealMutation = useMutation(
+    rpcClient.utils.openFolder.mutationOptions({
+      onError: () => {
+        toast.error("Couldn't open the memory folder");
+      },
+    }),
+  );
+
+  if (hidden) {
+    return null;
+  }
+  return (
+    <Button
+      className="h-auto p-0 text-xs font-normal text-muted-foreground"
+      onClick={() => {
+        revealMutation.mutate({ folderPath: dir });
+      }}
+      variant="link"
+    >
+      <RevealInFolderIcon className="size-3.5" />
+      {getRevealInFolderLabel()}
+    </Button>
+  );
+}
+
+/** One captioned list of places to import from. */
+function SourceList({
+  caption,
+  children,
+}: {
+  caption: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground">{caption}</p>
+      <ul className="divide-y overflow-hidden rounded-lg border">{children}</ul>
+    </div>
+  );
+}
+
+/**
+ * A place to import from, the way the Apps screen draws a service: its mark,
+ * its name, where it is, and the one thing to do with it.
+ */
+function SourceRow({
+  detail,
+  icon,
+  name,
+  onStart,
+}: {
+  detail: string;
+  icon: ReactNode;
+  name: string;
+  onStart: () => void;
+}) {
+  return (
+    <li className="flex items-center gap-2.5 py-1.5 pr-1.5 pl-3">
+      <span className="grid size-4 shrink-0 place-items-center [&>*]:size-4 [&>*]:text-muted-foreground">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm">
+        {name}
+        <span className="ml-2 font-mono text-xs text-muted-foreground">
+          {detail}
+        </span>
+      </span>
+      <Button
+        className="h-7 shrink-0 px-2 text-xs"
+        onClick={onStart}
+        size="sm"
+        variant="ghost"
+      >
+        Import
+      </Button>
+    </li>
+  );
+}
+
+/** What an import from a website says to the conversation. */
+function webPrompt({ name, site }: { name: string; site: string }) {
+  return `Import what ${name} knows about me.
+
+Open ${site} and check I am signed in; if I am not, say so and wait for me rather than guessing. Then ask ${name} in a chat to list everything it remembers about me, including anything it has saved about my preferences, my work, and how I like answers written, and read the whole reply.
+
+Bring what it says back to this thread and save the durable facts here as memories, one fact each, in my words where you can. Skip anything that was only about one old conversation, anything you already remember about me, and anything sensitive such as keys, passwords, or payment details. Tell me what you saved and what you left out.`;
 }

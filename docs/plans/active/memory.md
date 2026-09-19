@@ -1,6 +1,6 @@
 # Memory: what the conversation keeps about the user
 
-Status: built, first version, global only. One folder of Markdown files the conversation's agent writes through a `memory` command and every thread is told about; a Memory section in Settings lists them, forgets one, and opens the folder. Per-topic memory, the row in the reply, and the popup the wireframe draws are the next version.
+Status: built, first version, global only. One folder of Markdown files the conversation's agent writes through a `memory` command and every thread is told about; a Memory tab in Settings reads them, forgets one, and starts an import from the coding agents already on this computer or from a chat tool on the web. Per-topic memory, editing a memory in place, and the row in the reply the wireframe draws are the next version.
 
 ## The rule
 
@@ -36,18 +36,27 @@ Tasks do not see memory. The conversation carries what matters into a brief in i
 
 ## The user's side
 
-A Memory tab in Settings, beside General and Providers: one row per memory, the memory itself, and under it the thread it was learned in and how long ago. A memory that runs past a line opens on its caret; the thread's name is a link that closes Settings and opens that thread, and it is drawn only where there are threads to open, since a name the reader cannot reach is worth less than the room it takes. A trash button forgets one. Live over `orchestrator.memory.live.list`, which re-reads the folder on every `memory.changed` event the store publishes. Revealing the folder in the file manager is still there, quiet, at the foot. In developer mode the transcript shows the note as a context card, the way the topics note shows.
+A Memory tab in Settings, beside General and Providers: one row per memory, the memory itself, and under it the thread it was learned in and how long ago. The thread's name is a link that closes Settings and opens that thread, drawn only where there are threads to open, since a name the reader cannot reach is worth less than the room it takes. Revealing the folder sits beside the list it holds rather than adrift at the foot of the screen. Live over `orchestrator.memory.live.list`. In developer mode the transcript shows the note as a context card, the way the topics note shows.
 
 A tab rather than a block under General because this is a list that grows and none of it is a setting. Not a screen of its own in the window: every screen there is a tab inside a thread or a draft, by design, and a global list has no thread to belong to.
 
-## Importing from another tool
+A memory taller than a few lines is folded, with the whole of it a click away, so one long import does not bury the rest. Forgetting one asks first and quotes what it is about to forget, since nothing else on the screen is destructive. The folder is watched while the list is on screen (`lib/memory/watch.ts`), so a file edited by hand, or by another window, reaches the list without a reload.
 
-Under the list, one product button per chat tool worth asking: ChatGPT, Claude, Gemini, Grok, Copilot, Perplexity. Pressing one opens a thread whose first message asks Instrument to open that tool, check the user is signed in, ask it in a chat what it remembers about them, bring the answer back, and save the durable facts here. Nothing is parsed and nothing is scraped by the app: the conversation drives the page and decides what is worth keeping, so a tool that redesigns its screens next month costs a sentence rather than a parser. The prompt is explicit that the saving happens back in the thread, because a task has no memory command and a brief that told one to save would end in a task reporting a thing it could not do.
+## Importing what the user already has
+
+Above the list, because an empty list is exactly when someone needs it, and folded once there is a list to read, because importing is done once.
+
+Two groups, because the difference decides what happens next. **On this computer** is the coding agents already installed: their memory is a file on disk, read in a moment. The app looks for them itself and offers only what is there, with the folder shown the way a person writes it (`~/.claude`). Looking is free, and this is the part worth knowing: macOS puts Desktop, Documents, Downloads, iCloud and other cloud storage, removable and network volumes, and Time Machine behind a consent prompt, and nothing else in the home folder. A hidden folder there is not protected, so nothing is asked of the user to find out a tool is installed. Which tools and their markers are in `lib/memory/sources.ts`; the same homes the skill discovery already walks.
+
+**On the web** is the chat tools, whose memory is on their own servers. The only road that works across all of them is the one they all answer: ask in a chat.
+
+Either way the app parses nothing. Pressing a row opens a thread whose first message asks Instrument to do it, and the conversation reads, judges, and saves. A tool that redesigns its screens or moves its file next month costs a sentence rather than a parser. The prompts say plainly that the saving happens back in the thread, because a task has no memory command and a brief that told one to save would end in a task reporting a thing it could not do; and the local one names the folder rather than `~`, which is not a path the agent can open.
 
 ## Next
 
 - Per-topic memory: a `topic` on the frontmatter or a folder per topic, the note split into the thread's topics' memories and everyone's, and the topic overview's "What I know" list from the wireframe.
 - The row in the reply and its popup, once saving is drawn as a row rather than read off the command's label.
-- A folder watcher, so a file edited by hand reaches open threads without waiting for the next save.
+- Editing a memory in place. The files are editable and the folder is a click away, but the screen only reads and forgets.
+- The watcher covers the screen that lists memories; an open thread still hears only about changes made through the command.
 - Whether a task may read memory, and whether the conversation should hand a task the memories that bear on its brief.
 - A turn that hands off ends, which is why the save has to ride in the hand-off command. If prompt wording turns out not to hold across models, the alternative is letting the turn-ending rule grant one more step to a turn that handed off without saving what it said it saved, the way it already grants one to a turn that promised a task and started none.

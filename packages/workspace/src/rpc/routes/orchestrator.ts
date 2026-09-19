@@ -5,12 +5,17 @@ import { z } from "zod";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { getTask } from "../../lib/get-tasks";
 import {
+  listMemorySources,
+  MemorySourceSchema,
+} from "../../lib/memory/sources";
+import {
   ensureMemoryDir,
   forgetMemory,
   listMemories,
   memoryDir,
   MemorySchema,
 } from "../../lib/memory/store";
+import { startWatchingMemory } from "../../lib/memory/watch";
 import {
   isWorking,
   latestStep,
@@ -469,11 +474,23 @@ const liveListMemoryRoute = base
   .output(eventIterator(MemoryFolderSchema))
   .handler(async function* ({ signal }) {
     const changes = publisher.subscribe("memory.changed", { signal });
-    yield await readMemoryFolder();
-    for await (const _change of changes) {
+    // Held for the life of the subscription, so a file edited in the folder
+    // reaches the screen listing it.
+    const stopWatching = await startWatchingMemory();
+    try {
       yield await readMemoryFolder();
+      for await (const _change of changes) {
+        yield await readMemoryFolder();
+      }
+    } finally {
+      stopWatching();
     }
   });
+
+/** The coding agents on this computer whose memory is there to import. */
+const listMemorySourcesRoute = base
+  .output(MemorySourceSchema.array())
+  .handler(() => listMemorySources());
 
 /** Drops one memory by name. Nothing happens when there is none by it. */
 const forgetMemoryRoute = base
@@ -509,6 +526,7 @@ export const orchestrator = {
     forget: forgetMemoryRoute,
     list: listMemoryRoute,
     live: { list: liveListMemoryRoute },
+    sources: listMemorySourcesRoute,
   },
   opened,
   setActiveTab,

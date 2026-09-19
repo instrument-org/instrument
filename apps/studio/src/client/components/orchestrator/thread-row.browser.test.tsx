@@ -1,5 +1,7 @@
+import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { createStore } from "jotai";
 import { toast, Toaster } from "sonner";
 import {
   afterEach,
@@ -229,17 +231,20 @@ async function renderRow(
     onOpen = vi.fn(),
     onSetTopics = vi.fn(),
     openScreen = vi.fn(),
+    store,
   }: {
     density?: RowDensity;
     onOpen?: Mock<() => void>;
     onSetTopics?: Mock<(topics: string[]) => void>;
     openScreen?: Mock<(href: string) => void>;
+    store?: ReturnType<typeof createStore>;
   } = {},
 ) {
   const { rows, ...rest } = await renderRows([{ density, thread: row }], {
     onOpen,
     onSetTopics,
     openScreen,
+    store,
   });
   const [element] = rows;
   if (!element) {
@@ -258,10 +263,13 @@ async function renderRows(
     onOpen = vi.fn(),
     onSetTopics = vi.fn(),
     openScreen = vi.fn(),
+    store,
   }: {
     onOpen?: Mock<() => void>;
     onSetTopics?: Mock<(topics: string[]) => void>;
     openScreen?: Mock<(href: string) => void>;
+    /** A store with atoms already set, for what the row reads beyond its props. */
+    store?: ReturnType<typeof createStore>;
   } = {},
 ) {
   const rendered = await renderInBrowser(
@@ -290,6 +298,7 @@ async function renderRows(
         </div>
       ))}
     </OrchestratorContext>,
+    store ? { store } : {},
   );
   const rows = [
     ...rendered.container.querySelectorAll<HTMLElement>('[role="button"]'),
@@ -430,6 +439,41 @@ describe("ThreadRow", () => {
     }
     expect(titleOf(unseen).className).toContain("font-semibold");
     expect(titleOf(seen).className).not.toContain("font-semibold");
+  });
+
+  it.each<RowDensity>(["tall", "slim"])(
+    "says Draft in red right after the title while the thread's composer holds words, %s",
+    async (density) => {
+      const store = createStore();
+      store.set(
+        promptDraftAtom({ scope: "thread", sessionId }),
+        "and keep the porch light on",
+      );
+      const { row } = await renderRow(thread({ topics: ["house"] }), {
+        density,
+        store,
+      });
+      const draft = [...row.querySelectorAll("span")].find(
+        (span) => span.textContent === "Draft",
+      );
+      expect(draft?.className).toContain("text-error-700");
+      // Beside the title's words, before the pill, and never the draft's words.
+      const title = titleOf(row).getBoundingClientRect();
+      const worn = draft?.getBoundingClientRect();
+      expect(worn?.left).toBeGreaterThanOrEqual(title.right);
+      expect(worn?.left).toBeLessThan(title.right + 16);
+      expect(worn?.left).toBeLessThan(
+        pillOf(row)?.getBoundingClientRect().left ?? 0,
+      );
+      expect(row.textContent).not.toContain("porch light");
+    },
+  );
+
+  it("says nothing of a draft that is only whitespace", async () => {
+    const store = createStore();
+    store.set(promptDraftAtom({ scope: "thread", sessionId }), "  \n");
+    const { row } = await renderRow(thread(), { store });
+    expect(row.textContent).not.toContain("Draft");
   });
 
   it("wears a pill per topic, each by name, at the title's end", async () => {

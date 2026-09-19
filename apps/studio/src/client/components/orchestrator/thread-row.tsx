@@ -1,3 +1,4 @@
+import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
@@ -24,6 +25,7 @@ import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { useMutation } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
@@ -49,6 +51,8 @@ const PICKER_LEAVE_MS = 250;
  * state as a dot in front of the title: brand while it works or holds
  * replies not yet seen, amber while it waits on the user, nothing while it is
  * quiet. Then the title in semibold while there is something unseen in it,
+ * the word Draft after it in red while a reply sits typed and unsent in the
+ * thread's composer, the way mail marks a thread with a draft in it,
  * the topics it is filed under as pills in the row's corner, the agent's
  * latest line (the step it is on, the question it is waiting on, or its last
  * reply's first words), and the marks of what it holds. No time on the row.
@@ -107,6 +111,11 @@ export function ThreadRow({
   };
   const actions = useThreadActions(thread);
   const isUnseen = thread.unread > 0;
+  // What the thread's composer holds, whether or not it is on screen.
+  const draft = useAtomValue(
+    promptDraftAtom({ scope: "thread", sessionId: thread.id }),
+  );
+  const hasDraft = draft.trim() !== "";
   const hasHolds =
     thread.holds.apps.length > 0 ||
     thread.holds.files.length > 0 ||
@@ -133,15 +142,24 @@ export function ThreadRow({
   const pills = filed.map((topic) => (
     <TopicPill key={topic.id} topic={topic} />
   ));
+  // The title takes only its own width, so the draft's word stands right
+  // after it and keeps its place as the title truncates before it.
   const title = (
-    <span
-      className={cn(
-        "min-w-0 flex-1 truncate text-[13px]",
-        isUnseen ? "font-semibold" : "text-foreground/90",
+    <>
+      <span
+        className={cn(
+          "min-w-0 truncate text-[13px]",
+          isUnseen ? "font-semibold" : "text-foreground/90",
+        )}
+      >
+        {thread.title}
+      </span>
+      {hasDraft && (
+        <span className="shrink-0 text-[13px] text-error-700 dark:text-error-300">
+          Draft
+        </span>
       )}
-    >
-      {thread.title}
-    </span>
+    </>
   );
   return (
     <ContextMenu>

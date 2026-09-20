@@ -14,7 +14,7 @@ export interface InstrumentLink {
  * leads with. Each is a kind of thing a reply mentions and a person can be
  * taken to, and the noun is the one the agent's own commands use for it.
  */
-export type InstrumentLinkKind =
+type InstrumentLinkKind =
   | "app"
   | "idea"
   | "ideas"

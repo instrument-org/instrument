@@ -1617,8 +1617,8 @@ function OrchestratorLayout() {
                         >
                           <BrowserTabs
                             chromeInto={chromeSlot}
-                            threadOfTask={childThreads}
                             ref={setBrowser}
+                            threadOfTask={childThreads}
                           />
                         </ActiveTabProvider>
                       </div>

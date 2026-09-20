@@ -30,9 +30,9 @@ import { getWorkspaceConfig } from "../workspace-config";
 const FILE_EXTENSION = ".md";
 
 /** How long a memory's name may be. A name is a slug saying what it is about. */
-export const MEMORY_NAME_MAX = 48;
+const MEMORY_NAME_MAX = 48;
 /** How much one memory may hold. A memory is a fact, not a document. */
-export const MEMORY_TEXT_MAX = 2000;
+const MEMORY_TEXT_MAX = 2000;
 
 export const MemoryNameSchema = z
   .string()

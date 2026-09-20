@@ -160,14 +160,14 @@ export function bindOrchestratorWindowChords(webContents: WebContents) {
     if (input.type !== "keyDown") {
       return;
     }
-    const chord = WINDOW_CHORDS.find(({ accelerator }) =>
+    const pressed = WINDOW_CHORDS.find(({ accelerator }) =>
       matchesAccelerator(input, accelerator, { isMac: IS_MAC }),
     );
-    if (!chord) {
+    if (!pressed) {
       return;
     }
     event.preventDefault();
-    chord.run();
+    pressed.run();
   });
 }
 

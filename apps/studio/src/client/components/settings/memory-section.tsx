@@ -295,7 +295,25 @@ function Memories({
   memories: Memory[];
   named: string | undefined;
 }) {
-  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  // A pick belongs to the list it was made from: once the names under it
+  // change, nothing is picked, read off the names rather than reset after
+  // the fact.
+  const names = memories.map((memory) => memory.name).join("\u0000");
+  const [pickedIn, setPickedIn] = useState<{
+    names: string;
+    set: ReadonlySet<string>;
+  }>({ names, set: new Set() });
+  const picked = pickedIn.names === names ? pickedIn.set : new Set<string>();
+  const setPicked = (
+    next:
+      | ((current: ReadonlySet<string>) => ReadonlySet<string>)
+      | ReadonlySet<string>,
+  ) => {
+    setPickedIn({
+      names,
+      set: typeof next === "function" ? next(picked) : next,
+    });
+  };
   const [isConfirming, setIsConfirming] = useState(false);
   const forgetMutation = useMutation(
     rpcClient.workspace.orchestrator.memory.forget.mutationOptions({
@@ -304,11 +322,6 @@ function Memories({
       },
     }),
   );
-
-  const names = memories.map((memory) => memory.name).join("\u0000");
-  useEffect(() => {
-    setPicked(new Set());
-  }, [names]);
 
   const toggle = (name: string) => {
     setPicked((current) => {
@@ -394,9 +407,9 @@ function Memories({
                 : `Delete ${picked.size} memories?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {APP_NAME} will stop taking{" "}
-              {picked.size === 1 ? "it" : "them"} into account. It may learn
-              the same thing again if you say it again.
+              {APP_NAME} will stop taking {picked.size === 1 ? "it" : "them"}{" "}
+              into account. It may learn the same thing again if you say it
+              again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

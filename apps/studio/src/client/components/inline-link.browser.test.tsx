@@ -49,17 +49,18 @@ async function renderReply(markdown: string) {
 const siteIcon = () => document.querySelector("a img, a svg");
 
 /**
- * How light a computed color is, to the precision it takes to rank two
- * surfaces against each other. Written out of the channels rather than read
- * off a token, so what it reports is what the stylesheet actually resolved.
+ * How much of a computed color is there at all: the alpha of an `rgba()`,
+ * or the one after the slash of a `color()` or `oklab()` the browser resolved
+ * a mix to, and one for a color with none written. Read off what the
+ * stylesheet actually resolved rather than off a token.
  */
-const brightness = (color: string) => {
-  const channels =
-    color
-      .match(/[\d.]+/g)
-      ?.slice(0, 3)
-      .map(Number) ?? [];
-  return channels.reduce((total, channel) => total + channel, 0) / 3;
+const alphaOf = (color: string) => {
+  const slashed = /\/\s*([\d.]+)\s*\)$/.exec(color);
+  if (slashed?.[1] !== undefined) {
+    return Number(slashed[1]);
+  }
+  const channels = color.match(/[\d.]+/g)?.map(Number) ?? [];
+  return channels.length >= 4 ? (channels[3] ?? 1) : 1;
 };
 
 const chips = () =>
@@ -120,24 +121,28 @@ describe("An inline link in a browser", () => {
     },
   );
 
-  // A favicon is drawn for the light chrome a browser puts it in, so a great
-  // many of them are dark ink on a transparent background. Left on the page in
-  // dark mode that ink is the page, and the link leads with a gap.
-  it("draws the site icon on a surface lighter than the page in dark mode", async () => {
+  // A favicon is drawn for the light chrome a browser puts it in, where it
+  // wants nothing from us; on a dark page a faint tile under it separates the
+  // mark from a ground it was never drawn for. Faint rather than a plate: a
+  // near-white square made every icon in dark mode a sticker.
+  it("lifts the site icon on a faint tile in dark mode, and on nothing in light", async () => {
+    await renderReply("Rotation is on [the docs](https://github.com/x).");
+    const inLight = siteIcon();
+    if (!inLight) {
+      throw new Error("the link rendered without a site icon");
+    }
+    expect(alphaOf(getComputedStyle(inLight).backgroundColor)).toBe(0);
+
     document.documentElement.classList.add("dark");
     try {
       await renderReply("Rotation is on [the docs](https://github.com/x).");
-
-      const icon = siteIcon();
-      if (!icon) {
+      const inDark = siteIcon();
+      if (!inDark) {
         throw new Error("the link rendered without a site icon");
       }
-
-      expect(
-        brightness(getComputedStyle(icon).backgroundColor),
-      ).toBeGreaterThan(
-        brightness(getComputedStyle(document.body).backgroundColor),
-      );
+      const alpha = alphaOf(getComputedStyle(inDark).backgroundColor);
+      expect(alpha).toBeGreaterThan(0);
+      expect(alpha).toBeLessThan(0.5);
     } finally {
       document.documentElement.classList.remove("dark");
     }

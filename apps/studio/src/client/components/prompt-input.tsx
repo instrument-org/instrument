@@ -132,6 +132,8 @@ interface PromptInputProps {
    * and the arrow. Given, the box keeps only its words and attachments.
    */
   actionsInto?: HTMLElement | null;
+  /** Whether the plus is drawn in the button row; off where the host offers its own ways in. A typed slash still offers what the plus would. */
+  addMenu?: boolean;
   allowOpenInNewTab?: boolean;
   // Whether the plus menu offers to work in a project, and a chosen one shows
   // beside it. Off where the project is not the composer's to decide -- a task's
@@ -238,6 +240,7 @@ function describeModelProblem({
 
 export const PromptInput = ({
   actionsInto,
+  addMenu = true,
   allowOpenInNewTab = false,
   allowWorkInProject = false,
   alwaysOpen,
@@ -340,44 +343,6 @@ export const PromptInput = ({
   // user, so the picked model is re-checked here and not only at pick time.
   const restrictedModel = selectedModel?.restricted;
   const isInvalidSelectedModel = isUnavailableModel || !!restrictedModel;
-
-  useImperativeHandle(ref, () => ({
-    clear: () => {
-      promptEditorRef.current?.clear();
-      setAttachedItems([]);
-      setSelectedProjectId(null);
-    },
-    focus: () => {
-      promptEditorRef.current?.focus();
-    },
-    insertText: (text) => {
-      promptEditorRef.current?.insertText(text);
-    },
-    pickFiles: () => {
-      fileInputRef.current?.click();
-    },
-    pickFolder: () => {
-      void handleFolderPick();
-    },
-    // Only into a composer the user left alone: a send can fail after they have
-    // started the next prompt, and their new words outrank the rejected ones.
-    restore: (draft) => {
-      if (
-        promptEditorRef.current?.getValue().trim() ||
-        attachedItems.length > 0
-      ) {
-        return;
-      }
-      promptEditorRef.current?.setValue(draft.prompt);
-      setAttachedItems(draft.items);
-      setSelectedProjectId(draft.projectId);
-    },
-    snapshot: () => ({
-      items: attachedItems,
-      projectId: selectedProjectId,
-      prompt: promptEditorRef.current?.getValue() ?? "",
-    }),
-  }));
 
   useEffect(() => {
     setInputRef(promptEditorRef.current);
@@ -580,6 +545,44 @@ export const PromptInput = ({
           ],
     );
   };
+
+  useImperativeHandle(ref, () => ({
+    clear: () => {
+      promptEditorRef.current?.clear();
+      setAttachedItems([]);
+      setSelectedProjectId(null);
+    },
+    focus: () => {
+      promptEditorRef.current?.focus();
+    },
+    insertText: (text) => {
+      promptEditorRef.current?.insertText(text);
+    },
+    pickFiles: () => {
+      fileInputRef.current?.click();
+    },
+    pickFolder: () => {
+      void handleFolderPick();
+    },
+    // Only into a composer the user left alone: a send can fail after they have
+    // started the next prompt, and their new words outrank the rejected ones.
+    restore: (draft) => {
+      if (
+        promptEditorRef.current?.getValue().trim() ||
+        attachedItems.length > 0
+      ) {
+        return;
+      }
+      promptEditorRef.current?.setValue(draft.prompt);
+      setAttachedItems(draft.items);
+      setSelectedProjectId(draft.projectId);
+    },
+    snapshot: () => ({
+      items: attachedItems,
+      projectId: selectedProjectId,
+      prompt: promptEditorRef.current?.getValue() ?? "",
+    }),
+  }));
 
   const setFolderAccess = (
     folderPath: string,
@@ -938,30 +941,31 @@ export const PromptInput = ({
       {folderTrayPlacement === "above" && folderTray}
 
       <ComposerFrame
-        actionsInto={actionsInto}
         actions={
           <>
             <div className="flex min-w-0 shrink-0 items-center gap-1">
-              <ComposerAddMenu
-                actions={actions}
-                bounds={composerBounds}
-                disabled={disabled || isLoading}
-                onReturnFocus={() => {
-                  promptEditorRef.current?.focus();
-                }}
-                onSelectProject={
-                  allowWorkInProject ? setSelectedProjectId : undefined
-                }
-                onSelectSkill={(skill) => {
-                  promptEditorRef.current?.insertText(
-                    skillMentionToken(skill.id),
-                  );
-                }}
-                onViewChange={setMenuView}
-                projectId={selectedProjectId}
-                skills={userInvocableSkills}
-                view={menuView}
-              />
+              {addMenu && (
+                <ComposerAddMenu
+                  actions={actions}
+                  bounds={composerBounds}
+                  disabled={disabled || isLoading}
+                  onReturnFocus={() => {
+                    promptEditorRef.current?.focus();
+                  }}
+                  onSelectProject={
+                    allowWorkInProject ? setSelectedProjectId : undefined
+                  }
+                  onSelectSkill={(skill) => {
+                    promptEditorRef.current?.insertText(
+                      skillMentionToken(skill.id),
+                    );
+                  }}
+                  onViewChange={setMenuView}
+                  projectId={selectedProjectId}
+                  skills={userInvocableSkills}
+                  view={menuView}
+                />
+              )}
 
               {allowWorkInProject && selectedProjectId && (
                 <PromptProjectChip
@@ -1042,6 +1046,7 @@ export const PromptInput = ({
             </div>
           </>
         }
+        actionsInto={actionsInto}
         attachments={
           ((variant !== "pill" && lead) || attachedFiles.length > 0) && (
             // A file lands in the corner of a box the user is looking away
@@ -1049,7 +1054,7 @@ export const PromptInput = ({
             // there. `initial={false}`: the first one is carried in by the row
             // opening around it, and does not need a second motion of its own.
             <AnimatePresence initial={false}>
-              {variant !== "pill" ? lead : null}
+              {variant === "pill" ? null : lead}
               {attachedFiles.map((item) => (
                 <motion.div
                   animate={{ opacity: 1, scale: 1 }}

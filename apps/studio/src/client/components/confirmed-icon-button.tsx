@@ -1,8 +1,15 @@
+import { useTimedFlag } from "@/client/hooks/use-timed-flag";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps } from "react";
 
 import { IconButton } from "./icon-button";
 
+/**
+ * An icon button that says it did something: the check stands in for its
+ * icon for a moment after a click, and the tooltip says what was done. The
+ * same moment the copy button keeps, from the same timer, so a second click
+ * starts it over and an unmount ends it.
+ */
 export function ConfirmedIconButton({
   icon,
   onClick,
@@ -12,21 +19,18 @@ export function ConfirmedIconButton({
 }: ComponentProps<typeof IconButton> & {
   successTooltip?: string;
 }) {
-  const [success, setSuccess] = useState(false);
+  const { active: showCheck, trigger } = useTimedFlag();
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     onClick?.(e);
-    setSuccess(true);
-    setTimeout(() => {
-      setSuccess(false);
-    }, 1000);
+    trigger();
   };
 
   return (
     <IconButton
-      icon={success ? CheckIcon : icon}
+      icon={showCheck ? CheckIcon : icon}
       onClick={handleClick}
-      tooltip={success ? successTooltip : tooltip}
+      tooltip={showCheck ? successTooltip : tooltip}
       {...rest}
     />
   );

@@ -63,7 +63,7 @@ export function TopicActionsButton({
 }
 
 /** A topic's own menu on right click, around whatever row stands for the topic. */
-export function TopicContextMenu({
+function TopicContextMenu({
   children,
   onDetails,
   topic,

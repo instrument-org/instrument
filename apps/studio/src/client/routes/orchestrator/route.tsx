@@ -142,6 +142,7 @@ import {
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
+import { timeout } from "radashi";
 import {
   lazy,
   type ReactNode,
@@ -170,6 +171,9 @@ const RECENT_DWELL_MS = ms("2 seconds");
 
 /** How long a thread just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
 const THREAD_ARRIVAL_MS = ms("3 seconds");
+
+/** The longest a send waits on a page's words: a guest that never answers (mid-navigation, parked, hung) costs the conversation the page's text, not the send. */
+const PAGE_READ_MS = ms("5 seconds");
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
 const INBOX_COLLAPSE_THRESHOLD = 240;
@@ -1376,6 +1380,21 @@ function OrchestratorLayout() {
     };
   };
   /**
+   * A page's words for the conversation, or nothing when the guest cannot
+   * give them in time: the read runs a script in the guest, and a guest that
+   * is hung or parked never answers, which must not hold the send.
+   */
+  const readPage = async (tabId?: string) => {
+    try {
+      return await Promise.race([
+        browser?.readPage(tabId),
+        timeout(PAGE_READ_MS),
+      ]);
+    } catch {
+      return;
+    }
+  };
+  /**
    * What the thing a draft was opened over says about itself, for the thread
    * the draft starts: a file by its path, a page by its words read from the
    * place's own guest, a folder or an app as its screen reports it while it
@@ -1398,7 +1417,7 @@ function OrchestratorLayout() {
       if (filePath !== undefined) {
         return { file: fileOf(filePath), screen: "file", url };
       }
-      const read = await browser?.readPage(tab.id);
+      const read = await readPage(tab.id);
       const { tab: _own, tabs: _others, ...page } = read ?? { title: "", url };
       return { page, screen: "browser", url };
     }
@@ -1490,7 +1509,7 @@ function OrchestratorLayout() {
           : undefined;
     const page =
       view.screen === "browser" && up.kind === "page" && filePath === undefined
-        ? await browser?.readPage(up.id)
+        ? await readPage(up.id)
         : undefined;
     const shown =
       filePath === undefined
@@ -1523,7 +1542,14 @@ function OrchestratorLayout() {
     setStartingId(id);
     // The model chosen for the thread is the one the next draft opens with.
     saveDefaultModelURI(send.modelURI);
-    void draftContext(id).then((viewing) => {
+    void (async () => {
+      let viewing: SessionMessageDataPart.ViewContextDataPart | undefined;
+      try {
+        viewing = await draftContext(id);
+      } catch {
+        // A context that cannot be gathered is a thread told less, not a
+        // thread that never starts: the send goes on without it.
+      }
       createMessage.mutate(
         {
           files: send.files,
@@ -1585,7 +1611,7 @@ function OrchestratorLayout() {
           },
         },
       );
-    });
+    })();
   };
   const screens: null | OrchestratorWindow = ids
     ? {
@@ -1662,7 +1688,7 @@ function OrchestratorLayout() {
         : undefined;
     const page =
       screenView.screen === "browser" && activeFilePath === undefined
-        ? await browser?.readPage()
+        ? await readPage()
         : undefined;
     const activeMount =
       activeFilePath === undefined

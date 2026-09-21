@@ -219,6 +219,9 @@ function saidAtMost(chars: number): Assertion {
  */
 const REVISED_A_TASK = /(?:^|[\n;&|])\s*task (?:app|folder|tab|model)\b/;
 
+/** A `task new` carrying `--model`, or a `task model` moving one. */
+const NAMED_A_MODEL = /(?:^|[\n;&|])\s*task (?:new\b[^\n]*--model|model\b)/;
+
 /**
  * How many tasks the conversation started, where more than one is the failure:
  * the second one is the first one's context bought twice.
@@ -260,9 +263,6 @@ const ranOnTheConversationsModel: Assertion = {
   },
   text: "ran every task on the conversation's own model",
 };
-
-/** A `task new` carrying `--model`, or a `task model` moving one. */
-const NAMED_A_MODEL = /(?:^|[\n;&|])\s*task (?:new\b[^\n]*--model|model\b)/;
 
 const revisedATaskInPlace: Assertion = {
   check: ({ sessions }) => {

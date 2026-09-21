@@ -14,6 +14,11 @@ import { useOrchestrator } from "./context";
 import { type RowAction } from "./row-shell";
 import { type Thread } from "./threads";
 
+/** The actions of one thread, where one thread is all there is: the head of its pane. */
+export function useThreadActions(thread: Thread): RowAction[] {
+  return useThreadActionsFor()(thread);
+}
+
 /**
  * What a thread offers that no line of it carries, in the order the row's
  * edge and its menu list them: putting it away, or back in the inbox, with
@@ -189,9 +194,4 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
     };
     return [put, ...mark, { ...starred, menuOnly: true }, rename, save];
   };
-}
-
-/** The actions of one thread, where one thread is all there is: the head of its pane. */
-export function useThreadActions(thread: Thread): RowAction[] {
-  return useThreadActionsFor()(thread);
 }

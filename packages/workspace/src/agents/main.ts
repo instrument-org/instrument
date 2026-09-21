@@ -50,8 +50,8 @@ import {
   createContextMessage,
   createSystemMessage,
   getSystemInfoText,
-  getUserText,
   getTaskLayoutContext,
+  getUserText,
   shouldContinueWithToolCalls,
 } from "./shared";
 

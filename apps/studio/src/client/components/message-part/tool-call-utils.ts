@@ -9,6 +9,25 @@ type StartActivityPart = Extract<
   { type: "tool-start_activity" }
 >;
 
+/**
+ * Whether a call's row has anything behind it to open yet.
+ *
+ * A web search comes back in one piece, so until it has there is nothing to
+ * show: a row that opens onto a card saying so is a disclosure with nothing to
+ * disclose. The row stays shut and plain until the results, the empty result,
+ * or the failure arrive. Every other call has its input to show from the
+ * moment it is drawn.
+ */
+export function hasOpenableBody(part: SessionMessagePart.ToolPart): boolean {
+  if (part.type !== "tool-web_search") {
+    return true;
+  }
+  return (
+    part.state === "output-error" ||
+    (part.state === "output-available" && part.preliminary !== true)
+  );
+}
+
 export function hasTerminalToolState(part: SessionMessagePart.ToolPart) {
   return part.state === "output-available" || part.state === "output-error";
 }
@@ -111,25 +130,6 @@ export function isToolPartRunning(part: SessionMessagePart.ToolPart): boolean {
       return false;
     }
   }
-}
-
-/**
- * Whether a call's row has anything behind it to open yet.
- *
- * A web search comes back in one piece, so until it has there is nothing to
- * show: a row that opens onto a card saying so is a disclosure with nothing to
- * disclose. The row stays shut and plain until the results, the empty result,
- * or the failure arrive. Every other call has its input to show from the
- * moment it is drawn.
- */
-export function hasOpenableBody(part: SessionMessagePart.ToolPart): boolean {
-  if (part.type !== "tool-web_search") {
-    return true;
-  }
-  return (
-    part.state === "output-error" ||
-    (part.state === "output-available" && part.preliminary !== true)
-  );
 }
 
 /**

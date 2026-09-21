@@ -16,6 +16,17 @@ import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 const VIEWPORT_HEIGHT = 200;
 const BLOCK_HEIGHT = 120;
 
+function blockCount() {
+  return document.querySelectorAll("[data-block]").length;
+}
+
+function distanceFromEnd() {
+  const element = viewport();
+  return Math.round(
+    element.scrollHeight - element.clientHeight - element.scrollTop,
+  );
+}
+
 /**
  * A transcript that lays out late: a few blocks at once, and more arriving
  * on a timer after the bridge's first pass, the way images and cards do.
@@ -61,17 +72,6 @@ function viewport() {
     throw new Error("no viewport");
   }
   return element;
-}
-
-function blockCount() {
-  return document.querySelectorAll("[data-block]").length;
-}
-
-function distanceFromEnd() {
-  const element = viewport();
-  return Math.round(
-    element.scrollHeight - element.clientHeight - element.scrollTop,
-  );
 }
 
 it("reaches the end of a transcript that keeps laying out after it arrived", async () => {

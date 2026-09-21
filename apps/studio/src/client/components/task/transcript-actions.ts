@@ -6,6 +6,9 @@ import { toast } from "sonner";
 
 export type TranscriptFormat = RPCInput["transcript"]["save"]["format"];
 
+/** Which session a call is about, when it is not the one the hook was given. */
+type Target = { label?: string; sessionId: StoreId.Session };
+
 /**
  * Copy and save for a session's transcript, in whichever format is asked for.
  *
@@ -102,6 +105,3 @@ export function useTranscriptActions({
     },
   };
 }
-
-/** Which session a call is about, when it is not the one the hook was given. */
-type Target = { label?: string; sessionId: StoreId.Session };

@@ -7,6 +7,10 @@ export const env = createEnv({
   emptyStringAsUndefined: true,
   runtimeEnv: process.env,
   server: {
+    // The platform's own gateway, the provider a signed-in Studio runs on: a
+    // session token and the API's `/gateway/openrouter` base.
+    APP_AI_API_KEY: z.string().optional(),
+    APP_AI_BASE_URL: z.string().optional(),
     APP_AI_GATEWAY_API_KEY: z.string().optional(),
     APP_ANTHROPIC_API_KEY: z.string().optional(),
     APP_CEREBRAS_API_KEY: z.string().optional(),

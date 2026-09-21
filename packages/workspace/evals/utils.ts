@@ -8,6 +8,7 @@ import {
 import {
   AIProviderConfigIdSchema,
   APP_NAME_SLUG,
+  OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import path from "node:path";
 import { z } from "zod";
@@ -328,6 +329,17 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
         type,
       });
     }
+  }
+
+  // The same config Studio builds for a signed-in user, so a run can go
+  // through the platform gateway the way production does: its model swap, its
+  // billing, and the request shape it forwards.
+  if (env.APP_AI_API_KEY && env.APP_AI_BASE_URL) {
+    configs.push({
+      ...OUR_PROVIDER_CONFIG,
+      apiKey: env.APP_AI_API_KEY,
+      baseURL: env.APP_AI_BASE_URL,
+    });
   }
 
   if (env.CLOUDFLARE_WORKERS_AI_API_KEY && env.CLOUDFLARE_ACCOUNT_ID) {

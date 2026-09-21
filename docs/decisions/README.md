@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-09-21 | [Carry a just-bash `stdinConnected` flag as a local patch so `rg` can tell an empty pipe from no pipe](2026-09-21-carry-the-stdin-connected-patch.md) |
 | 2026-09-19 | [Drop the orchestrator's Activity screen](2026-09-19-drop-the-activity-screen.md) |
 | 2026-09-11 | [`git` reaches attached folders, and a read-only grant means read-only git](2026-09-11-git-reaches-attached-folders.md) |
 | 2026-09-10 | [`python` is the sandboxed interpreter, `node` stays native, and each names the other](2026-09-10-python-is-the-sandboxed-interpreter.md) |

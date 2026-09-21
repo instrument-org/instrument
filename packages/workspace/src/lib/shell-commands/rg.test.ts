@@ -94,6 +94,32 @@ describe("rg command", () => {
     expect(result.stdout).toBe("");
   });
 
+  // Guards the `stdinConnected` half of the local just-bash patch: a pipe that
+  // carried nothing is still a pipe, so ripgrep reads it and matches nothing
+  // rather than walking the task folder as if it had been run bare.
+  it.each([
+    ["a producer that printed nothing", "printf '' | rg --color=never NEEDLE"],
+    ["a producer that failed", "false | rg --color=never NEEDLE"],
+    ["a pipe into a group", "printf '' | { rg --color=never NEEDLE; }"],
+  ])(
+    "reads an empty pipe from %s instead of walking the task",
+    async (_, command) => {
+      const result = await run(command);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toBe("");
+    },
+  );
+
+  it("reads an empty pipe when it is a middle stage", async () => {
+    const result = await run("printf '' | rg --color=never NEEDLE | wc -c");
+    expect(result.stdout.trim()).toBe("0");
+  });
+
+  it("walks the task again once the pipeline is over", async () => {
+    const result = await run("printf '' | rg NEEDLE; rg -l NEEDLE");
+    expect(result.stdout.trim()).toBe("work/a.ts");
+  });
+
   it("treats an explicit `-` path as the pipe", async () => {
     const result = await run("printf 'one two\\n' | rg --color=never -c two -");
     expect(result.stdout.trim()).toBe("1");

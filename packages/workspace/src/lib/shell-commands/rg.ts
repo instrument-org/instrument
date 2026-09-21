@@ -141,7 +141,14 @@ export function createRgCommand({
         // Handing it an ignored stdin instead makes `cmd | rg PATTERN` search
         // the task folder and report those matches as if they came from the
         // pipe. With no pipe, an ignored stdin is what selects the walk.
-        ...(stdin ? { input: stdin } : { stdin: "ignore" }),
+        //
+        // The pipe has to be there even when it carried nothing: `false | rg
+        // PATTERN` reads an empty pipe and matches nothing, the same as on a
+        // host. The bytes alone cannot say whether a pipe existed, which is
+        // what `stdinConnected` (a local patch on just-bash) is for.
+        ...((stdin ?? ctx.stdinConnected)
+          ? { input: stdin ?? Buffer.alloc(0) }
+          : { stdin: "ignore" }),
       },
     );
 

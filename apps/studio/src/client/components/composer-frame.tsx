@@ -1,6 +1,7 @@
 import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
+import { createPortal } from "react-dom";
 
 /**
  * The box the prompt is composed in: rows stacked around an editor that takes
@@ -19,6 +20,7 @@ import { AnimatePresence, motion } from "motion/react";
  */
 export function ComposerFrame({
   actions,
+  actionsInto,
   attachments,
   children,
   extras,
@@ -33,6 +35,12 @@ export function ComposerFrame({
 }: {
   /** The button row along the bottom. Never pushed out of the box. */
   actions: React.ReactNode;
+  /**
+   * An element of the host's the button row is drawn into instead, so a
+   * head over the words can carry the controls; the box then ends at its
+   * words. Nothing is drawn until the element exists.
+   */
+  actionsInto?: HTMLElement | null;
   /** Attached files, above the editor. Absent when nothing is attached. */
   attachments?: React.ReactNode;
   /** The editor. Fills the row it is given and scrolls past it. */
@@ -46,9 +54,10 @@ export function ComposerFrame({
    * A block is the box with the editor above its button row. A pill is one
    * row, the height of a text field, with `leading` at its left and
    * `trailing` at its right and the editor between; it grows with the draft
-   * up to `maxHeight`.
+   * up to `maxHeight`. Bare is the block's rows with no box drawn around
+   * them, for a host that is itself the box.
    */
-  layout?: "block" | "pill";
+  layout?: "bare" | "block" | "pill";
   /** The pill's left end: the add menu. */
   leading?: React.ReactNode;
   /** Layout px: inside the zoom root, so the cap scales with the rest of the UI. */
@@ -132,15 +141,42 @@ export function ComposerFrame({
       </div>
     );
   }
+  // The row is drawn where the host asked for it, or along the box's foot; a
+  // host that named an element the page has not made yet gets no row rather
+  // than one along the foot in the meantime.
+  const actionsRow =
+    actionsInto === undefined ? (
+      <div
+        className="row-start-3 flex items-end justify-between gap-2 pt-2"
+        data-slot="composer-actions"
+      >
+        {actions}
+      </div>
+    ) : actionsInto === null ? null : (
+      createPortal(
+        <div
+          className="flex min-w-0 flex-1 items-center gap-2"
+          data-slot="composer-actions"
+        >
+          {actions}
+        </div>,
+        actionsInto,
+      )
+    );
   return (
     <div
       className={cn(
         // isolate: the overlay covers the composer and nothing beyond it.
         // relative also lifts the box over the folder tray tucked under its top
         // edge.
-        "relative isolate grid min-h-16 w-full grid-rows-[auto_minmax(3rem,1fr)_auto] rounded-[20px] p-4",
-        "bg-white shadow-sm-soft transition-shadow dark:bg-gray-800",
-        "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
+        "relative isolate grid min-h-16 w-full grid-rows-[auto_minmax(3rem,1fr)_auto]",
+        layout === "bare"
+          ? "px-5 pt-2 pb-3"
+          : [
+              "rounded-[20px] p-4",
+              "bg-white shadow-sm-soft transition-shadow dark:bg-gray-800",
+              "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
+            ],
       )}
       data-slot="composer-frame"
       ref={ref}
@@ -184,12 +220,7 @@ export function ComposerFrame({
         {children}
       </div>
 
-      <div
-        className="row-start-3 flex items-end justify-between gap-2 pt-2"
-        data-slot="composer-actions"
-      >
-        {actions}
-      </div>
+      {actionsRow}
     </div>
   );
 }

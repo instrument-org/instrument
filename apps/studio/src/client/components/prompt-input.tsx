@@ -114,11 +114,23 @@ export interface PromptInputDraft {
 export interface PromptInputRef {
   clear: () => void;
   focus: () => void;
+  /** Insert at the caret, spaced off from whatever it lands between; a token's wire form becomes its chip. */
+  insertText: (text: string) => void;
+  /** Opens the file chooser, the way the plus menu's "Add files" does. */
+  pickFiles: () => void;
+  /** Opens the folder chooser, the way the plus menu's "Work in a local folder" does. */
+  pickFolder: () => void;
   restore: (draft: PromptInputDraft) => void;
   snapshot: () => PromptInputDraft;
 }
 
 interface PromptInputProps {
+  /**
+   * An element of the host's the button row is drawn into rather than along
+   * the box's foot: a head over the words that carries the plus, the model
+   * and the arrow. Given, the box keeps only its words and attachments.
+   */
+  actionsInto?: HTMLElement | null;
   allowOpenInNewTab?: boolean;
   // Whether the plus menu offers to work in a project, and a chosen one shows
   // beside it. Off where the project is not the composer's to decide -- a task's
@@ -173,8 +185,8 @@ interface PromptInputProps {
   // menu would be invisible and impossible to remove -- it just does not
   // advertise itself on surfaces that have their own folder controls.
   showWorkInFolder?: boolean;
-  /** A pill is one row, the height of a text field, that grows with the draft. */
-  variant?: "block" | "pill";
+  /** A pill is one row, the height of a text field, that grows with the draft; bare is the block with no box drawn around it, for a host that draws its own. */
+  variant?: "bare" | "block" | "pill";
 }
 
 /**
@@ -224,6 +236,7 @@ function describeModelProblem({
 }
 
 export const PromptInput = ({
+  actionsInto,
   allowOpenInNewTab = false,
   allowWorkInProject = false,
   alwaysOpen,
@@ -325,6 +338,15 @@ export const PromptInput = ({
     },
     focus: () => {
       promptEditorRef.current?.focus();
+    },
+    insertText: (text) => {
+      promptEditorRef.current?.insertText(text);
+    },
+    pickFiles: () => {
+      fileInputRef.current?.click();
+    },
+    pickFolder: () => {
+      void handleFolderPick();
     },
     // Only into a composer the user left alone: a send can fail after they have
     // started the next prompt, and their new words outrank the rejected ones.
@@ -905,6 +927,7 @@ export const PromptInput = ({
       {folderTrayPlacement === "above" && folderTray}
 
       <ComposerFrame
+        actionsInto={actionsInto}
         actions={
           <>
             <div className="flex min-w-0 shrink-0 items-center gap-1">
@@ -1009,13 +1032,13 @@ export const PromptInput = ({
           </>
         }
         attachments={
-          ((variant === "block" && lead) || attachedFiles.length > 0) && (
+          ((variant !== "pill" && lead) || attachedFiles.length > 0) && (
             // A file lands in the corner of a box the user is looking away
             // from, at the caret, so it grows into place rather than appearing
             // there. `initial={false}`: the first one is carried in by the row
             // opening around it, and does not need a second motion of its own.
             <AnimatePresence initial={false}>
-              {variant === "block" ? lead : null}
+              {variant !== "pill" ? lead : null}
               {attachedFiles.map((item) => (
                 <motion.div
                   animate={{ opacity: 1, scale: 1 }}

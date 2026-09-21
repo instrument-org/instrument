@@ -124,6 +124,85 @@ const INTERCEPTED_TARGET_COMMANDS = new Set([
   "Target.setDiscoverTargets",
 ]);
 
+// How long a `Page.navigate` answer is held for the main frame's load before
+// it is released anyway. Under agent-browser's 30s per-command timeout with
+// margin; a page slower than this is better returned (the agent can `wait` or
+// re-read) than left to trip that timeout.
+const NAVIGATE_HOLD_CAP_MS = 20_000;
+
+/** A wait for the main frame's load, resolvable early by `cancel`. */
+interface HeldNavigate {
+  cancel: () => void;
+  promise: Promise<void>;
+}
+
+/**
+ * Tracks which frame is the main one and lets a navigate wait for its load.
+ *
+ * Electron answers `Page.navigate` the moment the load commits, before the
+ * document has parsed, and agent-browser's `open` returns on that answer. So
+ * the bridge holds the answer until the main frame's load, which this gate
+ * reports from `Page.frameStoppedLoading`. Only the main frame counts: a
+ * listing carries a dozen ad iframes, some still finishing the page being left
+ * when the navigate is issued, and any one of them stopping would release the
+ * hold onto a page whose `<title>` had not parsed. The main frame is the one
+ * whose `Page.frameNavigated` carries no `parentId`; its id holds across
+ * navigations.
+ */
+export function createMainFrameLoadGate() {
+  let mainFrameId: string | undefined;
+  let releasePending: (() => void) | undefined;
+
+  return {
+    observe(method: string, params: unknown): void {
+      if (method === "Page.frameNavigated") {
+        const { frame } = params as Protocol.Page.FrameNavigatedEvent;
+        if (frame.parentId === undefined) {
+          mainFrameId = frame.id;
+        }
+        return;
+      }
+      if (method === "Page.frameStoppedLoading") {
+        const { frameId } = params as Protocol.Page.FrameStoppedLoadingEvent;
+        if (frameId === mainFrameId) {
+          releasePending?.();
+        }
+      }
+    },
+    /**
+     * A `promise` that resolves on the main frame's next load, or after
+     * `capMs`, whichever comes first. Create it before forwarding the navigate
+     * so a load racing the answer is not missed; `cancel` resolves it at once
+     * (a same-document navigation that will never fire a load).
+     */
+    nextMainFrameLoad(capMs: number): HeldNavigate {
+      let resolveLoad!: () => void;
+      const promise = new Promise<void>((resolve) => {
+        resolveLoad = resolve;
+      });
+      const cap: { timer?: ReturnType<typeof setTimeout> } = {};
+      const done = () => {
+        clearTimeout(cap.timer);
+        if (releasePending === done) {
+          releasePending = undefined;
+        }
+        resolveLoad();
+      };
+      cap.timer = setTimeout(done, capMs);
+      releasePending = done;
+      return { cancel: done, promise };
+    },
+  };
+}
+
+function hasLoaderId(result: unknown): boolean {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    typeof (result as { loaderId?: unknown }).loaderId === "string"
+  );
+}
+
 // Agent traffic that is not the agent doing anything: a recording session acks
 // every frame it is handed, so counting those would report the browser as busy
 // for as long as the recording runs rather than while something is happening in
@@ -163,6 +242,10 @@ function handleCdpClient(
     clientWs.close(1001, "Target detached");
   };
 
+  // Gates a held `Page.navigate` response on the main frame's load (see the
+  // command handler).
+  const loadGate = createMainFrameLoadGate();
+
   const onEvent = (method: string, params: unknown) => {
     // Inject the synthetic sessionId so agent-browser can match events to the
     // session it attached to via Target.attachToTarget. Electron emits events
@@ -173,6 +256,8 @@ function handleCdpClient(
       params: params as CdpEventParams<CdpEventName>,
       sessionId: `session-${targetId}`,
     });
+
+    loadGate.observe(method, params);
 
     // Synthesize Page.loadEventFired from Page.frameStoppedLoading.
     // Electron's debugger does not emit Page.loadEventFired natively; agent-
@@ -269,15 +354,37 @@ function handleCdpClient(
       }
     }
 
+    // Arm the main-frame-load wait before forwarding the navigate, so a load
+    // that lands between the command resolving and the await cannot be missed.
+    const heldNavigate =
+      method === "Page.navigate"
+        ? loadGate.nextMainFrameLoad(NAVIGATE_HOLD_CAP_MS)
+        : undefined;
+
     // sessionId is present when agent-browser uses flat session mode after
     // Target.attachToTarget. We issued a synthetic sessionId so we just strip
     // it and forward the command directly to the target's debugger.
     workspaceConfig.browser
       .sendCommand(targetId, method, params ?? {})
-      .then((result) => {
+      .then(async (result) => {
+        // Electron answers `Page.navigate` as soon as the load is committed,
+        // and agent-browser's `open` returns on that answer rather than
+        // blocking for the load event -- so a read one step later saw an empty
+        // page. Hold the answer until the main frame's load (`heldNavigate`),
+        // capped so a page that never fires it still returns well inside
+        // agent-browser's own 30s command timeout. A same-document navigation
+        // carries no `loaderId` and fires no load, so it is not held.
+        if (heldNavigate) {
+          if (hasLoaderId(result)) {
+            await heldNavigate.promise;
+          } else {
+            heldNavigate.cancel();
+          }
+        }
         send({ id, result });
       })
       .catch((error: unknown) => {
+        heldNavigate?.cancel();
         send({
           error: {
             code: -32_000,

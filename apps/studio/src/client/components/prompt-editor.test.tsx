@@ -43,6 +43,7 @@ function renderEditor({
   const ref = createRef<PromptEditorRef>();
   const { container, rerender } = renderWithProviders(
     <PromptEditor
+      apps={[]}
       {...editorProps}
       autoFocus={autoFocus}
       defaultValue={defaultValue}
@@ -73,6 +74,7 @@ describe("PromptEditor", () => {
 
     rerender(
       <PromptEditor
+        apps={[]}
         {...editorProps}
         autoFocus={false}
         defaultValue="second"
@@ -121,6 +123,7 @@ describe("PromptEditor", () => {
     }) => (
       <Activity mode={mode}>
         <PromptEditor
+          apps={[]}
           {...editorProps}
           autoFocus={false}
           defaultValue={value}

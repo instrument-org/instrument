@@ -1,5 +1,6 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { openLogin } from "@/client/atoms/login-modal";
+import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
 import {
   type ComposerAction,
@@ -320,6 +321,16 @@ export const PromptInput = ({
   const userInvocableSkills = features.skills
     ? skills.filter((skill) => skill.userInvocable)
     : [];
+  // The apps the workspace has, for a slash to name: any standing, since a
+  // message can be about an app before it is connected.
+  const { data: appList } = useQuery(
+    rpcClient.apps.live.list.experimental_liveOptions(),
+  );
+  const composerApps: ComposerApp[] = (appList?.apps ?? []).map((app) => ({
+    name: app.name,
+    site: app.site,
+    slug: app.slug,
+  }));
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
   const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
@@ -1244,6 +1255,7 @@ export const PromptInput = ({
             the next) needs a new editor rather than a new prop. */}
         <PromptEditor
           actions={actions}
+          apps={composerApps}
           autoFocus={autoFocus}
           bounds={composerBounds}
           defaultValue={value}

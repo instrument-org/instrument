@@ -84,6 +84,7 @@ async function renderFrame({
         maxHeight={maxHeight}
       >
         <PromptEditor
+          apps={[]}
           actions={[]}
           autoFocus={false}
           // The editor places its menu against the composer around it.

@@ -6,7 +6,6 @@ import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { PageSection } from "@/client/components/orchestrator/page-section";
 import { VisitedPageRows } from "@/client/components/orchestrator/visited-page-rows";
-import { Button } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
@@ -318,9 +317,9 @@ function CatalogTile({
           </span>
         </span>
       </button>
-      <Button onClick={onConnect} size="sm" variant="outline">
+      <GlyphButton onClick={onConnect} size="sm">
         Connect
-      </Button>
+      </GlyphButton>
     </div>
   );
 }

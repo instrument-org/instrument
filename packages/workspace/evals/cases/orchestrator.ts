@@ -39,6 +39,13 @@ import { type Session } from "../../src/schemas/session";
 import { TaskIdSchema } from "../../src/schemas/task-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
+const imageFixture = (name: string) =>
+  fs
+    .readFileSync(
+      path.resolve(import.meta.dirname, "../fixtures/image-region", name),
+    )
+    .toString("base64");
+
 /**
  * When this process started, which is near enough to when the run did. The
  * sandbox home outlives a run, so a file already in a folder says nothing
@@ -552,6 +559,60 @@ const linkedAFileThatExists: Assertion = {
   text: "the conversation's reply links files that exist",
 };
 
+/** The task saw the file: its last word carries what only the file says. */
+function aTaskAnsweredWith(phrase: string): Assertion {
+  const text = `a task's last word said "${phrase}"`;
+  return {
+    check: async ({ childSessions }) => {
+      const children = await childSessions();
+      if (children.length === 0) {
+        return fail(text, "no task was started");
+      }
+      const lasts = children.map((child) => ({
+        last: assistantTexts(child.sessions).at(-1) ?? "",
+        title: child.title,
+      }));
+      const saying = lasts.filter((one) =>
+        one.last.toLowerCase().includes(phrase.toLowerCase()),
+      );
+      const evidence = lasts
+        .map((one) => `${one.title}: ${JSON.stringify(one.last)}`)
+        .join("; ");
+      return saying.length > 0 ? pass(text, evidence) : fail(text, evidence);
+    },
+    text,
+  };
+}
+
+/**
+ * A file the user sent reaches a task only as a copy handed over on the
+ * command: the conversation's own folder is one no task can see, so a brief
+ * that names the file where the conversation has it names a file the task
+ * cannot find.
+ */
+function handedTheFileToATask(filename: string): Assertion {
+  const text = `handed ${filename} to a task with --file`;
+  const handed = new RegExp(
+    String.raw`(?:^|[\n;&|])\s*task (?:new|send)\b[^\n]*--file[= ]['"]?[^\s'"]*${filename.replaceAll(".", String.raw`\.`)}`,
+  );
+  return {
+    check: ({ sessions }) => {
+      const commands = bashCommands(sessions);
+      const carrying = commands.filter((command) => handed.test(command));
+      return carrying.length > 0
+        ? pass(
+            text,
+            carrying.map((command) => command.split("\n")[0]).join(" | "),
+          )
+        : fail(
+            text,
+            `no --file in ${commands.length} commands: ${commands.map((command) => command.split("\n")[0]).join(" | ")}`,
+          );
+    },
+    text,
+  };
+}
+
 /** A path as the conversation writes it, on disk; undefined where no mount covers it. */
 function hostPathOf(
   named: string,
@@ -574,6 +635,20 @@ function hostPathOf(
     (folder) => folder.mountName === name,
   );
   return mount ? path.join(mount.path, ...rest) : undefined;
+}
+
+/** The conversation passed the answer on rather than asking for the file again. */
+function repliedWith(phrase: string): Assertion {
+  const text = `the conversation's reply said "${phrase}"`;
+  return {
+    check: ({ sessions }) => {
+      const last = assistantTexts(sessions).at(-1) ?? "";
+      return last.toLowerCase().includes(phrase.toLowerCase())
+        ? pass(text, JSON.stringify(last))
+        : fail(text, JSON.stringify(last));
+    },
+    text,
+  };
 }
 
 function wroteInto(folder: string): Assertion {
@@ -781,5 +856,25 @@ export const ORCHESTRATOR_EVALS = [
     name: "orchestrator-asks-for-a-page",
     prompt:
       "Make me a page comparing the three best-known static site generators, in my Instrument folder.",
+  }),
+
+  defineEval({
+    // A screenshot pasted into the conversation, in the words it was asked
+    // with. The conversation cannot look at a picture and no task can see
+    // its folder, so the only road is handing the file over on the command;
+    // a brief that names the file where the conversation has it sends the
+    // task looking for a file that is not there, and it asks for it again.
+    assertions: [
+      delegated(1),
+      handedTheFileToATask("status.png"),
+      aTaskAnsweredWith("image pull backoff"),
+      repliedWith("pull"),
+    ],
+    files: [
+      { content: imageFixture("legible-status.png"), filename: "status.png" },
+    ],
+    kind: "orchestrator",
+    name: "orchestrator-hands-over-a-sent-file",
+    prompt: "wat this",
   }),
 ];

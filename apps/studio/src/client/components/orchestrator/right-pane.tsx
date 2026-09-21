@@ -30,16 +30,24 @@ const KEYBOARD_STEP = 16;
  *
  * What is kept is a share of the row, re-measured whenever the row changes,
  * the window's zoom included; see the task pane's atom for why.
+ *
+ * Told to fill, the pane is the row: the conversation is put away and the
+ * pane takes the whole width with no edge to drag, which is how a place of
+ * tabs stands with nothing beside it. What the pane holds stays where it is
+ * in the tree either way, so the pages in it survive the switch.
  */
 export function RightPane({
   children,
   conversation,
+  fills = false,
   isOpen,
   onCollapse,
   paneKey,
 }: {
   children: ReactNode;
   conversation: ReactNode;
+  /** Whether the pane has the whole row, with the conversation put away. */
+  fills?: boolean;
   isOpen: boolean;
   /** Dragged shut past the point of keeping it. */
   onCollapse: () => void;
@@ -69,6 +77,10 @@ export function RightPane({
     animationsRef.current = [];
   };
 
+  // Whether the pane is shown at all: filling the row, or open beside the
+  // conversation.
+  const isShown = isOpen || fills;
+
   const shownKeyRef = useRef(paneKey);
   const isFirstRunRef = useRef(true);
   useLayoutEffect(() => {
@@ -76,24 +88,28 @@ export function RightPane({
     if (!row || draggingRef.current) {
       return;
     }
-    const target = isOpen
-      ? taskPaneWidth(shareRef.current, row.offsetWidth)
-      : 0;
+    // The row itself when the pane fills it, its share when open, and
+    // nothing when closed.
+    const target = fills
+      ? row.offsetWidth
+      : isOpen
+        ? taskPaneWidth(shareRef.current, row.offsetWidth)
+        : 0;
     const isNewKey = shownKeyRef.current !== paneKey;
     shownKeyRef.current = paneKey;
     if (isFirstRunRef.current || isNewKey || row.offsetWidth === 0) {
       isFirstRunRef.current = false;
       reservedWidth.set(target);
-      if (isOpen) {
+      if (isShown) {
         paneWidth.set(target);
       }
       return;
     }
-    if (isOpen && reservedWidth.get() === 0) {
+    if (isShown && reservedWidth.get() === 0) {
       paneWidth.set(target);
     }
     const controls = [animate(reservedWidth, target, RAIL_SLIDE_TRANSITION)];
-    if (isOpen) {
+    if (isShown) {
       controls.push(animate(paneWidth, target, RAIL_SLIDE_TRANSITION));
     }
     animationsRef.current = controls;
@@ -103,7 +119,7 @@ export function RightPane({
       }
       animationsRef.current = [];
     };
-  }, [isOpen, paneKey, paneWidth, reservedWidth]);
+  }, [fills, isOpen, isShown, paneKey, paneWidth, reservedWidth]);
 
   // The share measured against the row again whenever either changes: the
   // window resized, the zoom changed, or the handle was moved.
@@ -113,10 +129,12 @@ export function RightPane({
       return;
     }
     const measure = () => {
-      if (draggingRef.current || !isOpen || reservedWidth.get() === 0) {
+      if (draggingRef.current || !isShown || reservedWidth.get() === 0) {
         return;
       }
-      const width = taskPaneWidth(shareRef.current, row.offsetWidth);
+      const width = fills
+        ? row.offsetWidth
+        : taskPaneWidth(shareRef.current, row.offsetWidth);
       if (width !== paneWidth.get()) {
         reservedWidth.set(width);
         paneWidth.set(width);
@@ -128,7 +146,7 @@ export function RightPane({
     return () => {
       observer.disconnect();
     };
-  }, [isOpen, storedShare, zoom, paneWidth, reservedWidth]);
+  }, [fills, isShown, storedShare, zoom, paneWidth, reservedWidth]);
 
   // The width the pointer asks for, in the row's own layout px: the rect is
   // on-screen px and `offsetWidth` layout px, so their ratio is the zoom.
@@ -240,7 +258,9 @@ export function RightPane({
 
   return (
     <div className="flex h-full w-full overflow-hidden" ref={rowRef}>
-      <div className="h-full min-w-0 flex-1">{conversation}</div>
+      <div className={cn("h-full min-w-0 flex-1", fills && "hidden")}>
+        {conversation}
+      </div>
       <motion.div
         className="relative h-full shrink-0"
         style={{ width: reservedWidth }}
@@ -249,17 +269,17 @@ export function RightPane({
           {/* Held at the pane's own width against the row's right edge, so
             closing clips it away from the left rather than narrowing it. */}
           <motion.div
-            aria-hidden={!isOpen}
+            aria-hidden={!isShown}
             className={cn(
               "absolute inset-y-0 right-0",
-              !isOpen && "pointer-events-none",
+              !isShown && "pointer-events-none",
             )}
             style={{ width: paneWidth }}
           >
             {children}
           </motion.div>
         </div>
-        {isOpen && (
+        {isOpen && !fills && (
           <div
             aria-label="Resize pane"
             aria-orientation="vertical"

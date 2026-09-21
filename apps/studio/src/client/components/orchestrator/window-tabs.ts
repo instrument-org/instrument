@@ -3,6 +3,11 @@ import {
   draftGroupOf,
   draftOfGroup,
   NEW_TAB_HREF,
+  newTabHrefOf,
+  placeGroupOf,
+  placeHomeHref,
+  placeOfGroup,
+  type TabbedPlace,
   THREADS_HREF,
   type WindowTab,
   type WindowTabs,
@@ -16,6 +21,16 @@ import { stepTabVisit, visitInTab } from "./tab-history";
 
 /** The route that shows nothing of its own: what the router is at while a page is on screen. */
 export const PAGE_ROUTE = "/orchestrator/browser";
+
+/**
+ * Whether a tab is still its group's own new tab, standing where it opened:
+ * the page that reaches everything, a place's apps, or the computer at the
+ * home folder. Such a tab is told where to go rather than kept beside what
+ * was asked for; one that has walked somewhere is a tab of its own.
+ */
+export function isFreshTab(tab: WindowTab): boolean {
+  return tab.kind === "screen" && sameHref(tab.href, newTabHrefOf(tab.group));
+}
 
 /** Whether a tab is the new-tab page: what a draft gathers from, and nothing gathered itself. */
 export function isHomeTab(tab: WindowTab): boolean {
@@ -221,6 +236,19 @@ export function useWindowTabs() {
       };
     });
     return id;
+  };
+
+  /**
+   * Shows a place: its group comes on screen at the tab it last had up, and
+   * a place with nothing in it yet opens on its own kind of new tab, since a
+   * place is its tabs and has nothing to stand over them.
+   */
+  const showPlace = (place: TabbedPlace) => {
+    const key = placeGroupOf(place);
+    showGroup(key);
+    if (!allTabs.some((tab) => tab.group === key)) {
+      openScreen(placeHomeHref(place), { group: key });
+    }
   };
 
   /**
@@ -443,9 +471,9 @@ export function useWindowTabs() {
 
   /**
    * Closes a tab. A thread's last tab closes like any other, and its pane
-   * goes with it; a draft's last tab is replaced by the new-tab page, since
-   * the draft is what is gathered beside the words and the page is where
-   * gathering starts.
+   * goes with it; a draft's or a place's last tab is replaced by its new
+   * tab, since the draft is what is gathered beside the words and the page
+   * is where gathering starts, and a place is nothing but its tabs.
    */
   const close = (id: string) => {
     const closing = allTabs.find((tab) => tab.id === id);
@@ -462,17 +490,18 @@ export function useWindowTabs() {
         return current;
       }
       const remaining = current.tabs.filter((tab) => tab.id !== id);
-      if (
-        draftOfGroup(closing.group) !== undefined &&
-        !remaining.some((tab) => tab.group === closing.group)
-      ) {
+      const keepsOne =
+        draftOfGroup(closing.group) !== undefined ||
+        placeOfGroup(closing.group) !== undefined;
+      if (keepsOne && !remaining.some((tab) => tab.group === closing.group)) {
+        const href = newTabHrefOf(closing.group);
         const home: WindowTab = {
           at: 0,
           group: closing.group,
-          href: NEW_TAB_HREF,
+          href,
           id: `screen-${crypto.randomUUID()}`,
           kind: "screen",
-          trail: [NEW_TAB_HREF],
+          trail: [href],
         };
         return {
           ...current,
@@ -630,6 +659,7 @@ export function useWindowTabs() {
     setActiveHref,
     showDraft,
     showGroup,
+    showPlace,
     showThread,
     step,
     stepVisit,

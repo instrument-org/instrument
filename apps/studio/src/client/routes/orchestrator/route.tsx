@@ -1,5 +1,7 @@
 import {
+  type AppPlace,
   appPlaceAtom,
+  chatGroupAtom,
   type Draft,
   draftGroupOf,
   draftOfGroup,
@@ -7,10 +9,12 @@ import {
   draftSnapshotsAtom,
   inboxOpenAtom,
   NEW_TAB_HREF,
+  newTabHrefOf,
   type OrchestratorRecent,
   orchestratorRecentsAtom,
   orchestratorSidebarWidthAtom,
   paneOpenByGroupAtom,
+  placeOfGroup,
   RECENTS_MAX,
   screenViewAtom,
   SIDEBAR_WIDTH_DEFAULT,
@@ -36,8 +40,8 @@ import {
   OrchestratorContext,
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
-import { EmptyPlace } from "@/client/components/orchestrator/empty-place";
 import {
+  computerTabOf,
   fileHref,
   folderHref,
   mountOfHostPath,
@@ -70,6 +74,7 @@ import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thr
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
+  isFreshTab,
   isHomeTab,
   PAGE_ROUTE,
   parseHref,
@@ -355,11 +360,15 @@ function OrchestratorLayout() {
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const [threadFilters, setThreadFilters] = useAtom(threadFiltersAtom);
-  // The place the rail has the window standing in. Only the chat is built:
-  // its columns stay mounted behind the other places, hidden, so a thread
-  // and its tabs are as they were on the way back.
+  // The place the rail has the window standing in. The chat is the inbox
+  // beside a thread and its tabs; every other place is a row of tabs of its
+  // own filling the area, drawn by the same pane with the inbox and the
+  // conversation put away, so a place's pages are guests like a thread's.
   const [place, setPlace] = useAtom(appPlaceAtom);
   const isChat = place === "chat";
+  // The group the chat had up, kept while the window stands elsewhere so
+  // coming back lands on the same thread.
+  const [chatGroup, setChatGroup] = useAtom(chatGroupAtom);
   // Read at the moment of starting, since the context is gathered first, and
   // the reader of the screen is made further down.
   const sendContextRef = useRef<
@@ -402,8 +411,46 @@ function OrchestratorLayout() {
   const popClosed = usePopClosedTab();
   const { active, tabs } = windowTabs;
   // Nothing is on screen with no group up: the right area belongs to a
-  // thread or a draft, never to the window on its own.
+  // thread, a draft or a place, never to the window on its own.
   const showsRightArea = windowTabs.group !== undefined;
+  // The chat's group follows what the chat has up, and only while the window
+  // stands in the chat: a place's group is the place's own.
+  useEffect(() => {
+    if (isChat && placeOfGroup(windowTabs.group) === undefined) {
+      setChatGroup(windowTabs.group ?? null);
+    }
+  }, [isChat, windowTabs.group, setChatGroup]);
+  /**
+   * Brings the chat back at the group it had up: its thread, if the thread
+   * is still among the window's, or the inbox alone.
+   */
+  const showChat = () => {
+    const thread = StoreId.SessionSchema.safeParse(chatGroup);
+    if (thread.success && (!threads.data || threadTitles.has(thread.data))) {
+      windowTabs.showGroup(thread.data);
+    } else {
+      windowTabs.leaveGroup();
+    }
+  };
+  /**
+   * Stands the window in a place: the chat comes back where it was, and
+   * any other place comes up on its own tabs.
+   */
+  const choosePlace = (next: AppPlace) => {
+    if (next === place) {
+      return;
+    }
+    setPlace(next);
+    if (next === "chat") {
+      showChat();
+    } else {
+      windowTabs.showPlace(next);
+    }
+  };
+  /** Puts the window on the chat, for a thread coming on screen from wherever it stands. */
+  const toChat = () => {
+    setPlace("chat");
+  };
   // An inbox left at the row's whole width, or a window grown narrower,
   // gives the conversation its least back as soon as something is beside it.
   useEffect(() => {
@@ -427,6 +474,17 @@ function OrchestratorLayout() {
       }
     }
     setDrafts((current) => current.filter(hasWords));
+    // The tabs come back as they were, and so does the place, and the two
+    // have to agree: a place stands on its own group, and the chat never
+    // shows a place's.
+    const shownPlace = placeOfGroup(windowTabs.group);
+    if (isChat) {
+      if (shownPlace !== undefined) {
+        showChat();
+      }
+    } else if (shownPlace !== place) {
+      windowTabs.showPlace(place);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // The thread whose group is on screen, beside its tabs.
@@ -456,17 +514,18 @@ function OrchestratorLayout() {
   // The pane beside the conversation: open unless this group put it away,
   // and shown only while there are tabs to show in it or its tasks are its
   // face. Closing the last tab closes the pane; the toggle brings it back
-  // with a new tab in it.
+  // with a new tab in it. A place is nothing but its pane, which fills the
+  // area and never closes.
   const isPaneWanted =
     windowTabs.group === undefined ||
     (paneOpenByGroup[windowTabs.group] ?? true);
-  const showsPane = (tabs.length > 0 || isTasksViewUp) && isPaneWanted;
-  // Whether the page in the pane is what is on screen: the chat up, the tab
-  // a page, the pane open, and nothing over it. Off, the guest is parked. A
-  // draft window counts as over it: a guest paints over everything in the
-  // window, so one under a draft would paint over the draft.
+  const showsPane =
+    !isChat || ((tabs.length > 0 || isTasksViewUp) && isPaneWanted);
+  // Whether the page in the pane is what is on screen: the tab a page, the
+  // pane open, and nothing over it. Off, the guest is parked. A draft window
+  // counts as over it: a guest paints over everything in the window, so one
+  // under a draft would paint over the draft.
   const isPageShown =
-    isChat &&
     isPageOnScreen &&
     showsRightArea &&
     showsPane &&
@@ -483,7 +542,7 @@ function OrchestratorLayout() {
   };
   const togglePane = () => {
     const group = windowTabs.group;
-    if (group === undefined) {
+    if (group === undefined || !isChat) {
       return;
     }
     if (showsPane) {
@@ -496,6 +555,10 @@ function OrchestratorLayout() {
     }
   };
   const paneToggle = <PaneToggle isOpen={showsPane} onToggle={togglePane} />;
+  /** Opens the new tab of whatever the pane holds: a place's own kind, or the page that reaches everything. */
+  const openNewTab = () => {
+    windowTabs.openScreen(newTabHrefOf(windowTabs.group));
+  };
 
   /**
    * Brings the face up over a thread: its list, or one of its tasks, with
@@ -512,6 +575,7 @@ function OrchestratorLayout() {
     }
     const thread = parsed.data;
     windowTabs.showThread(thread);
+    toChat();
     setPaneOpen(thread, true);
     setTasksFace((current) => ({
       // What was left behind stays forward of the list, so back and then
@@ -589,9 +653,7 @@ function OrchestratorLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.href]);
 
-  const isFreshNewTab =
-    active?.kind === "screen" &&
-    parseHref(active.href).pathname === parseHref(NEW_TAB_HREF).pathname;
+  const isFreshNewTab = active !== undefined && isFreshTab(active);
   // A task's tab is the task's: the guest in it is the one the task is
   // driving, and taking its place in the strip would leave the task browsing
   // where nobody can see it. Everything else gives its place up in place.
@@ -649,8 +711,10 @@ function OrchestratorLayout() {
     if (thread) {
       // The thread's group comes up at the tab it last had up, and the
       // address follows that tab; pushing the thread's own address here
-      // would send the tab on screen there.
+      // would send the tab on screen there. A thread is on the chat,
+      // wherever the window stood when it was asked for.
       windowTabs.showThread(thread);
+      toChat();
       return;
     }
     if (parseHref(href).pathname.startsWith(`${THREADS_HREF}/`)) {
@@ -689,15 +753,22 @@ function OrchestratorLayout() {
       return;
     }
     if (windowTabs.group === undefined) {
-      // Nothing is on screen to open it in: a screen belongs to a thread or
-      // a draft, never to the window on its own.
+      // Nothing is on screen to open it in: a screen belongs to a thread, a
+      // draft or a place, never to the window on its own.
       return;
     }
     revealPane();
+    // In Files the computer is the place's own face, so a file opened from
+    // it is a tab of its own beside it rather than the computer's tab
+    // becoming the file.
+    const asOwnTab =
+      newTab ||
+      (placeOfGroup(windowTabs.group) === "files" &&
+        computerTabOf(href)?.file !== undefined);
     if (!active) {
       // Nothing in the pane to open it in place of.
       windowTabs.openScreen(href);
-    } else if (newTab && !isFreshNewTab) {
+    } else if (asOwnTab && !isFreshNewTab) {
       windowTabs.openOrFocusScreen(href);
     } else {
       windowTabs.navigateScreen(href);
@@ -1114,9 +1185,7 @@ function OrchestratorLayout() {
       }
     },
     forward: goForward,
-    newTab: () => {
-      windowTabs.openScreen(NEW_TAB_HREF);
-    },
+    newTab: openNewTab,
     newThread: newDraft,
     // Put away only while something is on screen to have the window; with
     // nothing beside it the column is the window, and stays.
@@ -1138,7 +1207,10 @@ function OrchestratorLayout() {
     selectRelative: windowTabs.selectRelative,
     selectTab: windowTabs.selectIndex,
     toggleInbox: () => {
-      setInboxOpen((isOpen) => !isOpen || !showsRightArea);
+      // The inbox is the chat's; elsewhere the chord has nothing to move.
+      if (isChat) {
+        setInboxOpen((isOpen) => !isOpen || !showsRightArea);
+      }
     },
     // The next or previous row of the inbox from the thread on screen; from
     // no thread, the list's first or last.
@@ -1288,6 +1360,9 @@ function OrchestratorLayout() {
               }
               windowTabs.adoptGroup(group, sessionId);
             }
+            // The thread is on the chat, whatever place the draft was
+            // written over.
+            toChat();
             // A list narrowed to a topic or a place is a list the new thread
             // is very likely not in, so the narrowing goes.
             setThreadFilters(NO_FILTERS);
@@ -1475,7 +1550,7 @@ function OrchestratorLayout() {
                 onCloseDraft={closeDraft}
                 onModelChange={setDefaultModelURI}
                 onOpenApps={() => {
-                  setPlace("apps");
+                  choosePlace("apps");
                 }}
                 onStart={startThread}
                 openOutside={(href) => {
@@ -1486,7 +1561,7 @@ function OrchestratorLayout() {
             }
             rail={
               <AppRail
-                onChoose={setPlace}
+                onChoose={choosePlace}
                 onNew={() => {
                   newDraft();
                 }}
@@ -1495,70 +1570,66 @@ function OrchestratorLayout() {
             }
             rowRef={setRowElement}
           >
-            {/* The places not yet built: the area right of the rail, with
-              the chat's columns hidden behind them rather than unmounted. */}
-            {place === "home" && <EmptyPlace title="Home" />}
-            {place === "apps" && <EmptyPlace title="Apps" />}
-            {place === "files" && <EmptyPlace title="Files" />}
-            <div
-              className={cn(
-                "flex min-h-0 min-w-0 flex-1",
-                isChat ? undefined : "hidden",
-              )}
-            >
-              <ChatColumn
-                bounds={bounds}
-                isOpen={isInboxOpen}
-                isRightAreaOpen={showsRightArea}
-                onCollapse={() => {
-                  setInboxOpen(false);
-                }}
-                onCover={leaveGroup}
-              >
-                {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
-                <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
-                  {/* Names the openers for what the rows hold: a plain click
-                  opens in the tab on screen the way the thread itself does,
-                  and a middle or modified click asks for a tab of its own;
-                  the rows say which thread a hold belongs to. */}
-                  <OrchestratorContext
-                    value={{
-                      ...screens,
-                      openPage: (url, options) => openPage(url, options),
-                      openScreen: (href, options) => {
-                        openScreen(href, options);
-                      },
-                      opensNewTab: false,
-                    }}
-                  >
-                    <FileOpenContext
-                      value={(path) => {
-                        openNamedPath(path);
+            <div className="flex min-h-0 min-w-0 flex-1">
+              {/* The inbox is the chat's: hidden rather than unmounted while
+                the window stands in another place, so the list is as it was
+                on the way back. `contents` so the column lays out in the row
+                as if the wrapper were not there. */}
+              <div className={isChat ? "contents" : "hidden"}>
+                <ChatColumn
+                  bounds={bounds}
+                  isOpen={isInboxOpen}
+                  isRightAreaOpen={showsRightArea}
+                  onCollapse={() => {
+                    setInboxOpen(false);
+                  }}
+                  onCover={leaveGroup}
+                >
+                  {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
+                  <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
+                    {/* Names the openers for what the rows hold: a plain click
+                    opens in the tab on screen the way the thread itself does,
+                    and a middle or modified click asks for a tab of its own;
+                    the rows say which thread a hold belongs to. */}
+                    <OrchestratorContext
+                      value={{
+                        ...screens,
+                        openPage: (url, options) => openPage(url, options),
+                        openScreen: (href, options) => {
+                          openScreen(href, options);
+                        },
+                        opensNewTab: false,
                       }}
                     >
-                      <PageOpenContext value={(url) => openPage(url)}>
-                        <ThreadPane
-                          arrivedId={arrivedId}
-                          // Only a draft with words is a draft to come back
-                          // to; one being written with none yet is its
-                          // window's alone.
-                          drafts={drafts.filter(hasWords)}
-                          onDeleteDraft={deleteDraft}
-                          onListed={(listed) => {
-                            listedThreads.current = listed;
-                          }}
-                          onOpenDraft={showDraft}
-                          onOpenThread={(thread) => {
-                            openScreen(`${THREADS_HREF}/${thread.id}`);
-                          }}
-                          openThreadId={windowTabs.group}
-                          taskId={screens.taskId}
-                        />
-                      </PageOpenContext>
-                    </FileOpenContext>
-                  </OrchestratorContext>
-                </div>
-              </ChatColumn>
+                      <FileOpenContext
+                        value={(path) => {
+                          openNamedPath(path);
+                        }}
+                      >
+                        <PageOpenContext value={(url) => openPage(url)}>
+                          <ThreadPane
+                            arrivedId={arrivedId}
+                            // Only a draft with words is a draft to come back
+                            // to; one being written with none yet is its
+                            // window's alone.
+                            drafts={drafts.filter(hasWords)}
+                            onDeleteDraft={deleteDraft}
+                            onListed={(listed) => {
+                              listedThreads.current = listed;
+                            }}
+                            onOpenDraft={showDraft}
+                            onOpenThread={(thread) => {
+                              openScreen(`${THREADS_HREF}/${thread.id}`);
+                            }}
+                            openThreadId={windowTabs.group}
+                            taskId={screens.taskId}
+                          />
+                        </PageOpenContext>
+                      </FileOpenContext>
+                    </OrchestratorContext>
+                  </div>
+                </ChatColumn>
+              </div>
               {/* Hidden rather than unmounted while nothing is on screen, so
               every tab keeps what it has for when something opens again. */}
               <main
@@ -1571,7 +1642,8 @@ function OrchestratorLayout() {
                 it, the way a task's page keeps its pane: put away and
                 brought back by the toggle over the conversation, sized by
                 the edge between them, and the pane's state each group's
-                own. */}
+                own. In a place the pane is the whole area: a place is its
+                tabs, with no conversation beside them. */}
                 <RightPane
                   conversation={
                     <div className="relative flex h-full min-h-0 flex-col">
@@ -1602,6 +1674,7 @@ function OrchestratorLayout() {
                       </div>
                     </div>
                   }
+                  fills={!isChat}
                   isOpen={showsPane}
                   onCollapse={() => {
                     if (windowTabs.group !== undefined) {
@@ -1620,9 +1693,7 @@ function OrchestratorLayout() {
                           childTitles={childTitles}
                           groupKey={windowTabs.group ?? "window"}
                           onClose={requestClose}
-                          onNew={() => {
-                            windowTabs.openScreen(NEW_TAB_HREF);
-                          }}
+                          onNew={openNewTab}
                           onReorder={windowTabs.reorder}
                           onSelect={(id) => {
                             setTasksFace(undefined);
@@ -1633,7 +1704,9 @@ function OrchestratorLayout() {
                           threadTitles={threadTitles}
                           trailing={
                             <>
-                              {paneToggle}
+                              {/* A place has no conversation to fold the
+                              pane away for. */}
+                              {isChat && paneToggle}
                               {/* The thread's own task list, one press from
                               wherever the pane is; a draft has no tasks
                               yet. */}
@@ -1663,6 +1736,7 @@ function OrchestratorLayout() {
                       <TabLocationRow
                         canGoBack={canGoBack}
                         canGoForward={canGoForward}
+                        homeHref={newTabHrefOf(windowTabs.group)}
                         ref={locationRef}
                         // On a page the field sends the tab's own guest
                         // somewhere, and the page's controls (reload, the way

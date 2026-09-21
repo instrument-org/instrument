@@ -52,6 +52,7 @@ export function TabLocationRow({
   canGoBack,
   canGoForward,
   field,
+  homeHref = NEW_TAB_HREF,
   location,
   onBack,
   onForward,
@@ -63,6 +64,8 @@ export function TabLocationRow({
   canGoForward: boolean;
   /** What stands in for the field: a page's own address bar and controls. */
   field?: ReactNode;
+  /** Where the home button goes: the new tab of whatever the pane holds, a place's own kind included. */
+  homeHref?: string;
   location: TabLocation;
   onBack: () => void;
   onForward: () => void;
@@ -73,7 +76,7 @@ export function TabLocationRow({
   /** What this page can do with itself, held at the row's right edge. */
   trailing?: ReactNode;
 }) {
-  const home = useOpenGestures({ href: NEW_TAB_HREF, kind: "screen" });
+  const home = useOpenGestures({ href: homeHref, kind: "screen" });
   const openHome = home.destinations.find(
     (destination) => destination.id === "open",
   );

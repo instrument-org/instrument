@@ -1,6 +1,8 @@
 import {
+  APPS_HREF,
   draftGroupOf,
   NEW_TAB_HREF,
+  placeGroupOf,
   THREADS_HREF,
   type WindowTab,
   windowTabsAtom,
@@ -89,6 +91,13 @@ function Navigation() {
         }}
       >
         Open ideas for B
+      </button>
+      <button
+        onClick={() => {
+          tabs.showPlace("apps");
+        }}
+      >
+        Apps place
       </button>
       <span data-testid="strip">
         {tabs.tabs
@@ -312,6 +321,43 @@ describe("a draft's tabs", () => {
     expect(strip()).toBe("/orchestrator/apps");
     fireEvent.click(screen.getByText("Close active"));
     expect(strip()).toBe(NEW_TAB_HREF);
+    expect(read().activeId).not.toBeNull();
+  });
+});
+
+describe("a place's tabs", () => {
+  const strip = () => screen.getByTestId("strip").textContent;
+
+  it("comes up on its own kind of new tab, keeps it, and never runs out of tabs", () => {
+    const read = setup({
+      href: "/orchestrator/computer",
+      id: "folder",
+      kind: "screen",
+    });
+    fireEvent.click(screen.getByText("Apps place"));
+    expect(read().group).toBe(placeGroupOf("apps"));
+    expect(strip()).toBe(APPS_HREF);
+    // A tab opened in the place is the place's; leaving and coming back
+    // lands on it.
+    fireEvent.click(screen.getByText("Conversation file"));
+    expect(strip()).toBe(`${APPS_HREF}|/orchestrator/computer`);
+    fireEvent.click(screen.getByText("Thread A"));
+    expect(strip()).toBe("");
+    fireEvent.click(screen.getByText("Apps place"));
+    expect(strip()).toBe(`${APPS_HREF}|/orchestrator/computer`);
+    expect(read().activeId).toBe(
+      read().tabs.find(
+        (tab) =>
+          tab.group === placeGroupOf("apps") &&
+          tab.kind === "screen" &&
+          tab.href === "/orchestrator/computer",
+      )?.id,
+    );
+    // Closing the last tab puts the place's own new tab back rather than
+    // the page that reaches everything.
+    fireEvent.click(screen.getByText("Close active"));
+    fireEvent.click(screen.getByText("Close active"));
+    expect(strip()).toBe(APPS_HREF);
     expect(read().activeId).not.toBeNull();
   });
 });

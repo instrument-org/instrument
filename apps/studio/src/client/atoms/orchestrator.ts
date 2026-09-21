@@ -122,9 +122,17 @@ export const composeAtom = atom<ComposeEntry[]>([]);
 export type AppPlace = "apps" | "chat" | "files" | "home";
 
 /**
+ * A place that is a row of tabs: everything but the chat. Each keeps a tab
+ * group of its own, the way a thread does, and opens on a tab of its own
+ * kind: Home on the page that reaches everything, Apps on the apps, Files on
+ * the computer.
+ */
+export type TabbedPlace = Exclude<AppPlace, "chat">;
+
+/**
  * The place the window stands in, chosen in the rail. The chat is the inbox
- * beside a thread and its tabs; the others are laid out and not yet built,
- * so the window opens on the chat.
+ * beside a thread and its tabs; the others are each a row of tabs filling
+ * the area. The window opens on the chat.
  */
 export const appPlaceAtom = atomWithStorage<AppPlace>(
   "orchestrator.place.v1",
@@ -132,6 +140,36 @@ export const appPlaceAtom = atomWithStorage<AppPlace>(
   undefined,
   { getOnInit: true },
 );
+
+/**
+ * The group the chat had on screen when the window last stood in it, so
+ * coming back from another place lands on the same thread. Null for the
+ * inbox alone.
+ */
+export const chatGroupAtom = atomWithStorage<null | string>(
+  "orchestrator.chat-group.v1",
+  null,
+  undefined,
+  { getOnInit: true },
+);
+
+/** The group key a place's tabs are kept under. */
+export function placeGroupOf(place: TabbedPlace): string {
+  return `place:${place}`;
+}
+
+/** The place a group key names, if it names one. */
+export function placeOfGroup(
+  group: string | undefined,
+): TabbedPlace | undefined {
+  if (!group?.startsWith("place:")) {
+    return undefined;
+  }
+  const place = group.slice("place:".length);
+  return place === "apps" || place === "files" || place === "home"
+    ? place
+    : undefined;
+}
 
 /**
  * Whether the inbox column is shown. Put away, a thread and its tabs have
@@ -277,6 +315,36 @@ export function originOf(url: string | undefined): string | undefined {
 
 /** The address a new tab opens at: the page with the box that reaches everything. */
 export const NEW_TAB_HREF = "/orchestrator/home";
+
+/** The address of the apps: the tab the Apps place opens on. */
+export const APPS_HREF = "/orchestrator/apps";
+
+/** The address of the computer at the home folder: the tab the Files place opens on. */
+export const COMPUTER_HREF = "/orchestrator/computer?path=&root=~";
+
+/**
+ * The address a group's new tab opens at: a place's own kind of tab, and
+ * the page that reaches everything for a thread or a draft.
+ */
+export function newTabHrefOf(group: string | undefined): string {
+  const place = placeOfGroup(group);
+  return place === undefined ? NEW_TAB_HREF : placeHomeHref(place);
+}
+
+/** The address a place's new tab opens at, which is what its last tab closing leaves behind. */
+export function placeHomeHref(place: TabbedPlace): string {
+  switch (place) {
+    case "apps": {
+      return APPS_HREF;
+    }
+    case "files": {
+      return COMPUTER_HREF;
+    }
+    case "home": {
+      return NEW_TAB_HREF;
+    }
+  }
+}
 
 /** The route a thread's screen is at, followed by the thread's session id. */
 export const THREADS_HREF = "/orchestrator/threads";

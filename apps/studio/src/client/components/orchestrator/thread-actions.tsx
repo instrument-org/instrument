@@ -1,5 +1,6 @@
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
 import { rpcClient } from "@/client/rpc/client";
+import { type TaskId } from "@instrument-org/workspace/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -13,6 +14,12 @@ import { toast } from "sonner";
 import { useOrchestrator } from "./context";
 import { type RowAction } from "./row-shell";
 import { type Thread } from "./threads";
+
+/** Which thread a call is about, as every thread mutation takes it. */
+interface ThreadInput {
+  id: TaskId;
+  sessionId: string;
+}
 
 /** The actions of one thread, where one thread is all there is: the head of its pane. */
 export function useThreadActions(thread: Thread): RowAction[] {
@@ -62,7 +69,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           action: {
             label: "Undo",
             onClick: () => {
-              unarchive.mutate(input);
+              bringBack(input);
             },
           },
         });
@@ -81,7 +88,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           action: {
             label: "Undo",
             onClick: () => {
-              archive.mutate(input);
+              putAway(input);
             },
           },
         });
@@ -97,6 +104,13 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
   const star = useMutation(
     rpcClient.workspace.orchestrator.threads.star.mutationOptions(),
   );
+  // Hoisted, so each way's toast can name the other way back.
+  function putAway(input: ThreadInput) {
+    archive.mutate(input);
+  }
+  function bringBack(input: ThreadInput) {
+    unarchive.mutate(input);
+  }
   return (thread) => {
     const input = { id: taskId, sessionId: thread.id };
     const put: RowAction = thread.archived
@@ -105,7 +119,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           id: "unarchive",
           label: "Unarchive",
           run: () => {
-            unarchive.mutate(input);
+            bringBack(input);
           },
         }
       : {
@@ -113,7 +127,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           id: "archive",
           label: "Archive",
           run: () => {
-            archive.mutate(input);
+            putAway(input);
           },
         };
     const mark: RowAction[] =

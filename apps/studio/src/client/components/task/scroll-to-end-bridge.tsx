@@ -8,6 +8,9 @@ const SETTLE_MS = 250;
 /** How long the end is followed after arriving, at most, however long the transcript keeps growing. */
 const SETTLE_MAX_MS = 4000;
 
+/** The reader taking over: any of these on the viewport ends the following. */
+const TAKEOVER_EVENTS = ["wheel", "touchstart", "keydown", "pointerdown"];
+
 /**
  * Takes the transcript to its end on arriving, and holds it there while what
  * arrived settles.
@@ -44,21 +47,15 @@ export function ScrollToEndBridge({
     });
 
     const content = contentRef.current;
-    const viewport = content?.parentElement;
-    if (!content || !viewport) {
+    const scrolled = content?.parentElement;
+    if (!content || !scrolled) {
       return () => {
         cancelAnimationFrame(frame);
       };
     }
+    // Narrowed once here, since the narrowing does not reach into `stop`.
+    const viewport: HTMLElement = scrolled;
     let quiet: ReturnType<typeof setTimeout> | undefined;
-    const stop = () => {
-      observer.disconnect();
-      clearTimeout(quiet);
-      clearTimeout(cap);
-      for (const type of TAKEOVER_EVENTS) {
-        viewport.removeEventListener(type, stop);
-      }
-    };
     const observer = new ResizeObserver(() => {
       scrollToEnd();
       clearTimeout(quiet);
@@ -71,6 +68,15 @@ export function ScrollToEndBridge({
     for (const type of TAKEOVER_EVENTS) {
       viewport.addEventListener(type, stop, { passive: true });
     }
+    // Hoisted: the observer and the timers name it before it is reached.
+    function stop() {
+      observer.disconnect();
+      clearTimeout(quiet);
+      clearTimeout(cap);
+      for (const type of TAKEOVER_EVENTS) {
+        viewport.removeEventListener(type, stop);
+      }
+    }
     return () => {
       cancelAnimationFrame(frame);
       stop();
@@ -79,5 +85,3 @@ export function ScrollToEndBridge({
 
   return null;
 }
-
-const TAKEOVER_EVENTS = ["wheel", "touchstart", "keydown", "pointerdown"];

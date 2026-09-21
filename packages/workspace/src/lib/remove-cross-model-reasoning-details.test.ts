@@ -182,6 +182,62 @@ describe("removeCrossModelReasoningDetails", () => {
     expect(hasOpenRouterReasoningDetails(modelMessages)).toBe(false);
   });
 
+  it("removes OpenAI encrypted reasoning, and keeps a reply's phase, when the model URI differs", () => {
+    const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
+    const sourceMessage = createAssistantMessage({
+      modelId: "auto",
+      providerId: "instrument",
+    });
+    const [reasoningPart] = sourceMessage.parts;
+    if (reasoningPart?.type !== "reasoning") {
+      throw new Error("Expected a reasoning part");
+    }
+    const message: SessionMessage.AssistantWithParts = {
+      ...sourceMessage,
+      parts: [
+        {
+          ...reasoningPart,
+          providerMetadata: {
+            openai: {
+              itemId: "rs_source",
+              reasoningEncryptedContent: "encrypted-payload",
+            },
+          },
+        },
+        {
+          metadata: reasoningPart.metadata,
+          providerMetadata: {
+            openai: { itemId: "msg_source", phase: "final_answer" },
+          },
+          state: "done",
+          text: "The answer",
+          type: "text",
+        },
+      ],
+    };
+
+    const result = removeCrossModelReasoningDetails({
+      messages: [message],
+      model: targetModel,
+    });
+
+    expect(result.redactedMessageCount).toBe(1);
+    expect(result.redactedReasoningDetailsCount).toBe(1);
+
+    const [sanitized] = result.messages;
+    const [sanitizedReasoning, sanitizedText] = sanitized?.parts ?? [];
+    if (
+      sanitizedReasoning?.type !== "reasoning" ||
+      sanitizedText?.type !== "text"
+    ) {
+      throw new Error("Expected reasoning and text parts");
+    }
+    expect(sanitizedReasoning.providerMetadata).toBeUndefined();
+    expect(sanitizedText.providerMetadata).toEqual({
+      openai: { itemId: "msg_source", phase: "final_answer" },
+    });
+  });
+
   it("keeps reasoning details when the previous assistant turn has the exact target model URI", () => {
     const targetModel = createMockAIGatewayModel({ provider: "openrouter" });
     const sourceMessage = createAssistantMessage({

@@ -31,10 +31,11 @@ export function removeCrossModelReasoningDetails({
       return message;
     }
 
-    // OpenRouter encrypted reasoning is provider-private continuation state.
-    // It is only safe to replay for the exact same stored model URI.
+    // Encrypted reasoning, OpenRouter's or OpenAI's, is provider-private
+    // continuation state. It is only safe to replay for the exact same stored
+    // model URI.
     const sanitizedParts = message.parts.map((part) => {
-      const result = removeOpenRouterReasoningDetailsFromPart(part);
+      const result = removeEncryptedReasoningFromPart(part);
       redactedReasoningDetailsCount += result.redactedReasoningDetailsCount;
       return result.part;
     });
@@ -62,6 +63,74 @@ export function removeCrossModelReasoningDetails({
 
 function hasDefinedValues(record: Record<string, unknown>) {
   return Object.values(record).some((value) => value !== undefined);
+}
+
+function removeEncryptedReasoningFromPart(part: SessionMessagePart.Type): {
+  part: SessionMessagePart.Type;
+  redactedReasoningDetailsCount: number;
+} {
+  let result = part;
+  let redactedReasoningDetailsCount = 0;
+
+  if ("providerMetadata" in result) {
+    const removeResult = removeOpenRouterReasoningDetails(
+      result.providerMetadata,
+    );
+    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
+
+    if (removeResult.redactedReasoningDetailsCount > 0) {
+      result = { ...result, providerMetadata: removeResult.metadata };
+    }
+  }
+
+  if (result.type === "reasoning") {
+    const removeResult = removeOpenAIEncryptedReasoning(
+      result.providerMetadata,
+    );
+    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
+
+    if (removeResult.redactedReasoningDetailsCount > 0) {
+      result = { ...result, providerMetadata: removeResult.metadata };
+    }
+  }
+
+  if (isToolPart(result)) {
+    const removeResult = removeOpenRouterReasoningDetails(
+      result.callProviderMetadata,
+    );
+    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
+
+    if (removeResult.redactedReasoningDetailsCount > 0) {
+      result = { ...result, callProviderMetadata: removeResult.metadata };
+    }
+  }
+
+  return { part: result, redactedReasoningDetailsCount };
+}
+
+// OpenAI's Responses API returns a reasoning item's content encrypted, keyed
+// by the item id it goes back under; a reasoning part carries nothing else in
+// its `openai` namespace, so the namespace goes whole.
+function removeOpenAIEncryptedReasoning(
+  metadata: ProviderMetadata | undefined,
+): {
+  metadata: ProviderMetadata | undefined;
+  redactedReasoningDetailsCount: number;
+} {
+  const openaiMetadata = metadata?.openai;
+
+  if (!openaiMetadata || !("reasoningEncryptedContent" in openaiMetadata)) {
+    return { metadata, redactedReasoningDetailsCount: 0 };
+  }
+
+  const { openai: _openai, ...remainingMetadata } = metadata;
+
+  return {
+    metadata: hasDefinedValues(remainingMetadata)
+      ? remainingMetadata
+      : undefined,
+    redactedReasoningDetailsCount: 1,
+  };
 }
 
 function removeOpenRouterReasoningDetails(
@@ -96,38 +165,4 @@ function removeOpenRouterReasoningDetails(
       : undefined,
     redactedReasoningDetailsCount,
   };
-}
-
-function removeOpenRouterReasoningDetailsFromPart(
-  part: SessionMessagePart.Type,
-): {
-  part: SessionMessagePart.Type;
-  redactedReasoningDetailsCount: number;
-} {
-  let result = part;
-  let redactedReasoningDetailsCount = 0;
-
-  if ("providerMetadata" in result) {
-    const removeResult = removeOpenRouterReasoningDetails(
-      result.providerMetadata,
-    );
-    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
-
-    if (removeResult.redactedReasoningDetailsCount > 0) {
-      result = { ...result, providerMetadata: removeResult.metadata };
-    }
-  }
-
-  if (isToolPart(result)) {
-    const removeResult = removeOpenRouterReasoningDetails(
-      result.callProviderMetadata,
-    );
-    redactedReasoningDetailsCount += removeResult.redactedReasoningDetailsCount;
-
-    if (removeResult.redactedReasoningDetailsCount > 0) {
-      result = { ...result, callProviderMetadata: removeResult.metadata };
-    }
-  }
-
-  return { part: result, redactedReasoningDetailsCount };
 }

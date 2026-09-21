@@ -92,11 +92,27 @@ describe("AppRail", () => {
     ]);
     const { rail } = renderRail();
     const mark = rail.getByRole("button", { name: "Apps" });
-    const cards = await within(mark).findAllByRole("img", { hidden: true });
+    // The sample hand stands in until the list is read.
+    await within(mark).findByRole("img", { hidden: true, name: "Slack" });
+    const cards = within(mark).getAllByRole("img", { hidden: true });
     expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
       "Slack",
       "Notion",
       "Linear",
+    ]);
+  });
+
+  it("fans a sample hand, Notion in front between Slack and Linear, while the workspace reaches no app", async () => {
+    apps.mockReturnValue([]);
+    const { rail } = renderRail();
+    const mark = rail.getByRole("button", { name: "Apps" });
+    // The sites' icons, as their images name them; the front card comes
+    // first in the hand.
+    const cards = await within(mark).findAllByRole("img", { hidden: true });
+    expect(cards.map((card) => card.getAttribute("alt"))).toEqual([
+      "Favicon for notion.so",
+      "Favicon for slack.com",
+      "Favicon for linear.app",
     ]);
   });
 

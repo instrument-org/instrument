@@ -11,8 +11,8 @@ import { getInitials } from "@/client/lib/get-initials";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
+import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
-import { GearIcon } from "@phosphor-icons/react/Gear";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { useQuery } from "@tanstack/react-query";
@@ -20,20 +20,40 @@ import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 
-/** The places, in the order the rail draws them; Apps draws its own mark from the apps the workspace reaches. */
+/** The places, in the order the rail draws them; Apps draws its own mark from the apps the workspace reaches. The marks are drawn light: a thin line reads as a place, a heavy one as a button. */
 const PLACES: { icon: ReactNode; id: AppPlace; label: string }[] = [
-  { icon: <HouseIcon className="size-6" />, id: "home", label: "Home" },
   {
-    icon: <ChatsCircleIcon className="size-6" />,
+    icon: <HouseIcon className="size-6" weight="light" />,
+    id: "home",
+    label: "Home",
+  },
+  {
+    icon: <ChatsCircleIcon className="size-6" weight="light" />,
     id: "chat",
     label: "Chat",
   },
   { icon: <AppFan />, id: "apps", label: "Apps" },
-  { icon: <FolderIcon className="size-6" />, id: "files", label: "Files" },
+  {
+    icon: <FolderIcon className="size-6" weight="light" />,
+    id: "files",
+    label: "Files",
+  },
 ];
 
 /** How many of the workspace's apps the Apps mark fans out. */
 const FAN_SHOWN = 3;
+
+/**
+ * What the Apps mark fans out before the workspace reaches any app: three
+ * services most people know, so the mark hints at what the place holds.
+ * The first takes the front of the fan, so Notion stands in the middle
+ * between Slack and Linear.
+ */
+const SAMPLE_APPS = [
+  { name: "Notion", site: "https://notion.so", slug: "notion" },
+  { name: "Slack", site: "https://slack.com", slug: "slack" },
+  { name: "Linear", site: "https://linear.app", slug: "linear" },
+];
 
 /**
  * The rail down the window's left edge: New at its top, then one entry per
@@ -147,24 +167,17 @@ const FAN_CARDS: Record<number, string[]> = {
  * The Apps mark: the workspace's own apps, each on a small white card, fanned
  * out like a hand of cards with the front one upright. Connected apps go in
  * front of ones still being set up, since theirs are the icons worth
- * showing. With no apps yet, one empty card drawn in a dashed line, which is
- * a place waiting for something.
+ * showing. With no apps yet, the sample hand, so the mark says what the
+ * place is for rather than that it is empty.
  */
 function AppFan() {
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const apps = list.data?.apps ?? [];
-  const shown = [
+  const own = [
     ...apps.filter((app) => app.standing === "connected"),
     ...apps.filter((app) => app.standing !== "connected"),
   ].slice(0, FAN_SHOWN);
-  if (shown.length === 0) {
-    return (
-      <span
-        aria-hidden
-        className="size-6 rounded-md border border-dashed border-current opacity-60"
-      />
-    );
-  }
+  const shown = own.length === 0 ? SAMPLE_APPS : own;
   const cards = FAN_CARDS[shown.length] ?? [];
   return (
     <span aria-hidden className="relative block h-7 w-11">
@@ -190,9 +203,9 @@ function AppFan() {
 
 /**
  * The user at the rail's foot, which is the way to Settings: their picture
- * while they are signed in, a gear while they are not, and the word under
- * either. The 2.0 window has no sidebar of its own to keep the account row
- * in, so this is where it shows.
+ * while they are signed in, the faders Settings wears elsewhere while they
+ * are not, and the word under either. The 2.0 window has no sidebar of its
+ * own to keep the account row in, so this is where it shows.
  */
 function RailUser() {
   const { data: user } = useLiveUser();
@@ -213,7 +226,7 @@ function RailUser() {
             </AvatarFallback>
           </Avatar>
         ) : (
-          <GearIcon className="size-6" />
+          <FadersHorizontalIcon className="size-6" weight="light" />
         )}
       </span>
       <span className="text-[11px] leading-4">Settings</span>

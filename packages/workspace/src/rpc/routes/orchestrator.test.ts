@@ -33,14 +33,40 @@ describe("threadChanges", () => {
     await changes.return();
   });
 
-  it("stays quiet on another task's session", async () => {
+  it.each([
+    ["session.tagsChanged", { id: taskId, sessionId: StoreId.newSessionId() }],
+    [
+      "session.done",
+      {
+        id: taskId,
+        parentSessionId: undefined,
+        sessionId: StoreId.newSessionId(),
+      },
+    ],
+  ] as const)(
+    "fires on %s, since a thread's state is read off its agent's actor rather than the store",
+    async (topic, payload) => {
+      const controller = new AbortController();
+      const changes = threadChanges(taskId, controller.signal);
+      const next = changes.next();
+      publisher.publish(topic, payload);
+      expect(await fired(next)).toBe(true);
+      controller.abort();
+      await changes.return();
+    },
+  );
+
+  it.each([
+    ["session.updated", { id: otherTaskId, sessionId: StoreId.newSessionId() }],
+    [
+      "session.tagsChanged",
+      { id: otherTaskId, sessionId: StoreId.newSessionId() },
+    ],
+  ] as const)("stays quiet on another task's %s", async (topic, payload) => {
     const controller = new AbortController();
     const changes = threadChanges(taskId, controller.signal);
     const next = changes.next();
-    publisher.publish("session.updated", {
-      id: otherTaskId,
-      sessionId: StoreId.newSessionId(),
-    });
+    publisher.publish(topic, payload);
     expect(await fired(next)).toBe(false);
     controller.abort();
     await changes.return();

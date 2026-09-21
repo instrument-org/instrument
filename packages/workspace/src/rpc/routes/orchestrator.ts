@@ -187,10 +187,16 @@ const listThreadsRoute = base
 
 /**
  * Fires whenever anything lands in any thread of the task, a thread's
- * record changes, or the workspace's apps change: a thread's holds name only
- * the apps the workspace has, so an app set up or removed from the Apps
- * screen moves a row's marks and the column's app rows without a message
- * landing anywhere. Subscribed the moment it is called rather than when it is
+ * record changes, a thread's agent starts, moves, or ends, or the
+ * workspace's apps change: a thread's holds name only the apps the workspace
+ * has, so an app set up or removed from the Apps screen moves a row's marks
+ * and the column's app rows without a message landing anywhere. The agent's
+ * state is read off its actor rather than the store, so a turn ending, which
+ * writes nothing after its last reply, is heard from the actor itself; read
+ * only on writes, a list would say working for as long as it took the next
+ * one to land. The tasks filed from a thread are read the same way but not
+ * heard: what they do reaches the list with the thread's own writes, their
+ * wake among them. Subscribed the moment it is called rather than when it is
  * first pulled, so a read taken right after has nothing land unobserved
  * between the two; an event the read already covered only costs one re-read.
  * A burst of events collapses into one firing per pull, since the next batch
@@ -200,19 +206,20 @@ export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
   const batches = changedMessageBatches({ id }, signal);
   const sessionUpdates = publisher.subscribe("session.updated", { signal });
   const sessionRemoved = publisher.subscribe("session.removed", { signal });
+  const sessionTags = publisher.subscribe("session.tagsChanged", { signal });
+  const sessionDone = publisher.subscribe("session.done", { signal });
   const appUpdates = publisher.subscribe("app.updated", { signal });
   async function* changed() {
     for await (const _batch of batches) {
       yield null;
     }
   }
-  async function* everyOne(generator: typeof appUpdates) {
-    for await (const _payload of generator) {
-      yield null;
-    }
-  }
   async function* forThisTask(
-    generator: typeof sessionRemoved | typeof sessionUpdates,
+    generator:
+      | typeof sessionDone
+      | typeof sessionRemoved
+      | typeof sessionTags
+      | typeof sessionUpdates,
   ) {
     for await (const payload of generator) {
       if (payload.id === id) {
@@ -226,6 +233,8 @@ export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
         changed(),
         forThisTask(sessionUpdates),
         forThisTask(sessionRemoved),
+        forThisTask(sessionTags),
+        forThisTask(sessionDone),
         everyOne(appUpdates),
       ]);
     } finally {
@@ -233,6 +242,13 @@ export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
     }
   }
   return merged();
+}
+
+/** One firing per event, whatever it carries. */
+async function* everyOne(generator: AsyncIterable<unknown>) {
+  for await (const _payload of generator) {
+    yield null;
+  }
 }
 
 /** The same list, re-read on every change in any thread, bursts collapsed. */

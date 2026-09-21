@@ -20,4 +20,4 @@ In a production task this fired twice in one session. `agent-browser get text bo
 
 ## Decision
 
-Carry the fifth part of `patches/just-bash@3.4.1.patch` until upstream exposes the same signal in a version we install, then drop it and the `stdinConnected` branch in `rg.ts`. The other shims that pick `stdin: "ignore"` from the same bytes (`ffmpeg`, `ffprobe`, `node`, `python`, `uv`) stay as they are: for a subprocess that only reads, an empty pipe and `/dev/null` are the same EOF, and ripgrep is the one binary here whose mode turns on the distinction.
+Carry the fifth part of `patches/just-bash@3.4.1.patch` until the upstream change ([vercel-labs/just-bash#448](https://github.com/vercel-labs/just-bash/pull/448)) is in a version we install, then drop it and the `stdinConnected` branch in `rg.ts`. The other shims that pick `stdin: "ignore"` from the same bytes (`ffmpeg`, `ffprobe`, `node`, `python`, `uv`) stay as they are: for a subprocess that only reads, an empty pipe and `/dev/null` are the same EOF, and ripgrep is the one binary here whose mode turns on the distinction.

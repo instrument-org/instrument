@@ -2,11 +2,16 @@ import { APP_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
+import { type FileUpload } from "../../schemas/file-upload";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
+import { getMimeType } from "../get-mime-type";
+import { resolveExistingFilePath } from "../resolve-agent-path";
 import {
   effectiveFolderAccess,
   folderHoldsWorkspace,
+  type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 
 /**
@@ -107,6 +112,90 @@ export async function requireFoldersOnDisk(
 }
 
 /**
+ * The files a task is handed, from the `--file` specs on `task new` and
+ * `task send`: each a path the conversation can read, resolved through its own
+ * view of the filesystem to the file on disk. The message the task gets copies
+ * each into the task's `attachments/`, the way a file the user attaches to a
+ * message reaches a task, so a file is handed over without the folder around
+ * it: no grant widens, and the original stays where it is.
+ *
+ * Relative specs count from the shell's working directory, as `cat` would read
+ * them, rather than from the task root the file tools assume.
+ */
+export async function resolveFileUploads(
+  specs: string[],
+  { cwd, layout }: { cwd: string; layout: WorkspaceFsLayout },
+): Promise<FileUpload.Type[]> {
+  return Promise.all(
+    specs.map(async (spec) => {
+      const inputPath = path.posix.isAbsolute(spec)
+        ? spec
+        : path.posix.join(cwd, spec);
+      const resolved = resolveExistingFilePath({ inputPath, layout });
+      if (resolved.isErr()) {
+        throw new Error(`no file at "${spec}": ${resolved.error.message}`);
+      }
+      const hostPath = resolved.value.absolutePath;
+      let stat;
+      try {
+        stat = await fs.stat(hostPath);
+      } catch {
+        throw new Error(
+          `no file at "${spec}": nothing is on disk there. \`ls\` its folder to see what is there; a path with a space in it needs quotes.`,
+        );
+      }
+      if (stat.isDirectory()) {
+        throw new Error(
+          `"${spec}" is a folder. --file hands a task one file; a folder goes with --folder.`,
+        );
+      }
+      return {
+        filename: path.basename(hostPath),
+        mimeType: getMimeType(hostPath),
+        path: hostPath,
+        size: stat.size,
+      };
+    }),
+  );
+}
+
+/**
+ * A path in the conversation's own folder as a brief writes one: from the
+ * root, or bare from the folder the shell is in.
+ */
+const OWN_FILE_IN_BRIEF = new RegExp(
+  String.raw`(?<![\w/.-])((?:${MOUNT.task}|${TASK_FOLDER_NAMES.attachments})/[^\s'"\`()[\]]+)`,
+  "g",
+);
+
+/**
+ * A brief that names a file in this conversation's own folder without handing
+ * it over is refused, with the flag to add: no task can see that folder, so
+ * the task would fail at its first read and wake the conversation about it,
+ * which is a turn spent on what this catches. A file handed over lands at the
+ * same path in the task's own folder, so the brief's name for it stays right.
+ */
+export function requireFilesNamedInBrief(
+  prompt: string,
+  specs: string[],
+  cwd: string,
+): void {
+  const handed = new Set(specs.map((spec) => ownPath(spec, cwd)));
+  const missing = [
+    ...new Set(
+      [...prompt.matchAll(OWN_FILE_IN_BRIEF)].map((match) =>
+        ownPath((match[1] ?? "").replace(/[.,;:]+$/, ""), cwd),
+      ),
+    ),
+  ].filter((named) => !handed.has(named));
+  if (missing.length > 0) {
+    throw new Error(
+      `the brief names ${missing.map((named) => `"${named}"`).join(", ")} in this conversation's own folder, which no task can see. Add ${missing.map((named) => `--file ${named}`).join(" ")}: a copy lands in the task's own ${TASK_FOLDER_NAMES.attachments}/ under the same name.`,
+    );
+  }
+}
+
+/**
  * The folders a task is handed, from the `--folder` specs on `task new` and
  * the folders the conversation has: each a host path inside a mount, with the
  * conversation's access unless the spec narrows it.
@@ -160,6 +249,12 @@ export function resolveFolders(
       source: "user" as const,
     };
   });
+}
+
+function ownPath(spec: string, cwd: string): string {
+  return path.posix.normalize(
+    path.posix.isAbsolute(spec) ? spec : path.posix.join(cwd, spec),
+  );
 }
 
 /**

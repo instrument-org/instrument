@@ -12,6 +12,7 @@ import { z } from "zod";
 import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
+import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type Task } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
@@ -38,7 +39,7 @@ import { newMessage } from "../new-message";
 import { newTaskId } from "../new-task-id";
 import { isWorking, leftRunning } from "../orchestrator/activity";
 import { recordTaskThread, taskThreads } from "../orchestrator/attribution";
-import { listChildTasks } from "../orchestrator/children";
+import { childTaskMounts, listChildTasks } from "../orchestrator/children";
 import { describeHoldings } from "../orchestrator/describe-holdings";
 import { taskFolderHoldings } from "../orchestrator/folder-holdings";
 import {
@@ -75,12 +76,18 @@ import { trashTask } from "../trash-task";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
-import { effectiveFolderAccess } from "../workspace-fs-layout";
+import {
+  buildWorkspaceFsLayout,
+  effectiveFolderAccess,
+  type WorkspaceFsLayout,
+} from "../workspace-fs-layout";
 import {
   parseDelay,
   parseFlags,
   parseFolderSpec,
+  requireFilesNamedInBrief,
   requireFoldersOnDisk,
+  resolveFileUploads,
   resolveFolders,
 } from "./task-args";
 import { TASK_COMMAND } from "./task-command";
@@ -129,7 +136,7 @@ const MAX_WAIT_MS = ms("10 minutes");
 
 const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
-  ${TASK_COMMAND.name} new --name '<title>' [--model <model>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--app <slug>]... [--tab <id>] <<'EOF'
+  ${TASK_COMMAND.name} new --name '<title>' [--model <model>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--file <path>]... [--app <slug>]... [--tab <id>] <<'EOF'
   <prompt>
   EOF
       Create a task and start it. The prompt is its whole brief: it knows nothing
@@ -140,7 +147,10 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       its results go there unless the brief says where else. Other folders are
       mounts under ${MOUNT.attachedFolders} in this conversation, or a folder inside one,
       named with or without the prefix; a task sees none unless named here,
-      with the access this conversation has unless :ro narrows it. --app hands the task a
+      with the access this conversation has unless :ro narrows it. --file hands
+      the task one file you can read, a file the user sent above all: a copy
+      lands in the task's own attachments/ and the task is told it is there,
+      so the brief calls it by that name. --app hands the task a
       connected app, by slug; it gets the \`app\` command for that app and no
       other. --tab hands the task one of the user's browser tabs, by the id the
       note on their message gives; its browser is then that tab, page and all.
@@ -150,11 +160,12 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       Prints the task id. You are told when it finishes a turn; do not poll it.
       What that note carries is its last message, so the brief names a file to
       make and a folder for it, never findings or a summary to put in the reply.
-  ${TASK_COMMAND.name} send <id> <<'EOF'
+  ${TASK_COMMAND.name} send <id> [--file <path>]... <<'EOF'
   <message>
   EOF
       Deliver a message into a task: it runs now if idle, after its current turn
-      if busy. Follow-ups, corrections, answers to its questions. Same heredoc.
+      if busy. Follow-ups, corrections, answers to its questions. Same heredoc,
+      and --file hands it a file the way \`new --file\` does.
   ${TASK_COMMAND.name} stop <id>
       Interrupt a running task. Follow with send to redirect it.
   ${TASK_COMMAND.name} kill <id> [<bg id>]
@@ -261,7 +272,7 @@ export function createTaskCommand(context: TaskCommandContext) {
           return await runModels(rest, context);
         }
         case "new": {
-          return await runNew(rest, context, ctx.stdin);
+          return await runNew(rest, context, ctx.stdin, ctx.cwd);
         }
         case "rename": {
           return await runRename(rest, context);
@@ -270,7 +281,7 @@ export function createTaskCommand(context: TaskCommandContext) {
           return await runSearch(rest, context);
         }
         case "send": {
-          return await runSend(rest, context, ctx.stdin);
+          return await runSend(rest, context, ctx.stdin, ctx.cwd);
         }
         case "show": {
           return await runShow(rest, context);
@@ -494,10 +505,11 @@ export async function runNew(
   args: string[],
   context: TaskCommandContext,
   stdin: ByteString,
+  cwd: string,
 ) {
   const { positional, values } = parseFlags(args, {
-    flags: ["app", "effort", "folder", "model", "name", "tab"],
-    repeatable: ["app", "folder"],
+    flags: ["app", "effort", "file", "folder", "model", "name", "tab"],
+    repeatable: ["app", "file", "folder"],
   });
   const prompt = promptFrom(positional.join(" "), stdin);
   if (!prompt) {
@@ -531,6 +543,12 @@ export async function runNew(
   const resolvedFolders = resolveFolders(askedFolders, orchestratorFolders);
   await requireFoldersOnDisk(resolvedFolders, askedFolders);
   const folders = withWorkspaceFolder(resolvedFolders);
+  const askedFiles = values.get("file") ?? [];
+  requireFilesNamedInBrief(prompt, askedFiles, cwd);
+  const files = await resolveFileUploads(askedFiles, {
+    cwd,
+    layout: await orchestratorLayout(context, orchestratorFolders),
+  });
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const tab = values.get("tab")?.[0];
   const browserTargetId =
@@ -586,6 +604,7 @@ export async function runNew(
   }
   const sessionId = session.value;
   const message = await newMessage({
+    files,
     folders,
     model,
     modelURI,
@@ -630,7 +649,7 @@ export async function runNew(
   await recordTaskActivity(taskId);
 
   return ok(
-    `Created ${taskId} ("${name}"). It is running now.\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
+    `Created ${taskId} ("${name}"). It is running now.\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\n${handedFiles(message.value)}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
   );
 }
 
@@ -638,9 +657,14 @@ export async function runSend(
   args: string[],
   context: TaskCommandContext,
   stdin: ByteString,
+  cwd: string,
 ) {
-  const task = await requireOwnChild(args[0], context);
-  const prompt = promptFrom(args.slice(1).join(" "), stdin);
+  const { positional, values } = parseFlags(args, {
+    flags: ["file"],
+    repeatable: ["file"],
+  });
+  const task = await requireOwnChild(positional[0], context);
+  const prompt = promptFrom(positional.slice(1).join(" "), stdin);
   if (!prompt) {
     throw new Error(
       "send: a message is required, on stdin through a quoted heredoc.",
@@ -655,18 +679,26 @@ export async function runSend(
     throw new Error("send: the task has no model; set one with `task model`.");
   }
   const { model, modelURI } = await resolveModel(rawURI, context);
+  const orchestratorFolders = orchestratorState.attachedFolders ?? {};
+  const askedFiles = values.get("file") ?? [];
+  requireFilesNamedInBrief(prompt, askedFiles, cwd);
+  const files = await resolveFileUploads(askedFiles, {
+    cwd,
+    layout: await orchestratorLayout(context, orchestratorFolders),
+  });
   const session = await latestOrNewSessionId(task.id);
   if (session.isErr()) {
     throw session.error;
   }
   const sessionId = session.value;
   const message = await newMessage({
+    files,
     model,
     modelURI,
     // In the task's paths, as the brief that started it was.
     prompt: translateMountPaths(
       prompt,
-      orchestratorState.attachedFolders ?? {},
+      orchestratorFolders,
       state.attachedFolders ?? {},
     ),
     sessionId,
@@ -694,9 +726,11 @@ export async function runSend(
   });
   await recordTaskActivity(task.id);
   return ok(
-    running
-      ? `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes.\n`
-      : `Sent to ${task.id}. It is running now; you will be told when it finishes.\n`,
+    `${
+      running
+        ? `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes.`
+        : `Sent to ${task.id}. It is running now; you will be told when it finishes.`
+    }\n${handedFiles(message.value)}`,
   );
 }
 
@@ -825,6 +859,20 @@ function fail(message: string) {
 }
 
 /**
+ * The files a message handed a task, at the paths the task reads them by: a
+ * copy can take a new name when the task already holds one by that name, and
+ * the brief is written against the name the conversation knew.
+ */
+function handedFiles(message: SessionMessage.UserWithParts): string {
+  const files = message.parts.flatMap((part) =>
+    part.type === "data-attachments"
+      ? part.data.files.map((file) => file.filePath)
+      : [],
+  );
+  return files.length > 0 ? `Its files: ${files.join(", ")}.\n` : "";
+}
+
+/**
  * What a task was handed, in this conversation's own paths: the folders named
  * on the command with the access each ended up with, and the workspace folder
  * that goes with them whether it was named or not.
@@ -896,6 +944,22 @@ function nearestChildId(rawId: string, children: Task[]): string | undefined {
 
 function ok(stdout: string) {
   return { exitCode: 0, stderr: "", stdout };
+}
+
+/**
+ * The conversation's own view of the filesystem, which is what a `--file`
+ * spec is read against: its folder, the user's mounts, and the read-only
+ * mounts of the tasks it created.
+ */
+async function orchestratorLayout(
+  context: TaskCommandContext,
+  attachedFolders: Record<string, FolderAttachment.Type>,
+): Promise<WorkspaceFsLayout> {
+  return buildWorkspaceFsLayout({
+    attachedFolders,
+    extraMounts: await childTaskMounts(context.orchestratorTaskId),
+    taskHostRoot: taskDir(context.orchestratorTaskId),
+  });
 }
 
 /**

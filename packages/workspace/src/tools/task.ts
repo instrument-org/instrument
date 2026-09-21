@@ -3,6 +3,7 @@ import ms from "ms";
 import { ok } from "neverthrow";
 import { z } from "zod";
 
+import { TASK_FOLDER_NAMES } from "../constants";
 import { executeError } from "../lib/execute-error";
 import { runNew, runSend, runStop } from "../lib/shell-commands/task";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
@@ -43,6 +44,12 @@ export const Task = setupTool({
       description:
         "new: the task's whole brief, for a capable colleague who knows nothing about this conversation -- the goal, what done looks like, which folder holds what, where the deliverable goes, and how much effort it deserves. send: the message.",
     }),
+    files: z
+      .array(z.string())
+      .optional()
+      .meta({
+        description: `new and send: files to hand the task, by paths you can read, a file the user sent above all. A copy of each lands in the task's own ${TASK_FOLDER_NAMES.attachments}/ and the task is told it is there.`,
+      }),
     folders: z
       .array(z.string())
       .optional()
@@ -78,6 +85,7 @@ export const Task = setupTool({
       remainingYieldMs: () => 0,
     };
     const brief = encodeUtf8ToBytes(input.brief ?? "");
+    const files = (input.files ?? []).flatMap((file) => ["--file", file]);
     try {
       const result = await (input.action === "new"
         ? runNew(
@@ -90,12 +98,14 @@ export const Task = setupTool({
                 folder,
               ]),
               ...(input.apps ?? []).flatMap((app) => ["--app", app]),
+              ...files,
             ],
             context,
             brief,
+            MOUNT.task,
           )
         : input.action === "send"
-          ? runSend([input.taskId ?? ""], context, brief)
+          ? runSend([input.taskId ?? "", ...files], context, brief, MOUNT.task)
           : runStop([input.taskId ?? ""], context));
       return ok({
         ok: result.exitCode === 0,

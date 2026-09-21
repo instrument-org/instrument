@@ -186,19 +186,28 @@ const listThreadsRoute = base
   .handler(({ input }) => listThreads(input.id));
 
 /**
- * Fires whenever anything lands in any thread of the task or a thread's
- * record changes. Subscribed the moment it is called rather than when it is
+ * Fires whenever anything lands in any thread of the task, a thread's
+ * record changes, or the workspace's apps change: a thread's holds name only
+ * the apps the workspace has, so an app set up or removed from the Apps
+ * screen moves a row's marks and the column's app rows without a message
+ * landing anywhere. Subscribed the moment it is called rather than when it is
  * first pulled, so a read taken right after has nothing land unobserved
  * between the two; an event the read already covered only costs one re-read.
  * A burst of events collapses into one firing per pull, since the next batch
  * is only taken once the consumer has come back for it.
  */
-function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
+export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
   const batches = changedMessageBatches({ id }, signal);
   const sessionUpdates = publisher.subscribe("session.updated", { signal });
   const sessionRemoved = publisher.subscribe("session.removed", { signal });
+  const appUpdates = publisher.subscribe("app.updated", { signal });
   async function* changed() {
     for await (const _batch of batches) {
+      yield null;
+    }
+  }
+  async function* everyOne(generator: typeof appUpdates) {
+    for await (const _payload of generator) {
       yield null;
     }
   }
@@ -217,6 +226,7 @@ function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
         changed(),
         forThisTask(sessionUpdates),
         forThisTask(sessionRemoved),
+        everyOne(appUpdates),
       ]);
     } finally {
       await batches.return();

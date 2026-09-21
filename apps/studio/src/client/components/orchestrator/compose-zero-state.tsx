@@ -18,25 +18,26 @@ import { type TaskId } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
-import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
-import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
-import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
+import { folderOf, homeRelative } from "./host-path";
 import { SiteIcon } from "./sidebar";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 
 /** How many of each a line shows: enough to find this morning's, few enough to stay one line. */
 const SITES_SHOWN = 8;
-const PLACES_SHOWN = 6;
+const PLACES_SHOWN = 7;
 const FILES_SHOWN = 5;
+
+/** How many pages the address field offers as it is typed into. */
+const SUGGESTIONS_SHOWN = 6;
 
 /**
  * The empty band under a draft's words: four doors stacked down the band,
@@ -44,15 +45,17 @@ const FILES_SHOWN = 5;
  * browser, the computer and the apps are in sight before anything is
  * gathered. Attach is a drop strip with the two choosers, files and a
  * folder, since a folder is attached on its own terms; Browse an address
- * field over the sites kept and lately seen; This Mac the places and the
- * files lately shown; Apps their icons, each of which names itself in the
- * words rather than opening. Whatever a door opens arrives as a tab in the
- * band, in this tab's place.
+ * field that offers the pages lately seen as it is typed into, over the
+ * sites kept and lately seen; This Mac the places and the files lately
+ * shown; Apps their icons, each of which names itself in the words rather
+ * than opening. Whatever a door opens arrives as a tab in the band, in this
+ * tab's place.
  */
 export function ComposeZeroState({
   onAttachFiles,
   onAttachFolder,
   onOpenApp,
+  onOpenApps,
   onOpenFile,
   onOpenFolder,
   onOpenPage,
@@ -64,6 +67,8 @@ export function ComposeZeroState({
   onAttachFolder: () => void;
   /** Names the app in the words, as a chip. */
   onOpenApp: (app: App) => void;
+  /** Takes the window to the Apps place, where a service is connected. */
+  onOpenApps: () => void;
   onOpenFile: (hostPath: string) => void;
   onOpenFolder: (hostPath: string) => void;
   onOpenPage: (url: string) => void;
@@ -78,7 +83,6 @@ export function ComposeZeroState({
       input: { id: taskId },
     }),
   );
-  const [address, setAddress] = useState("");
 
   // The sites kept first, then the pages lately seen that are not among
   // them, one per site on the line, so the line is the places a person goes
@@ -98,17 +102,19 @@ export function ComposeZeroState({
       return true;
     })
     .slice(0, SITES_SHOWN);
-  const homePath = places.data?.favorites.find(
-    (place) => place.name === "Home",
-  )?.path;
-  const folders = (places.data?.favorites ?? [])
-    .filter((place) => place.path !== homePath)
-    .slice(0, PLACES_SHOWN);
+  // The folders a person keeps things in, and the home folder last: it is
+  // where the computer itself opens, and the others sit inside it.
+  const favorites = places.data?.favorites ?? [];
+  const home = favorites.find((place) => place.name === "Home");
+  const folders = [
+    ...favorites.filter((place) => place !== home),
+    ...(home ? [home] : []),
+  ].slice(0, PLACES_SHOWN);
   const apps = appList.data?.apps ?? [];
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-4 pt-4 pb-4">
-      <Door icon={PaperclipIcon} name="Attach">
+      <Door name="Attach">
         <div className="flex h-12 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-3 text-[12px] text-gray-500 dark:border-gray-600 dark:text-gray-400">
           <span className="min-w-0 truncate">Drop files or folders here</span>
           <Chooser icon={PaperclipIcon} onPick={onAttachFiles}>
@@ -120,33 +126,9 @@ export function ComposeZeroState({
         </div>
       </Door>
 
-      <Door icon={GlobeSimpleIcon} name="Browse">
+      <Door name="Browse">
         <Box>
-          <form
-            className="flex h-11 items-center px-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const url = resolveUrlOrSearch(address);
-              if (url) {
-                onOpenPage(url);
-              }
-            }}
-          >
-            <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-muted px-2.5 text-[12px] focus-within:ring-1 focus-within:ring-ring">
-              <MagnifyingGlassIcon className="size-3 shrink-0 text-muted-foreground" />
-              <input
-                aria-label="Address or search"
-                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-                onChange={(event) => {
-                  setAddress(event.target.value);
-                }}
-                placeholder="Type an address or search"
-                spellCheck={false}
-                type="text"
-                value={address}
-              />
-            </label>
-          </form>
+          <AddressField onOpenPage={onOpenPage} pages={visited} />
           {bookmarks.length > 0 && (
             <Line label="Bookmarks">
               {bookmarks.slice(0, SITES_SHOWN).map((pin) => (
@@ -164,7 +146,20 @@ export function ComposeZeroState({
           {seen.length > 0 && (
             <Line
               label="Recent"
-              trailing={<HistoryPopover onOpenPage={onOpenPage} pages={seen} />}
+              trailing={
+                <MorePopover
+                  label="All recent pages"
+                  rows={seen.map((page) => ({
+                    icon: <SiteIcon favicon={page.favicon} url={page.url} />,
+                    key: page.url,
+                    line: hostOf(page.url),
+                    onOpen: () => {
+                      onOpenPage(page.url);
+                    },
+                    title: page.title || hostOf(page.url),
+                  }))}
+                />
+              }
             >
               {seenOnLine.map((page) => (
                 <Mark
@@ -189,9 +184,9 @@ export function ComposeZeroState({
         </Box>
       </Door>
 
-      <Door icon={LaptopIcon} name={computerName()}>
+      <Door name={computerName()}>
         <Box>
-          <Line label="Places">
+          <Line>
             {places.data === undefined ? (
               <MarkSkeletons count={4} />
             ) : (
@@ -207,7 +202,31 @@ export function ComposeZeroState({
               ))
             )}
           </Line>
-          <Line label="Recent">
+          <Line
+            label="Recent"
+            trailing={
+              recents.data && recents.data.length > 0 ? (
+                <MorePopover
+                  label="All recent files"
+                  rows={recents.data.map((file) => ({
+                    icon: (
+                      <FileIcon
+                        className="size-4"
+                        filename={file.name}
+                        mimeType={file.mimeType}
+                      />
+                    ),
+                    key: file.path,
+                    line: homeRelative(folderOf(file.path), home?.path),
+                    onOpen: () => {
+                      onOpenFile(file.path);
+                    },
+                    title: file.name,
+                  }))}
+                />
+              ) : undefined
+            }
+          >
             {recents.data === undefined ? (
               <MarkSkeletons count={3} />
             ) : recents.data.length === 0 ? (
@@ -236,7 +255,7 @@ export function ComposeZeroState({
         </Box>
       </Door>
 
-      <Door icon={SquaresFourIcon} name="Apps">
+      <Door name="Apps">
         {appList.data === undefined ? (
           <div className="flex gap-1">
             {Array.from({ length: 4 }, (_, index) => (
@@ -250,9 +269,20 @@ export function ComposeZeroState({
             ))}
           </div>
         ) : apps.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground">
-            Connect a service in Apps, and it is here to name.
-          </p>
+          // Nothing to name yet: the way to the Apps place, where a service
+          // is connected, stands where the apps will.
+          <div className="flex items-center gap-3 rounded-lg bg-card px-3 py-2.5 shadow-xs">
+            <p className="min-w-0 flex-1 text-[12px] text-muted-foreground">
+              Connect a service, and it is here to name in a thread.
+            </p>
+            <button
+              className="inline-flex h-7 shrink-0 items-center rounded-lg border border-border bg-card px-2.5 text-[12px] font-medium text-foreground shadow-xs hover:bg-accent"
+              onClick={onOpenApps}
+              type="button"
+            >
+              Open Apps
+            </button>
+          </div>
         ) : (
           <div className="flex flex-wrap gap-x-1 gap-y-3">
             {apps.map((app) => (
@@ -281,6 +311,134 @@ export function ComposeZeroState({
           </div>
         )}
       </Door>
+    </div>
+  );
+}
+
+/**
+ * The address field, offering the pages lately seen whose title or site has
+ * the typed words in it: the arrows walk the offers and Enter opens the one
+ * reached, or, with none reached, what was typed, as a site or a search.
+ */
+function AddressField({
+  onOpenPage,
+  pages,
+}: {
+  onOpenPage: (url: string) => void;
+  pages: VisitedPage[];
+}) {
+  const [typed, setTyped] = useState("");
+  // Which offer the arrows have reached; none until they move.
+  const [reached, setReached] = useState<number>();
+  const words = typed.trim().toLowerCase();
+  const offers = words
+    ? pages
+        .filter(
+          (page) =>
+            page.title.toLowerCase().includes(words) ||
+            page.url.toLowerCase().includes(words),
+        )
+        .slice(0, SUGGESTIONS_SHOWN)
+    : [];
+  const open = (url: string) => {
+    setTyped("");
+    setReached(undefined);
+    onOpenPage(url);
+  };
+  return (
+    <div>
+      <form
+        className="flex h-11 items-center px-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const offer = reached === undefined ? undefined : offers[reached];
+          const url = offer?.url ?? resolveUrlOrSearch(typed);
+          if (url) {
+            open(url);
+          }
+        }}
+      >
+        <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-muted px-2.5 text-[12px] focus-within:ring-1 focus-within:ring-ring">
+          <MagnifyingGlassIcon className="size-3 shrink-0 text-muted-foreground" />
+          <input
+            aria-activedescendant={
+              reached === undefined ? undefined : `address-offer-${reached}`
+            }
+            aria-autocomplete="list"
+            aria-label="Address or search"
+            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+            onChange={(event) => {
+              setTyped(event.target.value);
+              setReached(undefined);
+            }}
+            onKeyDown={(event) => {
+              if (offers.length === 0) {
+                return;
+              }
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                const step = event.key === "ArrowDown" ? 1 : -1;
+                setReached((current) =>
+                  current === undefined
+                    ? step === 1
+                      ? 0
+                      : offers.length - 1
+                    : (current + step + offers.length) % offers.length,
+                );
+              } else if (event.key === "Escape") {
+                setReached(undefined);
+                setTyped("");
+              }
+            }}
+            placeholder="Type an address or search"
+            role="combobox"
+            spellCheck={false}
+            type="text"
+            value={typed}
+          />
+        </label>
+      </form>
+      {offers.length > 0 && (
+        <ul
+          aria-label="Pages matching what was typed"
+          className="flex flex-col px-2 pb-2"
+          role="listbox"
+        >
+          {offers.map((page, index) => (
+            <li
+              aria-selected={index === reached}
+              id={`address-offer-${index}`}
+              key={page.url}
+              role="option"
+            >
+              <button
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-muted",
+                  index === reached && "bg-muted",
+                )}
+                // Mousedown rather than click, and defaulted out, so choosing
+                // an offer never blurs the field first.
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  open(page.url);
+                }}
+                tabIndex={-1}
+                type="button"
+              >
+                <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
+                  <SiteIcon favicon={page.favicon} url={page.url} />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
+                  {page.title || hostOf(page.url)}
+                </span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {hostOf(page.url)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -316,87 +474,15 @@ function Chooser({
   );
 }
 
-/** A door: its name over what it opens, a mark and the word, so the band reads top to bottom. */
-function Door({
-  children,
-  icon: DoorIcon,
-  name,
-}: {
-  children: ReactNode;
-  icon: Icon;
-  name: string;
-}) {
+/** A door: its name over what it opens, quiet and small, so the band reads top to bottom by what is in the boxes. */
+function Door({ children, name }: { children: ReactNode; name: string }) {
   return (
-    <section className="flex flex-col gap-2">
-      <h3 className="flex items-center gap-2 px-1 text-[12px] font-medium text-gray-700 dark:text-gray-300">
-        <DoorIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate">{name}</span>
+    <section className="flex flex-col gap-1.5">
+      <h3 className="truncate px-1 text-[11px] font-medium text-muted-foreground">
+        {name}
       </h3>
       {children}
     </section>
-  );
-}
-
-/**
- * Every page lately seen, behind the clock at the Recent line's end, for
- * the ones the line had no room for: each by its title with its site under
- * it, newest first.
- */
-function HistoryPopover({
-  onOpenPage,
-  pages,
-}: {
-  onOpenPage: (url: string) => void;
-  pages: VisitedPage[];
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger asChild>
-        <button
-          aria-label="All recent pages"
-          className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
-          title="All recent pages"
-          type="button"
-        >
-          <ClockCounterClockwiseIcon className="size-3.5" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-80 p-1"
-        maxHeight="20rem"
-        side="bottom"
-        sideOffset={4}
-      >
-        <ul aria-label="Recent pages" className="flex flex-col">
-          {pages.map((page) => (
-            <li key={page.url}>
-              <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent"
-                onClick={() => {
-                  setOpen(false);
-                  onOpenPage(page.url);
-                }}
-                type="button"
-              >
-                <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
-                  <SiteIcon favicon={page.favicon} url={page.url} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] text-foreground">
-                    {page.title || hostOf(page.url)}
-                  </span>
-                  <span className="block truncate text-[11px] text-muted-foreground">
-                    {hostOf(page.url)}
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </PopoverContent>
-    </Popover>
   );
 }
 
@@ -410,8 +496,9 @@ function hostOf(url: string): string {
 
 /**
  * A line inside a box, with a small name at its left saying what the line
- * is. One row, ending where the room does rather than wrapping into columns
- * of cut-off names, with room at the end for a way to the rest.
+ * is, when it needs one. One row of whole things: what does not fit wraps
+ * out of sight rather than being cut mid-name, and the room at the end is
+ * for a way to the rest.
  */
 function Line({
   children,
@@ -419,15 +506,17 @@ function Line({
   trailing,
 }: {
   children: ReactNode;
-  label: string;
+  label?: string;
   trailing?: ReactNode;
 }) {
   return (
     <div className="flex min-h-9 items-center gap-3 px-3 py-1">
-      <span className="w-16 shrink-0 text-[11px] text-muted-foreground">
-        {label}
-      </span>
-      <div className="flex min-w-0 flex-1 items-center gap-x-1 overflow-hidden">
+      {label !== undefined && (
+        <span className="w-16 shrink-0 text-[11px] text-muted-foreground">
+          {label}
+        </span>
+      )}
+      <div className="flex max-h-6 min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-6 overflow-hidden">
         {children}
       </div>
       {trailing}
@@ -472,6 +561,78 @@ function MarkSkeletons({ count }: { count: number }) {
   return Array.from({ length: count }, (_, index) => (
     <Skeleton className="mx-1.5 my-1.5 h-3 w-14" key={index} />
   ));
+}
+
+/**
+ * The rest of a line, behind the clock at its end: every thing the line had
+ * no room for, each by its name with where it is under it, newest first,
+ * in a list that scrolls.
+ */
+function MorePopover({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: {
+    icon: ReactNode;
+    key: string;
+    line: string;
+    onOpen: () => void;
+    title: string;
+  }[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverTrigger asChild>
+        <button
+          aria-label={label}
+          className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+          title={label}
+          type="button"
+        >
+          <ClockCounterClockwiseIcon className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="flex w-80 flex-col p-0"
+        maxHeight="20rem"
+        side="bottom"
+        sideOffset={4}
+      >
+        <ul
+          aria-label={label}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto p-1"
+        >
+          {rows.map((row) => (
+            <li key={row.key}>
+              <button
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent"
+                onClick={() => {
+                  setOpen(false);
+                  row.onOpen();
+                }}
+                type="button"
+              >
+                <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
+                  {row.icon}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] text-foreground">
+                    {row.title}
+                  </span>
+                  <span className="block truncate text-[11px] text-muted-foreground">
+                    {row.line}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 function originOf(url: string): string {

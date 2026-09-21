@@ -40,6 +40,7 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useHydrateAtoms } from "jotai/utils";
+import { motion } from "motion/react";
 import {
   type ReactNode,
   useEffect,
@@ -90,6 +91,9 @@ const COMPOSE_HEIGHT = 640;
 /** The words' height the docked height already allows for: three lines. Past it the window grows. */
 const WORDS_BASE_HEIGHT = 72;
 
+/** How a window or a bar comes and goes: quick, and settling rather than bouncing. */
+const COMPOSE_MOTION = { damping: 32, stiffness: 420, type: "spring" } as const;
+
 const NO_TITLES = new Map<never, never>();
 
 /**
@@ -115,10 +119,14 @@ export function ComposeBar({
   const group = draftGroupOf(draft.id);
   const held = allTabs.filter((tab) => tab.group === group && !isHomeTab(tab));
   return (
-    <div
-      className="absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl dark:bg-gray-700"
+    <motion.div
+      animate={{ opacity: 1, right, y: 0 }}
+      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl dark:bg-gray-700"
       data-slot="compose-bar"
-      style={{ right, width: COMPOSE_BAR_WIDTH }}
+      exit={{ opacity: 0, y: 36 }}
+      initial={{ opacity: 0, right, y: 36 }}
+      style={{ width: COMPOSE_BAR_WIDTH }}
+      transition={COMPOSE_MOTION}
     >
       <button
         className="flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left hover:bg-white/8"
@@ -155,7 +163,7 @@ export function ComposeBar({
       >
         <XIcon className="size-3.5" />
       </button>
-    </div>
+    </motion.div>
   );
 }
 
@@ -184,6 +192,7 @@ export function ComposeWindow({
   onChange,
   onClose,
   onModelChange,
+  onOpenApps,
   onPageHost,
   onPlacementChange,
   onStart,
@@ -201,6 +210,8 @@ export function ComposeWindow({
   /** The window's close, with the words as the box has them that moment: the caller keeps or throws the draft away by them. */
   onClose: (words: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  /** Takes the window to the Apps place, for a draft with no app to name yet. */
+  onOpenApps: () => void;
   /** The element the draft's page is drawn into while a page is up, null while none is. */
   onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
@@ -459,6 +470,7 @@ export function ComposeWindow({
             inputRef.current?.pickFolder();
           }}
           onOpenApp={nameApp}
+          onOpenApps={onOpenApps}
           onOpenFile={openFile}
           onOpenFolder={openFolder}
           onOpenPage={openPage}
@@ -519,9 +531,14 @@ export function ComposeWindow({
   })();
 
   return (
-    <div
+    // Arrives from a little below its place and leaves the same way, so a
+    // window opening calls the eye to the corner it opens in; a docked window
+    // slides to its new place along the foot when a neighbor goes, and its
+    // page is placed again as it moves (see the host's `place`).
+    <motion.div
+      animate={{ opacity: 1, ...(isExpanded ? {} : { right }), y: 0 }}
       className={cn(
-        "absolute z-40 flex flex-col overflow-hidden bg-card text-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10",
+        "pointer-events-auto absolute z-40 flex flex-col overflow-hidden bg-card text-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10",
         // Docked, the window grows with the words up to the row's height, so
         // the band keeps its room under them for as long as there is room to
         // give; only then do the words scroll.
@@ -530,11 +547,12 @@ export function ComposeWindow({
           : "bottom-0 max-h-[calc(100%-1rem)] rounded-t-2xl",
       )}
       data-slot="compose-window"
+      exit={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, ...(isExpanded ? {} : { right }), y: 24 }}
       style={
-        isExpanded
-          ? undefined
-          : { height: dockedHeight, right, width: COMPOSE_WIDTH }
+        isExpanded ? undefined : { height: dockedHeight, width: COMPOSE_WIDTH }
       }
+      transition={COMPOSE_MOTION}
     >
       <OrchestratorContext
         value={{
@@ -694,7 +712,7 @@ export function ComposeWindow({
           </PageOpenContext>
         </FileOpenContext>
       </OrchestratorContext>
-    </div>
+    </motion.div>
   );
 }
 

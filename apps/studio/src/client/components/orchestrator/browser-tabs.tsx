@@ -97,6 +97,8 @@ export interface ComposeHost {
   group: string;
   into: HTMLElement | null;
   isActive: boolean;
+  /** Where the window stands, so a page is placed again when the window moves without resizing. */
+  place: string;
 }
 
 /** What the page had on it that the words in a message can refer to. */
@@ -1080,6 +1082,7 @@ function ComposePagePanel({
         focusAddress={false}
         key={tab.id}
         layer={COMPOSE_GUEST_LAYER}
+        relayoutKey={host.place}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
         taskId={tab.taskId ?? taskId}
       />

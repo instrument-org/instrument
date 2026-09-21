@@ -24,6 +24,7 @@ export function useBrowserSlot({
   hasLoadError,
   isVisible,
   layer,
+  relayoutKey,
   sliding = false,
   targetId,
 }: {
@@ -47,6 +48,11 @@ export function useBrowserSlot({
   // The window layer the shown guest stands on; see showOverSlot. For a host
   // that floats over the page and would otherwise cover its own guest.
   layer?: number;
+  // Something that changes whenever the host moves without resizing (a
+  // floating window taking a neighbor's place along a row): a move changes
+  // nothing the resize observer or the settle check below can see, so the
+  // slot is measured again whenever this does.
+  relayoutKey?: string;
   // The host panel is sliding in or out. Nothing about the slot's own box
   // changes, so neither the resize observer nor the settle check below can see
   // it -- the host has to say so, and says so for as long as it lasts.
@@ -162,6 +168,7 @@ export function useBrowserSlot({
     isVisible,
     hasLoadError,
     layer,
+    relayoutKey,
     sliding,
     slotOwner,
     targetId,

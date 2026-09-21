@@ -155,6 +155,9 @@ const REFRESH_MS = ms("2 seconds");
 /** How long a screen has to stay up before Recent counts it. */
 const RECENT_DWELL_MS = ms("2 seconds");
 
+/** How long a thread just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
+const THREAD_ARRIVAL_MS = ms("3 seconds");
+
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
 const INBOX_COLLAPSE_THRESHOLD = 240;
 /** How far past its widest the inbox is dragged before it takes the row and the thread beside it goes. */
@@ -522,33 +525,6 @@ function OrchestratorLayout() {
       thread,
     }));
   };
-
-  // A task the thread on screen has just started brings the thread's tasks
-  // up as the pane's face, so someone watching the conversation sees what it
-  // is working through and can open any of them. The face already up stays
-  // as it is, on the list or on a task; a task's browser arriving still takes
-  // the pane, as it does. Nothing on the first read, which lists what was
-  // there before the window, and nothing for a task another thread started.
-  const knownChildren = useRef<Set<TaskId>>(null);
-  useEffect(() => {
-    const listed = children.data;
-    if (!listed) {
-      return;
-    }
-    const known = knownChildren.current;
-    knownChildren.current = new Set(listed.map((child) => child.id));
-    if (!known || threadUp === undefined || isTasksViewUp) {
-      return;
-    }
-    const arrived = listed.some(
-      (child) => !known.has(child.id) && child.threadId === threadUp,
-    );
-    if (arrived) {
-      showTasksFace(undefined, threadUp);
-    }
-    // On each read of the tasks; the rest is read as it is then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [children.data]);
 
   // A tab at the tasks' address from before the tasks became the pane's
   // face has no screen behind it: closed as the window opens, and opened
@@ -1033,6 +1009,19 @@ function OrchestratorLayout() {
   const [isNewTopicOpen, setNewTopicOpen] = useState(false);
   // The draft whose first message is on its way, by id.
   const [startingId, setStartingId] = useState<string>();
+  // The thread a draft just became, for as long as its row's arrival lasts.
+  const [arrivedId, setArrivedId] = useState<StoreId.Session>();
+  useEffect(() => {
+    if (arrivedId === undefined) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setArrivedId(undefined);
+    }, THREAD_ARRIVAL_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [arrivedId]);
 
   /** Brings a draft up in a window along the foot, to go on writing it. */
   const showDraft = (id: string) => {
@@ -1067,7 +1056,6 @@ function OrchestratorLayout() {
    * with the window put on the chat, which is where a draft is written.
    */
   const newDraft = (words?: string) => {
-    setPlace("chat");
     startDraft(
       isChat && threadFilters.topics.length === 1
         ? topics.find((topic) => topic.id === threadFilters.topics[0])?.id
@@ -1281,6 +1269,7 @@ function OrchestratorLayout() {
           },
           onSuccess: ({ sessionId }) => {
             compose.remove(id);
+            setArrivedId(sessionId);
             setDrafts((current) => current.filter((entry) => entry.id !== id));
             // What the draft gathered becomes the thread's tabs, the pages
             // and folders as they stand; the new-tab pages among them were
@@ -1485,6 +1474,9 @@ function OrchestratorLayout() {
                 }}
                 onCloseDraft={closeDraft}
                 onModelChange={setDefaultModelURI}
+                onOpenApps={() => {
+                  setPlace("apps");
+                }}
                 onStart={startThread}
                 openOutside={(href) => {
                   openScreen(href, { newTab: true });
@@ -1546,6 +1538,7 @@ function OrchestratorLayout() {
                     >
                       <PageOpenContext value={(url) => openPage(url)}>
                         <ThreadPane
+                          arrivedId={arrivedId}
                           // Only a draft with words is a draft to come back
                           // to; one being written with none yet is its
                           // window's alone.

@@ -1,5 +1,6 @@
 import { type Draft } from "@/client/atoms/orchestrator";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import { AnimatePresence } from "motion/react";
 import { useEffect } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
@@ -11,7 +12,9 @@ import { type useCompose } from "./use-compose";
  * The drafts being written, drawn over the row: each in its window at its
  * place along the foot, or as the bar it was put down to. Laid over the
  * whole row and letting the pointer through everywhere but the windows, so
- * the inbox and the thread stay in reach beside them.
+ * the inbox and the thread stay in reach beside them. A window or a bar
+ * arrives and leaves with a motion of its own, so a draft opening is seen
+ * to open.
  */
 export function ComposeLayer({
   browser,
@@ -22,6 +25,7 @@ export function ComposeLayer({
   onChangeDraft,
   onCloseDraft,
   onModelChange,
+  onOpenApps,
   onStart,
   openOutside,
   topics,
@@ -36,6 +40,8 @@ export function ComposeLayer({
   /** A window closed, with the words as its box had them: the draft is kept or thrown away by them. */
   onCloseDraft: (id: string, words: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  /** Takes the window to the Apps place, for a draft with no app to name yet. */
+  onOpenApps: () => void;
   onStart: (id: string, send: DraftSend) => void;
   openOutside: (href: string) => void;
   topics: Topic[];
@@ -55,18 +61,19 @@ export function ComposeLayer({
 
   return (
     <div className="pointer-events-none absolute inset-0 z-40">
-      {compose.placed.map((entry) => {
-        const draft = drafts.find(
-          (candidate) => candidate.id === entry.draftId,
-        );
-        if (!draft) {
-          return null;
-        }
-        if (entry.placement === "bar") {
-          return (
-            <div className="pointer-events-auto contents" key={draft.id}>
+      <AnimatePresence initial={false}>
+        {compose.placed.map((entry) => {
+          const draft = drafts.find(
+            (candidate) => candidate.id === entry.draftId,
+          );
+          if (!draft) {
+            return null;
+          }
+          if (entry.placement === "bar") {
+            return (
               <ComposeBar
                 draft={draft}
+                key={`bar:${draft.id}`}
                 onClose={() => {
                   onCloseDraft(draft.id, draft.words);
                 }}
@@ -75,15 +82,14 @@ export function ComposeLayer({
                 }}
                 right={entry.right}
               />
-            </div>
-          );
-        }
-        return (
-          <div className="pointer-events-auto contents" key={draft.id}>
+            );
+          }
+          return (
             <ComposeWindow
               browser={browser}
               draft={draft}
               isStarting={isStarting === draft.id}
+              key={draft.id}
               modelURI={modelURI}
               onChange={(update) => {
                 onChangeDraft(draft.id, update);
@@ -92,6 +98,7 @@ export function ComposeLayer({
                 onCloseDraft(draft.id, words);
               }}
               onModelChange={onModelChange}
+              onOpenApps={onOpenApps}
               onPageHost={(element) => {
                 compose.setHost(draft.id, element);
               }}
@@ -109,9 +116,9 @@ export function ComposeLayer({
               right={entry.right}
               topics={topics}
             />
-          </div>
-        );
-      })}
+          );
+        })}
+      </AnimatePresence>
     </div>
   );
 }

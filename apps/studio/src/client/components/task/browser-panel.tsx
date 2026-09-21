@@ -86,6 +86,7 @@ export function TaskBrowserPanel({
   focusAddress = true,
   layer,
   onViewSource,
+  relayoutKey,
   sessionId,
   sliding,
   taskId,
@@ -115,6 +116,8 @@ export function TaskBrowserPanel({
   layer?: number;
   /** Shows the page's text, when the page has some to show; the menu offers it. */
   onViewSource?: () => void;
+  /** Changes whenever the panel moves without resizing, so the guest is placed again; see useBrowserSlot. */
+  relayoutKey?: string;
   sessionId: StoreId.Session;
   // The pane is sliding open or shut, so the slot is moving under a guest that
   // only follows it while something is watching. See useBrowserSlot.
@@ -183,6 +186,7 @@ export function TaskBrowserPanel({
     hasLoadError: Boolean(loadError) || (layer !== undefined && blankPage),
     isVisible,
     layer,
+    relayoutKey,
     sliding,
     targetId,
   });

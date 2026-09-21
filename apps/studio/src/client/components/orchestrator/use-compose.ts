@@ -32,6 +32,7 @@ export function useCompose(width: number) {
     group: draftGroupOf(entry.draftId),
     into: hostsById[entry.draftId] ?? null,
     isActive: true,
+    place: `${entry.placement}:${entry.right}`,
   }));
 
   /** Brings a draft up in a window: a new window at the right, or the bar it was put down to, raised. */

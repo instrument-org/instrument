@@ -99,6 +99,8 @@ interface OmniRow {
    * at the top of the list that no highlight could reach.
    */
   id: string;
+  /** A second line under the name: a page's site, so a page reads as one beside a screen. */
+  line?: string;
   name: string;
   note: string;
   run: () => void;
@@ -298,6 +300,7 @@ export function Omnibar({
             entry.kind === "browser"
               ? `page:${entry.href}`
               : `recent:${entry.href}`,
+          ...(entry.kind === "browser" ? { line: hostOf(entry.href) } : {}),
           note: {
             browser: "Page",
             file: "File",
@@ -315,11 +318,12 @@ export function Omnibar({
         at: page.at,
         icon: <SiteIcon favicon={page.favicon} url={page.url} />,
         id: `page:${page.url}`,
+        line: hostOf(page.url),
         note: "Page",
         run: () => {
           (onSite ?? openPage)(page.url);
         },
-        title: page.title || page.url,
+        title: page.title || hostOf(page.url),
       })),
     ].sort((a, b) => b.at - a.at),
     (entry) => entry.id,
@@ -341,6 +345,7 @@ export function Omnibar({
     group: "Recent",
     icon: entry.icon,
     id: entry.id,
+    ...(entry.line === undefined ? {} : { line: entry.line }),
     name: entry.title,
     note: entry.note,
     run: entry.run,
@@ -608,7 +613,19 @@ export function Omnibar({
                   <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
                     {row.icon}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                  {/* A page stacks its site under its title, so a page and
+                      a screen of the same name read as the two things they
+                      are. */}
+                  {row.line === undefined ? (
+                    <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                  ) : (
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{row.name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {row.line}
+                      </span>
+                    </span>
+                  )}
                   <span className="text-xs text-muted-foreground">
                     {row.note}
                   </span>
@@ -622,7 +639,6 @@ export function Omnibar({
   );
 }
 
-/** The path with `~` written out, so it can be compared with paths the Mac gives. */
 function expandHome(path: string, home: string | undefined) {
   if (home === undefined) {
     return path;
@@ -644,6 +660,15 @@ async function fileExists(hostPath: string) {
   } catch {
     return true;
   }
+}
+
+/** The path with `~` written out, so it can be compared with paths the Mac gives. */
+/** The site a page is on, as its bar would name it. */
+function hostOf(url: string): string {
+  if (!URL.canParse(url)) {
+    return url;
+  }
+  return new URL(url).hostname.replace(/^www\./, "") || url;
 }
 
 /**

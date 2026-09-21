@@ -11,11 +11,6 @@ import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
-import {
-  listRunnableModels,
-  modelTable,
-  ownProviderConfigId,
-} from "../lib/orchestrator/models";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { CHAT_COMMAND } from "../lib/shell-commands/chat-command";
 import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
@@ -29,7 +24,6 @@ import {
 } from "../lib/workspace-fs-layout";
 import { MOUNT } from "../mount-points";
 import { type SessionMessage } from "../schemas/session/message";
-import { type TaskId } from "../schemas/task-id";
 import { TOOLS } from "../tools/all";
 import { TOOL_NAMES } from "../tools/name";
 import { setupAgent } from "./create-agent";
@@ -51,31 +45,6 @@ import {
  * without two builds.
  */
 const TASK_TOOL_ENABLED = process.env.INSTRUMENT_TASK_TOOL === "1";
-
-/** How many of the newest models ride along in the context, so "the newest" needs no command. */
-const NEWEST_MODELS_IN_CONTEXT = 12;
-
-async function newestModelsText(orchestratorTaskId: TaskId): Promise<string[]> {
-  let models;
-  try {
-    const providerConfigId = await ownProviderConfigId(orchestratorTaskId);
-    if (providerConfigId === undefined) {
-      return [];
-    }
-    models = await listRunnableModels(providerConfigId);
-  } catch {
-    return [];
-  }
-  if (models.length === 0) {
-    return [];
-  }
-  return [
-    `The newest models you can hand a task, newest first. \`${TASK_COMMAND.name} models\` lists every one, with more about each:\n${modelTable(
-      models.slice(0, NEWEST_MODELS_IN_CONTEXT),
-      ["model", "name", "released", "price", "takes"],
-    )}`,
-  ];
-}
 
 /**
  * The agent the user talks to. It does no work of its own: it has no file,
@@ -166,8 +135,8 @@ ${
       - Put things on the user's screen with \`open <url or path>\`: a page opens as a tab of the window, a file of theirs (under \`${MOUNT.attachedFolders}\` or \`${MOUNT.tasks}/<id>\`) as a file tab, a folder of theirs as that folder, and the user sees it at once. Use it for what they should look at now: a result just made, a page worth seeing, the file a task just finished, the folder a set of them landed in. It is not a substitute for the files fence, which is how a reply hands a file over for good. A page opens in a tab of its own, and \`open\` prints the tab's id, which is what a task takes with --tab: open the page, then start the task on the tab, in one reply. The note on each message lists the tabs already open with their ids, so a page that is already up is handed over by its id, not opened twice.
       - Long answers are files; short ones are not. This conversation is a narrow chat, and a report pasted into it, by a task or by you, is unreadable there and paid for twice; a fact, a number, or a yes or no put in a file is a file nobody opens. A brief says what the deliverable is and where: anything longer than a short paragraph (a report, a list of deals, a comparison, research) is a file in the workspace folder, named for the job, in whatever form the user asked for or the work plainly wants, and the task's reply is one line naming the file; anything shorter is the task's reply itself, and the brief asks for no file. A page is one of those forms, never the default: the user picks it, on the draft or in their words, or the work is plainly a page. When a task reports, give the answer in a sentence or two, the verdict they asked for, the number it turns on, what you would do, and link its file in a files fence when there is one. What stays in the file is its structure -- the table, the per-option detail, the caveats, the workings -- so the chat reads like a person telling them the outcome and the file is there for the rest. Never ask a task for a "chat report".
       - Effort: how hard a task's model thinks, passed with --effort. Pass none as a rule: a task inherits this conversation's level, which is the one the user chose. Raise it when they asked for care or the work is plainly delicate, lower it for something mechanical wanted back quickly; \`${TASK_COMMAND.name} models\` names the levels each model takes and the one it uses by default. Running one brief at two levels is two tasks, and it is how "is the cheap setting good enough here" gets answered rather than guessed.
-      - Model: a task runs on one model for its whole life, the one you pass with --model, or this conversation's when you pass none. A task cannot pick, switch, or compare models, and it knows nothing about this app, so never brief it to; "one from each of the newest models" is one task per model, each with its own --model, all created in one turn. You choose the models, and say which you chose: the newest models, said plainly, means the newest release from each lab, not two builds of one release, and a paid model over a free build of it. The newest are listed in your context; \`${TASK_COMMAND.name} models\` has every one you can run, newest first, with release date, context window, price per million tokens in and out, what it takes besides text (image, file, audio, video, reasoning), and tags (recommended, default, new, legacy). It is long: \`${TASK_COMMAND.name} models | head -20\`, or \`${TASK_COMMAND.name} models --author openai\`.
-      - Cost: a task spends the user's money, and a pricier model spends it faster. Run tasks on this conversation's model unless the user asked for another or the work plainly needs one, and when you choose a model for its strength, say so and pick the cheapest that has it. A task's brief that is scoped to one job costs a fraction of one told to explore.
+      - Model: a task runs on one model for its whole life, this conversation's, which is the one the user chose. Pass no --model as a rule: the user picks the model for this conversation from its picker, and every task runs on it. Pass one only when the user names a model or asks for several, and say which you chose. A task cannot pick, switch, or compare models, and it knows nothing about this app, so never brief it to; "one from each of the newest models" is one task per model, each with its own --model, all created in one turn, and the newest models, said plainly, means the newest release from each lab, not two builds of one release. You know no model names until you look: \`${TASK_COMMAND.name} models\` has every one you can run, newest first, with release date, context window, price per million tokens in and out, what it takes besides text (image, file, audio, video, reasoning), and tags (recommended, default, new, legacy). It is long: \`${TASK_COMMAND.name} models | head -20\`, or \`${TASK_COMMAND.name} models --author openai\`.
+      - Cost: a task spends the user's money, and a pricier model spends it faster. A task's brief that is scoped to one job costs a fraction of one told to explore.
       - Several tasks in one turn is how the same brief runs on several models, or a job splits into parts. Give each its own file name in its brief so they do not overwrite one another, and when the point is comparing models, put the model's name in the file name and give none of them an earlier result to look at: a folder holding the last one, or a brief that says "as before", turns the comparison into a copy.
       - A task's transcript is \`${TASK_COMMAND.name} log <id>\`, and \`${TASK_COMMAND.name} show <id>\` says where it stands. What it made is in the folder you gave it.
       - A task's setup is yours to change while it runs, and changing it beats starting over, which throws away everything the task has worked out: \`${TASK_COMMAND.name} folder <id> --add ${MOUNT.attachedFolders}/<mount>\` hands it a folder it turns out to need (\`:ro\` to narrow, \`--remove\` to take one back, naming one it already has to re-grant it), \`${TASK_COMMAND.name} app <id> --add <slug>\` hands it a connected app, \`${TASK_COMMAND.name} tab <id> <tab id>\` hands it a page of the user's (\`--none\` takes it back), \`${TASK_COMMAND.name} model <id> <model>\` moves its next turn to another model, and \`${TASK_COMMAND.name} rename\` gives it a better title. A task that stopped because it could not reach something is one of these and one \`${TASK_COMMAND.name} send\` from carrying on: it learns what it was given on that message, so say what the folder or app is for.
@@ -233,7 +202,6 @@ ${
           })
         : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;
 
-    const modelsText = await newestModelsText(taskId);
     const appsText = await buildAppsContextText();
     const skillsText = await buildAvailableSkillsContext({
       described: "deliverables",
@@ -248,7 +216,6 @@ ${
         foldersText,
         appsText,
         skillsText,
-        ...modelsText,
       ],
     });
 

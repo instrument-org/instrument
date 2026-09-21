@@ -242,6 +242,28 @@ function startedExactly(count: number): Assertion {
   };
 }
 
+/**
+ * Every task ran on the conversation's own model: no `task new` named one
+ * and no `task model` moved one. The user picks the model for the
+ * conversation, and a task that quietly runs on another is the way an
+ * unapproved model gets picked without anyone choosing it.
+ */
+const ranOnTheConversationsModel: Assertion = {
+  check: ({ sessions }) => {
+    const text = "ran every task on the conversation's own model";
+    const named = bashCommands(sessions).filter((command) =>
+      NAMED_A_MODEL.test(command),
+    );
+    return named.length === 0
+      ? pass(text, `no --model in ${bashCommands(sessions).length} commands`)
+      : fail(text, named.map((command) => command.split("\n")[0]).join(" | "));
+  },
+  text: "ran every task on the conversation's own model",
+};
+
+/** A `task new` carrying `--model`, or a `task model` moving one. */
+const NAMED_A_MODEL = /(?:^|[\n;&|])\s*task (?:new\b[^\n]*--model|model\b)/;
+
 const revisedATaskInPlace: Assertion = {
   check: ({ sessions }) => {
     const text = "changed a running task's setup rather than starting another";
@@ -616,6 +638,17 @@ export const ORCHESTRATOR_EVALS = [
     name: "orchestrator-one-task-per-model",
     prompt:
       "Write a two-line poem about beans with two different models, one file each in my Instrument folder, named for the model.",
+  }),
+
+  defineEval({
+    // The mirror case: nothing about the ask names a model, so the task runs
+    // on the conversation's. The ask is one whose "strength" a conversation
+    // might reach for a bigger model over, which is the pick nobody made.
+    assertions: [delegated(1), ranOnTheConversationsModel],
+    kind: "orchestrator",
+    name: "orchestrator-runs-on-its-own-model",
+    prompt:
+      "Write a careful, well-researched 600-word explainer on how DNS resolution works, to dns.md in my Instrument folder.",
   }),
 
   defineEval({

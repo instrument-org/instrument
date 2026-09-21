@@ -97,6 +97,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Prompt cache provider affinity and breakpoints](prompt-cache-provider-affinity-and-breakpoints.md) | open |
 | [ChatGPT citation markers in model output](chatgpt-citation-markers-in-model-output.md) — the fix costs more than the bug | known, not fixed |
 | [Reasoning effort at the provider default](reasoning-effort-at-the-provider-default.md) — what the level we never set spends, costs, and delays | measured 2026-09-01 |
+| [A reply that arrives twice](a-reply-that-arrives-twice.md) — a GPT-5 `commentary` and `final_answer` with the same words, flattened by OpenRouter's chat bridge; what proved it and what the Responses route needed | fixed |
 
 ### Build, test, and development
 

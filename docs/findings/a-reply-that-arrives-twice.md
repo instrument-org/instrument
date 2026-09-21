@@ -1,0 +1,39 @@
+# A reply that arrives twice
+
+**Status:** fixed. OpenAI's models and our own aliases behind an OpenRouter-shaped config go through OpenRouter's Responses API, where each message item keeps its `phase` ([ai-gateway.md](../architecture/ai-gateway.md#two-request-shapes-behind-openrouter)). The measurements below are what established the cause and ruled out everything in this repo. Measured 2026-09-21.
+
+A conversation reply landed as the same line twice with a blank line between: `PostHog is connected and ready to use.\n\nPostHog is connected and ready to use.` Two earlier fixes for lines said twice addressed different shapes and could not reach this one: the renderer drops a text part that repeats the part before it (`chat-stream.tsx`, `lastSaidInTurn`), and the orchestrator prompt tells the model not to say its line again after a retry or a command that worked. Here there was one text part, one step, and no command at all.
+
+## What happened
+
+A thread was woken by an app-connected note after the user signed in to PostHog. The model reasoned, wrote its line, and stopped: `finishReason: stop`, 98 output tokens of which 65 were reasoning. The stored text part held the line twice. Across every task database on one machine (350 of them, 400 text parts served by this model since August), it was the only part of its shape; the one other repeated line on record was the same words in two consecutive messages, which is the shape the renderer fix covers.
+
+## Where the second copy came from
+
+Everything between the socket and the store was ruled out by reading it: the workspace server proxies the provider byte for byte (`hono/proxy`), `@openrouter/ai-sdk-provider` turns each chat-completions chunk's `delta.content` into one `text-delta`, and `llm-request.ts` appends deltas to one part per `text-start`. No retry reuses a part. So the doubled text was already in the SSE chunks.
+
+The token accounting said which side of the wire it came from. For every other text-only turn served by the same model in the database (39 of them), the reported non-reasoning output tokens exceed the tokenized stored text by exactly 4 or 6, the framing of one message item. The doubled turn's excess was 13. One item holding the line once would have reported 14 to 16; one item holding it twice, 24 to 26; two items each holding it once, 32 to 34. It reported 33. OpenAI billed for two message items.
+
+Replaying the same conversation directly against OpenRouter confirmed it from both sides:
+
+- Chat completions, 43 calls: 2 doubled. Both stop with no tool call, both exactly the production shape, both with 33 non-reasoning tokens. The raw chunks show the second copy opening as an ordinary delta whose content is `"\n\nPost"`, on `choices[0]`, with no role change, no `finish_reason`, no item id, and no phase. The seam is the blank line and nothing else.
+- Responses API, 15 calls: one whose output was `reasoning > message[commentary] > message[final_answer]`, both messages `PostHog is connected and ready to use.`, 33 non-reasoning tokens.
+
+So: GPT-5 reasoning models write assistant messages in phases. The conversation's "one line, then act" gets its line as a `commentary` item; when the model then decides there is nothing to act on, it closes with a `final_answer` item, and on a short confirmation turn that answer is the same words. OpenRouter's chat-completions bridge cannot represent two message items, so it concatenates their text with a blank line between. Their [GPT-5.4 migration guide](https://openrouter.ai/docs/cookbook/evaluate-and-optimize/model-migrations/gpt-5-4) says `phase` is only available on their Responses API, and that a history which drops it degrades these models, "including early stopping on longer-running tasks". Other bridges hit the same thing the same month: [LiteLLM](https://github.com/BerriAI/litellm/issues/41109) forwarded every message item into `choices[0].delta.content` and [fixed it by suppressing a repeated item](https://github.com/BerriAI/litellm/pull/41117); [langchain4j](https://github.com/langchain4j/langchain4j/issues/6399) concatenated every message item regardless of phase.
+
+Rate, from the replay: about 5% of all turns, about 15% of turns that end without a tool call. A wake note with nothing left to do is exactly that turn.
+
+Why the conversation and not a task: the doubling needs a `commentary` item and a `final_answer` item with the same words. A task's turn ends with an answer that differs from any preamble; the conversation's prompt asks for one line and then the action, and a wake note asks for one line on where things stand, so the model writes its line, finds nothing to act on, and its final answer is that line.
+
+## What was established about the route
+
+- OpenRouter's Responses API is GA. Its changelog for 2026-07-25 promotes it out of the `beta.responses` SDK namespace, which "was an OpenAPI grouping tag and SDK namespace, never a URL"; `POST /api/v1/responses` is unchanged. It answers any vendor's model in this shape: two-turn tool calls with reasoning replay were checked for Anthropic, Google, Z.ai, and OpenAI models.
+- `@openrouter/ai-sdk-provider` cannot be the client. Its source at 3.1.0 (2026-09-19) has `chat`, `completion`, `embedding`, `evaluation`, `image`, `tool`, and `video`, no `responses`, and no mention of `phase`; it is a standalone provider, not built on `@openrouter/sdk`. A `6.0.0-alpha.1` line built on `@openrouter/sdk` does call `responses.send`, but it drops `providerOptions`, `extraBody`, and `fetch` from requests and rejects valid 200s from several models (its issue #530), and no Responses work is open on the repo. 3.x declares `ai ^7` as its peer, so even staying on it means moving to `ai` 7 first.
+- `@ai-sdk/openai` is the client, at the version already installed for the direct `openai` provider type. Its Responses model emits each message item as its own `text-start`/`text-end` carrying `providerMetadata.openai.phase`, reads that phase back from `providerOptions` when it rebuilds history, and replays the encrypted reasoning item and the text items under `store: false`, the text items by content and phase rather than by the `msg_tmp_…` ids OpenRouter synthesizes.
+- The platform API proxies any path under its OpenRouter route, and `/responses` accepts the three fields it injects (`trace`, `usage.include`, `user`). Billing reads the cost at `response.usage.cost` in the `response.completed` event and the generation id at `response.id`, one level below where the chat-completions envelope carries them.
+- Checked in the real loop: the eval cases for a folder question, a steered task with a follow-up, a saved memory, and a three-chart deliverable on `openai/gpt-5.6-luna` through OpenRouter directly, and two of them again on `instrument/auto` through a local platform API, where every request landed on `/v1/responses`, was billed inline, and recorded the served model. Prompt caching holds across turns on both.
+- Not checked: OpenRouter's `$ai_generation` broadcast for a Responses call, which needs a production key to observe; image and file inputs through OpenRouter's Responses; an OpenAI model served through the Vercel gateway type, which is on its own SDK.
+
+Two differences a reader of a transcript will see: `cacheWriteTokens` is absent on this path, since OpenAI's usage has no such field, and a commentary that differs from its final answer (`PostHog is connected; I'm checking the tools now.` then `PostHog is connected and ready to use.`) is two text parts rather than one part with two paragraphs. The renderer already draws an identical repeat once; what it does with a differing pair is a design question it does not answer yet.
+
+The replay scripts are the cheapest check that a change here helped: forty chat-completions calls against the wake-note conversation cost a few cents and reproduce the doubled reply in the first few dozen.

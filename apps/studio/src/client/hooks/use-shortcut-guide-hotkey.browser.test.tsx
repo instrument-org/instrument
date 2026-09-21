@@ -28,8 +28,8 @@ function Host() {
     <>
       <button type="button">outside the editor</button>
       <PromptEditor
-        apps={[]}
         actions={[]}
+        apps={[]}
         // Focus is what each test establishes for itself, since where the caret
         // is when `?` is pressed is the whole question.
         autoFocus={false}

@@ -19,6 +19,7 @@ import {
   PopoverContent,
 } from "@/client/components/ui/popover";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
+import { type AppMention as AppMentionRef } from "@/client/lib/app-mention";
 import { matchComposerActions } from "@/client/lib/composer-action-search";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn } from "@/client/lib/utils";
@@ -27,12 +28,12 @@ import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";
-import { EditorView } from "prosemirror-view";
 // ProseMirror emits DOM hacks its own stylesheet neutralizes: a trailing <br>
 // after a text block ending in an inline leaf, and separator <img>s around
 // them. Without this the <br> is a real line break, so the caret after a skill
 // token rendered on the next line.
 import "prosemirror-view/style/prosemirror.css";
+import { EditorView } from "prosemirror-view";
 import {
   Fragment,
   useEffect,
@@ -42,8 +43,6 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-
-import { type AppMention as AppMentionRef } from "@/client/lib/app-mention";
 
 import {
   appOfNode,

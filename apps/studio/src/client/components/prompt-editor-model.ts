@@ -6,8 +6,8 @@ import {
 import { type SkillTextSegment, splitSkillText } from "@/client/lib/skill-text";
 import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
 import {
-  type SkillMentionSegment,
   skillMentionLabel,
+  type SkillMentionSegment,
   skillMentionToken,
   splitSkillMention,
 } from "@instrument-org/shared/skill-mention";
@@ -110,15 +110,6 @@ export const deleteTokenForward: Command = (state, dispatch) => {
   return true;
 };
 
-/** The text of a line as nodes: its apps as tokens, the rest as text. */
-function textNodes(text: string): ProseMirrorNode[] {
-  return splitAppMentions(text).map((segment) =>
-    segment.type === "app"
-      ? promptSchema.nodes.app.create(segment.app)
-      : promptSchema.text(segment.text),
-  );
-}
-
 export function promptDocFromPastedText(
   value: string,
   skills: {
@@ -187,4 +178,13 @@ export function promptTextFromDoc(doc: ProseMirrorNode) {
     paragraphs.push(value);
   }
   return paragraphs.join("\n");
+}
+
+/** The text of a line as nodes: its apps as tokens, the rest as text. */
+function textNodes(text: string): ProseMirrorNode[] {
+  return splitAppMentions(text).map((segment) =>
+    segment.type === "app"
+      ? promptSchema.nodes.app.create(segment.app)
+      : promptSchema.text(segment.text),
+  );
 }

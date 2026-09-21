@@ -14,7 +14,13 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { TrayIcon } from "@phosphor-icons/react/Tray";
-import { type ReactNode, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   choose,
@@ -61,6 +67,17 @@ const CHOSEN = "bg-foreground/8 text-foreground";
 const UNCHOSEN =
   "text-foreground/80 hover:bg-foreground/5 hover:text-foreground";
 
+/** How many topics the picker shows the marks of while it stands in none. */
+const HINTED_TOPICS = 3;
+
+/** The line's own side padding (`px-3`) and the gap before the picker (`gap-1`): what the room left for the picker is short by. */
+const HEAD_PADDING = 24;
+const HEAD_GAP = 4;
+
+/** What the chip comes to, in layout px, wearing the marks and the word, and wearing the word alone: the room it takes to keep each. */
+const FULL_CHIP = 112;
+const WORD_CHIP = 72;
+
 /** What the head is built from. */
 interface FilterProps {
   filters: ThreadFilters;
@@ -96,15 +113,23 @@ interface PlaceModel extends Place {
  */
 export function FilterHead(props: FilterProps) {
   const { onNewTopic, onTopicDetails, places, topics } = useFilterModel(props);
+  const lineRef = useRef<HTMLDivElement>(null);
+  const marksRef = useRef<HTMLDivElement>(null);
+  const room = useRoomAfter(lineRef, marksRef);
   return (
     <div
       aria-label="Filters"
       className="flex shrink-0 items-center gap-1 px-3 pt-2"
+      ref={lineRef}
       role="group"
     >
+      {/* Never gives ground: the places are where the list stands, and a
+        wrapper that shrinks under its own marks puts them under the picker
+        rather than making the line any narrower. */}
       <div
         aria-label="Places"
-        className="flex min-w-0 items-center gap-1"
+        className="flex shrink-0 items-center gap-1"
+        ref={marksRef}
         role="toolbar"
       >
         {places.map((place) => (
@@ -123,6 +148,7 @@ export function FilterHead(props: FilterProps) {
         className="ml-auto"
         onDetails={onTopicDetails}
         onNew={onNewTopic}
+        room={room}
         topics={topics}
       />
     </div>
@@ -181,36 +207,87 @@ function PlaceMark({
 }
 
 /**
+ * What the picker wears while it stands in no topic: the topics handed to
+ * it as their own marks, rounded and overlapped like a hand of them, ahead
+ * of the word. A chip that says only Topic gives no reason to open it, where
+ * the marks show what the user named and colored, which is what they would
+ * recognize. Nothing while there are no topics yet, since an empty stack
+ * would promise a list with nothing in it.
+ */
+function TopicHint({ topics }: { topics: Topic[] }) {
+  if (topics.length === 0) {
+    return null;
+  }
+  return (
+    <span aria-hidden className="flex shrink-0 -space-x-1">
+      {topics.map((topic) => (
+        <TopicMark
+          // The ring is the pane behind the chip, which is what cuts one
+          // mark's tint from the next where they overlap.
+          className="size-4 rounded-full text-[10px] ring-2 ring-background"
+          key={topic.id}
+          topic={topic}
+        />
+      ))}
+    </span>
+  );
+}
+
+/**
  * The topic the list is narrowed to, at the line's end, and the way to
- * change it: a chip reading Topic with a caret while no topic is chosen, and
- * the chosen topic's mark and name on its own tint once one is. Under it,
- * every topic with a check on the one on, and a new one at the foot: the
- * same list a row's tag control opens, so filing and filtering are learned
- * once. A pick closes the list, since the line holds one topic at a time.
+ * change it: the same fully rounded pill a thread wears, in the topic's own
+ * tint, once one is chosen; and while none is, an outlined pill of the same
+ * shape reading Topic behind a few of the topics' marks, so the colors and
+ * faces inside are on the line before it is opened. Under it, every topic
+ * with a check on the one on, and a new one at the foot: the same list a
+ * row's tag control opens, so filing and filtering are learned once. A pick
+ * closes the list, since the line holds one topic at a time.
+ *
+ * What it wears comes off as the column narrows, in that order: the marks
+ * first, then the word and its caret, down to a single mark, which is the
+ * same thing a place does when it is not the one stood in. It gives up the
+ * line before it crowds the places, and a name it cannot fit whole is on its
+ * label for the screen reader and in the list it opens either way.
  */
 function TopicPicker({
   className,
   onDetails,
   onNew,
+  room,
   topics,
 }: {
   className?: string;
   onDetails: (topic: Topic) => void;
   onNew: () => void;
+  /** What the line has left after the places, in layout px; nothing until it has been measured. */
+  room: number | undefined;
   topics: { choose: () => void; isOn: boolean; topic: Topic }[];
 }) {
   const [isOpen, setOpen] = useState(false);
   const chosen = topics.find((entry) => entry.isOn)?.topic;
+  const hinted = topics.slice(0, HINTED_TOPICS).map((entry) => entry.topic);
+  const wears = whatFits(room, hinted.length > 0);
+  const wearsMark = wears === "mark";
+  // Every mark while they all fit, one while nothing else does, and none in
+  // between: a single mark beside the word would say the user has one topic.
+  const shown = wears === "full" ? hinted : wearsMark ? hinted.slice(0, 1) : [];
   return (
     <Popover onOpenChange={setOpen} open={isOpen}>
       <PopoverTrigger asChild>
         <button
           aria-label={chosen ? `Topic: ${chosen.name}` : "Topic"}
           className={cn(
-            "flex h-8 max-w-44 shrink-0 items-center gap-1.5 rounded-lg text-xs",
+            "flex h-8 max-w-44 min-w-0 items-center gap-1.5 rounded-full text-xs",
             chosen
-              ? "bg-(--topic-tint-surface) pr-2 pl-1.5 font-medium text-foreground topic-tint hover:bg-(--topic-tint-edge)"
-              : cn(UNCHOSEN, "px-2.5 ring-1 ring-border ring-inset"),
+              ? "bg-(--topic-tint-surface) font-medium text-foreground topic-tint hover:bg-(--topic-tint-edge)"
+              : cn(UNCHOSEN, "ring-1 ring-border ring-inset"),
+            // The marks' rings stand outside their tiles, so a chip wearing
+            // them starts closer in than one wearing a word.
+            shown.length > 0 && !wearsMark && !chosen
+              ? "pr-2.5 pl-1.5"
+              : wearsMark
+                ? "px-1.5"
+                : "px-2.5",
             className,
           )}
           data-chosen={chosen ? true : undefined}
@@ -224,12 +301,19 @@ function TopicPicker({
               ) : (
                 <TopicMark className="bg-transparent!" topic={chosen} />
               )}
-              <span className="truncate">{chosen.name}</span>
+              {!wearsMark && <span className="truncate">{chosen.name}</span>}
             </>
           ) : (
-            "Topic"
+            <>
+              <TopicHint topics={shown} />
+              {!wearsMark && <span className="truncate">Topic</span>}
+            </>
           )}
-          <CaretDownIcon className="size-3 shrink-0" weight="bold" />
+          {/* The caret goes with the word, except where it is the only
+            thing the chip has left to show. */}
+          {(!wearsMark || (!chosen && hinted.length === 0)) && (
+            <CaretDownIcon className="size-3 shrink-0" weight="bold" />
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -335,4 +419,61 @@ function useFilterModel({
       topic,
     })),
   };
+}
+
+/**
+ * How much of the line is left after the places, in layout px, so the picker
+ * can wear what fits. Measured rather than read off the column's width: how
+ * wide the places are depends on which one is stood in and on what each one
+ * counts, so a column that leaves one inbox room crowds the next.
+ */
+function useRoomAfter(
+  line: RefObject<HTMLDivElement | null>,
+  marks: RefObject<HTMLDivElement | null>,
+) {
+  const [room, setRoom] = useState<number>();
+  useLayoutEffect(() => {
+    const head = line.current;
+    const places = marks.current;
+    if (!head || !places) {
+      return;
+    }
+    const measure = () => {
+      // A line of no width has not been laid out: the pane is hidden behind
+      // another place, or this is a renderer with no layout at all. Keeping
+      // the last room rather than reading nought out of it is what stops the
+      // picker from collapsing while it cannot be seen and flinching back
+      // when it can.
+      if (head.clientWidth === 0) {
+        return;
+      }
+      // `clientWidth` and `offsetWidth` rather than a rect: these are layout
+      // px, the unit the widths they are compared against are written in,
+      // where a rect would be that times the window's zoom.
+      setRoom(head.clientWidth - HEAD_PADDING - places.offsetWidth - HEAD_GAP);
+    };
+    measure();
+    // Both, since the line grows with the column and the places grow with
+    // what they have to say.
+    const observer = new ResizeObserver(measure);
+    observer.observe(head);
+    observer.observe(places);
+    return () => {
+      observer.disconnect();
+    };
+  }, [line, marks]);
+  return room;
+}
+
+/**
+ * What the picker can wear in the room the line has left it: the marks, the
+ * word and its caret, or a mark alone. Until the line has been laid out once
+ * there is no measurement, and the full chip is what it starts from, since
+ * that is the common case and a step down would be a visible flinch.
+ */
+function whatFits(room: number | undefined, hasMarks: boolean) {
+  if (room === undefined || room >= (hasMarks ? FULL_CHIP : WORD_CHIP)) {
+    return "full";
+  }
+  return room >= WORD_CHIP ? "word" : "mark";
 }

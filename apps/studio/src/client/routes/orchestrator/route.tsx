@@ -2044,11 +2044,12 @@ function OrchestratorLayout() {
                               threadOfTask={childThreads}
                             />
                           </ActiveTabProvider>
-                          {/* The page's guest is parked under a draft
-                            window, so the pane says so where the page was. */}
+                          {/* The page's guest is parked under a window in
+                            the corner, a draft's or a thread's, so the pane
+                            says so where the page was. */}
                           {compose.covers && isPageOnScreen && (
                             <div className="pointer-events-none absolute inset-0 grid place-items-center bg-background text-xs text-muted-foreground">
-                              Hidden while you write
+                              Hidden while a window is over it
                             </div>
                           )}
                         </div>

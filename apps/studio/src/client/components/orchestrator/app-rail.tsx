@@ -20,21 +20,21 @@ import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 
-/** The places, in the order the rail draws them; Apps draws its own mark from the apps the workspace reaches. The marks are drawn light: a thin line reads as a place, a heavy one as a button. */
+/** The places, in the order the rail draws them; Apps draws its own mark from the apps the workspace reaches. */
 const PLACES: { icon: ReactNode; id: AppPlace; label: string }[] = [
   {
-    icon: <HouseIcon className="size-6" weight="light" />,
+    icon: <HouseIcon className="size-6" />,
     id: "home",
     label: "Home",
   },
   {
-    icon: <ChatsCircleIcon className="size-6" weight="light" />,
+    icon: <ChatsCircleIcon className="size-6" />,
     id: "chat",
     label: "Chat",
   },
   { icon: <AppFan />, id: "apps", label: "Apps" },
   {
-    icon: <FolderIcon className="size-6" weight="light" />,
+    icon: <FolderIcon className="size-6" />,
     id: "files",
     label: "Files",
   },
@@ -226,7 +226,7 @@ function RailUser() {
             </AvatarFallback>
           </Avatar>
         ) : (
-          <FadersHorizontalIcon className="size-6" weight="light" />
+          <FadersHorizontalIcon className="size-6" />
         )}
       </span>
       <span className="text-[11px] leading-4">Settings</span>

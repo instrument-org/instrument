@@ -70,8 +70,15 @@ export async function writeUploadedAttachments({
       for (const preparedFile of preparedFiles) {
         if (!preparedFile.isInTask) {
           if ("path" in preparedFile.input) {
+            // A copy-on-write clone where the filesystem has them (APFS,
+            // Btrfs, XFS), so a file handed from one task to another takes
+            // no space until a side changes it; elsewhere a plain copy.
             yield* ResultAsync.fromPromise(
-              fs.copyFile(preparedFile.input.path, preparedFile.filePath),
+              fs.copyFile(
+                preparedFile.input.path,
+                preparedFile.filePath,
+                fs.constants.COPYFILE_FICLONE,
+              ),
               (error) =>
                 new TypedError.FileSystem(
                   error instanceof Error ? error.message : "Unknown error",

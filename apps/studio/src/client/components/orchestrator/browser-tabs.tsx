@@ -16,6 +16,7 @@ import {
 import { Favicon } from "@/client/components/favicon";
 import { FileIcon } from "@/client/components/file-icon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
+import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
@@ -38,6 +39,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { useOrchestrator } from "./context";
@@ -77,8 +79,23 @@ export interface BrowserTabsHandle {
    */
   /** Returns the tab the page is in: the site's tab it went to, or the one opened for it. */
   openOrFocus: (url: string, options?: OpenOptions) => string;
-  /** Reads the page on screen as it is at that moment; undefined while none is. */
-  readPage: () => Promise<PageContext | undefined>;
+  /**
+   * Reads the page on screen as it is at that moment, or the page in the tab
+   * named, for a host drawing a tab of its own; undefined while there is
+   * none.
+   */
+  readPage: (tabId?: string) => Promise<PageContext | undefined>;
+}
+
+/**
+ * A second place a page is drawn: the draft window's band, which shows the
+ * draft's group's tabs itself. The panel for that group's page is portaled
+ * into `into`, and shown while `isActive`.
+ */
+export interface ComposeHost {
+  group: string;
+  into: HTMLElement | null;
+  isActive: boolean;
 }
 
 /** What the page had on it that the words in a message can refer to. */
@@ -178,12 +195,15 @@ type PageTabsUpdate = (current: {
  */
 export function BrowserTabs({
   chromeInto,
+  compose,
   onPageChange,
   ref,
   threadOfTask,
 }: {
   /** The element in the row above that the page's own bar is drawn into. */
   chromeInto?: HTMLElement | null;
+  /** The draft window's band, while a draft is up: its group's page is drawn there. */
+  compose?: ComposeHost;
   /** Told the page on screen whenever it changes, and undefined when none is. */
   onPageChange?: (page: BrowserPage | undefined) => void;
   ref: Ref<BrowserTabsHandle>;
@@ -226,6 +246,17 @@ export function BrowserTabs({
       StoreId.SessionSchema.parse(tab.id),
     );
   const active = tabs.find((tab) => tab.id === activeId);
+  // The page the draft window has up, when what it has up is a page: the tab
+  // its group remembers, or its first.
+  const composeTab = (() => {
+    if (!compose) {
+      return undefined;
+    }
+    const own = allTabs.filter((tab) => tab.group === compose.group);
+    const up =
+      own.find((tab) => tab.id === activeByGroup?.[compose.group]) ?? own[0];
+    return up?.kind === "page" ? up : undefined;
+  })();
 
   // The orchestrator's own browser is the tab on screen; a task's tab is the
   // task's to drive.
@@ -312,6 +343,29 @@ export function BrowserTabs({
     // Once per tab coming back, not per render while it attaches.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, taskId]);
+  // The same for the draft window's page, which comes back after a launch
+  // the same way and is shown by a panel of its own.
+  const composeAttached =
+    composeTab !== undefined && attached.has(targetOf(composeTab));
+  const composeUrl = composeTab?.url;
+  useEffect(() => {
+    if (!composeTab || composeAttached || !composeUrl) {
+      return;
+    }
+    setAllTabs((current) => ({
+      ...current,
+      tabs: current.tabs.map((tab) =>
+        tab.id === composeTab.id ? { ...tab, pageBackSteps: 0 } : tab,
+      ),
+    }));
+    void rpcClient.workspace.browser.open.call({
+      host: WINDOW_BROWSER_HOST,
+      id: composeTab.taskId ?? taskId,
+      sessionId: StoreId.SessionSchema.parse(composeTab.id),
+      url: composeUrl,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composeTab?.id, taskId]);
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
@@ -798,8 +852,10 @@ export function BrowserTabs({
         }
         return id;
       },
-      readPage: async () => {
-        const { active: current, tabs: all } = latest.current;
+      readPage: async (tabId) => {
+        const { active: shown, tabs: all } = latest.current;
+        const current =
+          tabId === undefined ? shown : all.find((tab) => tab.id === tabId);
         if (!current) {
           return;
         }
@@ -818,12 +874,13 @@ export function BrowserTabs({
         if (!url) {
           return;
         }
-        // The tabs a task can be handed: the group on screen's own, since a
-        // note is written for the thread that is up and another thread's tab
-        // is that thread's; a task's tab is already that task's.
-        const own = all.filter(
-          (tab) => tab.group === latest.current.group && !tab.taskId,
-        );
+        // The tabs a task can be handed: the group's own, since a note is
+        // written for the thread that is up (or the draft being written) and
+        // another thread's tab is that thread's; a task's tab is already that
+        // task's.
+        const groupKey =
+          tabId === undefined ? latest.current.group : current.group;
+        const own = all.filter((tab) => tab.group === groupKey && !tab.taskId);
         const base: PageContext = {
           ...(current.taskId ? {} : { tab: current.id }),
           tabs: own.map((tab) => ({
@@ -917,6 +974,24 @@ export function BrowserTabs({
           taskId={active.taskId ?? taskId}
         />
       ) : null}
+      {/* The draft window's page, drawn into its band with the browser's own
+          bar, since the band has no row above it to carry the address. Its
+          own provider, since the pane around this component is inactive
+          while the draft window is up. */}
+      {compose?.into && composeTab
+        ? createPortal(
+            <ActiveTabProvider isActive={compose.isActive}>
+              <TaskBrowserPanel
+                active={attached.has(targetOf(composeTab))}
+                className="h-full rounded-none shadow-none"
+                key={composeTab.id}
+                sessionId={StoreId.SessionSchema.parse(composeTab.id)}
+                taskId={composeTab.taskId ?? taskId}
+              />
+            </ActiveTabProvider>,
+            compose.into,
+          )
+        : null}
     </div>
   );
 }

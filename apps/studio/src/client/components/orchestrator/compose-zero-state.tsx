@@ -7,17 +7,21 @@ import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
+import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
+import uFuzzy from "@leeoniya/ufuzzy";
 import { type Icon } from "@phosphor-icons/react";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { useQuery } from "@tanstack/react-query";
@@ -38,6 +42,25 @@ const FILES_SHOWN = 5;
 
 /** How many pages the address field offers as it is typed into. */
 const SUGGESTIONS_SHOWN = 6;
+
+// The matcher the window's own box uses: typed letters in order, close
+// together, so "wiki desk" finds the standing desk page.
+const fuzzy = new uFuzzy({ intraMode: 1 });
+
+const preventDefault = (event: Event) => {
+  event.preventDefault();
+};
+
+/** One thing the address field offers for what was typed: a row of the list under it. */
+interface AddressRow {
+  icon: ReactNode;
+  id: string;
+  /** A second line under the name: the page's site. */
+  line?: string;
+  name: string;
+  note: string;
+  run: () => void;
+}
 
 /**
  * The empty band under a draft's words: four doors stacked down the band,
@@ -316,9 +339,13 @@ export function ComposeZeroState({
 }
 
 /**
- * The address field, offering the pages lately seen whose title or site has
- * the typed words in it: the arrows walk the offers and Enter opens the one
- * reached, or, with none reached, what was typed, as a site or a search.
+ * The address field, the way the window's own box works: as it is typed
+ * into, a list opens under it with what the words are first (a site to
+ * open, or a search for them) and the pages lately seen whose title or site
+ * they match after that, the first row reached already, the arrows moving
+ * along them, Enter opening the one reached, and a press on a row the same.
+ * The list floats over the band rather than sitting in it, so nothing under
+ * the field moves as it fills.
  */
 function AddressField({
   onOpenPage,
@@ -328,118 +355,191 @@ function AddressField({
   pages: VisitedPage[];
 }) {
   const [typed, setTyped] = useState("");
-  // Which offer the arrows have reached; none until they move.
-  const [reached, setReached] = useState<number>();
-  const words = typed.trim().toLowerCase();
-  const offers = words
-    ? pages
-        .filter(
-          (page) =>
-            page.title.toLowerCase().includes(words) ||
-            page.url.toLowerCase().includes(words),
-        )
-        .slice(0, SUGGESTIONS_SHOWN)
+  const [highlight, setHighlight] = useState(0);
+  const [isFocused, setFocused] = useState(false);
+  // The field's box, which the list is sized to.
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const words = typed.trim();
+  const site = siteFromWords(words);
+  const rows: AddressRow[] = words
+    ? [
+        site
+          ? {
+              icon: <GlobeIcon className="size-4" />,
+              id: "site",
+              name: `Open ${site.host}`,
+              note: "Site",
+              run: () => {
+                onOpenPage(site.url);
+              },
+            }
+          : {
+              icon: <MagnifyingGlassIcon className="size-4" />,
+              id: "search",
+              name: `Search for “${words}”`,
+              note: "Web",
+              run: () => {
+                const url = resolveUrlOrSearch(words);
+                if (url) {
+                  onOpenPage(url);
+                }
+              },
+            },
+        ...pages
+          .filter(
+            (page) =>
+              page.url !== site?.url &&
+              (fuzzy.filter([page.title || hostOf(page.url)], words)?.length ??
+                0) > 0,
+          )
+          .slice(0, SUGGESTIONS_SHOWN)
+          .map((page) => ({
+            icon: <SiteIcon favicon={page.favicon} url={page.url} />,
+            id: page.url,
+            line: hostOf(page.url),
+            name: page.title || hostOf(page.url),
+            note: "Page",
+            run: () => {
+              onOpenPage(page.url);
+            },
+          })),
+      ]
     : [];
-  const open = (url: string) => {
+  const current = Math.min(highlight, Math.max(0, rows.length - 1));
+  const isOpen = isFocused && rows.length > 0;
+  const choose = (row: AddressRow) => {
     setTyped("");
-    setReached(undefined);
-    onOpenPage(url);
+    setHighlight(0);
+    row.run();
   };
   return (
-    <div>
-      <form
-        className="flex h-11 items-center px-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const offer = reached === undefined ? undefined : offers[reached];
-          const url = offer?.url ?? resolveUrlOrSearch(typed);
-          if (url) {
-            open(url);
-          }
-        }}
-      >
-        <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-muted px-2.5 text-[12px] focus-within:ring-1 focus-within:ring-ring">
-          <MagnifyingGlassIcon className="size-3 shrink-0 text-muted-foreground" />
-          <input
-            aria-activedescendant={
-              reached === undefined ? undefined : `address-offer-${reached}`
+    <Popover open={isOpen}>
+      <PopoverAnchor asChild>
+        <form
+          className="flex h-11 items-center px-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const row = rows[current];
+            if (row) {
+              choose(row);
             }
-            aria-autocomplete="list"
-            aria-label="Address or search"
-            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-            onChange={(event) => {
-              setTyped(event.target.value);
-              setReached(undefined);
-            }}
-            onKeyDown={(event) => {
-              if (offers.length === 0) {
-                return;
-              }
-              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                event.preventDefault();
-                const step = event.key === "ArrowDown" ? 1 : -1;
-                setReached((current) =>
-                  current === undefined
-                    ? step === 1
-                      ? 0
-                      : offers.length - 1
-                    : (current + step + offers.length) % offers.length,
-                );
-              } else if (event.key === "Escape") {
-                setReached(undefined);
-                setTyped("");
-              }
-            }}
-            placeholder="Type an address or search"
-            role="combobox"
-            spellCheck={false}
-            type="text"
-            value={typed}
-          />
-        </label>
-      </form>
-      {offers.length > 0 && (
-        <ul
-          aria-label="Pages matching what was typed"
-          className="flex flex-col px-2 pb-2"
-          role="listbox"
+          }}
         >
-          {offers.map((page, index) => (
+          <label
+            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-muted px-2.5 text-[12px] focus-within:ring-1 focus-within:ring-ring"
+            ref={setAnchor}
+          >
+            <MagnifyingGlassIcon className="size-3 shrink-0 text-muted-foreground" />
+            <input
+              aria-activedescendant={
+                isOpen ? `address-row-${rows[current]?.id ?? ""}` : undefined
+              }
+              aria-autocomplete="list"
+              aria-expanded={isOpen}
+              aria-label="Address or search"
+              className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+              onBlur={() => {
+                setFocused(false);
+              }}
+              onChange={(event) => {
+                setTyped(event.target.value);
+                setHighlight(0);
+              }}
+              onFocus={() => {
+                setFocused(true);
+              }}
+              onKeyDown={(event) => {
+                switch (event.key) {
+                  case "ArrowDown":
+                  case "ArrowUp": {
+                    if (rows.length === 0) {
+                      return;
+                    }
+                    event.preventDefault();
+                    const step = event.key === "ArrowDown" ? 1 : -1;
+                    setHighlight((current + step + rows.length) % rows.length);
+                    break;
+                  }
+                  case "Escape": {
+                    setTyped("");
+                    setHighlight(0);
+                    break;
+                  }
+                  // No default
+                }
+              }}
+              placeholder="Type an address or search"
+              role="combobox"
+              spellCheck={false}
+              type="text"
+              value={typed}
+            />
+          </label>
+        </form>
+      </PopoverAnchor>
+      {/* The caret owns this list, so it never takes focus or the pointer
+          from the field: a row is chosen on mousedown, before the field
+          could blur, and the list closes with the caret leaving. */}
+      <PopoverContent
+        align="start"
+        avoidCollisions={false}
+        className="p-1"
+        maxHeight="18rem"
+        onCloseAutoFocus={preventDefault}
+        onFocusOutside={preventDefault}
+        onInteractOutside={preventDefault}
+        onOpenAutoFocus={preventDefault}
+        side="bottom"
+        sideOffset={6}
+        style={{ width: anchor?.offsetWidth }}
+      >
+        <ul aria-label="What the address opens" role="listbox">
+          {rows.map((row, index) => (
             <li
-              aria-selected={index === reached}
-              id={`address-offer-${index}`}
-              key={page.url}
+              aria-selected={index === current}
+              id={`address-row-${row.id}`}
+              key={row.id}
               role="option"
             >
               <button
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-muted",
-                  index === reached && "bg-muted",
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left",
+                  index === current ? "bg-accent" : "hover:bg-accent/50",
                 )}
-                // Mousedown rather than click, and defaulted out, so choosing
-                // an offer never blurs the field first.
                 onMouseDown={(event) => {
                   event.preventDefault();
-                  open(page.url);
+                  choose(row);
+                }}
+                onMouseMove={() => {
+                  if (index !== current) {
+                    setHighlight(index);
+                  }
                 }}
                 tabIndex={-1}
                 type="button"
               >
-                <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
-                  <SiteIcon favicon={page.favicon} url={page.url} />
+                <span className="grid size-4 shrink-0 place-items-center text-muted-foreground [&_img]:size-4 [&_svg]:size-4">
+                  {row.icon}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
-                  {page.title || hostOf(page.url)}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] text-foreground">
+                    {row.name}
+                  </span>
+                  {row.line !== undefined && (
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {row.line}
+                    </span>
+                  )}
                 </span>
                 <span className="shrink-0 text-[11px] text-muted-foreground">
-                  {hostOf(page.url)}
+                  {row.note}
                 </span>
               </button>
             </li>
           ))}
         </ul>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

@@ -1,4 +1,6 @@
 import { type RPCOutput } from "@/client/rpc/client";
+import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { format, isSameYear } from "date-fns";
 
 /** A thread as the chat lists it: the first message, the title, and where it stands. */
@@ -249,10 +251,15 @@ export function dayLabel(date: Date, now: Date): string {
   return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
 }
 
-/** What a draft's row calls it: the first line of its words that says anything, or a name for one with no words yet. */
+/**
+ * What a draft's row calls it: the first line of its words that says
+ * anything, read as a person reads it (a skill as `/name`, an app or a page
+ * by the name it was given, no Markdown marks), or a name for one with no
+ * words yet.
+ */
 export function draftTitle(words: string): string {
   return (
-    words
+    stripMarkdown(renderSkillMentionsAsText(words))
       .split("\n")
       .map((line) => line.trim())
       .find(Boolean) ?? "New thread"

@@ -491,6 +491,16 @@ describe("a draft's title", () => {
     ],
     ["a name for none", "", "New thread"],
     ["a name for only blank lines", " \n\t\n", "New thread"],
+    [
+      "the words as a person reads them, an app by its name",
+      "Check [Gmail](instrument://app/gmail) for the invoice",
+      "Check Gmail for the invoice",
+    ],
+    [
+      "the words as a person reads them, a skill as its slash",
+      "Use [$release](skill:release) to ship **this**",
+      "Use /release to ship this",
+    ],
   ])("is %s", (_, words, title) => {
     expect(draftTitle(words)).toBe(title);
   });

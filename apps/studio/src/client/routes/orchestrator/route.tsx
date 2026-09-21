@@ -475,14 +475,13 @@ function OrchestratorLayout() {
     }
     setDrafts((current) => current.filter(hasWords));
     // The tabs come back as they were, and so does the place, and the two
-    // have to agree: a place stands on its own group, and the chat never
-    // shows a place's.
-    const shownPlace = placeOfGroup(windowTabs.group);
+    // have to agree: a place stands on its own group, with at least its own
+    // new tab in it, and the chat never shows a place's.
     if (isChat) {
-      if (shownPlace !== undefined) {
+      if (placeOfGroup(windowTabs.group) !== undefined) {
         showChat();
       }
-    } else if (shownPlace !== place) {
+    } else {
       windowTabs.showPlace(place);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

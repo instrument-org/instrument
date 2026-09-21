@@ -383,6 +383,7 @@ export const workspaceMachine = setup({
       captureException: CaptureExceptionFunction;
       defaultTaskTemplateDir: string;
       getAIProviderConfigs: GetProviderConfigs;
+      getUser?: WorkspaceConfig["getUser"];
       isExternalBrowserEnabled: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
@@ -412,6 +413,7 @@ export const workspaceMachine = setup({
         input.defaultTaskTemplateDir,
       ),
       getAIProviderConfigs: input.getAIProviderConfigs,
+      ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
       modelCache: input.modelCache,
       nodeExecEnv: input.nodeExecEnv,

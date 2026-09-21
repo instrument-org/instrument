@@ -31,6 +31,7 @@ import {
   createContextMessage,
   createSystemMessage,
   getSystemInfoText,
+  getUserText,
   shouldContinueWithToolCalls,
 } from "./shared";
 
@@ -213,6 +214,7 @@ ${
       sessionId,
       textParts: [
         getSystemInfoText(),
+        await getUserText(),
         foldersText,
         appsText,
         skillsText,

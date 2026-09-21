@@ -11,9 +11,31 @@ import { AbsolutePathSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { withTempDir } from "../test/helpers/temp-dir";
-import { getTaskLayoutContext } from "./shared";
+import { getTaskLayoutContext, getUserText } from "./shared";
 
 const root = withTempDir("task-layout");
+
+describe("getUserText", () => {
+  it("names the signed-in user, and nobody while signed out or where there is no account to read", async () => {
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      getUser: () =>
+        Promise.resolve({ email: "ada@example.com", name: "Ada Lovelace" }),
+    });
+    await expect(getUserText()).resolves.toBe(
+      "The user's name is Ada Lovelace, signed in as ada@example.com.",
+    );
+    setWorkspaceConfig({
+      ...config,
+      getUser: () => Promise.resolve(undefined),
+    });
+    await expect(getUserText()).resolves.toBeUndefined();
+    const { getUser: _absent, ...noAccount } = config;
+    setWorkspaceConfig(noAccount);
+    await expect(getUserText()).resolves.toBeUndefined();
+  });
+});
 
 describe("getTaskLayoutContext", () => {
   let taskDir: string;

@@ -1,4 +1,5 @@
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
+import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
   isQuitGuardForcedInDev,
   requestQuitApproval,
@@ -124,6 +125,7 @@ export function createWorkspaceActor({
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       getAIProviderConfigs,
+      getUser: getSignedInUser,
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
       modelCache: diskModelCache,
       nodeExecEnv: {

@@ -155,6 +155,13 @@ export interface WorkspaceConfig {
   captureException: CaptureExceptionFunction;
   defaultTaskTemplateDir: AbsolutePath;
   getAIProviderConfigs: GetProviderConfigs;
+  /**
+   * Who is signed in, for the agents to know whose work it is: the account's
+   * name and email, or undefined while nobody is. Read when a session's
+   * context is built rather than at boot, since a sign-in comes and goes;
+   * absent altogether where there is no account to read (scripts, evals).
+   */
+  getUser?: () => Promise<undefined | { email: string; name: string }>;
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;

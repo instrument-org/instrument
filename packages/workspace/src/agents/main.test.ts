@@ -90,4 +90,50 @@ describe("mainAgent.getMessages", () => {
     expect(opened).toMatch(/\n# Who reads you\nThe user is here/);
     expect(opened).toMatch(/\n# Showing Files to the User\nAny reply/);
   });
+
+  // A task reaches services under the user's account, so it is told whose.
+  it("tells the task the signed-in user's name in its context", async () => {
+    const context = await contextFor({
+      email: "ada@example.com",
+      name: "Ada Lovelace",
+    });
+    expect(context).toContain("The user's name is Ada Lovelace");
+  });
 });
+
+/** The context message's text for a task nobody started, with someone signed in. */
+async function contextFor(user: {
+  email: string;
+  name: string;
+}): Promise<string> {
+  const taskId = TaskIdSchema.parse(`whose-work-${++taskCount}`);
+  // The mock config replaces the whole config, so the account goes on after it.
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId));
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+      path.resolve(import.meta.dirname, "../../templates/default"),
+    ),
+    getUser: () => Promise.resolve(user),
+  });
+  const created = await initializeTask(
+    {
+      initialSettings: { kind: "task", name: "Whose work" },
+      taskId,
+      workspaceConfig: getWorkspaceConfig(),
+    },
+    {},
+  );
+  if (created.isErr()) {
+    throw created.error;
+  }
+  const [, context] = await mainAgent.getMessages({
+    sessionId: StoreId.newSessionId(),
+    taskId,
+  });
+  return (
+    context?.parts
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("\n") ?? ""
+  );
+}

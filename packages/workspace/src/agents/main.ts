@@ -50,6 +50,7 @@ import {
   createContextMessage,
   createSystemMessage,
   getSystemInfoText,
+  getUserText,
   getTaskLayoutContext,
   shouldContinueWithToolCalls,
 } from "./shared";
@@ -395,6 +396,7 @@ export const mainAgent = setupAgent({
       sessionId,
       textParts: [
         getSystemInfoText(),
+        await getUserText(),
         projectName
           ? buildProjectContextText({
               instructions: projectInstructions,

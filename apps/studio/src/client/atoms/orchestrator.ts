@@ -7,6 +7,7 @@ import {
 import { type PromptInputDraft } from "@/client/components/prompt-input";
 import {
   type SessionMessageDataPart,
+  type StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
@@ -65,6 +66,14 @@ export const screenViewAtom = atom<null | ScreenView>(null);
 export interface Draft {
   createdAt: number;
   id: string;
+  /**
+   * The thing the draft was opened over, when the window stood in a place
+   * with a tab up: that tab, by its group and id. A pointer rather than a
+   * copy or a tab of the draft's own, so the draft says what the screen
+   * already gives it and the thread is told about it as it starts. Cleared
+   * when the person leaves it out.
+   */
+  included?: { group: string; tabId: string };
   /** The kind of page the response should come back as: a page-skill template, by its folder's name. */
   output?: string;
   topicId?: string;
@@ -100,21 +109,32 @@ export const draftsAtom = atomWithStorage<Draft[]>(
  */
 export const draftSnapshotsAtom = atom<Record<string, PromptInputDraft>>({});
 
-/** One draft being written: which draft, and how its window stands. */
-export interface ComposeEntry {
-  draftId: string;
-  placement: ComposePlacement;
-}
+/**
+ * One window along the foot: a draft being written, or a thread floating in
+ * its small view, and how the window stands. A thread's entry remembers the
+ * draft it grew from, so the window that was the draft is the window that
+ * is the thread, with no arrival between them.
+ */
+export type ComposeEntry = { placement: ComposePlacement } & (
+  | { draftId: string; kind: "draft" }
+  | { fromDraft?: string; kind: "thread"; sessionId: StoreId.Session }
+);
 
-/** How a draft window stands: docked along the window's foot, grown to fill the window, or put down to a bar along the foot. */
+/** How a window stands: docked along the window's foot, grown to fill the window, or put down to a bar along the foot. */
 export type ComposePlacement = "bar" | "docked" | "expanded";
 
+/** The group key of what a window shows: the draft's tabs, or the thread's. */
+export function composeKeyOf(entry: ComposeEntry): string {
+  return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.sessionId;
+}
+
 /**
- * The drafts open in windows that float over the inbox and the thread, the
- * way a mail client keeps several compose windows along its foot, oldest
- * first: the newest stands at the right, and the ones there is no room for
- * are not drawn. In memory only: a launch opens with nothing being written,
- * and the drafts themselves are in `draftsAtom`.
+ * The windows floating over the row, the way a mail client keeps several
+ * compose windows along its foot, oldest first: the newest stands at the
+ * right, and the ones there is no room for are not drawn. The drafts being
+ * written and the threads in their small views share the row. In memory
+ * only: a launch opens with nothing floating, and the drafts themselves are
+ * in `draftsAtom`.
  */
 export const composeAtom = atom<ComposeEntry[]>([]);
 

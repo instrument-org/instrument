@@ -52,10 +52,14 @@ import {
 import { useAppsBySlug } from "./apps-by-slug";
 import { type BrowserTabsHandle, TabIcon } from "./browser-tabs";
 import { ComposeFiles } from "./compose-files";
-import { COMPOSE_BAR_WIDTH, COMPOSE_WIDTH } from "./compose-layout";
+import {
+  COMPOSE_BAR_WIDTH,
+  COMPOSE_MOTION,
+  COMPOSE_WIDTH,
+} from "./compose-layout";
 import { ComposeZeroState } from "./compose-zero-state";
 import { OrchestratorContext, useOrchestrator } from "./context";
-import { computerTabOf, fileHref, folderHref } from "./file-tabs";
+import { computerTabOf, fileHref, folderHref, pageTabTitle } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { OutputPicker } from "./output-picker";
 import { screenPresentation } from "./screen-presentation";
@@ -90,9 +94,6 @@ const COMPOSE_HEIGHT = 640;
 
 /** The words' height the docked height already allows for: three lines. Past it the window grows. */
 const WORDS_BASE_HEIGHT = 72;
-
-/** How a window or a bar comes and goes: quick, and settling rather than bouncing. */
-const COMPOSE_MOTION = { damping: 32, stiffness: 420, type: "spring" } as const;
 
 const NO_TITLES = new Map<never, never>();
 
@@ -233,6 +234,14 @@ export function ComposeWindow({
   const tabs = windowTabs.allTabs.filter((tab) => tab.group === group);
   const up = windowTabs.tabUpIn(group);
   const isExpanded = placement === "expanded";
+  // The thing the draft was opened over, while it is still there to point at.
+  const included = draft.included
+    ? windowTabs.allTabs.find(
+        (tab) =>
+          tab.id === draft.included?.tabId &&
+          tab.group === draft.included.group,
+      )
+    : undefined;
 
   // The words the box opens with: what was kept of it when it was put away,
   // or, after a relaunch, the record's own words. Seeded once, since the
@@ -682,6 +691,18 @@ export function ComposeWindow({
               {/* The band: the draft's own pane, on a gray floor with nothing
                   between it and the words but the color. */}
               <div className="mx-2 flex min-h-80 flex-1 flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900">
+                {included && (
+                  <IncludedRegion
+                    appsBySlug={appsBySlug}
+                    onLeaveOut={() => {
+                      onChange((current) => {
+                        const { included: _left, ...rest } = current;
+                        return rest;
+                      });
+                    }}
+                    tab={included}
+                  />
+                )}
                 {showsStrip && (
                   <div className="flex h-9 shrink-0 items-center pr-1 pl-1">
                     <WindowTabStrip
@@ -716,6 +737,31 @@ export function ComposeWindow({
   );
 }
 
+/** One of a window's own buttons: minimize, expand, close. */
+export function WindowButton({
+  children,
+  label,
+  onClick,
+}: {
+  children: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <ToolbarTooltip label={label}>
+      <Button
+        aria-label={label}
+        className="size-7 text-muted-foreground hover:text-foreground"
+        onClick={onClick}
+        size="icon-sm"
+        variant="ghost"
+      >
+        {children}
+      </Button>
+    </ToolbarTooltip>
+  );
+}
+
 /** The band's white card, for a thing drawn large in it. */
 function Card({ children }: { children: ReactNode }) {
   return (
@@ -747,6 +793,55 @@ function HeldMark({
     return <TabIcon favicon={tab.favicon} url={tab.url} />;
   }
   return screenPresentation(tab.href, { appsBySlug }).icon;
+}
+
+/**
+ * The region at the band's top naming what the screen already gives the
+ * draft: the word Included, then the thing the draft was opened over as a
+ * chip with its mark and name and an x that leaves it out. On a brand tint,
+ * so it reads as already there rather than as one more door; nothing of the
+ * thing itself is drawn in the draft.
+ */
+function IncludedRegion({
+  appsBySlug,
+  onLeaveOut,
+  tab,
+}: {
+  appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  onLeaveOut: () => void;
+  tab: WindowTab;
+}) {
+  const name =
+    tab.kind === "page"
+      ? pageTabTitle(tab) || "Page"
+      : screenPresentation(tab.href, { appsBySlug }).title;
+  return (
+    <div className="px-2 pt-2">
+      <div
+        className="flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg bg-brand-100/60 px-2.5 py-2 ring-1 ring-brand-300/60 dark:bg-brand-900/30 dark:ring-brand-700/60"
+        data-slot="included-region"
+      >
+        <span className="mr-1 text-[11px] font-medium text-brand-900 dark:text-brand-200">
+          Included
+        </span>
+        <span className="inline-flex h-6 max-w-56 min-w-0 items-center gap-1.5 rounded-md bg-card pr-1 pl-1.5 text-[11px] text-foreground ring-1 ring-black/8 dark:ring-white/10">
+          <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
+            <HeldMark appsBySlug={appsBySlug} tab={tab} />
+          </span>
+          <span className="truncate">{name}</span>
+          <button
+            aria-label={`Leave out ${name}`}
+            className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+            onClick={onLeaveOut}
+            title="Leave out"
+            type="button"
+          >
+            <XIcon className="size-3" />
+          </button>
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -810,30 +905,5 @@ function TopicSlot({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-/** One of the window's own buttons: minimize, expand, close. */
-function WindowButton({
-  children,
-  label,
-  onClick,
-}: {
-  children: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <ToolbarTooltip label={label}>
-      <Button
-        aria-label={label}
-        className="size-7 text-muted-foreground hover:text-foreground"
-        onClick={onClick}
-        size="icon-sm"
-        variant="ghost"
-      >
-        {children}
-      </Button>
-    </ToolbarTooltip>
   );
 }

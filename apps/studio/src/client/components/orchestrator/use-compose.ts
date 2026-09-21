@@ -1,9 +1,12 @@
 import {
   composeAtom,
+  type ComposeEntry,
+  composeKeyOf,
   type ComposePlacement,
   draftGroupOf,
   type ScreenView,
 } from "@/client/atoms/orchestrator";
+import { type StoreId } from "@instrument-org/workspace/client";
 import { useAtom } from "jotai";
 import { useState } from "react";
 
@@ -11,15 +14,18 @@ import { type ComposeHost } from "./browser-tabs";
 import { layoutCompose } from "./compose-layout";
 
 /**
- * The drafts being written, laid along the foot of the row, with what each
- * window's page is drawn into and what each has on screen, for the layout
- * that draws the windows, parks the pane's guest under them, and starts the
- * threads they become.
+ * The windows along the foot of the row: the drafts being written and the
+ * threads in their small views, laid out, with what each draft window's page
+ * is drawn into and what each has on screen, for the layout that draws the
+ * windows, parks the pane's guest under them, and starts the threads the
+ * drafts become. Everything is keyed by the group the window shows: the
+ * draft's key, or the thread's session.
  */
 export function useCompose(width: number) {
   const [entries, setEntries] = useAtom(composeAtom);
-  // Where each window's page is drawn, by draft id, once the window has
-  // made the element; and what each window's band has up.
+  // Where each draft window's page is drawn, by the draft's group, once the
+  // window has made the element; and what each draft window's band has up.
+  // A thread's small view draws no page and reports no view.
   const [hostsById, setHostsById] = useState<
     Record<string, HTMLElement | null>
   >({});
@@ -28,67 +34,115 @@ export function useCompose(width: number) {
   );
   const placed = layoutCompose(entries, width);
   const windows = placed.filter((entry) => entry.placement !== "bar");
-  const hosts: ComposeHost[] = windows.map((entry) => ({
-    group: draftGroupOf(entry.draftId),
-    into: hostsById[entry.draftId] ?? null,
-    isActive: true,
-    place: `${entry.placement}:${entry.right}`,
-  }));
+  const hosts: ComposeHost[] = windows.flatMap((entry) =>
+    entry.kind === "draft"
+      ? [
+          {
+            group: draftGroupOf(entry.draftId),
+            into: hostsById[draftGroupOf(entry.draftId)] ?? null,
+            isActive: true,
+            place: `${entry.placement}:${entry.right}`,
+          },
+        ]
+      : [],
+  );
 
-  /** Brings a draft up in a window: a new window at the right, or the bar it was put down to, raised. */
-  const open = (draftId: string) => {
+  /** Whether a window is standing: a new one at the right, or the bar it was put down to, raised. */
+  const raise = (key: string, make: () => ComposeEntry) => {
     setEntries((current) =>
-      current.some((entry) => entry.draftId === draftId)
+      current.some((entry) => composeKeyOf(entry) === key)
         ? current.map((entry) =>
-            entry.draftId === draftId && entry.placement === "bar"
+            composeKeyOf(entry) === key && entry.placement === "bar"
               ? { ...entry, placement: "docked" }
               : entry,
           )
-        : [...current, { draftId, placement: "docked" }],
+        : [...current, make()],
     );
   };
-  const setPlacement = (draftId: string, placement: ComposePlacement) => {
-    setEntries((current) =>
-      current.map((entry) =>
-        entry.draftId === draftId ? { ...entry, placement } : entry,
-      ),
-    );
+  /** Brings a draft up in a window: a new window at the right, or the bar it was put down to, raised. */
+  const open = (draftId: string) => {
+    raise(draftGroupOf(draftId), () => ({
+      draftId,
+      kind: "draft",
+      placement: "docked",
+    }));
   };
-  /** Takes a draft's window down, whatever became of the draft. */
-  const remove = (draftId: string) => {
-    setEntries((current) =>
-      current.filter((entry) => entry.draftId !== draftId),
-    );
+  /** Floats a thread in its small view: a new window at the right, or the bar it was put down to, raised. */
+  const float = (sessionId: StoreId.Session) => {
+    raise(sessionId, () => ({
+      kind: "thread",
+      placement: "docked",
+      sessionId,
+    }));
+  };
+  /** Drops what was kept for a window's group: where its page was drawn and what it had up. */
+  const forget = (key: string) => {
     setHostsById((current) => {
-      const { [draftId]: _gone, ...rest } = current;
+      const { [key]: _gone, ...rest } = current;
       return rest;
     });
     setViewsById((current) => {
-      const { [draftId]: _gone, ...rest } = current;
+      const { [key]: _gone, ...rest } = current;
       return rest;
     });
   };
-  const setHost = (draftId: string, element: HTMLElement | null) => {
-    setHostsById((current) =>
-      current[draftId] === element
-        ? current
-        : { ...current, [draftId]: element },
+  /**
+   * The draft's window becomes the thread's small view in the same place
+   * along the foot: the entry is replaced where it stands, put down if the
+   * draft was, docked if it had grown, since a thread's view has no larger
+   * size. What the draft's band drew and reported goes with the draft.
+   */
+  const becomeThread = (draftId: string, sessionId: StoreId.Session) => {
+    const key = draftGroupOf(draftId);
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.kind === "draft" && entry.draftId === draftId
+          ? {
+              fromDraft: draftId,
+              kind: "thread",
+              placement: entry.placement === "bar" ? "bar" : "docked",
+              sessionId,
+            }
+          : entry,
+      ),
+    );
+    forget(key);
+  };
+  const setPlacement = (key: string, placement: ComposePlacement) => {
+    setEntries((current) =>
+      current.map((entry) =>
+        composeKeyOf(entry) === key ? { ...entry, placement } : entry,
+      ),
     );
   };
-  const setView = (draftId: string, view: null | ScreenView) => {
+  /** Takes a window down, by its group, whatever became of what it showed. */
+  const remove = (key: string) => {
+    setEntries((current) =>
+      current.filter((entry) => composeKeyOf(entry) !== key),
+    );
+    forget(key);
+  };
+  const setHost = (key: string, element: HTMLElement | null) => {
+    setHostsById((current) =>
+      current[key] === element ? current : { ...current, [key]: element },
+    );
+  };
+  const setView = (key: string, view: null | ScreenView) => {
     // By value: a window reports the same view again as it re-renders, and
     // a fresh object each time would re-render the layout on every report.
     setViewsById((current) =>
-      JSON.stringify(current[draftId] ?? null) === JSON.stringify(view)
+      JSON.stringify(current[key] ?? null) === JSON.stringify(view)
         ? current
-        : { ...current, [draftId]: view },
+        : { ...current, [key]: view },
     );
   };
 
   return {
+    becomeThread,
     /** Whether a window stands over the row, which is when the pane's guest has to park under it. */
     covers: windows.length > 0,
     entries,
+    float,
     hosts,
     open,
     placed,

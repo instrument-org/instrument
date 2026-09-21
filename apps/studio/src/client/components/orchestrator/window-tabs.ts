@@ -535,14 +535,34 @@ export function useWindowTabs() {
    * under the thread (a task's browser that arrived before the start came
    * back) stays where it is, beside them. The thread's group comes on
    * screen, and the group handed over is gone, its remembered tab and all.
+   * Told not to show it, the tabs move behind whatever is on screen and the
+   * thread remembers the tab the draft had up, for a thread that floats.
    */
-  const adoptGroup = (from: string, sessionId: StoreId.Session) => {
+  const adoptGroup = (
+    from: string,
+    sessionId: StoreId.Session,
+    { show = true }: { show?: boolean } = {},
+  ) => {
     setTabs((current) => {
       const moved = current.tabs
         .filter((tab) => tab.group === from)
         .map((tab) => ({ ...tab, group: sessionId }));
       const rest = current.tabs.filter((tab) => tab.group !== from);
       const { [from]: left, ...activeByGroup } = current.activeByGroup ?? {};
+      if (!show) {
+        const remembered = left ?? activeByGroup[sessionId] ?? moved[0]?.id;
+        return {
+          ...current,
+          activeByGroup:
+            remembered === undefined
+              ? activeByGroup
+              : { ...activeByGroup, [sessionId]: remembered },
+          ...(current.group === from
+            ? { activeId: null, group: undefined }
+            : {}),
+          tabs: [...rest, ...moved],
+        };
+      }
       // Leaving the group being handed over is leaving nothing: what it had
       // up is what the thread has up, not a place to come back to.
       const leaving =

@@ -4,6 +4,7 @@ export const FeatureNameSchema = z.enum([
   "bash_summary_chip",
   "context_ring",
   "external_browser",
+  "float_every_draft",
   "instrument_2",
   "prompt_queue",
   "skills",
@@ -31,6 +32,11 @@ export const FEATURE_METADATA: Record<
     description:
       "Let the agent drive a browser outside the app: the user's own Chrome profile and its logins, a Chromium already running with remote debugging, or a cloud browser. macOS asks for a system permission the first time.",
     title: "External Browser",
+  },
+  float_every_draft: {
+    description:
+      "In Instrument 2.0, a thread started from Chat opens in the small view in the corner, the way one started from Files or Apps does, rather than lighting its row.",
+    title: "Float every draft",
   },
   instrument_2: {
     description:

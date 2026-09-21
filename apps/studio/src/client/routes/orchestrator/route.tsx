@@ -1,3 +1,4 @@
+import { featuresAtom } from "@/client/atoms/features";
 import {
   type AppPlace,
   appPlaceAtom,
@@ -14,6 +15,7 @@ import {
   orchestratorRecentsAtom,
   orchestratorSidebarWidthAtom,
   paneOpenByGroupAtom,
+  placeGroupOf,
   placeOfGroup,
   RECENTS_MAX,
   screenViewAtom,
@@ -46,10 +48,14 @@ import {
   folderHref,
   mountOfHostPath,
 } from "@/client/components/orchestrator/file-tabs";
-import { segmentsOf } from "@/client/components/orchestrator/host-path";
+import {
+  joinHostPath,
+  segmentsOf,
+} from "@/client/components/orchestrator/host-path";
 import { InboxToggle } from "@/client/components/orchestrator/inbox-toggle";
 import { NewTopicDialog } from "@/client/components/orchestrator/new-topic-dialog";
 import { PaneToggle } from "@/client/components/orchestrator/pane-toggle";
+import { PoppedOut } from "@/client/components/orchestrator/popped-out";
 import { RightPane } from "@/client/components/orchestrator/right-pane";
 import {
   screenLocation,
@@ -307,6 +313,39 @@ function hasWords(draft: Draft): boolean {
   return draft.words.trim() !== "";
 }
 
+/** The tab a draft was opened over, while it is still among the window's. */
+function includedTabOf(
+  draft: Draft,
+  allTabs: WindowTab[],
+): undefined | WindowTab {
+  const { included } = draft;
+  if (!included) {
+    return;
+  }
+  return allTabs.find(
+    (tab) => tab.id === included.tabId && tab.group === included.group,
+  );
+}
+
+/**
+ * Whether a tab is something a draft opened over it can carry to its thread:
+ * a page, a file or folder on the computer, or an app's front. A place's own
+ * fresh tab is the place rather than a thing in it, and the screens with no
+ * words for the conversation are left out.
+ */
+function isIncludable(tab: WindowTab): boolean {
+  if (isFreshTab(tab)) {
+    return false;
+  }
+  if (tab.kind === "page") {
+    return true;
+  }
+  return (
+    computerTabOf(tab.href) !== undefined ||
+    parseHref(tab.href).pathname.startsWith("/orchestrator/apps/")
+  );
+}
+
 /**
  * The window: the chat pane down the left, with its filters, its threads, and
  * its composer, and to its right one strip of tabs above whatever is open. A
@@ -356,6 +395,7 @@ function OrchestratorLayout() {
   );
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
+  const features = useAtomValue(featuresAtom);
   const screenView = useAtomValue(screenViewAtom);
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
@@ -587,6 +627,27 @@ function OrchestratorLayout() {
       task,
       thread,
     }));
+  };
+
+  // The threads in their small views, floating over the row.
+  const floating = compose.entries.flatMap((entry) =>
+    entry.kind === "thread" ? [entry.sessionId] : [],
+  );
+  /**
+   * Takes a thread out of the corner: the window goes and the thread lands
+   * in Chat, whole, its row in the list and its pane as it was.
+   */
+  const landThread = (sessionId: StoreId.Session) => {
+    compose.remove(sessionId);
+    windowTabs.showThread(sessionId);
+    toChat();
+  };
+  /** The same, with one of the thread's tabs put in front of its pane. */
+  const landOnTab = (sessionId: StoreId.Session, tabId: string) => {
+    landThread(sessionId);
+    windowTabs.selectIn(sessionId, tabId);
+    setPaneOpen(sessionId, true);
+    setTasksFace(undefined);
   };
 
   // A tab at the tasks' address from before the tasks became the pane's
@@ -1106,9 +1167,20 @@ function OrchestratorLayout() {
    */
   const startDraft = (topicId: string | undefined, words = "") => {
     const now = Date.now();
+    // What the draft is opened over: the tab the place has up, when the
+    // window stands in a place and that tab is something the conversation
+    // can be told about. A place's own fresh tab is the place, not a thing.
+    const overGroup = place === "chat" ? undefined : placeGroupOf(place);
+    const over =
+      overGroup === undefined ? undefined : windowTabs.tabUpIn(overGroup);
+    const included =
+      overGroup !== undefined && over !== undefined && isIncludable(over)
+        ? { group: overGroup, tabId: over.id }
+        : undefined;
     const draft: Draft = {
       createdAt: now,
       id: ulid(),
+      ...(included ? { included } : {}),
       ...(topicId ? { topicId } : {}),
       updatedAt: now,
       words,
@@ -1155,7 +1227,7 @@ function OrchestratorLayout() {
   }, [draftIds, setDraftSnapshots]);
   /** Throws a draft away: its window, its record, what its composer held, and its tabs. */
   const deleteDraft = (id: string) => {
-    compose.remove(id);
+    compose.remove(draftGroupOf(id));
     setDrafts((current) => current.filter((draft) => draft.id !== id));
     windowTabs.dropGroup(draftGroupOf(id));
   };
@@ -1170,7 +1242,7 @@ function OrchestratorLayout() {
     if (words.trim() === "") {
       deleteDraft(id);
     } else {
-      compose.remove(id);
+      compose.remove(draftGroupOf(id));
     }
   };
   // The inbox's rows as the pane lists them, for stepping through them by
@@ -1253,20 +1325,121 @@ function OrchestratorLayout() {
             title: segmentsOf(filePath).at(-1) ?? filePath,
           };
     });
+  /** How the conversation reaches a file on this computer: its name, its path, and the mount it is under when a granted folder covers it. */
+  const fileOf = (filePath: string) => {
+    const mount = mountOfHostPath(filePath, state.data?.attachedFolders ?? {});
+    return {
+      ...(mount === undefined ? {} : { mount }),
+      name: segmentsOf(filePath).at(-1) ?? filePath,
+      path: filePath,
+    };
+  };
+  /**
+   * What the thing a draft was opened over says about itself, for the thread
+   * the draft starts: a file by its path, a page by its words read from the
+   * place's own guest, a folder or an app as its screen reports it while it
+   * is the one on screen, and otherwise as much as its address says. The
+   * page's own tabs are left out, since they are the place's to hand over
+   * and not the thread's.
+   */
+  const includedContext = async (
+    draft: Draft,
+  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
+    const tab = includedTabOf(draft, windowTabs.allTabs);
+    if (!tab || !state.data) {
+      return;
+    }
+    // The screen's own answer, when the included tab is the one on screen.
+    const view = active?.id === tab.id ? screenView : null;
+    if (tab.kind === "page") {
+      const url = tab.url ?? "about:blank";
+      const filePath = hostPathOfFileUrl(tab.url);
+      if (filePath !== undefined) {
+        return { file: fileOf(filePath), screen: "file", url };
+      }
+      const read = await browser?.readPage(tab.id);
+      const { tab: _own, tabs: _others, ...page } = read ?? { title: "", url };
+      return { page, screen: "browser", url };
+    }
+    if (view && view.screen !== "home") {
+      return { ...view, url: tab.href };
+    }
+    const computer = computerTabOf(tab.href);
+    if (computer?.file !== undefined) {
+      return { file: fileOf(computer.file), screen: "file", url: tab.href };
+    }
+    if (computer) {
+      const path = joinHostPath(computer.root, computer.path);
+      const mount = mountOfHostPath(path, state.data.attachedFolders ?? {});
+      return {
+        folder: {
+          display: path,
+          ...(mount === undefined ? {} : { mount }),
+          selected: [],
+        },
+        screen: "computer",
+        url: tab.href,
+      };
+    }
+    const where = screenLocation(tab.href, { appsBySlug, threadTitles });
+    if (where.kind === "app") {
+      const slug = parseHref(tab.href).pathname.slice(
+        "/orchestrator/apps/".length,
+      );
+      return {
+        app: {
+          name: where.name,
+          ...(where.site ? { site: where.site } : {}),
+          slug,
+          standing: "unknown",
+        },
+        screen: "apps",
+        url: tab.href,
+      };
+    }
+    return;
+  };
   /**
    * What a draft's window has up as its thread starts: the band's page, read
    * at that moment, or the folder or file its screen reported, and the
-   * draft's tabs for the thread to name. Nothing while the band shows
-   * nothing the conversation can be told about.
+   * draft's tabs for the thread to name, with the thing the draft was opened
+   * over described among them. A draft that gathered nothing of its own is
+   * told about that thing in place of its band; one with neither has nothing
+   * the conversation can be told about.
    */
   const draftContext = async (
     draftId: string,
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
+    const draft = drafts.find((entry) => entry.id === draftId);
     const group = draftGroupOf(draftId);
     const up = windowTabs.tabUpIn(group);
-    const view = compose.viewsById[draftId];
-    if (!view || !state.data || !up) {
+    const view = compose.viewsById[group];
+    if (!state.data) {
       return;
+    }
+    const includedTab = draft
+      ? includedTabOf(draft, windowTabs.allTabs)
+      : undefined;
+    // Without an id: the place's tab is not the thread's to hand over.
+    const described = [
+      ...describeTabs(windowTabs.allTabs.filter((tab) => tab.group === group)),
+      ...(includedTab
+        ? describeTabs([includedTab]).map(({ id: _kept, ...tab }) => tab)
+        : []),
+    ];
+    if (!view || !up || view.screen === "home") {
+      const included = draft ? await includedContext(draft) : undefined;
+      if (included) {
+        return { ...included, tabs: described };
+      }
+      if (!view || !up) {
+        return;
+      }
+      return {
+        ...view,
+        tabs: described,
+        url: up.kind === "page" ? "about:blank" : up.href,
+      };
     }
     const filePath =
       view.screen === "browser" && up.kind === "page"
@@ -1278,27 +1451,14 @@ function OrchestratorLayout() {
       view.screen === "browser" && up.kind === "page" && filePath === undefined
         ? await browser?.readPage(up.id)
         : undefined;
-    const mount =
-      filePath === undefined
-        ? undefined
-        : mountOfHostPath(filePath, state.data.attachedFolders ?? {});
     const shown =
       filePath === undefined
         ? view
-        : {
-            file: {
-              ...(mount === undefined ? {} : { mount }),
-              name: segmentsOf(filePath).at(-1) ?? filePath,
-              path: filePath,
-            },
-            screen: "file" as const,
-          };
+        : { file: fileOf(filePath), screen: "file" as const };
     return {
       ...shown,
       ...(page ? { page } : {}),
-      tabs: describeTabs(
-        windowTabs.allTabs.filter((tab) => tab.group === group),
-      ),
+      tabs: described,
       url: up.kind === "page" ? (up.url ?? "about:blank") : up.href,
     };
   };
@@ -1306,14 +1466,19 @@ function OrchestratorLayout() {
    * Starts the thread the draft is for: what its composer sends (the words,
    * the files, the folders, the model) and its topic as the first message,
    * with what its band shows as the context; then what the draft gathered
-   * becomes the thread's tabs exactly as they are, and the thread comes on
-   * screen beside the inbox.
+   * becomes the thread's tabs exactly as they are. Started from Chat, the
+   * thread comes on screen beside the inbox and the window goes; started
+   * from a place (or from Chat with the flag on), the window becomes the
+   * thread's small view in the same corner, and the place is left as it is.
    */
   const startThread = (id: string, send: DraftSend) => {
     const draft = drafts.find((entry) => entry.id === id);
     if (!draft || !ids) {
       return;
     }
+    // Read as the thread starts: where the window stood when the arrow was
+    // pressed is where the thread is asked for.
+    const floats = !isChat || features.float_every_draft;
     setStartingId(id);
     // The model chosen for the thread is the one the next draft opens with.
     saveDefaultModelURI(send.modelURI);
@@ -1339,8 +1504,6 @@ function OrchestratorLayout() {
             setStartingId((current) => (current === id ? undefined : current));
           },
           onSuccess: ({ sessionId }) => {
-            compose.remove(id);
-            setArrivedId(sessionId);
             setDrafts((current) => current.filter((entry) => entry.id !== id));
             // What the draft gathered becomes the thread's tabs, the pages
             // and folders as they stand; the new-tab pages among them were
@@ -1350,13 +1513,26 @@ function OrchestratorLayout() {
             const group = draftGroupOf(id);
             const own = windowTabs.allTabs.filter((tab) => tab.group === group);
             const homes = own.filter((tab) => isHomeTab(tab));
+            for (const home of homes) {
+              windowTabs.close(home.id);
+            }
+            if (floats) {
+              // The window stays and becomes the thread's; the tabs move
+              // behind it, and nothing on screen changes.
+              compose.becomeThread(id, sessionId);
+              if (homes.length === own.length) {
+                windowTabs.dropGroup(group);
+              } else {
+                windowTabs.adoptGroup(group, sessionId, { show: false });
+              }
+              return;
+            }
+            compose.remove(group);
+            setArrivedId(sessionId);
             if (homes.length === own.length) {
               windowTabs.dropGroup(group);
               windowTabs.showThread(sessionId);
             } else {
-              for (const home of homes) {
-                windowTabs.close(home.id);
-              }
               windowTabs.adoptGroup(group, sessionId);
             }
             // The thread is on the chat, whatever place the draft was
@@ -1533,6 +1709,7 @@ function OrchestratorLayout() {
             overlay={
               <ComposeLayer
                 browser={browser}
+                childTitles={childTitles}
                 compose={compose}
                 drafts={drafts}
                 isStarting={startingId}
@@ -1547,14 +1724,21 @@ function OrchestratorLayout() {
                   );
                 }}
                 onCloseDraft={closeDraft}
+                onCloseThread={(sessionId) => {
+                  compose.remove(sessionId);
+                }}
+                onExpandThread={landThread}
                 onModelChange={setDefaultModelURI}
                 onOpenApps={() => {
                   choosePlace("apps");
                 }}
+                onPressThreadTab={landOnTab}
                 onStart={startThread}
                 openOutside={(href) => {
                   openScreen(href, { newTab: true });
                 }}
+                sendContext={() => sendContextRef.current()}
+                threads={threads.data ?? []}
                 topics={topics}
               />
             }
@@ -1658,6 +1842,20 @@ function OrchestratorLayout() {
                               setThreadTopics(threadUp, next);
                             }
                           }}
+                          popOut={
+                            threadUp === undefined
+                              ? undefined
+                              : {
+                                  isOut: floating.includes(threadUp),
+                                  onToggle: () => {
+                                    if (floating.includes(threadUp)) {
+                                      compose.remove(threadUp);
+                                    } else {
+                                      compose.float(threadUp);
+                                    }
+                                  },
+                                }
+                          }
                           thread={threads.data?.find(
                             (thread) => thread.id === threadUp,
                           )}
@@ -1666,9 +1864,26 @@ function OrchestratorLayout() {
                         />
                         <div className="relative min-h-0 flex-1">
                           <ThreadStage
+                            floating={floating}
                             sendContext={() => sendContextRef.current()}
                             sessionId={threadUp}
                           />
+                          {/* A thread in its small view has its conversation
+                          there: the column keeps the head and says where
+                          the words went. */}
+                          {threadUp !== undefined &&
+                            floating.includes(threadUp) && (
+                              <div className="absolute inset-0 bg-background">
+                                <PoppedOut
+                                  onBringBack={() => {
+                                    compose.remove(threadUp);
+                                  }}
+                                  thread={threads.data?.find(
+                                    (thread) => thread.id === threadUp,
+                                  )}
+                                />
+                              </div>
+                            )}
                         </div>
                       </div>
                     </div>

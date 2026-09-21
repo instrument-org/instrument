@@ -1,3 +1,4 @@
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -11,7 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
+import { cn } from "@/client/lib/utils";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { type ReactNode } from "react";
@@ -24,20 +27,25 @@ import { TopicMark } from "./topic-mark";
 /**
  * The head over a thread's conversation, the way a task's page heads its
  * chat: its title at the left, the topics it is filed under after it, and
- * the thread's own menu hugging them, and at the right the pane toggle while
- * the pane is closed. No way out of the thread here: the thread stays
- * beside the inbox until the inbox is dragged over it. Nothing under the
- * head but air: the transcript starts below.
+ * the thread's own menu hugging them, and at the right the glyph that pops
+ * the conversation out into its small view in the corner (lit while it is
+ * out, when pressing it brings the conversation back), then the pane
+ * toggle while the pane is closed. No way out of the thread here: the
+ * thread stays beside the inbox until the inbox is dragged over it. Nothing
+ * under the head but air: the transcript starts below.
  */
 export function ThreadHeader({
   onNewTopic,
   onSetTopics,
+  popOut,
   thread,
   topics,
   trailing,
 }: {
   onNewTopic: () => void;
   onSetTopics: (topics: string[]) => void;
+  /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
+  popOut?: { isOut: boolean; onToggle: () => void };
   thread: Thread | undefined;
   topics: Topic[];
   /** What sits at the head's right: the pane toggle while the pane is closed. */
@@ -67,8 +75,28 @@ export function ThreadHeader({
           />
         )}
       </div>
-      {trailing && (
-        <div className="flex shrink-0 items-center gap-x-1">{trailing}</div>
+      {(popOut !== undefined || Boolean(trailing)) && (
+        <div className="flex shrink-0 items-center gap-x-1">
+          {popOut && (
+            <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
+              <Button
+                aria-label={popOut.isOut ? "Bring back" : "Pop out"}
+                aria-pressed={popOut.isOut}
+                className={cn(
+                  toolbarClassName({ pressed: popOut.isOut }),
+                  popOut.isOut &&
+                    "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300",
+                )}
+                onClick={popOut.onToggle}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <PictureInPictureIcon className="size-4" />
+              </Button>
+            </ToolbarTooltip>
+          )}
+          {trailing}
+        </div>
       )}
     </div>
   );

@@ -1,7 +1,8 @@
 import { type ComposeEntry } from "@/client/atoms/orchestrator";
 
-/** A docked draft window's width and a bar's, in layout px, which is how the foot is laid out. */
+/** A docked draft window's width, a thread's small view's, and a bar's, in layout px, which is how the foot is laid out. */
 export const COMPOSE_WIDTH = 600;
+export const THREAD_WINDOW_WIDTH = 420;
 export const COMPOSE_BAR_WIDTH = 300;
 
 /**
@@ -15,17 +16,23 @@ export const COMPOSE_GUEST_LAYER = 41;
 /** The room between two windows along the foot, and between the last and the edge, in layout px. */
 export const COMPOSE_GAP = 12;
 
-/** A draft window with its place along the foot: how far its right edge stands from the row's. */
-export interface PlacedCompose extends ComposeEntry {
-  right: number;
-}
+/** How a window or a bar comes and goes: quick, and settling rather than bouncing. */
+export const COMPOSE_MOTION = {
+  damping: 32,
+  stiffness: 420,
+  type: "spring",
+} as const;
+
+/** A window with its place along the foot: how far its right edge stands from the row's. */
+export type PlacedCompose = ComposeEntry & { right: number };
 
 /**
- * Lays the open drafts along the foot the way a mail client does: the newest
+ * Lays the windows along the foot the way a mail client does: the newest
  * at the right edge, each older one beside the last, and the ones there is
  * no room for left out from the left, so the row never wraps or squeezes. A
  * window grown to fill the row stands alone among the windows; the bars
- * along the foot stay in their places under it.
+ * along the foot stay in their places under it. A thread's small view is
+ * laid the same way as a draft's window, at its own width.
  */
 export function layoutCompose(
   entries: ComposeEntry[],
@@ -42,9 +49,9 @@ export function layoutCompose(
     if (isOneExpanded && entry.placement === "docked") {
       continue;
     }
-    const own = entry.placement === "bar" ? COMPOSE_BAR_WIDTH : COMPOSE_WIDTH;
+    const own = widthOf(entry);
     // The first that does not fit ends the row, and everything older with
-    // it: a bar squeezed in past a window would put the drafts out of order.
+    // it: a bar squeezed in past a window would put the windows out of order.
     if (right + own + COMPOSE_GAP > width) {
       break;
     }
@@ -52,4 +59,12 @@ export function layoutCompose(
     right += own + COMPOSE_GAP;
   }
   return placed;
+}
+
+/** How wide a window stands along the foot: a bar's width put down, and otherwise its kind's. */
+function widthOf(entry: ComposeEntry): number {
+  if (entry.placement === "bar") {
+    return COMPOSE_BAR_WIDTH;
+  }
+  return entry.kind === "thread" ? THREAD_WINDOW_WIDTH : COMPOSE_WIDTH;
 }

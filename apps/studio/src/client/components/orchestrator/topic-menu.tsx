@@ -62,33 +62,6 @@ export function TopicActionsButton({
   );
 }
 
-/** A topic's own menu on right click, around whatever row stands for the topic. */
-function TopicContextMenu({
-  children,
-  onDetails,
-  topic,
-}: {
-  children: ReactNode;
-  onDetails: (topic: Topic) => void;
-  topic: Topic;
-}) {
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem
-          onSelect={() => {
-            onDetails(topic);
-          }}
-        >
-          <InfoIcon className="size-4" />
-          View topic details
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-}
-
 /**
  * Every topic, a check on each that is on, and a new one at the foot: the
  * list behind the inbox head's topic picker and behind a row's tag control
@@ -153,5 +126,32 @@ export function TopicPickList({
           }
         : {})}
     />
+  );
+}
+
+/** A topic's own menu on right click, around whatever row stands for the topic. */
+function TopicContextMenu({
+  children,
+  onDetails,
+  topic,
+}: {
+  children: ReactNode;
+  onDetails: (topic: Topic) => void;
+  topic: Topic;
+}) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem
+          onSelect={() => {
+            onDetails(topic);
+          }}
+        >
+          <InfoIcon className="size-4" />
+          View topic details
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

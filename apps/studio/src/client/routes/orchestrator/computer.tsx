@@ -13,12 +13,20 @@ export const Route = createFileRoute("/orchestrator/computer")({
     root: z.string().default("~"),
     /** A page's file shown as its text rather than as the page: view source. */
     source: z.boolean().optional(),
+    /** The folder a file tab's own tree is rooted at: where the Finder stood when the file was opened. */
+    tree: z.string().optional(),
   }),
 });
 
 function ComputerRoute() {
-  const { file, path, root, source } = Route.useSearch();
+  const { file, path, root, source, tree } = Route.useSearch();
   return (
-    <FilesScreen file={file} path={path} root={root} source={source ?? false} />
+    <FilesScreen
+      file={file}
+      path={path}
+      root={root}
+      source={source ?? false}
+      tree={tree}
+    />
   );
 }

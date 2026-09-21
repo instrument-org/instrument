@@ -48,6 +48,31 @@ export function getComputerFileUrl({
     : `${url}?version=${encodeURIComponent(version)}`;
 }
 
+/**
+ * The host path a channel URL names, or nothing for a URL of any other
+ * origin: the inverse of {@link getComputerFileUrl}, for a link a document
+ * wrote relative to itself and resolved against the document's own URL. The
+ * query is the version and not part of the path.
+ */
+export function hostPathOfComputerFileUrl(url: string): string | undefined {
+  if (base === undefined || !url.startsWith(`${base}/`)) {
+    return;
+  }
+  const rest = url.slice(base.length);
+  const end = rest.search(/[?#]/);
+  const encodedPath = end === -1 ? rest : rest.slice(0, end);
+  try {
+    const segments = encodedPath.split("/").map(decodeURIComponent);
+    // A Windows path went in with its drive letter as the first segment and
+    // no leading separator; a POSIX one with its root.
+    return /^[a-z]:$/i.test(segments[1] ?? "")
+      ? segments.slice(1).join("\\")
+      : segments.join("/");
+  } catch {
+    return;
+  }
+}
+
 export async function resolveComputerFileBase() {
   const [error, data] = await safe(rpcClient.utils.computerFileBase.call());
   if (error) {

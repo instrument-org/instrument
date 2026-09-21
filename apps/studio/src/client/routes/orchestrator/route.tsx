@@ -714,6 +714,11 @@ function OrchestratorLayout() {
   }, [location.href]);
 
   const isFreshNewTab = active !== undefined && isFreshTab(active);
+  // A file opened from the Finder has its tree and its crumbs in the tab
+  // itself, and wears no row over it: the head is the file's, and the close
+  // at its right is the way back to the Finder.
+  const isTreeFileTab =
+    active?.kind === "screen" && computerTabOf(active.href)?.tree !== undefined;
   // A task's tab is the task's: the guest in it is the one the task is
   // driving, and taking its place in the strip would leave the task browsing
   // where nobody can see it. Everything else gives its place up in place.
@@ -1947,32 +1952,34 @@ function OrchestratorLayout() {
                           }
                         />
                       </div>
-                      <TabLocationRow
-                        canGoBack={canGoBack}
-                        canGoForward={canGoForward}
-                        homeHref={newTabHrefOf(windowTabs.group)}
-                        ref={locationRef}
-                        // On a page the field sends the tab's own guest
-                        // somewhere, and the page's controls (reload, the way
-                        // out, the menu) are drawn into the row's tail by the
-                        // panel that has the page. A file shown as a page is
-                        // one too.
-                        {...(tabLocation.kind === "page" ||
-                        (tabLocation.kind === "file" && tabLocation.asPage)
-                          ? {
-                              onSite: (url: string) => openPage(url),
-                              trailing: (
-                                <div
-                                  className="flex shrink-0 items-center gap-0.5"
-                                  ref={setChromeSlot}
-                                />
-                              ),
-                            }
-                          : {})}
-                        location={tabLocation}
-                        onBack={goBack}
-                        onForward={goForward}
-                      />
+                      {!isTreeFileTab && (
+                        <TabLocationRow
+                          canGoBack={canGoBack}
+                          canGoForward={canGoForward}
+                          homeHref={newTabHrefOf(windowTabs.group)}
+                          ref={locationRef}
+                          // On a page the field sends the tab's own guest
+                          // somewhere, and the page's controls (reload, the way
+                          // out, the menu) are drawn into the row's tail by the
+                          // panel that has the page. A file shown as a page is
+                          // one too.
+                          {...(tabLocation.kind === "page" ||
+                          (tabLocation.kind === "file" && tabLocation.asPage)
+                            ? {
+                                onSite: (url: string) => openPage(url),
+                                trailing: (
+                                  <div
+                                    className="flex shrink-0 items-center gap-0.5"
+                                    ref={setChromeSlot}
+                                  />
+                                ),
+                              }
+                            : {})}
+                          location={tabLocation}
+                          onBack={goBack}
+                          onForward={goForward}
+                        />
+                      )}
                       <div className="relative min-h-0 flex-1">
                         <Outlet />
                         {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}

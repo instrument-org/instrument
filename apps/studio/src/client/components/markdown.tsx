@@ -1,6 +1,7 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
 import { appendToPromptAtom } from "@/client/atoms/prompt-value";
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
@@ -17,6 +18,7 @@ import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
+  type ComponentProps,
   isValidElement,
   memo,
   type ReactNode,
@@ -42,7 +44,10 @@ import remend from "remend";
 
 import { useHashLinkScroll } from "../hooks/use-hash-link-scroll";
 import { useOpenExternalLink } from "../hooks/use-open-external-link";
-import { getComputerFileUrl } from "../lib/computer-file-url";
+import {
+  getComputerFileUrl,
+  hostPathOfComputerFileUrl,
+} from "../lib/computer-file-url";
 import {
   classifyImageSource,
   type ImageSourceKind,
@@ -510,14 +515,54 @@ const holdsBlocks = (node: FenceNode | undefined): boolean =>
     (child) => child.type === "element" && BLOCK_TAGS.has(child.tagName),
   ) ?? false;
 
-const MarkdownLink: Components["a"] = ({
+const isAbsoluteImageSrc = (src: string) =>
+  /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
+
+// A relative source resolved against the document it sits in, held to that
+// document's origin.
+//
+// Resolution cannot leave the origin on its own, and the check is there for the
+// spellings that are not the path they look like: the URL parser reads a
+// leading backslash as the start of an authority, so `\evil.test/p.png` against
+// an http base is that host. Comparing the scheme and host that come out
+// covers every such spelling at once, where a list of them would have to stay
+// complete. Scheme and host rather than `origin`, which the parser gives as
+// `null` for every URL on the app's own scheme, where a document is read from.
+/** Whether a link is written against the document it is in: no scheme and no host of its own, and not a place in the same document. */
+const isDocumentRelative = (href: string): boolean =>
+  !/^[a-z][a-z0-9+.-]*:/i.test(href) &&
+  !href.startsWith("//") &&
+  !href.startsWith("#");
+
+const resolveAgainstDocument = (
+  src: string,
+  documentUrl: string,
+): string | undefined => {
+  try {
+    const base = new URL(documentUrl);
+    const resolved = new URL(src, base);
+    return resolved.protocol === base.protocol && resolved.host === base.host
+      ? resolved.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const MarkdownLink = ({
   children,
   className,
+  documentUrl,
   href,
   node,
   ...props
-}) => {
+}: ComponentProps<"a"> &
+  ExtraProps & {
+    /** The document this markdown is, when it is a file, so a link written relative to it can be followed. */
+    documentUrl?: string;
+  }) => {
   const handleHashLinkClick = useHashLinkScroll();
+  const openFile = useContext(FileOpenContext);
 
   // A link around blocks is the recovery case above, and every shape a link
   // takes here is inline: the file chip is a button that centers and clips
@@ -557,6 +602,40 @@ const MarkdownLink: Components["a"] = ({
         {children}
       </a>
     );
+  }
+
+  // A link a document wrote relative to itself names a file beside it, the
+  // way a folder of notes links between its pages: followed where the
+  // surface can open a file by its path, which lands it in the same tab.
+  if (documentUrl && openFile && isDocumentRelative(href)) {
+    const resolved = resolveAgainstDocument(href, documentUrl);
+    const hostPath =
+      resolved === undefined ? undefined : hostPathOfComputerFileUrl(resolved);
+    if (hostPath !== undefined) {
+      return (
+        // eslint-disable-next-line no-restricted-syntax
+        <a
+          {...props}
+          className={cn("cursor-pointer!", className)}
+          href={href}
+          onAuxClick={(event) => {
+            if (event.button === 1) {
+              event.preventDefault();
+              openFile(hostPath, { newTab: true });
+            }
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            openFile(hostPath, {
+              newTab: event.metaKey || event.ctrlKey || event.shiftKey,
+            });
+          }}
+          title={hostPath}
+        >
+          {children}
+        </a>
+      );
+    }
   }
 
   if (isTaskFileHref(href)) {
@@ -778,34 +857,6 @@ const MarkdownImage = ({
       {...dragProps}
     />
   );
-};
-
-const isAbsoluteImageSrc = (src: string) =>
-  /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
-
-// A relative source resolved against the document it sits in, held to that
-// document's origin.
-//
-// Resolution cannot leave the origin on its own, and the check is there for the
-// spellings that are not the path they look like: the URL parser reads a
-// leading backslash as the start of an authority, so `\evil.test/p.png` against
-// an http base is that host. Comparing the scheme and host that come out
-// covers every such spelling at once, where a list of them would have to stay
-// complete. Scheme and host rather than `origin`, which the parser gives as
-// `null` for every URL on the app's own scheme, where a document is read from.
-const resolveAgainstDocument = (
-  src: string,
-  documentUrl: string,
-): string | undefined => {
-  try {
-    const base = new URL(documentUrl);
-    const resolved = new URL(src, base);
-    return resolved.protocol === base.protocol && resolved.host === base.host
-      ? resolved.href
-      : undefined;
-  } catch {
-    return undefined;
-  }
 };
 
 /**
@@ -1053,7 +1104,7 @@ export const Markdown = memo(
     // rather than a re-parse; see `MarkdownBlock`.
     const components = useMemo<Components>(
       () => ({
-        a: MarkdownLink,
+        a: (props) => <MarkdownLink {...props} documentUrl={documentUrl} />,
         details: markdownDetails,
         img: ({ alt, className, node: _node, ref: _ref, src, ...props }) => {
           const image = resolveImageSource(src, { documentUrl });

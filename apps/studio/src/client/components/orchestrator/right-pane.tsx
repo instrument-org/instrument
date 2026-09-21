@@ -83,6 +83,10 @@ export function RightPane({
 
   const shownKeyRef = useRef(paneKey);
   const isFirstRunRef = useRef(true);
+  // Whether the pane was last sized against a row that had no width yet: a
+  // row hidden while the pane mounted, or one not laid out. The next measure
+  // that finds a width takes it, where a pane that is simply closed does not.
+  const unmeasuredRef = useRef(false);
   useLayoutEffect(() => {
     const row = rowRef.current;
     if (!row || draggingRef.current) {
@@ -99,6 +103,7 @@ export function RightPane({
     shownKeyRef.current = paneKey;
     if (isFirstRunRef.current || isNewKey || row.offsetWidth === 0) {
       isFirstRunRef.current = false;
+      unmeasuredRef.current = row.offsetWidth === 0;
       reservedWidth.set(target);
       if (isShown) {
         paneWidth.set(target);
@@ -129,12 +134,21 @@ export function RightPane({
       return;
     }
     const measure = () => {
-      if (draggingRef.current || !isShown || reservedWidth.get() === 0) {
+      if (draggingRef.current || !isShown) {
+        return;
+      }
+      // Nothing reserved is the pane on its way open, whose slide the
+      // measure must not cut short, unless it was never sized at all.
+      if (reservedWidth.get() === 0 && !unmeasuredRef.current) {
+        return;
+      }
+      if (row.offsetWidth === 0) {
         return;
       }
       const width = fills
         ? row.offsetWidth
         : taskPaneWidth(shareRef.current, row.offsetWidth);
+      unmeasuredRef.current = false;
       if (width !== paneWidth.get()) {
         reservedWidth.set(width);
         paneWidth.set(width);

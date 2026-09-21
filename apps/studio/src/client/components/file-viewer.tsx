@@ -561,6 +561,7 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 export function FileViewer({
   className,
   file,
+  lead,
   onClose,
   onExpand,
   page,
@@ -569,6 +570,8 @@ export function FileViewer({
   // can drop its own card and fill the frame instead of nesting inside it.
   className?: string;
   file: ViewerFile;
+  /** What the head says in place of the file's name: the file's crumbs, where the tab around it has no row of its own. */
+  lead?: ReactNode;
   onClose?: () => void;
   onExpand?: () => void;
   /**
@@ -796,6 +799,7 @@ export function FileViewer({
         }
         filename={filename}
         hostPath={hostPath}
+        lead={lead}
         mimeType={mimeType}
         onClose={onClose}
         path={hostPath}
@@ -843,6 +847,7 @@ export function FileViewerHeader({
   actions,
   filename,
   hostPath,
+  lead,
   mimeType,
   onClose,
   path,
@@ -852,6 +857,8 @@ export function FileViewerHeader({
   // Absent while the panel is still resolving what it is about to show, where
   // there is no file to hand anyone yet.
   hostPath?: string;
+  /** Drawn in place of the name, when the surface says where the file is in its own terms. */
+  lead?: ReactNode;
   mimeType?: string;
   // Absent in the pane, where the tab strip owns closing. Present in the
   // expanded modal, whose close is a collapse back to the pane.
@@ -878,26 +885,28 @@ export function FileViewerHeader({
           item it shrinks to the text it holds, so the tooltip is anchored
           under the name rather than under the middle of a header-wide box. */}
       <div className="flex min-w-0 flex-1 pl-1.5">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span
-              className={cn(
-                "min-w-0 truncate text-xs font-medium",
-                dragProps.draggable && "cursor-grab active:cursor-grabbing",
-              )}
-              {...dragProps}
+        {lead ?? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className={cn(
+                  "min-w-0 truncate text-xs font-medium",
+                  dragProps.draggable && "cursor-grab active:cursor-grabbing",
+                )}
+                {...dragProps}
+              >
+                {filename}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent
+              className="wrap-break-word"
+              collisionPadding={10}
+              maxWidth="500px"
             >
-              {filename}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent
-            className="wrap-break-word"
-            collisionPadding={10}
-            maxWidth="500px"
-          >
-            {path}
-          </TooltipContent>
-        </Tooltip>
+              {path}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {actions}

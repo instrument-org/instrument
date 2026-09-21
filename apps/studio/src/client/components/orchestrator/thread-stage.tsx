@@ -117,9 +117,16 @@ function ThreadScreen({
   const thread = threads.data?.find((entry) => entry.id === sessionId);
   // While the thread's own agent composes, the transcript shows the typing
   // dots; the thread is otherwise at work when a task filed from it is, and
-  // that is said at the transcript's tail too.
+  // that is said at the transcript's tail too. Read from the tasks filed
+  // from it rather than from the thread's state, which folds its own agent
+  // in: the state is the list's, a re-read behind the actor the dots follow,
+  // so at a turn's end it still says working for a moment after the dots
+  // have gone, and the tail would say so in their place.
   const { isAgentRunning } = useAgentSessionStatus({ id: taskId, sessionId });
-  const isWorkingElsewhere = thread?.state === "working" && !isAgentRunning;
+  const isWorkingElsewhere =
+    thread !== undefined &&
+    thread.runningTasks.some((task) => !task.waiting) &&
+    !isAgentRunning;
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(

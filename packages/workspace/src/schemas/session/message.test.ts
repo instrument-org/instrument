@@ -880,6 +880,55 @@ describe("SessionMessage.toModelMessages", () => {
     expect(text).not.toContain("read_file");
   });
 
+  // A file sent to the conversation lands in its own folder, which no task can
+  // see, and it cannot read a picture itself: the note says how to hand the
+  // file on rather than calling it available "in the task".
+  it("tells the conversation's agent to hand a sent file to a task with --file", async () => {
+    const { messageMetadata, partMetadata } = baseMetadata();
+    const sentFile = SessionMessagePart.coerce({
+      data: {
+        files: [
+          {
+            filename: "screen.png",
+            filePath: "attachments/screen.png",
+            mimeType: "image/png",
+            modifiedAt: 1_718_198_400_000,
+            size: 18_545,
+          },
+        ],
+      },
+      metadata: partMetadata,
+      type: "data-attachments",
+    });
+    const messages = [
+      {
+        id: StoreId.newMessageId(),
+        metadata: messageMetadata,
+        parts: [
+          sentFile,
+          { metadata: partMetadata, text: "what is this", type: "text" },
+        ],
+        role: "user",
+      },
+    ] satisfies SessionMessage.WithParts[];
+
+    const forConversation = JSON.stringify(
+      await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT, {
+        agentName: "instrument",
+      }),
+    );
+    expect(forConversation).toContain("The user sent these files");
+    expect(forConversation).toContain("put --file <path> on the task new or task send that needs it");
+    expect(forConversation).toContain("- /task/attachments/screen.png (18KB)");
+    expect(forConversation).not.toContain("available in the task");
+
+    const forTask = JSON.stringify(
+      await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT),
+    );
+    expect(forTask).toContain("now available in the task");
+    expect(forTask).not.toContain("--file");
+  });
+
   // A tool's output schema outgrows the sessions already recorded against it,
   // and every one of those results is mapped again on each turn and each
   // transcript render. Reading a field the record predates used to fail the

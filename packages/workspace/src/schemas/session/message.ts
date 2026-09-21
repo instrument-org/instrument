@@ -17,6 +17,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type AgentName } from "../../agents/types";
+import { TASK_FOLDER_NAMES } from "../../constants";
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { attachedFolderChangesModelNote } from "../../lib/attached-folder-changes-model-text";
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
@@ -32,12 +33,14 @@ import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { outputFormatModelNote } from "../../lib/output-format-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
+import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { taskAppChangesModelNote } from "../../lib/task-app-changes-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { threadContextModelNote } from "../../lib/thread-context-model-text";
 import { threadTopicsModelNote } from "../../lib/thread-topics-model-text";
 import { viewContextModelNote } from "../../lib/view-context-model-text";
+import { MOUNT } from "../../mount-points";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -377,20 +380,37 @@ export namespace SessionMessage {
         );
 
         if (attachmentsPart) {
+          // The conversation's agent has no file tools and a shell that
+          // refuses to write: its folders are read here and written by the
+          // tasks it hands them to, and a file it is sent is one it hands
+          // over rather than one it reads.
+          const throughTasks = agentName === "instrument";
           if (attachmentsPart.data.files.length > 0) {
+            // Its paths are spelled from the root: a bare `attachments/` had
+            // it guessing at a mount instead of looking in its own folder.
             const attachmentDescriptions = attachmentsPart.data.files
               .map((file) => {
                 const formattedSize = formatBytes(file.size);
-                return `- ${file.filePath} (${formattedSize})`;
+                const filePath = throughTasks
+                  ? `${MOUNT.task}/${file.filePath}`
+                  : file.filePath;
+                return `- ${filePath} (${formattedSize})`;
               })
               .join("\n");
 
-            const attachmentText = dedent`
-              <uploaded_files>
-              The user uploaded these files with this message. They are now available in the task at the paths listed below. Assume they are directly relevant to the user's request.
-              ${attachmentDescriptions}
-              </uploaded_files>
-            `;
+            const attachmentText = throughTasks
+              ? dedent`
+                  <uploaded_files>
+                  The user sent these files with this message, listed below at the paths you read them by (\`ls\`, \`file\`, \`head\`). A picture, a PDF, or a document is read by a task, and no task can see these until you hand one over: put --file <path> on the ${TASK_COMMAND.name} new or ${TASK_COMMAND.name} send that needs it, and the task gets a copy in its own ${TASK_FOLDER_NAMES.attachments}/ and is told it is there. Without --file the task has no file. Assume they are directly relevant to the user's request.
+                  ${attachmentDescriptions}
+                  </uploaded_files>
+                `
+              : dedent`
+                  <uploaded_files>
+                  The user uploaded these files with this message. They are now available in the task at the paths listed below. Assume they are directly relevant to the user's request.
+                  ${attachmentDescriptions}
+                  </uploaded_files>
+                `;
 
             injectedParts.push({ text: attachmentText, type: "text" });
           }
@@ -403,10 +423,6 @@ export namespace SessionMessage {
             attachmentsPart.data.folders ?? []
           ).filter((folder) => folder.source !== "project");
           if (userAttachedFolders.length > 0) {
-            // The conversation's agent has no file tools and a shell that
-            // refuses to write, so its folders are read here and written by
-            // the tasks it hands them to.
-            const throughTasks = agentName === "instrument";
             const folderAttachmentText = buildAttachedFoldersText({
               folders: userAttachedFolders.map((folder) => ({
                 access: folder.access,

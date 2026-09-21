@@ -1,8 +1,16 @@
 import { type ComposeEntry } from "@/client/atoms/orchestrator";
 
 /** A docked draft window's width and a bar's, in layout px, which is how the foot is laid out. */
-export const COMPOSE_WIDTH = 720;
+export const COMPOSE_WIDTH = 600;
 export const COMPOSE_BAR_WIDTH = 300;
+
+/**
+ * The window layer a draft's page guest is shown on: above the draft windows
+ * (`z-40`) so the page is not under its own opaque window, and under every
+ * menu and popover (`z-50`), which stay over the page the way they do over
+ * the pane's.
+ */
+export const COMPOSE_GUEST_LAYER = 41;
 
 /** The room between two windows along the foot, and between the last and the edge, in layout px. */
 export const COMPOSE_GAP = 12;

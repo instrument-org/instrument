@@ -169,10 +169,13 @@ export function ComposerFrame({
         // isolate: the overlay covers the composer and nothing beyond it.
         // relative also lifts the box over the folder tray tucked under its top
         // edge.
-        "relative isolate grid min-h-16 w-full grid-rows-[auto_minmax(3rem,1fr)_auto]",
+        "relative isolate grid w-full grid-rows-[auto_minmax(3rem,1fr)_auto]",
+        // A bare box gives way to the host's layout: squeezed, its editor row
+        // scrolls, since the host sets the floor and the room around it.
         layout === "bare"
-          ? "px-5 pt-2 pb-3"
+          ? "min-h-0 px-5 pt-2 pb-3"
           : [
+              "min-h-16",
               "rounded-[20px] p-4",
               "bg-white shadow-sm-soft transition-shadow dark:bg-gray-800",
               "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",

@@ -236,16 +236,13 @@ export const Route = createFileRoute("/orchestrator")({
 function Frame({
   bar,
   children,
-  foot,
   overlay,
   rail,
   rowRef,
 }: {
   bar?: ReactNode;
   children: ReactNode;
-  /** A strip under the row, the row's width: room kept along the foot for the drafts put down there. */
-  foot?: ReactNode;
-  /** Laid over the row and the foot together, for the draft windows that float over both. */
+  /** Laid over the row, for the draft windows that float over it. */
   overlay?: ReactNode;
   /** The rail down the window's left edge, outside the row the columns share. */
   rail?: ReactNode;
@@ -277,14 +274,13 @@ function Frame({
           {rail}
           {/* Measured on its own, past the rail, so a column sized against
             the row is sized against the width the columns actually share.
-            The foot and the overlay share its width and its edges, so a
-            draft window along the foot stands where a bar for it would. */}
+            The overlay shares its width and its edges, so a draft window
+            stands against the row's own corner. */}
           <div
             className="relative flex min-h-0 min-w-0 flex-1 flex-col"
             ref={rowRef}
           >
             <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
-            {foot}
             {overlay}
           </div>
         </div>
@@ -1108,14 +1104,15 @@ function OrchestratorLayout() {
   /**
    * Closes a draft's window: one with words is kept in Drafts the way mail
    * keeps a draft, and one with nothing written is thrown away, whatever it
-   * gathered, so a draft opened and closed again leaves nothing behind.
+   * gathered, so a draft opened and closed again leaves nothing behind. The
+   * words come from the window, since the record follows the box a beat
+   * behind.
    */
-  const closeDraft = (id: string) => {
-    const draft = drafts.find((entry) => entry.id === id);
-    if (draft && hasWords(draft)) {
-      compose.remove(id);
-    } else {
+  const closeDraft = (id: string, words: string) => {
+    if (words.trim() === "") {
       deleteDraft(id);
+    } else {
+      compose.remove(id);
     }
   };
   // The inbox's rows as the pane lists them, for stepping through them by
@@ -1469,14 +1466,6 @@ function OrchestratorLayout() {
                   </>
                 }
               />
-            }
-            foot={
-              // Room along the foot for the drafts put down there, so the
-              // pane's guest, which paints over everything, never paints
-              // over a bar.
-              compose.placed.some((entry) => entry.placement === "bar") ? (
-                <div className="h-9 shrink-0" />
-              ) : null
             }
             overlay={
               <ComposeLayer

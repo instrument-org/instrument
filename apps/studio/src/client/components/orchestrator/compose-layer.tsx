@@ -33,8 +33,8 @@ export function ComposeLayer({
   isStarting: string | undefined;
   modelURI: AIGatewayModelURI.Type | undefined;
   onChangeDraft: (id: string, update: (draft: Draft) => Draft) => void;
-  /** A window closed: the draft is kept or thrown away by what it holds. */
-  onCloseDraft: (id: string) => void;
+  /** A window closed, with the words as its box had them: the draft is kept or thrown away by them. */
+  onCloseDraft: (id: string, words: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onStart: (id: string, send: DraftSend) => void;
   openOutside: (href: string) => void;
@@ -68,7 +68,7 @@ export function ComposeLayer({
               <ComposeBar
                 draft={draft}
                 onClose={() => {
-                  onCloseDraft(draft.id);
+                  onCloseDraft(draft.id, draft.words);
                 }}
                 onOpen={() => {
                   compose.setPlacement(draft.id, "docked");
@@ -88,8 +88,8 @@ export function ComposeLayer({
               onChange={(update) => {
                 onChangeDraft(draft.id, update);
               }}
-              onClose={() => {
-                onCloseDraft(draft.id);
+              onClose={(words) => {
+                onCloseDraft(draft.id, words);
               }}
               onModelChange={onModelChange}
               onPageHost={(element) => {

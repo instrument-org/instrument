@@ -1,12 +1,23 @@
-import { pinsAtom, visitedPagesAtom } from "@/client/atoms/orchestrator";
+import {
+  pinsAtom,
+  type VisitedPage,
+  visitedPagesAtom,
+} from "@/client/atoms/orchestrator";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { FileIcon } from "@/client/components/file-icon";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -28,24 +39,29 @@ const PLACES_SHOWN = 6;
 const FILES_SHOWN = 5;
 
 /**
- * The empty band under a draft's words: four rows, each drawn as the thing
- * it opens, so the browser, the computer and the apps are in sight before
- * anything is gathered. Attach is a drop strip that is also a button; Browse
- * an address field over the sites kept and lately seen; This Mac the places
- * and the files lately shown; Apps their icons, each of which names itself
- * in the words rather than opening. Whatever a row opens arrives as a tab in
- * the band, in this tab's place.
+ * The empty band under a draft's words: four doors stacked down the band,
+ * each named over the box that is drawn as the thing it opens, so the
+ * browser, the computer and the apps are in sight before anything is
+ * gathered. Attach is a drop strip with the two choosers, files and a
+ * folder, since a folder is attached on its own terms; Browse an address
+ * field over the sites kept and lately seen; This Mac the places and the
+ * files lately shown; Apps their icons, each of which names itself in the
+ * words rather than opening. Whatever a door opens arrives as a tab in the
+ * band, in this tab's place.
  */
 export function ComposeZeroState({
-  onAttach,
+  onAttachFiles,
+  onAttachFolder,
   onOpenApp,
   onOpenFile,
   onOpenFolder,
   onOpenPage,
   taskId,
 }: {
-  /** The file chooser, for the Attach row's button. */
-  onAttach: () => void;
+  /** The file chooser, for the Attach door's button. */
+  onAttachFiles: () => void;
+  /** The folder chooser: a folder the thread may work in, attached rather than opened. */
+  onAttachFolder: () => void;
   /** Names the app in the words, as a chip. */
   onOpenApp: (app: App) => void;
   onOpenFile: (hostPath: string) => void;
@@ -64,19 +80,18 @@ export function ComposeZeroState({
   );
   const [address, setAddress] = useState("");
 
-  // The sites kept first, then the ones lately seen that are not among them,
-  // one per site, so the line is the places a person goes back to.
+  // The sites kept first, then the pages lately seen that are not among
+  // them, one per site on the line, so the line is the places a person goes
+  // back to; the whole list waits behind the clock at the line's end.
   const bookmarks = pins.filter((pin) => pin.kind === "page");
+  const seen = visited.filter(
+    (page) => !bookmarks.some((pin) => pin.target === page.url),
+  );
   const seenOrigins = new Set<string>();
-  const seen = visited
+  const seenOnLine = seen
     .filter((page) => {
-      const origin = URL.canParse(page.url)
-        ? new URL(page.url).origin
-        : page.url;
-      if (
-        seenOrigins.has(origin) ||
-        bookmarks.some((pin) => pin.target === page.url)
-      ) {
+      const origin = originOf(page.url);
+      if (seenOrigins.has(origin)) {
         return false;
       }
       seenOrigins.add(origin);
@@ -92,22 +107,20 @@ export function ComposeZeroState({
   const apps = appList.data?.apps ?? [];
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto pt-5 pb-5">
-      <Row icon={PaperclipIcon} name="Attach">
-        <button
-          className="flex h-12 w-full items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-300 text-[12px] text-gray-500 hover:border-gray-400 hover:text-gray-600 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500"
-          onClick={onAttach}
-          type="button"
-        >
-          <span>Drop files or folders here</span>
-          <span className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[12px] font-medium text-foreground shadow-xs">
-            <PaperclipIcon className="size-3.5 text-muted-foreground" />
+    <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-4 pt-4 pb-4">
+      <Door icon={PaperclipIcon} name="Attach">
+        <div className="flex h-12 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-3 text-[12px] text-gray-500 dark:border-gray-600 dark:text-gray-400">
+          <span className="min-w-0 truncate">Drop files or folders here</span>
+          <Chooser icon={PaperclipIcon} onPick={onAttachFiles}>
             Choose files
-          </span>
-        </button>
-      </Row>
+          </Chooser>
+          <Chooser icon={FolderIcon} onPick={onAttachFolder}>
+            Choose a folder
+          </Chooser>
+        </div>
+      </Door>
 
-      <Row icon={GlobeSimpleIcon} name="Browse">
+      <Door icon={GlobeSimpleIcon} name="Browse">
         <Box>
           <form
             className="flex h-11 items-center px-3"
@@ -135,7 +148,7 @@ export function ComposeZeroState({
             </label>
           </form>
           {bookmarks.length > 0 && (
-            <Line label="Bookmarks" oneRow>
+            <Line label="Bookmarks">
               {bookmarks.slice(0, SITES_SHOWN).map((pin) => (
                 <Mark
                   icon={<SiteIcon favicon={pin.favicon} url={pin.target} />}
@@ -149,19 +162,19 @@ export function ComposeZeroState({
             </Line>
           )}
           {seen.length > 0 && (
-            // The sites by name, the way a browser's own bar names them,
-            // one row that ends where the room does: a page's title is a
-            // sentence, and a sentence cut short reads as a broken one.
-            <Line label="Recent" oneRow>
-              {seen.map((page) => (
+            <Line
+              label="Recent"
+              trailing={<HistoryPopover onOpenPage={onOpenPage} pages={seen} />}
+            >
+              {seenOnLine.map((page) => (
                 <Mark
                   icon={<SiteIcon favicon={page.favicon} url={page.url} />}
                   key={page.url}
-                  name={hostOf(page.url)}
+                  name={page.title || hostOf(page.url)}
                   onOpen={() => {
                     onOpenPage(page.url);
                   }}
-                  title={page.title || page.url}
+                  title={`${page.title || page.url}\n${page.url}`}
                 />
               ))}
             </Line>
@@ -174,9 +187,9 @@ export function ComposeZeroState({
             </Line>
           )}
         </Box>
-      </Row>
+      </Door>
 
-      <Row icon={LaptopIcon} name={computerName()}>
+      <Door icon={LaptopIcon} name={computerName()}>
         <Box>
           <Line label="Places">
             {places.data === undefined ? (
@@ -221,9 +234,9 @@ export function ComposeZeroState({
             )}
           </Line>
         </Box>
-      </Row>
+      </Door>
 
-      <Row icon={SquaresFourIcon} name="Apps">
+      <Door icon={SquaresFourIcon} name="Apps">
         {appList.data === undefined ? (
           <div className="flex gap-1">
             {Array.from({ length: 4 }, (_, index) => (
@@ -237,7 +250,7 @@ export function ComposeZeroState({
             ))}
           </div>
         ) : apps.length === 0 ? (
-          <p className="pt-2 text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             Connect a service in Apps, and it is here to name.
           </p>
         ) : (
@@ -267,12 +280,12 @@ export function ComposeZeroState({
             ))}
           </div>
         )}
-      </Row>
+      </Door>
     </div>
   );
 }
 
-/** A row's white box, its lines divided. */
+/** A door's white box, its lines divided. */
 function Box({ children }: { children: ReactNode }) {
   return (
     <div className="divide-y divide-border rounded-lg bg-card shadow-xs">
@@ -281,34 +294,109 @@ function Box({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * A line inside a box, with a small name at its left saying what the line
- * is. `oneRow` keeps it to one row, ending where the room does, rather than
- * wrapping into columns.
- */
-function Line({
+/** One of the two choosers on the Attach strip: its own mark, so files and a folder read as the two things they are. */
+function Chooser({
   children,
-  label,
-  oneRow = false,
+  icon: ChooserIcon,
+  onPick,
 }: {
   children: ReactNode;
-  label: string;
-  oneRow?: boolean;
+  icon: Icon;
+  onPick: () => void;
 }) {
   return (
-    <div className="flex min-h-9 items-center gap-3 px-3 py-1">
-      <span className="w-16 shrink-0 text-[11px] text-muted-foreground">
-        {label}
-      </span>
-      <div
-        className={cn(
-          "flex min-w-0 flex-1 items-center gap-x-1 gap-y-0.5",
-          oneRow ? "overflow-hidden" : "flex-wrap",
-        )}
+    <button
+      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-[12px] font-medium text-foreground shadow-xs hover:bg-accent"
+      onClick={onPick}
+      type="button"
+    >
+      <ChooserIcon className="size-3.5 text-muted-foreground" />
+      {children}
+    </button>
+  );
+}
+
+/** A door: its name over what it opens, a mark and the word, so the band reads top to bottom. */
+function Door({
+  children,
+  icon: DoorIcon,
+  name,
+}: {
+  children: ReactNode;
+  icon: Icon;
+  name: string;
+}) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="flex items-center gap-2 px-1 text-[12px] font-medium text-gray-700 dark:text-gray-300">
+        <DoorIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate">{name}</span>
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Every page lately seen, behind the clock at the Recent line's end, for
+ * the ones the line had no room for: each by its title with its site under
+ * it, newest first.
+ */
+function HistoryPopover({
+  onOpenPage,
+  pages,
+}: {
+  onOpenPage: (url: string) => void;
+  pages: VisitedPage[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverTrigger asChild>
+        <button
+          aria-label="All recent pages"
+          className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+          title="All recent pages"
+          type="button"
+        >
+          <ClockCounterClockwiseIcon className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="w-80 p-1"
+        maxHeight="20rem"
+        side="bottom"
+        sideOffset={4}
       >
-        {children}
-      </div>
-    </div>
+        <ul aria-label="Recent pages" className="flex flex-col">
+          {pages.map((page) => (
+            <li key={page.url}>
+              <button
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent"
+                onClick={() => {
+                  setOpen(false);
+                  onOpenPage(page.url);
+                }}
+                type="button"
+              >
+                <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
+                  <SiteIcon favicon={page.favicon} url={page.url} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] text-foreground">
+                    {page.title || hostOf(page.url)}
+                  </span>
+                  <span className="block truncate text-[11px] text-muted-foreground">
+                    {hostOf(page.url)}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -318,6 +406,33 @@ function hostOf(url: string): string {
     return url;
   }
   return new URL(url).hostname.replace(/^www\./, "") || url;
+}
+
+/**
+ * A line inside a box, with a small name at its left saying what the line
+ * is. One row, ending where the room does rather than wrapping into columns
+ * of cut-off names, with room at the end for a way to the rest.
+ */
+function Line({
+  children,
+  label,
+  trailing,
+}: {
+  children: ReactNode;
+  label: string;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-9 items-center gap-3 px-3 py-1">
+      <span className="w-16 shrink-0 text-[11px] text-muted-foreground">
+        {label}
+      </span>
+      <div className="flex min-w-0 flex-1 items-center gap-x-1 overflow-hidden">
+        {children}
+      </div>
+      {trailing}
+    </div>
+  );
 }
 
 /** One thing to open on a line: its mark and its name, the whole of it the button. */
@@ -359,23 +474,6 @@ function MarkSkeletons({ count }: { count: number }) {
   ));
 }
 
-/** A row: its name at the left, a mark and the word, and what it opens beside it. */
-function Row({
-  children,
-  icon: RowIcon,
-  name,
-}: {
-  children: ReactNode;
-  icon: Icon;
-  name: string;
-}) {
-  return (
-    <div className="flex items-start gap-4 px-5">
-      <span className="inline-flex w-24 shrink-0 items-center gap-2 pt-2 text-[12px] font-medium text-gray-700 dark:text-gray-300">
-        <RowIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate">{name}</span>
-      </span>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  );
+function originOf(url: string): string {
+  return URL.canParse(url) ? new URL(url).origin : url;
 }

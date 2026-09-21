@@ -42,6 +42,7 @@ import {
 import { createPortal } from "react-dom";
 import { z } from "zod";
 
+import { COMPOSE_GUEST_LAYER } from "./compose-layout";
 import { useOrchestrator } from "./context";
 import { fileHref } from "./file-tabs";
 import { segmentsOf } from "./host-path";
@@ -1074,7 +1075,11 @@ function ComposePagePanel({
       <TaskBrowserPanel
         active={attached}
         className="h-full rounded-none shadow-none"
+        // The draft's words keep the caret; the bar is read, not typed into,
+        // when a site arrives from the band.
+        focusAddress={false}
         key={tab.id}
+        layer={COMPOSE_GUEST_LAYER}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
         taskId={tab.taskId ?? taskId}
       />

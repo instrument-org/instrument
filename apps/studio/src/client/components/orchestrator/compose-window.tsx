@@ -78,6 +78,18 @@ export interface DraftSend {
 /** How many marks the minimized bar shows of what the draft holds. */
 const BAR_MARKS = 4;
 
+/** How long the words are left alone before the record is written. */
+const WORDS_SETTLE_MS = 300;
+
+/** The most the words take before they scroll, whatever the window could give them. */
+const WORDS_MAX_HEIGHT = 400;
+
+/** A docked window's height with a few lines of words in it, in layout px; it grows from here with the words. */
+const COMPOSE_HEIGHT = 640;
+
+/** The words' height the docked height already allows for: three lines. Past it the window grows. */
+const WORDS_BASE_HEIGHT = 72;
+
 const NO_TITLES = new Map<never, never>();
 
 /**
@@ -186,8 +198,8 @@ export function ComposeWindow({
   isStarting: boolean;
   modelURI: AIGatewayModelURI.Type | undefined;
   onChange: (update: (draft: Draft) => Draft) => void;
-  /** The window's close: the caller keeps or throws the draft away by what it holds. */
-  onClose: () => void;
+  /** The window's close, with the words as the box has them that moment: the caller keeps or throws the draft away by them. */
+  onClose: (words: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** The element the draft's page is drawn into while a page is up, null while none is. */
   onPageHost: (element: HTMLElement | null) => void;
@@ -223,17 +235,45 @@ export function ComposeWindow({
   // A box seeded empty, with what was kept still to be put back into it, is
   // not the user clearing the words: the first reading is let go.
   const isRestoringRef = useRef(snapshot !== undefined);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+  // The record follows the box a beat behind it rather than on every key:
+  // writing the record lays the whole window out again, transcripts and all,
+  // and that on each keystroke is felt in the keys. What the record is for
+  // (the Drafts list's title, the bar's, the words kept past a launch) can
+  // wait a beat; the close and the start read the box itself.
   useEffect(() => {
     if (isRestoringRef.current) {
       isRestoringRef.current = false;
       return;
     }
-    if (words !== draft.words) {
-      onChange((current) => ({ ...current, words }));
+    if (words === draft.words) {
+      return;
     }
+    const timer = setTimeout(() => {
+      onChangeRef.current((current) => ({ ...current, words }));
+    }, WORDS_SETTLE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
     // The record follows the box; the box never follows the record.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [words]);
+  // On the way out the record catches up at once, so a draft put down or
+  // closed mid-word keeps the word.
+  const wordsRef = useRef(words);
+  wordsRef.current = words;
+  useEffect(
+    () => () => {
+      const latest = wordsRef.current;
+      onChangeRef.current((current) =>
+        current.words === latest ? current : { ...current, words: latest },
+      );
+    },
+    [],
+  );
 
   const inputRef = useRef<PromptInputRef>(null);
   // Layout rather than passive effects: on the way in the box's handle is
@@ -261,14 +301,41 @@ export function ComposeWindow({
   // The head's slot the composer's button row is drawn into. State rather
   // than a ref: the row is a portal, which needs the element to exist.
   const [headSlot, setHeadSlot] = useState<HTMLDivElement | null>(null);
+  // How tall the words are on their own, which is what a docked window grows
+  // with: measured off the editor, whose own box is never clipped (its
+  // scroller is around it), so a squeezed window still knows what the words
+  // would take. A definite height on the window is also what lets the page
+  // and the folder inside the band size themselves against it.
+  const wordsWrapRef = useRef<HTMLDivElement>(null);
+  const [wordsHeight, setWordsHeight] = useState(WORDS_BASE_HEIGHT);
+  useEffect(() => {
+    const editor =
+      wordsWrapRef.current?.querySelector<HTMLElement>(".prompt-editor");
+    if (!editor) {
+      return;
+    }
+    const measure = () => {
+      setWordsHeight(editor.offsetHeight);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(editor);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+  const dockedHeight =
+    COMPOSE_HEIGHT + Math.max(0, wordsHeight - WORDS_BASE_HEIGHT);
 
   // What the band opens lands in the draft's group and comes up in the band,
-  // never on screen behind the window.
+  // never on screen behind the window; the caret goes back to the words,
+  // which are what the window is for.
   const openPage = (url: string) => {
     const id = browser?.openOrFocus(url, { group });
     if (id !== undefined) {
       windowTabs.selectIn(group, id);
     }
+    inputRef.current?.focus();
   };
   const openScreenIn = (href: string) => {
     windowTabs.openOrFocusScreen(href, {
@@ -276,6 +343,7 @@ export function ComposeWindow({
       group,
       isOpened: true,
     });
+    inputRef.current?.focus();
   };
   const openFolder = (hostPath: string) => {
     openScreenIn(folderHref(hostPath));
@@ -384,8 +452,11 @@ export function ComposeWindow({
     if (up === undefined || upKind === "home") {
       return (
         <ComposeZeroState
-          onAttach={() => {
+          onAttachFiles={() => {
             inputRef.current?.pickFiles();
+          }}
+          onAttachFolder={() => {
+            inputRef.current?.pickFolder();
           }}
           onOpenApp={nameApp}
           onOpenFile={openFile}
@@ -451,12 +522,19 @@ export function ComposeWindow({
     <div
       className={cn(
         "absolute z-40 flex flex-col overflow-hidden bg-card text-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10",
+        // Docked, the window grows with the words up to the row's height, so
+        // the band keeps its room under them for as long as there is room to
+        // give; only then do the words scroll.
         isExpanded
           ? "inset-3 rounded-2xl"
-          : "bottom-0 h-[640px] max-h-[calc(100%-1rem)] rounded-t-2xl",
+          : "bottom-0 max-h-[calc(100%-1rem)] rounded-t-2xl",
       )}
       data-slot="compose-window"
-      style={isExpanded ? undefined : { right, width: COMPOSE_WIDTH }}
+      style={
+        isExpanded
+          ? undefined
+          : { height: dockedHeight, right, width: COMPOSE_WIDTH }
+      }
     >
       <OrchestratorContext
         value={{
@@ -527,19 +605,30 @@ export function ComposeWindow({
                       <ArrowsOutSimpleIcon className="size-4" />
                     )}
                   </WindowButton>
-                  <WindowButton label="Close" onClick={onClose}>
+                  <WindowButton
+                    label="Close"
+                    onClick={() => {
+                      onClose(words);
+                    }}
+                  >
                     <XIcon className="size-4" />
                   </WindowButton>
                 </div>
               </div>
-              <div className="shrink-0 select-text [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6">
+              {/* The words give way to the band only once the window can
+                  grow no further: the band keeps a floor, and the words
+                  scroll past what is left. */}
+              <div
+                className="flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6"
+                ref={wordsWrapRef}
+              >
                 <PromptInput
                   actionsInto={headSlot}
                   // The band's rows are the ways in; a plus beside them
                   // would be a second door to the same rooms.
                   addMenu={false}
                   autoFocus
-                  autoResizeMaxHeight={isExpanded ? 380 : 220}
+                  autoResizeMaxHeight={WORDS_MAX_HEIGHT}
                   beforeModel={
                     <OutputPicker
                       disabled={isStarting}
@@ -554,6 +643,7 @@ export function ComposeWindow({
                       value={draft.output}
                     />
                   }
+                  className="min-h-0 flex-1"
                   draftKey={key}
                   isLoading={isStarting}
                   modelURI={modelURI}
@@ -573,7 +663,7 @@ export function ComposeWindow({
               </div>
               {/* The band: the draft's own pane, on a gray floor with nothing
                   between it and the words but the color. */}
-              <div className="mx-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900">
+              <div className="mx-2 flex min-h-80 flex-1 flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900">
                 {showsStrip && (
                   <div className="flex h-9 shrink-0 items-center pr-1 pl-1">
                     <WindowTabStrip

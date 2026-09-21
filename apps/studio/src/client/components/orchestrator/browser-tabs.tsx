@@ -88,7 +88,7 @@ export interface BrowserTabsHandle {
 }
 
 /**
- * A second place a page is drawn: the draft window's band, which shows the
+ * A second place a page is drawn: a draft window's band, which shows the
  * draft's group's tabs itself. The panel for that group's page is portaled
  * into `into`, and shown while `isActive`.
  */
@@ -202,8 +202,8 @@ export function BrowserTabs({
 }: {
   /** The element in the row above that the page's own bar is drawn into. */
   chromeInto?: HTMLElement | null;
-  /** The draft window's band, while a draft is up: its group's page is drawn there. */
-  compose?: ComposeHost;
+  /** The draft windows' bands, one per draft up: each group's page is drawn in its own. */
+  compose?: ComposeHost[];
   /** Told the page on screen whenever it changes, and undefined when none is. */
   onPageChange?: (page: BrowserPage | undefined) => void;
   ref: Ref<BrowserTabsHandle>;
@@ -246,17 +246,6 @@ export function BrowserTabs({
       StoreId.SessionSchema.parse(tab.id),
     );
   const active = tabs.find((tab) => tab.id === activeId);
-  // The page the draft window has up, when what it has up is a page: the tab
-  // its group remembers, or its first.
-  const composeTab = (() => {
-    if (!compose) {
-      return undefined;
-    }
-    const own = allTabs.filter((tab) => tab.group === compose.group);
-    const up =
-      own.find((tab) => tab.id === activeByGroup?.[compose.group]) ?? own[0];
-    return up?.kind === "page" ? up : undefined;
-  })();
 
   // The orchestrator's own browser is the tab on screen; a task's tab is the
   // task's to drive.
@@ -343,29 +332,6 @@ export function BrowserTabs({
     // Once per tab coming back, not per render while it attaches.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, taskId]);
-  // The same for the draft window's page, which comes back after a launch
-  // the same way and is shown by a panel of its own.
-  const composeAttached =
-    composeTab !== undefined && attached.has(targetOf(composeTab));
-  const composeUrl = composeTab?.url;
-  useEffect(() => {
-    if (!composeTab || composeAttached || !composeUrl) {
-      return;
-    }
-    setAllTabs((current) => ({
-      ...current,
-      tabs: current.tabs.map((tab) =>
-        tab.id === composeTab.id ? { ...tab, pageBackSteps: 0 } : tab,
-      ),
-    }));
-    void rpcClient.workspace.browser.open.call({
-      host: WINDOW_BROWSER_HOST,
-      id: composeTab.taskId ?? taskId,
-      sessionId: StoreId.SessionSchema.parse(composeTab.id),
-      url: composeUrl,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composeTab?.id, taskId]);
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
@@ -974,25 +940,86 @@ export function BrowserTabs({
           taskId={active.taskId ?? taskId}
         />
       ) : null}
-      {/* The draft window's page, drawn into its band with the browser's own
-          bar, since the band has no row above it to carry the address. Its
-          own provider, since the pane around this component is inactive
-          while the draft window is up. */}
-      {compose?.into && composeTab
-        ? createPortal(
-            <ActiveTabProvider isActive={compose.isActive}>
-              <TaskBrowserPanel
-                active={attached.has(targetOf(composeTab))}
-                className="h-full rounded-none shadow-none"
-                key={composeTab.id}
-                sessionId={StoreId.SessionSchema.parse(composeTab.id)}
-                taskId={composeTab.taskId ?? taskId}
-              />
-            </ActiveTabProvider>,
-            compose.into,
-          )
-        : null}
+      {compose?.map((host) => {
+        // The page the draft window has up, when what it has up is a page:
+        // the tab its group remembers, or its first.
+        const own = allTabs.filter((tab) => tab.group === host.group);
+        const up =
+          own.find((tab) => tab.id === activeByGroup?.[host.group]) ?? own[0];
+        return up?.kind === "page" ? (
+          <ComposePagePanel
+            attached={attached.has(targetOf(up))}
+            host={host}
+            key={host.group}
+            onReopen={() => {
+              // A recreated guest has no native history from the preceding
+              // launch.
+              setAllTabs((current) => ({
+                ...current,
+                tabs: current.tabs.map((tab) =>
+                  tab.id === up.id ? { ...tab, pageBackSteps: 0 } : tab,
+                ),
+              }));
+            }}
+            tab={up}
+            taskId={taskId}
+          />
+        ) : null;
+      })}
     </div>
+  );
+}
+
+/**
+ * A draft window's page, drawn into its band with the browser's own bar,
+ * since the band has no row above it to carry the address. Under a provider
+ * of its own, since the pane around the strip is inactive while a draft
+ * window is up. The page comes back after a launch the way the pane's does:
+ * the panel opens the guest, and this reopens it at the page the tab
+ * remembers.
+ */
+function ComposePagePanel({
+  attached,
+  host,
+  onReopen,
+  tab,
+  taskId,
+}: {
+  attached: boolean;
+  host: ComposeHost;
+  onReopen: () => void;
+  tab: BrowserTab;
+  taskId: TaskId;
+}) {
+  const url = tab.url;
+  useEffect(() => {
+    if (attached || !url) {
+      return;
+    }
+    onReopen();
+    void rpcClient.workspace.browser.open.call({
+      host: WINDOW_BROWSER_HOST,
+      id: tab.taskId ?? taskId,
+      sessionId: StoreId.SessionSchema.parse(tab.id),
+      url,
+    });
+    // Once per tab coming back, not per render while it attaches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab.id, taskId]);
+  if (!host.into) {
+    return null;
+  }
+  return createPortal(
+    <ActiveTabProvider isActive={host.isActive}>
+      <TaskBrowserPanel
+        active={attached}
+        className="h-full rounded-none shadow-none"
+        key={tab.id}
+        sessionId={StoreId.SessionSchema.parse(tab.id)}
+        taskId={tab.taskId ?? taskId}
+      />
+    </ActiveTabProvider>,
+    host.into,
   );
 }
 

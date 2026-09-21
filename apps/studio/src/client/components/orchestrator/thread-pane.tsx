@@ -15,9 +15,11 @@ import {
   draftTitle,
   hasWords,
   matchesFilters,
+  outsideFilters,
   type Thread,
   type ThreadFilters,
   type Topic,
+  widenToSearch,
 } from "./threads";
 import { TopicBanner } from "./topic-banner";
 import { useSetThreadTopics } from "./use-set-thread-topics";
@@ -200,7 +202,11 @@ export function ThreadPane({
           onSetTopics={(thread, next) => {
             setThreadTopics(thread.id, next);
           }}
+          onWiden={() => {
+            changeFilters(widenToSearch(filters));
+          }}
           openId={openThreadId}
+          outside={outsideFilters(threads, filters, topicNames)}
           scrollSignal={scrollSignal}
           threads={shown}
           topics={topics}

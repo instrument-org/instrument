@@ -133,6 +133,33 @@ export function matchesFilters(
   );
 }
 
+/**
+ * How many threads the words searched for turn up on that the place, topic,
+ * or app filter keeps out of the list. A search reads inside the place the
+ * column stands in, so a match filed elsewhere is silently missing; this is
+ * the count the list says so with. Nothing searched for means nothing is
+ * missing, whatever the filters hide.
+ */
+export function outsideFilters(
+  threads: Filterable[],
+  filters: ThreadFilters,
+  topicNames: ReadonlyMap<string, string> = NO_TOPIC_NAMES,
+) {
+  if (filters.search.trim() === "") {
+    return 0;
+  }
+  return threads.filter(
+    (thread) =>
+      matchesSearch(thread, filters.search, topicNames) &&
+      !matchesFilters(thread, filters, topicNames),
+  ).length;
+}
+
+/** The same search over every thread: the words kept, the place, topic, and app filters lifted. */
+export function widenToSearch(filters: ThreadFilters): ThreadFilters {
+  return { ...filters, apps: [], place: "all", topics: [] };
+}
+
 /** A group with nothing chosen narrows nothing; one with choices wants any of them. */
 function anyOf<T extends string>(chosen: T[], held: T[]) {
   return chosen.length === 0 || chosen.some((entry) => held.includes(entry));

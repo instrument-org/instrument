@@ -15,7 +15,9 @@ import {
   isInbox,
   matchesFilters,
   NO_FILTERS,
+  outsideFilters,
   type ThreadFilters,
+  widenToSearch,
 } from "./threads";
 
 function thread({
@@ -55,6 +57,57 @@ function wordyThread(): Filterable {
 }
 
 const TOPIC_NAMES = new Map([["shopping", "Shopping"]]);
+
+describe("outsideFilters", () => {
+  const threads = [
+    wordyThread(),
+    thread({ archived: true, title: "Protein powder returns" }),
+    thread({ title: "Protein bars", topics: ["house"] }),
+    thread({ title: "Roof repair" }),
+  ];
+
+  it("counts the threads the words find that the place and the topic keep out", () => {
+    // The inbox hides the archived one; a topic hides the one filed elsewhere.
+    expect(
+      outsideFilters(
+        threads,
+        { ...NO_FILTERS, search: "protein" },
+        TOPIC_NAMES,
+      ),
+    ).toBe(1);
+    expect(
+      outsideFilters(
+        threads,
+        { ...NO_FILTERS, search: "protein", topics: ["shopping"] },
+        TOPIC_NAMES,
+      ),
+    ).toBe(2);
+    expect(
+      outsideFilters(
+        threads,
+        { ...NO_FILTERS, place: "all", search: "protein" },
+        TOPIC_NAMES,
+      ),
+    ).toBe(0);
+  });
+
+  it("counts nothing when nothing is searched for, whatever the filters hide", () => {
+    expect(outsideFilters(threads, { ...NO_FILTERS, topics: ["house"] })).toBe(
+      0,
+    );
+  });
+
+  it("widens to the same words over every thread", () => {
+    expect(
+      widenToSearch({
+        apps: ["gmail"],
+        place: "needsYou",
+        search: "protein",
+        topics: ["shopping"],
+      }),
+    ).toEqual({ apps: [], place: "all", search: "protein", topics: [] });
+  });
+});
 
 describe("matchesFilters", () => {
   it("narrows nothing with nothing set", () => {

@@ -30,7 +30,9 @@ export function ThreadList({
   onOpen,
   onOpenDraft,
   onSetTopics,
+  onWiden,
   openId,
+  outside = 0,
   scrollSignal,
   threads,
   topics,
@@ -48,8 +50,12 @@ export function ThreadList({
   onOpen: (thread: Thread) => void;
   onOpenDraft: (id: string) => void;
   onSetTopics: (thread: Thread, topics: string[]) => void;
+  /** Lifts the place, topic, and app filters so the search reads every thread. */
+  onWiden?: () => void;
   /** The thread open beside the list, which its row is marked as. */
   openId: string | undefined;
+  /** How many threads the search finds that the filters keep out of the list. */
+  outside?: number;
   /** Counts up whenever the list should be taken back to its top, whatever the reader was doing. */
   scrollSignal: number;
   threads: Thread[];
@@ -112,6 +118,21 @@ export function ThreadList({
         // Inset from the list's edges, so the hairlines between rows stop
         // short of them and the open row's card has air at its sides.
         <div className="mx-2">{rows}</div>
+      )}
+      {/* The search reads inside the place the column stands in, so what it
+        finds elsewhere is said at the list's end, whether or not anything
+        was found here, and pressing it widens the same search to every
+        thread. */}
+      {outside > 0 && !isLoading && (
+        <p className="px-4 py-2 text-center text-sm">
+          <button
+            className="text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground hover:decoration-foreground"
+            onClick={onWiden}
+            type="button"
+          >
+            {outside} more outside this filter
+          </button>
+        </p>
       )}
     </div>
   );

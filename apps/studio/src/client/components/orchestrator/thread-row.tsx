@@ -359,7 +359,6 @@ export function TopicPill({
         stopHere(event);
         onPick();
       }}
-      onContextMenu={stopHere}
       style={topicTint(topicColor(topic))}
       title={compact ? topic.name : "Topics"}
       type="button"
@@ -500,7 +499,6 @@ function StarControl({ thread }: { thread: Thread }) {
           starred: !thread.starred,
         });
       }}
-      onContextMenu={stopHere}
       type="button"
     >
       <StarIcon
@@ -570,13 +568,10 @@ function TagControl({
 }) {
   return (
     // The list is drawn elsewhere on the page but is this span's in React's
-    // eyes, so a pick inside it stops here rather than opening the thread.
-    <span
-      className="flex shrink-0"
-      onAuxClick={stopHere}
-      onClick={stopHere}
-      onContextMenu={stopHere}
-    >
+    // eyes, so a pick inside it stops here rather than opening the thread. A
+    // right click stops only inside the list: on the control it is the row's,
+    // and raises the row's menu like a right click on the words.
+    <span className="flex shrink-0" onAuxClick={stopHere} onClick={stopHere}>
       <Popover onOpenChange={onOpenChange} open={isOpen}>
         <PopoverTrigger asChild>
           <button
@@ -596,6 +591,7 @@ function TagControl({
           onCloseAutoFocus={(event) => {
             event.preventDefault();
           }}
+          onContextMenu={stopHere}
           role="menu"
           side="bottom"
           sideOffset={4}

@@ -923,6 +923,29 @@ describe("the row's actions", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
+  // The row's controls take a click each, so the click stops at them; a
+  // right click is the row's whatever is under the pointer, or the menu is
+  // only there on the words.
+  it("raises the row's menu on a right click on a pill, the star, and the corner's bar", async () => {
+    const { onOpen, row } = await renderRow(thread({ topics: ["house"] }));
+    const menu = page.getByRole("menu");
+    for (const target of [
+      pillOf(row),
+      row.querySelector<HTMLElement>('[aria-label="Star"]'),
+      row.querySelector<HTMLElement>('[aria-label="Topics"]'),
+      row.querySelector<HTMLElement>('[aria-label="Archive"]'),
+    ]) {
+      if (!target) {
+        throw new Error("no target");
+      }
+      await userEvent.click(target, { button: "right" });
+      await expect.element(menu).toBeVisible();
+      await userEvent.keyboard("{Escape}");
+      await expect.element(menu).not.toBeInTheDocument();
+    }
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   it("keeps the star at the row's end at either width, out of the actions and clear of the words, and turns it on a click", async () => {
     const { rows } = await renderRows([
       { density: "slim", thread: thread() },

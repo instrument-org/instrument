@@ -15,7 +15,9 @@ import { type RowAction, type RowDensity, stopHere } from "./row-shell";
  * nothing on the row moves when they arrive, and in the flow while one of
  * them holds a menu open, so the menu keeps its anchor. Each is its mark
  * alone, named in its tooltip, and a click on one stops short of the row
- * under it. The star at the row's foot is not among them: it stays in view.
+ * under it; a right click is the row's, since the bar is over the row's
+ * corner whenever the pointer is. The star at the row's foot is not among
+ * them: it stays in view.
  */
 export function RowActionBar({
   actions,
@@ -46,7 +48,6 @@ export function RowActionBar({
       )}
       onAuxClick={stopHere}
       onClick={stopHere}
-      onContextMenu={stopHere}
       onKeyDown={stopHere}
     >
       {leading}

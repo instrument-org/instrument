@@ -1,5 +1,6 @@
 // The rail down the window's edge: New, one entry per place with the one
-// stood in marked, and the user at the foot as the way to Settings.
+// stood in in its well, the Apps mark fanned from the workspace's apps, and
+// the user at the foot as the way to Settings.
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -18,7 +19,26 @@ vi.mock("@/client/hooks/use-live-user", () => ({
   useLiveUser: () => ({ data: user() }),
 }));
 
-function renderRail(place: "chat" | "files" | "home" = "chat") {
+/** The apps the workspace reaches, as the rail reads them; empty until a test says otherwise. */
+const apps = vi.fn<
+  () => { name: string; site: string; slug: string; standing: string }[]
+>(() => []);
+vi.mock("@/client/rpc/client", () => ({
+  rpcClient: {
+    apps: {
+      live: {
+        list: {
+          experimental_liveOptions: () => ({
+            queryFn: () => ({ apps: apps() }),
+            queryKey: ["apps"],
+          }),
+        },
+      },
+    },
+  },
+}));
+
+function renderRail(place: "apps" | "chat" | "files" | "home" = "chat") {
   const onChoose = vi.fn();
   const onNew = vi.fn();
   renderWithProviders(
@@ -45,6 +65,7 @@ describe("AppRail", () => {
       ["New", null],
       ["Home", null],
       ["Chat", "page"],
+      ["Apps", null],
       ["Files", null],
       ["Settings", null],
     ]);
@@ -56,8 +77,27 @@ describe("AppRail", () => {
     expect(onNew).toHaveBeenCalledOnce();
     fireEvent.click(rail.getByRole("button", { name: "Files" }));
     expect(onChoose).toHaveBeenLastCalledWith("files");
-    fireEvent.click(rail.getByRole("button", { name: "Home" }));
-    expect(onChoose).toHaveBeenLastCalledWith("home");
+    fireEvent.click(rail.getByRole("button", { name: "Apps" }));
+    expect(onChoose).toHaveBeenLastCalledWith("apps");
+  });
+
+  it("fans the workspace's apps out on the Apps mark, connected ones in front, three at most", async () => {
+    // No sites: an app with none draws its initial, which is what a DOM with
+    // no images to load can show.
+    apps.mockReturnValue([
+      { name: "Drafts", site: "", slug: "drafts", standing: "setup" },
+      { name: "Slack", site: "", slug: "slack", standing: "connected" },
+      { name: "Notion", site: "", slug: "notion", standing: "connected" },
+      { name: "Linear", site: "", slug: "linear", standing: "connected" },
+    ]);
+    const { rail } = renderRail();
+    const mark = rail.getByRole("button", { name: "Apps" });
+    const cards = await within(mark).findAllByRole("img", { hidden: true });
+    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual([
+      "Slack",
+      "Notion",
+      "Linear",
+    ]);
   });
 
   it("opens Settings from the foot", () => {

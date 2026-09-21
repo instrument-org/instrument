@@ -118,13 +118,13 @@ export type ComposePlacement = "bar" | "docked" | "expanded";
  */
 export const composeAtom = atom<ComposeEntry[]>([]);
 
-/** The places the rail at the window's edge switches between: Home, the chat, and the files. */
-export type AppPlace = "chat" | "files" | "home";
+/** The places the rail at the window's edge switches between: Home, the chat, the apps, and the files. */
+export type AppPlace = "apps" | "chat" | "files" | "home";
 
 /**
  * The place the window stands in, chosen in the rail. The chat is the inbox
- * beside a thread and its tabs; the other two are laid out and not yet
- * built, so the window opens on the chat.
+ * beside a thread and its tabs; the others are laid out and not yet built,
+ * so the window opens on the chat.
  */
 export const appPlaceAtom = atomWithStorage<AppPlace>(
   "orchestrator.place.v1",

@@ -1506,6 +1506,7 @@ function OrchestratorLayout() {
             {/* The places not yet built: the area right of the rail, with
               the chat's columns hidden behind them rather than unmounted. */}
             {place === "home" && <EmptyPlace title="Home" />}
+            {place === "apps" && <EmptyPlace title="Apps" />}
             {place === "files" && <EmptyPlace title="Files" />}
             <div
               className={cn(

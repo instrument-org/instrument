@@ -11,7 +11,6 @@ import {
   FileSystemFolderGlyph,
   type FileSystemItem,
 } from "@/client/components/extend/file-system";
-import { FileViewer } from "@/client/components/file-viewer";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenWithMenu } from "@/client/components/open-with-menu";
@@ -29,7 +28,6 @@ import { InstrumentGlyph } from "@/client/components/wordmark";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
-import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -58,8 +56,8 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
+import { FileThumbnail } from "./file-thumbnail";
 import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
-import { usePagePicture } from "./page-picture";
 
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
@@ -920,33 +918,15 @@ export function ComputerPage({
                   if (!tab || !isTextLike(file)) {
                     return null;
                   }
-                  const document = (
-                    <DocumentThumbnail key={tab.hostPath}>
-                      <FileViewer
-                        className="h-full"
-                        file={{
-                          filename: tab.name,
-                          hostPath: tab.hostPath,
-                          url:
-                            file.url ??
-                            getComputerFileUrl({ hostPath: tab.hostPath }),
-                        }}
-                      />
-                    </DocumentThumbnail>
+                  return (
+                    <FileThumbnail
+                      hostPath={tab.hostPath}
+                      key={tab.hostPath}
+                      name={tab.name}
+                      url={file.url}
+                      version={file.updatedAt}
+                    />
                   );
-                  // A page's file is the page, as the tab opening it shows
-                  // it; its text is what the viewer would draw.
-                  if (getFileType({ filename: tab.name }) === "html") {
-                    return (
-                      <PageThumbnail
-                        fallback={document}
-                        hostPath={tab.hostPath}
-                        key={tab.hostPath}
-                        version={file.updatedAt}
-                      />
-                    );
-                  }
-                  return document;
                 }}
                 renderHeaderLead={() => (
                   <span className="flex items-center gap-0.5 pr-1">
@@ -1269,85 +1249,6 @@ function siblingPath(path: string, name: string) {
   const trimmed = isFolder ? path.slice(0, -1) : path;
   const at = trimmed.lastIndexOf("/");
   return `${at === -1 ? "" : trimmed.slice(0, at + 1)}${name}${isFolder ? "/" : ""}`;
-}
-
-/** How much smaller than life a document is drawn in its thumbnail. */
-const THUMBNAIL_SCALE = 0.4;
-
-/** The shape a document's thumbnail is drawn in, and a page's picture with it. */
-const THUMBNAIL_BOX_CLASS =
-  "aspect-[0.78] w-full overflow-hidden rounded-sm bg-card shadow-sm ring-1 ring-border";
-
-/**
- * A document at thumbnail size: the viewer drawn at full width and scaled
- * down into a page-shaped box, not interactive, clipped at the bottom the way
- * a page preview is. The viewer sees a box wide enough to lay itself out as
- * it would in a pane, so type and tables keep their shape at a smaller size.
- */
-function DocumentThumbnail({ children }: { children: ReactNode }) {
-  const inverse = `${100 / THUMBNAIL_SCALE}%`;
-  return (
-    // `contain-inline-size`: the box's own width says nothing about the
-    // document in it, so a wide line in the viewer cannot widen the column
-    // the thumbnail sits in.
-    <div
-      className={cn(
-        "pointer-events-none contain-inline-size",
-        THUMBNAIL_BOX_CLASS,
-      )}
-    >
-      {/* The viewer is laid out at the box's width divided by the scale and
-          drawn scaled back down, so it fills the box edge to edge; what it
-          lays out past the box's height is clipped, the way a page preview
-          is. Its own chrome rows are hidden, and so is a markdown file's
-          outline, a rail of bars in the margin nobody reads at this size: a
-          thumbnail is the document. */}
-      <div
-        className="origin-top-left [&_.viewer-chrome-stroke]:hidden [&_[data-slot=markdown-outline]]:hidden"
-        style={{
-          height: inverse,
-          transform: `scale(${THUMBNAIL_SCALE})`,
-          width: inverse,
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/**
- * A page's file at thumbnail size: the page as a browser draws it, in the box
- * a document's text is drawn in, asked for again when the listing notices the
- * file written.
- */
-function PageThumbnail({
-  fallback,
-  hostPath,
-  version,
-}: {
-  /** What stands in when the page cannot be drawn: the file's text. */
-  fallback: ReactNode;
-  hostPath: string;
-  /** When the file was last written, as listed; a new value is a new picture. */
-  version: string | undefined;
-}) {
-  const thumbnail = usePagePicture({ hostPath, version });
-  if (thumbnail.isError) {
-    return fallback;
-  }
-  return (
-    <div className={cn("pointer-events-none", THUMBNAIL_BOX_CLASS)}>
-      {thumbnail.data && (
-        <img
-          alt=""
-          className="size-full object-cover object-top"
-          draggable={false}
-          src={thumbnail.data.dataUrl}
-        />
-      )}
-    </div>
-  );
 }
 
 const TEXT_EXTENSIONS = new Set([

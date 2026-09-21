@@ -48,7 +48,9 @@ import {
   folderHref,
   mountOfHostPath,
 } from "@/client/components/orchestrator/file-tabs";
+import { HomePlace } from "@/client/components/orchestrator/home-place";
 import {
+  folderOf,
   joinHostPath,
   segmentsOf,
 } from "@/client/components/orchestrator/host-path";
@@ -406,6 +408,10 @@ function OrchestratorLayout() {
   // conversation put away, so a place's pages are guests like a thread's.
   const [place, setPlace] = useAtom(appPlaceAtom);
   const isChat = place === "chat";
+  // Home is a landing page over whatever group is up rather than a group of
+  // its own: the main area is put away under it, and nothing on screen
+  // changes when it is chosen or left.
+  const isHome = place === "home";
   // The group the chat had up, kept while the window stands elsewhere so
   // coming back lands on the same thread.
   const [chatGroup, setChatGroup] = useAtom(chatGroupAtom);
@@ -483,9 +489,33 @@ function OrchestratorLayout() {
     setPlace(next);
     if (next === "chat") {
       showChat();
-    } else {
+    } else if (next !== "home") {
       windowTabs.showPlace(next);
     }
+  };
+  /**
+   * Opens a file from Home in Files, as its own tab beside the Finder with
+   * the folder it sits in as its tree: the tab already at it if there is
+   * one, else a new one, and the window lands there.
+   */
+  const openFileInFiles = (hostPath: string) => {
+    const group = placeGroupOf("files");
+    windowTabs.showPlace("files");
+    const existing = windowTabs.allTabs.find(
+      (tab) =>
+        tab.group === group &&
+        tab.kind === "screen" &&
+        computerTabOf(tab.href)?.file === hostPath,
+    );
+    if (existing) {
+      windowTabs.select(existing.id);
+    } else {
+      windowTabs.openScreen(fileHref(hostPath, { tree: folderOf(hostPath) }), {
+        group,
+        isOpened: true,
+      });
+    }
+    setPlace("files");
   };
   /** Puts the window on the chat, for a thread coming on screen from wherever it stands. */
   const toChat = () => {
@@ -514,14 +544,18 @@ function OrchestratorLayout() {
       }
     }
     setDrafts((current) => current.filter(hasWords));
+    // Home was once a row of tabs; what an earlier launch kept under it has
+    // nowhere to show.
+    windowTabs.dropGroup("place:home");
     // The tabs come back as they were, and so does the place, and the two
     // have to agree: a place stands on its own group, with at least its own
-    // new tab in it, and the chat never shows a place's.
+    // new tab in it, and the chat never shows a place's. Home stands over
+    // whatever group came back.
     if (isChat) {
       if (placeOfGroup(windowTabs.group) !== undefined) {
         showChat();
       }
-    } else {
+    } else if (place !== "home") {
       windowTabs.showPlace(place);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -567,6 +601,7 @@ function OrchestratorLayout() {
   const isPageShown =
     isPageOnScreen &&
     showsRightArea &&
+    !isHome &&
     showsPane &&
     !isTasksViewUp &&
     !compose.covers;
@@ -1175,7 +1210,8 @@ function OrchestratorLayout() {
     // What the draft is opened over: the tab the place has up, when the
     // window stands in a place and that tab is something the conversation
     // can be told about. A place's own fresh tab is the place, not a thing.
-    const overGroup = place === "chat" ? undefined : placeGroupOf(place);
+    const overGroup =
+      place === "chat" || place === "home" ? undefined : placeGroupOf(place);
     const over =
       overGroup === undefined ? undefined : windowTabs.tabUpIn(overGroup);
     const included =
@@ -1818,12 +1854,22 @@ function OrchestratorLayout() {
                   </div>
                 </ChatColumn>
               </div>
+              {/* Home stands over the main area: the tabs and their guests
+              stay mounted under it, put away. */}
+              {isHome && (
+                <HomePlace
+                  onOpenFile={openFileInFiles}
+                  onOpenThread={(sessionId) => {
+                    openScreen(`${THREADS_HREF}/${sessionId}`);
+                  }}
+                />
+              )}
               {/* Hidden rather than unmounted while nothing is on screen, so
               every tab keeps what it has for when something opens again. */}
               <main
                 className={cn(
                   "relative flex min-w-0 flex-1 flex-col",
-                  showsRightArea ? undefined : "hidden",
+                  showsRightArea && !isHome ? undefined : "hidden",
                 )}
               >
                 {/* The conversation, and the pane of the group's tabs beside

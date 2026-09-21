@@ -142,17 +142,18 @@ export const composeAtom = atom<ComposeEntry[]>([]);
 export type AppPlace = "apps" | "chat" | "files" | "home";
 
 /**
- * A place that is a row of tabs: everything but the chat. Each keeps a tab
+ * A place that is a row of tabs: the apps and the files. Each keeps a tab
  * group of its own, the way a thread does, and opens on a tab of its own
- * kind: Home on the page that reaches everything, Apps on the apps, Files on
- * the computer.
+ * kind: Apps on the apps, Files on the computer. Home is neither the chat
+ * nor a row of tabs: a landing page drawn over whatever group is up.
  */
-export type TabbedPlace = Exclude<AppPlace, "chat">;
+export type TabbedPlace = Exclude<AppPlace, "chat" | "home">;
 
 /**
  * The place the window stands in, chosen in the rail. The chat is the inbox
- * beside a thread and its tabs; the others are each a row of tabs filling
- * the area. The window opens on the chat.
+ * beside a thread and its tabs; the apps and the files are each a row of
+ * tabs filling the area; Home is the landing page. The window opens on the
+ * chat.
  */
 export const appPlaceAtom = atomWithStorage<AppPlace>(
   "orchestrator.place.v1",
@@ -186,9 +187,7 @@ export function placeOfGroup(
     return undefined;
   }
   const place = group.slice("place:".length);
-  return place === "apps" || place === "files" || place === "home"
-    ? place
-    : undefined;
+  return place === "apps" || place === "files" ? place : undefined;
 }
 
 /**
@@ -359,9 +358,6 @@ export function placeHomeHref(place: TabbedPlace): string {
     }
     case "files": {
       return COMPUTER_HREF;
-    }
-    case "home": {
-      return NEW_TAB_HREF;
     }
   }
 }

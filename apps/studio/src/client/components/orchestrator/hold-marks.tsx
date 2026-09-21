@@ -141,6 +141,7 @@ export function HoldMarks({
           "min-w-0 flex-nowrap overflow-hidden mask-r-from-[calc(100%-1.5rem)] pr-6",
         className,
       )}
+      data-slot="holds"
       onAuxClick={stopHere}
       onClick={stopHere}
       onContextMenu={stopHere}
@@ -160,12 +161,17 @@ export function HoldMarks({
             <span className="truncate">{item.name}</span>
           </button>
         ) : (
+          // A bare mark says what the thread used; it is the thread's face
+          // rather than a door, so it names itself on hover and opens
+          // nothing, and it is out of the tab order. A file is the thing the
+          // thread made, and does open.
           <Tooltip key={item.key}>
             <TooltipTrigger asChild>
               <button
-                className="grid size-5 shrink-0 place-items-center rounded-sm hover:bg-foreground/8"
+                className="grid size-5 shrink-0 cursor-default place-items-center"
+                data-inert=""
+                tabIndex={-1}
                 type="button"
-                {...openOf(item)}
               >
                 {item.icon}
               </button>
@@ -193,19 +199,33 @@ export function HoldMarks({
             }}
           >
             <div className="flex max-h-full flex-col overflow-y-auto">
-              {items.map((item) => (
-                <button
-                  className="flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-accent"
-                  key={item.key}
-                  type="button"
-                  {...openOf(item)}
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center">
-                    {item.icon}
+              {items.map((item) =>
+                item.target.kind === "path" ? (
+                  <button
+                    className="flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-xs hover:bg-accent"
+                    data-slot="hold"
+                    key={item.key}
+                    type="button"
+                    {...openOf(item)}
+                  >
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      {item.icon}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                  </button>
+                ) : (
+                  <span
+                    className="flex h-7 w-full items-center gap-2 px-2 text-xs text-muted-foreground"
+                    data-slot="hold"
+                    key={item.key}
+                  >
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      {item.icon}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{item.name}</span>
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                </button>
-              ))}
+                ),
+              )}
             </div>
           </PopoverContent>
         </Popover>

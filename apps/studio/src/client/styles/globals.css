@@ -1079,6 +1079,41 @@ a.cursor-pointer {
   }
 }
 
+/* The inbox row a draft just became; see `thread-row.tsx`, which puts the
+ * class on that row alone. It slides down into its place and its ground is
+ * washed in the brand's tint, which settles over a couple of seconds, so the
+ * eye lands on the thread that was just started and on nothing else that
+ * arrives in the list. The wash is the row's own background, which the tint
+ * the row wears under the pointer is drawn over rather than replaced by. */
+.thread-arrive {
+  animation:
+    thread-arrive-in 320ms ease-out both,
+    thread-arrive-wash 2400ms ease-out both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: thread-arrive-wash 2400ms ease-out both;
+  }
+}
+
+@keyframes thread-arrive-in {
+  from {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes thread-arrive-wash {
+  from {
+    background-color: color-mix(in oklab, var(--brand-500) 18%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
 /* A pane tab growing into the row it was just opened in; see `pane-tabs.tsx`,
  * which puts the class there and only on a tab the task did not have a moment
  * ago. Drawn for the first time is not the same as new.

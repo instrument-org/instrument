@@ -23,6 +23,7 @@ const SLIM_FROM = 600;
  */
 export function ThreadList({
   appsBySlug,
+  arrivedId,
   drafts,
   emptyLine,
   isLoading,
@@ -39,6 +40,8 @@ export function ThreadList({
   topics,
 }: {
   appsBySlug: AppsBySlug;
+  /** The thread that just started from a draft, whose row arrives with a motion of its own. */
+  arrivedId?: string;
   /** The drafts to list in place of the threads, while the column stands in Drafts. */
   drafts?: Draft[];
   /** What the list says when it has nothing to show. */
@@ -90,6 +93,7 @@ export function ThreadList({
           actions={actionsFor(thread)}
           appsBySlug={appsBySlug}
           density={density}
+          isArriving={thread.id === arrivedId}
           isOpen={thread.id === openId}
           key={thread.id}
           onNewTopic={() => {

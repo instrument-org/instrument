@@ -192,13 +192,14 @@ function firstLineOf(row: HTMLElement) {
   return line;
 }
 
-/** The marks of what the thread holds: every button that is not a control of the row's own. */
+function isHTMLElement(element: Element): element is HTMLElement {
+  return element instanceof HTMLElement;
+}
+
+/** The marks on the row's line of holds: the file chips, the bare marks, and the count. */
 function marksOf(row: HTMLElement) {
-  return [...row.querySelectorAll("button")].filter(
-    (button) =>
-      !button.hasAttribute("aria-label") &&
-      !button.classList.contains("rounded-full"),
-  );
+  const line = row.querySelector<HTMLElement>('[data-slot="holds"]');
+  return line ? [...line.children].filter(isHTMLElement) : [];
 }
 
 /** The window the pane sits in, as far as a row can tell: every opener lands in a tab of its own. */
@@ -299,8 +300,9 @@ async function renderRows(
       </div>
     ));
   }
+  const window = paneWindow(openScreen);
   const rendered = await renderInBrowser(
-    <OrchestratorContext value={paneWindow(openScreen)}>
+    <OrchestratorContext value={window}>
       {/* The toasts the row's actions raise land here, and stay until read. */}
       <Toaster duration={Infinity} />
       <Rows />
@@ -310,7 +312,7 @@ async function renderRows(
   const rows = [
     ...rendered.container.querySelectorAll<HTMLElement>('[role="button"]'),
   ];
-  return { ...rendered, onOpen, onSetTopics, openScreen, rows };
+  return { ...rendered, onOpen, onSetTopics, openScreen, rows, window };
 }
 
 /** The title, which is the one line of words every row has. */
@@ -620,14 +622,24 @@ describe("ThreadRow", () => {
       // Five marks, then a count of the two that did not get one.
       expect(marks).toHaveLength(6);
       expect(marks.at(-1)?.textContent).toBe("+2");
-      // The files first, newest first, each named; the app and the sites bare.
+      // The files first, newest first, each named and a door; the app and
+      // the sites bare, and nothing to press: the thread's face, not its
+      // openers.
       expect(marks.slice(0, 2).map((mark) => mark.textContent)).toEqual([
         "data.csv",
         "report.md",
       ]);
-      expect(marks.slice(2, 5).every((mark) => mark.textContent === "")).toBe(
+      expect(marks.slice(0, 2).every((mark) => mark.tagName === "BUTTON")).toBe(
         true,
       );
+      expect(
+        marks
+          .slice(2, 5)
+          .every(
+            (mark) =>
+              mark.textContent === "" && Object.hasOwn(mark.dataset, "inert"),
+          ),
+      ).toBe(true);
       expect(row.textContent).not.toContain("/task");
       expect(row.textContent).not.toContain("wakatime.com");
     }
@@ -736,33 +748,41 @@ describe("ThreadRow", () => {
     await userEvent.click(count);
     const list = page.getByRole("dialog");
     await expect.element(list).toBeVisible();
-    const names = [...list.element().querySelectorAll("button")].map(
-      (entry) => entry.textContent,
-    );
+    const rows = [...list.element().querySelectorAll('[data-slot="hold"]')];
     // The app's row carries its initial as its icon, then its name.
-    expect(names).toEqual([
+    expect(rows.map((entry) => entry.textContent)).toEqual([
       ...files.toReversed().map((path) => path.split("/").at(-1)),
       "Ppaper",
+    ]);
+    // The files are doors; the app is named and nothing more.
+    expect(rows.map((entry) => entry.tagName)).toEqual([
+      ...files.map(() => "BUTTON"),
+      "SPAN",
     ]);
     await userEvent.keyboard("{Escape}");
   });
 
-  it("opens a hold inside its thread: as a tab of the thread's group, shown, without opening the row", async () => {
-    const { onOpen, openScreen, row } = await renderRow(
-      thread({ holds: { apps: ["github"], files: [], sites: [] } }),
+  it("opens a file it holds inside its thread, as a tab of the thread's group, shown, without opening the row; an app or a site it used opens nothing", async () => {
+    const { onOpen, openScreen, row, window } = await renderRow(
+      thread({
+        holds: { apps: ["github"], files: ["/task/out/report.md"], sites: [] },
+      }),
     );
-    const [app] = marksOf(row);
-    app?.click();
+    const [file, app] = marksOf(row);
+    file?.click();
     expect(onOpen).not.toHaveBeenCalled();
-    expect(openScreen).toHaveBeenCalledWith("/orchestrator/apps/github", {
+    expect(window.openPath).toHaveBeenCalledWith("/task/out/report.md", {
       group: sessionId,
       newTab: true,
       show: true,
     });
-    app?.dispatchEvent(
+    file?.dispatchEvent(
       new MouseEvent("auxclick", { bubbles: true, button: 1 }),
     );
-    expect(openScreen).toHaveBeenCalledTimes(2);
+    expect(window.openPath).toHaveBeenCalledTimes(2);
+    app?.click();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(openScreen).not.toHaveBeenCalled();
   });
 
   it("opens the thread's topic list from the corner's tag control, which files the thread rather than opening it, and holds the corner while the list leaves", async () => {

@@ -33,6 +33,7 @@ import { useSetThreadTopics } from "./use-set-thread-topics";
  * banner stands above the rows.
  */
 export function ThreadPane({
+  arrivedId,
   drafts,
   onDeleteDraft,
   onListed,
@@ -41,6 +42,8 @@ export function ThreadPane({
   openThreadId,
   taskId,
 }: {
+  /** The thread that just started from a draft, whose row arrives with a motion of its own. */
+  arrivedId?: string;
   /** Every draft not yet started, for the Drafts place and its count. */
   drafts: Draft[];
   /** Deletes a draft outright; the caller says so and offers it back. */
@@ -174,6 +177,7 @@ export function ThreadPane({
       )}
       <ThreadList
         appsBySlug={appsBySlug}
+        arrivedId={arrivedId}
         drafts={shownDrafts}
         emptyLine={emptyLineFor(filters, threads.length)}
         // The drafts are kept on this computer, so they are never on

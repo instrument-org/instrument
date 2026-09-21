@@ -77,6 +77,7 @@ export function ThreadRow({
   actions,
   appsBySlug,
   density,
+  isArriving = false,
   isOpen,
   onNewTopic,
   onOpen,
@@ -88,6 +89,8 @@ export function ThreadRow({
   actions: RowAction[];
   appsBySlug: AppsBySlug;
   density: RowDensity;
+  /** Whether the thread just started from a draft: its row arrives with a wash that settles. */
+  isArriving?: boolean;
   /** Whether this thread is the one open beside the list. */
   isOpen: boolean;
   onNewTopic: () => void;
@@ -176,7 +179,13 @@ export function ThreadRow({
     <ContextMenu modal={false}>
       <ContextMenuTrigger asChild>
         <div
-          className={rowClassName(density, isOpen)}
+          className={cn(
+            rowClassName(density, isOpen),
+            // The thread just started from a draft arrives with a wash of
+            // the brand's tint that settles, so the eye finds the row the
+            // draft became; nothing else that lands in the list does this.
+            isArriving && "thread-arrive",
+          )}
           data-density={density}
           data-open={isOpen || undefined}
           onClick={onOpen}
@@ -240,27 +249,39 @@ export function ThreadRow({
                   {pills}
                 </span>
               </div>
-              <Peek className="mt-0.5" lines={2} thread={thread} />
-              {/* The holds and, at the line's end, the star in the row's
-                bottom corner, where mail keeps it. */}
-              <div className="mt-1 flex items-end gap-2">
-                {hasHolds ? (
-                  <HoldsInThread threadId={thread.id}>
-                    <HoldMarks
-                      appsBySlug={appsBySlug}
-                      className="min-w-0 flex-1 gap-1"
-                      holds={thread.holds}
-                      namedFiles
-                      wrap={false}
-                    />
-                  </HoldsInThread>
-                ) : (
-                  <span className="min-w-0 flex-1" />
-                )}
-                <span className="-mr-1 -mb-0.5 shrink-0">
-                  <StarControl thread={thread} />
-                </span>
-              </div>
+              {/* The star in the row's bottom corner, where mail keeps it:
+                at the end of the holds' line when the thread holds
+                anything, and otherwise at the end of the latest line, so a
+                row with nothing held takes no line for nothing. */}
+              {hasHolds ? (
+                <>
+                  <Peek className="mt-0.5" lines={2} thread={thread} />
+                  <div className="mt-1 flex items-end gap-2">
+                    <HoldsInThread threadId={thread.id}>
+                      <HoldMarks
+                        appsBySlug={appsBySlug}
+                        className="min-w-0 flex-1 gap-1"
+                        holds={thread.holds}
+                        namedFiles
+                        wrap={false}
+                      />
+                    </HoldsInThread>
+                    <span className="-mr-1 -mb-0.5 shrink-0">
+                      <StarControl thread={thread} />
+                    </span>
+                  </div>
+                </>
+              ) : (
+                // Two lines' room whatever the latest line takes, so the
+                // star sits under the corner's bar rather than beneath it
+                // while the pointer is on the row.
+                <div className="mt-0.5 flex min-h-10 items-end gap-2">
+                  <Peek className="min-w-0 flex-1" lines={2} thread={thread} />
+                  <span className="-mr-1 -mb-0.5 ml-auto shrink-0">
+                    <StarControl thread={thread} />
+                  </span>
+                </div>
+              )}
             </div>
           )}
           {density === "tall" && (

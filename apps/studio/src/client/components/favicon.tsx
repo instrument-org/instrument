@@ -1,4 +1,9 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
+import {
+  type FaviconSource,
+  rememberedFaviconSource,
+  rememberFaviconSource,
+} from "@/client/lib/favicon-memory";
 import { getFaviconUrl } from "@/client/lib/favicon-url";
 import { cn } from "@/client/lib/utils";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -33,9 +38,6 @@ export const FAVICON_SURFACE_CLASS_NAME = "dark:bg-white/10";
  */
 const PROXY_STAND_IN_MAX_PX = 16;
 
-/** Where the icon is being read from: the proxy, then the site itself, then nowhere. */
-type Source = "none" | "proxy" | "site";
-
 export function Favicon({
   className,
   fallback,
@@ -53,11 +55,15 @@ export function Favicon({
   // The proxy first, and the site's own icon when the proxy has none for it:
   // a site the proxy never fetched, or one behind a sign-in, still serves
   // its own. A site with none anywhere gets a drawn globe rather than a
-  // bitmap one scaled up.
-  const [source, setSource] = useState<Source>("proxy");
+  // bitmap one scaled up. Where the chain ended last time is where it
+  // starts this time, so a site known to have none draws its glyph at once.
+  const [source, setSource] = useState<FaviconSource>(() =>
+    rememberedFaviconSource(url),
+  );
   const fallBack = () => {
     const next = source === "proxy" && URL.canParse(url) ? "site" : "none";
     setSource(next);
+    rememberFaviconSource(url, next);
     if (next === "none") {
       onNone?.();
     }
@@ -66,7 +72,13 @@ export function Favicon({
     source === "site"
       ? `${new URL(url).origin}/favicon.ico`
       : getFaviconUrl(url);
-  const arrival = useImageArrival(faviconUrl, "icon");
+  // Taken apart here: what goes to the element's ref is a ref to the lint,
+  // and the class beside it is read in render.
+  const {
+    attach,
+    className: arrivalClassName,
+    onLoad: arrived,
+  } = useImageArrival(faviconUrl, "icon");
 
   return (
     <Tooltip>
@@ -87,7 +99,7 @@ export function Favicon({
               // own square mark, and what tells a site from an app's circle.
               "size-4 shrink-0 rounded-sm border border-border/50",
               FAVICON_SURFACE_CLASS_NAME,
-              arrival.className,
+              arrivalClassName,
               className,
             )}
             onError={fallBack}
@@ -103,8 +115,9 @@ export function Favicon({
                 fallBack();
                 return;
               }
-              arrival.onLoad();
+              arrived();
             }}
+            ref={attach}
             src={faviconUrl}
           />
         )}

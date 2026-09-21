@@ -80,12 +80,31 @@ type Phase = "arriving" | "pending" | "settled";
 export function useImageArrival(
   src: null | string,
   arrival: ImageArrival = "surface",
-): { className: string; onLoad: () => void } {
+): {
+  /**
+   * For the `<img>` element's ref: an image the browser's cache had ready is
+   * on screen the moment the element is, and gets no entrance, since there
+   * was no gap for one to cover. A launch that draws a row of icons the last
+   * one fetched would otherwise fade every one of them in as though it were
+   * late.
+   */
+  attach: (element: HTMLImageElement | null) => void;
+  className: string;
+  onLoad: () => void;
+} {
   const [phase, setPhase] = useState<Phase>(() =>
     src !== null && !arrivedSources.has(src) ? "pending" : "settled",
   );
 
   return {
+    attach: (element) => {
+      if (element?.complete && element.naturalWidth > 0) {
+        if (src !== null) {
+          arrivedSources.add(src);
+        }
+        setPhase((current) => (current === "pending" ? "settled" : current));
+      }
+    },
     className: cn(
       phase !== "settled" && ARRIVAL_TRANSITION,
       phase === "pending" && ARRIVAL_PENDING[arrival],

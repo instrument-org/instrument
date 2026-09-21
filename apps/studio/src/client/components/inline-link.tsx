@@ -1,5 +1,9 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
+import {
+  rememberedFaviconSource,
+  rememberFaviconSource,
+} from "@/client/lib/favicon-memory";
 import { getFaviconUrl } from "@/client/lib/favicon-url";
 import {
   destinationParts,
@@ -410,37 +414,38 @@ function WebLink({
 const ABSENT_ICON_SIZE = 16;
 
 /**
- * Every source already known to have nothing behind it.
- *
- * A link with no icon draws none, so what a first render costs is the width of
- * one that is about to be taken away again. Remembering which sources those
- * were spares every later link to the same host that shuffle, and a transcript
- * naming one host repeatedly is the ordinary case rather than the exception.
- * Keyed by source and never evicted, the same as the arrival cache it sits
- * beside.
- */
-const absentIcons = new Set<string>();
-
-/**
  * The site's own icon, and nothing at all when the site has none.
  *
  * A stand-in glyph was the other option and says less than the space it takes:
  * a globe in front of a link is a picture of the word link. Where an icon
  * cannot be had, the label and the origin beside it were already carrying the
  * whole message.
+ *
+ * Read the way every favicon is, the proxy first and then the site itself,
+ * and remembered the same way: a link with no icon draws none, so what a
+ * first render costs is the width of one that is about to be taken away
+ * again, and a transcript naming one host repeatedly is the ordinary case.
  */
 function SiteIcon({ className, href }: { className?: string; href: string }) {
-  const src = getFaviconUrl(href);
-  const [absent, setAbsent] = useState(() => absentIcons.has(src));
-  const arrival = useImageArrival(src, "icon");
+  const [source, setSource] = useState(() => rememberedFaviconSource(href));
+  const src =
+    source === "site" && URL.canParse(href)
+      ? `${new URL(href).origin}/favicon.ico`
+      : getFaviconUrl(href);
+  const {
+    attach,
+    className: arrivalClassName,
+    onLoad: arrived,
+  } = useImageArrival(src, "icon");
 
-  if (absent) {
+  if (source === "none") {
     return null;
   }
 
-  const markAbsent = () => {
-    absentIcons.add(src);
-    setAbsent(true);
+  const fallBack = () => {
+    const next = source === "proxy" && URL.canParse(href) ? "site" : "none";
+    setSource(next);
+    rememberFaviconSource(href, next);
   };
 
   return (
@@ -456,17 +461,21 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
       className={cn(
         "my-0! size-3 shrink-0 rounded-xs align-middle",
         FAVICON_SURFACE_CLASS_NAME,
-        arrival.className,
+        arrivalClassName,
         className,
       )}
-      onError={markAbsent}
+      onError={fallBack}
       onLoad={(event) => {
-        if (event.currentTarget.naturalWidth <= ABSENT_ICON_SIZE) {
-          markAbsent();
+        if (
+          source === "proxy" &&
+          event.currentTarget.naturalWidth <= ABSENT_ICON_SIZE
+        ) {
+          fallBack();
           return;
         }
-        arrival.onLoad();
+        arrived();
       }}
+      ref={attach}
       src={src}
     />
   );

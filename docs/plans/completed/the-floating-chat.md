@@ -1,6 +1,6 @@
 # Plan: the floating chat
 
-Status: in progress. The small view, the Included region, pop-out and the placeholder are built; the file tab's tree, links between files, Home as a landing page, and the connect buttons follow.
+Status: landed. The small view, the Included region, pop-out and the placeholder, the file tab's tree and links between files, Home as a landing page, the connect buttons, and the `float_every_draft` flag are built. The Apps scenario (a draft started over a connected app's page) and several small views standing at once were not tried in the app.
 
 ## What it is
 

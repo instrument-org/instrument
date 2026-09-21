@@ -152,17 +152,41 @@ export function useWindowTabs() {
   };
 
   /**
+   * Makes a tab the one its group has up: on screen when the group is the
+   * one on screen, and otherwise remembered for the group, which is what a
+   * host drawing that group's tabs somewhere else (the draft window) shows.
+   */
+  const selectIn = (key: string, id: string) => {
+    setTabs((current) => {
+      const tab = current.tabs.find((entry) => entry.id === id);
+      if (!tab || tab.group !== key) {
+        return current;
+      }
+      if (key === current.group) {
+        return { ...current, activeId: id };
+      }
+      return {
+        ...current,
+        activeByGroup: { ...current.activeByGroup, [key]: id },
+      };
+    });
+  };
+
+  /**
    * Opens a screen at an address: in the group on screen and shown, or in
    * the group named, behind whatever is up, when that group is not the one
    * on screen. A group that has nothing yet is made by the tab landing in it,
    * so a thread that has not been opened still gets what was opened for it.
+   * `activate` makes the tab the one a group behind has up, for a host that
+   * draws that group's tabs itself.
    */
   const openScreen = (
     href: string,
     {
+      activate = false,
       group: into,
       isOpened = false,
-    }: { group?: string; isOpened?: boolean } = {},
+    }: { activate?: boolean; group?: string; isOpened?: boolean } = {},
   ) => {
     const thread = threadOfHref(href);
     if (thread) {
@@ -179,6 +203,9 @@ export function useWindowTabs() {
       return {
         ...current,
         activeId: shown ? id : current.activeId,
+        ...(!shown && activate
+          ? { activeByGroup: { ...current.activeByGroup, [key]: id } }
+          : {}),
         tabs: [
           ...current.tabs,
           {
@@ -228,10 +255,16 @@ export function useWindowTabs() {
   const openOrFocusScreen = (
     href: string,
     {
+      activate = false,
       group: into,
       isOpened = false,
       show = false,
-    }: { group?: string; isOpened?: boolean; show?: boolean } = {},
+    }: {
+      activate?: boolean;
+      group?: string;
+      isOpened?: boolean;
+      show?: boolean;
+    } = {},
   ) => {
     const key = into ?? group;
     const filePath = parseHref(href).search.get("file") ?? undefined;
@@ -245,6 +278,8 @@ export function useWindowTabs() {
     if (existing) {
       if (show || key === group) {
         select(existing.id);
+      } else if (activate && key !== undefined) {
+        selectIn(key, existing.id);
       }
       return existing.id;
     }
@@ -263,14 +298,47 @@ export function useWindowTabs() {
       }));
       if (show) {
         select(fresh.id);
+      } else if (activate && key !== undefined) {
+        selectIn(key, fresh.id);
       }
       return fresh.id;
     }
-    const id = openScreen(href, { group: into, isOpened });
+    const id = openScreen(href, { activate, group: into, isOpened });
     if (show && id !== undefined) {
       select(id);
     }
     return id;
+  };
+
+  /**
+   * Where a screen tab is now, by the tab: the screen inside it moved. The
+   * address joins the tab's trail and drops what was ahead of it, the way
+   * `setActiveHref` does for the tab on screen; a tab drawn by another host
+   * (the draft window) is told this way, since the router never follows it.
+   */
+  const visitHref = (id: string, href: string) => {
+    setTabs((current) => {
+      const tab = current.tabs.find((entry) => entry.id === id);
+      if (tab?.kind !== "screen" || sameHref(tab.href, href)) {
+        return current;
+      }
+      const trail = tab.trail ?? [tab.href];
+      const at = tab.at ?? trail.length - 1;
+      return {
+        ...current,
+        tabs: current.tabs.map((entry) =>
+          entry.id === tab.id
+            ? {
+                ...entry,
+                at: at + 1,
+                future: [],
+                href,
+                trail: [...trail.slice(0, at + 1), href],
+              }
+            : entry,
+        ),
+      };
+    });
   };
 
   /**
@@ -520,12 +588,15 @@ export function useWindowTabs() {
     openScreen,
     /** The group the one on screen took over from, for going back to it when the draft is put away. */
     previousGroup: state.previousGroup,
-    /** The group's tabs in a new order. */
-    reorder: (keys: string[]) => {
+    /** A group's tabs in a new order: the group on screen's, or the group named. */
+    reorder: (keys: string[], key?: string) => {
       setTabs((current) => {
-        const own = current.tabs.filter((tab) => tab.group === current.group);
-        const ordered = keys.flatMap((key) => {
-          const tab = own.find((entry) => (entry.stripKey ?? entry.id) === key);
+        const groupKey = key ?? current.group;
+        const own = current.tabs.filter((tab) => tab.group === groupKey);
+        const ordered = keys.flatMap((stripKey) => {
+          const tab = own.find(
+            (entry) => (entry.stripKey ?? entry.id) === stripKey,
+          );
           return tab ? [tab] : [];
         });
         if (ordered.length !== own.length) {
@@ -535,13 +606,14 @@ export function useWindowTabs() {
         return {
           ...current,
           tabs: current.tabs.map((tab) =>
-            tab.group === current.group ? (ordered[next++] ?? tab) : tab,
+            tab.group === groupKey ? (ordered[next++] ?? tab) : tab,
           ),
         };
       });
     },
     replace,
     select,
+    selectIn,
     selectIndex: (index: number) => {
       const tab = index >= 9 ? tabs.at(-1) : tabs[index - 1];
       if (tab) {
@@ -565,6 +637,7 @@ export function useWindowTabs() {
     tabUpIn,
     /** The tabs of the group on screen, in strip order. */
     tabs,
+    visitHref,
   };
 }
 

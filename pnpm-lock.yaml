@@ -942,8 +942,8 @@ importers:
         specifier: ^2.8.14
         version: 2.8.14
       agent-browser:
-        specifier: ^0.33.1
-        version: 0.33.1
+        specifier: ^0.38.1
+        version: 0.38.1
       ai:
         specifier: 'catalog:'
         version: 6.0.168(zod@4.4.3)
@@ -5231,8 +5231,8 @@ packages:
     resolution: {integrity: sha512-jRR5wdylq8CkOe6hei19GGZnxM6rBGwFl3Bg0YItGDimvjGtAvdZk4Pu6Cl4u4Igsws4a1fd1Vq3ezrhn4KmFw==}
     engines: {node: '>= 14'}
 
-  agent-browser@0.33.1:
-    resolution: {integrity: sha512-lS0KbU9QdkD0I2n+uzrmNXKNGRjsd6GcB7bR6Wm1eyLcaxTCSf2zuxbWzf76fHCrDA4YoY3TikoOMSA8qA+wFA==}
+  agent-browser@0.38.1:
+    resolution: {integrity: sha512-k58FCz0yUOCANoNkMiqJe+H2y6r6sUZazqXsWF+MYq1iRC42PjtLcBoag6SSTOD/FRQppvPDvE5HDYEhclvnhw==}
     engines: {node: '>=24.0.0', pnpm: '>=11.0.0'}
     hasBin: true
 
@@ -14598,7 +14598,7 @@ snapshots:
 
   agent-base@7.1.3: {}
 
-  agent-browser@0.33.1: {}
+  agent-browser@0.38.1: {}
 
   agentation@3.0.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
     optionalDependencies:

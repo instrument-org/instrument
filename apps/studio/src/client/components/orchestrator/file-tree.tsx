@@ -8,7 +8,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { useOrchestrator } from "./context";
 import { isInside, segmentsOf } from "./host-path";
@@ -183,7 +183,7 @@ function Folder({
   );
 }
 
-/** One row of the tree: a folder with its caret and mark, or a file with its kind's mark; the selected file filled. */
+/** One row of the tree: a folder with its caret and mark, or a file with its kind's mark; the selected file filled and brought into view. */
 function Row({
   caret,
   depth,
@@ -201,6 +201,15 @@ function Row({
   name: string;
   onPress: () => void;
 }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  // The selected file is where the tree opens, whether it mounts selected
+  // (the tab opening on a file deep in a long folder) or becomes so (a link
+  // followed to another file); a row above the fold is scrolled to as well.
+  useEffect(() => {
+    if (isSelected) {
+      ref.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [isSelected]);
   return (
     <button
       aria-expanded={isExpanded}
@@ -213,6 +222,7 @@ function Row({
           : "text-foreground/80 hover:bg-foreground/5 hover:text-foreground",
       )}
       onClick={onPress}
+      ref={ref}
       role="treeitem"
       style={{ paddingLeft: EDGE + depth * INDENT }}
       title={name}

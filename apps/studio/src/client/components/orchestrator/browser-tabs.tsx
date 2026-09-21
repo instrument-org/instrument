@@ -971,59 +971,6 @@ export function BrowserTabs({
 }
 
 /**
- * A draft window's page, drawn into its band with the browser's own bar,
- * since the band has no row above it to carry the address. Under a provider
- * of its own, since the pane around the strip is inactive while a draft
- * window is up. The page comes back after a launch the way the pane's does:
- * the panel opens the guest, and this reopens it at the page the tab
- * remembers.
- */
-function ComposePagePanel({
-  attached,
-  host,
-  onReopen,
-  tab,
-  taskId,
-}: {
-  attached: boolean;
-  host: ComposeHost;
-  onReopen: () => void;
-  tab: BrowserTab;
-  taskId: TaskId;
-}) {
-  const url = tab.url;
-  useEffect(() => {
-    if (attached || !url) {
-      return;
-    }
-    onReopen();
-    void rpcClient.workspace.browser.open.call({
-      host: WINDOW_BROWSER_HOST,
-      id: tab.taskId ?? taskId,
-      sessionId: StoreId.SessionSchema.parse(tab.id),
-      url,
-    });
-    // Once per tab coming back, not per render while it attaches.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab.id, taskId]);
-  if (!host.into) {
-    return null;
-  }
-  return createPortal(
-    <ActiveTabProvider isActive={host.isActive}>
-      <TaskBrowserPanel
-        active={attached}
-        className="h-full rounded-none shadow-none"
-        key={tab.id}
-        sessionId={StoreId.SessionSchema.parse(tab.id)}
-        taskId={tab.taskId ?? taskId}
-      />
-    </ActiveTabProvider>,
-    host.into,
-  );
-}
-
-/**
  * The page's own icon when it has announced one and it loads; else the site's,
  * looked up by address, since a page that announced none or a stale one is
  * still on a site with one; else the globe.
@@ -1081,6 +1028,59 @@ function BrowserHold({ taskId }: { taskId: TaskId }) {
     }),
   );
   return null;
+}
+
+/**
+ * A draft window's page, drawn into its band with the browser's own bar,
+ * since the band has no row above it to carry the address. Under a provider
+ * of its own, since the pane around the strip is inactive while a draft
+ * window is up. The page comes back after a launch the way the pane's does:
+ * the panel opens the guest, and this reopens it at the page the tab
+ * remembers.
+ */
+function ComposePagePanel({
+  attached,
+  host,
+  onReopen,
+  tab,
+  taskId,
+}: {
+  attached: boolean;
+  host: ComposeHost;
+  onReopen: () => void;
+  tab: BrowserTab;
+  taskId: TaskId;
+}) {
+  const url = tab.url;
+  useEffect(() => {
+    if (attached || !url) {
+      return;
+    }
+    onReopen();
+    void rpcClient.workspace.browser.open.call({
+      host: WINDOW_BROWSER_HOST,
+      id: tab.taskId ?? taskId,
+      sessionId: StoreId.SessionSchema.parse(tab.id),
+      url,
+    });
+    // Once per tab coming back, not per render while it attaches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab.id, taskId]);
+  if (!host.into) {
+    return null;
+  }
+  return createPortal(
+    <ActiveTabProvider isActive={host.isActive}>
+      <TaskBrowserPanel
+        active={attached}
+        className="h-full rounded-none shadow-none"
+        key={tab.id}
+        sessionId={StoreId.SessionSchema.parse(tab.id)}
+        taskId={tab.taskId ?? taskId}
+      />
+    </ActiveTabProvider>,
+    host.into,
+  );
 }
 
 /**

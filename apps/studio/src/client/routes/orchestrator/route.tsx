@@ -18,6 +18,7 @@ import {
   SIDEBAR_WIDTH_MIN,
   threadFiltersAtom,
   THREADS_HREF,
+  type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { FileSystemIconSpriteSheet } from "@/client/components/extend/file-system";
@@ -28,15 +29,13 @@ import {
   BrowserTabs,
   type BrowserTabsHandle,
 } from "@/client/components/orchestrator/browser-tabs";
+import { ComposeLayer } from "@/client/components/orchestrator/compose-layer";
+import { type DraftSend } from "@/client/components/orchestrator/compose-window";
 import {
   type OpenOptions,
   OrchestratorContext,
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
-import {
-  DraftComposer,
-  type DraftSend,
-} from "@/client/components/orchestrator/draft-composer";
 import { EmptyPlace } from "@/client/components/orchestrator/empty-place";
 import {
   fileHref,
@@ -65,6 +64,7 @@ import { ThreadTasksButton } from "@/client/components/orchestrator/thread-tasks
 import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-view";
 import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-view";
 import { NO_FILTERS } from "@/client/components/orchestrator/threads";
+import { useCompose } from "@/client/components/orchestrator/use-compose";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
@@ -236,11 +236,17 @@ export const Route = createFileRoute("/orchestrator")({
 function Frame({
   bar,
   children,
+  foot,
+  overlay,
   rail,
   rowRef,
 }: {
   bar?: ReactNode;
   children: ReactNode;
+  /** A strip under the row, the row's width: room kept along the foot for the drafts put down there. */
+  foot?: ReactNode;
+  /** Laid over the row and the foot together, for the draft windows that float over both. */
+  overlay?: ReactNode;
   /** The rail down the window's left edge, outside the row the columns share. */
   rail?: ReactNode;
   /** The row the columns share, for whoever sizes them against it. */
@@ -270,9 +276,16 @@ function Frame({
         <div className="flex min-h-0 flex-1">
           {rail}
           {/* Measured on its own, past the rail, so a column sized against
-            the row is sized against the width the columns actually share. */}
-          <div className="flex min-h-0 min-w-0 flex-1" ref={rowRef}>
-            {children}
+            the row is sized against the width the columns actually share.
+            The foot and the overlay share its width and its edges, so a
+            draft window along the foot stands where a bar for it would. */}
+          <div
+            className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+            ref={rowRef}
+          >
+            <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
+            {foot}
+            {overlay}
           </div>
         </div>
         <StudioModals />
@@ -283,6 +296,11 @@ function Frame({
       </div>
     </ChromeInsetProvider>
   );
+}
+
+/** Whether a draft has anything written in it, which is what keeps it past its window. */
+function hasWords(draft: Draft): boolean {
+  return draft.words.trim() !== "";
 }
 
 /**
@@ -394,20 +412,24 @@ function OrchestratorLayout() {
       setSidebarWidth(bounds.max);
     }
   }, [showsRightArea, rowWidth, sidebarWidth, bounds.max, setSidebarWidth]);
-  const draftUp = draftOfGroup(windowTabs.group);
-  const draftOnScreen =
-    draftUp === undefined
-      ? undefined
-      : drafts.find((entry) => entry.id === draftUp);
-  // A draft's group with no draft left for it (thrown away elsewhere, or a
-  // record that did not survive) is nothing to show: its tabs go with it.
-  const missingDraft = draftOnScreen === undefined ? draftUp : undefined;
+  // The drafts being written, in windows along the row's foot.
+  const compose = useCompose(rowWidth);
+  // A draft is written over the screen, never on it: a draft's group left
+  // on screen by an earlier launch is put away, and a draft with no words
+  // is not kept past its window, so one left over from a launch goes too.
+  // Once, over what was restored.
   useEffect(() => {
-    if (missingDraft !== undefined) {
-      windowTabs.dropGroup(draftGroupOf(missingDraft));
+    if (draftOfGroup(windowTabs.group) !== undefined) {
+      windowTabs.leaveGroup();
     }
+    for (const draft of drafts) {
+      if (!hasWords(draft)) {
+        windowTabs.dropGroup(draftGroupOf(draft.id));
+      }
+    }
+    setDrafts((current) => current.filter(hasWords));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [missingDraft]);
+  }, []);
   // The thread whose group is on screen, beside its tabs.
   const threadUp = (() => {
     const parsed = StoreId.SessionSchema.safeParse(windowTabs.group);
@@ -441,9 +463,16 @@ function OrchestratorLayout() {
     (paneOpenByGroup[windowTabs.group] ?? true);
   const showsPane = (tabs.length > 0 || isTasksViewUp) && isPaneWanted;
   // Whether the page in the pane is what is on screen: the chat up, the tab
-  // a page, the pane open, and nothing over it. Off, the guest is parked.
+  // a page, the pane open, and nothing over it. Off, the guest is parked. A
+  // draft window counts as over it: a guest paints over everything in the
+  // window, so one under a draft would paint over the draft.
   const isPageShown =
-    isChat && isPageOnScreen && showsRightArea && showsPane && !isTasksViewUp;
+    isChat &&
+    isPageOnScreen &&
+    showsRightArea &&
+    showsPane &&
+    !isTasksViewUp &&
+    !compose.covers;
   const setPaneOpen = (group: string, isOpen: boolean) => {
     setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
   };
@@ -1006,45 +1035,48 @@ function OrchestratorLayout() {
   );
   const setThreadTopics = useSetThreadTopics(ids?.taskId);
   const [isNewTopicOpen, setNewTopicOpen] = useState(false);
-  const [isStarting, setStarting] = useState(false);
+  // The draft whose first message is on its way, by id.
+  const [startingId, setStartingId] = useState<string>();
 
-  /** Brings a draft's group on screen with its composer beside it. */
+  /** Brings a draft up in a window along the foot, to go on writing it. */
   const showDraft = (id: string) => {
-    windowTabs.showDraft(id);
+    compose.open(id);
   };
   /**
-   * Makes a draft, filed under a topic when the pane stands in one, and
-   * brings it up with the new-tab page as its first tab: the place to find
-   * a site, a folder, a file, or an app to gather. Asked for while a draft
-   * is already up, it makes nothing: that draft is the new one.
+   * Makes a draft, filed under a topic when the pane stands in one and with
+   * words already in it when a button handed some over, and brings it up in
+   * a window of its own with the new-tab page as its first tab: the place to
+   * find a site, a folder, a file, or an app to gather. Every ask is a new
+   * draft, beside the ones already open.
    */
-  const startDraft = (topicId: string | undefined) => {
-    if (draftOnScreen) {
-      return;
-    }
+  const startDraft = (topicId: string | undefined, words = "") => {
     const now = Date.now();
     const draft: Draft = {
       createdAt: now,
       id: ulid(),
       ...(topicId ? { topicId } : {}),
       updatedAt: now,
-      words: "",
+      words,
     };
     setDrafts((current) => [...current, draft]);
+    windowTabs.openScreen(NEW_TAB_HREF, {
+      activate: true,
+      group: draftGroupOf(draft.id),
+    });
     showDraft(draft.id);
-    windowTabs.openScreen(NEW_TAB_HREF, { group: draftGroupOf(draft.id) });
   };
   /**
-   * New, from the rail or its chord: a draft filed under the topic the
-   * inbox stands in while it stands in one, with the window put on the
-   * chat, which is where a draft is written.
+   * New, from the rail or its chord, or a button handing over a line: a
+   * draft filed under the topic the inbox stands in while it stands in one,
+   * with the window put on the chat, which is where a draft is written.
    */
-  const newDraft = () => {
+  const newDraft = (words?: string) => {
     setPlace("chat");
     startDraft(
       isChat && threadFilters.topics.length === 1
         ? topics.find((topic) => topic.id === threadFilters.topics[0])?.id
         : undefined,
+      typeof words === "string" ? words : "",
     );
   };
   /**
@@ -1054,18 +1086,6 @@ function OrchestratorLayout() {
   const leaveGroup = () => {
     windowTabs.leaveGroup();
     setInboxOpen(true);
-  };
-  /** Hands the screen back to the group the draft took it from, or to nothing. */
-  const leaveDraft = () => {
-    const previous = windowTabs.previousGroup;
-    const thread = previous
-      ? StoreId.SessionSchema.safeParse(previous)
-      : undefined;
-    if (thread?.success) {
-      windowTabs.showThread(thread.data);
-    } else {
-      leaveGroup();
-    }
   };
   // What a draft's composer held is kept only as long as the draft: a
   // composer unmounting keeps its snapshot as it goes, so a draft sent or
@@ -1079,36 +1099,25 @@ function OrchestratorLayout() {
       ),
     );
   }, [draftIds, setDraftSnapshots]);
-  /** Throws a draft away: its record, what its composer held, and its tabs. */
+  /** Throws a draft away: its window, its record, what its composer held, and its tabs. */
   const deleteDraft = (id: string) => {
+    compose.remove(id);
     setDrafts((current) => current.filter((draft) => draft.id !== id));
-    if (draftUp === id) {
-      leaveDraft();
-    }
     windowTabs.dropGroup(draftGroupOf(id));
   };
-  // A draft has no close of its own: leaving it for a thread or another
-  // draft is what closes it, and one with words or something gathered is
-  // kept in Drafts the way mail keeps a draft, while one with nothing in it
-  // is thrown away as it is left.
-  const leftDraft = useRef(draftUp);
-  useEffect(() => {
-    const left = leftDraft.current;
-    leftDraft.current = draftUp;
-    if (left === undefined || left === draftUp) {
-      return;
+  /**
+   * Closes a draft's window: one with words is kept in Drafts the way mail
+   * keeps a draft, and one with nothing written is thrown away, whatever it
+   * gathered, so a draft opened and closed again leaves nothing behind.
+   */
+  const closeDraft = (id: string) => {
+    const draft = drafts.find((entry) => entry.id === id);
+    if (draft && hasWords(draft)) {
+      compose.remove(id);
+    } else {
+      deleteDraft(id);
     }
-    const draft = drafts.find((entry) => entry.id === left);
-    const hasGathered = windowTabs.allTabs.some(
-      (tab) => tab.group === draftGroupOf(left) && !isHomeTab(tab),
-    );
-    if (draft?.words.trim() === "" && !hasGathered) {
-      setDrafts((current) => current.filter((entry) => entry.id !== left));
-      windowTabs.dropGroup(draftGroupOf(left));
-    }
-    // Runs as the draft on screen changes; the rest is read as it is then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftUp]);
+  };
   // The inbox's rows as the pane lists them, for stepping through them by
   // chord; the pane says what it shows, since it holds the filters.
   const listedThreads = useRef<StoreId.Session[]>([]);
@@ -1162,22 +1171,97 @@ function OrchestratorLayout() {
       }
     },
   });
+  /** A group's tabs as the conversation is told them, in the strip's order: what `open` and `--tab` can name. */
+  const describeTabs = (
+    listed: WindowTab[],
+  ): NonNullable<SessionMessageDataPart.ViewContextDataPart["tabs"]> =>
+    listed.map((tab) => {
+      if (tab.kind !== "page") {
+        return {
+          at: tab.href,
+          title: screenPresentation(tab.href, { appsBySlug, threadTitles })
+            .title,
+        };
+      }
+      // A file page has no id to hand a task: a task is pointed at sites,
+      // never at a file on this computer.
+      const filePath = hostPathOfFileUrl(tab.url);
+      return filePath === undefined
+        ? {
+            at: tab.url ?? "about:blank",
+            id: tab.id,
+            title: tab.title || tab.url || "New tab",
+          }
+        : {
+            at: filePath,
+            title: segmentsOf(filePath).at(-1) ?? filePath,
+          };
+    });
+  /**
+   * What a draft's window has up as its thread starts: the band's page, read
+   * at that moment, or the folder or file its screen reported, and the
+   * draft's tabs for the thread to name. Nothing while the band shows
+   * nothing the conversation can be told about.
+   */
+  const draftContext = async (
+    draftId: string,
+  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
+    const group = draftGroupOf(draftId);
+    const up = windowTabs.tabUpIn(group);
+    const view = compose.viewsById[draftId];
+    if (!view || !state.data || !up) {
+      return;
+    }
+    const filePath =
+      view.screen === "browser" && up.kind === "page"
+        ? hostPathOfFileUrl(up.url)
+        : view.screen === "file"
+          ? view.file?.path
+          : undefined;
+    const page =
+      view.screen === "browser" && up.kind === "page" && filePath === undefined
+        ? await browser?.readPage(up.id)
+        : undefined;
+    const mount =
+      filePath === undefined
+        ? undefined
+        : mountOfHostPath(filePath, state.data.attachedFolders ?? {});
+    const shown =
+      filePath === undefined
+        ? view
+        : {
+            file: {
+              ...(mount === undefined ? {} : { mount }),
+              name: segmentsOf(filePath).at(-1) ?? filePath,
+              path: filePath,
+            },
+            screen: "file" as const,
+          };
+    return {
+      ...shown,
+      ...(page ? { page } : {}),
+      tabs: describeTabs(
+        windowTabs.allTabs.filter((tab) => tab.group === group),
+      ),
+      url: up.kind === "page" ? (up.url ?? "about:blank") : up.href,
+    };
+  };
   /**
    * Starts the thread the draft is for: what its composer sends (the words,
    * the files, the folders, the model) and its topic as the first message,
-   * with what its tabs show as the context; then what the draft gathered
-   * becomes the thread's tabs exactly as they are, and the thread's
-   * conversation takes the column where the draft was.
+   * with what its band shows as the context; then what the draft gathered
+   * becomes the thread's tabs exactly as they are, and the thread comes on
+   * screen beside the inbox.
    */
   const startThread = (id: string, send: DraftSend) => {
     const draft = drafts.find((entry) => entry.id === id);
     if (!draft || !ids) {
       return;
     }
-    setStarting(true);
+    setStartingId(id);
     // The model chosen for the thread is the one the next draft opens with.
     saveDefaultModelURI(send.modelURI);
-    void sendContextRef.current().then((viewing) => {
+    void draftContext(id).then((viewing) => {
       createMessage.mutate(
         {
           files: send.files,
@@ -1196,11 +1280,31 @@ function OrchestratorLayout() {
             });
           },
           onSettled: () => {
-            setStarting(false);
+            setStartingId((current) => (current === id ? undefined : current));
           },
           onSuccess: ({ sessionId }) => {
+            compose.remove(id);
             setDrafts((current) => current.filter((entry) => entry.id !== id));
-            windowTabs.adoptGroup(draftGroupOf(id), sessionId);
+            // What the draft gathered becomes the thread's tabs, the pages
+            // and folders as they stand; the new-tab pages among them were
+            // the band's own face and are not carried over, and a draft that
+            // gathered nothing hands over nothing, so the thread opens with
+            // no pane.
+            const group = draftGroupOf(id);
+            const own = windowTabs.allTabs.filter((tab) => tab.group === group);
+            const homes = own.filter((tab) => isHomeTab(tab));
+            if (homes.length === own.length) {
+              windowTabs.dropGroup(group);
+              windowTabs.showThread(sessionId);
+            } else {
+              for (const home of homes) {
+                windowTabs.close(home.id);
+              }
+              windowTabs.adoptGroup(group, sessionId);
+            }
+            // A list narrowed to a topic or a place is a list the new thread
+            // is very likely not in, so the narrowing goes.
+            setThreadFilters(NO_FILTERS);
           },
         },
       );
@@ -1208,40 +1312,18 @@ function OrchestratorLayout() {
   };
   const screens: null | OrchestratorWindow = ids
     ? {
-        // No session: a line sent at the top level opens a thread of its own,
-        // and the window goes to it. A thread nobody is shown is one a button
-        // press did nothing visible for, which is a button someone presses
-        // again; and a list narrowed to a topic or a place is a list the new
-        // thread is very likely not in, so the narrowing goes first.
+        // No session: a line a button hands over at the top level opens a
+        // draft with the line in it rather than a thread, so the person reads
+        // what is about to be asked, adds to it, and sends it themselves.
         ask: (prompt) => {
-          if (!modelURI) {
-            // The other way a press does nothing visible: no model set up, so
-            // there is nothing to send with. Silence here reads as a broken
-            // button rather than as a thing left undone.
-            toast.error("No model is set up yet", {
-              description: "Add one in Settings, then try again.",
-            });
-            return;
-          }
-          createMessage.mutate(
-            { id: ids.taskId, modelURI, prompt },
-            {
-              onError: (error) => {
-                toast.error("Failed to start the thread", {
-                  description: error.message,
-                });
-              },
-              onSuccess: ({ sessionId }) => {
-                setThreadFilters(NO_FILTERS);
-                windowTabs.showThread(sessionId);
-              },
-            },
-          );
+          newDraft(prompt);
         },
         browser,
-        // The composer is the draft at the corner, which takes the caret as
-        // it opens.
-        focusComposer: newDraft,
+        // The composer is a draft in a window of its own, which takes the
+        // caret as it opens.
+        focusComposer: () => {
+          newDraft();
+        },
         openPage,
         openPath: openNamedPath,
         openScreen,
@@ -1323,28 +1405,7 @@ function OrchestratorLayout() {
     return {
       ...shown,
       ...(page ? { page } : {}),
-      tabs: tabs.map((tab) => {
-        if (tab.kind !== "page") {
-          return {
-            at: tab.href,
-            title: screenPresentation(tab.href, { appsBySlug, threadTitles })
-              .title,
-          };
-        }
-        // A file page has no id to hand a task: a task is pointed at sites,
-        // never at a file on this computer.
-        const filePath = hostPathOfFileUrl(tab.url);
-        return filePath === undefined
-          ? {
-              at: tab.url ?? "about:blank",
-              id: tab.id,
-              title: tab.title || tab.url || "New tab",
-            }
-          : {
-              at: filePath,
-              title: segmentsOf(filePath).at(-1) ?? filePath,
-            };
-      }),
+      tabs: describeTabs(tabs),
       url: location.href,
     };
   };
@@ -1409,8 +1470,47 @@ function OrchestratorLayout() {
                 }
               />
             }
+            foot={
+              // Room along the foot for the drafts put down there, so the
+              // pane's guest, which paints over everything, never paints
+              // over a bar.
+              compose.placed.some((entry) => entry.placement === "bar") ? (
+                <div className="h-9 shrink-0" />
+              ) : null
+            }
+            overlay={
+              <ComposeLayer
+                browser={browser}
+                compose={compose}
+                drafts={drafts}
+                isStarting={startingId}
+                modelURI={modelURI}
+                onChangeDraft={(id, update) => {
+                  setDrafts((current) =>
+                    current.map((entry) =>
+                      entry.id === id
+                        ? { ...update(entry), updatedAt: Date.now() }
+                        : entry,
+                    ),
+                  );
+                }}
+                onCloseDraft={closeDraft}
+                onModelChange={setDefaultModelURI}
+                onStart={startThread}
+                openOutside={(href) => {
+                  openScreen(href, { newTab: true });
+                }}
+                topics={topics}
+              />
+            }
             rail={
-              <AppRail onChoose={setPlace} onNew={newDraft} place={place} />
+              <AppRail
+                onChoose={setPlace}
+                onNew={() => {
+                  newDraft();
+                }}
+                place={place}
+              />
             }
             rowRef={setRowElement}
           >
@@ -1456,7 +1556,10 @@ function OrchestratorLayout() {
                     >
                       <PageOpenContext value={(url) => openPage(url)}>
                         <ThreadPane
-                          drafts={drafts}
+                          // Only a draft with words is a draft to come back
+                          // to; one being written with none yet is its
+                          // window's alone.
+                          drafts={drafts.filter(hasWords)}
                           onDeleteDraft={deleteDraft}
                           onListed={(listed) => {
                             listedThreads.current = listed;
@@ -1490,16 +1593,8 @@ function OrchestratorLayout() {
                   conversation={
                     <div className="relative flex h-full min-h-0 flex-col">
                       {/* The threads, kept mounted behind the one on screen so
-                      switching back is the transcript as it was, and kept
-                      laid out under a draft for the same reason. */}
-                      <div
-                        aria-hidden={draftOnScreen !== undefined}
-                        className={cn(
-                          "absolute inset-0 flex flex-col",
-                          draftOnScreen !== undefined &&
-                            "pointer-events-none invisible",
-                        )}
-                      >
+                      switching back is the transcript as it was. */}
+                      <div className="absolute inset-0 flex flex-col">
                         <ThreadHeader
                           onNewTopic={() => {
                             setNewTopicOpen(true);
@@ -1522,36 +1617,6 @@ function OrchestratorLayout() {
                           />
                         </div>
                       </div>
-                      {draftOnScreen && (
-                        <div className="absolute inset-0">
-                          <DraftComposer
-                            draft={draftOnScreen}
-                            isStarting={isStarting}
-                            key={draftOnScreen.id}
-                            modelURI={modelURI}
-                            onChange={(update) => {
-                              setDrafts((current) =>
-                                current.map((entry) =>
-                                  entry.id === draftOnScreen.id
-                                    ? {
-                                        ...update(entry),
-                                        updatedAt: Date.now(),
-                                      }
-                                    : entry,
-                                ),
-                              );
-                            }}
-                            onModelChange={setDefaultModelURI}
-                            onStart={(send) => {
-                              startThread(draftOnScreen.id, send);
-                            }}
-                            topic={topics.find(
-                              (topic) => topic.id === draftOnScreen.topicId,
-                            )}
-                            trailing={showsPane ? null : paneToggle}
-                          />
-                        </div>
-                      )}
                     </div>
                   }
                   isOpen={showsPane}
@@ -1650,10 +1715,18 @@ function OrchestratorLayout() {
                           <ActiveTabProvider isActive={isPageShown}>
                             <BrowserTabs
                               chromeInto={chromeSlot}
+                              compose={compose.hosts}
                               ref={setBrowser}
                               threadOfTask={childThreads}
                             />
                           </ActiveTabProvider>
+                          {/* The page's guest is parked under a draft
+                            window, so the pane says so where the page was. */}
+                          {compose.covers && isPageOnScreen && (
+                            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-background text-xs text-muted-foreground">
+                              Hidden while you write
+                            </div>
+                          )}
                         </div>
                         {/* The thread's tasks as the pane's face, over the tab
                         up: the list, or the task pressed in it. */}

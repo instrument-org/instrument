@@ -100,6 +100,24 @@ export const draftsAtom = atomWithStorage<Draft[]>(
  */
 export const draftSnapshotsAtom = atom<Record<string, PromptInputDraft>>({});
 
+/** One draft being written: which draft, and how its window stands. */
+export interface ComposeEntry {
+  draftId: string;
+  placement: ComposePlacement;
+}
+
+/** How a draft window stands: docked along the window's foot, grown to fill the window, or put down to a bar along the foot. */
+export type ComposePlacement = "bar" | "docked" | "expanded";
+
+/**
+ * The drafts open in windows that float over the inbox and the thread, the
+ * way a mail client keeps several compose windows along its foot, oldest
+ * first: the newest stands at the right, and the ones there is no room for
+ * are not drawn. In memory only: a launch opens with nothing being written,
+ * and the drafts themselves are in `draftsAtom`.
+ */
+export const composeAtom = atom<ComposeEntry[]>([]);
+
 /** The places the rail at the window's edge switches between: Home, the chat, and the files. */
 export type AppPlace = "chat" | "files" | "home";
 

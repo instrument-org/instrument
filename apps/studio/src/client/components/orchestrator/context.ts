@@ -17,7 +17,7 @@ export interface OpenOptions {
 
 /** What every screen of the orchestrator window shares. */
 export interface OrchestratorWindow {
-  /** Sends a line at the top level of the chat, as typing it would, which opens a thread with it. */
+  /** Opens a draft of a new thread with the line already in it, to be read and sent by the person; inside a thread, sends the line there. */
   ask: (prompt: string) => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
@@ -37,7 +37,7 @@ export interface OrchestratorWindow {
    * link has no second destination left to offer.
    */
   opensNewTab?: boolean;
-  /** The thread a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a new thread. */
+  /** The thread a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */
   sessionId?: StoreId.Session;
   taskId: TaskId;
 }

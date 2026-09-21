@@ -4,6 +4,25 @@ import { MOUNT } from "@instrument-org/workspace/client";
 
 import { useOrchestrator } from "./context";
 import { isInside, segmentsOf } from "./host-path";
+import { parseHref } from "./window-tabs";
+
+/**
+ * The folder or file a computer tab's address names, the way the computer
+ * route reads its search; undefined for an address that is not the
+ * computer's.
+ */
+export function computerTabOf(href: string) {
+  const { pathname, search } = parseHref(href);
+  if (pathname !== "/orchestrator/computer") {
+    return;
+  }
+  const file = search.get("file");
+  return {
+    ...(file === null ? {} : { file }),
+    path: search.get("path") ?? "",
+    root: search.get("root") ?? "~",
+  };
+}
 
 /**
  * The address of a file's tab: the folder view with the file open in it, by

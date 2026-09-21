@@ -1,5 +1,5 @@
 import { featuresAtom } from "@/client/atoms/features";
-import { InternalLink } from "@/client/components/internal-link";
+import { SkillLink } from "@/client/components/skill-link";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
@@ -138,17 +138,16 @@ function SkillChangeRow({
   }
 
   return (
-    <InternalLink
+    <SkillLink
       className={cn(
         CARD_CLASS_NAME,
         "group/skill select-none hover:bg-muted/40 dark:hover:bg-muted/40",
       )}
+      name={addressableName}
       openInCurrentTab
-      params={{ name: addressableName }}
-      to="/skills/$name"
     >
       {body}
       <CaretRightIcon className="size-4 shrink-0 text-muted-foreground/40 group-hover/skill:text-muted-foreground" />
-    </InternalLink>
+    </SkillLink>
   );
 }

@@ -32,8 +32,12 @@ import { type AppsBySlug } from "./apps-by-slug";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { RowActionBar } from "./row-action-bar";
-import { rowClassName, type RowDensity, stopHere } from "./row-shell";
-import { useThreadActions } from "./thread-actions";
+import {
+  type RowAction,
+  rowClassName,
+  type RowDensity,
+  stopHere,
+} from "./row-shell";
 import { type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
@@ -70,6 +74,7 @@ const PICKER_LEAVE_MS = 250;
  * way to open the thread and its topics.
  */
 export function ThreadRow({
+  actions,
   appsBySlug,
   density,
   isOpen,
@@ -79,6 +84,8 @@ export function ThreadRow({
   thread,
   topics,
 }: {
+  /** The thread's actions, answered by the list for every row through one set of mutations. */
+  actions: RowAction[];
   appsBySlug: AppsBySlug;
   density: RowDensity;
   /** Whether this thread is the one open beside the list. */
@@ -109,7 +116,6 @@ export function ThreadRow({
       }, PICKER_LEAVE_MS);
     }
   };
-  const actions = useThreadActions(thread);
   const isUnseen = thread.unread > 0;
   // What the thread's composer holds, whether or not it is on screen.
   const draft = useAtomValue(

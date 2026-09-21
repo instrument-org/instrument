@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { type AppsBySlug } from "./apps-by-slug";
 import { DraftRow } from "./draft-row";
 import { type RowDensity } from "./row-shell";
+import { useThreadActionsFor } from "./thread-actions";
 import { ThreadRow } from "./thread-row";
 import { byActivity, type Thread, type Topic } from "./threads";
 import { useNow } from "./use-now";
@@ -64,6 +65,7 @@ export function ThreadList({
   const now = useNow();
   const ref = useRef<HTMLDivElement>(null);
   const density = useDensity(ref);
+  const actionsFor = useThreadActionsFor();
   useLayoutEffect(() => {
     ref.current?.scrollTo({ top: 0 });
   }, [scrollSignal]);
@@ -85,6 +87,7 @@ export function ThreadList({
       ))
     : byActivity(threads).map((thread) => (
         <ThreadRow
+          actions={actionsFor(thread)}
           appsBySlug={appsBySlug}
           density={density}
           isOpen={thread.id === openId}

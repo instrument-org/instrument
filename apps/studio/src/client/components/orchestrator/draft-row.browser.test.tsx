@@ -1,12 +1,26 @@
 import { type Draft } from "@/client/atoms/orchestrator";
 import { renderInBrowser } from "@/tests/render-browser";
+import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { OrchestratorContext, type OrchestratorWindow } from "./context";
 import { DraftRow } from "./draft-row";
 import { type RowDensity } from "./row-shell";
 import { ThreadList } from "./thread-list";
 import { type Topic } from "./threads";
+
+/** The window the list sits in, as far as a list of drafts can tell: it answers for the threads' actions, which a draft has none of. */
+const WINDOW: OrchestratorWindow = {
+  ask: vi.fn(),
+  browser: null,
+  focusComposer: vi.fn(),
+  openPage: vi.fn(),
+  openPath: vi.fn(),
+  openScreen: vi.fn(),
+  opensNewTab: true,
+  taskId: TaskIdSchema.parse("orchestrator"),
+};
 
 /** The moment every row is read at: a Wednesday afternoon. */
 const NOW = new Date(2026, 8, 16, 14, 30);
@@ -185,34 +199,36 @@ describe("the list of drafts", () => {
     const onOpenDraft = vi.fn();
     const onDeleteDraft = vi.fn();
     const rendered = await renderInBrowser(
-      <div style={{ height: "300px", width: "400px" }}>
-        <ThreadList
-          appsBySlug={new Map()}
-          drafts={[
-            draft({
-              id: "older",
-              updatedAt: Date.now() - 2000,
-              words: "Older",
-            }),
-            draft({
-              id: "newer",
-              updatedAt: Date.now() - 1000,
-              words: "Newer",
-            }),
-          ]}
-          emptyLine="No drafts yet."
-          isLoading={false}
-          onDeleteDraft={onDeleteDraft}
-          onNewTopic={vi.fn()}
-          onOpen={vi.fn()}
-          onOpenDraft={onOpenDraft}
-          onSetTopics={vi.fn()}
-          openId={undefined}
-          scrollSignal={0}
-          threads={[]}
-          topics={[]}
-        />
-      </div>,
+      <OrchestratorContext value={WINDOW}>
+        <div style={{ height: "300px", width: "400px" }}>
+          <ThreadList
+            appsBySlug={new Map()}
+            drafts={[
+              draft({
+                id: "older",
+                updatedAt: Date.now() - 2000,
+                words: "Older",
+              }),
+              draft({
+                id: "newer",
+                updatedAt: Date.now() - 1000,
+                words: "Newer",
+              }),
+            ]}
+            emptyLine="No drafts yet."
+            isLoading={false}
+            onDeleteDraft={onDeleteDraft}
+            onNewTopic={vi.fn()}
+            onOpen={vi.fn()}
+            onOpenDraft={onOpenDraft}
+            onSetTopics={vi.fn()}
+            openId={undefined}
+            scrollSignal={0}
+            threads={[]}
+            topics={[]}
+          />
+        </div>
+      </OrchestratorContext>,
     );
     const rows = [
       ...rendered.container.querySelectorAll<HTMLElement>('[role="button"]'),

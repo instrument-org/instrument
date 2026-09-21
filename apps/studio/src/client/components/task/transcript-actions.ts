@@ -70,20 +70,38 @@ export function useTranscriptActions({
     }),
   );
 
-  const named = label === undefined ? {} : { label };
+  // The session and label the hook was given, or the ones a call names: a
+  // list of sessions saves any of them through one instance rather than one
+  // per row.
+  const targetOf = (target?: Target) => {
+    const name = target?.label ?? label;
+    const session = target?.sessionId ?? sessionId;
+    return session
+      ? {
+          id,
+          sessionId: session,
+          ...(name === undefined ? {} : { label: name }),
+        }
+      : undefined;
+  };
 
   return {
-    copy: (format: TranscriptFormat) => {
-      if (sessionId) {
-        copy.mutate({ format, id, sessionId, ...named });
+    copy: (format: TranscriptFormat, target?: Target) => {
+      const input = targetOf(target);
+      if (input) {
+        copy.mutate({ format, ...input });
       }
     },
     isCopying: copy.isPending,
     isSaving: save.isPending,
-    save: (format: TranscriptFormat) => {
-      if (sessionId) {
-        save.mutate({ format, id, sessionId, ...named });
+    save: (format: TranscriptFormat, target?: Target) => {
+      const input = targetOf(target);
+      if (input) {
+        save.mutate({ format, ...input });
       }
     },
   };
 }
+
+/** Which session a call is about, when it is not the one the hook was given. */
+type Target = { label?: string; sessionId: StoreId.Session };

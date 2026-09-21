@@ -16,6 +16,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { OrchestratorContext, type OrchestratorWindow } from "./context";
 import { type RowDensity } from "./row-shell";
+import { useThreadActionsFor } from "./thread-actions";
 import { ThreadRow } from "./thread-row";
 import { type Thread, type Topic } from "./threads";
 
@@ -272,31 +273,37 @@ async function renderRows(
     store?: ReturnType<typeof createStore>;
   } = {},
 ) {
+  // The rows' actions come from the list, which asks once for all of them.
+  function Rows() {
+    const actionsFor = useThreadActionsFor();
+    return specs.map((spec, index) => (
+      <div
+        key={index}
+        style={{ width: spec.density === "slim" ? "800px" : "400px" }}
+      >
+        <ThreadRow
+          actions={actionsFor(spec.thread)}
+          appsBySlug={
+            new Map([
+              ["github", { name: "GitHub", site: "https://github.com" }],
+            ])
+          }
+          density={spec.density}
+          isOpen={false}
+          onNewTopic={vi.fn()}
+          onOpen={onOpen}
+          onSetTopics={onSetTopics}
+          thread={spec.thread}
+          topics={[HOUSE, MONEY]}
+        />
+      </div>
+    ));
+  }
   const rendered = await renderInBrowser(
     <OrchestratorContext value={paneWindow(openScreen)}>
       {/* The toasts the row's actions raise land here, and stay until read. */}
       <Toaster duration={Infinity} />
-      {specs.map((spec, index) => (
-        <div
-          key={index}
-          style={{ width: spec.density === "slim" ? "800px" : "400px" }}
-        >
-          <ThreadRow
-            appsBySlug={
-              new Map([
-                ["github", { name: "GitHub", site: "https://github.com" }],
-              ])
-            }
-            density={spec.density}
-            isOpen={false}
-            onNewTopic={vi.fn()}
-            onOpen={onOpen}
-            onSetTopics={onSetTopics}
-            thread={spec.thread}
-            topics={[HOUSE, MONEY]}
-          />
-        </div>
-      ))}
+      <Rows />
     </OrchestratorContext>,
     store ? { store } : {},
   );

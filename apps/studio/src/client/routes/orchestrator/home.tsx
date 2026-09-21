@@ -16,6 +16,7 @@ import {
   homeRelative,
 } from "@/client/components/orchestrator/host-path";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
+import { PageSection } from "@/client/components/orchestrator/page-section";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { SKILLS_HREF } from "@/client/components/orchestrator/tab-location";
@@ -125,7 +126,7 @@ function HomeRoute() {
       <div className="mx-auto w-full max-w-3xl space-y-8">
         {/* The places the user kept, which is what a bookmark is: their own
             choice, before anything the app has to offer. */}
-        <Section title="Bookmarks">
+        <PageSection title="Bookmarks">
           {pins.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Right-click a tab to pin it here.
@@ -163,11 +164,11 @@ function HomeRoute() {
               ))}
             </Tiles>
           )}
-        </Section>
+        </PageSection>
 
         {/* The services the workspace reaches, each a tile; the rest, and
             connecting a new one, are behind the head's button. */}
-        <Section
+        <PageSection
           action={{
             icon: <AppWindowIcon className="size-4" />,
             label: "All apps",
@@ -204,14 +205,14 @@ function HomeRoute() {
               ))}
             </Tiles>
           )}
-        </Section>
+        </PageSection>
 
         {/* The computer, and the folders a person keeps things in. The
             computer is the door that opens on everything, the Finder whole
             in this tab; the folders beside it are the same door already
             stood in the right place, since a folder is where most trips into
             the computer end. */}
-        <Section
+        <PageSection
           action={{
             icon: <LaptopIcon className="size-4" />,
             label: "Browse",
@@ -238,13 +239,13 @@ function HomeRoute() {
               ))}
             </Tiles>
           )}
-        </Section>
+        </PageSection>
 
         {/* The files the conversation has put in front of the user, newest
             first: the quickest way back to one, without opening the computer
             to find it. The same list the Recents place in the computer shows,
             which is where the rest of it is. */}
-        <Section
+        <PageSection
           {...(recents.data && recents.data.length > RECENTS_SHOWN
             ? {
                 action: {
@@ -274,12 +275,12 @@ function HomeRoute() {
               {...quickLook.props}
             />
           )}
-        </Section>
+        </PageSection>
 
         {/* What Instrument brings to every thread: the skills its tasks can
             load, and where each comes from. Last, since it is the least of
             what the page offers. */}
-        <Section title="Instrument">
+        <PageSection title="Instrument">
           <Tiles>
             <Tile
               icon={
@@ -294,7 +295,7 @@ function HomeRoute() {
               target={{ href: SKILLS_HREF, kind: "screen" }}
             />
           </Tiles>
-        </Section>
+        </PageSection>
       </div>
 
       {quickLook.dialog}
@@ -493,39 +494,6 @@ function RowSkeletons() {
         </div>
       ))}
     </div>
-  );
-}
-
-/**
- * A section: what it is called, in the quiet weight the page reads its heads
- * in, and beside it the one way to the rest of what it holds.
- */
-function Section({
-  action,
-  children,
-  title,
-}: {
-  action?: { icon: ReactNode; label: string; onOpen: () => void };
-  children: ReactNode;
-  title: string;
-}) {
-  return (
-    <section>
-      <div className="flex h-8 items-center justify-between">
-        <h2 className="text-lg font-medium text-muted-foreground">{title}</h2>
-        {action ? (
-          <button
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-sm text-muted-foreground shadow-xs hover:text-foreground"
-            onClick={action.onOpen}
-            type="button"
-          >
-            {action.icon}
-            {action.label}
-          </button>
-        ) : null}
-      </div>
-      <div className="mt-3">{children}</div>
-    </section>
   );
 }
 

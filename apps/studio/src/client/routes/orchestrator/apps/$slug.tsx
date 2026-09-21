@@ -1,11 +1,14 @@
+import { visitedPagesAtom } from "@/client/atoms/orchestrator";
 import { blockToolbarButtonClassName } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import { InternalLink } from "@/client/components/internal-link";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
+import { visitsWithin } from "@/client/components/orchestrator/app-visits";
 import { ConnectControls } from "@/client/components/orchestrator/connect-controls";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
+import { VisitedPageRows } from "@/client/components/orchestrator/visited-page-rows";
 import { RelativeTime } from "@/client/components/relative-time";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -19,18 +22,24 @@ import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
 
 /** How many placeholder rows stand in for a tool list still on its way. */
 const TOOL_PLACEHOLDER_ROWS = 6;
 
+/** How many of the pages visited in the app its front lists. */
+const VISITS_SHOWN = 8;
+
 /**
- * An app's page. Before it is connected, a listing: what the directory says
- * it is and what connecting takes, with the one control that finishes that.
- * Connected, it is a connection: the service itself a click away, the way to
- * ask about it, whose it is and since when, what it can do, and a menu by its
- * name for taking it away.
+ * An app's page, which is its front: where you have been in it lately, out
+ * of the window's own browsing held to the app's site, with the app itself
+ * one labeled button away. Before it is connected, a listing: what the
+ * directory says it is and what connecting takes, with the one control that
+ * finishes that. Connected, it is a connection too: the way to ask about
+ * it, whose it is and since when, what it can do, and a menu by its name
+ * for taking it away.
  */
 export const Route = createFileRoute("/orchestrator/apps/$slug")({
   component: AppRoute,
@@ -56,6 +65,10 @@ function AppRoute() {
     },
     screen: "apps",
   });
+  // The pages the window has shown on the app's site, newest first: the
+  // best place to start in an app is where you already were in it.
+  const visited = useAtomValue(visitedPagesAtom);
+  const visits = visitsWithin(visited, [{ name, site }]).slice(0, VISITS_SHOWN);
 
   const tools = useQuery(
     rpcClient.apps.tools.queryOptions({
@@ -136,13 +149,20 @@ function AppRoute() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-10">
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
       {/* No way back up to Apps here: the row above says where this is. */}
       <div className="flex items-center gap-4">
-        <AppIcon site={site} size="lg" />
+        <span className="grid size-16 shrink-0 place-items-center rounded-2xl border border-border bg-card p-2 shadow-xs">
+          <AppIcon
+            className="size-full rounded-xl"
+            name={name}
+            site={site}
+            size="lg"
+          />
+        </span>
         <div className="min-w-0">
           <div className="flex items-center gap-1">
-            <h1 className="text-lg font-semibold">{name}</h1>
+            <h1 className="text-[22px] leading-7 font-semibold">{name}</h1>
             {app ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -191,22 +211,27 @@ function AppRoute() {
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {/* The site is a site whether or not the app is connected, so the
+              way to it is always here; connecting is what the agent needs,
+              not what a person needs to open a page. */}
+          {home && browser ? (
+            <Button
+              onClick={openHome}
+              size="sm"
+              variant={isConnected ? "default" : "outline"}
+            >
+              Open {domain}
+            </Button>
+          ) : null}
           {isConnected ? (
-            <>
-              {home && browser ? (
-                <Button onClick={openHome} size="sm">
-                  Open {domain}
-                </Button>
-              ) : null}
-              <GlyphButton
-                onClick={() => {
-                  ask(`What can you do with ${name} for me?`);
-                }}
-                size="sm"
-              >
-                Ask about {name}
-              </GlyphButton>
-            </>
+            <GlyphButton
+              onClick={() => {
+                ask(`What can you do with ${name} for me?`);
+              }}
+              size="sm"
+            >
+              Ask about {name}
+            </GlyphButton>
           ) : app?.standing === "needs-sign-in" ? (
             <ConnectControls kind="sign-in" name={name} slug={slug} />
           ) : app?.standing === "needs-approval" ? (
@@ -239,6 +264,18 @@ function AppRoute() {
       ) : null}
 
       <div className="mt-6 grid max-w-3xl gap-6">
+        {/* Where you were in the app, first: a recent page is a row you
+            press, not a name you have to type back into the field. */}
+        {visits.length > 0 ? (
+          <section>
+            <p className="px-3 text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
+              Recently visited
+            </p>
+            <div className="mt-2">
+              <VisitedPageRows onOpen={openPage} visits={visits} />
+            </div>
+          </section>
+        ) : null}
         {app?.connection && app.standing !== "untested" ? (
           <Block label="Status">
             <Line>

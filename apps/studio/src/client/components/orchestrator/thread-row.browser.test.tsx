@@ -930,6 +930,29 @@ describe("the row's actions", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
+  // The click that puts a row's menu away is a click on whatever it landed
+  // on: a reader who right-clicked one row and then clicked another asked to
+  // open the second, and a menu that ate the click made the list feel dead.
+  it("lets the click that puts one row's menu away open another row", async () => {
+    const onOpen = vi.fn();
+    const { rows } = await renderRows(
+      [
+        { density: "tall", thread: thread({ title: `${TITLE} one` }) },
+        { density: "tall", thread: thread({ title: `${TITLE} two` }) },
+      ],
+      { onOpen },
+    );
+    const [first, second] = rows;
+    if (!first || !second) {
+      throw new Error("no rows");
+    }
+    await userEvent.click(first, { button: "right" });
+    await expect.element(page.getByRole("menu")).toBeVisible();
+    await userEvent.click(second);
+    await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
   // The row's controls take a click each, so the click stops at them; a
   // right click is the row's whatever is under the pointer, or the menu is
   // only there on the words.

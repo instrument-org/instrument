@@ -168,7 +168,12 @@ export function ThreadRow({
     </>
   );
   return (
-    <ContextMenu>
+    // Not modal: a modal menu takes the pointer from the whole page while it
+    // is up, so the click that put it away was eaten, and a reader who
+    // right-clicked one row and then clicked another had asked for the second
+    // and got nothing. The list is a list of doors; a click on one is a click
+    // on one.
+    <ContextMenu modal={false}>
       <ContextMenuTrigger asChild>
         <div
           className={rowClassName(density, isOpen)}

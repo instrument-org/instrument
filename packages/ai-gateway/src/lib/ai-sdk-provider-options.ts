@@ -64,5 +64,24 @@ export function providerOptionsForModel(
     }
   }
 
+  if (
+    typeof model !== "string" &&
+    model.provider === "openai.responses" &&
+    model.modelId.includes("/") &&
+    reasoning
+  ) {
+    // A vendor prefix on the id means OpenRouter is answering in OpenAI's
+    // shape. The SDK reads reasoning support off the bare id, so it is told
+    // outright when the catalog says the model reasons; with the `store:
+    // false` the model's middleware sets, that also has it ask for reasoning
+    // back encrypted. Summaries are what the Chat Completions path showed as
+    // the model's thinking, so they stay on even when an effort is set.
+    result.openai = {
+      ...result.openai,
+      forceReasoning: true,
+      reasoningSummary: "auto",
+    } satisfies OpenAIResponsesProviderOptions;
+  }
+
   return result;
 }

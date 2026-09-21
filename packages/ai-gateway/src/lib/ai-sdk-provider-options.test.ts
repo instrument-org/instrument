@@ -99,6 +99,32 @@ describe("providerOptionsForModel", () => {
     },
   );
 
+  it("tells the SDK a model behind OpenRouter reasons when the catalog says so", () => {
+    expect(
+      providerOptionsForModel(
+        model("openai.responses", "openai/gpt-5.6-luna"),
+        {
+          effort: "low",
+          reasoning: { efforts: [], enabledByDefault: true, mandatory: false },
+        },
+      ),
+    ).toEqual({
+      openai: {
+        forceReasoning: true,
+        reasoningEffort: "low",
+        reasoningSummary: "auto",
+      },
+    });
+  });
+
+  it("asks nothing of a model behind OpenRouter the catalog does not say reasons", () => {
+    expect(
+      providerOptionsForModel(model("openai.responses", "openai/gpt-4.1"), {
+        effort: "low",
+      }),
+    ).toEqual({});
+  });
+
   it("names the model's own provider rather than the one asking", () => {
     expect(
       providerOptionsForModel(

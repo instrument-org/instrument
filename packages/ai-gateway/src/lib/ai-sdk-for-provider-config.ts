@@ -12,6 +12,7 @@ import { getPackageForProviderType } from "./bundled-providers";
 import { isWorkersAiProviderConfig } from "./fetch-models/parse-workers-ai-base-url";
 import { internalURL } from "./internal-url";
 import { internalAPIKey } from "./key-for-provider";
+import { createOpenRouterLanguageModel } from "./openrouter-language-model";
 import { repairWorkersAiStream } from "./workers-ai-stream-repair";
 
 export async function aiSDKForProviderConfig(
@@ -85,7 +86,11 @@ export async function aiSDKForProviderConfig(
       return createXAISDK(config, workspaceServerURL);
     }
     case "@openrouter/ai-sdk-provider": {
-      return createOpenRouterSDK(config, workspaceServerURL);
+      return createOpenRouterLanguageModel({
+        chat: await createOpenRouterSDK(config, workspaceServerURL),
+        config,
+        workspaceServerURL,
+      });
     }
     case "ai-sdk-ollama": {
       const { createOllama } = await import("ai-sdk-ollama");

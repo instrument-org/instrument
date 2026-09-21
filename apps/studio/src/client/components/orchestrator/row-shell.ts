@@ -32,14 +32,20 @@ export const ROW_TINT =
  * of the list's edges and square corners, and, for the row whose thread is
  * open beside the list, the shape of a card lifted off the list: the card's
  * ground, rounded corners, an edge, no tint, and no hairline of its own or
- * on the row under it.
+ * on the row under it. The card takes the air around it out of its own
+ * height rather than adding it, so its footprint in the list is a resting
+ * row's and nothing under it moves as a thread opens or closes: its words
+ * stay where the row had them, with a hair less of the card's ground above
+ * and below them.
  */
 export function rowClassName(density: RowDensity, isOpen: boolean) {
   return cn(
     "group/row relative flex cursor-default gap-2 border-t border-border px-2 select-none first:border-t-0 focus-visible:outline-hidden [[data-open]+&]:border-transparent",
-    density === "slim" ? "h-9 items-center" : "items-start py-2.5",
+    density === "slim"
+      ? cn("items-center", isOpen ? "my-0.5 h-8" : "h-9")
+      : cn("items-start", isOpen ? "my-0.5 py-2" : "py-2.5"),
     isOpen
-      ? "my-1 rounded-xl border-transparent bg-card shadow-sm ring-1 ring-border"
+      ? "rounded-xl border-transparent bg-card shadow-sm ring-1 ring-border"
       : ROW_TINT,
   );
 }

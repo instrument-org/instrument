@@ -60,9 +60,11 @@ function openPicker(picker: HTMLElement) {
 function renderHead({
   filters = NO_FILTERS,
   threads = THREADS,
+  topics = [HOUSE, MONEY],
 }: {
   filters?: ThreadFilters;
   threads?: Filterable[];
+  topics?: Topic[];
 } = {}) {
   const onFiltersChange = vi.fn();
   const onNewTopic = vi.fn();
@@ -73,7 +75,7 @@ function renderHead({
       onNewTopic={onNewTopic}
       onTopicDetails={vi.fn()}
       threads={threads}
-      topics={[HOUSE, MONEY]}
+      topics={topics}
     />,
   );
   return {
@@ -99,10 +101,33 @@ describe("FilterHead", () => {
       ["Drafts", ""],
       ["All", ""],
     ]);
+    // Standing in no topic, the picker wears the topics' own marks ahead of
+    // the word, so the line says what is inside it.
+    expect(head.getByRole("button", { name: "Topic" }).textContent).toBe(
+      "🏠💸Topic",
+    );
+    expect(head.queryByRole("button", { name: "New" })).toBeNull();
+  });
+
+  it("is the word alone while the user has no topics to show the marks of", () => {
+    const { head } = renderHead({ topics: [] });
     expect(head.getByRole("button", { name: "Topic" }).textContent).toBe(
       "Topic",
     );
-    expect(head.queryByRole("button", { name: "New" })).toBeNull();
+  });
+
+  it("shows the marks of the first few topics only", () => {
+    const { head } = renderHead({
+      topics: [
+        HOUSE,
+        MONEY,
+        { ...HOUSE, emoji: "🚲", id: "bikes", name: "Bikes" },
+        { ...HOUSE, emoji: "🌊", id: "sea", name: "Sea" },
+      ],
+    });
+    expect(head.getByRole("button", { name: "Topic" }).textContent).toBe(
+      "🏠💸🚲Topic",
+    );
   });
 
   it("counts the unread among the starred, keeps a thread put away out of the inbox's count, and offers Needs you only while something waits", () => {

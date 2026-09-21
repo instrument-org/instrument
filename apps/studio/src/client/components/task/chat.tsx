@@ -56,6 +56,7 @@ import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ChatZeroState } from "./chat-zero-state";
 import { QueuedPrompts } from "./queued-prompts";
+import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 import { TutorialPromptCard } from "./tutorial-prompt-card";
 
 // How long a submitted prompt follows the transcript on its own before the
@@ -147,6 +148,7 @@ export function TaskChat({
   useHydrateTaskDraft(id, promptDraft);
 
   const promptInputRef = useRef<PromptInputRef>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [scrollToEndSignal, setScrollToEndSignal] = useState(0);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
 
@@ -475,12 +477,15 @@ export function TaskChat({
       key={selectedSessionId}
       scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
     >
-      {/* The session is half the signal: arriving in a conversation puts you
-        at its live edge the way opening one does, and switching channels is
-        arriving. Without it the transcript kept whatever offset the previous
-        channel happened to leave behind. */}
+      {/* The session is part of the signal: arriving in a conversation puts
+        you at its live edge the way opening one does, and switching threads
+        is arriving. Without it the transcript kept whatever offset the
+        previous thread happened to leave behind. The messages landing is the
+        other part: they are read after the conversation mounts, and the end
+        of a spinner is not the end of the thread. */}
       <ScrollToEndBridge
-        signal={`${selectedSessionId ?? ""}:${scrollToEndSignal}`}
+        contentRef={contentRef}
+        signal={`${selectedSessionId ?? ""}:${isLoadingMessages ? "loading" : "loaded"}:${scrollToEndSignal}`}
       />
       <div className="flex h-full min-h-0 flex-col">
         <MessageScroller className="min-h-0 flex-1">
@@ -492,7 +497,10 @@ export function TaskChat({
             className="@container/transcript"
             data-transcript
           >
-            <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
+            <MessageScrollerContent
+              className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]"
+              ref={contentRef}
+            >
               {selectedSessionId ? (
                 isLoadingMessages ? (
                   <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
@@ -605,38 +613,6 @@ export function TaskChat({
       </div>
     </MessageScrollerProvider>
   );
-}
-
-// The scroll commands come from the provider's context, so they are only
-// reachable below it. This renders nothing and exists to run scrollToEnd for
-// the submit handler, which sits above the provider, and for arriving in a
-// conversation. A changing value rather than a direct call, so the scroll runs
-// from the render that turned autoScroll on and the scroller arms
-// follow-bottom with it.
-/** How long a transcript is given to settle after it arrives before the edge is taken a last time. */
-const SETTLE_MS = 250;
-
-function ScrollToEndBridge({ signal }: { signal: string }) {
-  const { scrollToEnd } = useMessageScroller();
-
-  useLayoutEffect(() => {
-    scrollToEnd();
-    // The transcript settles after it is laid out: images size themselves,
-    // Markdown finishes, a code block measures. An end reached before that
-    // is short of the end, so the edge is taken again once things have.
-    const frame = requestAnimationFrame(() => {
-      scrollToEnd();
-    });
-    const later = setTimeout(() => {
-      scrollToEnd();
-    }, SETTLE_MS);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(later);
-    };
-  }, [scrollToEnd, signal]);
-
-  return null;
 }
 
 // The transcript, wired to the scroller it is drawn in. ChatStream also renders

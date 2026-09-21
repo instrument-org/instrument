@@ -28,7 +28,7 @@ Renderer: React 19, TanStack Router file routes, shadcn UI, oRPC to main process
 - Route matching: `useMatchRoute`, never pathname strings.
 - After adding/removing/renaming files under `src/client/routes`, run `pnpm --filter @instrument-org/studio run routes:generate`. Don't hand-edit `routeTree.gen.ts`.
 - RPC types: `RPCInput`/`RPCOutput` from `@/client/rpc/client`. Never redeclare inferable types.
-- Persisted renderer state (`atomWithStorage`) takes a `studio.<name>.v<n>` key. The namespace keeps it apart from everything else sharing the origin; the version is what lets the value's meaning change later, since bumping it makes an old one ignored rather than read as something it is not. That failure is silent — a pane width stored in pixels and later read as a fraction is a pane a hundred times too small.
+- Persisted renderer state (`atomWithStorage`) takes a `studio.<name>.v<n>` key. The namespace keeps it apart from everything else sharing the origin; the version is what lets the value's meaning change later, since bumping it makes an old one ignored rather than read as something it is not. That failure is silent — a pane width stored in pixels and later read as a fraction is a pane a hundred times too small. The 2.0 window's atoms (`atoms/orchestrator.ts`) take `orchestrator.<name>.v<n>` instead: the same shape under the window's own namespace, so its tabs, drafts, and pane state read as one set and never collide with a main-window key of the same name.
 
 ## Windows
 

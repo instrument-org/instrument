@@ -1,6 +1,8 @@
 import { NEW_TAB_HREF, THREADS_HREF } from "@/client/atoms/orchestrator";
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { FileIcon } from "@/client/components/file-icon";
+import {
+  FileSystemFolderGlyph,
+  FileTypeIcon,
+} from "@/client/components/extend/file-system";
 import { StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
@@ -101,7 +103,7 @@ export function screenPresentation(
     if (file) {
       const name = segmentsOf(file).at(-1) ?? file;
       return {
-        icon: <FileIcon className="size-4" filename={name} />,
+        icon: <FileTypeIcon className="size-4" fileName={name} />,
         title: name,
       };
     }

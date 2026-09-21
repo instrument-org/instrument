@@ -3,8 +3,10 @@ import {
   type VisitedPage,
   visitedPagesAtom,
 } from "@/client/atoms/orchestrator";
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { FileIcon } from "@/client/components/file-icon";
+import {
+  FileSystemFolderGlyph,
+  FileTypeIcon,
+} from "@/client/components/extend/file-system";
 import {
   Popover,
   PopoverAnchor,
@@ -233,11 +235,7 @@ export function ComposeZeroState({
                   label="All recent files"
                   rows={recents.data.map((file) => ({
                     icon: (
-                      <FileIcon
-                        className="size-4"
-                        filename={file.name}
-                        mimeType={file.mimeType}
-                      />
+                      <FileTypeIcon className="size-4" fileName={file.name} />
                     ),
                     key: file.path,
                     line: homeRelative(folderOf(file.path), home?.path),
@@ -260,11 +258,7 @@ export function ComposeZeroState({
               recents.data.slice(0, FILES_SHOWN).map((file) => (
                 <Mark
                   icon={
-                    <FileIcon
-                      className="size-3.5"
-                      filename={file.name}
-                      mimeType={file.mimeType}
-                    />
+                    <FileTypeIcon className="size-3.5" fileName={file.name} />
                   }
                   key={file.path}
                   name={file.name}
@@ -318,14 +312,7 @@ export function ComposeZeroState({
                 title={`Name ${app.name} in your message`}
                 type="button"
               >
-                <span className="grid size-11 place-items-center overflow-hidden rounded-xl bg-card shadow-xs">
-                  <AppIcon
-                    className="size-7 rounded-md"
-                    name={app.name}
-                    site={app.site}
-                    size="md"
-                  />
-                </span>
+                <AppIcon name={app.name} site={app.site} size="lg" />
                 <span className="w-full truncate px-0.5 text-center text-[10px] text-gray-700 dark:text-gray-300">
                   {app.name}
                 </span>

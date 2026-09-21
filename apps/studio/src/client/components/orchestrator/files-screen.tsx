@@ -1,5 +1,5 @@
 import { type FileTab } from "@/client/atoms/orchestrator";
-import { FileIcon } from "@/client/components/file-icon";
+import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FileViewer } from "@/client/components/file-viewer";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
@@ -285,7 +285,7 @@ function FileCrumbs({ file }: { file: FileTab }) {
             )}
             {isHere ? (
               <span className="flex min-w-0 items-center gap-1.5 font-medium">
-                <FileIcon className="size-3.5 shrink-0" filename={file.name} />
+                <FileTypeIcon className="size-3.5" fileName={file.name} />
                 <span className="truncate">{crumb.label}</span>
               </span>
             ) : (

@@ -190,7 +190,7 @@ function AppFan() {
           key={app.slug}
         >
           <AppIcon
-            className="size-full bg-transparent"
+            className="size-full bg-transparent p-0 shadow-none ring-0"
             name={app.name}
             site={app.site}
             size="sm"

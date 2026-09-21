@@ -1,6 +1,8 @@
 import { NEW_TAB_HREF } from "@/client/atoms/orchestrator";
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { FileIcon } from "@/client/components/file-icon";
+import {
+  FileSystemFolderGlyph,
+  FileTypeIcon,
+} from "@/client/components/extend/file-system";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
@@ -349,7 +351,7 @@ function locationMark(location: TabLocation): ReactNode {
     case "file": {
       // A file wears its own type's mark, the way a site wears a favicon: it
       // is the one thing about a file you can tell before opening it.
-      return <FileIcon className="size-4 shrink-0" filename={location.name} />;
+      return <FileTypeIcon className="size-4" fileName={location.name} />;
     }
     case "folder": {
       return <FileSystemFolderGlyph className="h-3 w-auto shrink-0" />;

@@ -13,8 +13,8 @@ import {
   type WindowTabs,
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
+import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { Favicon } from "@/client/components/favicon";
-import { FileIcon } from "@/client/components/file-icon";
 import { TaskBrowserPanel } from "@/client/components/task/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
@@ -1005,9 +1005,9 @@ export function TabIcon({
   const filePath = hostPathOfFileUrl(url);
   if (filePath !== undefined) {
     return (
-      <FileIcon
+      <FileTypeIcon
         className="size-3.5"
-        filename={segmentsOf(filePath).at(-1) ?? filePath}
+        fileName={segmentsOf(filePath).at(-1) ?? filePath}
       />
     );
   }

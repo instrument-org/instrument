@@ -83,19 +83,15 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
       title={waiting ? `${app.name}: ${waiting}` : app.name}
       type="button"
     >
-      <span
+      <AppIcon
         className={cn(
-          "grid size-16 place-items-center rounded-2xl border border-border bg-card p-2 shadow-xs transition-shadow group-hover:shadow-md",
+          "transition-shadow group-hover:shadow-md",
           waiting && "opacity-60",
         )}
-      >
-        <AppIcon
-          className="size-full rounded-xl"
-          name={app.name}
-          site={app.site}
-          size="lg"
-        />
-      </span>
+        name={app.name}
+        site={app.site}
+        size="xl"
+      />
       <span className="w-full truncate text-[13px] leading-4 font-medium">
         {app.name}
       </span>

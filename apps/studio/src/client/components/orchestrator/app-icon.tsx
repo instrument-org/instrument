@@ -4,11 +4,15 @@ import { cn } from "@/client/lib/utils";
 import { TOPIC_COLORS } from "./topic-colors";
 
 /**
- * An app's icon: the site's own favicon through the proxy, on a tile, so the
- * directory and the card and the sidebar all draw a service the same way.
- * With no site to ask, or a site with no icon anywhere, the app's initial on
- * a color of its own, so a service without a mark still has a face a person
- * can tell from the next one.
+ * An app's icon: the site's own favicon through the proxy, set into a plate
+ * of its own, so the directory, the card, the band and the rail all draw a
+ * service the same way. The plate is the whole of the tile: one rounded
+ * surface with a hairline, the mark inset a little inside it, so a service
+ * whose mark carries its own square background and one whose mark is bare
+ * read as the same kind of thing, and nothing draws a second frame around
+ * it. With no site to ask, or a site with no icon anywhere, the app's
+ * initial on a color of its own fills the plate instead, so a service
+ * without a mark still has a face a person can tell from the next one.
  */
 export function AppIcon({
   className,
@@ -20,29 +24,30 @@ export function AppIcon({
   /** What the app is called, which its initial and its color come from; the site's host stands in without it. */
   name?: string | undefined;
   site?: string | undefined;
-  size?: "lg" | "md" | "sm";
+  size?: "lg" | "md" | "sm" | "xl";
 }) {
   // Corners rounded a little at every size, never a circle: most services'
-  // icons are square, and a square inside a circle reads as a mistake.
-  const box =
-    size === "lg"
-      ? "size-12 rounded-xl"
-      : size === "sm"
-        ? "size-4 rounded-sm"
-        : "size-9 rounded-lg";
-  // The icon is the tile rather than a mark sitting in the middle of one. A
-  // service's own icon is square and usually carries its own background, so
-  // one drawn small inside a rounded plate reads as two icons: a sharp square
-  // floating in a soft one. Filling the box means the parent's rounding and
-  // its clip are what shape it, and the plate below only ever shows through
-  // an icon that brought no background of its own.
+  // icons are square, and a square inside a circle reads as a mistake. The
+  // inset grows with the plate, so the mark keeps the same share of it.
+  const box = {
+    lg: "size-12 rounded-xl p-2",
+    md: "size-9 rounded-lg p-1.5",
+    sm: "size-4 rounded-sm p-0.5",
+    xl: "size-16 rounded-2xl p-2.5",
+  }[size];
   const label = name ?? hostOf(site);
   const initial = label ? (
     <span
       aria-label={label}
       className={cn(
-        "grid size-full place-items-center font-semibold text-white",
-        size === "lg" ? "text-xl" : size === "sm" ? "text-[9px]" : "text-sm",
+        "grid size-full place-items-center rounded-[inherit] font-semibold text-white",
+        size === "xl"
+          ? "text-2xl"
+          : size === "lg"
+            ? "text-xl"
+            : size === "sm"
+              ? "text-[9px]"
+              : "text-sm",
       )}
       role="img"
       style={{ backgroundColor: colorFor(label) }}
@@ -53,14 +58,18 @@ export function AppIcon({
   return (
     <span
       className={cn(
-        "grid shrink-0 place-items-center overflow-hidden bg-muted",
+        "grid shrink-0 place-items-center overflow-hidden bg-card shadow-xs ring-1 ring-border",
+        // The initial is the plate's own art and fills it edge to edge.
+        !site && "p-0",
         box,
         className,
       )}
     >
       {site ? (
         <Favicon
-          className="size-full rounded-none border-0 bg-transparent ring-0"
+          // A mark that brought a square background of its own is softened
+          // at the corners, so it sits in the plate rather than on it.
+          className="size-full rounded-[22%] border-0 bg-transparent ring-0 dark:bg-transparent"
           fallback={initial}
           url={site}
         />

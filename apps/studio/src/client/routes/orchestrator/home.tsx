@@ -1,6 +1,8 @@
 import { type FileTab, pinsAtom } from "@/client/atoms/orchestrator";
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { FileIcon } from "@/client/components/file-icon";
+import {
+  FileSystemFolderGlyph,
+  FileTypeIcon,
+} from "@/client/components/extend/file-system";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import { computerName } from "@/client/components/orchestrator/computer-name";
@@ -449,11 +451,7 @@ function RecentFiles({
               type="button"
             >
               <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted">
-                <FileIcon
-                  className="size-6"
-                  filename={file.name}
-                  mimeType={file.mimeType}
-                />
+                <FileTypeIcon className="size-6" fileName={file.name} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[15px] font-medium">

@@ -1,6 +1,8 @@
 import { computerHiddenFilesAtom } from "@/client/atoms/orchestrator";
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { FileIcon } from "@/client/components/file-icon";
+import {
+  FileSystemFolderGlyph,
+  FileTypeIcon,
+} from "@/client/components/extend/file-system";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -163,11 +165,7 @@ function Folder({
               <Row
                 depth={depth + 1}
                 icon={
-                  <FileIcon
-                    className="size-3.5"
-                    filename={entry.name}
-                    mimeType={entry.mimeType}
-                  />
+                  <FileTypeIcon className="size-3.5" fileName={entry.name} />
                 }
                 isSelected={entry.path === selected}
                 key={entry.path}

@@ -152,14 +152,7 @@ function AppRoute() {
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
       {/* No way back up to Apps here: the row above says where this is. */}
       <div className="flex items-center gap-4">
-        <span className="grid size-16 shrink-0 place-items-center rounded-2xl border border-border bg-card p-2 shadow-xs">
-          <AppIcon
-            className="size-full rounded-xl"
-            name={name}
-            site={site}
-            size="lg"
-          />
-        </span>
+        <AppIcon name={name} site={site} size="xl" />
         <div className="min-w-0">
           <div className="flex items-center gap-1">
             <h1 className="text-[22px] leading-7 font-semibold">{name}</h1>

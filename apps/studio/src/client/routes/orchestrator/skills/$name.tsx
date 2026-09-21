@@ -1,5 +1,5 @@
 import { CopyButton } from "@/client/components/copy-button";
-import { FileIcon } from "@/client/components/file-icon";
+import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { Markdown } from "@/client/components/markdown";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { RevealPath } from "@/client/components/reveal-path";
@@ -156,10 +156,7 @@ function SkillRoute() {
                       }}
                       type="button"
                     >
-                      <FileIcon
-                        className="size-4 shrink-0 text-muted-foreground"
-                        filename={file}
-                      />
+                      <FileTypeIcon className="size-4" fileName={file} />
                       <span className="truncate font-mono">{file}</span>
                     </button>
                   ))}

@@ -66,17 +66,12 @@ export function ToolWebSearch({
 
   // A search that has not come back is not a search that came back empty. The
   // backend serving our own models returns its results in one piece rather than
-  // streaming them, so a card opened while the call runs has nothing in it for
-  // the whole of the search, and that is the reading the reader is given.
+  // streaming them, so there is nothing to draw for the whole of the search;
+  // the row stays shut until then (`hasOpenableBody`), and this is what it
+  // would open onto if it were forced.
   if (!failureOutput && !hasSearchContent) {
-    return (
-      <ToolCardEmpty
-        message={
-          isActiveToolPart(part)
-            ? "The results have not arrived yet."
-            : "The search returned nothing."
-        }
-      />
+    return isActiveToolPart(part) ? null : (
+      <ToolCardEmpty message="The search returned nothing." />
     );
   }
 

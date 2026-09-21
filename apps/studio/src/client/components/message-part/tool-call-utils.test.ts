@@ -4,7 +4,11 @@ import {
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { isToolPartRunning, stripPatchHeader } from "./tool-call-utils";
+import {
+  hasOpenableBody,
+  isToolPartRunning,
+  stripPatchHeader,
+} from "./tool-call-utils";
 
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
@@ -102,6 +106,30 @@ describe("isToolPartRunning", () => {
 
   it("is over once the call failed", () => {
     expect(isToolPartRunning(failed)).toBe(false);
+  });
+});
+
+describe("hasOpenableBody", () => {
+  const search = (state: "input-available" | "output-available") =>
+    ({
+      ...(state === "output-available"
+        ? { output: { results: [], state: "success" } }
+        : {}),
+      input: { query: "anything" },
+      metadata: metadata(new Date(1)),
+      state,
+      toolCallId,
+      type: "tool-web_search",
+    }) as unknown as SessionMessagePart.ToolPart;
+
+  it("keeps a web search shut until it has come back, and opens it once it has", () => {
+    expect(hasOpenableBody(search("input-available"))).toBe(false);
+    expect(hasOpenableBody(search("output-available"))).toBe(true);
+  });
+
+  it("opens every other call from the start, its input being something to show", () => {
+    expect(hasOpenableBody(queued)).toBe(true);
+    expect(hasOpenableBody(arriving)).toBe(true);
   });
 });
 

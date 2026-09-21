@@ -29,6 +29,7 @@ import {
 } from "../ui/collapsible";
 import { BashCommandChip, BrowserChip, type BrowserInfo } from "./tool-bash";
 import { useToolCallSession } from "./tool-call-session";
+import { hasOpenableBody } from "./tool-call-utils";
 import { FileChip } from "./tool-card";
 import { SourceImagesChip } from "./tool-generate-image";
 import { WebSearchChip } from "./tool-web-search";
@@ -59,6 +60,11 @@ export function ToolCallSummary({
     group?.isHead === true && (group.canExpand || group.isExpanded)
       ? group
       : null;
+
+  // A row with nothing behind it yet is drawn plain: no chevron, and no
+  // disclosure for a click to toggle. As a group's head line it still opens
+  // the group, which is somewhere else to draw.
+  const isOpenable = groupHead !== null || hasOpenableBody(part);
 
   // A call is asked for well before it is worked on, so a row has three states
   // and not two: the one the agent is on, the ones queued behind it, and the
@@ -166,11 +172,17 @@ export function ToolCallSummary({
       <WebSearchChip part={part} />
       <SourceImagesChip id={taskId} part={part} />
       <FileChip part={part} />
-      <RunRowChevron
-        isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}
-      />
+      {isOpenable && (
+        <RunRowChevron
+          isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}
+        />
+      )}
     </div>
   );
+
+  if (!isOpenable) {
+    return <div className="flex min-w-0 items-center gap-2">{trigger}</div>;
+  }
 
   // As a group's head line the row's click belongs to the group: the reader is
   // asking to see the steps behind it, not this one call's output. It keeps the

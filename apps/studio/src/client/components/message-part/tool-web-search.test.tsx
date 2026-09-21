@@ -107,19 +107,19 @@ describe("ToolWebSearch images", () => {
   });
 });
 
-// The search backend serving our own models returns everything at once, so a
-// card the reader opens while the call runs is empty for as long as the search
-// takes -- and an empty card that says the search came back with nothing is
-// reporting a result the search has not reached.
+// The search backend serving our own models returns everything at once, so
+// there is nothing to draw for as long as the search takes -- and an empty
+// card that says the search came back with nothing is reporting a result the
+// search has not reached.
 describe("ToolWebSearch before results arrive", () => {
-  it("says the results are still coming while the call runs", () => {
+  it("draws nothing while the call runs", () => {
     const { container } = renderWithProviders(
       <ToolCallSessionProvider isRunning isStreaming>
         <ToolWebSearch onRetry={vi.fn()} part={runningPart()} />
       </ToolCallSessionProvider>,
     );
 
-    expect(container.textContent).toContain("have not arrived yet");
+    expect(container.textContent).toBe("");
   });
 
   it("says the search came back empty once it has", () => {

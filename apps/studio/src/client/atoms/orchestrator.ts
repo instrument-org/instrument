@@ -339,7 +339,7 @@ export const NEW_TAB_HREF = "/orchestrator/home";
 export const APPS_HREF = "/orchestrator/apps";
 
 /** The address of the computer at the home folder: the tab the Files place opens on. */
-export const COMPUTER_HREF = "/orchestrator/computer?path=&root=~";
+const COMPUTER_HREF = "/orchestrator/computer?path=&root=~";
 
 /**
  * The address a group's new tab opens at: a place's own kind of tab, and

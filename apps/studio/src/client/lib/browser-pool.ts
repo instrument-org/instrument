@@ -358,6 +358,11 @@ export function showOverSlot(
   bounds: Bounds,
   owner: symbol,
   renderedSize?: null | { height: number; width: number },
+  // Where the shown guest stands among the window's own layers. Zero by
+  // default, which puts it over the page's ordinary content and under every
+  // floating layer; a host that itself floats (a draft window) names a layer
+  // above its own, since a guest under an opaque host is a page nobody sees.
+  layer = 0,
 ) {
   const pooled = pool.get(targetId);
   if (!pooled) {
@@ -385,7 +390,7 @@ export function showOverSlot(
     visibility: "visible",
     width: `${bounds.width}px`,
     willChange: "",
-    zIndex: "0",
+    zIndex: String(layer),
   } satisfies Partial<CSSStyleDeclaration>);
 
   if (renderedSize) {

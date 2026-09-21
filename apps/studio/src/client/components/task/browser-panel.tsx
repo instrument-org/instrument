@@ -83,6 +83,8 @@ export function TaskBrowserPanel({
   active,
   chrome = true,
   className,
+  focusAddress = true,
+  layer,
   onViewSource,
   sessionId,
   sliding,
@@ -97,6 +99,20 @@ export function TaskBrowserPanel({
   chrome?: boolean | { into: HTMLElement | null };
   // See FileViewer: set when the surface is already drawn around this.
   className?: string;
+  /**
+   * Whether a blank page this panel opened puts the caret in the address bar.
+   * Off for a panel inside a surface with a caret of its own to keep, such as
+   * a draft's words: a bar that takes the caret also reads as being edited,
+   * which holds the address the page arrives at out of it.
+   */
+  focusAddress?: boolean;
+  /**
+   * The window layer the guest is shown on; see showOverSlot. A panel drawn
+   * inside a floating surface names a layer above that surface, and while
+   * its page is still blank keeps the guest parked rather than showing the
+   * guest's own black default over the surface.
+   */
+  layer?: number;
   /** Shows the page's text, when the page has some to show; the menu offers it. */
   onViewSource?: () => void;
   sessionId: StoreId.Session;
@@ -142,6 +158,14 @@ export function TaskBrowserPanel({
   // While the user is editing the URL, agent-driven navigations must not
   // overwrite what they're typing.
   const editingUrlRef = useRef(false);
+  // A real page is not yet loaded (about:blank, or nothing stamped yet). A
+  // newly selected target has no location stamped for it until its guest
+  // syncs, and that brief handoff counts as blank too, so the guest's black
+  // default never flashes through before we learn its URL.
+  const blankPage =
+    location?.targetId !== targetId ||
+    !location.url ||
+    location.url === "about:blank";
 
   // Read once and give both hooks the same answer: a panel that parks its guest
   // under an overlay must also stop being the Cmd+F target, or the overlay's
@@ -154,8 +178,11 @@ export function TaskBrowserPanel({
     covered,
     emulatedDeviceHeight: emulatedDevice?.height,
     emulatedDeviceWidth: emulatedDevice?.width,
-    hasLoadError: Boolean(loadError),
+    // A guest raised above its floating host is above the card this panel
+    // draws over a blank page, so it stays parked until the page is there.
+    hasLoadError: Boolean(loadError) || (layer !== undefined && blankPage),
     isVisible,
+    layer,
     sliding,
     targetId,
   });
@@ -275,7 +302,7 @@ export function TaskBrowserPanel({
   // For an agent-initiated open we must not steal focus: a focused bar reads as
   // "user editing" and would block the agent's navigation from syncing into it.
   useEffect(() => {
-    if (!active || !autoOpenedRef.current.has(targetId)) {
+    if (!active || !focusAddress || !autoOpenedRef.current.has(targetId)) {
       return;
     }
     try {
@@ -293,7 +320,7 @@ export function TaskBrowserPanel({
     } catch {
       // Not attached yet; nothing to focus into.
     }
-  }, [active, targetId]);
+  }, [active, focusAddress, targetId]);
 
   // Close the overflow menu when the host window loses focus. Clicking into the
   // guest `<webview>` (a separate WebContents) blurs the host window but never
@@ -349,13 +376,6 @@ export function TaskBrowserPanel({
   // act on the current page, so they're only meaningful once one exists; zoom in
   // particular is per-page and doesn't carry to the next navigation.
   const pageUrl = active ? currentUrl() : undefined;
-  // A newly selected target has no location stamped for it until its guest
-  // syncs. Treat that brief handoff as blank too, so the guest's black default
-  // never flashes through before we learn its URL.
-  const blankPage =
-    location?.targetId !== targetId ||
-    !location.url ||
-    location.url === "about:blank";
 
   return (
     <div

@@ -100,6 +100,21 @@ export const draftsAtom = atomWithStorage<Draft[]>(
  */
 export const draftSnapshotsAtom = atom<Record<string, PromptInputDraft>>({});
 
+/** The places the rail at the window's edge switches between: Home, the chat, and the files. */
+export type AppPlace = "chat" | "files" | "home";
+
+/**
+ * The place the window stands in, chosen in the rail. The chat is the inbox
+ * beside a thread and its tabs; the other two are laid out and not yet
+ * built, so the window opens on the chat.
+ */
+export const appPlaceAtom = atomWithStorage<AppPlace>(
+  "orchestrator.place.v1",
+  "chat",
+  undefined,
+  { getOnInit: true },
+);
+
 /**
  * Whether the inbox column is shown. Put away, a thread and its tabs have
  * the window to themselves; it comes back on its own when nothing is left

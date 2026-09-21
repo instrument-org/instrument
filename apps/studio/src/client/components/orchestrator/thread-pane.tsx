@@ -6,7 +6,7 @@ import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { FilterColumn, FilterHead } from "./filter-column";
+import { FilterHead } from "./filter-head";
 import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
 import { SearchField } from "./search-field";
 import { ThreadList } from "./thread-list";
@@ -25,19 +25,17 @@ import { TopicBanner } from "./topic-banner";
 import { useSetThreadTopics } from "./use-set-thread-topics";
 
 /**
- * The chat pane: the sections down its left, and beside them the inbox with
- * the search over it. Nothing is composed here: New in the column opens a
- * draft at the window's corner, and the thread it starts lands at the top of
- * the list; until it is started it is a row of the Drafts place, which lists
- * the drafts where the threads otherwise go. With one topic chosen in the
- * column, the topic's banner stands above the rows and a draft opened from
- * here is filed under it.
+ * The chat pane: the inbox under the line that says where it stands, with
+ * the search between them. Nothing is composed here: New in the rail opens
+ * a draft, and the thread it starts lands at the top of the list; until it
+ * is started it is a row of the Drafts place, which lists the drafts where
+ * the threads otherwise go. With one topic chosen in the head, the topic's
+ * banner stands above the rows.
  */
 export function ThreadPane({
   drafts,
   onDeleteDraft,
   onListed,
-  onNew,
   onOpenDraft,
   onOpenThread,
   openThreadId,
@@ -49,8 +47,6 @@ export function ThreadPane({
   onDeleteDraft: (id: string) => void;
   /** Told the threads the list shows, in its order, whenever that changes: what a chord steps through. */
   onListed?: (ids: StoreId.Session[]) => void;
-  /** Opens a draft of a new thread, filed under the topic the pane stands in when it stands in one. */
-  onNew: (topicId: string | undefined) => void;
   /** Opens a draft to go on writing it. */
   onOpenDraft: (id: string) => void;
   onOpenThread: (thread: Thread) => void;
@@ -122,7 +118,7 @@ export function ThreadPane({
         )
       : undefined;
   // One topic chosen is the place the pane is standing in: the banner names
-  // it, and a draft opened from here is filed there.
+  // it.
   const chosenTopic =
     filters.topics.length === 1
       ? topics.find((topic) => topic.id === filters.topics[0])
@@ -130,88 +126,77 @@ export function ThreadPane({
 
   // Whether the new-topic dialog is up, and for which thread when a row
   // opened it: a topic made from a row is filed on that thread as it lands,
-  // since that is what asking for one there means.
+  // since that is what asking for one there means; one made from the head's
+  // picker is the topic the list then stands in, since that is what picking
+  // it means.
   const [newTopic, setNewTopic] = useState<{ forThread?: Thread }>();
   // The topic whose details are open, by id, so a re-read of the list does
   // not close the dialog under the user.
   const [editingId, setEditingId] = useState<string>();
   const editingTopic = topics.find((topic) => topic.id === editingId);
-  const filterProps = {
-    appsBySlug,
-    filters,
-    onFiltersChange: changeFilters,
-    onNew: () => {
-      onNew(chosenTopic?.id);
-    },
-    onTopicDetails: (topic: Topic) => {
-      setEditingId(topic.id);
-    },
-    threads,
-    topics,
-  };
 
   return (
-    // The pane is the container the column sizes itself by: it is the pane's
-    // own width, not the window's, that says whether there is room for words
-    // beside the marks.
-    <div className="@container/chat flex h-full min-h-0">
-      <FilterColumn {...filterProps} />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* The column's choices over the list while the pane is too narrow
-          for the column beside it. */}
-        <FilterHead {...filterProps} />
-        {/* Over the list rather than in the column, the way mail puts it:
-          the search is about the rows, and it narrows whatever the column has
-          chosen. */}
-        <div className="shrink-0 px-3 pt-2 pb-1">
-          <SearchField
-            onChange={(search) => {
-              changeFilters({ ...filters, search });
-            }}
-            value={filters.search}
-          />
-        </div>
-        {chosenTopic && (
-          <TopicBanner
-            appsBySlug={appsBySlug}
-            onClear={() => {
-              changeFilters({ ...filters, topics: [] });
-            }}
-            onDetails={(topic) => {
-              setEditingId(topic.id);
-            }}
-            threads={shown}
-            topic={chosenTopic}
-          />
-        )}
-        <ThreadList
-          appsBySlug={appsBySlug}
-          drafts={shownDrafts}
-          emptyLine={emptyLineFor(filters, threads.length)}
-          // The drafts are kept on this computer, so they are never on
-          // their way.
-          isLoading={
-            shownDrafts === undefined && threadsQuery.data === undefined
-          }
-          onDeleteDraft={onDeleteDraft}
-          onNewTopic={(thread) => {
-            setNewTopic({ forThread: thread });
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <FilterHead
+        filters={filters}
+        onFiltersChange={changeFilters}
+        onNewTopic={() => {
+          setNewTopic({});
+        }}
+        onTopicDetails={(topic) => {
+          setEditingId(topic.id);
+        }}
+        threads={threads}
+        topics={topics}
+      />
+      {/* Under the line rather than on it, the way mail puts it: the search
+        is about the rows, and it narrows whatever the line has chosen. */}
+      <div className="shrink-0 px-3 pt-2 pb-1">
+        <SearchField
+          onChange={(search) => {
+            changeFilters({ ...filters, search });
           }}
-          onOpen={onOpenThread}
-          onOpenDraft={onOpenDraft}
-          onSetTopics={(thread, next) => {
-            setThreadTopics(thread.id, next);
-          }}
-          onWiden={() => {
-            changeFilters(widenToSearch(filters));
-          }}
-          openId={openThreadId}
-          outside={outsideFilters(threads, filters, topicNames)}
-          scrollSignal={scrollSignal}
-          threads={shown}
-          topics={topics}
+          value={filters.search}
         />
       </div>
+      {chosenTopic && (
+        <TopicBanner
+          appsBySlug={appsBySlug}
+          onClear={() => {
+            changeFilters({ ...filters, topics: [] });
+          }}
+          onDetails={(topic) => {
+            setEditingId(topic.id);
+          }}
+          threads={shown}
+          topic={chosenTopic}
+        />
+      )}
+      <ThreadList
+        appsBySlug={appsBySlug}
+        drafts={shownDrafts}
+        emptyLine={emptyLineFor(filters, threads.length)}
+        // The drafts are kept on this computer, so they are never on
+        // their way.
+        isLoading={shownDrafts === undefined && threadsQuery.data === undefined}
+        onDeleteDraft={onDeleteDraft}
+        onNewTopic={(thread) => {
+          setNewTopic({ forThread: thread });
+        }}
+        onOpen={onOpenThread}
+        onOpenDraft={onOpenDraft}
+        onSetTopics={(thread, next) => {
+          setThreadTopics(thread.id, next);
+        }}
+        onWiden={() => {
+          changeFilters(widenToSearch(filters));
+        }}
+        openId={openThreadId}
+        outside={outsideFilters(threads, filters, topicNames)}
+        scrollSignal={scrollSignal}
+        threads={shown}
+        topics={topics}
+      />
       <NewTopicDialog
         onCreate={(topic) => {
           const forThread = newTopic?.forThread;
@@ -224,7 +209,16 @@ export function ThreadPane({
                     ...forThread.topics,
                     created.id,
                   ]);
+                  return;
                 }
+                // Read at the moment it lands rather than from the render
+                // that opened the dialog: the search may have moved since.
+                setFilters((current) => ({
+                  ...current,
+                  apps: [],
+                  topics: [created.id],
+                }));
+                setScrollSignal((signal) => signal + 1);
               },
             },
           );

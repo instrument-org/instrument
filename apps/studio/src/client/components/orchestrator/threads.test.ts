@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   activityLabel,
-  appsUsed,
   askOf,
   basename,
   byActivity,
@@ -10,7 +9,6 @@ import {
   dayLabel,
   draftTitle,
   type Filterable,
-  foldSection,
   hasWords,
   isInbox,
   matchesFilters,
@@ -309,17 +307,6 @@ describe("matchesFilters", () => {
   });
 });
 
-describe("what the column offers", () => {
-  it("lists each app once", () => {
-    expect(
-      appsUsed([
-        thread({ holds: { apps: ["gmail", "github"] } }),
-        thread({ holds: { apps: ["gmail"] } }),
-      ]),
-    ).toEqual(["gmail", "github"]);
-  });
-});
-
 describe("choosing a row of the column", () => {
   const searched = { ...NO_FILTERS, search: "fence" };
 
@@ -402,29 +389,6 @@ describe("the inbox", () => {
     ["all of it", { ...NO_FILTERS, place: "all" }],
   ])("is left once %s is chosen", (_, filters) => {
     expect(isInbox(filters)).toBe(false);
-  });
-});
-
-describe("a folded section", () => {
-  const entries = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
-  const ids = (shown: { id: string }[]) => shown.map((entry) => entry.id);
-
-  it("shows the first several and says how many more there are", () => {
-    const { hidden, shown } = foldSection(entries, new Set(), 3);
-    expect(ids(shown)).toEqual(["a", "b", "c"]);
-    expect(hidden).toBe(2);
-  });
-
-  it("keeps a chosen row in reach past the fold, in its place", () => {
-    const { hidden, shown } = foldSection(entries, new Set(["a", "e"]), 3);
-    expect(ids(shown)).toEqual(["a", "b", "c", "e"]);
-    expect(hidden).toBe(1);
-  });
-
-  it("folds nothing when the section fits", () => {
-    const { hidden, shown } = foldSection(entries, new Set(), 5);
-    expect(ids(shown)).toEqual(["a", "b", "c", "d", "e"]);
-    expect(hidden).toBe(0);
   });
 });
 

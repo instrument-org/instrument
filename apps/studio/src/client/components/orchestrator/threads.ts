@@ -53,11 +53,6 @@ export type FilterChoice =
   | { group: "apps" | "topics"; id: string }
   | { group: "place"; id: ThreadPlace };
 
-/** Every app slug any thread has used, in name order by whoever names them. */
-export function appsUsed(threads: Filterable[]): string[] {
-  return [...new Set(threads.flatMap((thread) => thread.holds.apps))];
-}
-
 /**
  * The filters with a row turned: a place chosen stands in that place, or
  * steps back out to the inbox when it was the place already stood in, and
@@ -82,25 +77,6 @@ export function choose(
   return filters[choice.group].includes(choice.id)
     ? cleared
     : { ...cleared, [choice.group]: [choice.id] };
-}
-
-/** How many of a section's rows the filter column shows before folding the rest behind a "more" row. */
-export const SECTION_SHOWN = 6;
-
-/**
- * The rows a folded section shows: the first several in their order, and any
- * chosen one past them, since a filter that is on has to stay in reach to be
- * turned off. `hidden` is how many the "more" row stands for.
- */
-export function foldSection<T extends { id: string }>(
-  entries: T[],
-  chosen: ReadonlySet<string>,
-  limit = SECTION_SHOWN,
-): { hidden: number; shown: T[] } {
-  const shown = entries.filter(
-    (entry, index) => index < limit || chosen.has(entry.id),
-  );
-  return { hidden: entries.length - shown.length, shown };
 }
 
 /** Whether every word searched for turns up in what a row shows, whatever its case. Nothing searched for matches everything. */

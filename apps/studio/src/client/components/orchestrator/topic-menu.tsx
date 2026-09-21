@@ -91,7 +91,7 @@ export function TopicContextMenu({
 
 /**
  * Every topic, a check on each that is on, and a new one at the foot: the
- * list behind the filter column's Topics marks and behind a row's tag control
+ * list behind the inbox head's topic picker and behind a row's tag control
  * alike, so filing and filtering are learned once. A topic's own menu, by
  * right click or the dots at its edge, opens the topic's details, which is
  * where its name, its mark, and its deletion live.

@@ -1,4 +1,5 @@
 import {
+  appPlaceAtom,
   type Draft,
   draftGroupOf,
   draftOfGroup,
@@ -21,6 +22,7 @@ import {
 import { openSettings } from "@/client/atoms/settings-modal";
 import { FileSystemIconSpriteSheet } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
+import { AppRail } from "@/client/components/orchestrator/app-rail";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import {
   BrowserTabs,
@@ -35,6 +37,7 @@ import {
   DraftComposer,
   type DraftSend,
 } from "@/client/components/orchestrator/draft-composer";
+import { EmptyPlace } from "@/client/components/orchestrator/empty-place";
 import {
   fileHref,
   folderHref,
@@ -233,10 +236,13 @@ export const Route = createFileRoute("/orchestrator")({
 function Frame({
   bar,
   children,
+  rail,
   rowRef,
 }: {
   bar?: ReactNode;
   children: ReactNode;
+  /** The rail down the window's left edge, outside the row the columns share. */
+  rail?: ReactNode;
   /** The row the columns share, for whoever sizes them against it. */
   rowRef?: Ref<HTMLDivElement>;
 }) {
@@ -261,8 +267,13 @@ function Frame({
             style={{ height: `${TOOLBAR_HEIGHT}px` }}
           />
         )}
-        <div className="flex min-h-0 flex-1" ref={rowRef}>
-          {children}
+        <div className="flex min-h-0 flex-1">
+          {rail}
+          {/* Measured on its own, past the rail, so a column sized against
+            the row is sized against the width the columns actually share. */}
+          <div className="flex min-h-0 min-w-0 flex-1" ref={rowRef}>
+            {children}
+          </div>
         </div>
         <StudioModals />
         <Toaster position="bottom-right" />
@@ -326,7 +337,12 @@ function OrchestratorLayout() {
   const screenView = useAtomValue(screenViewAtom);
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
-  const setThreadFilters = useSetAtom(threadFiltersAtom);
+  const [threadFilters, setThreadFilters] = useAtom(threadFiltersAtom);
+  // The place the rail has the window standing in. Only the chat is built:
+  // its columns stay mounted behind the other places, hidden, so a thread
+  // and its tabs are as they were on the way back.
+  const [place, setPlace] = useAtom(appPlaceAtom);
+  const isChat = place === "chat";
   // Read at the moment of starting, since the context is gathered first, and
   // the reader of the screen is made further down.
   const sendContextRef = useRef<
@@ -424,6 +440,10 @@ function OrchestratorLayout() {
     windowTabs.group === undefined ||
     (paneOpenByGroup[windowTabs.group] ?? true);
   const showsPane = (tabs.length > 0 || isTasksViewUp) && isPaneWanted;
+  // Whether the page in the pane is what is on screen: the chat up, the tab
+  // a page, the pane open, and nothing over it. Off, the guest is parked.
+  const isPageShown =
+    isChat && isPageOnScreen && showsRightArea && showsPane && !isTasksViewUp;
   const setPaneOpen = (group: string, isOpen: boolean) => {
     setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
   };
@@ -1015,6 +1035,19 @@ function OrchestratorLayout() {
     windowTabs.openScreen(NEW_TAB_HREF, { group: draftGroupOf(draft.id) });
   };
   /**
+   * New, from the rail or its chord: a draft filed under the topic the
+   * inbox stands in while it stands in one, with the window put on the
+   * chat, which is where a draft is written.
+   */
+  const newDraft = () => {
+    setPlace("chat");
+    startDraft(
+      isChat && threadFilters.topics.length === 1
+        ? topics.find((topic) => topic.id === threadFilters.topics[0])?.id
+        : undefined,
+    );
+  };
+  /**
    * Puts the group on screen away: the inbox takes the width, and comes
    * back if it was hidden, since nothing else would be left on screen.
    */
@@ -1090,9 +1123,7 @@ function OrchestratorLayout() {
     newTab: () => {
       windowTabs.openScreen(NEW_TAB_HREF);
     },
-    newThread: () => {
-      startDraft(undefined);
-    },
+    newThread: newDraft,
     // Put away only while something is on screen to have the window; with
     // nothing beside it the column is the window, and stays.
     openScreen: (href) => {
@@ -1210,9 +1241,7 @@ function OrchestratorLayout() {
         browser,
         // The composer is the draft at the corner, which takes the caret as
         // it opens.
-        focusComposer: () => {
-          startDraft(undefined);
-        },
+        focusComposer: newDraft,
         openPage,
         openPath: openNamedPath,
         openScreen,
@@ -1358,8 +1387,9 @@ function OrchestratorLayout() {
                   // The one control the bar keeps at its left: the inbox
                   // column, put away or brought back, so a thread and its
                   // tabs can have the window. Only while something is on
-                  // screen to have it.
-                  <InboxToggle isCollapsible={showsRightArea} />
+                  // screen to have it, and only on the chat, which is
+                  // where the inbox is.
+                  isChat ? <InboxToggle isCollapsible={showsRightArea} /> : null
                 }
                 // Nothing in the bar's middle: the tabs are each thread's
                 // and sit beside the thread.
@@ -1379,333 +1409,337 @@ function OrchestratorLayout() {
                 }
               />
             }
+            rail={
+              <AppRail onChoose={setPlace} onNew={newDraft} place={place} />
+            }
             rowRef={setRowElement}
           >
-            <ChatColumn
-              bounds={bounds}
-              isOpen={isInboxOpen}
-              isRightAreaOpen={showsRightArea}
-              onCollapse={() => {
-                setInboxOpen(false);
-              }}
-              onCover={leaveGroup}
+            {/* The places not yet built: the area right of the rail, with
+              the chat's columns hidden behind them rather than unmounted. */}
+            {place === "home" && <EmptyPlace title="Home" />}
+            {place === "files" && <EmptyPlace title="Files" />}
+            <div
+              className={cn(
+                "flex min-h-0 min-w-0 flex-1",
+                isChat ? undefined : "hidden",
+              )}
             >
-              {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
-              <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
-                {/* Names the openers for what the rows hold: a plain click
+              <ChatColumn
+                bounds={bounds}
+                isOpen={isInboxOpen}
+                isRightAreaOpen={showsRightArea}
+                onCollapse={() => {
+                  setInboxOpen(false);
+                }}
+                onCover={leaveGroup}
+              >
+                {/* `select-text`: the pane's shell is chrome and turns selection off; the chat is text. */}
+                <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
+                  {/* Names the openers for what the rows hold: a plain click
                   opens in the tab on screen the way the thread itself does,
                   and a middle or modified click asks for a tab of its own;
                   the rows say which thread a hold belongs to. */}
-                <OrchestratorContext
-                  value={{
-                    ...screens,
-                    openPage: (url, options) => openPage(url, options),
-                    openScreen: (href, options) => {
-                      openScreen(href, options);
-                    },
-                    opensNewTab: false,
-                  }}
-                >
-                  <FileOpenContext
-                    value={(path) => {
-                      openNamedPath(path);
+                  <OrchestratorContext
+                    value={{
+                      ...screens,
+                      openPage: (url, options) => openPage(url, options),
+                      openScreen: (href, options) => {
+                        openScreen(href, options);
+                      },
+                      opensNewTab: false,
                     }}
                   >
-                    <PageOpenContext value={(url) => openPage(url)}>
-                      <ThreadPane
-                        drafts={drafts}
-                        onDeleteDraft={deleteDraft}
-                        onListed={(listed) => {
-                          listedThreads.current = listed;
-                        }}
-                        onNew={startDraft}
-                        onOpenDraft={showDraft}
-                        onOpenThread={(thread) => {
-                          openScreen(`${THREADS_HREF}/${thread.id}`);
-                        }}
-                        openThreadId={windowTabs.group}
-                        taskId={screens.taskId}
-                      />
-                    </PageOpenContext>
-                  </FileOpenContext>
-                </OrchestratorContext>
-              </div>
-            </ChatColumn>
-            {/* Hidden rather than unmounted while nothing is on screen, so
+                    <FileOpenContext
+                      value={(path) => {
+                        openNamedPath(path);
+                      }}
+                    >
+                      <PageOpenContext value={(url) => openPage(url)}>
+                        <ThreadPane
+                          drafts={drafts}
+                          onDeleteDraft={deleteDraft}
+                          onListed={(listed) => {
+                            listedThreads.current = listed;
+                          }}
+                          onOpenDraft={showDraft}
+                          onOpenThread={(thread) => {
+                            openScreen(`${THREADS_HREF}/${thread.id}`);
+                          }}
+                          openThreadId={windowTabs.group}
+                          taskId={screens.taskId}
+                        />
+                      </PageOpenContext>
+                    </FileOpenContext>
+                  </OrchestratorContext>
+                </div>
+              </ChatColumn>
+              {/* Hidden rather than unmounted while nothing is on screen, so
               every tab keeps what it has for when something opens again. */}
-            <main
-              className={cn(
-                "relative flex min-w-0 flex-1 flex-col",
-                showsRightArea ? undefined : "hidden",
-              )}
-            >
-              {/* The conversation, and the pane of the group's tabs beside
+              <main
+                className={cn(
+                  "relative flex min-w-0 flex-1 flex-col",
+                  showsRightArea ? undefined : "hidden",
+                )}
+              >
+                {/* The conversation, and the pane of the group's tabs beside
                 it, the way a task's page keeps its pane: put away and
                 brought back by the toggle over the conversation, sized by
                 the edge between them, and the pane's state each group's
                 own. */}
-              <RightPane
-                conversation={
-                  <div className="relative flex h-full min-h-0 flex-col">
-                    {/* The threads, kept mounted behind the one on screen so
+                <RightPane
+                  conversation={
+                    <div className="relative flex h-full min-h-0 flex-col">
+                      {/* The threads, kept mounted behind the one on screen so
                       switching back is the transcript as it was, and kept
                       laid out under a draft for the same reason. */}
-                    <div
-                      aria-hidden={draftOnScreen !== undefined}
-                      className={cn(
-                        "absolute inset-0 flex flex-col",
-                        draftOnScreen !== undefined &&
-                          "pointer-events-none invisible",
-                      )}
-                    >
-                      <ThreadHeader
-                        onNewTopic={() => {
-                          setNewTopicOpen(true);
-                        }}
-                        onSetTopics={(next) => {
-                          if (threadUp) {
-                            setThreadTopics(threadUp, next);
-                          }
-                        }}
-                        thread={threads.data?.find(
-                          (thread) => thread.id === threadUp,
-                        )}
-                        topics={topics}
-                        trailing={showsPane ? null : paneToggle}
-                      />
-                      <div className="relative min-h-0 flex-1">
-                        <ThreadStage
-                          sendContext={() => sendContextRef.current()}
-                          sessionId={threadUp}
-                        />
-                      </div>
-                    </div>
-                    {draftOnScreen && (
-                      <div className="absolute inset-0">
-                        <DraftComposer
-                          draft={draftOnScreen}
-                          isStarting={isStarting}
-                          key={draftOnScreen.id}
-                          modelURI={modelURI}
-                          onChange={(update) => {
-                            setDrafts((current) =>
-                              current.map((entry) =>
-                                entry.id === draftOnScreen.id
-                                  ? { ...update(entry), updatedAt: Date.now() }
-                                  : entry,
-                              ),
-                            );
-                          }}
-                          onModelChange={setDefaultModelURI}
-                          onStart={(send) => {
-                            startThread(draftOnScreen.id, send);
-                          }}
-                          topic={topics.find(
-                            (topic) => topic.id === draftOnScreen.topicId,
-                          )}
-                          trailing={showsPane ? null : paneToggle}
-                        />
-                      </div>
-                    )}
-                  </div>
-                }
-                isOpen={showsPane}
-                onCollapse={() => {
-                  if (windowTabs.group !== undefined) {
-                    setPaneOpen(windowTabs.group, false);
-                  }
-                }}
-                paneKey={windowTabs.group ?? "window"}
-              >
-                <div className="flex h-full flex-col p-2">
-                  {/* One card, with the strip as its first row: the tabs of
-                    the thread or the draft on screen, and at the row's end
-                    the toggle that puts the pane away. */}
-                  <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm">
-                    <div className="flex h-10 shrink-0 items-center border-b border-border pr-1 pl-1">
-                      <WindowTabStrip
-                        childTitles={childTitles}
-                        groupKey={windowTabs.group ?? "window"}
-                        onClose={requestClose}
-                        onNew={() => {
-                          windowTabs.openScreen(NEW_TAB_HREF);
-                        }}
-                        onReorder={windowTabs.reorder}
-                        onSelect={(id) => {
-                          setTasksFace(undefined);
-                          windowTabs.select(id);
-                        }}
-                        selectedId={isTasksViewUp ? undefined : active?.id}
-                        tabs={tabs}
-                        threadTitles={threadTitles}
-                        trailing={
-                          <>
-                            {paneToggle}
-                            {/* The thread's own task list, one press from
-                              wherever the pane is; a draft has no tasks
-                              yet. */}
-                            {threadUp !== undefined && (
-                              <ThreadTasksButton
-                                isOpen={isTasksViewUp}
-                                onOpen={() => {
-                                  // A place to go, never a switch: pressed
-                                  // with the list already up, nothing moves;
-                                  // with a task up, it goes back to the
-                                  // list. A tab picked is what puts the
-                                  // face away.
-                                  if (
-                                    isTasksViewUp &&
-                                    tasksFace.task === undefined
-                                  ) {
-                                    return;
-                                  }
-                                  showTasksFace(undefined, threadUp);
-                                }}
-                              />
-                            )}
-                          </>
-                        }
-                      />
-                    </div>
-                    <TabLocationRow
-                      canGoBack={canGoBack}
-                      canGoForward={canGoForward}
-                      ref={locationRef}
-                      // On a page the field sends the tab's own guest
-                      // somewhere, and the page's controls (reload, the way
-                      // out, the menu) are drawn into the row's tail by the
-                      // panel that has the page. A file shown as a page is
-                      // one too.
-                      {...(tabLocation.kind === "page" ||
-                      (tabLocation.kind === "file" && tabLocation.asPage)
-                        ? {
-                            onSite: (url: string) => openPage(url),
-                            trailing: (
-                              <div
-                                className="flex shrink-0 items-center gap-0.5"
-                                ref={setChromeSlot}
-                              />
-                            ),
-                          }
-                        : {})}
-                      location={tabLocation}
-                      onBack={goBack}
-                      onForward={goForward}
-                    />
-                    <div className="relative min-h-0 flex-1">
-                      <Outlet />
-                      {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
                       <div
+                        aria-hidden={draftOnScreen !== undefined}
                         className={cn(
-                          "absolute inset-0 bg-background",
-                          isPageOnScreen &&
-                            showsRightArea &&
-                            showsPane &&
-                            !isTasksViewUp
-                            ? undefined
-                            : "invisible",
+                          "absolute inset-0 flex flex-col",
+                          draftOnScreen !== undefined &&
+                            "pointer-events-none invisible",
                         )}
                       >
-                        {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
-                        <ActiveTabProvider
-                          isActive={
-                            isPageOnScreen &&
-                            showsRightArea &&
-                            showsPane &&
-                            !isTasksViewUp
-                          }
-                        >
-                          <BrowserTabs
-                            chromeInto={chromeSlot}
-                            ref={setBrowser}
-                            threadOfTask={childThreads}
+                        <ThreadHeader
+                          onNewTopic={() => {
+                            setNewTopicOpen(true);
+                          }}
+                          onSetTopics={(next) => {
+                            if (threadUp) {
+                              setThreadTopics(threadUp, next);
+                            }
+                          }}
+                          thread={threads.data?.find(
+                            (thread) => thread.id === threadUp,
+                          )}
+                          topics={topics}
+                          trailing={showsPane ? null : paneToggle}
+                        />
+                        <div className="relative min-h-0 flex-1">
+                          <ThreadStage
+                            sendContext={() => sendContextRef.current()}
+                            sessionId={threadUp}
                           />
-                        </ActiveTabProvider>
+                        </div>
                       </div>
-                      {/* The thread's tasks as the pane's face, over the tab
-                        up: the list, or the task pressed in it. */}
-                      {isTasksViewUp && (
-                        <div className="absolute inset-0 bg-background">
-                          <ThreadTasksView
-                            onOpen={(id) => {
-                              showTasksFace(id, tasksFace.thread);
+                      {draftOnScreen && (
+                        <div className="absolute inset-0">
+                          <DraftComposer
+                            draft={draftOnScreen}
+                            isStarting={isStarting}
+                            key={draftOnScreen.id}
+                            modelURI={modelURI}
+                            onChange={(update) => {
+                              setDrafts((current) =>
+                                current.map((entry) =>
+                                  entry.id === draftOnScreen.id
+                                    ? {
+                                        ...update(entry),
+                                        updatedAt: Date.now(),
+                                      }
+                                    : entry,
+                                ),
+                              );
                             }}
-                            sessionId={tasksFace.thread}
-                            taskId={tasksFace.task}
+                            onModelChange={setDefaultModelURI}
+                            onStart={(send) => {
+                              startThread(draftOnScreen.id, send);
+                            }}
+                            topic={topics.find(
+                              (topic) => topic.id === draftOnScreen.topicId,
+                            )}
+                            trailing={showsPane ? null : paneToggle}
                           />
                         </div>
                       )}
                     </div>
-                  </div>
-                </div>
-              </RightPane>
-              <AlertDialog
-                onOpenChange={(open) => {
-                  if (!open) {
-                    setClosingBrowser(undefined);
                   }
-                }}
-                open={closingBrowser !== undefined}
-              >
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {closingBrowser
-                        ? `“${closingBrowser.title}” is using this page`
-                        : ""}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      The task is still working in this browser. Closing it
-                      takes the page away mid-work; the task is told, and
-                      carries on without it.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Keep it open</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => {
-                        if (closingBrowser) {
-                          closeTaskBrowser(
-                            closingBrowser.id,
-                            closingBrowser.taskId,
-                          );
-                        }
-                        setClosingBrowser(undefined);
-                      }}
-                    >
-                      Close anyway
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              {/* Asked for from the thread's own head, so the topic it
+                  isOpen={showsPane}
+                  onCollapse={() => {
+                    if (windowTabs.group !== undefined) {
+                      setPaneOpen(windowTabs.group, false);
+                    }
+                  }}
+                  paneKey={windowTabs.group ?? "window"}
+                >
+                  <div className="flex h-full flex-col p-2">
+                    {/* One card, with the strip as its first row: the tabs of
+                    the thread or the draft on screen, and at the row's end
+                    the toggle that puts the pane away. */}
+                    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm">
+                      <div className="flex h-10 shrink-0 items-center border-b border-border pr-1 pl-1">
+                        <WindowTabStrip
+                          childTitles={childTitles}
+                          groupKey={windowTabs.group ?? "window"}
+                          onClose={requestClose}
+                          onNew={() => {
+                            windowTabs.openScreen(NEW_TAB_HREF);
+                          }}
+                          onReorder={windowTabs.reorder}
+                          onSelect={(id) => {
+                            setTasksFace(undefined);
+                            windowTabs.select(id);
+                          }}
+                          selectedId={isTasksViewUp ? undefined : active?.id}
+                          tabs={tabs}
+                          threadTitles={threadTitles}
+                          trailing={
+                            <>
+                              {paneToggle}
+                              {/* The thread's own task list, one press from
+                              wherever the pane is; a draft has no tasks
+                              yet. */}
+                              {threadUp !== undefined && (
+                                <ThreadTasksButton
+                                  isOpen={isTasksViewUp}
+                                  onOpen={() => {
+                                    // A place to go, never a switch: pressed
+                                    // with the list already up, nothing moves;
+                                    // with a task up, it goes back to the
+                                    // list. A tab picked is what puts the
+                                    // face away.
+                                    if (
+                                      isTasksViewUp &&
+                                      tasksFace.task === undefined
+                                    ) {
+                                      return;
+                                    }
+                                    showTasksFace(undefined, threadUp);
+                                  }}
+                                />
+                              )}
+                            </>
+                          }
+                        />
+                      </div>
+                      <TabLocationRow
+                        canGoBack={canGoBack}
+                        canGoForward={canGoForward}
+                        ref={locationRef}
+                        // On a page the field sends the tab's own guest
+                        // somewhere, and the page's controls (reload, the way
+                        // out, the menu) are drawn into the row's tail by the
+                        // panel that has the page. A file shown as a page is
+                        // one too.
+                        {...(tabLocation.kind === "page" ||
+                        (tabLocation.kind === "file" && tabLocation.asPage)
+                          ? {
+                              onSite: (url: string) => openPage(url),
+                              trailing: (
+                                <div
+                                  className="flex shrink-0 items-center gap-0.5"
+                                  ref={setChromeSlot}
+                                />
+                              ),
+                            }
+                          : {})}
+                        location={tabLocation}
+                        onBack={goBack}
+                        onForward={goForward}
+                      />
+                      <div className="relative min-h-0 flex-1">
+                        <Outlet />
+                        {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
+                        <div
+                          className={cn(
+                            "absolute inset-0 bg-background",
+                            isPageShown ? undefined : "invisible",
+                          )}
+                        >
+                          {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
+                          <ActiveTabProvider isActive={isPageShown}>
+                            <BrowserTabs
+                              chromeInto={chromeSlot}
+                              ref={setBrowser}
+                              threadOfTask={childThreads}
+                            />
+                          </ActiveTabProvider>
+                        </div>
+                        {/* The thread's tasks as the pane's face, over the tab
+                        up: the list, or the task pressed in it. */}
+                        {isTasksViewUp && (
+                          <div className="absolute inset-0 bg-background">
+                            <ThreadTasksView
+                              onOpen={(id) => {
+                                showTasksFace(id, tasksFace.thread);
+                              }}
+                              sessionId={tasksFace.thread}
+                              taskId={tasksFace.task}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </RightPane>
+                <AlertDialog
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setClosingBrowser(undefined);
+                    }
+                  }}
+                  open={closingBrowser !== undefined}
+                >
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {closingBrowser
+                          ? `“${closingBrowser.title}” is using this page`
+                          : ""}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        The task is still working in this browser. Closing it
+                        takes the page away mid-work; the task is told, and
+                        carries on without it.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep it open</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          if (closingBrowser) {
+                            closeTaskBrowser(
+                              closingBrowser.id,
+                              closingBrowser.taskId,
+                            );
+                          }
+                          setClosingBrowser(undefined);
+                        }}
+                      >
+                        Close anyway
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                {/* Asked for from the thread's own head, so the topic it
                 makes is filed on the thread as it lands. */}
-              <NewTopicDialog
-                onCreate={(topic) => {
-                  const filedOn = threads.data?.find(
-                    (thread) => thread.id === threadUp,
-                  );
-                  createTopic.mutate(
-                    { ...topic, id: screens.taskId },
-                    {
-                      onSuccess: (created) => {
-                        if (filedOn) {
-                          setThreadTopics(filedOn.id, [
-                            ...filedOn.topics,
-                            created.id,
-                          ]);
-                        }
+                <NewTopicDialog
+                  onCreate={(topic) => {
+                    const filedOn = threads.data?.find(
+                      (thread) => thread.id === threadUp,
+                    );
+                    createTopic.mutate(
+                      { ...topic, id: screens.taskId },
+                      {
+                        onSuccess: (created) => {
+                          if (filedOn) {
+                            setThreadTopics(filedOn.id, [
+                              ...filedOn.topics,
+                              created.id,
+                            ]);
+                          }
+                        },
                       },
-                    },
-                  );
-                }}
-                onOpenChange={setNewTopicOpen}
-                open={isNewTopicOpen}
-                taken={topics.flatMap((topic) =>
-                  topic.emoji ? [topic.emoji] : [],
-                )}
-              />
-            </main>
+                    );
+                  }}
+                  onOpenChange={setNewTopicOpen}
+                  open={isNewTopicOpen}
+                  taken={topics.flatMap((topic) =>
+                    topic.emoji ? [topic.emoji] : [],
+                  )}
+                />
+              </main>
+            </div>
           </Frame>
         </PageOpenContext>
       </FileOpenContext>

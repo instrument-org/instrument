@@ -74,6 +74,13 @@ describe("orchestratorRefusal", () => {
     ).toBeUndefined();
   });
 
+  // A slow read outlives yieldMs and goes to the background like any other
+  // command, and the notice that says so names these to follow and stop it.
+  it("lets the conversation follow and stop what it sent to the background", () => {
+    expect(orchestratorRefusal("fg bg_2 --timeout 0")).toBeUndefined();
+    expect(orchestratorRefusal("kill bg_2; jobs")).toBeUndefined();
+  });
+
   it("refuses anything else and names the way instead", () => {
     expect(orchestratorRefusal("agent-browser click @e98")).toMatch(
       /`agent-browser` is not yours to run/,

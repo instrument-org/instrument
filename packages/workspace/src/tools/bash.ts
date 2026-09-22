@@ -59,9 +59,12 @@ const ORCHESTRATOR_COMMANDS = new Set([
   "cat",
   "chat",
   "cp",
+  "fg",
   "file",
   "find",
   "head",
+  "jobs",
+  "kill",
   "ls",
   "memory",
   "mkdir",
@@ -161,7 +164,7 @@ export function orchestratorRefusal(script: string): string | undefined {
   if (ORCHESTRATOR_FILTERS.has(outside.word)) {
     return `\`${outside.word}\` reads what a command before it printed, so give it one: \`cat <file> | ${outside.word} ...\`. Searching a file by its path is \`grep\` or \`rg\`, which take one.`;
   }
-  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, \`chat\`, \`memory\`, \`open\`, the file commands (ls, cat, head, tail, wc, stat, file, find, cp, mv, mkdir), and \`grep\`/\`rg\` on a path, with the other filters (${[...ORCHESTRATOR_FILTERS].join(", ")}) after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
+  return `\`${outside.word}\` is not yours to run: this shell runs \`task\`, \`app\`, \`chat\`, \`memory\`, \`open\`, the file commands (ls, cat, head, tail, wc, stat, file, find, cp, mv, mkdir), \`jobs\`/\`fg\`/\`kill\` on what it sent to the background, and \`grep\`/\`rg\` on a path, with the other filters (${[...ORCHESTRATOR_FILTERS].join(", ")}) after a pipe from one of them. Work that needs a shell, a page, or the web, or that writes a file's contents, is a task's: start one with \`task new\`.`;
 }
 
 function bashToolCallTimeoutMs(yieldMs: number) {

@@ -33,6 +33,7 @@ import { setupAgent } from "../agents/create-agent";
 import { mainAgent } from "../agents/main";
 import { type AnyAgent } from "../agents/types";
 import { Store } from "../lib/store";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -1215,6 +1216,35 @@ describe("sessionMachine", () => {
         </assistant>
       </session>"
     `);
+  });
+
+  it("stops while a choose is pending without an unhandled event", async () => {
+    const result = await createActorAndTask({
+      agent: setupAgent({
+        agentTools: pick(TOOLS, ["Choose"]),
+        name: "main",
+      }).create(() => ({
+        getMessages: mainAgent.getMessages,
+        onFinish: mainAgent.onFinish,
+        onStart: mainAgent.onStart,
+        shouldContinue: mainAgent.shouldContinue,
+      })),
+      chunkSets: [chooseChunks],
+    });
+    const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
+
+    result.actor.start();
+    await waitFor(result.actor, (state) =>
+      state.matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
+    );
+    result.actor.send({ type: "stop" });
+    await waitFor(result.actor, (state) => state.status === "done");
+
+    const unhandled = captureException.mock.calls.filter(
+      ([error]) =>
+        error instanceof Error && error.message.startsWith("Unhandled event"),
+    );
+    expect(unhandled).toEqual([]);
   });
 
   it("should retry and fail on timeout", async () => {

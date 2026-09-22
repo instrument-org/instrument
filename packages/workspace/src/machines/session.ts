@@ -526,6 +526,11 @@ export const sessionMachine = setup({
               actions: "clearAgentRef",
               target: "AgentDone",
             },
+            // A stop that lands while the agent waits on an interactive tool
+            // makes it leave that wait on the way out, which reports a resume.
+            // The session is already stopping, so neither changes anything.
+            "agent.paused": {},
+            "agent.resumed": {},
           },
         },
 

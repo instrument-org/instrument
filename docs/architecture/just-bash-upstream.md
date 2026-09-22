@@ -9,7 +9,7 @@ The failure mode this page exists to prevent is a workaround outliving the bug. 
 We are on the published npm package, not a fork.
 
 - `just-bash@^3.4.1` from npm, declared in `packages/workspace/package.json`.
-- One local patch file, carrying eight changes: to `find`, to `stat`, to `MountableFs`'s copy across mounts, to the `python3` worker, a `stdinConnected` flag on the command context, to `ls`, to awk's `printf`, and to `sort -h`; see below.
+- One local patch file, carrying eight changes: to `find`, to `stat`, to `MountableFs`'s copy across mounts, to the `python3` worker, a `stdinConnected` flag on the command context, to `ls`, to awk's `printf`, and to `sort -h`, built from source by `scripts/rebuild-just-bash-patch.ts`; see below.
 
 `minimumReleaseAge` in `pnpm-workspace.yaml` holds installs to releases at least seven days old, so the newest published version is routinely not the newest installable one. `minimumReleaseAgeExclude` carries the document-viewer libraries deliberately pinned to exact versions, plus `agent-browser`, which we do float onto fresh releases. It is not a general escape hatch: for anything else the way past the gate is to wait.
 
@@ -17,9 +17,19 @@ Upstream cuts releases through changesets and merges a great deal between them, 
 
 ## Moving to a fork build
 
-Not currently worth it. Consuming a fork means rebuilding `dist/` ourselves and carrying divergence that grows every time upstream lands something. Against that, the fixes we are waiting on are real but not blocking: they make the agent wrong in specific ways rather than stopping it working.
+Mostly unnecessary now. What a fork build was for, carrying our changes as source rather than as edits to minified output, is what `scripts/rebuild-just-bash-patch.ts` does inside the pnpm patch: it builds the release tag with every carried change applied and keeps the result as the patch. A fork build would add only a published artifact of our own, which buys nothing while the patch applies, and would cost the release-age gate and upstream's own publishing checks.
 
-Adopt a fork build only when a gap is blocking a shipped feature, or when a merged fix is sitting unreleased for long enough that waiting costs more than diverging. If we do, the branch to consume is `combined/ls-and-touch-fixes` on our fork, which merges the branches behind the open PRs below.
+Adopt one only if the patch stops being able to express a change, for instance one that adds a new module the published package does not have; the script stops with a message when that happens.
+
+## Fix upstream, or replace the command
+
+Two ways to change what a just-bash command does, and they are for different problems.
+
+**Fix it upstream and carry the fix** when the defect is in just-bash's own model: a quadratic accumulator, a wrong parse, a leaked rejection. just-bash runs in browsers, in plain Node, and over any `IFileSystem`, in-memory ones included, so a fix that works there is a fix every embedder gets, and carrying it until the release lands costs a manifest entry.
+
+**Replace the command with a custom one** when the better implementation needs what only an embedder running in Node or Electron has: a real binary, a worker thread, or the host disk behind our mounts. That is not something upstream can take, because it cannot assume any of them. `rg` is the real ripgrep binary in a subprocess, `git` is dugite's git with our argv policy, and `du` (`shell-commands/du.ts`) walks the real directories behind the mounts in a worker thread, so a walk over a large folder costs the main thread nothing where the builtin's costs it everything. A replacement resolves paths through the workspace layout with the same containment as the others, and hands anything it does not implement back to the builtin through `ctx.origCommand`, so it never makes a working command stop working.
+
+The replacements are where the performance headroom is. A builtin is interpreted TypeScript on the thread that paints the window; a subprocess or worker is not.
 
 ## Local patches
 
@@ -36,7 +46,17 @@ Eight, in one patch file, carried under [decisions/2026-09-08-carry-the-find-pat
 | `patches/just-bash@3.4.1.patch`, awk `printf` seventh | awk keeps the UTF-8 size of its output as it writes, and `printf` reads that count instead of measuring the whole output on every call. `printf` over 40,000 records takes 0.18s rather than 42s | #450, the same change against `main` | #450 is merged and in the version we install; the guard is `create-bash-env-awk.test.ts` |
 | `patches/just-bash@3.4.1.patch`, `sort -h` eighth | `sort -h` reads the size at the start of a key and ignores what follows it, taking a suffix only when it touches the digits, so `10 mangoes` is 10 and `1e3` is 1 as GNU reads them. Without `-k` the key is the whole line, so every line of `du -h` output missed the whole-key pattern and compared by its bare number, and `du -h \| sort -rh \| head` named the wrong directory as the largest | #452, the same change against `main` | #452 is merged and in the version we install; the guard is the `sort -rh` case in `create-bash-env-du.test.ts` |
 
-The patch edits minified chunks of `dist/bundle/`, so a version bump drops it and each part has to be re-derived from the PR's source diff by hand. For `stat`: replace the `-c` branch, the one holding the `/%[nNsFaAuUgG]/g` replace, with the readable block the current patch inserts, which is self-contained apart from the chunk's own names for `formatMode` and the limit error. For the cross-mount copy: replace the `async crossMountCopy(` method in `dist/bundle/index.js` (the ESM entry, which is what Studio's main bundle imports) with the readable pair of methods the current patch inserts, which are self-contained apart from the bundle's two-letter name for `joinPath`, read off the `let a=<name>(t,o),l=<name>(n,o)` inside the original. The pair follows the PR's source with one substitution: the module-level cap becomes the literal `10`. For the python worker: `dist/bundle/chunks/worker.js` is an unminified esbuild bundle, so the four hunks re-apply by hand from the patch file: the `thisProgram` line in the `createPythonModule` config, the `EFBIG` entry and the two `msg.includes` branches in `createHOSTFS`, the `too large` branch in `stream_ops.open`, and the `programCode` block that replaces the inlined `input.pythonCode` in `runPython`'s `wrappedCode`. For `stdinConnected`: in `dist/bundle/index.js`, the pipeline function is the `async function` whose locals read `d=e.state.groupStdin,p=e.state.groupStdinSourceFd`; save `sfp=e.state.stdinFromPipe` beside them, set `e.state.stdinFromPipe=!v` where the stage sets `groupStdin` to `v?d:void 0`, and restore `e.state.stdinFromPipe=sfp` in the `finally` that restores `groupStdin`; then in the command context builder, the object holding `get stdin(){return p=!0,d}`, add `stdinConnected:!!r||i.state.groupStdin!==void 0||i.state.stdinFromPipe===!0` (`r` is the stdin parameter, `i` the interpreter context), and declare `stdinConnected?: boolean` after `stdin` in `dist/types.d.ts`. `pnpm patch just-bash@<version>` opens the copy to edit and `pnpm patch-commit` writes it back. The `find`, `ls` and awk parts are not hand edits: 3.4.1 builds byte-for-byte reproducibly from the `just-bash@3.4.1` tag, so each was applied to the tag's source, built, and carried as the rebuilt contents of the published chunk it replaces: `chunk-KBXRZGTY.js` for `find`, `chunk-INDA53JL.js` for `ls`, `chunk-3CBCABOZ.js` for awk, and `chunk-6R4OQQWP.js` for `sort`. A rebuild renames a changed chunk by its content hash, and the chunks that import it with it; mapping those names back to the published ones leaves every other file in `dist/bundle` identical, which is the check to repeat before carrying a rebuilt chunk. To re-derive after a bump that still needs them, apply #414 and #451 to that version's `find.ts`, #449 and #390 to its `ls.ts`, #450 to its awk interpreter, and #452 to its `sort` comparator, build, and do the same.
+The patch is generated rather than edited. `patches/just-bash-sources/sources.json` names the release tag and every carried part: an upstream pull request pinned to a commit, or a local diff under the same directory where a pull request has to be adapted to the version we install (`ls-3.4.1.diff` ports #449, which targets a `main` whose `ls` has moved on, together with #390's per-name budget charge, since 3.4.1 has `discover` where `main` has `reserve`). `pnpm scripts:rebuild-just-bash-patch` then:
+
+1. checks out the tag in a cache outside the repository and installs it;
+2. builds it unchanged and stops unless the bundle and the shipped declarations are byte-for-byte the published package, which is what makes a rebuilt file a faithful stand-in for a published one;
+3. applies every part in order, stopping on the first that does not apply;
+4. builds again and pairs each rebuilt bundle file with the published file it replaces, by walking both builds' import lists from the files whose content-hashed names did not change; a part that adds or removes a module outright stops the run rather than guess;
+5. writes the files whose content differs, under their published names, into `pnpm patch --ignore-existing` and commits it, which moves the patch hash in `pnpm-lock.yaml`.
+
+`--dry-run` reports the files without writing, and `--test` also runs just-bash's own tests for the directories the parts touch. Two runs give a byte-identical patch. The rebuilt `index.js` is most of the patch's size: once a change touches the interpreter, the minifier renames identifiers through the whole file, so most of its lines differ from the published ones. `dist/bundle/browser.js` and `dist/bundle/index.cjs` are left out (`skip` in the manifest); Studio loads the ESM entry.
+
+To move to a new version: point the manifest at its tag, drop the parts it already contains, refresh the pins, and run the script. A local diff that no longer applies has to be ported again against the new tag's source.
 
 An earlier one is gone: `patches/just-bash@3.2.0.patch` normalized the namespace of the dynamic `import("undici")` so the pinned connection owner could read `Agent` off it; without that every `curl` failed as `DNS pinning unavailable for private IP enforcement`. Upstream #339 is the same fix and shipped in 3.3.0. `create-bash-env-network.test.ts` is the guard that would catch a regression.
 
@@ -110,7 +130,7 @@ npm view just-bash time --json                   # when each version published, 
 pnpm why just-bash                               # what we resolve to
 ```
 
-When the published version moves, walk both registers above and delete every row whose trigger has fired, including the prompt text. Removing a stale line from the `sqlite3` description matters as much as dropping a patch: a model told a working command is broken will route around it for as long as the sentence survives.
+When the published version moves, walk both registers above and delete every row whose trigger has fired, including the prompt text, then drop those parts from `patches/just-bash-sources/sources.json` and rebuild the patch against the new tag. Removing a stale line from the `sqlite3` description matters as much as dropping a patch: a model told a working command is broken will route around it for as long as the sentence survives.
 
 Verify against the installed build rather than the changelog. `packages/workspace/scripts/run-bash.ts` boots the same sandbox the agent gets, so a claim about behavior is one command away:
 

@@ -5,14 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerCrashDiagnostics } from "./register-crash-diagnostics";
 
-const { addServerException, log } = vi.hoisted(() => ({
-  addServerException: vi.fn(),
+const { captureServerException, log } = vi.hoisted(() => ({
+  captureServerException: vi.fn(),
   log: { error: vi.fn(), warn: vi.fn() },
 }));
 
 vi.mock("./electron-logger", () => ({ createScopedLogger: () => log }));
-vi.mock("./server-exceptions", () => ({ addServerException }));
-vi.mock("../stores/preferences", () => ({ isDeveloperMode: () => false }));
+vi.mock("./capture-server-exception", () => ({ captureServerException }));
 
 // A real directory, because the crash record is written with real `fs`: the
 // point of the record is that it survives a process the logger does not.
@@ -44,13 +43,18 @@ function createFakeWebContents(type: string) {
 
 describe("registerCrashDiagnostics", () => {
   let inheritedMonitor: readonly NodeJS.UncaughtExceptionListener[] = [];
-  let inheritedUncaughtCount = 0;
+  let inheritedUncaught: readonly NodeJS.UncaughtExceptionListener[] = [];
   let inheritedRejection: readonly NodeJS.UnhandledRejectionListener[] = [];
 
   const addedMonitorListeners = () =>
     process
       .listeners("uncaughtExceptionMonitor")
       .filter((listener) => !inheritedMonitor.includes(listener));
+
+  const addedUncaughtListeners = () =>
+    process
+      .listeners("uncaughtException")
+      .filter((listener) => !inheritedUncaught.includes(listener));
 
   const addedRejectionListeners = () =>
     process
@@ -61,7 +65,7 @@ describe("registerCrashDiagnostics", () => {
     vi.clearAllMocks();
     crashDir = fs.mkdtempSync(path.join(os.tmpdir(), "crash-diagnostics-"));
     inheritedMonitor = process.listeners("uncaughtExceptionMonitor");
-    inheritedUncaughtCount = process.listeners("uncaughtException").length;
+    inheritedUncaught = process.listeners("uncaughtException");
     inheritedRejection = process.listeners("unhandledRejection");
 
     // The handlers attach to the shared process object, so leaving one on
@@ -69,6 +73,9 @@ describe("registerCrashDiagnostics", () => {
     return () => {
       for (const listener of addedMonitorListeners()) {
         process.off("uncaughtExceptionMonitor", listener);
+      }
+      for (const listener of addedUncaughtListeners()) {
+        process.off("uncaughtException", listener);
       }
       for (const listener of addedRejectionListeners()) {
         process.off("unhandledRejection", listener);
@@ -172,27 +179,85 @@ describe("registerCrashDiagnostics", () => {
     registerCrashDiagnostics(createFakeApp().app);
 
     expect(addedMonitorListeners()).toHaveLength(1);
+    expect(addedUncaughtListeners()).toHaveLength(1);
     expect(addedRejectionListeners()).toHaveLength(1);
   });
 
-  // The distinction the whole module turns on. An `uncaughtException` listener
-  // replaces what Node does about a throw; the monitor only watches, so the
-  // process still dies and the failure the user hit is the failure that
-  // happened.
-  it("watches an uncaught throw rather than taking Node's answer to it away", () => {
-    registerCrashDiagnostics(createFakeApp().app);
-
-    expect(process.listeners("uncaughtException")).toHaveLength(
-      inheritedUncaughtCount,
-    );
-  });
-
-  it("writes an uncaught throw somewhere a dying process cannot lose it", () => {
+  // Electron's own listener shows an error dialog only while it is the sole
+  // `uncaughtException` listener, and never exits, so this one is what keeps a
+  // main-process throw quiet for the user.
+  it("reports an uncaught throw with the app's identity", () => {
     registerCrashDiagnostics(createFakeApp().app);
     const error = new Error("boom");
 
     // Invoked directly: emitting on the real process would reach the test
     // runner's own handler and fail the run.
+    addedUncaughtListeners()[0]?.(error, "uncaughtException");
+
+    expect(captureServerException).toHaveBeenCalledWith(error, {
+      origin: "uncaughtException",
+      scopes: ["studio"],
+    });
+  });
+
+  // A throw from an `uncaughtException` listener ends the process.
+  it("survives a report that throws", () => {
+    registerCrashDiagnostics(createFakeApp().app);
+    captureServerException.mockImplementationOnce(() => {
+      throw new Error("telemetry is down");
+    });
+
+    expect(() =>
+      addedUncaughtListeners()[0]?.(new Error("boom"), "uncaughtException"),
+    ).not.toThrow();
+  });
+
+  // A dependency that downloads through Electron's `net` without an error
+  // listener turns a dropped connection into an uncaught throw.
+  it.each([
+    ["uncaughtException", "net::ERR_NAME_NOT_RESOLVED"],
+    ["uncaughtException", "net::ERR_NETWORK_CHANGED"],
+    ["uncaughtException", "net::ERR_CONNECTION_RESET"],
+    ["unhandledRejection", "net::ERR_INTERNET_DISCONNECTED"],
+  ] as const)(
+    "logs rather than reports a network drop delivered by %s: %s",
+    (origin, message) => {
+      registerCrashDiagnostics(createFakeApp().app);
+      const error = new Error(message);
+
+      if (origin === "uncaughtException") {
+        addedUncaughtListeners()[0]?.(error, origin);
+      } else {
+        addedRejectionListeners()[0]?.(error, Promise.resolve());
+      }
+
+      expect(captureServerException).not.toHaveBeenCalled();
+      expect(log.warn).toHaveBeenCalledWith(
+        `${origin} from a network failure`,
+        error,
+      );
+    },
+  );
+
+  it.each([
+    ["a message that only mentions the network stack", "failed: net::ERR_X"],
+    ["an unrelated failure", "Cannot read properties of undefined"],
+  ])("still reports %s", (_label, message) => {
+    registerCrashDiagnostics(createFakeApp().app);
+    const error = new Error(message);
+
+    addedUncaughtListeners()[0]?.(error, "uncaughtException");
+
+    expect(captureServerException).toHaveBeenCalledWith(
+      error,
+      expect.objectContaining({ origin: "uncaughtException" }),
+    );
+  });
+
+  it("writes an uncaught throw somewhere a quit cannot lose it", () => {
+    registerCrashDiagnostics(createFakeApp().app);
+    const error = new Error("boom");
+
     addedMonitorListeners()[0]?.(error, "uncaughtException");
 
     // Not through the logger, whose file transport queues and never drains on
@@ -219,17 +284,17 @@ describe("registerCrashDiagnostics", () => {
   });
 
   // Routine in an app this size, and Node's default is to promote one into an
-  // uncaught exception and take the window down with whatever was in it. This
-  // is the one handler here that answers rather than watches, so the app is
-  // alive afterwards and the logger is the right place for it.
-  it("catches an unhandled rejection rather than dying of it", () => {
+  // uncaught exception.
+  it("reports an unhandled rejection without a crash record", () => {
     registerCrashDiagnostics(createFakeApp().app);
     const error = new Error("nobody awaited this");
 
     addedRejectionListeners()[0]?.(error, Promise.resolve());
 
-    expect(log.error).toHaveBeenCalledWith(error);
-    expect(addServerException).not.toHaveBeenCalled();
+    expect(captureServerException).toHaveBeenCalledWith(error, {
+      origin: "unhandledRejection",
+      scopes: ["studio"],
+    });
     expect(fs.existsSync(crashRecordPath())).toBe(false);
   });
 });

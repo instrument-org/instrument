@@ -30,6 +30,11 @@ const NETWORK_ERROR_CODES = new Set([
   "UND_ERR_SOCKET",
 ]);
 
+// Chromium's network stack, behind Electron's `net` module (which
+// electron-updater downloads through), fails with its own error name as the
+// whole message: `net::ERR_NAME_NOT_RESOLVED`, `net::ERR_NETWORK_CHANGED`.
+const CHROMIUM_NET_ERROR_MESSAGE = /^net::ERR_/;
+
 const MAX_CAUSE_DEPTH = 10;
 
 /**
@@ -50,6 +55,10 @@ export function isExpectedNetworkError(error: unknown): boolean {
       current instanceof TypeError &&
       FETCH_FAILURE_MESSAGES.has(current.message)
     ) {
+      return true;
+    }
+
+    if (CHROMIUM_NET_ERROR_MESSAGE.test(current.message)) {
       return true;
     }
 

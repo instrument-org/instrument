@@ -154,6 +154,8 @@ export type CaptureExceptionFunction = (
     machine_state?: string;
     message_id?: string;
     modelId?: string;
+    // The process event that delivered an error nothing else caught.
+    origin?: "uncaughtException" | "unhandledRejection";
     part_has_input?: boolean;
     part_id?: string;
     provider_executed?: boolean;

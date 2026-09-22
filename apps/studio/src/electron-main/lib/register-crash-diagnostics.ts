@@ -1,10 +1,10 @@
+import { isExpectedNetworkError } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
-import { isDeveloperMode } from "../stores/preferences";
+import { captureServerException } from "./capture-server-exception";
 import { describeError } from "./describe-error";
 import { createScopedLogger } from "./electron-logger";
-import { addServerException } from "./server-exceptions";
 
 const log = createScopedLogger("CrashDiagnostics");
 
@@ -25,18 +25,25 @@ let isWritingCrashRecord = false;
  * process is the only place left to record that it happened, and the log file
  * is the only record that outlives the session.
  *
- * None of this is recovery, and it is careful not to become recovery by
- * accident. An `uncaughtException` listener does not merely observe a throw, it
- * replaces what Node does about one: attach it and the process stops dying.
- * `uncaughtExceptionMonitor` is the half that only watches, so a main-process
- * throw still ends the process exactly as it would have, and Node still prints
- * the stack itself.
+ * A throw in the main process does not end it. Electron installs an
+ * `uncaughtException` listener of its own that never exits: when it is the only
+ * listener it shows a "JavaScript error occurred in the main process" dialog,
+ * and when any other listener is attached it does nothing. The listener here is
+ * that other listener, so a main-process throw is reported and the app carries
+ * on without a dialog. It must not throw itself: Node ends the process outright
+ * when an `uncaughtException` listener does.
  *
- * An unhandled rejection is the one exception, and deliberately. A promise
- * nobody awaited is routine in an app this size -- an aborted fetch, a
- * cancelled query, an actor torn down mid-flight -- and Node's default is to
- * promote it to an uncaught exception and take the window down with whatever
- * was in it. That one is worth catching rather than dying of.
+ * An unhandled rejection is answered the same way. A promise nobody awaited is
+ * routine in an app this size -- an aborted fetch, a cancelled query, an actor
+ * torn down mid-flight -- and Node's default is to promote it to an uncaught
+ * exception.
+ *
+ * Both are reported through `captureServerException`, so they carry the app
+ * version and the install's telemetry id like every other report, except the
+ * network drops `isExpectedNetworkError` recognizes. Those are a property of
+ * the user's connection: a dependency that downloads without an error listener
+ * turns a network change into an uncaught throw, and nothing about it is a bug
+ * here.
  *
  * The two process-gone records are content-free -- a process type, a name, a
  * reason, an exit code -- so either can be read, exported, or attached to a
@@ -49,21 +56,20 @@ let isWritingCrashRecord = false;
 export function registerCrashDiagnostics(app: Electron.App) {
   reportPreviousCrash(app);
 
-  // Observational: the process still dies, which is why the record cannot go
-  // through the logger. See `writeCrashRecord`.
+  // Written synchronously, ahead of the listeners below, so the record exists
+  // whatever reporting does. See `writeCrashRecord`.
   process.on("uncaughtExceptionMonitor", (error, origin) => {
     // The stack where there is one, since this record is all anyone gets.
     const { details, message } = describeError(error);
     writeCrashRecord(app, `${origin}: ${details ?? message}`);
   });
 
-  // Suppressing, and the only handler here that is. The app is still alive
-  // afterwards, so this record drains through the logger like any other.
+  process.on("uncaughtException", (error) => {
+    reportProcessError(error, "uncaughtException");
+  });
+
   process.on("unhandledRejection", (error) => {
-    log.error(error);
-    if (isDeveloperMode()) {
-      addServerException(describeError(error));
-    }
+    reportProcessError(error, "unhandledRejection");
   });
 
   app.on("render-process-gone", (_event, webContents, details) => {
@@ -127,21 +133,36 @@ function reportPreviousCrash(app: Electron.App) {
   }
 }
 
+function reportProcessError(
+  error: unknown,
+  origin: "uncaughtException" | "unhandledRejection",
+) {
+  try {
+    if (isExpectedNetworkError(error)) {
+      log.warn(`${origin} from a network failure`, error);
+      return;
+    }
+    captureServerException(error, { origin, scopes: ["studio"] });
+  } catch {
+    // A throw from an `uncaughtException` listener ends the process, which is
+    // worse than losing one report.
+  }
+}
+
 /**
- * Put a dying process's last words somewhere they will still be there.
+ * Put an uncaught throw's stack somewhere it will still be there.
  *
- * Written with a synchronous append rather than through the logger, which is
- * the whole reason this file exists. `electron-log`'s file transport is in
- * async mode here: it queues a line and drains it through `fs.writeFile`, with
- * no flush API and no drain on exit, so a line handed to it by a handler that
- * is about to let the process die is a line nobody ever reads. Every other
- * record in this module is written by a handler the app survives, which is what
- * makes the queue safe for those and not for this one.
+ * Written with a synchronous append rather than through the logger.
+ * `electron-log`'s file transport is in async mode here: it queues a line and
+ * drains it through `fs.writeFile`, with no flush API and no drain on exit, so
+ * a line queued just before the process ends is a line nobody ever reads. A
+ * main-process throw leaves the app running, but it is the throw most likely
+ * to be followed by a quit or a force-quit, and this record has to outlive
+ * either.
  *
  * The next start reads it back into the log, so the record still reaches the
  * one file a user can export. In development the file transport is off
- * entirely and Node's own stderr already carries the stack, so this is for the
- * packaged build, where it is the only account there is.
+ * entirely, so this is for the packaged build.
  */
 function writeCrashRecord(app: Electron.App, record: string) {
   // VS Code's own crash diagnostics carry the same latch, after a CI run

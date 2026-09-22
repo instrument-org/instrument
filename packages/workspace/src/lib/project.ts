@@ -38,7 +38,6 @@ export async function addFolderToProject(
 ): Promise<
   Result<
     Project,
-    | TypedError.Conflict
     | TypedError.FileSystem
     | TypedError.InvalidInput
     | TypedError.NotFound
@@ -92,12 +91,7 @@ export async function createProject({
   folders?: ProjectFolder[];
   instructions?: string;
   name: string;
-}): Promise<
-  Result<
-    Project,
-    TypedError.Conflict | TypedError.FileSystem | TypedError.InvalidInput
-  >
-> {
+}): Promise<Result<Project, TypedError.FileSystem | TypedError.InvalidInput>> {
   const validated = validateProjectName(name);
   if (validated.isErr()) {
     return err(validated.error);
@@ -253,7 +247,6 @@ export async function removeFolderFromProject(
 ): Promise<
   Result<
     Project,
-    | TypedError.Conflict
     | TypedError.FileSystem
     | TypedError.InvalidInput
     | TypedError.NotFound
@@ -316,7 +309,6 @@ export async function setProjectFolderAccess(
 ): Promise<
   Result<
     Project,
-    | TypedError.Conflict
     | TypedError.FileSystem
     | TypedError.InvalidInput
     | TypedError.NotFound
@@ -384,7 +376,6 @@ export async function updateProject(
 ): Promise<
   Result<
     Project,
-    | TypedError.Conflict
     | TypedError.FileSystem
     | TypedError.InvalidInput
     | TypedError.NotFound
@@ -472,11 +463,13 @@ export async function updateProject(
 
 async function findNameConflict(
   folderName: string,
-): Promise<Result<undefined, TypedError.Conflict>> {
+): Promise<Result<undefined, TypedError.InvalidInput>> {
   const existing = await listProjectFolders();
   if (existing.some((f) => f.toLowerCase() === folderName.toLowerCase())) {
     return err(
-      new TypedError.Conflict(`A project named "${folderName}" already exists`),
+      new TypedError.InvalidInput(
+        `A project named "${folderName}" already exists`,
+      ),
     );
   }
   return ok(undefined);

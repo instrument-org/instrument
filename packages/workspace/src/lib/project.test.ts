@@ -89,7 +89,7 @@ describe("project lib", () => {
     await createProject({ name: "Acme" });
     const dup = await createProject({ name: "acme" });
     expect(dup.isErr()).toBe(true);
-    expect(dup._unsafeUnwrapErr().type).toBe("workspace-conflict-error");
+    expect(dup._unsafeUnwrapErr().type).toBe("workspace-invalid-input-error");
   });
 
   it("rejects an invalid name", async () => {

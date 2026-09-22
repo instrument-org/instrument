@@ -343,6 +343,8 @@ export const agentMachine = setup({
     context: {} as {
       agent: AnyAgent;
       baseLLMRetryDelayMs: number;
+      /** Answers that arrived before their call was pending; see `updateInteractiveToolCall`. */
+      earlyToolCallUpdates: ToolCallUpdate[];
       error?: unknown;
       llmRequestChunkTimeoutMs: number;
       maxAttemptCount: number;
@@ -389,6 +391,7 @@ export const agentMachine = setup({
   context: ({ input }) => ({
     agent: input.agent,
     baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
+    earlyToolCallUpdates: [],
     llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
     maxAttemptCount: 3,
     maxStepCount: input.maxStepCount || 1,
@@ -442,47 +445,29 @@ export const agentMachine = setup({
       target: ".Finishing",
     },
     updateInteractiveToolCall: {
-      actions: assign({
-        pendingToolCalls: ({ context, event: { value } }) => {
-          // TODO Only allow one match and use our ids
-          const pendingToolCalls = context.pendingToolCalls.filter(
-            (call) => call.toolCallId === value.toolCallId,
-          );
-          for (const pendingToolCall of pendingToolCalls) {
-            // TODO Save these promises and handle them async in the state machine
-            void Store.updatePart(
-              {
-                messageId: pendingToolCall.metadata.messageId,
-                partId: pendingToolCall.metadata.id,
-                sessionId: pendingToolCall.metadata.sessionId,
-              },
-              (current) =>
-                (value.type === "success"
-                  ? {
-                      ...current,
-                      metadata: {
-                        ...current.metadata,
-                        endedAt: new Date(),
-                      },
-                      output: value.value.output as never,
-                      state: "output-available",
-                    }
-                  : {
-                      ...current,
-                      errorText: value.errorText,
-                      metadata: {
-                        ...current.metadata,
-                        endedAt: new Date(),
-                      },
-                      state: "output-error",
-                    }) as SessionMessagePart.Type,
-              context.taskId,
-            );
-          }
-          return context.pendingToolCalls.filter(
+      actions: assign(({ context, event: { value } }) => {
+        const pendingToolCall = context.pendingToolCalls.find(
+          (call) => call.toolCallId === value.toolCallId,
+        );
+        // The card can be answered as soon as the call has streamed, which is
+        // before the step ends and hands its calls to `pendingToolCalls`. An
+        // answer that early is held for that moment rather than dropped.
+        if (!pendingToolCall) {
+          return {
+            earlyToolCallUpdates: [
+              ...context.earlyToolCallUpdates.filter(
+                (update) => update.toolCallId !== value.toolCallId,
+              ),
+              value,
+            ],
+          };
+        }
+        saveToolCallUpdate(pendingToolCall, value, context.taskId);
+        return {
+          pendingToolCalls: context.pendingToolCalls.filter(
             (call) => call.toolCallId !== value.toolCallId,
-          );
-        },
+          ),
+        };
       }),
     },
   },
@@ -664,8 +649,24 @@ export const agentMachine = setup({
                 toolCallQueue.push(part);
               }
 
+              const answered = new Set<string>();
+              for (const update of context.earlyToolCallUpdates) {
+                const pendingToolCall = pendingToolCalls.find(
+                  (call) => call.toolCallId === update.toolCallId,
+                );
+                if (pendingToolCall) {
+                  saveToolCallUpdate(pendingToolCall, update, context.taskId);
+                  answered.add(update.toolCallId);
+                }
+              }
+
               return {
-                pendingToolCalls,
+                earlyToolCallUpdates: context.earlyToolCallUpdates.filter(
+                  (update) => !answered.has(update.toolCallId),
+                ),
+                pendingToolCalls: pendingToolCalls.filter(
+                  (call) => !answered.has(call.toolCallId),
+                ),
                 toolCallQueue,
                 unaccountedStreamCount: context.unaccountedStreamCount - 1,
               };
@@ -888,3 +889,40 @@ export const agentMachine = setup({
 });
 
 export type AgentMachineActorRef = ActorRefFrom<typeof agentMachine>;
+
+/** Write the user's answer (or the error that stands for one) onto the call's part. */
+function saveToolCallUpdate(
+  pendingToolCall: SessionMessagePart.ToolPartInputAvailable,
+  value: ToolCallUpdate,
+  taskId: TaskId,
+) {
+  // TODO Save these promises and handle them async in the state machine
+  void Store.updatePart(
+    {
+      messageId: pendingToolCall.metadata.messageId,
+      partId: pendingToolCall.metadata.id,
+      sessionId: pendingToolCall.metadata.sessionId,
+    },
+    (current) =>
+      (value.type === "success"
+        ? {
+            ...current,
+            metadata: {
+              ...current.metadata,
+              endedAt: new Date(),
+            },
+            output: value.value.output as never,
+            state: "output-available",
+          }
+        : {
+            ...current,
+            errorText: value.errorText,
+            metadata: {
+              ...current.metadata,
+              endedAt: new Date(),
+            },
+            state: "output-error",
+          }) as SessionMessagePart.Type,
+    taskId,
+  );
+}

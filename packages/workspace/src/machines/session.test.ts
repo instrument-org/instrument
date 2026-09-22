@@ -224,6 +224,7 @@ describe("sessionMachine", () => {
     baseLLMRetryDelayMs = 1000,
     chunkSets = [],
     imageModel,
+    chunkDelayMs,
     initialChunkDelaysMs = [],
     llmRequestChunkTimeoutMs = 120_000,
     maxStepCount,
@@ -243,6 +244,8 @@ describe("sessionMachine", () => {
     baseLLMRetryDelayMs?: number;
     chunkSets?: Part[][];
     imageModel?: ImageModelV3;
+    /** Between every chunk, for a test about something landing mid-stream. */
+    chunkDelayMs?: number;
     initialChunkDelaysMs?: number[];
     llmRequestChunkTimeoutMs?: number;
     maxStepCount?: number;
@@ -268,6 +271,7 @@ describe("sessionMachine", () => {
         return {
           rawCall: { rawPrompt: null, rawSettings: {} },
           stream: simulateReadableStream({
+            chunkDelayInMs: chunkDelayMs,
             chunks: [...currentChunks, streamFinishChunk],
             initialDelayInMs: initialChunkDelaysMs[chunkIndex],
           }),
@@ -1216,6 +1220,63 @@ describe("sessionMachine", () => {
         </assistant>
       </session>"
     `);
+  });
+
+  // The card is answerable once the call has streamed, and the step that
+  // made it can still be running: an answer that quick has to wait for the
+  // step to end rather than find nothing pending and vanish.
+  it("keeps an answer that arrives before the step ends", async () => {
+    const result = await createActorAndTask({
+      agent: setupAgent({
+        agentTools: pick(TOOLS, ["Choose"]),
+        name: "main",
+      }).create(() => ({
+        getMessages: mainAgent.getMessages,
+        onFinish: mainAgent.onFinish,
+        onStart: mainAgent.onStart,
+        shouldContinue: mainAgent.shouldContinue,
+      })),
+      chunkDelayMs: 100,
+      chunkSets: [chooseChunks, finishChunks],
+    });
+
+    const abort = new AbortController();
+    void (async () => {
+      for await (const { part } of publisher.subscribe("part.updated", {
+        signal: abort.signal,
+      })) {
+        if (part.type === "tool-choose" && part.state === "input-available") {
+          expect(
+            result.actor
+              .getSnapshot()
+              .matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
+          ).toBe(false);
+          result.actor.send({
+            type: "updateInteractiveToolCall",
+            value: {
+              toolCallId: chooseToolCallId,
+              type: "success",
+              value: {
+                output: { declined: true },
+                toolName: "choose",
+              },
+            },
+          });
+          return;
+        }
+      }
+    })().catch(noop);
+
+    const session = (await runTestMachine(result))._unsafeUnwrap();
+    abort.abort();
+
+    const choose = session.messages
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === "tool-choose");
+    expect(choose).toMatchObject({
+      output: { declined: true },
+      state: "output-available",
+    });
   });
 
   it("stops while a choose is pending without an unhandled event", async () => {

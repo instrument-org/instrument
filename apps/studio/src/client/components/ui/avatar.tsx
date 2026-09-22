@@ -42,9 +42,6 @@ function AvatarImage({
     <AvatarPrimitive.Image
       className={cn("aspect-square size-full", className)}
       data-slot="avatar-image"
-      // Google's avatar host refuses a request that carries the app's
-      // referrer, so an account picture never loads with the default.
-      referrerPolicy="no-referrer"
       {...props}
     />
   );

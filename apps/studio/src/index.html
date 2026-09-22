@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <!--
+      A packaged build loads from `file://`, which sends no referrer; dev loads
+      from `http://localhost`, which would. No referrer at all keeps the two
+      alike, and some hosts (Google's account pictures among them) refuse a
+      request that names localhost as where it came from.
+    -->
+    <meta name="referrer" content="no-referrer" />
+    <!--
       `img-src` is wider than anything content is allowed to reach, because it
       also covers chrome this app drew itself. What a document written by a
       model, a shared file, or a notebook may point an `<img>` at is decided in

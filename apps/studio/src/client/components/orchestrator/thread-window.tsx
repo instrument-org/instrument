@@ -57,7 +57,7 @@ export function ThreadBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl dark:bg-gray-700"
+      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft dark:bg-gray-700"
       data-slot="thread-bar"
       exit={{ opacity: 0, y: 36 }}
       initial={{ opacity: 0, right, y: 36 }}
@@ -145,7 +145,11 @@ export function ThreadWindow({
       // On the page's ground rather than the card's: the conversation is
       // drawn for that ground, its bubbles on the card's and its fades from
       // the page's, and on a card both go missing.
-      className="pointer-events-auto absolute bottom-0 z-40 flex max-h-[calc(100%-1rem)] flex-col overflow-hidden rounded-t-2xl bg-background text-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10"
+      // An opaque edge, and the shadow ramp without its own hairline: the
+      // small view is drawn over the pane, over a page guest, and under a
+      // draft window, and a see-through edge takes the color of whatever it
+      // lands on and doubles wherever two of them cross.
+      className="pointer-events-auto absolute bottom-0 z-40 flex max-h-[calc(100%-1rem)] flex-col overflow-hidden rounded-t-2xl bg-background text-foreground shadow-xl-soft ring-1 ring-gray-300 dark:ring-gray-600"
       data-slot="thread-window"
       exit={{ opacity: 0, y: 24 }}
       initial={arrives ? { opacity: 0, right, y: 24 } : false}

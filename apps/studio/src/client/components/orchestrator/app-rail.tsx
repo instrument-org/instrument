@@ -184,7 +184,11 @@ function AppFan() {
       {shown.map((app, index) => (
         <span
           className={cn(
-            "absolute grid size-6 place-items-center rounded-md bg-card p-1 shadow-sm ring-1 ring-border",
+            // An opaque edge, and the shadow ramp without its own hairline:
+            // the cards overlap, and a see-through edge lying over the card
+            // behind it composites into a brighter line exactly where they
+            // cross. Opaque, a card in front simply covers the one behind.
+            "absolute grid size-6 place-items-center rounded-md bg-card p-1 shadow-sm-soft ring-1 ring-gray-200 dark:ring-gray-600",
             cards[index],
           )}
           key={app.slug}

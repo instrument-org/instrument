@@ -122,7 +122,7 @@ export function ComposeBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl dark:bg-gray-700"
+      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft dark:bg-gray-700"
       data-slot="compose-bar"
       exit={{ opacity: 0, y: 36 }}
       initial={{ opacity: 0, right, y: 36 }}
@@ -547,7 +547,11 @@ export function ComposeWindow({
     <motion.div
       animate={{ opacity: 1, ...(isExpanded ? {} : { right }), y: 0 }}
       className={cn(
-        "pointer-events-auto absolute z-40 flex flex-col overflow-hidden bg-card text-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10",
+        // An opaque edge, and the shadow ramp without its own hairline: these
+        // windows are drawn over the pane, over a page guest, and over each
+        // other, and a see-through edge takes the color of whatever it lands
+        // on and doubles wherever two of them cross.
+        "pointer-events-auto absolute z-40 flex flex-col overflow-hidden bg-card text-foreground shadow-xl-soft ring-1 ring-gray-300 dark:ring-gray-600",
         // Docked, the window grows with the words up to the row's height, so
         // the band keeps its room under them for as long as there is room to
         // give; only then do the words scroll.

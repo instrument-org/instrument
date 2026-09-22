@@ -1,4 +1,3 @@
-import { featuresAtom } from "@/client/atoms/features";
 import { filePreviewAtom } from "@/client/atoms/file-preview";
 import {
   type AppPlace,
@@ -8,7 +7,6 @@ import {
   draftGroupOf,
   draftOfGroup,
   draftsAtom,
-  draftSnapshotsAtom,
   inboxOpenAtom,
   NEW_TAB_HREF,
   newTabHrefOf,
@@ -21,9 +19,7 @@ import {
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
-  threadFiltersAtom,
   THREADS_HREF,
-  type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { FileSystemIconSpriteSheet } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -35,7 +31,6 @@ import {
   type ComposeHost,
 } from "@/client/components/orchestrator/browser-tabs";
 import { ComposeLayer } from "@/client/components/orchestrator/compose-layer";
-import { type DraftSend } from "@/client/components/orchestrator/compose-window";
 import {
   OrchestratorContext,
   type OrchestratorWindow,
@@ -67,8 +62,8 @@ import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
 import { ThreadTasksButton } from "@/client/components/orchestrator/thread-tasks-button";
 import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-view";
 import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-view";
-import { NO_FILTERS } from "@/client/components/orchestrator/threads";
 import { useCompose } from "@/client/components/orchestrator/use-compose";
+import { useDrafts } from "@/client/components/orchestrator/use-drafts";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { useOpeners } from "@/client/components/orchestrator/use-openers";
 import { useRecordRecents } from "@/client/components/orchestrator/use-record-recents";
@@ -77,10 +72,7 @@ import { useWindowCommands } from "@/client/components/orchestrator/use-window-c
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
-  isFreshTab,
-  isHomeTab,
   PAGE_ROUTE,
-  parseHref,
   usePopClosedTab,
   useWindowTabs,
 } from "@/client/components/orchestrator/window-tabs";
@@ -130,7 +122,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import ms from "ms";
 import {
   lazy,
@@ -141,8 +133,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
-import { ulid } from "ulid";
 
 // The panel that turns Instrument 2.0 off again, in the window it turns off:
 // loaded only where developer mode already put it.
@@ -162,9 +152,6 @@ const LazyFilePreviewModal = lazy(() =>
 
 /** How often the tasks' titles are re-read, for the strip. */
 const REFRESH_MS = ms("2 seconds");
-
-/** How long a thread just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
-const THREAD_ARRIVAL_MS = ms("3 seconds");
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
 const INBOX_COLLAPSE_THRESHOLD = 240;
@@ -317,25 +304,6 @@ function hasWords(draft: Draft): boolean {
 }
 
 /**
- * Whether a tab is something a draft opened over it can carry to its thread:
- * a page, a file or folder on the computer, or an app's front. A place's own
- * fresh tab is the place rather than a thing in it, and the screens with no
- * words for the conversation are left out.
- */
-function isIncludable(tab: WindowTab): boolean {
-  if (isFreshTab(tab)) {
-    return false;
-  }
-  if (tab.kind === "page") {
-    return true;
-  }
-  return (
-    computerTabOf(tab.href) !== undefined ||
-    parseHref(tab.href).pathname.startsWith("/orchestrator/apps/")
-  );
-}
-
-/**
  * The window: the chat pane down the left, with its filters, its threads, and
  * its composer, and to its right one strip of tabs above whatever is open. A
  * tab is a page (a browser guest of the orchestrator's) or a screen (a thread,
@@ -384,11 +352,8 @@ function OrchestratorLayout() {
   );
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
-  const features = useAtomValue(featuresAtom);
   const screenView = useAtomValue(screenViewAtom);
   const [drafts, setDrafts] = useAtom(draftsAtom);
-  const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
-  const [threadFilters, setThreadFilters] = useAtom(threadFiltersAtom);
   // The place the rail has the window standing in. The chat is the inbox
   // beside a thread and its tabs; every other place is a row of tabs of its
   // own filling the area, drawn by the same pane with the inbox and the
@@ -943,9 +908,6 @@ function OrchestratorLayout() {
 
   useRecordRecents();
 
-  const createMessage = useMutation(
-    rpcClient.workspace.message.create.mutationOptions(),
-  );
   // The default first, since it is what the draft's picker edits: every send
   // stores its model on the orchestrator's own state, so once any thread has
   // been started that field is always set, and a pick that only ever reached
@@ -965,74 +927,40 @@ function OrchestratorLayout() {
   );
   const setThreadTopics = useSetThreadTopics(ids?.taskId);
   const [isNewTopicOpen, setNewTopicOpen] = useState(false);
-  // The draft whose first message is on its way, by id.
-  const [startingId, setStartingId] = useState<string>();
-  // The thread a draft just became, for as long as its row's arrival lasts.
-  const [arrivedId, setArrivedId] = useState<StoreId.Session>();
-  useEffect(() => {
-    if (arrivedId === undefined) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      setArrivedId(undefined);
-    }, THREAD_ARRIVAL_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [arrivedId]);
 
-  /** Brings a draft up in a window along the foot, to go on writing it. */
-  const showDraft = (id: string) => {
-    compose.open(id);
-  };
-  /**
-   * Makes a draft, filed under a topic when the pane stands in one and with
-   * words already in it when a button handed some over, and brings it up in
-   * a window of its own with the new-tab page as its first tab: the place to
-   * find a site, a folder, a file, or an app to gather. Every ask is a new
-   * draft, beside the ones already open.
-   */
-  const startDraft = (topicId: string | undefined, words = "") => {
-    const now = Date.now();
-    // What the draft is opened over: the tab the place has up, when the
-    // window stands in a place and that tab is something the conversation
-    // can be told about. A place's own fresh tab is the place, not a thing.
-    const overGroup =
-      place === "chat" || place === "home" ? undefined : placeGroupOf(place);
-    const over =
-      overGroup === undefined ? undefined : windowTabs.tabUpIn(overGroup);
-    const included =
-      overGroup !== undefined && over !== undefined && isIncludable(over)
-        ? { group: overGroup, tabId: over.id }
-        : undefined;
-    const draft: Draft = {
-      createdAt: now,
-      id: ulid(),
-      ...(included ? { included } : {}),
-      ...(topicId ? { topicId } : {}),
-      updatedAt: now,
-      words,
-    };
-    setDrafts((current) => [...current, draft]);
-    windowTabs.openScreen(NEW_TAB_HREF, {
-      activate: true,
-      group: draftGroupOf(draft.id),
-    });
-    showDraft(draft.id);
-  };
-  /**
-   * New, from the rail or its chord, or a button handing over a line: a
-   * draft filed under the topic the inbox stands in while it stands in one,
-   * with the window put on the chat, which is where a draft is written.
-   */
-  const newDraft = (words?: string) => {
-    startDraft(
-      isChat && threadFilters.topics.length === 1
-        ? topics.find((topic) => topic.id === threadFilters.topics[0])?.id
-        : undefined,
-      typeof words === "string" ? words : "",
-    );
-  };
+  // What goes with a message, read at the moment of sending.
+  const { draftContext, sendContext } = contextReaders({
+    appsBySlug,
+    browser,
+    children: children.data,
+    drafts,
+    href: location.href,
+    screenView,
+    state: state.data,
+    tasksFace: isTasksViewUp ? tasksFace : undefined,
+    threadTitles,
+    viewsById: compose.viewsById,
+    windowTabs,
+  });
+  sendContextRef.current = sendContext;
+  const {
+    arrivedId,
+    closeDraft,
+    deleteDraft,
+    newDraft,
+    showDraft,
+    startingId,
+    startThread,
+  } = useDrafts({
+    compose,
+    draftContext,
+    ids,
+    place,
+    saveDefaultModelURI,
+    toChat,
+    topics,
+    windowTabs,
+  });
   /**
    * Puts the group on screen away: the inbox takes the width, and comes
    * back if it was hidden, since nothing else would be left on screen.
@@ -1040,38 +968,6 @@ function OrchestratorLayout() {
   const leaveGroup = () => {
     windowTabs.leaveGroup();
     setInboxOpen(true);
-  };
-  // What a draft's composer held is kept only as long as the draft: a
-  // composer unmounting keeps its snapshot as it goes, so a draft sent or
-  // thrown away is pruned here, after that.
-  const draftIds = drafts.map((draft) => draft.id).join("\n");
-  useEffect(() => {
-    const keep = new Set(draftIds.split("\n"));
-    setDraftSnapshots((current) =>
-      Object.fromEntries(
-        Object.entries(current).filter(([id]) => keep.has(id)),
-      ),
-    );
-  }, [draftIds, setDraftSnapshots]);
-  /** Throws a draft away: its window, its record, what its composer held, and its tabs. */
-  const deleteDraft = (id: string) => {
-    compose.remove(draftGroupOf(id));
-    setDrafts((current) => current.filter((draft) => draft.id !== id));
-    windowTabs.dropGroup(draftGroupOf(id));
-  };
-  /**
-   * Closes a draft's window: one with words is kept in Drafts the way mail
-   * keeps a draft, and one with nothing written is thrown away, whatever it
-   * gathered, so a draft opened and closed again leaves nothing behind. The
-   * words come from the window, since the record follows the box a beat
-   * behind.
-   */
-  const closeDraft = (id: string, words: string) => {
-    if (words.trim() === "") {
-      deleteDraft(id);
-    } else {
-      compose.remove(draftGroupOf(id));
-    }
   };
   // The inbox's rows as the pane lists them, for stepping through them by
   // chord; the pane says what it shows, since it holds the filters.
@@ -1127,112 +1023,6 @@ function OrchestratorLayout() {
       }
     },
   });
-  // What goes with a message, read at the moment of sending.
-  const { draftContext, sendContext } = contextReaders({
-    appsBySlug,
-    browser,
-    children: children.data,
-    drafts,
-    href: location.href,
-    screenView,
-    state: state.data,
-    tasksFace: isTasksViewUp ? tasksFace : undefined,
-    threadTitles,
-    viewsById: compose.viewsById,
-    windowTabs,
-  });
-  sendContextRef.current = sendContext;
-  /**
-   * Starts the thread the draft is for: what its composer sends (the words,
-   * the files, the folders, the model) and its topic as the first message,
-   * with what its band shows as the context; then what the draft gathered
-   * becomes the thread's tabs exactly as they are. Started from Chat, the
-   * thread comes on screen beside the inbox and the window goes; started
-   * from a place (or from Chat with the flag on), the window becomes the
-   * thread's small view in the same corner, and the place is left as it is.
-   */
-  const startThread = (id: string, send: DraftSend) => {
-    const draft = drafts.find((entry) => entry.id === id);
-    if (!draft || !ids) {
-      return;
-    }
-    // Read as the thread starts: where the window stood when the arrow was
-    // pressed is where the thread is asked for.
-    const floats = !isChat || features.float_every_draft;
-    setStartingId(id);
-    // The model chosen for the thread is the one the next draft opens with.
-    saveDefaultModelURI(send.modelURI);
-    void (async () => {
-      let viewing: SessionMessageDataPart.ViewContextDataPart | undefined;
-      try {
-        viewing = await draftContext(id);
-      } catch {
-        // A context that cannot be gathered is a thread told less, not a
-        // thread that never starts: the send goes on without it.
-      }
-      createMessage.mutate(
-        {
-          files: send.files,
-          folders: send.folders,
-          id: ids.taskId,
-          modelURI: send.modelURI,
-          output: send.output,
-          prompt: send.prompt,
-          ...(draft.topicId ? { topics: [draft.topicId] } : {}),
-          viewing,
-        },
-        {
-          onError: (error) => {
-            toast.error("Failed to start the thread", {
-              description: error.message,
-            });
-          },
-          onSettled: () => {
-            setStartingId((current) => (current === id ? undefined : current));
-          },
-          onSuccess: ({ sessionId }) => {
-            setDrafts((current) => current.filter((entry) => entry.id !== id));
-            // What the draft gathered becomes the thread's tabs, the pages
-            // and folders as they stand; the new-tab pages among them were
-            // the band's own face and are not carried over, and a draft that
-            // gathered nothing hands over nothing, so the thread opens with
-            // no pane.
-            const group = draftGroupOf(id);
-            const own = windowTabs.allTabs.filter((tab) => tab.group === group);
-            const homes = own.filter((tab) => isHomeTab(tab));
-            for (const home of homes) {
-              windowTabs.close(home.id);
-            }
-            if (floats) {
-              // The window stays and becomes the thread's; the tabs move
-              // behind it, and nothing on screen changes.
-              compose.becomeThread(id, sessionId);
-              if (homes.length === own.length) {
-                windowTabs.dropGroup(group);
-              } else {
-                windowTabs.adoptGroup(group, sessionId, { show: false });
-              }
-              return;
-            }
-            compose.remove(group);
-            setArrivedId(sessionId);
-            if (homes.length === own.length) {
-              windowTabs.dropGroup(group);
-              windowTabs.showThread(sessionId);
-            } else {
-              windowTabs.adoptGroup(group, sessionId);
-            }
-            // The thread is on the chat, whatever place the draft was
-            // written over.
-            toChat();
-            // A list narrowed to a topic or a place is a list the new thread
-            // is very likely not in, so the narrowing goes.
-            setThreadFilters(NO_FILTERS);
-          },
-        },
-      );
-    })();
-  };
   const screens: null | OrchestratorWindow = ids
     ? {
         // No session: a line a button hands over at the top level opens a

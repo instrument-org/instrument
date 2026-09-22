@@ -120,17 +120,14 @@ export function ChildTranscript({ task }: { task: Task }) {
 function AppsChip({ apps }: { apps: string[] | undefined }) {
   if (!apps) {
     return (
-      <Chip label="Apps" title="Nothing narrows this task's reach">
+      <Chip label="Apps" title="This task can use every connected app">
         every connected app
       </Chip>
     );
   }
   if (apps.length === 0) {
     return (
-      <Chip
-        label="Apps"
-        title="The `app` command finds nothing; the orchestrator hands one over with `task app`"
-      >
+      <Chip label="Apps" title="No app was handed to this task">
         none
       </Chip>
     );
@@ -189,10 +186,7 @@ function EffortChip({ task }: { task: Task }) {
   const effort = task.reasoningEffort ?? fromModel;
   if (!effort) {
     return (
-      <Chip
-        label="Effort"
-        title="No level is sent, so the provider's own default stands"
-      >
+      <Chip label="Effort" title="No level chosen; the model's default applies">
         provider default
       </Chip>
     );
@@ -203,7 +197,7 @@ function EffortChip({ task }: { task: Task }) {
       title={
         task.reasoningEffort
           ? "The level this task was created with"
-          : "This model reasons by default; no level was chosen for the task"
+          : "No level chosen; this model reasons by default"
       }
       {...(task.reasoningEffort ? {} : { note: "model default" })}
     >

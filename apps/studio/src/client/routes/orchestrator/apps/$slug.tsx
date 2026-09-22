@@ -121,15 +121,18 @@ function AppRoute() {
 
   const domain = home ? new URL(home).host : undefined;
   const description = entry?.description ?? entry?.tagline;
+  const methods = (entry?.authMethods ?? []).map((method) => method.label);
   const needs = app
     ? app.type === "mcp-local"
-      ? `Its server runs on this Mac: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name} in its environment` : ""}.`
+      ? `Runs on this Mac: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name}` : ""}.`
       : app.type === "mcp" && app.authKind === "oauth"
-        ? `A sign-in with ${name}, once.`
+        ? `Sign in to ${name} once.`
         : app.authKind === "none"
-          ? "Nothing: it is open."
-          : `A key from ${name}, which Instrument stores encrypted on this Mac.`
-    : (entry?.authMethods ?? []).map((method) => method.label).join(", ");
+          ? "No sign-in needed."
+          : `A key from ${name}. Instrument keeps it encrypted on this Mac.`
+    : methods.length > 0
+      ? `Connects with ${methods.join(" or ")}.`
+      : "";
   const openHome = () => {
     if (home && browser) {
       openPage(home);

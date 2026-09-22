@@ -192,7 +192,7 @@ function SkillsRoute() {
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-10">
       <h1 className="text-xl font-semibold">Skills</h1>
       <p className="mt-1 max-w-lg text-sm text-muted-foreground">
-        {`Extra know-how ${APP_NAME} can draw on for particular kinds of work, and where each piece of it comes from.`}
+        {`What ${APP_NAME} knows how to do beyond the basics, and where each skill comes from.`}
       </p>
 
       <div className="mt-6 max-w-5xl">

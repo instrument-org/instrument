@@ -118,7 +118,7 @@ export function HomePlace({
         {threadsQuery.data === undefined ? (
           <Skeleton className="h-36 rounded-xl" />
         ) : recent.length === 0 ? (
-          <Empty>Start a thread from New, and it is here.</Empty>
+          <Empty>Threads you start show up here.</Empty>
         ) : (
           <RecentChats onOpen={onOpenThread} taskId={taskId} threads={recent} />
         )}

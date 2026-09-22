@@ -252,7 +252,7 @@ export function ComposeZeroState({
               <MarkSkeletons count={3} />
             ) : recents.data.length === 0 ? (
               <span className="text-[11px] text-muted-foreground">
-                Files Instrument shows you will appear here.
+                Files from your threads show up here.
               </span>
             ) : (
               recents.data.slice(0, FILES_SHOWN).map((file) => (
@@ -290,7 +290,7 @@ export function ComposeZeroState({
           // is connected, stands where the apps will.
           <div className="flex items-center gap-3 rounded-lg bg-card px-3 py-2.5 shadow-xs">
             <p className="min-w-0 flex-1 text-[12px] text-muted-foreground">
-              Connect a service, and it is here to name in a thread.
+              Connected apps show up here.
             </p>
             <button
               className="inline-flex h-7 shrink-0 items-center rounded-lg border border-border bg-card px-2.5 text-[12px] font-medium text-foreground shadow-xs hover:bg-accent"

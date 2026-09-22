@@ -231,7 +231,7 @@ function AppsRoute() {
               onChange={(event) => {
                 setOther(event.target.value);
               }}
-              placeholder="Something else: a service, an API, a name"
+              placeholder="Another service, API, or name"
               value={other}
             />
             <GlyphButton disabled={other.trim() === ""} size="sm" type="submit">

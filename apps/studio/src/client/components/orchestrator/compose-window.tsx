@@ -528,7 +528,7 @@ export function ComposeWindow({
             <span className="[&_svg]:size-4">{icon}</span>
             {title}
           </span>
-          <p>This opens beside the thread rather than in a draft.</p>
+          <p>Opens beside the thread, not in a draft.</p>
           <Button
             onClick={() => {
               openOutside(up.href);

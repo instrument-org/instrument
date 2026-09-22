@@ -139,17 +139,17 @@ export function ComposeZeroState({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-4 pt-4 pb-4">
-      <Door name="Attach">
-        <div className="flex h-12 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-3 text-[12px] text-gray-500 dark:border-gray-600 dark:text-gray-400">
-          <span className="min-w-0 truncate">Drop files or folders here</span>
-          <Chooser icon={PaperclipIcon} onPick={onAttachFiles}>
-            Choose files
-          </Chooser>
-          <Chooser icon={FolderIcon} onPick={onAttachFolder}>
-            Choose a folder
-          </Chooser>
-        </div>
-      </Door>
+      {/* The drop strip says what it is for itself, so it carries no head:
+          the line that would name it is a line of the words' instead. */}
+      <div className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-3 text-[12px] text-gray-500 dark:border-gray-600 dark:text-gray-400">
+        <span className="min-w-0 truncate">Drop files or folders here</span>
+        <Chooser icon={PaperclipIcon} onPick={onAttachFiles}>
+          Choose files
+        </Chooser>
+        <Chooser icon={FolderIcon} onPick={onAttachFolder}>
+          Choose a folder
+        </Chooser>
+      </div>
 
       <Door name="Browse">
         <Box>

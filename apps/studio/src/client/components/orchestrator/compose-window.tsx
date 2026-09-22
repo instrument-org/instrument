@@ -18,16 +18,16 @@ import {
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/client/components/ui/tooltip";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
@@ -653,9 +653,11 @@ export function ComposeWindow({
               </div>
               {/* The words give way to the band only once the window can
                   grow no further: the band keeps a floor, and the words
-                  scroll past what is left. */}
+                  scroll past what is left. The editor keeps three lines of
+                  its own whatever is attached over it, so a chip or a row of
+                  pasted files takes its room from the band, not the words. */}
               <div
-                className="flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6"
+                className="flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:min-h-18 [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6"
                 ref={wordsWrapRef}
               >
                 <PromptInput
@@ -831,7 +833,7 @@ function IncludedChip({
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="inline-flex h-6 max-w-64 min-w-0 items-center gap-1.5 rounded-md bg-muted/60 pr-0.5 pl-1.5 text-xs text-muted-foreground ring-1 ring-border/70"
+          className="inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pr-0.5 pl-2 text-xs text-muted-foreground ring-1 ring-border/70"
           data-slot="included-chip"
         >
           <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
@@ -849,8 +851,7 @@ function IncludedChip({
         </span>
       </TooltipTrigger>
       <TooltipContent collisionPadding={10} maxWidth="20rem">
-        Open behind this window. What is on it goes with your words; the x
-        leaves it out.
+        Sent to Instrument with your message
       </TooltipContent>
     </Tooltip>
   );

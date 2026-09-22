@@ -35,6 +35,7 @@
     "fix:spelling": "node scripts/typos.ts --write-changes",
     "fix:unused": "knip --fix",
     "scripts:delete-dated-dev-folders": "node scripts/delete-dated-dev-folders.ts",
+    "scripts:rebuild-just-bash-patch": "node scripts/rebuild-just-bash-patch.ts",
     "scripts:update-registry": "node scripts/update-registry.ts",
     "test": "vitest",
     "turbo:check:lint:ci": "cross-env CI=true turbo check:lint",

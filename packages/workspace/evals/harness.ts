@@ -14,6 +14,7 @@ import path from "node:path";
 import * as _ from "radashi";
 import { ulid } from "ulid";
 import { createActor } from "xstate";
+import { type z } from "zod";
 
 import type { Session } from "../src/schemas/session";
 
@@ -38,6 +39,7 @@ import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
 import { type TaskKind } from "../src/schemas/task-kind";
+import { type Choose } from "../src/tools/choose";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
@@ -186,6 +188,23 @@ export interface EvalCase {
    * case's context, not only this one's. Run an app case on its own.
    */
   apps?: AppFixture[];
+  /**
+   * What the user answers to each `choose` the agent puts to them, in the
+   * order it asks, sent through the same route the card answers with. A
+   * function gets the question as asked, for an answer that picks one of the
+   * choices the model wrote. A question asked past the end of the list stops
+   * the run, since nothing else would answer it and the turn would wait out
+   * the clock.
+   */
+  answers?: (
+    | ((
+        input: Extract<
+          SessionMessagePart.ToolPartInputAvailable,
+          { type: "tool-choose" }
+        >["input"],
+      ) => ChooseAnswer)
+    | ChooseAnswer
+  )[];
   assertions?: Assertion[];
   files?: FileUpload.Type[];
   folders?: { access?: FolderAttachment.Access; path: string }[];
@@ -233,6 +252,8 @@ interface ChildTaskSessions {
   taskId: TaskId;
   title: string;
 }
+
+type ChooseAnswer = z.output<typeof Choose.outputSchema>;
 
 export function defineEval(evalCase: EvalCase): EvalCase {
   return evalCase;
@@ -441,6 +462,8 @@ export async function runEvals(
       const startedAt = Date.now();
       let stoppedBy: RunStop | undefined;
       let overBudget: number | undefined;
+      // Each question once: a part is published again on every update.
+      const askedIds = new Set<string>();
       const partUpdates = publisher.subscribe("part.updated", {
         signal: abortController.signal,
       });
@@ -486,6 +509,43 @@ export async function runEvals(
             }
 
             const part = event.part;
+
+            if (
+              part.type === "tool-choose" &&
+              part.state === "input-available" &&
+              !askedIds.has(part.toolCallId)
+            ) {
+              askedIds.add(part.toolCallId);
+              const scripted = evalCase.answers?.[askedIds.size - 1];
+              const answer =
+                typeof scripted === "function"
+                  ? scripted(part.input)
+                  : scripted;
+              write(
+                `${evalPrefix(label)}${c.cyan}choose${c.reset}${c.dim} asked: ${part.input.question}${c.reset}\n`,
+              );
+              if (answer) {
+                write(
+                  `${evalPrefix(label)}${c.dim}Answering: ${JSON.stringify(answer)}${c.reset}\n`,
+                );
+                void call(
+                  sessionRoute.answerToolCall,
+                  {
+                    id,
+                    output: answer,
+                    toolCallId: part.toolCallId,
+                    toolName: "choose",
+                  },
+                  { context },
+                );
+              } else {
+                stoppedBy ??= "case";
+                write(
+                  `${evalPrefix(label)}${c.yellow}No scripted answer for question ${askedIds.size}, stopping session...${c.reset}\n`,
+                );
+                void call(sessionRoute.stop, { id }, { context });
+              }
+            }
 
             if (
               isToolPart(part) &&

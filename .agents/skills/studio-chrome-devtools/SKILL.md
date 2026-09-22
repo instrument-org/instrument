@@ -9,6 +9,16 @@ How to drive and inspect the Studio Electron app.
 
 `studio-drive.mjs` is the way in. The generic `chrome-devtools` / `chrome-devtools-cli` skills describe a tool that has never heard of Studio: it cannot derive this checkout's port, cannot tell a restart from a crash, and reports both as "Could not connect to Chrome. Check if Chrome is running", which sends a run off to hunt for a browser that was never involved. Read them when you need the profiler's own syntax ([The CLI, for what it alone can do](#the-cli-for-what-it-alone-can-do)), not to decide how to reach the app.
 
+The shape to reach for is a sequence, not a command:
+
+```bash
+node $DRIVE boot --purpose "skills dialog"    # once
+node $DRIVE run sequence.mjs                  # everything you came to do
+node $DRIVE stop                              # once
+```
+
+`boot` and `stop` bracket the work and [`run`](#a-sequence-run) is the work. One `studio-drive` invocation is one process and one connection, which is right for a single question and wrong for anything else: a primitive costs milliseconds over a held connection while deciding the next command costs seconds, so twelve steps measure at 1.2s as one `run` against roughly two minutes as twelve commands. Write the sequence first, and drop to single commands only when you have exactly one thing to ask. The per-command reference comes first below because `boot` lives in it, not because it is the default.
+
 ## Driving: `studio-drive.mjs`
 
 Resolve the path from the repo root rather than writing it relative, so a later `cd` into a package does not turn every command in the run into `MODULE_NOT_FOUND`:

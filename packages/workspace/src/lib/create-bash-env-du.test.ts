@@ -169,6 +169,17 @@ describe("du", () => {
     expect(Number(result.stdout.trim())).toBe(WIDE_FILES + 1);
   });
 
+  it("ranks du -h sizes by size in sort -rh, not by their digits", async () => {
+    // Guards the sort part of the local just-bash patch
+    // (vercel-labs/just-bash#452): without it the suffix after a leading size
+    // is dropped, so 49K outranks 2.0M.
+    const result = await run(
+      `printf '49K\\tsmall\\n2.0M\\tlarge\\n' | sort -rh`,
+    );
+
+    expect(result.stdout).toBe("2.0M\tlarge\n49K\tsmall\n");
+  });
+
   it("leaves a flag it does not implement to just-bash", async () => {
     const result = await run("du --time /mnt/Home");
 

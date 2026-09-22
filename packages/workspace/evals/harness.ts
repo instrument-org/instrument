@@ -39,9 +39,9 @@ import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
 import { type TaskKind } from "../src/schemas/task-kind";
-import { type Choose } from "../src/tools/choose";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import {
   buildProviderConfigs,
@@ -180,15 +180,6 @@ const TREE_POLL_MS = 500;
 
 export interface EvalCase {
   /**
-   * Connected apps to stand up before the run, each a real loopback server with
-   * a real manifest and a connection on record. For the paths that only exist
-   * once a service is reachable: handing one to a task, and calling it.
-   *
-   * One apps directory serves every case in a run, so these are listed in every
-   * case's context, not only this one's. Run an app case on its own.
-   */
-  apps?: AppFixture[];
-  /**
    * What the user answers to each `choose` the agent puts to them, in the
    * order it asks, sent through the same route the card answers with. A
    * function gets the question as asked, for an answer that picks one of the
@@ -205,6 +196,15 @@ export interface EvalCase {
       ) => ChooseAnswer)
     | ChooseAnswer
   )[];
+  /**
+   * Connected apps to stand up before the run, each a real loopback server with
+   * a real manifest and a connection on record. For the paths that only exist
+   * once a service is reachable: handing one to a task, and calling it.
+   *
+   * One apps directory serves every case in a run, so these are listed in every
+   * case's context, not only this one's. Run an app case on its own.
+   */
+  apps?: AppFixture[];
   assertions?: Assertion[];
   files?: FileUpload.Type[];
   folders?: { access?: FolderAttachment.Access; path: string }[];

@@ -68,7 +68,7 @@ const NO_ESCAPE_CHOICES: Assertion = {
       (part) => part.input?.choices ?? [],
     );
     const escapes = choices.filter((choice) =>
-      /\b(other|skip|something else|none of|surprise me|your call)\b/i.test(
+      /\b(?:other|skip|something else|none of|surprise me|your call)\b/i.test(
         choice ?? "",
       ),
     );

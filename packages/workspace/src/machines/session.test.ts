@@ -222,9 +222,9 @@ describe("sessionMachine", () => {
     agent = mainAgent,
     aiSDKModel,
     baseLLMRetryDelayMs = 1000,
+    chunkDelayMs,
     chunkSets = [],
     imageModel,
-    chunkDelayMs,
     initialChunkDelaysMs = [],
     llmRequestChunkTimeoutMs = 120_000,
     maxStepCount,
@@ -242,10 +242,10 @@ describe("sessionMachine", () => {
     agent?: AnyAgent;
     aiSDKModel?: LanguageModelV3;
     baseLLMRetryDelayMs?: number;
-    chunkSets?: Part[][];
-    imageModel?: ImageModelV3;
     /** Between every chunk, for a test about something landing mid-stream. */
     chunkDelayMs?: number;
+    chunkSets?: Part[][];
+    imageModel?: ImageModelV3;
     initialChunkDelaysMs?: number[];
     llmRequestChunkTimeoutMs?: number;
     maxStepCount?: number;
@@ -1267,7 +1267,8 @@ describe("sessionMachine", () => {
       }
     })().catch(noop);
 
-    const session = (await runTestMachine(result))._unsafeUnwrap();
+    const stored = await runTestMachine(result);
+    const session = stored._unsafeUnwrap();
     abort.abort();
 
     const choose = session.messages

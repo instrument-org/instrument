@@ -268,13 +268,24 @@ describe("registerCrashDiagnostics", () => {
     expect(record).toContain("boom");
   });
 
+  it("keeps a network drop out of the crash record", () => {
+    registerCrashDiagnostics(createFakeApp().app);
+
+    addedMonitorListeners()[0]?.(
+      new Error("net::ERR_NETWORK_CHANGED"),
+      "uncaughtException",
+    );
+
+    expect(fs.existsSync(crashRecordPath())).toBe(false);
+  });
+
   it("folds the previous session's crash into this session's log, once", () => {
     fs.writeFileSync(crashRecordPath(), "uncaughtException: from last time\n");
 
     registerCrashDiagnostics(createFakeApp().app);
 
     expect(log.error).toHaveBeenCalledWith(
-      expect.stringContaining("from last time"),
+      "Previous session hit an uncaught exception:\nuncaughtException: from last time",
     );
     expect(fs.existsSync(crashRecordPath())).toBe(false);
 

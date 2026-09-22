@@ -57,8 +57,12 @@ export function registerCrashDiagnostics(app: Electron.App) {
   reportPreviousCrash(app);
 
   // Written synchronously, ahead of the listeners below, so the record exists
-  // whatever reporting does. See `writeCrashRecord`.
+  // whatever reporting does. See `writeCrashRecord`. A network drop is left
+  // out, since the listener below already logs it and it is not a bug.
   process.on("uncaughtExceptionMonitor", (error, origin) => {
+    if (isExpectedNetworkError(error)) {
+      return;
+    }
     // The stack where there is one, since this record is all anyone gets.
     const { details, message } = describeError(error);
     writeCrashRecord(app, `${origin}: ${details ?? message}`);
@@ -122,9 +126,7 @@ function reportPreviousCrash(app: Electron.App) {
       .slice(-MAX_CRASH_RECORD_BYTES);
     fs.rmSync(recordPath, { force: true });
     if (contents) {
-      log.error(
-        `Previous session ended in an uncaught exception:\n${contents}`,
-      );
+      log.error(`Previous session hit an uncaught exception:\n${contents}`);
     }
   } catch (error) {
     log.warn(

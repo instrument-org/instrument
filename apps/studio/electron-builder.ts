@@ -9,17 +9,14 @@ import {
 import dotenv from "dotenv";
 import {
   type Configuration,
-  type FileAssociation,
   type PlatformSpecificBuildOptions,
 } from "electron-builder";
 
 import { runAfterPack } from "./electron-builder/after-pack";
 import {
-  DOCUMENT_EXTENSIONS,
-  fileKindLabel,
-  type FileType,
-  MEDIA_EXTENSIONS,
-} from "./src/client/lib/get-file-type";
+  macFileAssociations,
+  writeWindowsFileAssociationsScript,
+} from "./electron-builder/file-associations";
 
 if (process.env.CI !== "true") {
   dotenv.config({
@@ -35,45 +32,6 @@ const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   region: "auto",
   updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
 };
-
-/** Every extension a viewer opens, by the viewer that opens it. */
-const VIEWED_EXTENSIONS: Record<string, FileType> = {
-  ...DOCUMENT_EXTENSIONS,
-  ...MEDIA_EXTENSIONS,
-  htm: "html",
-  html: "html",
-  markdown: "markdown",
-  md: "markdown",
-  mdown: "markdown",
-  mdx: "markdown",
-  mkd: "markdown",
-};
-
-const viewedByType = new Map<FileType, string[]>();
-for (const [extension, fileType] of Object.entries(VIEWED_EXTENSIONS)) {
-  viewedByType.set(fileType, [
-    ...(viewedByType.get(fileType) ?? []),
-    extension,
-  ]);
-}
-
-/**
- * Instrument in the Finder's Open With for everything it can show, and the
- * default for none of it: an Alternate rank never takes a type from the app
- * that has it. Viewer until there is an editor to open a file into.
- *
- * macOS only. The Windows installer's association macro also points the
- * extension's own default at Instrument, and its uninstaller leaves that
- * pointing at a class it has deleted.
- */
-const viewedFileAssociations = [...viewedByType].map(
-  ([fileType, ext]): FileAssociation => ({
-    ext,
-    name: fileKindLabel(fileType),
-    rank: "Alternate",
-    role: "Viewer",
-  }),
-);
 
 /**
  * @see https://www.electron.build/#documentation
@@ -256,7 +214,7 @@ const config: Configuration = {
       NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
       NSRemovableVolumesUsageDescription: `${APP_NAME} reads and writes files on a removable drive when you ask it to work there.`,
     },
-    fileAssociations: viewedFileAssociations,
+    fileAssociations: macFileAssociations,
     gatekeeperAssess: false,
     hardenedRuntime: true,
     // macOS 26+ uses build/icon.icon (compiled to Assets.car); older macOS uses build/icon.icns.
@@ -278,6 +236,9 @@ const config: Configuration = {
   nsis: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     createDesktopShortcut: "always",
+    // Open With for the types Instrument shows. Not `win.fileAssociations`,
+    // whose macro makes the app each extension's default.
+    include: writeWindowsFileAssociationsScript(),
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
   },

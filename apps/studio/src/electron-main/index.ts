@@ -49,6 +49,7 @@ import { timeBootStep } from "./lib/boot-timing";
 import { createWorkspaceActor } from "./lib/create-workspace-actor";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
+import { filesInArgv } from "./lib/files-in-argv";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
@@ -97,6 +98,11 @@ if (gotTheLock) {
     if (url) {
       handleDeepLink(url);
     }
+    for (const filePath of filesInArgv(commandLine, {
+      defaultApp: process.defaultApp,
+    })) {
+      openHandedFile(filePath);
+    }
   });
 
   // A file handed over from the Finder: a double click where Instrument is
@@ -104,10 +110,15 @@ if (gotTheLock) {
   // launches the app arrives before it is; the screen waits for the window.
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
-    openOrchestratorScreen(
-      fileHref(filePath, { tree: path.dirname(filePath) }),
-    );
+    openHandedFile(filePath);
   });
+
+  // The same hand-over on Windows and Linux, for a launch that starts the app.
+  for (const filePath of filesInArgv(process.argv, {
+    defaultApp: process.defaultApp,
+  })) {
+    openHandedFile(filePath);
+  }
 
   // eslint-disable-next-line unicorn/prefer-top-level-await
   void app.whenReady().then(bootstrapPrimaryInstance).catch(handleBootFailure);
@@ -342,6 +353,11 @@ function handleDeepLink(url: string) {
   if (link && isFeatureEnabled("instrument_2")) {
     openOrchestratorScreen(link.href);
   }
+}
+
+/** A file handed to the app from outside it, opened as a Files tab in its folder. */
+function openHandedFile(filePath: string) {
+  openOrchestratorScreen(fileHref(filePath, { tree: path.dirname(filePath) }));
 }
 
 function shouldShowOnboarding(): boolean {

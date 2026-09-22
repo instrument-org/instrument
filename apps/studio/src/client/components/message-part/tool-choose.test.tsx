@@ -1,10 +1,10 @@
 import { rpcClient } from "@/client/rpc/client";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
-import { waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../../../tests/render";
-import { ToolChoose } from "./tool-choose";
+import { QuestionCard, ToolChoose } from "./tool-choose";
 
 // `tool-choose` stands in for every body here: the guard it trips is the one
 // they all have, so what is under test is the empty body rather than the
@@ -57,7 +57,8 @@ describe("ToolChoose", () => {
       />,
     );
 
-    expect(container.querySelectorAll("button")).toHaveLength(2);
+    expect(screen.getAllByRole("radio")).toHaveLength(2);
+    expect(screen.getByLabelText("Your own answer")).toBeDefined();
     expect(container.textContent).not.toContain("ended without an answer");
   });
 
@@ -81,7 +82,75 @@ describe("ToolChoose", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("ended without an answer");
     });
-    expect(container.querySelectorAll("button")).toHaveLength(0);
+    expect(container.querySelectorAll("button, input")).toHaveLength(0);
     expect(container.textContent).toContain("Which one?");
+  });
+});
+
+describe("QuestionCard", () => {
+  const open = () => {
+    const onAnswer = vi.fn();
+    renderWithProviders(
+      <QuestionCard
+        choices={["React", "Vue"]}
+        onAnswer={onAnswer}
+        question="Which one?"
+        status="open"
+      />,
+    );
+    return onAnswer;
+  };
+
+  it("answers with a choice on one click", () => {
+    const onAnswer = open();
+    fireEvent.click(screen.getByRole("radio", { name: "Vue" }));
+    expect(onAnswer).toHaveBeenCalledWith({ selectedChoice: "Vue" });
+  });
+
+  it("answers in the user's own words on Return", () => {
+    const onAnswer = open();
+    const own = screen.getByLabelText("Your own answer");
+    fireEvent.change(own, { target: { value: "  Svelte  " } });
+    fireEvent.keyDown(own, { key: "Enter" });
+    expect(onAnswer).toHaveBeenCalledWith({ selectedChoice: "Svelte" });
+  });
+
+  it("sends nothing for a blank answer of their own", () => {
+    const onAnswer = open();
+    fireEvent.keyDown(screen.getByLabelText("Your own answer"), {
+      key: "Enter",
+    });
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  it("sends the note with whichever answer follows it, a skip included", () => {
+    const onAnswer = open();
+    fireEvent.click(screen.getByRole("button", { name: "Add a note" }));
+    fireEvent.change(screen.getByLabelText("Note"), {
+      target: { value: "Ask design. " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(onAnswer).toHaveBeenCalledWith({
+      declined: true,
+      note: "Ask design.",
+    });
+  });
+
+  it.each([
+    { output: { declined: true as const }, text: "You skipped this question." },
+    { output: { selectedChoice: "Svelte" }, text: "Svelte" },
+    { output: { note: "Why not.", selectedChoice: "Vue" }, text: "Why not." },
+  ])("draws $output once answered", ({ output, text }) => {
+    const { container } = renderWithProviders(
+      <QuestionCard
+        choices={["React", "Vue"]}
+        onAnswer={vi.fn()}
+        output={output}
+        question="Which one?"
+        status="closed"
+      />,
+    );
+    expect(container.textContent).toContain(text);
+    expect(container.querySelectorAll("button, input")).toHaveLength(0);
   });
 });

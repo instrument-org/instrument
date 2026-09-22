@@ -184,16 +184,16 @@ export async function requireFilesNamedInBrief(
   { cwd, layout }: { cwd: string; layout: WorkspaceFsLayout },
 ): Promise<void> {
   const handed = new Set(specs.map((spec) => ownPath(spec, cwd)));
-  const named = [
+  const unhanded = [
     ...new Set(
       [...prompt.matchAll(OWN_FILE_IN_BRIEF)].map((match) =>
         ownPath((match[1] ?? "").replace(/[.,;:]+$/, ""), cwd),
       ),
     ),
-  ].filter((path) => !handed.has(path));
+  ].filter((named) => !handed.has(named));
   const missing = (
     await Promise.all(
-      named.map(async (inputPath) => {
+      unhanded.map(async (inputPath) => {
         const resolved = resolveExistingFilePath({ inputPath, layout });
         if (resolved.isErr()) {
           return;
@@ -204,7 +204,7 @@ export async function requireFilesNamedInBrief(
         return stat?.isFile() ? inputPath : undefined;
       }),
     )
-  ).filter((path) => path !== undefined);
+  ).filter((inputPath) => inputPath !== undefined);
   if (missing.length > 0) {
     throw new Error(
       `the brief names ${missing.map((named) => `"${named}"`).join(", ")} in this conversation's own folder, which no task can see. Add ${missing.map((named) => `--file ${named}`).join(" ")}: a copy lands in the task's own ${TASK_FOLDER_NAMES.attachments}/ under the same name.`,

@@ -538,6 +538,14 @@ describe("renderToolInput", () => {
     `);
     expect(renderToolInput({})).toEqual(["*(no arguments)*"]);
   });
+
+  // A tool part is stored at the stream's tool-input-start, before any of its
+  // arguments: an export while the agent works can land there.
+  it("says a call's arguments are still arriving before any have", () => {
+    expect(renderToolInput(undefined)).toEqual([
+      "*(arguments still arriving)*",
+    ]);
+  });
 });
 
 describe("renderToolOutput", () => {

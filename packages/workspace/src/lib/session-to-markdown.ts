@@ -605,9 +605,13 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
  * everything after it in the link.
  *
  * Non-object input is what a call that never finished arriving carries, its
- * raw JSON text so far, and is shown as that.
+ * raw JSON text so far, and is shown as that. A call whose first arguments
+ * have not arrived at all has no input yet.
  */
 export function renderToolInput(input: unknown): string[] {
+  if (input === undefined) {
+    return ["*(arguments still arriving)*"];
+  }
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     return [
       fenceText(

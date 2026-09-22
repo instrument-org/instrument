@@ -34,10 +34,12 @@ export function isStorageFullError(error: unknown): error is Error {
       break;
     }
 
-    if ("code" in current && typeof current.code === "string") {
-      if (STORAGE_FULL_CODES.has(current.code)) {
-        return true;
-      }
+    if (
+      "code" in current &&
+      typeof current.code === "string" &&
+      STORAGE_FULL_CODES.has(current.code)
+    ) {
+      return true;
     }
 
     if ("errcode" in current && typeof current.errcode === "number") {

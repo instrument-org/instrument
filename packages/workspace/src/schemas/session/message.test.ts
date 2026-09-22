@@ -918,7 +918,9 @@ describe("SessionMessage.toModelMessages", () => {
       }),
     );
     expect(forConversation).toContain("The user sent these files");
-    expect(forConversation).toContain("put --file <path> on the task new or task send that needs it");
+    expect(forConversation).toContain(
+      "put --file <path> on the task new or task send that needs it",
+    );
     expect(forConversation).toContain("- /task/attachments/screen.png (18KB)");
     expect(forConversation).not.toContain("available in the task");
 

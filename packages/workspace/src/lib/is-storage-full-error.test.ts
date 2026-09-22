@@ -4,10 +4,6 @@ import { describe, expect, it } from "vitest";
 import { TypedError } from "./errors";
 import { isStorageFullError } from "./is-storage-full-error";
 
-function withProps(message: string, props: Record<string, unknown>) {
-  return Object.assign(new Error(message), props);
-}
-
 function realSqliteFullError() {
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE t (x)");
@@ -22,6 +18,10 @@ function realSqliteFullError() {
     db.close();
   }
   throw new Error("expected the database to fill up");
+}
+
+function withProps(message: string, props: Record<string, unknown>) {
+  return Object.assign(new Error(message), props);
 }
 
 describe("isStorageFullError", () => {

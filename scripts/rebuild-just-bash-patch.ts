@@ -142,7 +142,10 @@ function changedFiles(manifest: Manifest, publishedPackage: string) {
       path.join(packageDir(manifest), "dist", file),
       "utf8",
     );
-    if (content !== fs.readFileSync(path.join(publishedPackage, "dist", file), "utf8")) {
+    if (
+      content !==
+      fs.readFileSync(path.join(publishedPackage, "dist", file), "utf8")
+    ) {
       changed.set(`dist/${file}`, content);
     }
   }

@@ -5,6 +5,7 @@ import type {
 import type { WebContents } from "electron";
 
 import {
+  CdpCommandTimeoutError,
   encodeBrowserTargetId,
   StoreId,
   TaskIdSchema,
@@ -188,6 +189,53 @@ describe("sendCommand", () => {
         targetId: TARGET_ID,
       }),
     ).rejects.toThrow("CDP boom");
+  });
+
+  describe("command timeout", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("gives Page.navigate 20s before rejecting with a typed timeout", async () => {
+      vi.useFakeTimers();
+      const entry = makeEntry({
+        sendCommand: vi.fn().mockReturnValue(new Promise(() => {})),
+      });
+      const sent = sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Page.navigate",
+        params: { url: "https://example.com" },
+        targetId: TARGET_ID,
+      });
+      const settled = vi.fn();
+      void sent.then(settled, settled);
+
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(settled).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      const error: unknown = await sent.catch((error: unknown) => error);
+      expect(error).toBeInstanceOf(CdpCommandTimeoutError);
+      expect(error).toMatchObject({ method: "Page.navigate" });
+    });
+
+    it("clears the timer once the command answers", async () => {
+      vi.useFakeTimers();
+      const entry = makeEntry({
+        sendCommand: vi.fn().mockResolvedValue({ frameId: "F" }),
+      });
+
+      await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Page.navigate",
+        params: { url: "https://example.com" },
+        targetId: TARGET_ID,
+      });
+
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 
   it("throws when webContents is unavailable for a pass-through method", async () => {

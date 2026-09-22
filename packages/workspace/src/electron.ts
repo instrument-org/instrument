@@ -47,6 +47,7 @@ export {
   BACKGROUND_PROCESS_TEARDOWN_MS,
   killAllBackgroundProcesses,
 } from "./lib/background-processes";
+export { CdpCommandTimeoutError } from "./lib/cdp-command-timeout-error";
 export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
 export { findAvailableName } from "./lib/find-available-name";
 export {

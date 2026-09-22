@@ -3,6 +3,7 @@ import invariant from "tiny-invariant";
 import { z } from "zod";
 
 import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
+import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { browserHostForTask } from "../../lib/orchestrator/browser-host";
 import { getBrowserSessionDir } from "../../lib/task-dir-utils";
 import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
@@ -78,8 +79,13 @@ const open = base
           targetId: target.targetId,
           taskId: id,
         });
-    if (navigated.isErr()) {
-      // The tab is open, which is what was asked for; it just came up blank.
+    // The tab is open, which is what was asked for; it just came up blank. A
+    // navigate that timed out is a slow server rather than a bug, and the load
+    // carries on in the guest, so only other failures are reported.
+    if (
+      navigated.isErr() &&
+      !(navigated.error instanceof CdpCommandTimeoutError)
+    ) {
       context.workspaceConfig.captureException(navigated.error);
     }
 

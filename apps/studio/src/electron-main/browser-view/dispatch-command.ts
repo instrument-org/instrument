@@ -1,7 +1,10 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
-import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+import {
+  type BrowserTargetId,
+  CdpCommandTimeoutError,
+} from "@instrument-org/workspace/electron";
 import { sleep } from "radashi";
 
 import type { BrowserEntry } from "./entry";
@@ -214,9 +217,12 @@ export async function sendCommand({
     // 5s covers all normal commands on a live renderer; stuck renderers fail
     // fast so agent-browser gets a real error instead of a 30s silent hang.
     // Screenshot and evaluate get 20s: the compositor may not have a frame
-    // ready post-navigation, and awaitPromise evals run real user JS.
+    // ready post-navigation, and awaitPromise evals run real user JS. Navigate
+    // gets 20s too: Electron answers it at commit, so a server slow to send its
+    // first byte holds the answer that long while the navigation carries on.
     const SLOW_COMMANDS = new Set([
       "Page.captureScreenshot",
+      "Page.navigate",
       "Runtime.evaluate",
     ]);
     // Input.dispatchMouseEvent is known to hang when the compositor thread is
@@ -231,14 +237,15 @@ export async function sendCommand({
       >
     >(["Input.dispatchMouseEvent", "Input.synthesizeTapGesture"]);
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
       wc.debugger.sendCommand(
         method,
         withMacEditingCommands(method, withoutMacNativeKeyCode(method, params)),
       ),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => {
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
           // Cast is safe: has() is a runtime membership check against a fixed string set
           const isMouse = MOUSE_COMMANDS.has(
             method as "Input.dispatchMouseEvent" | "Input.synthesizeTapGesture",
@@ -246,10 +253,12 @@ export async function sendCommand({
           const detail = isMouse
             ? `CDP command timed out: ${method}. The page is not responding to click/tap events -- this is a known Chromium behavior when the compositor thread is blocked (e.g. the page is still loading or is unresponsive). Try navigating directly to a URL instead of clicking, or ask the user to reload the app if the problem persists.`
             : `CDP command timed out: ${method}. The browser tab is not responding. The page may be unresponsive or still loading. Try navigating directly to a URL or ask the user to reload the app if the problem persists.`;
-          reject(new Error(detail));
-        }, timeoutMs),
-      ),
-    ]);
+          reject(new CdpCommandTimeoutError(method, detail));
+        }, timeoutMs);
+      }),
+    ]).finally(() => {
+      clearTimeout(timeout);
+    });
     return result;
   } catch (error) {
     log.error(

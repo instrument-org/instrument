@@ -64,6 +64,7 @@ import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-v
 import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-view";
 import { useCompose } from "@/client/components/orchestrator/use-compose";
 import { useDrafts } from "@/client/components/orchestrator/use-drafts";
+import { useHistorySteps } from "@/client/components/orchestrator/use-history-steps";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { useOpeners } from "@/client/components/orchestrator/use-openers";
 import { useRecordRecents } from "@/client/components/orchestrator/use-record-recents";
@@ -119,7 +120,6 @@ import {
 import {
   createFileRoute,
   Outlet,
-  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
@@ -394,7 +394,6 @@ function OrchestratorLayout() {
   const bounds = inboxBounds(rowWidth);
   const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
   const isDeveloperMode = useDeveloperMode();
-  const router = useRouter();
   const location = useRouterState({
     select: (routerState) => routerState.location,
   });
@@ -683,78 +682,13 @@ function OrchestratorLayout() {
     windowTabs,
   });
 
-  // Walk the current screen or guest first, then cross into the preceding or
-  // following visit in this tab. Guests stay alive while a screen is up.
-  // The face over the tab is walked first of all: a task back to the list,
-  // the list back to the tab under it, and forward from the list to the
-  // task that was left.
-  const canGoBack =
-    isTasksViewUp ||
-    Boolean(active?.past?.length) ||
-    (isPageOnScreen ? true : windowTabs.canStepBack);
-  const canGoForward = isTasksViewUp
-    ? tasksFace.task === undefined && tasksFace.forward !== undefined
-    : isPageOnScreen
-      ? Boolean(active.future?.length) || (browser?.canGoForward ?? false)
-      : Boolean(active?.future?.length) || windowTabs.canStepForward;
-  const goBack = () => {
-    if (isTasksViewUp) {
-      setTasksFace(
-        tasksFace.task === undefined
-          ? undefined
-          : { ...tasksFace, forward: tasksFace.task, task: undefined },
-      );
-      return;
-    }
-    if (!active) {
-      return;
-    }
-    if (active.kind === "page") {
-      if (browser?.canGoBack) {
-        browser.goBack();
-      } else {
-        windowTabs.stepVisit(-1);
-      }
-      return;
-    }
-    const href = windowTabs.step(-1);
-    if (href !== undefined) {
-      router.history.push(href);
-    } else if (windowTabs.stepVisit(-1)) {
-      return;
-    } else if (active.isOpened) {
-      // Nothing behind it, and something else opened it: back is the way out
-      // of a tab that exists to show one thing.
-      windowTabs.close(active.id);
-    }
-  };
-  const goForward = () => {
-    if (isTasksViewUp) {
-      if (tasksFace.forward !== undefined) {
-        setTasksFace({
-          ...tasksFace,
-          forward: undefined,
-          task: tasksFace.forward,
-        });
-      }
-      return;
-    }
-    if (active?.kind === "page") {
-      if (active.future?.length && !active.pageBackSteps) {
-        windowTabs.stepVisit(1);
-      } else {
-        browser?.goForward();
-      }
-      return;
-    }
-    const href = windowTabs.step(1);
-    if (href === undefined) {
-      windowTabs.stepVisit(1);
-    } else {
-      router.history.push(href);
-    }
-  };
-  // of each ask, since they close over the tabs as they are then.
+  const { canGoBack, canGoForward, goBack, goForward } = useHistorySteps({
+    browser,
+    setTasksFace,
+    tasksFace: isTasksViewUp ? tasksFace : undefined,
+    windowTabs,
+  });
+
   const appsBySlug = useAppsBySlug();
   // The address says what kind of place this is and, for a file, where it is
   // on the computer; the folder screen itself says where it stands, since it

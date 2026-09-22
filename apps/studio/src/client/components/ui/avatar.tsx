@@ -9,7 +9,7 @@ function Avatar({
   return (
     <AvatarPrimitive.Root
       className={cn(
-        "relative flex size-8 shrink-0 overflow-hidden rounded-full",
+        "relative flex size-8 shrink-0 overflow-hidden rounded-[10px]",
         className,
       )}
       data-slot="avatar"
@@ -25,7 +25,7 @@ function AvatarFallback({
   return (
     <AvatarPrimitive.Fallback
       className={cn(
-        "flex size-full items-center justify-center rounded-full bg-muted",
+        "flex size-full items-center justify-center rounded-[10px] bg-muted",
         className,
       )}
       data-slot="avatar-fallback"
@@ -42,6 +42,9 @@ function AvatarImage({
     <AvatarPrimitive.Image
       className={cn("aspect-square size-full", className)}
       data-slot="avatar-image"
+      // Google's avatar host refuses a request that carries the app's
+      // referrer, so an account picture never loads with the default.
+      referrerPolicy="no-referrer"
       {...props}
     />
   );

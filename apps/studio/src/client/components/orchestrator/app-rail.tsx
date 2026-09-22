@@ -71,8 +71,8 @@ export function AppRail({
   onChoose: (place: AppPlace) => void;
   /** Opens a draft of a new thread. */
   onNew: () => void;
-  /** The place the window stands in; none while a screen outside its places is up. */
-  place?: AppPlace;
+  /** The place the window stands in. */
+  place: AppPlace;
 }) {
   return (
     <nav
@@ -205,33 +205,45 @@ function AppFan() {
   );
 }
 
+function openGeneralSettings() {
+  openSettings({ tab: "General" });
+}
+
 /**
  * The user at the rail's foot, which is the way to Settings: their picture
- * while they are signed in, the faders Settings wears elsewhere while they
- * are not, and the word under either. The 2.0 window has no sidebar of its
- * own to keep the account row in, so this is where it shows.
+ * alone, in a rounded square, while they are signed in, and the faders
+ * Settings wears elsewhere with the word under them while they are not.
+ * The 2.0 window has no sidebar of its own to keep the account row in, so
+ * this is where it shows.
  */
 function RailUser() {
   const { data: user } = useLiveUser();
-  return (
-    <button
-      className="flex w-16 flex-col items-center gap-0.5 rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-      onClick={() => {
-        openSettings({ tab: "General" });
-      }}
-      type="button"
-    >
-      <span className="grid h-7 place-items-center">
-        {user ? (
-          <Avatar className="size-7 rounded-full">
+  if (user) {
+    return (
+      <ToolbarTooltip label="Settings">
+        <button
+          className="rounded-[10px] hover:opacity-85"
+          onClick={openGeneralSettings}
+          type="button"
+        >
+          <Avatar className="size-9">
             <AvatarImage alt="" src={user.image ?? undefined} />
-            <AvatarFallback className="rounded-full text-[10px]">
+            <AvatarFallback className="text-xs">
               {getInitials(user.name)}
             </AvatarFallback>
           </Avatar>
-        ) : (
-          <FadersHorizontalIcon className="size-6" />
-        )}
+        </button>
+      </ToolbarTooltip>
+    );
+  }
+  return (
+    <button
+      className="flex w-16 flex-col items-center gap-0.5 rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+      onClick={openGeneralSettings}
+      type="button"
+    >
+      <span className="grid h-7 place-items-center">
+        <FadersHorizontalIcon className="size-6" />
       </span>
       <span className="text-[11px] leading-4">Settings</span>
     </button>

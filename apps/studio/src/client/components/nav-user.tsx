@@ -74,9 +74,9 @@ export function NavUser() {
           type="button"
         >
           {user ? (
-            <Avatar className="size-9 shrink-0 rounded-md">
+            <Avatar className="size-9 shrink-0">
               <AvatarImage alt={user.name} src={user.image ?? undefined} />
-              <AvatarFallback className="rounded-md text-xs">
+              <AvatarFallback className="text-xs">
                 {getInitials(user.name)}
               </AvatarFallback>
             </Avatar>

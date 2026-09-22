@@ -13,6 +13,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
 import {
   decodeBrowserTargetId,
@@ -28,7 +29,6 @@ import { toast } from "sonner";
 
 import { TabIcon } from "./browser-tabs";
 import { useOrchestrator } from "./context";
-import { fileHref, folderHref } from "./file-tabs";
 import { useNewestSessionId } from "./newest-session";
 
 /** How often a task's sessions and standing are re-read while it is open. */

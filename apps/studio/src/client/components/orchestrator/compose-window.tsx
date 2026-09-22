@@ -32,6 +32,7 @@ import { appMentionToken } from "@/client/lib/app-mention";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type FileUpload,
@@ -64,7 +65,7 @@ import {
 } from "./compose-layout";
 import { ComposeZeroState } from "./compose-zero-state";
 import { OrchestratorContext, useOrchestrator } from "./context";
-import { computerTabOf, fileHref, folderHref, pageTabTitle } from "./file-tabs";
+import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { OutputPicker } from "./output-picker";
 import { screenPresentation } from "./screen-presentation";

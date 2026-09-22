@@ -21,6 +21,7 @@ import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { rpcClient } from "@/client/rpc/client";
+import { fileHref } from "@/shared/computer-href";
 import {
   type BrowserTargetId,
   decodeBrowserTargetId,
@@ -42,7 +43,6 @@ import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { useOrchestrator } from "./context";
-import { fileHref } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { stepTabVisit, visitInTab } from "./tab-history";
 import { isHomeTab, selectTab } from "./window-tabs";

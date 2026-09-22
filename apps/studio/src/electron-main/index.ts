@@ -28,6 +28,7 @@ import {
   updateOrchestratorWindowBackgroundColor,
 } from "@/electron-main/windows/orchestrator";
 import { revealTask } from "@/electron-main/windows/reveal-task";
+import { fileHref } from "@/shared/computer-href";
 import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
@@ -39,6 +40,7 @@ import {
   protocol,
   session,
 } from "electron";
+import path from "node:path";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { registerAppProtocol } from "./lib/app-protocol";
@@ -95,6 +97,16 @@ if (gotTheLock) {
     if (url) {
       handleDeepLink(url);
     }
+  });
+
+  // A file handed over from the Finder: a double click where Instrument is
+  // the default, or Open With. Listened for before ready, because a file that
+  // launches the app arrives before it is; the screen waits for the window.
+  app.on("open-file", (event, filePath) => {
+    event.preventDefault();
+    openOrchestratorScreen(
+      fileHref(filePath, { tree: path.dirname(filePath) }),
+    );
   });
 
   // eslint-disable-next-line unicorn/prefer-top-level-await

@@ -14,6 +14,7 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +25,7 @@ import { toast } from "sonner";
 
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
 import { useOrchestrator } from "./context";
-import { fileHref, folderHref, mountOfHostPath } from "./file-tabs";
+import { mountOfHostPath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { folderOf, segmentsOf } from "./host-path";
 import { useOnScreen } from "./on-screen";

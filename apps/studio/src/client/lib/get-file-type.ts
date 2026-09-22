@@ -23,7 +23,7 @@ export type FileType =
   | "video"
   | "xlsx";
 
-function fileKindLabel(fileType: FileType): string {
+export function fileKindLabel(fileType: FileType): string {
   switch (fileType) {
     case "archive": {
       return "ZIP archive";
@@ -302,7 +302,7 @@ const NAMED_FILE_TYPES: Record<string, FileType> = {
 // than their OOXML equivalents but more than the "preview unavailable" card,
 // and a hard parse failure still degrades to it. `.doc` is absent because
 // `@extend-ai/react-docx` reads OOXML only.
-const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
+export const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
   csv: "csv",
   // A database has no registered mime type of its own, so the extension is the
   // only thing that identifies one. `.db` is the loosest of the three and does
@@ -346,7 +346,7 @@ const DOCUMENT_EXTENSIONS: Record<string, FileType> = {
 // `ts` is deliberately absent. It is a registered video extension (MPEG
 // transport stream) and a TypeScript file everywhere it actually turns up here,
 // so it belongs to the code table instead.
-const MEDIA_EXTENSIONS: Record<string, FileType> = {
+export const MEDIA_EXTENSIONS: Record<string, FileType> = {
   aac: "audio",
   aiff: "audio",
   avif: "image",

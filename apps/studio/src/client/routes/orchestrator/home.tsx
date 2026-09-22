@@ -8,11 +8,7 @@ import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
-import {
-  fileHref,
-  folderHref,
-  useOpenFileTab,
-} from "@/client/components/orchestrator/file-tabs";
+import { useOpenFileTab } from "@/client/components/orchestrator/file-tabs";
 import {
   folderOf,
   homeRelative,
@@ -32,6 +28,7 @@ import {
 import { type OpenTarget } from "@/client/lib/open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";

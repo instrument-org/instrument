@@ -1,8 +1,8 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/orchestrator";
 import { fileUrlOf } from "@/client/lib/file-url";
+import { fileHref } from "@/shared/computer-href";
 import { describe, expect, it } from "vitest";
 
-import { fileHref } from "./file-tabs";
 import { stepTabVisit, visitInTab } from "./tab-history";
 
 const task: WindowTab = {

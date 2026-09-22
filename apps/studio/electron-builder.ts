@@ -9,10 +9,17 @@ import {
 import dotenv from "dotenv";
 import {
   type Configuration,
+  type FileAssociation,
   type PlatformSpecificBuildOptions,
 } from "electron-builder";
 
 import { runAfterPack } from "./electron-builder/after-pack";
+import {
+  DOCUMENT_EXTENSIONS,
+  fileKindLabel,
+  type FileType,
+  MEDIA_EXTENSIONS,
+} from "./src/client/lib/get-file-type";
 
 if (process.env.CI !== "true") {
   dotenv.config({
@@ -28,6 +35,45 @@ const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   region: "auto",
   updaterCacheDirName: APP_UPDATER_CACHE_DIR_NAME,
 };
+
+/** Every extension a viewer opens, by the viewer that opens it. */
+const VIEWED_EXTENSIONS: Record<string, FileType> = {
+  ...DOCUMENT_EXTENSIONS,
+  ...MEDIA_EXTENSIONS,
+  htm: "html",
+  html: "html",
+  markdown: "markdown",
+  md: "markdown",
+  mdown: "markdown",
+  mdx: "markdown",
+  mkd: "markdown",
+};
+
+const viewedByType = new Map<FileType, string[]>();
+for (const [extension, fileType] of Object.entries(VIEWED_EXTENSIONS)) {
+  viewedByType.set(fileType, [
+    ...(viewedByType.get(fileType) ?? []),
+    extension,
+  ]);
+}
+
+/**
+ * Instrument in the Finder's Open With for everything it can show, and the
+ * default for none of it: an Alternate rank never takes a type from the app
+ * that has it. Viewer until there is an editor to open a file into.
+ *
+ * macOS only. The Windows installer's association macro also points the
+ * extension's own default at Instrument, and its uninstaller leaves that
+ * pointing at a class it has deleted.
+ */
+const viewedFileAssociations = [...viewedByType].map(
+  ([fileType, ext]): FileAssociation => ({
+    ext,
+    name: fileKindLabel(fileType),
+    rank: "Alternate",
+    role: "Viewer",
+  }),
+);
 
 /**
  * @see https://www.electron.build/#documentation
@@ -183,6 +229,18 @@ const config: Configuration = {
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
     extendInfo: {
+      // Merged ahead of `fileAssociations`, which can name extensions only.
+      // Text and code have too many extensions to list, and one content type
+      // covers them, since a source file's type conforms to plain text. Not
+      // `.ts`, which macOS types as an MPEG transport stream.
+      CFBundleDocumentTypes: [
+        {
+          CFBundleTypeName: "Text",
+          CFBundleTypeRole: "Viewer",
+          LSHandlerRank: "Alternate",
+          LSItemContentTypes: ["public.plain-text", "public.json"],
+        },
+      ],
       // Must match the Icon Composer bundle name (build/icon.icon).
       CFBundleIconName: "icon",
       // Why the system's own ask names a reason: without these macOS asks for
@@ -198,6 +256,7 @@ const config: Configuration = {
       NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
       NSRemovableVolumesUsageDescription: `${APP_NAME} reads and writes files on a removable drive when you ask it to work there.`,
     },
+    fileAssociations: viewedFileAssociations,
     gatekeeperAssess: false,
     hardenedRuntime: true,
     // macOS 26+ uses build/icon.icon (compiled to Assets.car); older macOS uses build/icon.icns.

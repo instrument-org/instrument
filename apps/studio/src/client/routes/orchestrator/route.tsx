@@ -34,10 +34,7 @@ import {
   OrchestratorContext,
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
-import {
-  computerTabOf,
-  fileHref,
-} from "@/client/components/orchestrator/file-tabs";
+import { computerTabOf } from "@/client/components/orchestrator/file-tabs";
 import { HomePlace } from "@/client/components/orchestrator/home-place";
 import {
   folderOf,
@@ -101,6 +98,7 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { fileHref } from "@/shared/computer-href";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   type SessionMessageDataPart,
@@ -120,12 +118,7 @@ import {
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
 import ms from "ms";
-import {
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /** How often the tasks' titles are re-read, for the strip. */
 const REFRESH_MS = ms("2 seconds");

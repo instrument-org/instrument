@@ -1,6 +1,7 @@
 import { placeOfGroup, THREADS_HREF } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import {
   isFolderPath,
   type StoreId,
@@ -13,7 +14,7 @@ import { toast } from "sonner";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type OpenOptions } from "./context";
-import { computerTabOf, fileHref, folderHref } from "./file-tabs";
+import { computerTabOf } from "./file-tabs";
 import { memoryOfHref, tasksFaceOfHref } from "./tab-location";
 import { type Thread } from "./threads";
 import {

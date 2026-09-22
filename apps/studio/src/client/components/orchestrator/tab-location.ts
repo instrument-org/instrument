@@ -1,7 +1,7 @@
 import { type OpenTarget } from "@/client/lib/open-target";
+import { folderHref } from "@/shared/computer-href";
 import { type TaskId, TaskIdSchema } from "@instrument-org/workspace/client";
 
-import { folderHref } from "./file-tabs";
 import { homeRelative, segmentsOf, separatorOf } from "./host-path";
 import { IDEAS_HREF } from "./ideas";
 

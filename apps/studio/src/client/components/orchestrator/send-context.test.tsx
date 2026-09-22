@@ -6,6 +6,7 @@ import {
   type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { fileUrlOf } from "@/client/lib/file-url";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import {
   FolderAttachment,
   type SessionMessageDataPart,
@@ -14,7 +15,6 @@ import {
 } from "@instrument-org/workspace/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fileHref, folderHref } from "./file-tabs";
 import { contextReaders, type SendContextWindow } from "./send-context";
 
 const THREAD = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");

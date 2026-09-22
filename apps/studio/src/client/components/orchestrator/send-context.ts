@@ -11,7 +11,6 @@ import {
   type StoreId,
 } from "@instrument-org/workspace/client";
 import ms from "ms";
-import { timeout } from "radashi";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { type BrowserTabsHandle } from "./browser-tabs";
@@ -116,13 +115,18 @@ export function contextReaders({
    * is hung or parked never answers, which must not hold the send.
    */
   const readPage = async (tabId?: string) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
         browser?.readPage(tabId),
-        timeout(PAGE_READ_MS),
+        new Promise<undefined>((resolve) => {
+          timer = setTimeout(resolve, PAGE_READ_MS);
+        }),
       ]);
     } catch {
       return;
+    } finally {
+      clearTimeout(timer);
     }
   };
   /**

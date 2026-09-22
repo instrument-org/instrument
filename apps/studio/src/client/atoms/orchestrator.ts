@@ -440,6 +440,25 @@ export const computerSortAtom = atomWithStorage<FileSystemSortState>(
   { getOnInit: true },
 );
 
+/**
+ * Whether a file tab shows the tree beside its document. One answer for
+ * every file tab: the tree is a way of working, not a property of a file.
+ */
+export const fileTreeOpenAtom = atomWithStorage<boolean>(
+  "orchestrator.file-tree-open.v1",
+  true,
+  undefined,
+  { getOnInit: true },
+);
+
+/**
+ * The elements screens draw a page's guest into, by the group the page's
+ * tab is kept under: a file tab drawing a page's file beside its tree keeps
+ * that page as a tab in a group of its own, off every strip, and says here
+ * where the browser is to draw it. In memory only, with the elements.
+ */
+export const pageSlotsAtom = atom<Record<string, HTMLElement | null>>({});
+
 /** How wide the columns view's columns are, in CSS px, dragged at any column's right edge. */
 export const computerColumnWidthAtom = atomWithStorage<number>(
   "orchestrator.computer-column-width.v1",

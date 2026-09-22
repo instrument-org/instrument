@@ -11,7 +11,7 @@ import { useAtom } from "jotai";
 import { useState } from "react";
 
 import { type ComposeHost } from "./browser-tabs";
-import { layoutCompose } from "./compose-layout";
+import { COMPOSE_GUEST_LAYER, layoutCompose } from "./compose-layout";
 
 /**
  * The windows along the foot of the row: the drafts being written and the
@@ -41,6 +41,7 @@ export function useCompose(width: number) {
             group: draftGroupOf(entry.draftId),
             into: hostsById[draftGroupOf(entry.draftId)] ?? null,
             isActive: true,
+            layer: COMPOSE_GUEST_LAYER,
             place: `${entry.placement}:${entry.right}`,
           },
         ]

@@ -1,15 +1,24 @@
-import { type FileTab } from "@/client/atoms/orchestrator";
+import {
+  type FileTab,
+  fileTreeOpenAtom,
+  pageSlotsAtom,
+} from "@/client/atoms/orchestrator";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FileViewer } from "@/client/components/file-viewer";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { Button } from "@/client/components/ui/button";
+import { toolbarClassName } from "@/client/components/ui/toggle";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useAtom, useSetAtom } from "jotai";
 import { Fragment, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -33,10 +42,12 @@ import { useWindowTabs } from "./window-tabs";
  * followed, without going back to the Finder. A row in the tree or a link
  * in the document swaps the file in the same tab.
  *
- * A page's file (HTML) is not shown here at all: it is what a browser is for,
- * so this tab becomes a page tab showing the file at its `file://` address,
- * with the browser's own semantics for a local file. Asked for its source,
- * the tab keeps the file and shows its text.
+ * A page's file (HTML) is what a browser is for. In a file tab with a tree
+ * it is drawn as its page beside the tree, by a guest the browser keeps as
+ * a tab in a group of the file tab's own, off every strip; elsewhere this
+ * tab becomes a page tab showing the file at its `file://` address, with
+ * the browser's own semantics for a local file. Asked for its source, the
+ * tab keeps the file and shows its text.
  */
 export function FilesScreen({
   file,
@@ -55,7 +66,10 @@ export function FilesScreen({
   tree: string | undefined;
 }) {
   const { browser, openPage, openScreen, taskId } = useOrchestrator();
-  const { closeActive, step, stepVisit } = useWindowTabs();
+  const { active, allTabs, close, closeActive, step, stepVisit } =
+    useWindowTabs();
+  const [isTreeOpen, setTreeOpen] = useAtom(fileTreeOpenAtom);
+  const setPageSlots = useSetAtom(pageSlotsAtom);
   const router = useRouter();
   const navigate = useNavigate();
   const leaveFile = () => {
@@ -96,12 +110,14 @@ export function FilesScreen({
   const activeFile: FileTab | undefined = file
     ? { hostPath: file, name: segmentsOf(file).at(-1) ?? file }
     : undefined;
-  const pageFile =
+  const isPageFile =
     activeFile !== undefined &&
     !source &&
-    getFileType({ filename: activeFile.name }) === "html"
-      ? activeFile.hostPath
-      : undefined;
+    getFileType({ filename: activeFile.name }) === "html";
+  // In a tab with a tree the page is drawn beside it; elsewhere the tab
+  // becomes the page.
+  const pageFile =
+    isPageFile && tree === undefined ? activeFile.hostPath : undefined;
   const opensAsPage = pageFile !== undefined;
   // The browser is mounted by the layout and may arrive after this screen
   // does, as it does when the window opens on a file: the page is asked for
@@ -114,6 +130,61 @@ export function FilesScreen({
     // Once per file the tab arrives at; the page takes the tab over from here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageFile, hasBrowser]);
+  // The page's file beside the tree: a page tab of the file tab's own, in a
+  // group named for the tab so no strip lists it, sent to the file the tab
+  // shows and closed when the tab moves off a page's file or goes. The
+  // browser draws it into the slot the viewer gives it below.
+  const hostGroup = active === undefined ? undefined : `page:${active.id}`;
+  const hostedFile =
+    isPageFile && tree !== undefined ? activeFile.hostPath : undefined;
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (hostedFile === undefined || hostGroup === undefined || !browser) {
+      return;
+    }
+    browser.openOrFocus(fileUrlOf(hostedFile), { group: hostGroup });
+    // Once per file hosted; the browser handle is stable once it exists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostedFile, hostGroup, hasBrowser]);
+  const hostedTabIds = allTabs
+    .filter((tab) => tab.group === hostGroup)
+    .map((tab) => tab.id)
+    .join("\n");
+  useEffect(() => {
+    if (hostedFile !== undefined) {
+      return;
+    }
+    for (const id of hostedTabIds.split("\n").filter(Boolean)) {
+      close(id);
+    }
+    // The tabs are closed as the file stops being a page's, not on every
+    // re-read of the list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostedFile, hostedTabIds]);
+  useEffect(
+    () => () => {
+      for (const id of hostedTabIds.split("\n").filter(Boolean)) {
+        close(id);
+      }
+    },
+    // On the way out alone, with the tabs as they stood.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useEffect(() => {
+    if (hostGroup === undefined) {
+      return;
+    }
+    setPageSlots((current) =>
+      current[hostGroup] === slot ? current : { ...current, [hostGroup]: slot },
+    );
+    return () => {
+      setPageSlots((current) => {
+        const { [hostGroup]: _gone, ...rest } = current;
+        return rest;
+      });
+    };
+  }, [hostGroup, slot, setPageSlots]);
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile
@@ -200,22 +271,37 @@ export function FilesScreen({
         }}
       >
         <div className="flex h-full min-h-0">
-          <aside className="w-60 shrink-0 border-r border-border bg-muted/40">
-            <FileTree
-              onOpen={showFile}
-              root={tree}
-              selected={activeFile.hostPath}
-            />
-          </aside>
+          {isTreeOpen && (
+            <aside className="w-60 shrink-0 border-r border-border bg-muted/40">
+              <FileTree
+                onOpen={showFile}
+                root={tree}
+                selected={activeFile.hostPath}
+              />
+            </aside>
+          )}
           <div className="min-h-0 min-w-0 flex-1 p-3">
             <FileViewer
               className="h-full"
               file={viewerFile(activeFile)}
               key={activeFile.hostPath}
-              lead={<FileCrumbs file={activeFile} />}
+              lead={
+                <span className="flex min-w-0 items-center gap-1">
+                  <TreeToggle
+                    isOpen={isTreeOpen}
+                    onToggle={() => {
+                      setTreeOpen((open) => !open);
+                    }}
+                  />
+                  <FileCrumbs file={activeFile} />
+                </span>
+              }
               // The close is the way back to the Finder: the tab goes, and
               // the Finder is the tab beside it.
               onClose={closeActive}
+              {...(hostedFile === undefined
+                ? {}
+                : { page: <div className="h-full" ref={setSlot} /> })}
             />
           </div>
         </div>
@@ -309,5 +395,30 @@ function FileCrumbs({ file }: { file: FileTab }) {
         );
       })}
     </span>
+  );
+}
+
+/** Puts the tree away and brings it back, at the head's left where the tree stands. */
+function TreeToggle({
+  isOpen,
+  onToggle,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const label = isOpen ? "Hide the tree" : "Show the tree";
+  return (
+    <ToolbarTooltip label={label}>
+      <Button
+        aria-label={label}
+        aria-pressed={isOpen}
+        className={toolbarClassName({ className: "shrink-0", pressed: false })}
+        onClick={onToggle}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <SidebarSimpleIcon className="size-4" />
+      </Button>
+    </ToolbarTooltip>
   );
 }

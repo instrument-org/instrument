@@ -14,6 +14,7 @@ import {
   type OrchestratorRecent,
   orchestratorRecentsAtom,
   orchestratorSidebarWidthAtom,
+  pageSlotsAtom,
   paneOpenByGroupAtom,
   placeGroupOf,
   placeOfGroup,
@@ -34,6 +35,7 @@ import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import {
   BrowserTabs,
   type BrowserTabsHandle,
+  type ComposeHost,
 } from "@/client/components/orchestrator/browser-tabs";
 import { ComposeLayer } from "@/client/components/orchestrator/compose-layer";
 import { type DraftSend } from "@/client/components/orchestrator/compose-window";
@@ -612,6 +614,25 @@ function OrchestratorLayout() {
   const setPaneOpen = (group: string, isOpen: boolean) => {
     setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
   };
+  // The pages screens draw into slots of their own (a page's file beside a
+  // file tab's tree), shown on the same terms as the pane's page: parked
+  // under a window in the corner or the tasks' face, like it.
+  const pageSlots = useAtomValue(pageSlotsAtom);
+  const slotHosts: ComposeHost[] = Object.entries(pageSlots).flatMap(
+    ([group, into]) =>
+      into
+        ? [
+            {
+              chrome: false,
+              group,
+              into,
+              isActive:
+                showsRightArea && !isHome && !isTasksViewUp && !compose.covers,
+              place: `${group}:${rowWidth}`,
+            },
+          ]
+        : [],
+  );
   /** Brings the pane up for the group on screen, for something opened into it. */
   const revealPane = () => {
     if (windowTabs.group !== undefined) {
@@ -2065,7 +2086,7 @@ function OrchestratorLayout() {
                           <ActiveTabProvider isActive={isPageShown}>
                             <BrowserTabs
                               chromeInto={chromeSlot}
-                              compose={compose.hosts}
+                              compose={[...compose.hosts, ...slotHosts]}
                               ref={setBrowser}
                               threadOfTask={childThreads}
                             />

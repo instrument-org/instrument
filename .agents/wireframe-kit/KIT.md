@@ -14,17 +14,17 @@ The kit draws Studio in its light theme whatever theme the reader has picked: `[
 
 ## The functions
 
-| Function                                       | Draws                                                                                             |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `appWindow(sidebar, main, panel?)`             | The whole window: sidebar, conversation column, optional artifact panel                           |
-| `navItem(label, { active, dot })`              | A task row in the sidebar                                                                         |
-| `navGroup(text)`                               | A heading above a run of sidebar rows                                                             |
-| `conversation(inner)`                          | The centered transcript column                                                                    |
-| `dock(inner)`                                  | Anchors the composer, or whatever replaces it, at the bottom                                      |
-| `composerBox({ placeholder, busy })`           | The composer; `busy` swaps send for stop                                                          |
-| `bubble(text)`                                 | A user message                                                                                    |
-| `toolRow(icon, text)`                          | A tool call as the transcript shows one                                                           |
-| `surface(inner)`                               | One piece of UI on its own, for frames that are not a whole window                                |
+| Function                             | Draws                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `appWindow(sidebar, main, panel?)`   | The whole window: sidebar, conversation column, optional artifact panel |
+| `navItem(label, { active, dot })`    | A task row in the sidebar                                               |
+| `navGroup(text)`                     | A heading above a run of sidebar rows                                   |
+| `conversation(inner)`                | The centered transcript column                                          |
+| `dock(inner)`                        | Anchors the composer, or whatever replaces it, at the bottom            |
+| `composerBox({ placeholder, busy })` | The composer; `busy` swaps send for stop                                |
+| `bubble(text)`                       | A user message                                                          |
+| `toolRow(icon, text)`                | A tool call as the transcript shows one                                 |
+| `surface(inner)`                     | One piece of UI on its own, for frames that are not a whole window      |
 
 A shape the flow repeats and the kit does not cover becomes a small function in the page. When a second wireframe wants it too, it belongs here.
 
@@ -99,15 +99,15 @@ const surface = (inner) => `
 
 The kit encodes most of this. The table is for what it does not cover, and for checking the kit against source when it looks stale.
 
-| Thing                 | Recipe                                                                                                                                                                                                                                         |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Conversation column   | `max-w-2xl p-4` ([chat.tsx](../../apps/studio/src/client/components/task/chat.tsx))                                                                                                                                                            |
-| User bubble           | `inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-3 shadow-sm` ([user-message.tsx](../../apps/studio/src/client/components/user-message.tsx))                      |
-| Message action button | `rounded-sm p-1 text-muted-foreground` around a `size-3.5` icon, hover `bg-muted/50 text-foreground` ([styles.tsx](../../apps/studio/src/client/lib/styles.tsx))                                                                               |
-| Action row            | hidden until the message is hovered                                                                                                                                                                                                            |
-| Placeholder prose     | `h-[7px] rounded-full bg-gray-300` at varying widths                                                                                                                                                                                           |
-| Error text and stacks | `font-mono text-[11px]` in `rounded-md bg-muted p-3`, stack collapsed behind a caret ([error-details.tsx](../../apps/studio/src/client/components/error-details.tsx))                                                                          |
-| Icons                 | Phosphor regular, the set the app uses: `<i class="ph ph-gear"></i>`, sized with Tailwind (`text-sm` is the 14px action-row size). `ph-fill` for the filled weight                                                                            |
+| Thing                 | Recipe                                                                                                                                                                                                                                               |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Conversation column   | `max-w-2xl p-4` ([chat.tsx](../../apps/studio/src/client/components/task/chat.tsx))                                                                                                                                                                  |
+| User bubble           | `inline-block max-w-[80%] rounded-tl-xl rounded-tr-sm rounded-br-xl rounded-bl-xl bg-linear-to-b from-card to-gray-25 px-4 py-3 shadow-sm` ([user-message.tsx](../../apps/studio/src/client/components/user-message.tsx))                            |
+| Message action button | `rounded-sm p-1 text-muted-foreground` around a `size-3.5` icon, hover `bg-muted/50 text-foreground` ([styles.tsx](../../apps/studio/src/client/lib/styles.tsx))                                                                                     |
+| Action row            | hidden until the message is hovered                                                                                                                                                                                                                  |
+| Placeholder prose     | `h-[7px] rounded-full bg-gray-300` at varying widths                                                                                                                                                                                                 |
+| Error text and stacks | `font-mono text-[11px]` in `rounded-md bg-muted p-3`, stack collapsed behind a caret ([error-details.tsx](../../apps/studio/src/client/components/error-details.tsx))                                                                                |
+| Icons                 | Phosphor regular, the set the app uses: `<i class="ph ph-gear"></i>`, sized with Tailwind (`text-sm` is the 14px action-row size). `ph-fill` for the filled weight                                                                                   |
 | Brand marks           | A third party's logo (a model provider, a service the frame names) is fetched while writing, checked, and inlined as SVG or a data URI. Never a runtime URL into an icon CDN: those drop brands on request and leave a 404 in every viewer's console |
 
 Two that are wrong on sight if you guess:

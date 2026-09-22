@@ -84,6 +84,13 @@ export function describeMessageError(
         summary: "No API key",
       };
     }
+    case "disk-full": {
+      return {
+        detail:
+          "Your disk is full, so Instrument can't save its work. Free up some space, then try again.",
+        summary: "Disk is full",
+      };
+    }
     case "invalid-tool-input":
     case "no-such-tool": {
       return {

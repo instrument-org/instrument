@@ -11,6 +11,7 @@ const UPSTREAM_THROTTLE_TEXT =
 
 const cases: Record<string, MessageError> = {
   "a missing API key": { kind: "api-key", message: "No API key found" },
+  "a full disk": { kind: "disk-full", message: "database or disk is full" },
   "a payload over the context window": {
     classification: "context-overflow",
     kind: "api-call",
@@ -50,6 +51,10 @@ describe("describeMessageError", () => {
     );
     expect(described).toMatchInlineSnapshot(`
       {
+        "a full disk": {
+          "detail": "Your disk is full, so Instrument can't save its work. Free up some space, then try again.",
+          "summary": "Disk is full",
+        },
         "a missing API key": {
           "detail": "No usable API key was found for this model. Check the model's provider settings.",
           "summary": "No API key",

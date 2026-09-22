@@ -199,6 +199,9 @@ type LLMAnalyticsError =
       error_type: "api-key";
     }
   | {
+      error_type: "disk-full";
+    }
+  | {
       error_type: "invalid-tool-input";
     }
   | {

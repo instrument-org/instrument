@@ -63,6 +63,11 @@ export namespace SessionMessage {
       kind: z.literal("aborted"),
       message: z.string(),
     }),
+    // A write failed because the disk has no space left.
+    z.object({
+      kind: z.literal("disk-full"),
+      message: z.string(),
+    }),
     z.object({
       classification: ClassificationSchema,
       kind: z.literal("unknown"),

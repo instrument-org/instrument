@@ -37,6 +37,14 @@ describe("getErrorAction", () => {
     expect(getErrorAction(message)).toEqual({ type: "stop" });
   });
 
+  it("returns stop for a full disk", () => {
+    const message = createMessage({
+      kind: "disk-full",
+      message: "database or disk is full",
+    });
+    expect(getErrorAction(message)).toEqual({ type: "stop" });
+  });
+
   it("returns error for unknown errors", () => {
     const message = createMessage({ kind: "unknown", message: "Test error" });
     const result = getErrorAction(message);

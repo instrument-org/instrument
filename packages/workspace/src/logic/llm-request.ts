@@ -23,6 +23,7 @@ import { fromPromise } from "xstate";
 import { type AnyAgent } from "../agents/types";
 import { classifyProviderError } from "../lib/classify-provider-error";
 import { getCurrentDate } from "../lib/get-current-date";
+import { isStorageFullError } from "../lib/is-storage-full-error";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages } from "../lib/prepare-model-messages";
@@ -64,13 +65,29 @@ export const llmRequestLogic = fromPromise<
   },
   LLMRequestInput
 >(async ({ input, signal }) => {
+  // The first write that failed for lack of disk space. Once set, every later
+  // write would fail the same way, so part saves stop, the stream loop ends
+  // the request with a `disk-full` error, and the condition is reported once
+  // rather than once per streaming save.
+  let storageFullError: Error | undefined;
+
+  const reportStorageError = (error: unknown) => {
+    if (isStorageFullError(error)) {
+      if (storageFullError !== undefined) {
+        return;
+      }
+      storageFullError = error;
+    }
+    getWorkspaceConfig().captureException(error, {
+      scopes: ["workspace", "llm-request"],
+    });
+  };
+
   const scopedStore = {
     saveMessage: (message: Parameters<typeof Store.saveMessage>[0]) =>
       Store.saveMessage(message, input.taskId, { signal }).then((result) => {
         if (result.isErr()) {
-          getWorkspaceConfig().captureException(result.error, {
-            scopes: ["workspace", "llm-request"],
-          });
+          reportStorageError(result.error);
           return;
         }
         return result.value;
@@ -79,11 +96,12 @@ export const llmRequestLogic = fromPromise<
     // delta bookkeeping needs to know before it forgets the characters it just
     // handed over.
     savePart: async (part: Parameters<typeof Store.savePart>[0]) => {
+      if (storageFullError !== undefined) {
+        return false;
+      }
       const result = await Store.savePart(part, input.taskId, { signal });
       if (result.isErr()) {
-        getWorkspaceConfig().captureException(result.error, {
-          scopes: ["workspace", "llm-request"],
-        });
+        reportStorageError(result.error);
         return false;
       }
       return true;
@@ -179,9 +197,10 @@ export const llmRequestLogic = fromPromise<
   async function getCurrentParts() {
     // Delta saves are coalesced, so an in-memory part can hold text the store
     // has not seen; write those tails through before reading parts back, or
-    // they would be missing from the returned parts.
+    // they would be missing from the returned parts. A full disk would refuse
+    // them all, so they are dropped.
     for (const entry of pendingDeltaSaves.values()) {
-      if (entry.unsavedChars > 0) {
+      if (storageFullError === undefined && entry.unsavedChars > 0) {
         await entry.save();
       }
     }
@@ -346,6 +365,9 @@ export const llmRequestLogic = fromPromise<
       if (isSignalAborted() || part.type === "abort") {
         // Ensures we don't try to process any more parts
         break;
+      }
+      if (storageFullError !== undefined) {
+        throw storageFullError;
       }
       input.self.send({ type: "llmRequest.chunkReceived" });
       if (
@@ -818,8 +840,25 @@ export const llmRequestLogic = fromPromise<
         }
       }
     }
+    // The stream can end on the very save that found the disk full.
+    if (storageFullError !== undefined) {
+      throw storageFullError;
+    }
   } catch (error) {
     switch (true) {
+      case isStorageFullError(error): {
+        reportStorageError(error);
+        assistantMessage.metadata.error = {
+          kind: "disk-full",
+          message: error.message,
+        };
+        captureEvent("llm.error", {
+          error_type: "disk-full",
+          modelId,
+          providerId,
+        });
+        break;
+      }
       case error instanceof Error &&
         (error.name === "AbortError" || error.name === "TimeoutError"): {
         // Not sure if we hit this, I wasn't able to reproduce it

@@ -24,6 +24,7 @@ import { TypedError } from "../lib/errors";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { SESSION_CONTEXT_VERSION } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
+import { getWorkspaceConfig } from "../lib/workspace-config";
 import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { SessionMessagePart } from "../schemas/session/message-part";
@@ -2944,6 +2945,60 @@ describe("llmRequestLogic", () => {
       );
       const textPart = assistant?.parts.find((part) => part.type === "text");
       expect(textPart?.text).toBe(fullText);
+    });
+
+    it("ends the request on a full disk, reporting it once", async () => {
+      let nowMs = 0;
+      vi.spyOn(performance, "now").mockImplementation(() => {
+        nowMs += 1000;
+        return nowMs;
+      });
+      const savePart = Store.savePart;
+      const savePartSpy = vi
+        .spyOn(Store, "savePart")
+        .mockImplementation((part, taskId, options) =>
+          part.type === "text"
+            ? errAsync(
+                new TypedError.Storage("unable to open database file", {
+                  cause: Object.assign(
+                    new Error("unable to open database file"),
+                    { code: "ERR_SQLITE_ERROR", errcode: 14 },
+                  ),
+                }),
+              )
+            : savePart(part, taskId, options),
+        );
+      const testMachine = await createTestMachine({
+        chunks: [
+          { id: "1", type: "text-start" },
+          ...Array.from({ length: 50 }, (_, index) => ({
+            delta: `word-${index} `,
+            id: "1",
+            type: "text-delta" as const,
+          })),
+          { id: "1", type: "text-end" },
+        ],
+      });
+      const captureException = vi.spyOn(
+        getWorkspaceConfig(),
+        "captureException",
+      );
+
+      const { messages } = await runTestMachine(testMachine);
+
+      expect(captureException).toHaveBeenCalledTimes(1);
+      expect(
+        savePartSpy.mock.calls.filter(([part]) => part.type === "text"),
+      ).toHaveLength(1);
+      const assistant = messages.findLast(
+        (message) => message.role === "assistant",
+      );
+      expect(assistant?.metadata.error).toMatchInlineSnapshot(`
+        {
+          "kind": "disk-full",
+          "message": "unable to open database file",
+        }
+      `);
     });
 
     it("flushes the unsaved tail when the request is aborted", async () => {

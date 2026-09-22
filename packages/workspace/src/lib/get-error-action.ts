@@ -15,7 +15,8 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "continue" };
   }
 
-  if (error.kind === "aborted") {
+  // Retrying cannot help until the user frees space.
+  if (error.kind === "aborted" || error.kind === "disk-full") {
     return { type: "stop" };
   }
 

@@ -91,6 +91,18 @@ describe("ls over a large attached folder", () => {
     expect(result.stderr).toMatch(/ls: filesystem traversal .*limit exceeded/);
   });
 
+  it("stops find at the same budget without leaving reads running", async () => {
+    // A directory read still in flight when find fails used to settle after
+    // the command returned and surface as an unhandled rejection, which
+    // vitest reports as a failed run (vercel-labs/just-bash#451).
+    const result = await run("find /mnt/Home -type f", { orchestrator: true });
+
+    expect(result.exitCode).toBe(126);
+    expect(result.stderr).toMatch(
+      /find: filesystem traversal .*limit exceeded/,
+    );
+  });
+
   it("lists the whole tree from a task, whose budget is larger", async () => {
     const result = await run("ls -R /mnt/Home | wc -l");
 

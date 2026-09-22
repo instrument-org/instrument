@@ -10,6 +10,7 @@ import {
   StoreId,
   TaskIdSchema,
 } from "@instrument-org/workspace/electron";
+import { noop } from "radashi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { sendCommand } from "./dispatch-command";
@@ -199,7 +200,7 @@ describe("sendCommand", () => {
     it("gives Page.navigate 20s before rejecting with a typed timeout", async () => {
       vi.useFakeTimers();
       const entry = makeEntry({
-        sendCommand: vi.fn().mockReturnValue(new Promise(() => {})),
+        sendCommand: vi.fn().mockReturnValue(new Promise(noop)),
       });
       const sent = sendCommand({
         ensureDebuggerAttached: vi.fn(),
@@ -215,9 +216,8 @@ describe("sendCommand", () => {
       expect(settled).not.toHaveBeenCalled();
 
       await vi.advanceTimersByTimeAsync(15_000);
-      const error: unknown = await sent.catch((error: unknown) => error);
-      expect(error).toBeInstanceOf(CdpCommandTimeoutError);
-      expect(error).toMatchObject({ method: "Page.navigate" });
+      await expect(sent).rejects.toBeInstanceOf(CdpCommandTimeoutError);
+      await expect(sent).rejects.toMatchObject({ method: "Page.navigate" });
     });
 
     it("clears the timer once the command answers", async () => {

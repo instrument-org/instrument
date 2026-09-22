@@ -28,6 +28,8 @@ export function stepTabVisit(
       direction === 1
         ? from.slice(0, -1)
         : [...(current.future ?? []), visitOf(current)],
+    // The tab stays the thread's whatever it steps to.
+    group: current.group,
     isOpened: current.isOpened,
     past:
       direction === -1

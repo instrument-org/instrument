@@ -42,7 +42,6 @@ import {
 import { createPortal } from "react-dom";
 import { z } from "zod";
 
-import { COMPOSE_GUEST_LAYER } from "./compose-layout";
 import { useOrchestrator } from "./context";
 import { fileHref } from "./file-tabs";
 import { segmentsOf } from "./host-path";
@@ -90,14 +89,19 @@ export interface BrowserTabsHandle {
 
 /**
  * A second place a page is drawn: a draft window's band, which shows the
- * draft's group's tabs itself. The panel for that group's page is portaled
- * into `into`, and shown while `isActive`.
+ * draft's group's tabs itself, or a file tab drawing a page's file beside
+ * its tree. The panel for that group's page is portaled into `into`, and
+ * shown while `isActive`.
  */
 export interface ComposeHost {
+  /** Whether the page's own bar is drawn over it; a surface with a head of its own says no. */
+  chrome?: boolean;
   group: string;
   into: HTMLElement | null;
   isActive: boolean;
-  /** Where the window stands, so a page is placed again when the window moves without resizing. */
+  /** The window layer the guest is shown on, for a host inside a floating surface; the panel's own otherwise. */
+  layer?: number;
+  /** Where the host stands, so a page is placed again when the host moves without resizing. */
   place: string;
 }
 
@@ -518,11 +522,16 @@ export function BrowserTabs({
                   },
                   -1,
                 );
+              // The rest of the window (the group on screen, what each
+              // group had up) rides along: only this tab changes.
               return previous
                 ? {
+                    ...current,
                     activeId: previous.id,
                     tabs: current.tabs.map((entry) =>
-                      entry.id === id ? previous : entry,
+                      entry.id === id
+                        ? { ...previous, group: previous.group ?? entry.group }
+                        : entry,
                     ),
                   }
                 : current;
@@ -1076,12 +1085,13 @@ function ComposePagePanel({
     <ActiveTabProvider isActive={host.isActive}>
       <TaskBrowserPanel
         active={attached}
+        chrome={host.chrome ?? true}
         className="h-full rounded-none shadow-none"
         // The draft's words keep the caret; the bar is read, not typed into,
         // when a site arrives from the band.
         focusAddress={false}
         key={tab.id}
-        layer={COMPOSE_GUEST_LAYER}
+        {...(host.layer === undefined ? {} : { layer: host.layer })}
         relayoutKey={host.place}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
         taskId={tab.taskId ?? taskId}

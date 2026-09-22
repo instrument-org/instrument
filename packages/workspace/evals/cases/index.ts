@@ -5,6 +5,7 @@ import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { GIT_OVER_MOUNTS_EVALS } from "./git-over-mounts";
 import { IMAGE_REGION_EVALS } from "./image-region";
+import { LARGE_FOLDER_SEARCH_EVALS } from "./large-folder-search";
 import { MEMORY_EVALS } from "./memory";
 import { ORCHESTRATOR_EVALS } from "./orchestrator";
 import { PDF_SKILL_EVALS } from "./pdf-skill";
@@ -24,6 +25,7 @@ export const EVALS = [
   ...FILES_FENCE_EVALS,
   ...GIT_OVER_MOUNTS_EVALS,
   ...IMAGE_REGION_EVALS,
+  ...LARGE_FOLDER_SEARCH_EVALS,
   ...MEMORY_EVALS,
   ...ORCHESTRATOR_EVALS,
   ...PDF_SKILL_EVALS,

@@ -54,6 +54,13 @@ export const TASK_STATE_FILE_NAME = "state.json";
 export const AGENT_FILES_LANGUAGE = "files";
 
 /**
+ * Info string of the fenced block an agent writes to hand the user words they
+ * will send as their own: an email, a text, a post. The same front matter and
+ * body make a Markdown file a message, so a fence and a file draw one card.
+ */
+export const AGENT_MESSAGE_LANGUAGE = "message";
+
+/**
  * Character budget for the project instructions inlined into a task's standing
  * context.
  *

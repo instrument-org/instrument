@@ -1,6 +1,7 @@
 export type { AgentName } from "./agents/types";
 export {
   AGENT_FILES_LANGUAGE,
+  AGENT_MESSAGE_LANGUAGE,
   MAX_PROMPT_STORAGE_LENGTH,
   TASK_FOLDER_NAMES,
   TOOL_EXPLANATION_PARAM_NAME,
@@ -21,6 +22,14 @@ export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
 export type { ComputerListing } from "./lib/orchestrator/computer";
 export { paneTabsModelNote } from "./lib/pane-tabs-model-text";
 export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
+export {
+  isMessageDocument,
+  MESSAGE_FENCE,
+  MESSAGE_KINDS,
+  type MessageDraft,
+  type MessageKind,
+  parseMessage,
+} from "./lib/parse-message";
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
 export { systemNoteBody } from "./lib/system-note";

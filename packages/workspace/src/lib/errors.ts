@@ -8,6 +8,7 @@ export namespace TypedError {
     | DependencyInstall
     | FileSystem
     | Git
+    | InvalidInput
     | NotFound
     | Parse
     | ProviderLimitation
@@ -51,6 +52,15 @@ export namespace TypedError {
       super(message, { cause: options?.cause });
       this.dugiteCode = options?.dugiteCode;
     }
+  }
+
+  /**
+   * Something the person typed that the app refuses, like a project name with a
+   * character Windows forbids in a file name. The UI shows the message where
+   * they typed it, so it is theirs to fix rather than a failure to report.
+   */
+  export class InvalidInput extends Error {
+    readonly type = `${PREFIX}-invalid-input-error`;
   }
 
   export class NotFound extends Error {

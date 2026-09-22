@@ -165,10 +165,11 @@ function ProjectModalForm({
   const [folders, setFolders] = useState<FolderAccess[]>([]);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // Name validation runs server-side (rules vary per OS); attribute those
-  // failures to the Name field, everything else stays form-level.
+  // Name validation runs server-side (one set of rules on every OS: the
+  // characters and names Windows refuses); attribute those failures to the
+  // Name field, everything else stays form-level.
   const toSubmitError = (error: Error | ORPCError<string, unknown>) => {
-    if (isDefinedError(error) && error.code === "PARSE_ERROR") {
+    if (isDefinedError(error) && error.code === "INVALID_INPUT") {
       return { fields: { name: error.message } };
     }
     return (

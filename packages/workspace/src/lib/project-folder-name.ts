@@ -11,39 +11,43 @@ const MAX_LENGTH = 200;
 
 export function validateProjectName(
   raw: string,
-): Result<string, TypedError.Parse> {
+): Result<string, TypedError.InvalidInput> {
   const name = raw.trim();
 
   if (name.length === 0) {
-    return err(new TypedError.Parse("Project name can't be empty"));
+    return err(new TypedError.InvalidInput("Project name can't be empty"));
   }
   if (name.length > MAX_LENGTH) {
     return err(
-      new TypedError.Parse(
+      new TypedError.InvalidInput(
         `Project name must be ${MAX_LENGTH} characters or fewer`,
       ),
     );
   }
   if (name === "." || name === "..") {
     return err(
-      new TypedError.Parse('"." and ".." are not valid project names'),
+      new TypedError.InvalidInput('"." and ".." are not valid project names'),
     );
   }
   if (ILLEGAL_CHARS.test(name)) {
     return err(
-      new TypedError.Parse(
+      new TypedError.InvalidInput(
         "Project name can't contain any of: < > : \" / \\ | ? *",
       ),
     );
   }
   if (WINDOWS_RESERVED.test(name)) {
     return err(
-      new TypedError.Parse(`"${name}" is a reserved name and can't be used`),
+      new TypedError.InvalidInput(
+        `"${name}" is a reserved name and can't be used`,
+      ),
     );
   }
   if (name.endsWith(".") || name.endsWith(" ")) {
     return err(
-      new TypedError.Parse("Project name can't end with a space or period"),
+      new TypedError.InvalidInput(
+        "Project name can't end with a space or period",
+      ),
     );
   }
 

@@ -40,6 +40,7 @@ export async function addFolderToProject(
     Project,
     | TypedError.Conflict
     | TypedError.FileSystem
+    | TypedError.InvalidInput
     | TypedError.NotFound
     | TypedError.Parse
   >
@@ -94,7 +95,7 @@ export async function createProject({
 }): Promise<
   Result<
     Project,
-    TypedError.Conflict | TypedError.FileSystem | TypedError.Parse
+    TypedError.Conflict | TypedError.FileSystem | TypedError.InvalidInput
   >
 > {
   const validated = validateProjectName(name);
@@ -254,6 +255,7 @@ export async function removeFolderFromProject(
     Project,
     | TypedError.Conflict
     | TypedError.FileSystem
+    | TypedError.InvalidInput
     | TypedError.NotFound
     | TypedError.Parse
   >
@@ -316,6 +318,7 @@ export async function setProjectFolderAccess(
     Project,
     | TypedError.Conflict
     | TypedError.FileSystem
+    | TypedError.InvalidInput
     | TypedError.NotFound
     | TypedError.Parse
   >
@@ -383,6 +386,7 @@ export async function updateProject(
     Project,
     | TypedError.Conflict
     | TypedError.FileSystem
+    | TypedError.InvalidInput
     | TypedError.NotFound
     | TypedError.Parse
   >

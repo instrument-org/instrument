@@ -21,6 +21,13 @@ import { router } from "./routes";
 // Increased from the default of 10.
 EventEmitter.defaultMaxListeners = 100;
 
+// INVALID_INPUT is input the person typed and the app refused (e.g. a project
+// name with a character Windows forbids in a file name). The UI shows it by the
+// field, so it is theirs to fix rather than a bug; rethrow, skip the capture.
+function isHandledInvalidInput(error: unknown): boolean {
+  return error instanceof ORPCError && error.code === "INVALID_INPUT";
+}
+
 // Clicking a link with a malformed or non-allowlisted-protocol URL (often
 // agent-generated markdown) makes openExternalLink throw INVALID_URL. The client
 // handles it as control flow (toasts and copies the URL to the clipboard), and
@@ -55,6 +62,7 @@ function shouldSkipCapture(error: unknown): boolean {
     isHandledNotFound(error) ||
     isHandledOpenError(error) ||
     isHandledInvalidUrl(error) ||
+    isHandledInvalidInput(error) ||
     isExpectedNetworkError(error)
   );
 }

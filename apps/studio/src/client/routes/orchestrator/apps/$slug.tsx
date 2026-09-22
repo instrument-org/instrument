@@ -9,7 +9,6 @@ import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { VisitedPageRows } from "@/client/components/orchestrator/visited-page-rows";
-import { RelativeTime } from "@/client/components/relative-time";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,14 +18,10 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
-import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { type ReactNode } from "react";
 import { toast } from "sonner";
-
-/** How many placeholder rows stand in for a tool list still on its way. */
-const TOOL_PLACEHOLDER_ROWS = 6;
 
 /** How many of the pages visited in the app its front lists. */
 const VISITS_SHOWN = 8;
@@ -69,12 +64,6 @@ function AppRoute() {
   const visited = useAtomValue(visitedPagesAtom);
   const visits = visitsWithin(visited, [{ name, site }]).slice(0, VISITS_SHOWN);
 
-  const tools = useQuery(
-    rpcClient.apps.tools.queryOptions({
-      input: isConnected && app.type !== "api" ? { slug } : skipToken,
-      staleTime: Number.POSITIVE_INFINITY,
-    }),
-  );
   const disconnect = useMutation(
     rpcClient.apps.disconnect.mutationOptions({
       onError: (error) => {
@@ -227,33 +216,18 @@ function AppRoute() {
               >
                 Ask about {name}
               </GlyphButton>
-            ) : app?.standing === "needs-sign-in" ? (
-              <ConnectControls kind="sign-in" name={name} slug={slug} />
-            ) : app?.standing === "needs-approval" ? (
-              <ConnectControls
-                kind="run"
-                name={name}
-                runs={app.runs}
-                slug={slug}
-              />
-            ) : app?.standing === "needs-key" ? (
-              <ConnectControls kind="key" name={name} slug={slug} />
-            ) : (
-              <GlyphButton
-                onClick={() => {
-                  ask(
-                    app && app.standing !== "untested"
-                      ? `Finish connecting ${name}`
-                      : `Connect ${name}`,
-                  );
-                }}
-                size="sm"
-              >
-                Connect {name}
-              </GlyphButton>
-            )}
+            ) : null}
           </div>
         </div>
+
+        {/* The directory's line about the app, quiet under the head, until
+          the person has been somewhere in it: a page with rows explains
+          itself. */}
+        {description && visits.length === 0 ? (
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
+        ) : null}
 
         {/* Where you were in the app, first and always: a recent page is a
           row you press, not a name you have to type back into the field,
@@ -271,50 +245,52 @@ function AppRoute() {
           )}
         </section>
 
-        {description ? (
-          <p className="mt-8 max-w-2xl text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
-        ) : null}
-
-        <div className="mt-6 grid gap-6">
-          {app?.connection && app.standing !== "untested" ? (
-            <Block label="Status">
-              <Line>
-                {app.standing === "connected"
-                  ? `Connected${app.connection.account ? ` as ${app.connection.account}` : ""}`
-                  : app.standing === "stale"
-                    ? "Connected, then changed; Instrument will test it again"
-                    : app.standing === "needs-sign-in"
-                      ? "Waiting for a sign-in"
-                      : app.standing === "needs-approval"
-                        ? "Waiting for you to allow its server to run"
-                        : app.standing === "needs-key"
-                          ? "Waiting for a key"
-                          : app.standing === "declined"
-                            ? "Not connected"
-                            : "Could not connect"}
-                {app.connection.connectedAt ? (
-                  <>
-                    {" "}
-                    · since{" "}
-                    <RelativeTime date={new Date(app.connection.connectedAt)} />
-                  </>
-                ) : null}
-              </Line>
-              {app.standing === "failed" && app.connection.error ? (
-                // What the service, the SDK, or the server said, kept whole and
-                // kept out of the line above: it is machine text, and the use
-                // for it is to copy it somewhere rather than to read it as
-                // English. This is the screen that carries it, since a directory
-                // row has no room and the test that tries again is up in the
-                // menu.
-                <div className="group/detail relative px-3 py-2">
+        {/* While the app is still being set up, the one thing that
+          finishes it, in a quiet block: what connecting takes, the control
+          for it, and what went wrong the last time, kept whole for copying.
+          Gone the moment the connection lands; nothing about a connection
+          stands on a connected app's front. */}
+        {isConnected ? null : (
+          <section className="mt-8">
+            <p className="mb-2.5 text-[13px] font-medium text-muted-foreground">
+              Setting up
+            </p>
+            <div className="rounded-xl border border-border bg-card p-4">
+              {needs ? (
+                <p className="mb-3 text-sm text-muted-foreground">{needs}</p>
+              ) : null}
+              {app?.standing === "needs-sign-in" ? (
+                <ConnectControls kind="sign-in" name={name} slug={slug} />
+              ) : app?.standing === "needs-approval" ? (
+                <ConnectControls
+                  kind="run"
+                  name={name}
+                  runs={app.runs}
+                  slug={slug}
+                />
+              ) : app?.standing === "needs-key" ? (
+                <ConnectControls kind="key" name={name} slug={slug} />
+              ) : (
+                <GlyphButton
+                  onClick={() => {
+                    ask(
+                      app && app.standing !== "untested"
+                        ? `Finish connecting ${name}`
+                        : `Connect ${name}`,
+                    );
+                  }}
+                  size="sm"
+                >
+                  Connect {name}
+                </GlyphButton>
+              )}
+              {app?.standing === "failed" && app.connection?.error ? (
+                <div className="group/detail relative mt-3 rounded-lg bg-muted/60 px-3 py-2">
                   <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
                     {app.connection.error}
                   </pre>
                   {/* `focus-within` as well as hover: the button stays in the
-                    tab order while it is transparent. */}
+                      tab order while it is transparent. */}
                   <div className="absolute top-2 right-2 opacity-0 group-hover/detail:opacity-100 focus-within:opacity-100">
                     <CopyButton
                       className={blockToolbarButtonClassName}
@@ -329,76 +305,10 @@ function AppRoute() {
                   </div>
                 </div>
               ) : null}
-            </Block>
-          ) : null}
-
-          {isConnected && app.type !== "api" ? (
-            <Block label="What it can do">
-              {tools.data ? (
-                tools.data.map((tool) => (
-                  <Line key={tool.name}>{tool.name}</Line>
-                ))
-              ) : tools.isError ? (
-                <Line>Could not list its tools: {tools.error.message}</Line>
-              ) : (
-                // The list takes a moment to come back from the service; rows
-                // the size of the ones on their way keep the page from jumping
-                // when it lands. The count the connection recorded says how
-                // many, when it does.
-                Array.from(
-                  {
-                    length: Math.min(
-                      app.connection?.toolCount ?? TOOL_PLACEHOLDER_ROWS,
-                      TOOL_PLACEHOLDER_ROWS,
-                    ),
-                  },
-                  (_, index) => (
-                    <div className="px-3 py-2" key={index}>
-                      <div
-                        className="h-5 animate-pulse rounded bg-muted"
-                        style={{ width: `${40 + ((index * 23) % 35)}%` }}
-                      />
-                    </div>
-                  ),
-                )
-              )}
-            </Block>
-          ) : (entry?.interfaces ?? []).length > 0 ? (
-            <Block label="How it is reached">
-              {(entry?.interfaces ?? []).map((surface) => (
-                <Line key={surface.name}>
-                  {surface.endpoint
-                    ? `${surface.name} (${surface.format})`
-                    : surface.name}
-                </Line>
-              ))}
-            </Block>
-          ) : null}
-
-          {needs ? (
-            <Block label="Needs">
-              <Line>{needs}</Line>
-            </Block>
-          ) : null}
-        </div>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
-}
-
-function Block({ children, label }: { children: ReactNode; label: string }) {
-  return (
-    <section>
-      <p className="px-3 text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
-        {label}
-      </p>
-      <div className="mt-2 divide-y divide-border rounded-xl border border-border bg-card">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function Line({ children }: { children: ReactNode }) {
-  return <p className="px-3 py-2 text-sm">{children}</p>;
 }

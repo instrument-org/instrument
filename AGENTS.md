@@ -84,7 +84,8 @@ Multiple worktrees can run Studio at once: dev skips the single-instance lock, a
 
 ## Tests
 
-- Run one file or a whole package with `cd packages/<name> && pnpm test run [path/to/file.test.ts]` (same shape in `apps/studio`).
+- Run one file, a directory, or a whole package **from the repo root**, with the package-relative path: `pnpm --filter @instrument-org/workspace exec vitest run [src/path/to/file.test.ts]` (`@instrument-org/studio` for `apps/studio`).
+- Do not reach for `cd packages/<name> && …`. An agent shell keeps its working directory between commands, so the second such command in a session resolves against `packages/workspace/packages/workspace` and dies on "no such file or directory", and with `&&` the rest of the chain is skipped silently. `--filter` is idempotent across calls and is the same shape whether you run one file or the package. Where a command genuinely has to run inside a package, `cd` to its absolute path.
 - Prefer `toMatchInlineSnapshot` so expected output stays visible in the test file. Generate it empty and let the run fill it in.
 - Use `it.each` for repetitive cases.
 

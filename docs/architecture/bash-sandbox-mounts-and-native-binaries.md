@@ -60,4 +60,4 @@ just-bash is the published npm package (`just-bash@^3.4.1` in `packages/workspac
 
 ## Testing without booting Studio
 
-`cd packages/workspace && pnpm --silent script:run-bash -- --attach <dir> "ls /mnt"` boots the exact runtime sandbox (see `.agents/skills/run-bash/SKILL.md`). The invariants are pinned by `workspace-fs-layout.test.ts` (mount semantics, EROFS, missing-mount skip), `resolve-agent-path.test.ts` (virtual path resolution, steering, write policy), and `shell-commands/utils.test.ts` (native quarantine).
+`pnpm --filter @instrument-org/workspace run --silent script:run-bash -- --attach <dir> "ls /mnt"` boots the exact runtime sandbox (see `.agents/skills/run-bash/SKILL.md`). The invariants are pinned by `workspace-fs-layout.test.ts` (mount semantics, EROFS, missing-mount skip), `resolve-agent-path.test.ts` (virtual path resolution, steering, write policy), and `shell-commands/utils.test.ts` (native quarantine).

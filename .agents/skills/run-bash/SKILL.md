@@ -7,12 +7,13 @@ description: Test bash commands in the same just-bash sandbox the agent uses, wi
 
 `packages/workspace/scripts/run-bash.ts` boots the exact same `just-bash` sandbox the agent uses at runtime — same FS isolation, same command shims, same network policy — so you can test commands and validate fixes without booting Studio.
 
-Run it from the workspace package via pnpm:
+Run it from the repo root via pnpm:
 
 ```bash
-cd packages/workspace
-pnpm --silent script:run-bash -- "<command>"
+pnpm --filter @instrument-org/workspace run --silent script:run-bash -- "<command>"
 ```
+
+Every example below shortens that to `pnpm --silent script:run-bash`. Spell the `--filter` in full each time rather than `cd`-ing into the package once: an agent shell keeps its working directory between commands, so a later relative `cd` in the same session resolves against the package it is already in and dies.
 
 ## Modes
 

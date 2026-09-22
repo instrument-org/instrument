@@ -17,6 +17,8 @@
  * an icon that could not be fetched is not an icon the site lacks.
  */
 
+import { z } from "zod";
+
 /** Where the icon is being read from: the proxy, then the site itself, then nowhere. */
 export type FaviconSource = "none" | "proxy" | "site";
 
@@ -26,10 +28,11 @@ const STORAGE_KEY = "studio.favicon-memory.v1";
 const NONE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const SITE_TTL_MS = 60 * 24 * 60 * 60 * 1000;
 
-interface Entry {
-  at: number;
-  source: "none" | "site";
-}
+const EntrySchema = z.object({
+  at: z.number(),
+  source: z.enum(["none", "site"]),
+});
+type Entry = z.output<typeof EntrySchema>;
 
 let memory: Map<string, Entry> | undefined;
 
@@ -88,9 +91,11 @@ function load(): Map<string, Entry> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed: unknown = JSON.parse(raw);
-      if (parsed && typeof parsed === "object") {
-        memory = new Map(Object.entries(parsed as Record<string, Entry>));
+      const parsed = z
+        .record(z.string(), EntrySchema)
+        .safeParse(JSON.parse(raw));
+      if (parsed.success) {
+        memory = new Map(Object.entries(parsed.data));
       }
     }
   } catch {

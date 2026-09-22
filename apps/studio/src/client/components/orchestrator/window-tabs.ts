@@ -47,6 +47,15 @@ export function parseHref(href: string) {
 }
 
 /**
+ * Whether an address is one of the window's own screens. The window can also
+ * stand on a screen outside them (a debug page), which no tab keeps.
+ */
+export function isWindowHref(href: string): boolean {
+  const { pathname } = parseHref(href);
+  return pathname === "/orchestrator" || pathname.startsWith("/orchestrator/");
+}
+
+/**
  * The tabs with one of them on screen, in its own group: choosing a tab of
  * another group is moving to that group, with the group being left
  * remembering what it had up.

@@ -1,4 +1,3 @@
-import { filePreviewAtom } from "@/client/atoms/file-preview";
 import {
   type AppPlace,
   appPlaceAtom,
@@ -10,6 +9,7 @@ import {
   inboxOpenAtom,
   NEW_TAB_HREF,
   newTabHrefOf,
+  newThreadOnArrivalAtom,
   orchestratorSidebarWidthAtom,
   pageSlotsAtom,
   paneOpenByGroupAtom,
@@ -21,7 +21,6 @@ import {
   SIDEBAR_WIDTH_MIN,
   THREADS_HREF,
 } from "@/client/atoms/orchestrator";
-import { FileSystemIconSpriteSheet } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { AppRail } from "@/client/components/orchestrator/app-rail";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
@@ -71,14 +70,17 @@ import { useRecordRecents } from "@/client/components/orchestrator/use-record-re
 import { useRouterSync } from "@/client/components/orchestrator/use-router-sync";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
 import { useWindowCommands } from "@/client/components/orchestrator/use-window-commands";
-import { WindowBar } from "@/client/components/orchestrator/window-bar";
+import {
+  WindowBar,
+  WindowCorner,
+} from "@/client/components/orchestrator/window-bar";
+import { WindowFrame } from "@/client/components/orchestrator/window-frame";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
   usePopClosedTab,
   useWindowTabs,
 } from "@/client/components/orchestrator/window-tabs";
 import { PageOpenContext } from "@/client/components/page-open-context";
-import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import {
   type RailBounds,
   StudioSidebarRail,
@@ -93,18 +95,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/client/components/ui/alert-dialog";
-import { Toaster } from "@/client/components/ui/sonner";
 import { Spinner } from "@/client/components/ui/spinner";
-import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
-import { UpdatedToast } from "@/client/components/updated-toast";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
-import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   type SessionMessageDataPart,
@@ -125,30 +121,11 @@ import {
 import { useAtom, useAtomValue } from "jotai";
 import ms from "ms";
 import {
-  lazy,
   type ReactNode,
-  type Ref,
-  Suspense,
   useEffect,
   useRef,
   useState,
 } from "react";
-
-// The panel that turns Instrument 2.0 off again, in the window it turns off:
-// loaded only where developer mode already put it.
-const DevPanel = lazy(() =>
-  import("@/client/components/dev-panel").then((m) => ({
-    default: m.DevPanel,
-  })),
-);
-
-// A pasted file opened from a composer, at its full size: loaded the first
-// time one is opened, since most windows never open one.
-const LazyFilePreviewModal = lazy(() =>
-  import("@/client/components/file-preview-modal").then((m) => ({
-    default: m.FilePreviewModal,
-  })),
-);
 
 /** How often the tasks' titles are re-read, for the strip. */
 const REFRESH_MS = ms("2 seconds");
@@ -226,77 +203,6 @@ export const Route = createFileRoute("/orchestrator")({
   component: OrchestratorLayout,
   head: () => ({ meta: [{ title: APP_NAME }] }),
 });
-
-/**
- * The window's chrome: no title bar, so it drags by its top-left corner,
- * which is the chat pane's top, past the traffic lights.
- */
-function Frame({
-  bar,
-  children,
-  overlay,
-  rail,
-  rowRef,
-}: {
-  bar?: ReactNode;
-  children: ReactNode;
-  /** Laid over the row, for the draft windows that float over it. */
-  overlay?: ReactNode;
-  /** The rail down the window's left edge, outside the row the columns share. */
-  rail?: ReactNode;
-  /** The row the columns share, for whoever sizes them against it. */
-  rowRef?: Ref<HTMLDivElement>;
-}) {
-  const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
-  return (
-    // The band across the top is the window's, so every menu, popover and
-    // tooltip is held below it: on macOS the traffic lights are drawn over that
-    // strip of web contents and what lands under them cannot be clicked at all.
-    <ChromeInsetProvider top={TOOLBAR_HEIGHT}>
-      {/* `h-full` rather than the viewport: this is drawn inside `ZoomRoot`,
-        which is already the real window scaled to the zoom the UI is laid out
-        at, so a viewport height would apply that zoom a second time. */}
-      <div className="relative flex h-full flex-col bg-background">
-        {/* The file browser's own type icons, drawn by reference, so a file
-          named anywhere in the window (a thread's marks, say) wears the same
-          colored mark it has in the computer view. */}
-        <FileSystemIconSpriteSheet />
-        {/* The bar is the window's own row and reserves the band the traffic
-          lights are drawn in, so no column below has to leave a gap for them. */}
-        {bar ?? (
-          <div
-            className="shrink-0 border-b border-border [-webkit-app-region:drag]"
-            style={{ height: `${TOOLBAR_HEIGHT}px` }}
-          />
-        )}
-        <div className="flex min-h-0 flex-1">
-          {rail}
-          {/* Measured on its own, past the rail, so a column sized against
-            the row is sized against the width the columns actually share.
-            The overlay shares its width and its edges, so a draft window
-            stands against the row's own corner. */}
-          <div
-            className="relative flex min-h-0 min-w-0 flex-1 flex-col"
-            ref={rowRef}
-          >
-            <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
-            {overlay}
-          </div>
-        </div>
-        <StudioModals />
-        {isFilePreviewOpen && (
-          <Suspense fallback={null}>
-            <LazyFilePreviewModal />
-          </Suspense>
-        )}
-        <Toaster position="bottom-right" />
-        {/* No action beside it: the release notes are a screen this window has
-          not got, and the version it is now on is the part worth saying. */}
-        <UpdatedToast />
-      </div>
-    </ChromeInsetProvider>
-  );
-}
 
 /** Whether a draft has anything written in it, which is what keeps it past its window. */
 function hasWords(draft: Draft): boolean {
@@ -393,7 +299,6 @@ function OrchestratorLayout() {
   }, [rowElement]);
   const bounds = inboxBounds(rowWidth);
   const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
-  const isDeveloperMode = useDeveloperMode();
   const location = useRouterState({
     select: (routerState) => routerState.location,
   });
@@ -847,6 +752,16 @@ function OrchestratorLayout() {
     topics,
     windowTabs,
   });
+  // New pressed in the rail while the window stood on a screen outside its own
+  // opens its draft here, after the window has put back what it restored.
+  const [isNewOnArrival, setNewOnArrival] = useAtom(newThreadOnArrivalAtom);
+  useEffect(() => {
+    if (isNewOnArrival) {
+      setNewOnArrival(false);
+      newDraft();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   /**
    * Puts the group on screen away: the inbox takes the width, and comes
    * back if it was hidden, since nothing else would be left on screen.
@@ -932,21 +847,21 @@ function OrchestratorLayout() {
 
   if (ensure.error) {
     return (
-      <Frame>
+      <WindowFrame>
         <p className="p-4 pt-12 text-sm text-destructive">
           Could not open the conversation: {ensure.error.message}
         </p>
-      </Frame>
+      </WindowFrame>
     );
   }
 
   if (!screens || !state.data) {
     return (
-      <Frame>
+      <WindowFrame>
         <div className="flex h-full flex-1 items-center justify-center">
           <Spinner className="size-6" />
         </div>
-      </Frame>
+      </WindowFrame>
     );
   }
 
@@ -959,7 +874,7 @@ function OrchestratorLayout() {
         }}
       >
         <PageOpenContext value={openPage}>
-          <Frame
+          <WindowFrame
             bar={
               <WindowBar
                 leading={
@@ -973,19 +888,7 @@ function OrchestratorLayout() {
                 // Nothing in the bar's middle: the tabs are each thread's
                 // and sit beside the thread.
                 tabs={null}
-                trailing={
-                  <>
-                    {isDeveloperMode && (
-                      <Suspense fallback={null}>
-                        <DevPanel />
-                      </Suspense>
-                    )}
-                    {/* A build waiting to be installed is the window's news,
-                      not a thread's, so it sits in the same corner the
-                      classic window keeps it in. */}
-                    <UpdateStatusIndicator />
-                  </>
-                }
+                trailing={<WindowCorner />}
               />
             }
             overlay={
@@ -1371,7 +1274,7 @@ function OrchestratorLayout() {
                 />
               </main>
             </div>
-          </Frame>
+          </WindowFrame>
         </PageOpenContext>
       </FileOpenContext>
     </OrchestratorContext>

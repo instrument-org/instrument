@@ -1,7 +1,17 @@
+import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { WindowControls } from "@/client/components/window-controls";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { type ReactNode } from "react";
+import { lazy, type ReactNode, Suspense } from "react";
+
+// The panel that turns Instrument 2.0 off again, in the window it turns off:
+// loaded only where developer mode already put it.
+const DevPanel = lazy(() =>
+  import("@/client/components/dev-panel").then((m) => ({
+    default: m.DevPanel,
+  })),
+);
 
 /**
  * The row across the top of the window: the traffic lights' band, the
@@ -60,5 +70,23 @@ export function WindowBar({
         end; the row is their band on the platforms that do not. */}
       <WindowControls />
     </div>
+  );
+}
+
+/** What the window keeps at the bar's right edge, whatever screen is up. */
+export function WindowCorner() {
+  const isDeveloperMode = useDeveloperMode();
+  return (
+    <>
+      {isDeveloperMode && (
+        <Suspense fallback={null}>
+          <DevPanel />
+        </Suspense>
+      )}
+      {/* A build waiting to be installed is the window's news, not a
+        thread's, so it sits in the same corner the classic window keeps it
+        in. */}
+      <UpdateStatusIndicator />
+    </>
   );
 }

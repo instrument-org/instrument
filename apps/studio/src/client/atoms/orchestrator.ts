@@ -163,6 +163,12 @@ export const appPlaceAtom = atomWithStorage<AppPlace>(
 );
 
 /**
+ * Set by New pressed in the rail over a screen outside the window's own, so
+ * the window opens a draft once it is back on screen.
+ */
+export const newThreadOnArrivalAtom = atom(false);
+
+/**
  * The group the chat had on screen when the window last stood in it, so
  * coming back from another place lands on the same thread. Null for the
  * inbox alone.

@@ -1,7 +1,8 @@
+import { newTabHrefOf } from "@/client/atoms/orchestrator";
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { PAGE_ROUTE, type useWindowTabs } from "./window-tabs";
+import { isWindowHref, PAGE_ROUTE, type useWindowTabs } from "./window-tabs";
 
 /**
  * Keeps the router and the tab on screen agreeing: the address follows the
@@ -26,6 +27,12 @@ export function useRouterSync(windowTabs: ReturnType<typeof useWindowTabs>) {
       if (latest.pathname !== PAGE_ROUTE) {
         router.history.push(PAGE_ROUTE);
       }
+    } else if (!isWindowHref(active.href)) {
+      // A tab left at a screen outside the window opens at its group's new
+      // tab instead, or coming back would leave the window again at once.
+      const fresh = newTabHrefOf(windowTabs.group);
+      windowTabs.setActiveHref(fresh);
+      router.history.push(fresh);
     } else if (latest.href !== active.href) {
       router.history.push(active.href);
     }
@@ -33,8 +40,10 @@ export function useRouterSync(windowTabs: ReturnType<typeof useWindowTabs>) {
   }, [active?.id]);
 
   // Route navigation stays in this tab, including when leaving a website.
+  // An address outside the window (a debug page) is the window leaving its
+  // screens, never a tab's own navigation.
   useEffect(() => {
-    if (windowTabs.group === undefined) {
+    if (windowTabs.group === undefined || !isWindowHref(location.href)) {
       return;
     }
     // An address the history has already moved past is not one to follow:

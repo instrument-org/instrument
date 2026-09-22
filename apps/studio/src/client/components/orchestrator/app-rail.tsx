@@ -71,8 +71,8 @@ export function AppRail({
   onChoose: (place: AppPlace) => void;
   /** Opens a draft of a new thread. */
   onNew: () => void;
-  /** The place the window stands in. */
-  place: AppPlace;
+  /** The place the window stands in; none while a screen outside its places is up. */
+  place?: AppPlace;
 }) {
   return (
     <nav

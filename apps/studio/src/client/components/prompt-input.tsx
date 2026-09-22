@@ -24,6 +24,8 @@ import { BLOCK_CLOSE, BLOCK_OPEN, ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
+import { captureException } from "@/client/lib/telemetry";
+import { splitTransferItems } from "@/client/lib/transfer-items";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -426,65 +428,67 @@ export const PromptInput = ({
     }
   };
 
+  const attachFolders = (folders: DroppedFolder[]) => {
+    // Split the drop against the rendered list so the toast happens here,
+    // once, rather than inside the updater -- React may call an updater more
+    // than once and would repeat the notification.
+    const existingPaths = new Set(
+      attachedItems.filter((i) => i.type === "folder").map((i) => i.path),
+    );
+    const duplicates: string[] = [];
+    const newFolders: Extract<AttachedItem, { type: "folder" }>[] = [];
+
+    for (const folder of folders) {
+      if (existingPaths.has(folder.path)) {
+        duplicates.push(folderLabel(folder.path));
+      } else {
+        newFolders.push({
+          access: DEFAULT_FOLDER_ACCESS,
+          id: ulid(),
+          path: folder.path,
+          type: "folder",
+        });
+      }
+    }
+
+    if (duplicates.length > 0) {
+      const names = duplicates.join(", ");
+      toast.info(
+        duplicates.length === 1
+          ? `“${names}” is already added`
+          : `Some folders are already added`,
+        {
+          description:
+            duplicates.length === 1
+              ? "That folder has already been attached. Each folder can only be added once."
+              : `${names} have already been attached. Each folder can only be added once.`,
+        },
+      );
+    }
+
+    if (newFolders.length === 0) {
+      return;
+    }
+
+    // `attachedItems` is a render-old snapshot, so re-check inside the
+    // updater: back-to-back drops of the same folder both read the same
+    // snapshot and would otherwise each append it.
+    setAttachedItems((prev) => {
+      const paths = new Set(
+        prev.filter((i) => i.type === "folder").map((i) => i.path),
+      );
+      const unseen = newFolders.filter((f) => !paths.has(f.path));
+      return unseen.length > 0 ? [...prev, ...unseen] : prev;
+    });
+  };
+
   useFileDropRegion({
     enabled: isActiveTab,
     // The message, not the task: this composer is also a new tab, a project
     // page and a skill page, and the file lands in the message on all of them.
     note: "Drop to attach to your message",
     onFilesDropped: processFiles,
-    onFoldersDropped: (folders: DroppedFolder[]) => {
-      // Split the drop against the rendered list so the toast happens here,
-      // once, rather than inside the updater -- React may call an updater more
-      // than once and would repeat the notification.
-      const existingPaths = new Set(
-        attachedItems.filter((i) => i.type === "folder").map((i) => i.path),
-      );
-      const duplicates: string[] = [];
-      const newFolders: Extract<AttachedItem, { type: "folder" }>[] = [];
-
-      for (const folder of folders) {
-        if (existingPaths.has(folder.path)) {
-          duplicates.push(folderLabel(folder.path));
-        } else {
-          newFolders.push({
-            access: DEFAULT_FOLDER_ACCESS,
-            id: ulid(),
-            path: folder.path,
-            type: "folder",
-          });
-        }
-      }
-
-      if (duplicates.length > 0) {
-        const names = duplicates.join(", ");
-        toast.info(
-          duplicates.length === 1
-            ? `“${names}” is already added`
-            : `Some folders are already added`,
-          {
-            description:
-              duplicates.length === 1
-                ? "That folder has already been attached. Each folder can only be added once."
-                : `${names} have already been attached. Each folder can only be added once.`,
-          },
-        );
-      }
-
-      if (newFolders.length === 0) {
-        return;
-      }
-
-      // `attachedItems` is a render-old snapshot, so re-check inside the
-      // updater: back-to-back drops of the same folder both read the same
-      // snapshot and would otherwise each append it.
-      setAttachedItems((prev) => {
-        const paths = new Set(
-          prev.filter((i) => i.type === "folder").map((i) => i.path),
-        );
-        const unseen = newFolders.filter((f) => !paths.has(f.path));
-        return unseen.length > 0 ? [...prev, ...unseen] : prev;
-      });
-    },
+    onFoldersDropped: attachFolders,
   });
 
   const removeAttachedItem = (attachedItemId: string) => {
@@ -840,21 +844,25 @@ export const PromptInput = ({
     const text = clipboardData.getData("text/plain");
     const hasText = text.trim().length > 0;
 
-    const items = clipboardData.items;
-    const files: File[] = [];
+    // A folder copied in Finder or Explorer pastes as an item of kind `file`,
+    // so it goes to the same folder handler a dropped one does.
+    const { files, folders, unresolvedFolders } = splitTransferItems({
+      getFilePath: window.api.getFilePath,
+      items: clipboardData.items,
+      shouldAttachFile: (item) => shouldAttachClipboardItem({ hasText, item }),
+    });
 
-    for (const item of items) {
-      if (!shouldAttachClipboardItem({ hasText, item })) {
-        continue;
-      }
-      const file = item.getAsFile();
-      if (file) {
-        files.push(file);
-      }
+    if (unresolvedFolders > 0 && folders.length === 0) {
+      captureException(
+        new Error("Could not get folder paths from pasted items"),
+      );
     }
 
-    if (files.length > 0) {
+    if (files.length > 0 || folders.length > 0) {
       e.preventDefault();
+      if (folders.length > 0) {
+        attachFolders(folders);
+      }
       processFiles(files);
       return true;
     }

@@ -344,9 +344,7 @@ function validatePathUpload({ file }: { file: PathFileUpload }) {
     );
     if (!sourceStats.isFile()) {
       yield* err(
-        new TypedError.FileSystem(
-          `Uploaded path is not a file: ${file.filename}`,
-        ),
+        new TypedError.FileSystem(`Uploaded path is not a file: ${file.path}`),
       );
     }
     if (sourceStats.size !== file.size) {

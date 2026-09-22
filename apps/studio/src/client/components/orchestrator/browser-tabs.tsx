@@ -6,7 +6,6 @@ import {
   originOf,
   paneOpenByGroupAtom,
   RECENTS_MAX,
-  siteFaviconsAtom,
   VISITED_MAX,
   visitedPagesAtom,
   type WindowTab,
@@ -229,7 +228,6 @@ export function BrowserTabs({
     useAtom(windowTabsAtom);
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab) => tab.kind === "page");
-  const setSiteFavicons = useSetAtom(siteFaviconsAtom);
   const setVisited = useSetAtom(visitedPagesAtom);
   const setRecents = useSetAtom(orchestratorRecentsAtom);
   const attached = useBrowserTargets();
@@ -604,18 +602,16 @@ export function BrowserTabs({
         if (!favicon) {
           return;
         }
-        // Under the site the page is on now, and nothing else: a tab that
-        // wandered off a pinned site must not hand the pin the icon of
-        // wherever it went.
+        // Under the page the tab is on now, and nothing else: a tab that
+        // wandered off a visited page must not hand it the icon of wherever
+        // it went.
         let url: string | undefined;
         try {
           url = webview.getURL();
         } catch {
           url = latest.current.tabs.find((entry) => entry.id === id)?.url;
         }
-        const origin = originOf(url);
-        if (origin) {
-          setSiteFavicons((current) => ({ ...current, [origin]: favicon }));
+        if (originOf(url)) {
           setVisited((current) =>
             current.map((page) =>
               page.url === url ? { ...page, favicon } : page,
@@ -640,15 +636,7 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [
-    attached,
-    setAllTabs,
-    setRecents,
-    setSiteFavicons,
-    setVisited,
-    tabIds,
-    taskId,
-  ]);
+  }, [attached, setAllTabs, setRecents, setVisited, tabIds, taskId]);
 
   const activePage: BrowserPage | undefined = active?.url
     ? {

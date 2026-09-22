@@ -240,17 +240,6 @@ export interface BrowserTab {
   url?: string;
 }
 
-/**
- * The icon each site last announced, by origin, so a pin or a recent can
- * carry it before its tab is shown again.
- */
-export const siteFaviconsAtom = atomWithStorage<Record<string, string>>(
-  "orchestrator.site-favicons.v2",
-  {},
-  undefined,
-  { getOnInit: true },
-);
-
 /** A page the browser showed, for the new-tab page: newest first, one per address. */
 export interface VisitedPage {
   at: number;

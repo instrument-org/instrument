@@ -10,7 +10,6 @@ import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { VisitedPageRows } from "@/client/components/orchestrator/visited-page-rows";
 import { RelativeTime } from "@/client/components/relative-time";
-import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -150,225 +149,238 @@ function AppRoute() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
-      {/* No way back up to Apps here: the row above says where this is. */}
-      <div className="flex items-center gap-4">
-        <AppIcon name={name} site={site} size="xl" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-1">
-            <h1 className="text-[22px] leading-7 font-semibold">{name}</h1>
-            {app ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    aria-label={`More for ${name}`}
-                    className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                    type="button"
-                  >
-                    <DotsThreeIcon className="size-5" weight="bold" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem
-                    disabled={test.isPending}
-                    onSelect={() => {
-                      test.mutate({ slug });
-                    }}
-                  >
-                    Test the connection
-                  </DropdownMenuItem>
-                  {isConnected || app.hasCredential ? (
+      <div className="mx-auto w-full max-w-3xl">
+        {/* No way back up to Apps here: the row above says where this is. */}
+        <div className="flex items-center gap-4">
+          <AppIcon name={name} site={site} size="xl" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <h1 className="text-[22px] leading-7 font-semibold">{name}</h1>
+              {app ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      aria-label={`More for ${name}`}
+                      className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+                      type="button"
+                    >
+                      <DotsThreeIcon className="size-4" weight="bold" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
                     <DropdownMenuItem
-                      disabled={disconnect.isPending}
+                      disabled={test.isPending}
                       onSelect={() => {
-                        disconnect.mutate({ slug });
+                        test.mutate({ slug });
                       }}
                     >
-                      Disconnect
+                      Test the connection
                     </DropdownMenuItem>
-                  ) : null}
-                  <DropdownMenuItem
-                    disabled={remove.isPending}
-                    onSelect={() => {
-                      remove.mutate({ slug });
-                    }}
-                    variant="destructive"
-                  >
-                    Remove
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {domain ?? (app ? app.endpoint : "")}
-          </p>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          {/* The site is a site whether or not the app is connected, so the
-              way to it is always here; connecting is what the agent needs,
-              not what a person needs to open a page. */}
-          {home && browser ? (
-            <Button
-              onClick={openHome}
-              size="sm"
-              variant={isConnected ? "default" : "outline"}
-            >
-              Open {domain}
-            </Button>
-          ) : null}
-          {isConnected ? (
-            <GlyphButton
-              onClick={() => {
-                ask(`What can you do with ${name} for me?`);
-              }}
-              size="sm"
-            >
-              Ask about {name}
-            </GlyphButton>
-          ) : app?.standing === "needs-sign-in" ? (
-            <ConnectControls kind="sign-in" name={name} slug={slug} />
-          ) : app?.standing === "needs-approval" ? (
-            <ConnectControls
-              kind="run"
-              name={name}
-              runs={app.runs}
-              slug={slug}
-            />
-          ) : app?.standing === "needs-key" ? (
-            <ConnectControls kind="key" name={name} slug={slug} />
-          ) : (
-            <GlyphButton
-              onClick={() => {
-                ask(
-                  app && app.standing !== "untested"
-                    ? `Finish connecting ${name}`
-                    : `Connect ${name}`,
-                );
-              }}
-              size="sm"
-            >
-              Connect {name}
-            </GlyphButton>
-          )}
-        </div>
-      </div>
-      {description ? (
-        <p className="mt-4 max-w-2xl text-sm leading-6">{description}</p>
-      ) : null}
-
-      <div className="mt-6 grid max-w-3xl gap-6">
-        {/* Where you were in the app, first: a recent page is a row you
-            press, not a name you have to type back into the field. */}
-        {visits.length > 0 ? (
-          <section>
-            <p className="px-3 text-xs font-medium tracking-[0.12em] text-muted-foreground uppercase">
-              Recently visited
-            </p>
-            <div className="mt-2">
-              <VisitedPageRows onOpen={openPage} visits={visits} />
-            </div>
-          </section>
-        ) : null}
-        {app?.connection && app.standing !== "untested" ? (
-          <Block label="Status">
-            <Line>
-              {app.standing === "connected"
-                ? `Connected${app.connection.account ? ` as ${app.connection.account}` : ""}`
-                : app.standing === "stale"
-                  ? "Connected, then changed; Instrument will test it again"
-                  : app.standing === "needs-sign-in"
-                    ? "Waiting for a sign-in"
-                    : app.standing === "needs-approval"
-                      ? "Waiting for you to allow its server to run"
-                      : app.standing === "needs-key"
-                        ? "Waiting for a key"
-                        : app.standing === "declined"
-                          ? "Not connected"
-                          : "Could not connect"}
-              {app.connection.connectedAt ? (
-                <>
-                  {" "}
-                  · since{" "}
-                  <RelativeTime date={new Date(app.connection.connectedAt)} />
-                </>
+                    {isConnected || app.hasCredential ? (
+                      <DropdownMenuItem
+                        disabled={disconnect.isPending}
+                        onSelect={() => {
+                          disconnect.mutate({ slug });
+                        }}
+                      >
+                        Disconnect
+                      </DropdownMenuItem>
+                    ) : null}
+                    <DropdownMenuItem
+                      disabled={remove.isPending}
+                      onSelect={() => {
+                        remove.mutate({ slug });
+                      }}
+                      variant="destructive"
+                    >
+                      Remove
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : null}
-            </Line>
-            {app.standing === "failed" && app.connection.error ? (
-              // What the service, the SDK, or the server said, kept whole and
-              // kept out of the line above: it is machine text, and the use
-              // for it is to copy it somewhere rather than to read it as
-              // English. This is the screen that carries it, since a directory
-              // row has no room and the test that tries again is up in the
-              // menu.
-              <div className="group/detail relative px-3 py-2">
-                <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
-                  {app.connection.error}
-                </pre>
-                {/* `focus-within` as well as hover: the button stays in the
-                    tab order while it is transparent. */}
-                <div className="absolute top-2 right-2 opacity-0 group-hover/detail:opacity-100 focus-within:opacity-100">
-                  <CopyButton
-                    className={blockToolbarButtonClassName}
-                    iconSize={12}
-                    onCopy={async () => {
-                      await navigator.clipboard.writeText(
-                        app.connection?.error ?? "",
-                      );
-                    }}
-                    tooltip="Copy"
-                  />
-                </div>
-              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {domain ?? (app ? app.endpoint : "")}
+            </p>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            {/* The site is a site whether or not the app is connected, so the
+              way to it is always here, wearing the app's own mark;
+              connecting is what the agent needs, not what a person needs to
+              open a page. */}
+            {home && browser ? (
+              <button
+                className="inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground shadow-xs hover:bg-accent"
+                onClick={openHome}
+                type="button"
+              >
+                <AppIcon name={name} site={site} size="sm" />
+                <span className="truncate">Open {name}</span>
+              </button>
             ) : null}
-          </Block>
+            {isConnected ? (
+              <GlyphButton
+                onClick={() => {
+                  ask(`What can you do with ${name} for me?`);
+                }}
+                size="sm"
+              >
+                Ask about {name}
+              </GlyphButton>
+            ) : app?.standing === "needs-sign-in" ? (
+              <ConnectControls kind="sign-in" name={name} slug={slug} />
+            ) : app?.standing === "needs-approval" ? (
+              <ConnectControls
+                kind="run"
+                name={name}
+                runs={app.runs}
+                slug={slug}
+              />
+            ) : app?.standing === "needs-key" ? (
+              <ConnectControls kind="key" name={name} slug={slug} />
+            ) : (
+              <GlyphButton
+                onClick={() => {
+                  ask(
+                    app && app.standing !== "untested"
+                      ? `Finish connecting ${name}`
+                      : `Connect ${name}`,
+                  );
+                }}
+                size="sm"
+              >
+                Connect {name}
+              </GlyphButton>
+            )}
+          </div>
+        </div>
+
+        {/* Where you were in the app, first and always: a recent page is a
+          row you press, not a name you have to type back into the field,
+          and the best way back into a service is the page you were on. */}
+        <section className="mt-8">
+          <p className="mb-2.5 text-[13px] font-medium text-muted-foreground">
+            Recently visited
+          </p>
+          {visits.length > 0 ? (
+            <VisitedPageRows onOpen={openPage} visits={visits} />
+          ) : (
+            <p className="text-[13px] text-muted-foreground">
+              The pages you open in {name} will show up here.
+            </p>
+          )}
+        </section>
+
+        {description ? (
+          <p className="mt-8 max-w-2xl text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
         ) : null}
 
-        {isConnected && app.type !== "api" ? (
-          <Block label="What it can do">
-            {tools.data ? (
-              tools.data.map((tool) => <Line key={tool.name}>{tool.name}</Line>)
-            ) : tools.isError ? (
-              <Line>Could not list its tools: {tools.error.message}</Line>
-            ) : (
-              // The list takes a moment to come back from the service; rows
-              // the size of the ones on their way keep the page from jumping
-              // when it lands. The count the connection recorded says how
-              // many, when it does.
-              Array.from(
-                {
-                  length: Math.min(
-                    app.connection?.toolCount ?? TOOL_PLACEHOLDER_ROWS,
-                    TOOL_PLACEHOLDER_ROWS,
-                  ),
-                },
-                (_, index) => (
-                  <div className="px-3 py-2" key={index}>
-                    <div
-                      className="h-5 animate-pulse rounded bg-muted"
-                      style={{ width: `${40 + ((index * 23) % 35)}%` }}
+        <div className="mt-6 grid gap-6">
+          {app?.connection && app.standing !== "untested" ? (
+            <Block label="Status">
+              <Line>
+                {app.standing === "connected"
+                  ? `Connected${app.connection.account ? ` as ${app.connection.account}` : ""}`
+                  : app.standing === "stale"
+                    ? "Connected, then changed; Instrument will test it again"
+                    : app.standing === "needs-sign-in"
+                      ? "Waiting for a sign-in"
+                      : app.standing === "needs-approval"
+                        ? "Waiting for you to allow its server to run"
+                        : app.standing === "needs-key"
+                          ? "Waiting for a key"
+                          : app.standing === "declined"
+                            ? "Not connected"
+                            : "Could not connect"}
+                {app.connection.connectedAt ? (
+                  <>
+                    {" "}
+                    · since{" "}
+                    <RelativeTime date={new Date(app.connection.connectedAt)} />
+                  </>
+                ) : null}
+              </Line>
+              {app.standing === "failed" && app.connection.error ? (
+                // What the service, the SDK, or the server said, kept whole and
+                // kept out of the line above: it is machine text, and the use
+                // for it is to copy it somewhere rather than to read it as
+                // English. This is the screen that carries it, since a directory
+                // row has no room and the test that tries again is up in the
+                // menu.
+                <div className="group/detail relative px-3 py-2">
+                  <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
+                    {app.connection.error}
+                  </pre>
+                  {/* `focus-within` as well as hover: the button stays in the
+                    tab order while it is transparent. */}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover/detail:opacity-100 focus-within:opacity-100">
+                    <CopyButton
+                      className={blockToolbarButtonClassName}
+                      iconSize={12}
+                      onCopy={async () => {
+                        await navigator.clipboard.writeText(
+                          app.connection?.error ?? "",
+                        );
+                      }}
+                      tooltip="Copy"
                     />
                   </div>
-                ),
-              )
-            )}
-          </Block>
-        ) : (entry?.interfaces ?? []).length > 0 ? (
-          <Block label="How it is reached">
-            {(entry?.interfaces ?? []).map((surface) => (
-              <Line key={surface.name}>
-                {surface.endpoint
-                  ? `${surface.name} (${surface.format})`
-                  : surface.name}
-              </Line>
-            ))}
-          </Block>
-        ) : null}
+                </div>
+              ) : null}
+            </Block>
+          ) : null}
 
-        {needs ? (
-          <Block label="Needs">
-            <Line>{needs}</Line>
-          </Block>
-        ) : null}
+          {isConnected && app.type !== "api" ? (
+            <Block label="What it can do">
+              {tools.data ? (
+                tools.data.map((tool) => (
+                  <Line key={tool.name}>{tool.name}</Line>
+                ))
+              ) : tools.isError ? (
+                <Line>Could not list its tools: {tools.error.message}</Line>
+              ) : (
+                // The list takes a moment to come back from the service; rows
+                // the size of the ones on their way keep the page from jumping
+                // when it lands. The count the connection recorded says how
+                // many, when it does.
+                Array.from(
+                  {
+                    length: Math.min(
+                      app.connection?.toolCount ?? TOOL_PLACEHOLDER_ROWS,
+                      TOOL_PLACEHOLDER_ROWS,
+                    ),
+                  },
+                  (_, index) => (
+                    <div className="px-3 py-2" key={index}>
+                      <div
+                        className="h-5 animate-pulse rounded bg-muted"
+                        style={{ width: `${40 + ((index * 23) % 35)}%` }}
+                      />
+                    </div>
+                  ),
+                )
+              )}
+            </Block>
+          ) : (entry?.interfaces ?? []).length > 0 ? (
+            <Block label="How it is reached">
+              {(entry?.interfaces ?? []).map((surface) => (
+                <Line key={surface.name}>
+                  {surface.endpoint
+                    ? `${surface.name} (${surface.format})`
+                    : surface.name}
+                </Line>
+              ))}
+            </Block>
+          ) : null}
+
+          {needs ? (
+            <Block label="Needs">
+              <Line>{needs}</Line>
+            </Block>
+          ) : null}
+        </div>
       </div>
     </div>
   );

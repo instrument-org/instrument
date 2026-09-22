@@ -1,14 +1,14 @@
 import { type VisitedPage } from "@/client/atoms/orchestrator";
-import { RelativeTime } from "@/client/components/relative-time";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 
 import { AppIcon } from "./app-icon";
 
 /**
- * Pages visited lately, as rows: each the mark of the app it is on, the
- * page's title with its address quiet under it, and when it was last open.
- * A row opens the page in this tab; the middle button and the menu ask for
- * a tab of its own, the way every link in the window does.
+ * Pages visited lately, as rows: each the mark of the app it is on in a
+ * small tile, the page's title with its address quiet under it, and nothing
+ * else: no time, no count. A row opens the page in this tab; the middle
+ * button and the menu ask for a tab of its own, the way every link in the
+ * window does.
  */
 export function VisitedPageRows({
   onOpen,
@@ -36,21 +36,17 @@ export function VisitedPageRows({
               onContextMenu={gestures.onContextMenu}
               type="button"
             >
-              <AppIcon name={app.name} site={app.site} />
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted">
+                <AppIcon name={app.name} site={app.site} size="sm" />
+              </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[15px] font-medium">
+                <span className="block truncate text-[14px] font-medium">
                   {page.title || shownAddress(page.url)}
                 </span>
                 <span className="block truncate text-xs text-muted-foreground">
                   {shownAddress(page.url)}
                 </span>
               </span>
-              <RelativeTime
-                className="shrink-0 text-xs text-muted-foreground"
-                compact
-                date={new Date(page.at)}
-                tooltip={false}
-              />
             </button>
           </li>
         );

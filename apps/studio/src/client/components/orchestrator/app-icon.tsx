@@ -10,9 +10,11 @@ import { TOPIC_COLORS } from "./topic-colors";
  * surface with a hairline, the mark inset a little inside it, so a service
  * whose mark carries its own square background and one whose mark is bare
  * read as the same kind of thing, and nothing draws a second frame around
- * it. With no site to ask, or a site with no icon anywhere, the app's
- * initial on a color of its own fills the plate instead, so a service
- * without a mark still has a face a person can tell from the next one.
+ * it. At the small size there is no room for a plate: the mark stands
+ * alone, softened at the corners, the way a site's icon does on a row or in
+ * a chip. With no site to ask, or a site with no icon anywhere, the app's
+ * initial on a color of its own fills the box instead, so a service without
+ * a mark still has a face a person can tell from the next one.
  */
 export function AppIcon({
   className,
@@ -30,10 +32,10 @@ export function AppIcon({
   // icons are square, and a square inside a circle reads as a mistake. The
   // inset grows with the plate, so the mark keeps the same share of it.
   const box = {
-    lg: "size-12 rounded-xl p-2",
-    md: "size-9 rounded-lg p-1.5",
-    sm: "size-4 rounded-sm p-0.5",
-    xl: "size-16 rounded-2xl p-2.5",
+    lg: "size-12 rounded-xl p-2 shadow-xs ring-1 ring-border",
+    md: "size-9 rounded-lg p-1.5 shadow-xs ring-1 ring-border",
+    sm: "size-4 rounded-sm",
+    xl: "size-16 rounded-2xl p-2.5 shadow-xs ring-1 ring-border",
   }[size];
   const label = name ?? hostOf(site);
   const initial = label ? (
@@ -58,7 +60,7 @@ export function AppIcon({
   return (
     <span
       className={cn(
-        "grid shrink-0 place-items-center overflow-hidden bg-card shadow-xs ring-1 ring-border",
+        "grid shrink-0 place-items-center overflow-hidden bg-card",
         // The initial is the plate's own art and fills it edge to edge.
         !site && "p-0",
         box,
@@ -69,7 +71,10 @@ export function AppIcon({
         <Favicon
           // A mark that brought a square background of its own is softened
           // at the corners, so it sits in the plate rather than on it.
-          className="size-full rounded-[22%] border-0 bg-transparent ring-0 dark:bg-transparent"
+          className={cn(
+            "size-full border-0 bg-transparent ring-0 dark:bg-transparent",
+            size === "sm" ? "rounded-sm" : "rounded-[22%]",
+          )}
           fallback={initial}
           url={site}
         />

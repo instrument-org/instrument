@@ -7,6 +7,7 @@ import { GIT_OVER_MOUNTS_EVALS } from "./git-over-mounts";
 import { IMAGE_REGION_EVALS } from "./image-region";
 import { LARGE_FOLDER_SEARCH_EVALS } from "./large-folder-search";
 import { MEMORY_EVALS } from "./memory";
+import { MESSAGE_BLOCK_EVALS } from "./message-blocks";
 import { ORCHESTRATOR_EVALS } from "./orchestrator";
 import { PDF_SKILL_EVALS } from "./pdf-skill";
 import { PROJECT_FOLDER_DISCIPLINE_EVALS } from "./project-folder-discipline";
@@ -28,6 +29,7 @@ export const EVALS = [
   ...IMAGE_REGION_EVALS,
   ...LARGE_FOLDER_SEARCH_EVALS,
   ...MEMORY_EVALS,
+  ...MESSAGE_BLOCK_EVALS,
   ...ORCHESTRATOR_EVALS,
   ...PDF_SKILL_EVALS,
   ...PROJECT_FOLDER_DISCIPLINE_EVALS,

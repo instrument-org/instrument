@@ -719,15 +719,22 @@ function orchestratorFolders(): { access: "read-write"; path: string }[] {
  * One case runs against every model at once, and they would otherwise share a
  * single directory: a read-write attachment means each run sees the files the
  * others just wrote, and a model that finds three charts it did not make
- * behaves nothing like one working in the folder the user actually has. The
- * copy is cheap next to an agent turn, so it is unconditional rather than
- * limited to writable attachments.
+ * behaves nothing like one working in the folder the user actually has.
+ *
+ * A read-only attachment is shared instead. Nothing a run does can change it,
+ * so the isolation the copy buys is worth nothing there, while the copy itself
+ * is a per-run walk of the whole tree: a case that attaches a folder large
+ * enough to be interesting spends longer copying it than the agent spends
+ * working in it.
  *
  * The basename is preserved because it becomes the mount name, which the case's
  * own prompt refers to ("my Reports folder").
  */
 function privateFoldersFor(evalCase: EvalCase, index: number) {
   return evalCase.folders?.map((folder) => {
+    if (folder.access === "read-only") {
+      return folder;
+    }
     const root = path.join(
       os.tmpdir(),
       `${APP_NAME_SLUG}-eval-folders-${ulid()}-${index}`,

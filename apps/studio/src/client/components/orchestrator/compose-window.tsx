@@ -18,6 +18,11 @@ import {
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -803,11 +808,11 @@ function HeldMark({
 
 /**
  * The chip at the head of the words naming what the screen already gives
- * the draft: the thing it was opened over, drawn the way an attached file
- * is, since it goes with the words as a file does, with the word Included
- * over its mark and name and an x that leaves it out. On a brand tint, so it
- * reads as already there rather than as one more file; nothing of the thing
- * itself is drawn in the draft, which stands over it.
+ * the draft: the thing it was opened over, in the row an attached file lands
+ * in, since it goes with the words as a file does. One quiet line, its mark
+ * and name in grey with an x that leaves it out, so it takes no room from
+ * the words and does not ask to be read; what it is for is in its tooltip.
+ * Nothing of the thing itself is drawn in the draft, which stands over it.
  */
 function IncludedChip({
   appsBySlug,
@@ -823,34 +828,31 @@ function IncludedChip({
       ? pageTabTitle(tab) || "Page"
       : screenPresentation(tab.href, { appsBySlug }).title;
   return (
-    <div
-      className="group relative h-12 max-w-56 min-w-0"
-      data-slot="included-chip"
-    >
-      <div className="flex h-full min-w-0 flex-col justify-center rounded-lg bg-brand-100/60 px-2.5 ring-1 ring-brand-300/60 dark:bg-brand-900/30 dark:ring-brand-700/60">
-        <span className="text-[10px] leading-3.5 font-medium text-brand-900 dark:text-brand-200">
-          Included
-        </span>
-        <span className="flex min-w-0 items-center gap-1.5 text-xs leading-4 text-foreground">
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="inline-flex h-6 max-w-64 min-w-0 items-center gap-1.5 rounded-md bg-muted/60 pr-0.5 pl-1.5 text-xs text-muted-foreground ring-1 ring-border/70"
+          data-slot="included-chip"
+        >
           <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
             <HeldMark appsBySlug={appsBySlug} tab={tab} />
           </span>
           <span className="truncate">{name}</span>
+          <button
+            aria-label={`Leave out ${name}`}
+            className="grid size-5 shrink-0 place-items-center rounded-sm hover:bg-foreground/8 hover:text-foreground"
+            onClick={onLeaveOut}
+            type="button"
+          >
+            <XIcon className="size-3" />
+          </button>
         </span>
-      </div>
-      {/* Where an attached file's remove button stands, shown on the same terms. */}
-      <Button
-        aria-label={`Leave out ${name}`}
-        className="absolute -top-2 -right-2 size-5 rounded-full border border-border opacity-0 shadow-sm group-hover:opacity-100 focus-visible:opacity-100"
-        onClick={onLeaveOut}
-        size="icon-sm"
-        title="Leave out"
-        type="button"
-        variant="secondary"
-      >
-        <XIcon className="size-3" />
-      </Button>
-    </div>
+      </TooltipTrigger>
+      <TooltipContent collisionPadding={10} maxWidth="20rem">
+        Open behind this window. What is on it goes with your words; the x
+        leaves it out.
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

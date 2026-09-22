@@ -1,4 +1,5 @@
 import { featuresAtom } from "@/client/atoms/features";
+import { filePreviewAtom } from "@/client/atoms/file-preview";
 import {
   type AppPlace,
   appPlaceAtom,
@@ -165,6 +166,14 @@ const DevPanel = lazy(() =>
   })),
 );
 
+// A pasted file opened from a composer, at its full size: loaded the first
+// time one is opened, since most windows never open one.
+const LazyFilePreviewModal = lazy(() =>
+  import("@/client/components/file-preview-modal").then((m) => ({
+    default: m.FilePreviewModal,
+  })),
+);
+
 /** How often the tasks' titles are re-read, for the strip. */
 const REFRESH_MS = ms("2 seconds");
 
@@ -271,6 +280,7 @@ function Frame({
   /** The row the columns share, for whoever sizes them against it. */
   rowRef?: Ref<HTMLDivElement>;
 }) {
+  const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
   return (
     // The band across the top is the window's, so every menu, popover and
     // tooltip is held below it: on macOS the traffic lights are drawn over that
@@ -307,6 +317,11 @@ function Frame({
           </div>
         </div>
         <StudioModals />
+        {isFilePreviewOpen && (
+          <Suspense fallback={null}>
+            <LazyFilePreviewModal />
+          </Suspense>
+        )}
         <Toaster position="bottom-right" />
         {/* No action beside it: the release notes are a screen this window has
           not got, and the version it is now on is the part worth saying. */}

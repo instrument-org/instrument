@@ -142,7 +142,10 @@ export function ThreadWindow({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-0 z-40 flex max-h-[calc(100%-1rem)] flex-col overflow-hidden rounded-t-2xl bg-card text-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10"
+      // On the page's ground rather than the card's: the conversation is
+      // drawn for that ground, its bubbles on the card's and its fades from
+      // the page's, and on a card both go missing.
+      className="pointer-events-auto absolute bottom-0 z-40 flex max-h-[calc(100%-1rem)] flex-col overflow-hidden rounded-t-2xl bg-background text-foreground shadow-xl ring-1 ring-black/10 dark:ring-white/10"
       data-slot="thread-window"
       exit={{ opacity: 0, y: 24 }}
       initial={arrives ? { opacity: 0, right, y: 24 } : false}

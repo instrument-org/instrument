@@ -677,6 +677,20 @@ export function ComposeWindow({
                   className="min-h-0 flex-1"
                   draftKey={key}
                   isLoading={isStarting}
+                  lead={
+                    included && (
+                      <IncludedChip
+                        appsBySlug={appsBySlug}
+                        onLeaveOut={() => {
+                          onChange((current) => {
+                            const { included: _left, ...rest } = current;
+                            return rest;
+                          });
+                        }}
+                        tab={included}
+                      />
+                    )
+                  }
                   modelURI={modelURI}
                   onModelChange={onModelChange}
                   onSubmit={(send) => {
@@ -695,18 +709,6 @@ export function ComposeWindow({
               {/* The band: the draft's own pane, on a gray floor with nothing
                   between it and the words but the color. */}
               <div className="mx-2 flex min-h-80 flex-1 flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900">
-                {included && (
-                  <IncludedRegion
-                    appsBySlug={appsBySlug}
-                    onLeaveOut={() => {
-                      onChange((current) => {
-                        const { included: _left, ...rest } = current;
-                        return rest;
-                      });
-                    }}
-                    tab={included}
-                  />
-                )}
                 {showsStrip && (
                   <div className="flex h-9 shrink-0 items-center pr-1 pl-1">
                     <WindowTabStrip
@@ -800,13 +802,14 @@ function HeldMark({
 }
 
 /**
- * The region at the band's top naming what the screen already gives the
- * draft: the word Included, then the thing the draft was opened over as a
- * chip with its mark and name and an x that leaves it out. On a brand tint,
- * so it reads as already there rather than as one more door; nothing of the
- * thing itself is drawn in the draft.
+ * The chip at the head of the words naming what the screen already gives
+ * the draft: the thing it was opened over, drawn the way an attached file
+ * is, since it goes with the words as a file does, with the word Included
+ * over its mark and name and an x that leaves it out. On a brand tint, so it
+ * reads as already there rather than as one more file; nothing of the thing
+ * itself is drawn in the draft, which stands over it.
  */
-function IncludedRegion({
+function IncludedChip({
   appsBySlug,
   onLeaveOut,
   tab,
@@ -820,30 +823,33 @@ function IncludedRegion({
       ? pageTabTitle(tab) || "Page"
       : screenPresentation(tab.href, { appsBySlug }).title;
   return (
-    <div className="px-2 pt-2">
-      <div
-        className="flex shrink-0 flex-wrap items-center gap-1.5 rounded-lg bg-brand-100/60 px-2.5 py-2 ring-1 ring-brand-300/60 dark:bg-brand-900/30 dark:ring-brand-700/60"
-        data-slot="included-region"
-      >
-        <span className="mr-1 text-[11px] font-medium text-brand-900 dark:text-brand-200">
+    <div
+      className="group relative h-12 max-w-56 min-w-0"
+      data-slot="included-chip"
+    >
+      <div className="flex h-full min-w-0 flex-col justify-center rounded-lg bg-brand-100/60 px-2.5 ring-1 ring-brand-300/60 dark:bg-brand-900/30 dark:ring-brand-700/60">
+        <span className="text-[10px] leading-3.5 font-medium text-brand-900 dark:text-brand-200">
           Included
         </span>
-        <span className="inline-flex h-6 max-w-56 min-w-0 items-center gap-1.5 rounded-md bg-card pr-1 pl-1.5 text-[11px] text-foreground ring-1 ring-black/8 dark:ring-white/10">
+        <span className="flex min-w-0 items-center gap-1.5 text-xs leading-4 text-foreground">
           <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
             <HeldMark appsBySlug={appsBySlug} tab={tab} />
           </span>
           <span className="truncate">{name}</span>
-          <button
-            aria-label={`Leave out ${name}`}
-            className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-            onClick={onLeaveOut}
-            title="Leave out"
-            type="button"
-          >
-            <XIcon className="size-3" />
-          </button>
         </span>
       </div>
+      {/* Where an attached file's remove button stands, shown on the same terms. */}
+      <Button
+        aria-label={`Leave out ${name}`}
+        className="absolute -top-2 -right-2 size-5 rounded-full border border-border opacity-0 shadow-sm group-hover:opacity-100 focus-visible:opacity-100"
+        onClick={onLeaveOut}
+        size="icon-sm"
+        title="Leave out"
+        type="button"
+        variant="secondary"
+      >
+        <XIcon className="size-3" />
+      </Button>
     </div>
   );
 }

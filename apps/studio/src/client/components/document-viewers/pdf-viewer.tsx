@@ -1,10 +1,13 @@
-import type { PdfEngine } from "@embedpdf/models";
-
 import { PDFIUM_WASM_URL } from "@/client/lib/document-viewers";
 import { cn } from "@/client/lib/utils";
 import { ZOOM_LEVELS } from "@/client/lib/zoom-levels";
 import { createPluginRegistration } from "@embedpdf/core";
 import { EmbedPDF } from "@embedpdf/core/react";
+import {
+  type PdfEngine,
+  type PdfEngineError,
+  PdfErrorCode,
+} from "@embedpdf/models";
 import {
   DocumentManagerPluginPackage,
   useActiveDocument,
@@ -59,6 +62,7 @@ import { useEffect, useState } from "react";
 
 import { FileLoading } from "../file-loading";
 import { useCopyShortcut } from "./use-copy-shortcut";
+import { PdfOpenError } from "./viewer-error";
 import { ViewerBody } from "./viewer-surface";
 import {
   ViewerFindControl,
@@ -197,10 +201,13 @@ function loadEngine() {
 function PdfDocument({ url }: { url: string }) {
   const { provides: documentManager } = useDocumentManagerCapability();
   const { activeDocument, activeDocumentId } = useActiveDocument();
-  // Keyed by URL rather than a boolean so opening a different file clears the
-  // previous failure without a synchronous reset inside the effect.
-  const [errorUrl, setErrorUrl] = useState<null | string>(null);
-  const loadError = errorUrl === url;
+  // Keyed by URL so opening a different file clears the previous failure
+  // without a synchronous reset inside the effect.
+  const [failure, setFailure] = useState<null | {
+    error: PdfEngineError;
+    url: string;
+  }>(null);
+  const loadError = failure?.url === url ? failure.error : null;
 
   useEffect(() => {
     if (!documentManager) {
@@ -210,8 +217,8 @@ function PdfDocument({ url }: { url: string }) {
     const previousIds = documentManager
       .getOpenDocuments()
       .map((document) => document.id);
-    const handleError = () => {
-      setErrorUrl(url);
+    const handleError = (error: PdfEngineError) => {
+      setFailure({ error, url });
     };
     let openedId: string | undefined;
     let unmounted = false;
@@ -248,8 +255,14 @@ function PdfDocument({ url }: { url: string }) {
     };
   }, [documentManager, url]);
 
-  if (loadError || activeDocument?.status === "error") {
-    throw new Error("This PDF could not be opened.");
+  if (loadError) {
+    throw pdfOpenError(loadError.reason.code, loadError.reason.message);
+  }
+  if (activeDocument?.status === "error") {
+    throw pdfOpenError(
+      activeDocument.errorCode,
+      activeDocument.errorDetails ?? activeDocument.error,
+    );
   }
 
   if (!activeDocumentId || activeDocument?.status !== "loaded") {
@@ -417,6 +430,19 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
       </ViewerBody>
     </>
   );
+}
+
+function pdfOpenError(code: PdfErrorCode | undefined, details: unknown) {
+  return new PdfOpenError({
+    code,
+    details,
+    reason:
+      code === PdfErrorCode.Password
+        ? "password"
+        : code === PdfErrorCode.WrongFormat
+          ? "format"
+          : "other",
+  });
 }
 
 function PdfPage({

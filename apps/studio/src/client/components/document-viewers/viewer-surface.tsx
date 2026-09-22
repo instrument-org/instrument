@@ -1,8 +1,12 @@
-import { captureComponentError } from "@/client/lib/telemetry";
+import { captureException } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
-import { CatchBoundary } from "@tanstack/react-router";
+import {
+  CatchBoundary,
+  type ErrorComponentProps,
+} from "@tanstack/react-router";
 import {
   createContext,
+  type ErrorInfo,
   type ReactNode,
   Suspense,
   useContext,
@@ -10,6 +14,7 @@ import {
 } from "react";
 
 import { FileLoading } from "../file-loading";
+import { ViewerErrorContext, viewerErrorReport } from "./viewer-error";
 
 // `CatchBoundary` instantiates `errorComponent` as a component type, so it has
 // to be stable; passing the fallback through context keeps it from remounting
@@ -92,7 +97,7 @@ export function ViewerSurface({
       <CatchBoundary
         errorComponent={ViewerFallback}
         getResetKey={() => resetKey}
-        onCatch={captureComponentError}
+        onCatch={reportViewerError}
       >
         <Suspense fallback={<FileLoading />}>{children}</Suspense>
       </CatchBoundary>
@@ -100,12 +105,24 @@ export function ViewerSurface({
   );
 }
 
+function reportViewerError(error: Error, errorInfo: ErrorInfo) {
+  const properties = viewerErrorReport(error);
+  if (properties) {
+    captureException(error, {
+      componentStack: errorInfo.componentStack,
+      ...properties,
+    });
+  }
+}
+
 // Matches the centering the registry's own fallback branches apply, so a
 // viewer that throws lands the card in the same place an unsupported file does.
-function ViewerFallback() {
+function ViewerFallback({ error }: ErrorComponentProps) {
   return (
     <div className="flex size-full items-center justify-center">
-      {useContext(ViewerFallbackContext)}
+      <ViewerErrorContext value={error}>
+        {useContext(ViewerFallbackContext)}
+      </ViewerErrorContext>
     </div>
   );
 }

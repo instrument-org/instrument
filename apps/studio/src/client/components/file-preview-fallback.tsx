@@ -2,8 +2,12 @@ import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
-import { type ReactNode } from "react";
+import { type ReactNode, useContext } from "react";
 
+import {
+  describeViewerError,
+  ViewerErrorContext,
+} from "./document-viewers/viewer-error";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileIcon } from "./file-icon";
 import { OpenTaskFileButton } from "./open-task-file-button";
@@ -30,6 +34,8 @@ export function FilePreviewFallback({
   // Without a resolved app association, opening could dead-end in an OS
   // error, so only promote open over save-as when an app is known.
   const canOpen = openControl.showOpen;
+  // Set when a document viewer threw and this card stands in for it.
+  const description = describeViewerError(useContext(ViewerErrorContext));
 
   const content = (
     <div className="flex w-full max-w-md flex-col items-center justify-center gap-4 p-8 text-center text-foreground">
@@ -42,9 +48,7 @@ export function FilePreviewFallback({
       </div>
       <div>
         <p className="max-w-72 text-sm font-medium break-all">{filename}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Preview unavailable in Instrument
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       </div>
       {canOpen ? (
         <OpenTaskFileButton

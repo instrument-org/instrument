@@ -25,7 +25,7 @@ export const DU_COMMAND = {
 type DuOperand =
   | (DuRoot & { kind: "path" })
   | { children: DuRoot[]; display: string; kind: "mounts" }
-  | { display: string; kind: "missing"; };
+  | { display: string; kind: "missing" };
 
 interface DuOptions {
   all: boolean;
@@ -62,7 +62,7 @@ interface DuRoot {
  * thread only receives the finished text, and no traversal budget applies: a
  * long walk costs time rather than the window, and outlives `yieldMs` the way
  * any long command does. Output follows GNU `du`: disk usage in 1024-byte units
- * unless `--apparent-size` or `-b` asks for bytes, children before parents,
+ * unless `--apparent-size` or `-b` asks for the bytes files and links hold, children before parents,
  * `-h` rounding up. Windows reports no block counts, so there each file's size
  * is rounded up to a 4 KiB cluster.
  *
@@ -381,7 +381,9 @@ function usage(stat) {
     if (seenLinks.has(key)) return 0;
     seenLinks.add(key);
   }
-  if (options.apparent) return stat.size;
+  // GNU's apparent size is what files and links hold; a directory's own size
+  // is a property of the filesystem, not of anything in it.
+  if (options.apparent) return stat.isDirectory() ? 0 : stat.size;
   if (windows || typeof stat.blocks !== "number") {
     // No block counts to read: round to an NTFS cluster, except a link, whose
     // target is stored in the file table rather than in a cluster.

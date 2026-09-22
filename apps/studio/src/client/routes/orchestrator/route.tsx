@@ -12,14 +12,11 @@ import {
   inboxOpenAtom,
   NEW_TAB_HREF,
   newTabHrefOf,
-  type OrchestratorRecent,
-  orchestratorRecentsAtom,
   orchestratorSidebarWidthAtom,
   pageSlotsAtom,
   paneOpenByGroupAtom,
   placeGroupOf,
   placeOfGroup,
-  RECENTS_MAX,
   screenViewAtom,
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
@@ -81,7 +78,9 @@ import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-vi
 import { NO_FILTERS } from "@/client/components/orchestrator/threads";
 import { useCompose } from "@/client/components/orchestrator/use-compose";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
+import { useRecordRecents } from "@/client/components/orchestrator/use-record-recents";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
+import { useWindowCommands } from "@/client/components/orchestrator/use-window-commands";
 import { WindowBar } from "@/client/components/orchestrator/window-bar";
 import { WindowTabStrip } from "@/client/components/orchestrator/window-tab-strip";
 import {
@@ -119,8 +118,7 @@ import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
-import { requestBrowserFind } from "@/client/lib/foreground-browser-registry";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { APP_NAME } from "@instrument-org/shared";
@@ -176,9 +174,6 @@ const LazyFilePreviewModal = lazy(() =>
 
 /** How often the tasks' titles are re-read, for the strip. */
 const REFRESH_MS = ms("2 seconds");
-
-/** How long a screen has to stay up before Recent counts it. */
-const RECENT_DWELL_MS = ms("2 seconds");
 
 /** How long a thread just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
 const THREAD_ARRIVAL_MS = ms("3 seconds");
@@ -2192,236 +2187,4 @@ function OrchestratorLayout() {
       </FileOpenContext>
     </OrchestratorContext>
   );
-}
-
-function recentFor({
-  href,
-  pathname,
-  search,
-}: {
-  href: string;
-  pathname: string;
-  search: Record<string, unknown>;
-}): Omit<OrchestratorRecent, "at"> | undefined {
-  if (pathname !== "/orchestrator/computer") {
-    return undefined;
-  }
-  const file = typeof search.file === "string" ? search.file : "";
-  if (file) {
-    return { href, kind: "file", title: file.split("/").at(-1) || "File" };
-  }
-  const path = typeof search.path === "string" ? search.path : "";
-  const folder = path.replace(/\/$/, "").split("/").at(-1);
-  // The roots are doors on the new tab page already.
-  if (!folder) {
-    return undefined;
-  }
-  return { href, kind: "folder", title: folder };
-}
-
-/**
- * Keeps the Recent list: every file and folder the window lands on goes to
- * the top, one entry per address. Pages keep their own list, by the browser.
- */
-function useRecordRecents() {
-  const location = useRouterState({
-    select: (routerState) => routerState.location,
-  });
-  const setRecents = useSetAtom(orchestratorRecentsAtom);
-  const { href, pathname } = location;
-  const search = location.search as Record<string, unknown>;
-
-  useEffect(() => {
-    const entry = recentFor({ href, pathname, search });
-    if (!entry) {
-      return;
-    }
-    // A screen counts once the user has stayed on it a moment: clicking down
-    // through folders passes through many that were never the destination.
-    const timer = setTimeout(() => {
-      setRecents((current) =>
-        [
-          { ...entry, at: Date.now() },
-          ...current.filter((recent) => recent.href !== entry.href),
-        ].slice(0, RECENTS_MAX),
-      );
-    }, RECENT_DWELL_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-    // The search object is a new one each render; its address is what matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [href, pathname, setRecents]);
-}
-
-/**
- * What the main process asks of the window: back and forward from a trackpad
- * swipe, a thumb button or the History menu, the tab chords (close, new,
- * reopen, next and previous, one by number), the caret into the field, and a
- * screen a link from outside the app named.
- * On a Mac the thumb buttons reach the page as mouse events, so they are
- * answered here; elsewhere they arrive through the main process. Chromium
- * walks the renderer's own history on the same mouseup unless the page
- * consumes it, and that history is not the tab's: left alone, back moved the
- * tab one step and the renderer one step, and the second undid the first.
- */
-function useWindowCommands(handlers: {
-  /** The tab's own history, which is the only history a thumb or a menu reaches. */
-  back: () => void;
-  closeTab: () => void;
-  forward: () => void;
-  newTab: () => void;
-  /** A draft of a new thread, at the corner. */
-  newThread: () => void;
-  /** A screen by its route, in a tab of its own, since what asked is not in any tab. */
-  openScreen: (href: string) => void;
-  reopenTab: () => void;
-  /** The caret into the window's field, wherever it was. */
-  search: () => void;
-  selectRelative: (direction: -1 | 1) => void;
-  selectTab: (index: number) => void;
-  /** The next or previous thread of the inbox, as listed. */
-  selectThread: (direction: -1 | 1) => void;
-  /** The inbox column put away or brought back. */
-  toggleInbox: () => void;
-}) {
-  const router = useRouter();
-  // The stream is opened once; what a chord means is read at the moment it
-  // fires, off whatever tab is up then.
-  const latest = useRef(handlers);
-  useEffect(() => {
-    latest.current = handlers;
-  });
-  useEffect(() => {
-    const isThumb = (event: MouseEvent) =>
-      event.button === 3 || event.button === 4;
-    // Consumed at every stage, on the way down, so neither Chromium's own
-    // navigation nor a click handler under the pointer sees the press.
-    const swallow = (event: MouseEvent) => {
-      if (isThumb(event)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    const onMouseUp = (event: MouseEvent) => {
-      if (!isThumb(event)) {
-        return;
-      }
-      swallow(event);
-      if (event.button === 3) {
-        latest.current.back();
-      } else {
-        latest.current.forward();
-      }
-    };
-    // The chord for the field, taken before anything on the page reads it: the
-    // native menu is only offered the keys web content left alone, and the
-    // composer's editor takes this one for itself. The menu item stays for the
-    // case this cannot see, a focused page guest, whose keys never reach here.
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (
-        (event.metaKey || event.ctrlKey) &&
-        !event.altKey &&
-        !event.shiftKey &&
-        event.key.toLowerCase() === "l"
-      ) {
-        event.preventDefault();
-        latest.current.search();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown, { capture: true });
-    if (isMacOS()) {
-      window.addEventListener("mousedown", swallow, { capture: true });
-      window.addEventListener("mouseup", onMouseUp, { capture: true });
-      window.addEventListener("auxclick", swallow, { capture: true });
-    }
-    const controller = new AbortController();
-    void (async () => {
-      try {
-        const commands = await rpcClient.orchestrator.events.command.call(
-          undefined,
-          { signal: controller.signal },
-        );
-        for await (const command of commands) {
-          if (typeof command === "object") {
-            if (command.type === "selectTab") {
-              latest.current.selectTab(command.index);
-            } else {
-              latest.current.openScreen(command.href);
-            }
-            continue;
-          }
-          switch (command) {
-            case "back": {
-              latest.current.back();
-              break;
-            }
-            case "closeTab": {
-              latest.current.closeTab();
-              break;
-            }
-            case "findInPage": {
-              // The page on screen registers itself as the foreground
-              // browser; with none up there is nothing to search.
-              requestBrowserFind();
-              break;
-            }
-            case "forward": {
-              latest.current.forward();
-              break;
-            }
-            case "newTab": {
-              latest.current.newTab();
-              break;
-            }
-            case "newThread": {
-              latest.current.newThread();
-              break;
-            }
-            case "nextTab": {
-              latest.current.selectRelative(1);
-              break;
-            }
-            case "nextThread": {
-              latest.current.selectThread(1);
-              break;
-            }
-            case "openSettings": {
-              openSettings({ tab: "General" });
-              break;
-            }
-            case "previousTab": {
-              latest.current.selectRelative(-1);
-              break;
-            }
-            case "previousThread": {
-              latest.current.selectThread(-1);
-              break;
-            }
-            case "reopenTab": {
-              latest.current.reopenTab();
-              break;
-            }
-            case "search": {
-              latest.current.search();
-              break;
-            }
-            case "toggleInbox": {
-              latest.current.toggleInbox();
-              break;
-            }
-          }
-        }
-      } catch {
-        // The window is closing, which is the only way the stream ends.
-      }
-    })();
-    return () => {
-      controller.abort();
-      window.removeEventListener("keydown", onKeyDown, { capture: true });
-      window.removeEventListener("mousedown", swallow, { capture: true });
-      window.removeEventListener("mouseup", onMouseUp, { capture: true });
-      window.removeEventListener("auxclick", swallow, { capture: true });
-    };
-  }, [router]);
 }

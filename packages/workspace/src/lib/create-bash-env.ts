@@ -34,6 +34,7 @@ import {
   type SessionCommandContext,
 } from "./shell-commands/background-jobs";
 import { CHAT_COMMAND, createChatCommand } from "./shell-commands/chat";
+import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
   createFfprobeCommand,
@@ -609,6 +610,12 @@ export async function createBashEnv({
       // the real binary is orders of magnitude faster on a large tree and does
       // not carry its `(?i)` and root-level-glob bugs.
       createRgCommand({
+        attachedFolders,
+        extraMounts: orchestrator?.childMounts,
+        projectFolderName,
+        taskId,
+      }),
+      createDuCommand({
         attachedFolders,
         extraMounts: orchestrator?.childMounts,
         projectFolderName,

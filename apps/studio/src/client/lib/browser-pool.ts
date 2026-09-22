@@ -43,11 +43,12 @@ const GUEST_RASTER_BUDGET = 1.3;
  *  - visible: positioned over a host slot (e.g. the task page's browser panel,
  *    measured by that component) and scaled to fit, with input enabled.
  *
- * At most one guest is visible at a time: each task's browser panel shows its
- * guest only while its tab is the foreground tab (see use-active-tab) and parks
- * it otherwise, so two guests can never be shown at once. The main process owns
- * guest existence via the desired-targets stream; the host slot only toggles
- * paint-host vs visible. Hiding/closing the slot never disposes a guest.
+ * A host shows its guest only while its own surface is on screen (a task's
+ * browser panel while its tab is the foreground tab, see use-active-tab) and
+ * parks it otherwise; hosts on screen together each show their own, stacked
+ * by the `layer` they hand showOverSlot. The main process owns guest existence
+ * via the desired-targets stream; the host slot only toggles paint-host vs
+ * visible. Hiding/closing the slot never disposes a guest.
  */
 
 interface Bounds {

@@ -601,22 +601,18 @@ function OrchestratorLayout() {
   const showsPane =
     !isChat || ((tabs.length > 0 || isTasksViewUp) && isPaneWanted);
   // Whether the page in the pane is what is on screen: the tab a page, the
-  // pane open, and nothing over it. Off, the guest is parked. A draft window
-  // counts as over it: a guest paints over everything in the window, so one
-  // under a draft would paint over the draft.
+  // pane open, and no screen over it. Off, the guest is parked. A window in
+  // the corner does not park it: the guest stands on the window's lowest
+  // layer, so a draft, a small view, and every menu draw over the page, and
+  // the page stays in view around them.
   const isPageShown =
-    isPageOnScreen &&
-    showsRightArea &&
-    !isHome &&
-    showsPane &&
-    !isTasksViewUp &&
-    !compose.covers;
+    isPageOnScreen && showsRightArea && !isHome && showsPane && !isTasksViewUp;
   const setPaneOpen = (group: string, isOpen: boolean) => {
     setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
   };
   // The pages screens draw into slots of their own (a page's file beside a
   // file tab's tree), shown on the same terms as the pane's page: parked
-  // under a window in the corner or the tasks' face, like it.
+  // under the tasks' face, like it.
   const pageSlots = useAtomValue(pageSlotsAtom);
   const slotHosts: ComposeHost[] = Object.entries(pageSlots).flatMap(
     ([group, into]) =>
@@ -626,8 +622,7 @@ function OrchestratorLayout() {
               chrome: false,
               group,
               into,
-              isActive:
-                showsRightArea && !isHome && !isTasksViewUp && !compose.covers,
+              isActive: showsRightArea && !isHome && !isTasksViewUp,
               place: `${group}:${rowWidth}`,
             },
           ]
@@ -2091,14 +2086,6 @@ function OrchestratorLayout() {
                               threadOfTask={childThreads}
                             />
                           </ActiveTabProvider>
-                          {/* The page's guest is parked under a window in
-                            the corner, a draft's or a thread's, so the pane
-                            says so where the page was. */}
-                          {compose.covers && isPageOnScreen && (
-                            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-background text-xs text-muted-foreground">
-                              Hidden while a window is over it
-                            </div>
-                          )}
                         </div>
                         {/* The thread's tasks as the pane's face, over the tab
                         up: the list, or the task pressed in it. */}

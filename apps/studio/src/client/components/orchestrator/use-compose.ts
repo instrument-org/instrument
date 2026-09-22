@@ -17,8 +17,7 @@ import { COMPOSE_GUEST_LAYER, layoutCompose } from "./compose-layout";
  * The windows along the foot of the row: the drafts being written and the
  * threads in their small views, laid out, with what each draft window's page
  * is drawn into and what each has on screen, for the layout that draws the
- * windows, parks the pane's guest under them, and starts the threads the
- * drafts become. Everything is keyed by the group the window shows: the
+ * windows over the pane's page and starts the threads the drafts become. Everything is keyed by the group the window shows: the
  * draft's key, or the thread's session.
  */
 export function useCompose(width: number) {
@@ -140,8 +139,6 @@ export function useCompose(width: number) {
 
   return {
     becomeThread,
-    /** Whether a window stands over the row, which is when the pane's guest has to park under it. */
-    covers: windows.length > 0,
     entries,
     float,
     hosts,

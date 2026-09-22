@@ -48,6 +48,7 @@ Grouped by area; status is the short form of each file's own line.
 | [`target=_blank` links are dead clicks](blank-target-links-are-dead-clicks.md) — the open is denied before a tab exists, so nothing happens and nothing says so | fixed, pending real tabs |
 | [CDP keyboard input follows window focus](cdp-keyboard-input-follows-window-focus.md) | mitigated by focus reclaim |
 | [The guest's raster surface is capped at 1.3x the viewport](browser-guest-raster-cap.md) — Blink's compositing rect; past it captures crop invisibly | open, traced to source |
+| [The browser guest stacks under the renderer's own layers](browser-guest-stacks-under-the-renderer.md) — a draft window, a menu, and a second guest all draw over it; the reflex of hiding it dates from the native view | verified; 2.0 parking removed |
 | [Device/viewport emulation is not safe](in-app-browser-device-emulation.md) | superseded; the guest is resized instead |
 | [Full-page screenshots are not supported](in-app-browser-full-page-screenshots.md) | open, workaround in place |
 | [HTML artifacts: in-iframe navigation](html-artifact-iframe-navigation.md) | open, minimal reset shipped |

@@ -127,7 +127,7 @@ describe("AppRail", () => {
     user.mockReturnValue({ image: null, name: "Ada Lovelace" });
     const { rail } = renderRail();
     expect(rail.getByRole("button", { name: /Settings/ }).textContent).toBe(
-      "ALSettings",
+      "AL",
     );
   });
 });

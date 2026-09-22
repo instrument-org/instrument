@@ -73,9 +73,8 @@ async function handedFiles(context: Context) {
       .flatMap((text) => filesNamedIn(text))
       .map((file) => path.basename(file)),
   );
-  return (await messageFiles(context)).filter(({ file }) =>
-    named.has(path.basename(file)),
-  );
+  const files = await messageFiles(context);
+  return files.filter(({ file }) => named.has(path.basename(file)));
 }
 
 /** The conversation handed over a message, by either carrier. */
@@ -176,13 +175,13 @@ const didNotRetypeATasksMessage: Assertion = {
     // The conversation writes no files of its own, so any message file this
     // run left, in a task's folder or one it was handed, is a task's.
     const ownDir = taskDir(context.taskId);
-    const fromTasks = (await messageFiles(context)).filter(
-      ({ file }) => !file.startsWith(ownDir),
-    );
+    const files = await messageFiles(context);
+    const fromTasks = files.filter(({ file }) => !file.startsWith(ownDir));
     const fenced = fencedMessages(context.sessions);
     // The other way to retype one: the task put the words in its reply and
     // the conversation copied them into a fence.
-    const taskTexts = (await context.childSessions()).flatMap((child) =>
+    const children = await context.childSessions();
+    const taskTexts = children.flatMap((child) =>
       assistantTexts(child.sessions),
     );
     const copied = fenced.filter((message) => {
@@ -220,9 +219,10 @@ const PLACEHOLDER =
 const readyToSend: Assertion = {
   check: async (context) => {
     const text = "every message is ready to send";
+    const handed = await handedFiles(context);
     const messages = [
       ...fencedMessages(context.sessions),
-      ...(await handedFiles(context)).map(({ message }) => message),
+      ...handed.map(({ message }) => message),
     ];
     const problems = messages.flatMap((message) => {
       const found: string[] = [];
@@ -250,9 +250,8 @@ function revisedAsAMessage(atLeast: number): Assertion {
   const text = `handed over ${atLeast} messages across the turns`;
   return {
     check: async (context) => {
-      const count =
-        fencedMessages(context.sessions).length +
-        (await handedFiles(context)).length;
+      const handed = await handedFiles(context);
+      const count = fencedMessages(context.sessions).length + handed.length;
       return count >= atLeast ? pass(text, `${count}`) : fail(text, `${count}`);
     },
     text,

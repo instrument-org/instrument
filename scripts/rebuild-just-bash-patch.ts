@@ -90,8 +90,10 @@ function applySources(manifest: Manifest) {
           `${part.name}: ${label} does not apply to ${manifest.tag}.\n${stderr.trim()}\nRefresh the pin, or adapt it as a local diff under patches/just-bash-sources/.`,
         );
       }
-      for (const match of diff.matchAll(/^\+\+\+ b\/(.+)$/gm)) {
-        touched.add(path.posix.dirname(match[1]));
+      for (const [, file] of diff.matchAll(/^\+\+\+ b\/(.+)$/gm)) {
+        if (file) {
+          touched.add(path.posix.dirname(file));
+        }
       }
     }
     console.log(`  ${part.name}: applied`);
@@ -182,8 +184,14 @@ function importsOf(file: string, content: string): string[] {
   const specifiers = content.matchAll(
     /(?:\bfrom|\bimport)\s*(?:\(\s*)?["'](\.{1,2}\/[^"']+\.js)["']/g,
   );
-  return [...specifiers].map((match) =>
-    path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1])),
+  return [...specifiers].flatMap(([, specifier]) =>
+    specifier
+      ? [
+          path.posix.normalize(
+            path.posix.join(path.posix.dirname(file), specifier),
+          ),
+        ]
+      : [],
   );
 }
 

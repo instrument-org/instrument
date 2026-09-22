@@ -20,7 +20,7 @@ const config: KnipConfig = {
   },
   workspaces: {
     ".": {
-      entry: ["scripts/*.ts!"],
+      entry: ["scripts/*.ts!", ".agents/wireframe-kit/*.ts!"],
       ignoreBinaries: ["actionlint", "electron", "powershell.exe"],
       ignoreDependencies: [
         "@instrument-org/agent-hooks", // Used in .codex/hooks.json and .claude/settings.json hook commands

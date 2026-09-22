@@ -40,12 +40,6 @@ export function isHomeTab(tab: WindowTab): boolean {
   );
 }
 
-/** A screen tab's address, taken apart: the route and its search. */
-export function parseHref(href: string) {
-  const url = new URL(href, "http://tabs");
-  return { pathname: url.pathname, search: url.searchParams };
-}
-
 /**
  * Whether an address is one of the window's own screens. The window can also
  * stand on a screen outside them (a debug page), which no tab keeps.
@@ -53,6 +47,12 @@ export function parseHref(href: string) {
 export function isWindowHref(href: string): boolean {
   const { pathname } = parseHref(href);
   return pathname === "/orchestrator" || pathname.startsWith("/orchestrator/");
+}
+
+/** A screen tab's address, taken apart: the route and its search. */
+export function parseHref(href: string) {
+  const url = new URL(href, "http://tabs");
+  return { pathname: url.pathname, search: url.searchParams };
 }
 
 /**

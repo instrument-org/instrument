@@ -10,8 +10,8 @@ const UPSTREAM_THROTTLE_TEXT =
   '{"code":429,"message":"openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","metadata":{"error_type":"rate_limit_exceeded"}}';
 
 const cases: Record<string, MessageError> = {
-  "a missing API key": { kind: "api-key", message: "No API key found" },
   "a full disk": { kind: "disk-full", message: "database or disk is full" },
+  "a missing API key": { kind: "api-key", message: "No API key found" },
   "a payload over the context window": {
     classification: "context-overflow",
     kind: "api-call",

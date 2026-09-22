@@ -15,7 +15,7 @@ import {
   type WorkspaceFsMount,
 } from "../workspace-fs-layout";
 
-export const DU_COMMAND = {
+const DU_COMMAND = {
   description:
     "Estimate disk usage of files and directories (-s, -h, -a, -c, -d N, -k, -m, -b, --apparent-size). Runs off the app's main thread, so it is safe over a large folder.",
   name: "du",

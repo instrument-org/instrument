@@ -116,6 +116,7 @@ export function ThreadWindow({
   sendContext,
   sessionId,
   thread,
+  width = THREAD_WINDOW_WIDTH,
 }: {
   /** Whether the window arrives with a motion: a draft becoming the thread is the same window, so it does not. */
   arrives: boolean;
@@ -133,6 +134,8 @@ export function ThreadWindow({
   >;
   sessionId: StoreId.Session;
   thread: Thread | undefined;
+  /** The window's width, narrower than its own on a row with less room. */
+  width?: number;
 }) {
   const orchestrator = useOrchestrator();
   const openFile = useContext(FileOpenContext);
@@ -153,7 +156,7 @@ export function ThreadWindow({
       data-slot="thread-window"
       exit={{ opacity: 0, y: 24 }}
       initial={arrives ? { opacity: 0, right, y: 24 } : false}
-      style={{ height: THREAD_WINDOW_HEIGHT, width: THREAD_WINDOW_WIDTH }}
+      style={{ height: THREAD_WINDOW_HEIGHT, width }}
       transition={COMPOSE_MOTION}
     >
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 select-none">

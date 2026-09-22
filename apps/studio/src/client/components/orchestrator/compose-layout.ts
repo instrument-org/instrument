@@ -23,8 +23,8 @@ export const COMPOSE_MOTION = {
   type: "spring",
 } as const;
 
-/** A window with its place along the foot: how far its right edge stands from the row's. */
-export type PlacedCompose = ComposeEntry & { right: number };
+/** A window with its place along the foot: how far its right edge stands from the row's, and its width when the row is narrower than its own. */
+export type PlacedCompose = ComposeEntry & { right: number; width?: number };
 
 /**
  * Lays the windows along the foot the way a mail client does: the newest
@@ -41,7 +41,7 @@ export function layoutCompose(
   const isOneExpanded = entries.some((entry) => entry.placement === "expanded");
   const placed: PlacedCompose[] = [];
   let right = COMPOSE_GAP;
-  for (const entry of entries.toReversed()) {
+  for (const [index, entry] of entries.toReversed().entries()) {
     if (entry.placement === "expanded") {
       placed.push({ ...entry, right: 0 });
       continue;
@@ -53,6 +53,12 @@ export function layoutCompose(
     // The first that does not fit ends the row, and everything older with
     // it: a bar squeezed in past a window would put the windows out of order.
     if (right + own + COMPOSE_GAP > width) {
+      // The newest always stands, narrowed to the row: a window that is not
+      // drawn is a New that appears to do nothing.
+      const room = width - right - COMPOSE_GAP;
+      if (index === 0 && room > 0) {
+        placed.push({ ...entry, right, width: room });
+      }
       break;
     }
     placed.push({ ...entry, right });

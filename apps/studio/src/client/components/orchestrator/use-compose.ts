@@ -41,7 +41,7 @@ export function useCompose(width: number) {
             into: hostsById[draftGroupOf(entry.draftId)] ?? null,
             isActive: true,
             layer: COMPOSE_GUEST_LAYER,
-            place: `${entry.placement}:${entry.right}`,
+            place: `${entry.placement}:${entry.right}:${entry.width ?? ""}`,
           },
         ]
       : [],

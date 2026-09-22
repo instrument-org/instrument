@@ -207,6 +207,7 @@ export function ComposeWindow({
   placement,
   right,
   topics,
+  width = COMPOSE_WIDTH,
 }: {
   browser: BrowserTabsHandle | null;
   draft: Draft;
@@ -230,6 +231,8 @@ export function ComposeWindow({
   /** Where a docked window stands along the foot, in layout px from the right edge; the windows beside it are placed the same way. */
   right: number;
   topics: Topic[];
+  /** A docked window's width, narrower than its own on a row with less room. */
+  width?: number;
 }) {
   const orchestrator = useOrchestrator();
   const { taskId } = orchestrator;
@@ -567,9 +570,7 @@ export function ComposeWindow({
       data-slot="compose-window"
       exit={{ opacity: 0, y: 24 }}
       initial={{ opacity: 0, ...(isExpanded ? {} : { right }), y: 24 }}
-      style={
-        isExpanded ? undefined : { height: dockedHeight, width: COMPOSE_WIDTH }
-      }
+      style={isExpanded ? undefined : { height: dockedHeight, width }}
       transition={COMPOSE_MOTION}
     >
       <OrchestratorContext

@@ -138,6 +138,7 @@ export function ComposeLayer({
                 sendContext={sendContext}
                 sessionId={sessionId}
                 thread={thread}
+                width={entry.width}
               />
             );
           }
@@ -194,6 +195,7 @@ export function ComposeLayer({
               placement={entry.placement}
               right={entry.right}
               topics={topics}
+              width={entry.width}
             />
           );
         })}

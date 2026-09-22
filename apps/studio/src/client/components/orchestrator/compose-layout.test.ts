@@ -113,4 +113,11 @@ describe("layoutCompose", () => {
   it("draws nothing before the row has a width", () => {
     expect(layoutCompose([draft("a")], 0)).toEqual([]);
   });
+
+  // 1.5x zoom at the window's 900px minimum leaves a row of 524 layout px.
+  it("narrows the newest window to a row too small for it, and drops the rest", () => {
+    expect(layoutCompose([draft("a"), draft("b")], 524)).toEqual([
+      { ...draft("b"), right: 12, width: 500 },
+    ]);
+  });
 });

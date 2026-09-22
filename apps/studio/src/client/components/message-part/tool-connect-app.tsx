@@ -1,4 +1,5 @@
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
+import { thisComputer } from "@/client/components/orchestrator/computer-name";
 import { ConnectControls } from "@/client/components/orchestrator/connect-controls";
 import { rpcClient } from "@/client/rpc/client";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
@@ -73,7 +74,7 @@ function ConnectCard({
     <ToolCard>
       <ToolCardSection borderBottom={Boolean(detail)} collapsedHeight={320}>
         <div className="flex items-center gap-3">
-          <AppIcon site={site} />
+          <AppIcon name={name} site={site} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">
               {kind === "sign-in"
@@ -81,7 +82,7 @@ function ConnectCard({
                 : kind === "key"
                   ? `${name} needs a key`
                   : kind === "run"
-                    ? `${name} runs on this Mac`
+                    ? `${name} runs on ${thisComputer()}`
                     : `Connect ${name}`}
             </p>
             <p className="text-xs leading-5 text-muted-foreground">{reason}</p>

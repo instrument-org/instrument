@@ -3,6 +3,7 @@ import { blockToolbarButtonClassName } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import { InternalLink } from "@/client/components/internal-link";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
+import { thisComputer } from "@/client/components/orchestrator/computer-name";
 import { visitsWithin } from "@/client/components/orchestrator/app-visits";
 import { ConnectControls } from "@/client/components/orchestrator/connect-controls";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
@@ -124,12 +125,12 @@ function AppRoute() {
   const methods = (entry?.authMethods ?? []).map((method) => method.label);
   const needs = app
     ? app.type === "mcp-local"
-      ? `Runs on this Mac: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name}` : ""}.`
+      ? `Runs on ${thisComputer()}: Instrument installs and starts ${app.runs ?? app.endpoint}${app.authKind === "env" ? `, with a key from ${name}` : ""}.`
       : app.type === "mcp" && app.authKind === "oauth"
         ? `Sign in to ${name} once.`
         : app.authKind === "none"
           ? "No sign-in needed."
-          : `A key from ${name}. Instrument keeps it encrypted on this Mac.`
+          : `A key from ${name}. Instrument keeps it encrypted on ${thisComputer()}.`
     : methods.length > 0
       ? `Connects with ${methods.join(" or ")}.`
       : "";

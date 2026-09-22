@@ -11,3 +11,8 @@ export function computerName(): string {
   }
   return isWindows() ? "This PC" : "This Computer";
 }
+
+/** The computer as a sentence names it: "this Mac", "this PC". */
+export function thisComputer(): string {
+  return computerName().replace(/^This/, "this");
+}

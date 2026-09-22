@@ -1,3 +1,4 @@
+import { thisComputer } from "@/client/components/orchestrator/computer-name";
 import { OrchestratorContext } from "@/client/components/orchestrator/context";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
@@ -136,7 +137,7 @@ export function ConnectControls({
       <div className="flex flex-col gap-2">
         {runs ? (
           <p className="text-xs text-muted-foreground">
-            Instrument will install and run {runs} on this Mac.
+            Instrument will install and run {runs} on {thisComputer()}.
           </p>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">

@@ -110,6 +110,17 @@ const SANDBOX_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 const SANDBOX_MAX_TRAVERSAL = 300_000;
 
 /**
+ * The same budget for the orchestrator's shell, which only reads what its
+ * tasks produced and moves finished files into place. It holds the user's
+ * whole home folder, so a stray `find` over it is the likeliest runaway walk
+ * there is, and the budget counts entries rather than time: 300,000 of them
+ * costs a few seconds of `find` on macOS and over half a minute on Windows,
+ * all on the thread that paints the window. A walk bigger than this is a
+ * task's to do.
+ */
+const ORCHESTRATOR_MAX_TRAVERSAL = 20_000;
+
+/**
  * How long one run of a sandboxed script runtime (`python`, `js-exec`) may
  * take, against just-bash's 30 second default. Those runtimes are where a
  * script over an attached folder runs, and a parse of a large tree is minutes
@@ -626,8 +637,12 @@ export async function createBashEnv({
       maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
       maxPythonTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxStringLength: SANDBOX_MAX_BYTES,
-      maxTraversalEntries: SANDBOX_MAX_TRAVERSAL,
-      maxTraversalWork: SANDBOX_MAX_TRAVERSAL,
+      maxTraversalEntries: orchestrator
+        ? ORCHESTRATOR_MAX_TRAVERSAL
+        : SANDBOX_MAX_TRAVERSAL,
+      maxTraversalWork: orchestrator
+        ? ORCHESTRATOR_MAX_TRAVERSAL
+        : SANDBOX_MAX_TRAVERSAL,
     },
     network: {
       // No per-domain allow-list to maintain; the agent legitimately fetches

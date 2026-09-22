@@ -78,13 +78,15 @@ Both count entries, not time, and what an entry costs depends on the command, th
 | --- | --- |
 | `find -name '*.md'` | 3.5s |
 | `ls -R`, with the local `ls` patch | 22s |
-| `du -sh` | 28s |
+| `du -sh`, the builtin | 28s |
 | `grep -r` | 48s (`maxGlobOperations`) |
 | `ls -R`, stock 3.4.1 | 367s, 223s of CPU, 3.6 GB |
 
 The same `find` medians 80ms on macOS and 561ms on Windows across the production record, and in one Windows session four `find` calls over `/mnt/Home` and `/mnt/D:` outlived their `yieldMs` and were promoted to background jobs, still walking after the agent had moved on. That is why the orchestrator's budget is fifteen times smaller: its shell only reads what tasks produced, it holds the user's whole home folder, and a walk worth more than 20,000 entries is a task's to do.
 
 Stock `ls -R` was the outlier for two reasons, both in upstream `ls` and both carried as a local patch (see [just-bash upstream](../architecture/just-bash-upstream.md)). Its output accumulator re-measured everything written so far on every append, which made `ls -l` on one 20,000-entry directory take two minutes on its own. And 3.4.1's `ls` charges the budget once per directory entered rather than once per name read, so a recursive listing stops after about 300,000 *directories*, more than half of a home folder, where `find` stops after 300,000 names. awk's `printf` had the same accumulator shape: 42 seconds for 40,000 records where `print` takes 0.15.
+
+`du` no longer takes that row's path. `shell-commands/du.ts` walks the real directories behind the mounts in a worker thread, so the main thread only receives the finished text: over a 337,000-file folder it answered in 37 seconds, matching the system `du` to the KiB, with event-loop delay and the 1 KB read probe at their idle values the whole time, where a builtin `find` over the same folder pushed the read p99 to 112 ms in 4.5 seconds. It is the shape the rest of the traversal builtins would take off the main thread one at a time, short of moving the agent turn.
 
 When `find` hit a limit over a real mount, every directory read still in flight in its batch settled after the command had returned, and each became an unhandled rejection: 25 per refused `find` over a large folder. The cause is upstream, in `find` and just-bash's defense-in-depth box together, and is patched locally as vercel-labs/just-bash#451 (see [just-bash upstream](../architecture/just-bash-upstream.md)). Studio's crash-diagnostics handler only logged them, but a Node host with no handler exits on the first.
 

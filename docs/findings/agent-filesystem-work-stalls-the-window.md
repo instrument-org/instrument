@@ -70,7 +70,23 @@ There are two, both defaulting to 1,000,000, with different messages that are ea
 | `maxTraversalWork` | operations, charged 1 each by `checkpoint()` and `count` at once by `discover()` | `filesystem traversal work limit exceeded` |
 | `maxTraversalEntries` | entries visited | a distinct entry-limit message |
 
-Neither is set by us, so both are the upstream default; `maxTraversalDepth` exists and is unset too. A `find` over an attached home directory reaches the work limit in about 20 seconds and returns nothing, because the stage buffers rather than streams, so there is no partial output to show for it.
+`create-bash-env.ts` sets both to 300,000 for a task's shell and 20,000 for the orchestrator's; `maxTraversalDepth` is unset. Hitting either returns nothing, because the stage buffers rather than streams, so there is no partial output to show for it.
+
+Both count entries, not time, and what an entry costs depends on the command, the tree and the platform, so one number buys very different stalls. Measured 2026-09-22 against one attached macOS home directory of about 8M files, every row ending at the same 300,000 with the same empty result:
+
+| command | time to the budget |
+| --- | --- |
+| `find -name '*.md'` | 3.5s |
+| `ls -R`, with the local `ls` patch | 22s |
+| `du -sh` | 28s |
+| `grep -r` | 48s (`maxGlobOperations`) |
+| `ls -R`, stock 3.4.1 | 367s, 223s of CPU, 3.6 GB |
+
+The same `find` medians 80ms on macOS and 561ms on Windows across the production record, and in one Windows session four `find` calls over `/mnt/Home` and `/mnt/D:` outlived their `yieldMs` and were promoted to background jobs, still walking after the agent had moved on. That is why the orchestrator's budget is fifteen times smaller: its shell only reads what tasks produced, it holds the user's whole home folder, and a walk worth more than 20,000 entries is a task's to do.
+
+Stock `ls -R` was the outlier for two reasons, both in upstream `ls` and both carried as a local patch (see [just-bash upstream](../architecture/just-bash-upstream.md)). Its output accumulator re-measured everything written so far on every append, which made `ls -l` on one 20,000-entry directory take two minutes on its own. And 3.4.1's `ls` charges the budget once per directory entered rather than once per name read, so a recursive listing stops after about 300,000 *directories*, more than half of a home folder, where `find` stops after 300,000 names. awk's `printf` had the same accumulator shape: 42 seconds for 40,000 records where `print` takes 0.15.
+
+When `find` hits a limit over a real mount, one of its parallel directory reads rejects after the command has already failed, and the rejection is unhandled. It does not reproduce against just-bash's own `ReadWriteFs` or `InMemoryFs`, in 3.4.1 or on `main`, so it sits in the mount layer `createBashEnv` builds. In Studio it is logged by the crash-diagnostics handler rather than crashing anything, but it is noise every time a walk is refused.
 
 The output ceiling is ours and was raised deliberately: it went from just-bash's 10 MB default to 256 MiB to fix agent work that needed the headroom. Lowering it is therefore a partial revert, and wants to know what needed 256 MiB before picking a smaller number.
 

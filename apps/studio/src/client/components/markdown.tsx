@@ -9,6 +9,7 @@ import { instrumentLinkOf } from "@/shared/instrument-link";
 import { APP_NAME_SLUG, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   AGENT_FILES_LANGUAGE,
+  AGENT_MESSAGE_LANGUAGE,
   isAddressableTaskFilePath,
   isTaskFileHref,
   taskFilePathFromHref,
@@ -80,6 +81,7 @@ import {
 import { MarkdownTable } from "./markdown-table";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
+import { MessageFence } from "./message-card";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -289,6 +291,10 @@ const markdownPre: Components["pre"] = ({ children, node }) => {
 
   if (fence.language === AGENT_FILES_LANGUAGE) {
     return <AgentFilesBlock content={fence.code} />;
+  }
+
+  if (fence.language === AGENT_MESSAGE_LANGUAGE) {
+    return <MessageFence code={fence.code} />;
   }
 
   if (fence.language && isMermaidLanguage(fence.language)) {

@@ -12,10 +12,14 @@ import { cn } from "@/client/lib/utils";
 import {
   isAddressableTaskFilePath,
   isFolderPath,
+  isMessageDocument,
+  type MessageDraft,
   nameOfPath,
   parseFilesBlock,
+  parseMessage,
 } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
+import { useQueries } from "@tanstack/react-query";
 import { fork } from "radashi";
 import { useContext } from "react";
 
@@ -24,6 +28,7 @@ import { FilesGrid } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
 import { MacFolderIcon } from "./icons/mac-folder";
 import { MarkdownTaskContext } from "./markdown-task-context";
+import { MessageCard } from "./message-card";
 import { PreviewListItem } from "./preview-list-item";
 
 /**
@@ -105,6 +110,19 @@ export function FilePathsGrid({
   // where they are. A file the task cannot reach, or one not yet translated,
   // is drawn as its line and nothing more.
   const hostPaths = useHostPaths(taskId, filePaths);
+  const messages = useMessageFiles(
+    filePaths.flatMap((path) => {
+      const hostPath = hostPaths[path];
+      return hostPath && /\.md$/i.test(path)
+        ? [
+            {
+              path,
+              url: getComputerFileUrl({ hostPath, version: assetVersion }),
+            },
+          ]
+        : [];
+    }),
+  );
 
   if (
     taskId === undefined ||
@@ -112,6 +130,23 @@ export function FilePathsGrid({
   ) {
     return null;
   }
+
+  // A message file is words to send, so it is the card, not a tile: drawn
+  // above the rest, and left out of them.
+  const messageCards = messages.map(({ message, path }) => (
+    <MessageCard
+      file={{
+        name: nameOfPath(path),
+        open: () => {
+          showTaskFile(path);
+        },
+      }}
+      key={path}
+      message={message}
+    />
+  ));
+  const isMessage = (path: string) =>
+    messages.some((entry) => entry.path === path);
 
   const fileOf = (filePath: string): undefined | ViewerFile => {
     const hostPath = hostPaths[filePath];
@@ -132,32 +167,36 @@ export function FilePathsGrid({
   if (layout === "list") {
     return (
       <div className="not-prose my-2 flex flex-col gap-1">
-        {paths.map((path) =>
-          isFolderPath(path) ? (
-            <FolderLine
-              key={path}
-              onClick={() => {
-                showTaskFile(path);
-              }}
-              path={path}
-            />
-          ) : (
-            <FileLine
-              file={fileOf(path)}
-              key={path}
-              onClick={() => {
-                showTaskFile(path);
-              }}
-              path={path}
-            />
-          ),
-        )}
+        {messageCards}
+        {paths
+          .filter((path) => !isMessage(path))
+          .map((path) =>
+            isFolderPath(path) ? (
+              <FolderLine
+                key={path}
+                onClick={() => {
+                  showTaskFile(path);
+                }}
+                path={path}
+              />
+            ) : (
+              <FileLine
+                file={fileOf(path)}
+                key={path}
+                onClick={() => {
+                  showTaskFile(path);
+                }}
+                path={path}
+              />
+            ),
+          )}
       </div>
     );
   }
 
   return (
     <div className="not-prose my-4 flex flex-col gap-2">
+      {messageCards}
       {folderPaths.length > 0 && (
         <div className="flex flex-wrap items-start gap-2">
           {folderPaths.map((path) => (
@@ -175,7 +214,10 @@ export function FilePathsGrid({
         </div>
       )}
       <FilesGrid
-        files={filePaths.map(fileOf).filter((file) => file !== undefined)}
+        files={filePaths
+          .filter((path) => !isMessage(path))
+          .map(fileOf)
+          .filter((file) => file !== undefined)}
         pendingFilePath={pendingFilePath}
         preserveOrder
       />
@@ -269,4 +311,30 @@ function isDrawablePath(path: string): boolean {
     isAddressableTaskFilePath(path) &&
     (path.includes("/") || /\.[a-z0-9]{1,8}$/i.test(path))
   );
+}
+
+/**
+ * The Markdown files a fence names that are messages, read to find out. A
+ * file is only drawn as one once its text has said so; until then, and when it
+ * is a document, it is a tile like any other.
+ */
+function useMessageFiles(
+  files: { path: string; url: string }[],
+): { message: MessageDraft; path: string }[] {
+  const texts = useQueries({
+    queries: files.map(({ url }) => ({
+      queryFn: async () => {
+        const response = await fetch(url);
+        return response.ok ? response.text() : "";
+      },
+      queryKey: ["file-text", url],
+      retry: false,
+    })),
+  });
+  return files.flatMap(({ path }, index) => {
+    const text = texts[index]?.data;
+    return text !== undefined && isMessageDocument(text)
+      ? [{ message: parseMessage(text), path }]
+      : [];
+  });
 }

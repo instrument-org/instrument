@@ -19,6 +19,10 @@ import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { UNTRUSTED_TASK_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import {
+  isMessageDocument,
+  parseMessage,
+} from "@instrument-org/workspace/client";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -46,6 +50,7 @@ import { FilePreviewFallback } from "./file-preview-fallback";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
 import { MarkdownDocument } from "./markdown-outline";
+import { MessageCard } from "./message-card";
 import { OpenTaskFileButton } from "./open-task-file-button";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -168,6 +173,16 @@ function MarkdownPreview({ url }: { url: string }) {
 
   if (error) {
     return <FileTextError error={error} />;
+  }
+
+  // A file whose front matter says `message:` is words to send, drawn as the
+  // card a reply draws for them rather than as a document.
+  if (data !== undefined && isMessageDocument(data)) {
+    return (
+      <div className="mx-auto w-full max-w-2xl p-8">
+        <MessageCard message={parseMessage(data)} />
+      </div>
+    );
   }
 
   // The file's own pictures and nothing else: a `.md` in the task folder is a

@@ -48,6 +48,7 @@ import {
   dialog,
   Menu,
   nativeImage,
+  ShareMenu,
   shell,
 } from "electron";
 import { isBinaryFile } from "isbinaryfile";
@@ -250,6 +251,23 @@ const openExternalLink = base
     if (!success) {
       throw errors.INVALID_URL();
     }
+  });
+
+/**
+ * Hands text to the OS's share menu, drawn where the pointer is, so it goes to
+ * Messages, Mail, or any app the user has that takes text. macOS only: the
+ * menu is AppKit's, and elsewhere the answer is false and the caller copies.
+ */
+const shareText = base
+  .input(z.object({ text: z.string().min(1) }))
+  .output(z.object({ shown: z.boolean() }))
+  .handler(({ input }) => {
+    if (process.platform !== "darwin") {
+      return { shown: false };
+    }
+    const window = BrowserWindow.getFocusedWindow();
+    new ShareMenu({ texts: [input.text] }).popup(window ? { window } : {});
+    return { shown: true };
   });
 
 /**
@@ -864,6 +882,7 @@ export const utils = {
   prepareDrag,
   readDiagnosticLog,
   saveDiagnosticLog,
+  shareText,
   showContextMenu,
   showFileInFolder,
   showFolderPicker,

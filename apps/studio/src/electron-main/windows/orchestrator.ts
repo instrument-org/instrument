@@ -15,6 +15,7 @@ import {
   getAppZoom,
   getWindowState,
 } from "@/electron-main/stores/window-state";
+import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
 import { app, BrowserWindow } from "electron";
@@ -131,7 +132,7 @@ export function openOrchestratorWindow(): BrowserWindow {
   // one keeps its macOS frame, as the main window does.
   setTrafficLightForZoom(orchestratorWindow, getAppZoom());
 
-  orchestratorWindow.once("ready-to-show", () => {
+  showWhenReady(orchestratorWindow, () => {
     // Maximized only once there is a window to maximize: on Windows and Linux
     // maximizing one that has not been shown is itself what shows it, which
     // would put this window up before its first paint.

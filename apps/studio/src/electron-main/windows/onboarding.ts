@@ -6,6 +6,7 @@ import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { studioURL } from "@/electron-main/lib/urls";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getMainWindow } from "@/electron-main/windows/main/instance";
+import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { app, BrowserWindow, screen } from "electron";
 import path from "node:path";
 
@@ -54,7 +55,7 @@ export function openOnboardingWindow(): BrowserWindow {
     y: bounds.y + Math.round((bounds.height - ONBOARDING_HEIGHT) / 2),
   });
 
-  onboardingWindow.once("ready-to-show", () => {
+  showWhenReady(onboardingWindow, () => {
     onboardingWindow?.show();
   });
 

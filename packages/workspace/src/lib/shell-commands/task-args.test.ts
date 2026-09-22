@@ -366,47 +366,77 @@ describe("resolveFileUploads", () => {
 });
 
 describe("requireFilesNamedInBrief", () => {
-  it("lets a brief through when every file it names in the conversation's folder is handed over", () => {
-    expect(() => {
+  createMockTaskConfig(TaskIdSchema.parse("orchestrator"));
+  const taskHostRoot = TaskDirSchema.parse(
+    path.join(
+      mkdtempSync(path.join(os.tmpdir(), "task-brief-")),
+      "conversation",
+    ),
+  );
+  const layout = buildWorkspaceFsLayout({ attachedFolders: {}, taskHostRoot });
+  const own = { cwd: MOUNT.task, layout };
+
+  beforeAll(async () => {
+    await fs.mkdir(path.join(taskHostRoot, "attachments"), { recursive: true });
+    await fs.writeFile(
+      path.join(taskHostRoot, "attachments", "status.png"),
+      "png bytes",
+    );
+  });
+
+  it("lets a brief through when every file it names in the conversation's folder is handed over", async () => {
+    await expect(
       requireFilesNamedInBrief(
         "Look at /task/attachments/status.png and attachments/notes.txt, then answer.",
         ["/task/attachments/status.png", "attachments/notes.txt"],
-        MOUNT.task,
-      );
-    }).not.toThrow();
+        own,
+      ),
+    ).resolves.toBeUndefined();
   });
 
-  it("matches a bare name against the same file handed by its full path", () => {
-    expect(() => {
+  it("matches a bare name against the same file handed by its full path", async () => {
+    await expect(
       requireFilesNamedInBrief(
         "Read attachments/status.png.",
         ["/task/attachments/status.png"],
-        MOUNT.task,
-      );
-    }).not.toThrow();
+        own,
+      ),
+    ).resolves.toBeUndefined();
   });
 
   // The move every model made first: the file named in the brief, in the
   // conversation's own folder, and no --file. The refusal carries the flag.
-  it("refuses a brief that names a file in the conversation's folder without --file", () => {
-    expect(() => {
+  it("refuses a brief that names a file in the conversation's folder without --file", async () => {
+    await expect(
       requireFilesNamedInBrief(
         "Look at the attached image /task/attachments/status.png (a copy is in your attachments folder).",
         [],
-        MOUNT.task,
-      );
-    }).toThrow(
+        own,
+      ),
+    ).rejects.toThrow(
       "the brief names \"/task/attachments/status.png\" in this conversation's own folder, which no task can see. Add --file /task/attachments/status.png: a copy lands in the task's own attachments/ under the same name.",
     );
   });
 
-  it("leaves a mount's attachments folder and a task's bare folder alone", () => {
-    expect(() => {
+  it("leaves a mount's attachments folder and a task's bare folder alone", async () => {
+    await expect(
       requireFilesNamedInBrief(
         "Read /mnt/Home/attachments/old.png and put results in your attachments/ folder; see /tasks/one/attachments/a.txt.",
         [],
-        MOUNT.task,
-      );
-    }).not.toThrow();
+        own,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  // `/task` in a brief is the task's own folder too: a path with nothing
+  // behind it here is where the brief asks the task to write.
+  it("leaves a path the brief asks the task to write", async () => {
+    await expect(
+      requireFilesNamedInBrief(
+        "Write the report to /task/report.md, the chart to /task/attachments/chart.png, and keep notes in /task/out/.",
+        [],
+        own,
+      ),
+    ).resolves.toBeUndefined();
   });
 });

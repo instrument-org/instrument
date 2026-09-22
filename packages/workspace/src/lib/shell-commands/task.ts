@@ -544,11 +544,9 @@ export async function runNew(
   await requireFoldersOnDisk(resolvedFolders, askedFolders);
   const folders = withWorkspaceFolder(resolvedFolders);
   const askedFiles = values.get("file") ?? [];
-  requireFilesNamedInBrief(prompt, askedFiles, cwd);
-  const files = await resolveFileUploads(askedFiles, {
-    cwd,
-    layout: await orchestratorLayout(context, orchestratorFolders),
-  });
+  const layout = await orchestratorLayout(context, orchestratorFolders);
+  await requireFilesNamedInBrief(prompt, askedFiles, { cwd, layout });
+  const files = await resolveFileUploads(askedFiles, { cwd, layout });
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const tab = values.get("tab")?.[0];
   const browserTargetId =
@@ -681,11 +679,9 @@ export async function runSend(
   const { model, modelURI } = await resolveModel(rawURI, context);
   const orchestratorFolders = orchestratorState.attachedFolders ?? {};
   const askedFiles = values.get("file") ?? [];
-  requireFilesNamedInBrief(prompt, askedFiles, cwd);
-  const files = await resolveFileUploads(askedFiles, {
-    cwd,
-    layout: await orchestratorLayout(context, orchestratorFolders),
-  });
+  const layout = await orchestratorLayout(context, orchestratorFolders);
+  await requireFilesNamedInBrief(prompt, askedFiles, { cwd, layout });
+  const files = await resolveFileUploads(askedFiles, { cwd, layout });
   const session = await latestOrNewSessionId(task.id);
   if (session.isErr()) {
     throw session.error;

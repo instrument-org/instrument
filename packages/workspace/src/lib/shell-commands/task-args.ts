@@ -174,20 +174,37 @@ const OWN_FILE_IN_BRIEF = new RegExp(
  * the task would fail at its first read and wake the conversation about it,
  * which is a turn spent on what this catches. A file handed over lands at the
  * same path in the task's own folder, so the brief's name for it stays right.
+ *
+ * `/task` in a brief is also the task's own folder, so a path with no file
+ * behind it is an output the brief asks the task to make, and passes.
  */
-export function requireFilesNamedInBrief(
+export async function requireFilesNamedInBrief(
   prompt: string,
   specs: string[],
-  cwd: string,
-): void {
+  { cwd, layout }: { cwd: string; layout: WorkspaceFsLayout },
+): Promise<void> {
   const handed = new Set(specs.map((spec) => ownPath(spec, cwd)));
-  const missing = [
+  const named = [
     ...new Set(
       [...prompt.matchAll(OWN_FILE_IN_BRIEF)].map((match) =>
         ownPath((match[1] ?? "").replace(/[.,;:]+$/, ""), cwd),
       ),
     ),
-  ].filter((named) => !handed.has(named));
+  ].filter((path) => !handed.has(path));
+  const missing = (
+    await Promise.all(
+      named.map(async (inputPath) => {
+        const resolved = resolveExistingFilePath({ inputPath, layout });
+        if (resolved.isErr()) {
+          return;
+        }
+        const stat = await fs
+          .stat(resolved.value.absolutePath)
+          .catch(() => undefined);
+        return stat?.isFile() ? inputPath : undefined;
+      }),
+    )
+  ).filter((path) => path !== undefined);
   if (missing.length > 0) {
     throw new Error(
       `the brief names ${missing.map((named) => `"${named}"`).join(", ")} in this conversation's own folder, which no task can see. Add ${missing.map((named) => `--file ${named}`).join(" ")}: a copy lands in the task's own ${TASK_FOLDER_NAMES.attachments}/ under the same name.`,

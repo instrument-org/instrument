@@ -2,12 +2,12 @@
  * Build one local page that plays a set of wireframes, for walking someone
  * through them or recording a video of them.
  *
- *   node .agents/skills/product-wireframe/scripts/build-index.ts
- *   node .agents/skills/product-wireframe/scripts/build-index.ts a.html b.html
- *   node .agents/skills/product-wireframe/scripts/build-index.ts --out /tmp/x.html
+ *   node <repo>/.agents/wireframe-kit/build-index.ts
+ *   node <repo>/.agents/wireframe-kit/build-index.ts a.html b.html
+ *   node <repo>/.agents/wireframe-kit/build-index.ts --out /tmp/x.html
  *
- * With no paths it takes every docs/plans/active/wireframes-*.html, in name
- * order. Paths given on the command line are used exactly, in the order given,
+ * Run it from the folder the wireframes live in. With no paths it takes every
+ * wireframes-*.html there, in name order. Paths given on the command line are used exactly, in the order given,
  * and may name a file anywhere. A manifest overrides both; see below.
  *
  * Every document is inlined into the output and swapped into one iframe with
@@ -23,9 +23,8 @@
 import { existsSync, globSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
-const FLOWS = "docs/plans/active";
-const OUT = `${FLOWS}/wireframes-index.html`;
+const ROOT = process.cwd();
+const OUT = "wireframes-index.html";
 
 /**
  * Optional, and the only way to get grouping or a hand-written title.
@@ -33,7 +32,7 @@ const OUT = `${FLOWS}/wireframes-index.html`;
  * `# Heading` line starts a group. Blank lines are skipped. Its order is the
  * order of the index.
  */
-const MANIFEST = `${FLOWS}/wireframes-index.txt`;
+const MANIFEST = "wireframes-index.txt";
 
 interface Entry {
   file: string;
@@ -87,16 +86,12 @@ const readFrames = (html: string) => {
 
 // ---- choosing the set ------------------------------------------------------
 
-/** Manifest entries may name a bare file, which is looked for beside the plans. */
-const locate = (name: string) => {
-  for (const candidate of [name, `${FLOWS}/${name}`]) {
-    if (existsSync(path.join(REPO_ROOT, candidate))) return candidate;
-  }
-  return undefined;
-};
+/** Names resolve against the folder this runs in; a path may point anywhere. */
+const locate = (name: string) =>
+  existsSync(path.resolve(ROOT, name)) ? name : undefined;
 
 const fromManifest = (): Entry[] => {
-  const lines = readFileSync(path.join(REPO_ROOT, MANIFEST), "utf8").split(
+  const lines = readFileSync(path.resolve(ROOT, MANIFEST), "utf8").split(
     "\n",
   );
   const entries: Entry[] = [];
@@ -118,7 +113,7 @@ const fromManifest = (): Entry[] => {
       console.warn(`build-index: skipping missing artifact: ${name}`);
       continue;
     }
-    const html = readFileSync(path.join(REPO_ROOT, file), "utf8");
+    const html = readFileSync(path.resolve(ROOT, file), "utf8");
     entries.push({ file, group, title: title || readTitle(html, file) });
     group = undefined; // a heading applies to the run that follows it
   }
@@ -126,7 +121,7 @@ const fromManifest = (): Entry[] => {
 };
 
 const describe = (file: string): Entry => {
-  const html = readFileSync(path.join(REPO_ROOT, file), "utf8");
+  const html = readFileSync(path.resolve(ROOT, file), "utf8");
   return { file, title: readTitle(html, file) };
 };
 
@@ -139,8 +134,8 @@ const chooseSet = (paths: string[]): Entry[] => {
       if (!file) throw new Error(`build-index: no such artifact: ${given}`);
       return describe(file);
     });
-  if (existsSync(path.join(REPO_ROOT, MANIFEST))) return fromManifest();
-  return globSync(`${FLOWS}/wireframes-*.html`, { cwd: REPO_ROOT })
+  if (existsSync(path.resolve(ROOT, MANIFEST))) return fromManifest();
+  return globSync("wireframes-*.html", { cwd: ROOT })
     .filter((file) => file !== OUT)
     .sort()
     .map(describe);
@@ -224,15 +219,15 @@ show(wanted >= 0 ? wanted : 0);
 const build = (entries: Entry[], out: string) => {
   const docs: Record<string, string> = {};
   const rail: string[] = [];
-  const outDir = path.dirname(path.resolve(REPO_ROOT, out));
+  const outDir = path.dirname(path.resolve(ROOT, out));
 
   for (const [i, entry] of entries.entries()) {
-    const html = readFileSync(path.join(REPO_ROOT, entry.file), "utf8");
+    const html = readFileSync(path.resolve(ROOT, entry.file), "utf8");
     const key = path.basename(entry.file, ".html");
     docs[key] = html;
 
     // Relative, so the file survives being moved or handed to someone else.
-    const href = path.relative(outDir, path.resolve(REPO_ROOT, entry.file));
+    const href = path.relative(outDir, path.resolve(ROOT, entry.file));
     if (entry.group)
       rail.push(`<div class="group">${escapeHtml(entry.group)}</div>`);
     rail.push(
@@ -281,11 +276,11 @@ const build = (entries: Entry[], out: string) => {
 </html>
 `;
 
-  const target = path.resolve(REPO_ROOT, out);
+  const target = path.resolve(ROOT, out);
   writeFileSync(target, page);
   const kb = Math.round(Buffer.byteLength(page) / 1024);
   console.log(
-    `${path.relative(REPO_ROOT, target)}: ${entries.length} artifacts, ${kb} KB`,
+    `${path.relative(ROOT, target)}: ${entries.length} artifacts, ${kb} KB`,
   );
 };
 

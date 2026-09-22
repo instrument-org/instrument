@@ -9,7 +9,7 @@ Every plan starts with a `Status:` line directly under the title, saying where t
 
 When a plan moves, fix the links pointing at it. Sibling links inside one directory become `../active/…` or `../completed/…` across the boundary.
 
-`wireframes-*.html` files beside the plans are gitignored working artifacts: generated locally for a plan's design exploration, deliberately untracked, and absent in a fresh clone.
+Wireframes are working artifacts drawn with `create-page`'s wireframe template and the Studio kit in [`.agents/wireframe-kit/`](../../.agents/wireframe-kit/KIT.md), and live outside the repository. A plan says in its own prose what a wireframe settled rather than linking one. `wireframes-*.html` beside the plans stays gitignored, so one written here by habit is never committed.
 
 ## Active
 

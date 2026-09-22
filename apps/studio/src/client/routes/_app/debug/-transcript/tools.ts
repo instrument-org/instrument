@@ -23,19 +23,19 @@ export function activity(title: string): ToolCall {
 
 /** A question put to the user, and the answer that came back. */
 export function chose({
+  answer,
   choices,
   explanation,
   question,
-  selected,
 }: {
+  answer: ToolOutput<"tool-choose">;
   choices: string[];
   explanation?: string;
   question: string;
-  selected: string;
 }): ToolCall {
   return call({
     input: { choices, explanation, question },
-    output: { selectedChoice: selected },
+    output: answer,
     type: "tool-choose",
   });
 }

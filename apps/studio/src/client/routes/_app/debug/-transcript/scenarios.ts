@@ -565,10 +565,10 @@ export const scenarios: Scenario[] = [
       user("Try everything you can do, and tell me how it went."),
       activity("Working through the tools"),
       chose({
+        answer: { selectedChoice: "React" },
         choices: ["React", "Vue", "Svelte"],
         explanation: "Asking which framework to target",
         question: "Which frontend framework should we use?",
-        selected: "React",
       }),
       loadedSkill({
         explanation: "Loading the PDF skill",
@@ -718,9 +718,9 @@ export const scenarios: Scenario[] = [
     script: [
       user("Just do it, no commentary."),
       chose({
+        answer: { selectedChoice: "React" },
         choices: ["React", "Vue"],
         question: "Which framework?",
-        selected: "React",
       }),
       loadedSkill({ name: "pdf" }),
       read({ filePath: "./src/app.ts" }),
@@ -878,6 +878,52 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
         read({ explanation: "Reading the readme", filePath: "./README.md" }),
       ),
       prose("It is a small project with a readme and a source folder."),
+    ],
+  },
+  {
+    id: "questions",
+    name: "Every way to answer a question",
+    script: [
+      user("Set up the dashboard project."),
+      chose({
+        answer: { selectedChoice: "React" },
+        choices: ["React", "Vue", "Svelte"],
+        question: "Which framework should the dashboard use?",
+      }),
+      chose({
+        answer: {
+          note: "The staging one is shared with the other team, so keep the names prefixed.",
+          selectedChoice: "Staging",
+        },
+        choices: ["Staging", "Production"],
+        question: "Which database should it read from?",
+      }),
+      chose({
+        answer: { selectedChoice: "Tailwind, with our existing tokens" },
+        choices: ["Plain CSS", "CSS modules"],
+        question: "How should it be styled?",
+      }),
+      chose({
+        answer: {
+          note: "Match the other internal tools.",
+          selectedChoice: "Behind the company login",
+        },
+        choices: ["Public", "Password protected"],
+        question: "Who can see it?",
+      }),
+      chose({
+        answer: { declined: true },
+        choices: ["Weekly", "Daily", "Hourly"],
+        question: "How often should the data refresh?",
+      }),
+      chose({
+        answer: { declined: true, note: "Not decided yet. Leave it out." },
+        choices: ["Yes", "No"],
+        question: "Should it send a digest email?",
+      }),
+      prose(
+        "The project is set up on React against staging, styled with Tailwind and behind the company login. I left the refresh at the framework's default and the digest email out.",
+      ),
     ],
   },
   {

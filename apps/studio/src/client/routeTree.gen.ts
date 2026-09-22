@@ -48,6 +48,7 @@ import { Route as AppDebugComponentsIndexRouteImport } from './routes/_app/debug
 import { Route as AppDebugComponentsTypographyRouteImport } from './routes/_app/debug/components/typography'
 import { Route as AppDebugComponentsTranscriptRouteImport } from './routes/_app/debug/components/transcript'
 import { Route as AppDebugComponentsSpinnerRouteImport } from './routes/_app/debug/components/spinner'
+import { Route as AppDebugComponentsQuestionRouteImport } from './routes/_app/debug/components/question'
 import { Route as AppDebugComponentsProviderIconsRouteImport } from './routes/_app/debug/components/provider-icons'
 import { Route as AppDebugComponentsOnboardingRouteImport } from './routes/_app/debug/components/onboarding'
 import { Route as AppDebugComponentsFormElementsRouteImport } from './routes/_app/debug/components/form-elements'
@@ -258,6 +259,12 @@ const AppDebugComponentsSpinnerRoute =
     path: '/spinner',
     getParentRoute: () => AppDebugComponentsRoute,
   } as any)
+const AppDebugComponentsQuestionRoute =
+  AppDebugComponentsQuestionRouteImport.update({
+    id: '/question',
+    path: '/question',
+    getParentRoute: () => AppDebugComponentsRoute,
+  } as any)
 const AppDebugComponentsProviderIconsRoute =
   AppDebugComponentsProviderIconsRouteImport.update({
     id: '/provider-icons',
@@ -370,6 +377,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
+  '/debug/components/question': typeof AppDebugComponentsQuestionRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
   '/debug/components/typography': typeof AppDebugComponentsTypographyRoute
@@ -415,6 +423,7 @@ export interface FileRoutesByTo {
   '/debug/components/error-card': typeof AppDebugComponentsErrorCardRoute
   '/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
+  '/debug/components/question': typeof AppDebugComponentsQuestionRoute
   '/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
   '/debug/components/typography': typeof AppDebugComponentsTypographyRoute
@@ -469,6 +478,7 @@ export interface FileRoutesById {
   '/_app/debug/components/form-elements': typeof AppDebugComponentsFormElementsRoute
   '/_app/debug/components/onboarding': typeof AppDebugComponentsOnboardingRouteWithChildren
   '/_app/debug/components/provider-icons': typeof AppDebugComponentsProviderIconsRoute
+  '/_app/debug/components/question': typeof AppDebugComponentsQuestionRoute
   '/_app/debug/components/spinner': typeof AppDebugComponentsSpinnerRoute
   '/_app/debug/components/transcript': typeof AppDebugComponentsTranscriptRoute
   '/_app/debug/components/typography': typeof AppDebugComponentsTypographyRoute
@@ -522,6 +532,7 @@ export interface FileRouteTypes {
     | '/debug/components/form-elements'
     | '/debug/components/onboarding'
     | '/debug/components/provider-icons'
+    | '/debug/components/question'
     | '/debug/components/spinner'
     | '/debug/components/transcript'
     | '/debug/components/typography'
@@ -567,6 +578,7 @@ export interface FileRouteTypes {
     | '/debug/components/error-card'
     | '/debug/components/form-elements'
     | '/debug/components/provider-icons'
+    | '/debug/components/question'
     | '/debug/components/spinner'
     | '/debug/components/transcript'
     | '/debug/components/typography'
@@ -620,6 +632,7 @@ export interface FileRouteTypes {
     | '/_app/debug/components/form-elements'
     | '/_app/debug/components/onboarding'
     | '/_app/debug/components/provider-icons'
+    | '/_app/debug/components/question'
     | '/_app/debug/components/spinner'
     | '/_app/debug/components/transcript'
     | '/_app/debug/components/typography'
@@ -915,6 +928,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugComponentsSpinnerRouteImport
       parentRoute: typeof AppDebugComponentsRoute
     }
+    '/_app/debug/components/question': {
+      id: '/_app/debug/components/question'
+      path: '/question'
+      fullPath: '/debug/components/question'
+      preLoaderRoute: typeof AppDebugComponentsQuestionRouteImport
+      parentRoute: typeof AppDebugComponentsRoute
+    }
     '/_app/debug/components/provider-icons': {
       id: '/_app/debug/components/provider-icons'
       path: '/provider-icons'
@@ -1049,6 +1069,7 @@ interface AppDebugComponentsRouteChildren {
   AppDebugComponentsFormElementsRoute: typeof AppDebugComponentsFormElementsRoute
   AppDebugComponentsOnboardingRoute: typeof AppDebugComponentsOnboardingRouteWithChildren
   AppDebugComponentsProviderIconsRoute: typeof AppDebugComponentsProviderIconsRoute
+  AppDebugComponentsQuestionRoute: typeof AppDebugComponentsQuestionRoute
   AppDebugComponentsSpinnerRoute: typeof AppDebugComponentsSpinnerRoute
   AppDebugComponentsTranscriptRoute: typeof AppDebugComponentsTranscriptRoute
   AppDebugComponentsTypographyRoute: typeof AppDebugComponentsTypographyRoute
@@ -1063,6 +1084,7 @@ const AppDebugComponentsRouteChildren: AppDebugComponentsRouteChildren = {
   AppDebugComponentsOnboardingRoute:
     AppDebugComponentsOnboardingRouteWithChildren,
   AppDebugComponentsProviderIconsRoute: AppDebugComponentsProviderIconsRoute,
+  AppDebugComponentsQuestionRoute: AppDebugComponentsQuestionRoute,
   AppDebugComponentsSpinnerRoute: AppDebugComponentsSpinnerRoute,
   AppDebugComponentsTranscriptRoute: AppDebugComponentsTranscriptRoute,
   AppDebugComponentsTypographyRoute: AppDebugComponentsTypographyRoute,

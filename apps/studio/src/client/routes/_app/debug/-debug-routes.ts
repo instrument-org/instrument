@@ -67,6 +67,11 @@ export const componentPages = [
     to: "/debug/components/transcript",
   },
   {
+    id: "question",
+    label: "Question card",
+    to: "/debug/components/question",
+  },
+  {
     id: "error-card",
     label: "Error card",
     to: "/debug/components/error-card",

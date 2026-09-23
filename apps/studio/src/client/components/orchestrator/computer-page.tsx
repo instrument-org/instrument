@@ -1,8 +1,10 @@
 import {
   computerColumnWidthAtom,
+  computerFolderViewsAtom,
   computerHiddenFilesAtom,
   computerSortAtom,
   computerViewAtom,
+  type ComputerFolderView,
   type FileTab,
 } from "@/client/atoms/orchestrator";
 import {
@@ -10,6 +12,7 @@ import {
   type FileSystemFileItem,
   FileSystemFolderGlyph,
   type FileSystemItem,
+  type FileSystemSortState,
 } from "@/client/components/extend/file-system";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
@@ -58,6 +61,12 @@ import { toast } from "sonner";
 import { useOrchestrator } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
 import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
+
+/**
+ * How many folders' layouts are kept. Past it the one left alone longest goes
+ * back to opening the way a folder never set does.
+ */
+const FOLDER_VIEWS_KEPT = 500;
 
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
@@ -141,11 +150,13 @@ export function ComputerPage({
   const { taskId } = useOrchestrator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // Held above the browser, which is rebuilt on every opening, so the layout,
-  // the order, the column width and the dotfiles answer survive walking into
-  // the next folder, the way the Finder keeps them.
-  const [view, setView] = useAtom(computerViewAtom);
-  const [sort, setSort] = useAtom(computerSortAtom);
+  // Held above the browser, which is rebuilt on every opening, so the column
+  // width and the dotfiles answer survive walking into the next folder. The
+  // layout and order are kept per folder, below; these two are what a folder
+  // of no layout of its own opens in when nothing is on screen to keep.
+  const [defaultView, setDefaultView] = useAtom(computerViewAtom);
+  const [defaultSort, setDefaultSort] = useAtom(computerSortAtom);
+  const [folderViews, setFolderViews] = useAtom(computerFolderViewsAtom);
   const [columnWidth, setColumnWidth] = useAtom(computerColumnWidthAtom);
   const [showHiddenFiles, setShowHiddenFiles] = useAtom(
     computerHiddenFilesAtom,
@@ -499,6 +510,51 @@ export function ComputerPage({
   // with the folder being left: an address to a folder that is not there,
   // written to history for the back button to return to.
   const settled = loaded.root === root;
+  // The recents are rooted nowhere, so no place in the list is the one open.
+  const rootHostPath = isRecents ? undefined : root === "~" ? homePath : root;
+
+  // Each folder in the layout and order it was last left in, the way a Finder
+  // window shows one: walking into a folder with a look of its own takes that
+  // look, and walking into one without keeps whatever is on screen. Walking
+  // means the browser's own folder changing, by a double-click, the sidebar or
+  // back and forward; the columns opening a folder beside the last is still
+  // the same window, and nothing changes under the pointer there.
+  const folderKeyOf = (prefix: string) =>
+    isRecents ? RECENTS_ROOT : hostPathOf(prefix, rootHostPath ?? root);
+  const currentKey = folderKeyOf(current);
+  const [shown, setShown] = useState(() => {
+    const own = folderViews[currentKey];
+    return {
+      at: currentKey,
+      sort: own?.sort ?? defaultSort,
+      view: own?.view ?? defaultView,
+    };
+  });
+  // Set during render rather than in an effect, so the folder is drawn in its
+  // own look from its first frame. A new root arrives a render ahead of the
+  // folder under it, so nothing is taken until the two agree.
+  if (settled && shown.at !== currentKey) {
+    const own = folderViews[currentKey];
+    setShown({
+      at: currentKey,
+      sort: own?.sort ?? shown.sort,
+      view: own?.view ?? shown.view,
+    });
+  }
+  // A change is kept for the folder the window is showing. In the columns that
+  // is the last column's folder, which is where leaving the columns goes.
+  const keepLook = (look: ComputerFolderView) => {
+    setShown((previous) => ({ ...previous, ...look }));
+    const key = folderKeyOf(shown.view === "columns" ? onScreen : current);
+    // Newest last, so the oldest are the ones let go of past the cap.
+    setFolderViews((previous) => {
+      const kept: [string, ComputerFolderView][] = [
+        ...Object.entries(previous).filter(([at]) => at !== key),
+        [key, look],
+      ];
+      return Object.fromEntries(kept.slice(-FOLDER_VIEWS_KEPT));
+    });
+  };
   useEffect(() => {
     if (!settled || onScreen === path) {
       return;
@@ -595,8 +651,6 @@ export function ComputerPage({
     };
   }, [onScreen, root, settled]);
 
-  // The recents are rooted nowhere, so no place in the list is the one open.
-  const rootHostPath = isRecents ? undefined : root === "~" ? homePath : root;
   // A folder the system refused has no listing to say where it is, so where
   // it is comes from the root and the prefix instead: the tab row and the
   // conversation still name the folder the person is standing in.
@@ -853,7 +907,13 @@ export function ComputerPage({
                         key: "shownAt" as const,
                       },
                     }
-                  : { onSortChange: setSort, sort })}
+                  : {
+                      onSortChange: (sort: FileSystemSortState) => {
+                        setDefaultSort(sort);
+                        keepLook({ sort, view: shown.view });
+                      },
+                      sort: shown.sort,
+                    })}
                 // Every row here is a thing on this computer, and drags out of
                 // the window as one: to the desktop, a Finder window, another
                 // app. What lands there is the OS's copy; nothing here moves.
@@ -909,7 +969,10 @@ export function ComputerPage({
                   setSelectedPath(item?.path ?? null);
                 }}
                 onShowHiddenFilesChange={setShowHiddenFiles}
-                onViewChange={setView}
+                onViewChange={(view) => {
+                  setDefaultView(view);
+                  keepLook({ sort: shown.sort, view });
+                }}
                 renamingPath={renamingPath}
                 renderFileStage={(file) => {
                   // Text reads as a thumbnail of the document, the way an image
@@ -959,7 +1022,7 @@ export function ComputerPage({
                 selectedPath={selectedPath}
                 showHiddenFiles={showHiddenFiles}
                 title={rootName}
-                view={view}
+                view={shown.view}
               />
             </div>
           </ContextMenuTrigger>

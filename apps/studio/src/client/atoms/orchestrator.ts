@@ -405,12 +405,9 @@ export const orchestratorSidebarWidthAtom = atomWithStorage<number>(
 );
 
 /**
- * Which of the file browser's layouts it opens in, and whether it lists
- * dotfiles.
- *
- * Both are held here rather than inside the browser because the browser is
- * rebuilt every time a folder is opened into it, and a preference that resets
- * on the next folder is not one anybody sets twice.
+ * The layout a folder with no layout of its own opens in, when the browser
+ * opens on it fresh: the one last chosen anywhere. Walking into such a folder
+ * keeps whatever layout is on screen instead, the way a Finder window does.
  */
 export const computerViewAtom = atomWithStorage<
   "columns" | "gallery" | "icons" | "list"
@@ -425,8 +422,9 @@ export const computerHiddenFilesAtom = atomWithStorage<boolean>(
 );
 
 /**
- * The order a folder's rows are in, held with the layout for the same reason.
- * The recents keep their own order, newest shown first, and do not write here.
+ * The order a folder with no order of its own opens in, the same way as the
+ * layout above. The recents keep their own order, newest shown first, and do
+ * not write here.
  */
 export const computerSortAtom = atomWithStorage<FileSystemSortState>(
   "orchestrator.computer-sort.v1",
@@ -434,6 +432,22 @@ export const computerSortAtom = atomWithStorage<FileSystemSortState>(
   undefined,
   { getOnInit: true },
 );
+
+/**
+ * The layout and order each folder was last left in, by where it is on the
+ * computer, the way the Finder keeps them with the folder: a folder reached
+ * again, by any way in, looks the way it was left. Both are kept whenever
+ * either changes, so a folder's look is one thing rather than two halves
+ * that each fall back on their own. The recents are kept under their root.
+ */
+export const computerFolderViewsAtom = atomWithStorage<
+  Record<string, ComputerFolderView>
+>("orchestrator.computer-folder-views.v1", {}, undefined, { getOnInit: true });
+
+export type ComputerFolderView = {
+  sort: FileSystemSortState;
+  view: "columns" | "gallery" | "icons" | "list";
+};
 
 /**
  * Whether a file tab shows the tree beside its document. One answer for

@@ -1475,13 +1475,6 @@ export function FileSystem({
 }: FileSystemProps) {
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
-  const setView = React.useCallback(
-    (nextView: FileSystemView) => {
-      setInternalView(nextView);
-      onViewChange?.(nextView);
-    },
-    [onViewChange],
-  );
   const [loadedItems, setLoadedItems] = React.useState<FileSystemItem[]>([]);
   const allItems = React.useMemo(
     () => (loadedItems.length > 0 ? [...items, ...loadedItems] : items),
@@ -1517,7 +1510,9 @@ export function FileSystem({
     stack: [normalizeFolderPath(defaultPath)],
   }));
   const currentPath = history.stack[history.index] ?? "";
-  React.useEffect(() => {
+  // Told before paint, so a caller that lays each folder out its own way
+  // draws the new folder in its layout from the first frame.
+  React.useLayoutEffect(() => {
     onPathChange?.(currentPath);
   }, [currentPath, onPathChange]);
   const [ownSelectedPath, setSelectedPath] = React.useState<null | string>(
@@ -2062,6 +2057,27 @@ export function FileSystem({
       }
     }
   });
+  // Leaving the columns leaves the window in the folder the last column
+  // shows, the way the Finder does: the selected folder, or the folder the
+  // selected file is in, which stays selected there.
+  const setView = (nextView: FileSystemView) => {
+    setInternalView(nextView);
+    onViewChange?.(nextView);
+    if (view !== "columns" || nextView === "columns" || !selectedEntry) {
+      return;
+    }
+    if (selectedEntry.kind === "folder") {
+      navigateTo(selectedEntry.path);
+      return;
+    }
+    const folder = selectedEntry.parentPath;
+    if (folder !== currentPath) {
+      setHistory((previous) => {
+        const stack = [...previous.stack.slice(0, previous.index + 1), folder];
+        return { index: stack.length - 1, stack };
+      });
+    }
+  };
   const openFile = React.useCallback(
     (file: FileEntry) => {
       void (async () => {

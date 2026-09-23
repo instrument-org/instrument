@@ -77,34 +77,90 @@ export function translateMountPaths(
   from: FolderMounts,
   to: FolderMounts,
 ): string {
+  let translated = "";
+  let index = 0;
+  for (const found of mountPathsIn(text, from, to)) {
+    translated += text.slice(index, found.at);
+    translated +=
+      found.read?.mountPath ?? text.slice(found.at, found.subpathAt);
+    index = found.read?.end ?? found.subpathAt;
+  }
+  return translated + text.slice(index);
+}
+
+/**
+ * The mount paths in `text`, as the writing side wrote them, that name a
+ * folder no mount of the reading side covers: the paths translateMountPaths
+ * would leave as they were. Each is cut at the first place a path might end,
+ * short of punctuation with more of the path after it (`notes.md`), which is
+ * enough to say which folder was meant.
+ */
+export function unreachableMountPaths(
+  text: string,
+  from: FolderMounts,
+  to: FolderMounts,
+): string[] {
+  const unreachable = new Set<string>();
+  for (const found of mountPathsIn(text, from, to)) {
+    if (found.read) {
+      continue;
+    }
+    let end =
+      text[found.subpathAt] === "/" ? found.subpathAt + 1 : found.subpathAt;
+    while (end < text.length && !PATH_ENDS.has(text[end] ?? "")) {
+      const next = text[end + 1];
+      if (
+        MAYBE_PATH_ENDS.has(text[end] ?? "") &&
+        (next === undefined || /[\s)\]}>"'`]/u.test(next) || text[end] === " ")
+      ) {
+        break;
+      }
+      end++;
+    }
+    unreachable.add(text.slice(found.at, end).replace(/\/$/u, ""));
+  }
+  return [...unreachable];
+}
+
+/**
+ * Every mount path in the text that starts with one of the writing side's
+ * mounts, with how it reads on the reading side, or no reading where no mount
+ * there covers it.
+ */
+function* mountPathsIn(
+  text: string,
+  from: FolderMounts,
+  to: FolderMounts,
+): Generator<{
+  at: number;
+  read: ReturnType<typeof readSubpath>;
+  subpathAt: number;
+}> {
   if (!text.includes(PREFIX)) {
-    return text;
+    return;
   }
   // Longest first, so `Home-Downloads` is not read as `Home` with something
   // called `-Downloads` inside it.
   const sources = Object.values(from).toSorted(
     (a, b) => b.mountName.length - a.mountName.length,
   );
-  let translated = "";
   let index = 0;
   for (;;) {
     const at = text.indexOf(PREFIX, index);
     if (at === -1) {
-      return translated + text.slice(index);
+      return;
     }
-    translated += text.slice(index, at);
     const nameAt = at + PREFIX.length;
     const source = sources.find((folder) =>
       startsWithMountName(text, nameAt, folder.mountName),
     );
     if (!source) {
-      translated += PREFIX;
       index = nameAt;
       continue;
     }
     const subpathAt = nameAt + source.mountName.length;
     const read = readSubpath(text, subpathAt, source, to);
-    translated += read?.mountPath ?? text.slice(at, subpathAt);
+    yield { at, read, subpathAt };
     index = read?.end ?? subpathAt;
   }
 }

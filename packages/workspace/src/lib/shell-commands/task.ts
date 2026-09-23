@@ -60,6 +60,7 @@ import {
   mountsOf,
   translateMountPaths,
   translateTaskFolderPaths,
+  unreachableMountPaths,
 } from "../orchestrator/mount-paths";
 import { outputFolderPath } from "../orchestrator/output-folder";
 import { renderSteps, sessionSteps } from "../orchestrator/steps";
@@ -547,6 +548,10 @@ export async function runNew(
   const layout = await orchestratorLayout(context, orchestratorFolders);
   await requireFilesNamedInBrief(prompt, askedFiles, { cwd, layout });
   const files = await resolveFileUploads(askedFiles, { cwd, layout });
+  requireFoldersNamedInBriefHanded("new", prompt, orchestratorFolders, [
+    ...folders,
+    ...files,
+  ]);
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const tab = values.get("tab")?.[0];
   const browserTargetId =
@@ -682,6 +687,13 @@ export async function runSend(
   const layout = await orchestratorLayout(context, orchestratorFolders);
   await requireFilesNamedInBrief(prompt, askedFiles, { cwd, layout });
   const files = await resolveFileUploads(askedFiles, { cwd, layout });
+  requireFoldersNamedInBriefHanded(
+    "send",
+    prompt,
+    orchestratorFolders,
+    [...Object.values(state.attachedFolders ?? {}), ...files],
+    task.id,
+  );
   const session = await latestOrNewSessionId(task.id);
   if (session.isErr()) {
     throw session.error;
@@ -883,6 +895,43 @@ function handedFolders(
         `${mountPathOf(folder.path, orchestratorFolders) ?? folder.path} (${folder.access})`,
     )
     .join(", ");
+}
+
+/**
+ * Refuses a brief that names a folder by a path the task will not have. Mount
+ * paths are this conversation's own: the task reaches the folders and files it
+ * is handed at paths of its own, and a path none of them covers reaches the
+ * task as written, naming nothing there. A folder the task is not handed is
+ * still something a brief can talk about, by its name, the way a person would.
+ */
+function requireFoldersNamedInBriefHanded(
+  command: "new" | "send",
+  prompt: string,
+  orchestratorFolders: FolderMounts,
+  handed: { path: string }[],
+  taskId?: string,
+) {
+  const unreachable = unreachableMountPaths(
+    prompt,
+    orchestratorFolders,
+    Object.fromEntries(
+      handed.map((item) => [
+        item.path,
+        { mountName: item.path, path: item.path },
+      ]),
+    ),
+  );
+  if (unreachable.length === 0) {
+    return;
+  }
+  const named = unreachable.join(", ");
+  const handOver =
+    command === "new"
+      ? `pass the folder with --folder`
+      : `hand it over first with \`${TASK_COMMAND.name} folder ${taskId ?? "<id>"} --add <path>\``;
+  throw new Error(
+    `${command}: the ${command === "new" ? "brief" : "message"} names ${named}, which this task ${command === "new" ? "is not handed" : "was not handed"}. A task reaches only the folders it is handed, at paths of its own, and your paths are translated to its paths only for those folders. If the task needs the folder, ${handOver}; if not, call the folder by its name rather than its path. Nothing was ${command === "new" ? "created" : "sent"}.`,
+  );
 }
 
 /**

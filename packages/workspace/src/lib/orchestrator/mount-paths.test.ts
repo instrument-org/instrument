@@ -6,6 +6,7 @@ import {
   mountPathOf,
   translateMountPaths,
   translateTaskFolderPaths,
+  unreachableMountPaths,
 } from "./mount-paths";
 
 function mounts(paths: Record<string, string>): FolderMounts {
@@ -173,6 +174,33 @@ describe("translateMountPaths", () => {
   it("returns text with no path in it untouched", () => {
     const text = "Two paragraphs and no folder in either of them.";
     expect(translateMountPaths(text, conversation, task)).toBe(text);
+  });
+});
+
+describe("unreachableMountPaths", () => {
+  it("names a folder the task was not handed, beside one it was", () => {
+    expect(
+      unreachableMountPaths(
+        "Your paths map under `/mnt/Home`. Add the lines to /mnt/Home/Downloads/notes.md, then read /mnt/Home/Desktop/todo.md.",
+        conversation,
+        task,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "/mnt/Home",
+        "/mnt/Home/Desktop/todo.md",
+      ]
+    `);
+  });
+
+  it("names nothing when every path reaches a folder the task has", () => {
+    expect(
+      unreachableMountPaths(
+        "Read /mnt/Home/Downloads/a.pdf and write /mnt/Instrument/out.md.",
+        conversation,
+        task,
+      ),
+    ).toEqual([]);
   });
 });
 

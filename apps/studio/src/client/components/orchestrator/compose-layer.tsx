@@ -29,7 +29,6 @@ export function ComposeLayer({
   childTitles,
   compose,
   drafts,
-  isStarting,
   modelURI,
   onChangeDraft,
   onCloseDraft,
@@ -41,6 +40,7 @@ export function ComposeLayer({
   onStart,
   openOutside,
   sendContext,
+  startingIds,
   threads,
   topics,
 }: {
@@ -48,8 +48,6 @@ export function ComposeLayer({
   childTitles: Map<TaskId, string>;
   compose: ReturnType<typeof useCompose>;
   drafts: Draft[];
-  /** The draft being started, while its first message is on its way. */
-  isStarting: string | undefined;
   modelURI: AIGatewayModelURI.Type | undefined;
   onChangeDraft: (id: string, update: (draft: Draft) => Draft) => void;
   /** A window closed, with the words as its box had them: the draft is kept or thrown away by them. */
@@ -69,6 +67,8 @@ export function ComposeLayer({
   sendContext: () => Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   >;
+  /** The drafts being started, while their first messages are on their way. */
+  startingIds: ReadonlySet<string>;
   threads: Thread[];
   topics: Topic[];
 }) {
@@ -168,7 +168,7 @@ export function ComposeLayer({
             <ComposeWindow
               browser={browser}
               draft={draft}
-              isStarting={isStarting === draft.id}
+              isStarting={startingIds.has(draft.id)}
               key={draft.id}
               modelURI={modelURI}
               onChange={(update) => {

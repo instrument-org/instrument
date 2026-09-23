@@ -80,8 +80,10 @@ export function useDrafts({
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
   );
-  // The draft whose first message is on its way, by id.
-  const [startingId, setStartingId] = useState<string>();
+  // The drafts whose first messages are on their way, by id.
+  const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   // The thread a draft just became, for as long as its row's arrival lasts.
   const [arrivedId, setArrivedId] = useState<StoreId.Session>();
   useEffect(() => {
@@ -190,13 +192,13 @@ export function useDrafts({
    */
   const startThread = (id: string, send: DraftSend) => {
     const draft = drafts.find((entry) => entry.id === id);
-    if (!draft || !ids) {
+    if (!draft || !ids || startingIds.has(id)) {
       return;
     }
     // Read as the thread starts: where the window stood when the arrow was
     // pressed is where the thread is asked for.
     const floats = !isChat || features.float_every_draft;
-    setStartingId(id);
+    setStartingIds((current) => new Set(current).add(id));
     // The model chosen for the thread is the one the next draft opens with.
     saveDefaultModelURI(send.modelURI);
     void (async () => {
@@ -207,8 +209,12 @@ export function useDrafts({
         // A context that cannot be gathered is a thread told less, not a
         // thread that never starts: the send goes on without it.
       }
-      createMessage.mutate(
-        {
+      // Each send settles on its own: the mutation observer follows only the
+      // latest call, so callbacks handed to it would be lost for a draft sent
+      // while another was still on its way.
+      let sessionId: StoreId.Session;
+      try {
+        ({ sessionId } = await createMessage.mutateAsync({
           files: send.files,
           folders: send.folders,
           id: ids.taskId,
@@ -217,57 +223,52 @@ export function useDrafts({
           prompt: send.prompt,
           ...(draft.topicId ? { topics: [draft.topicId] } : {}),
           viewing,
-        },
-        {
-          onError: (error) => {
-            toast.error("Failed to start the thread", {
-              description: error.message,
-            });
-          },
-          onSettled: () => {
-            setStartingId((current) => (current === id ? undefined : current));
-          },
-          onSuccess: ({ sessionId }) => {
-            setDrafts((current) => current.filter((entry) => entry.id !== id));
-            // What the draft gathered becomes the thread's tabs, the pages
-            // and folders as they stand; the new-tab pages among them were
-            // the band's own face and are not carried over, and a draft that
-            // gathered nothing hands over nothing, so the thread opens with
-            // no pane.
-            const group = draftGroupOf(id);
-            const own = windowTabs.allTabs.filter((tab) => tab.group === group);
-            const homes = own.filter((tab) => isHomeTab(tab));
-            for (const home of homes) {
-              windowTabs.close(home.id);
-            }
-            if (floats) {
-              // The window stays and becomes the thread's; the tabs move
-              // behind it, and nothing on screen changes.
-              compose.becomeThread(id, sessionId);
-              if (homes.length === own.length) {
-                windowTabs.dropGroup(group);
-              } else {
-                windowTabs.adoptGroup(group, sessionId, { show: false });
-              }
-              return;
-            }
-            compose.remove(group);
-            setArrivedId(sessionId);
-            if (homes.length === own.length) {
-              windowTabs.dropGroup(group);
-              windowTabs.showThread(sessionId);
-            } else {
-              windowTabs.adoptGroup(group, sessionId);
-            }
-            // The thread is on the chat, whatever place the draft was
-            // written over.
-            toChat();
-            // A list narrowed to a topic or a place is a list the new thread
-            // is very likely not in, so the narrowing goes.
-            setThreadFilters(NO_FILTERS);
-          },
-        },
-      );
+        }));
+      } catch (error) {
+        toast.error("Failed to start the thread", {
+          description: error instanceof Error ? error.message : String(error),
+        });
+        return;
+      } finally {
+        setStartingIds((current) => withoutId(current, id));
+      }
+      setDrafts((current) => current.filter((entry) => entry.id !== id));
+      // What the draft gathered becomes the thread's tabs, the pages
+      // and folders as they stand; the new-tab pages among them were
+      // the band's own face and are not carried over, and a draft that
+      // gathered nothing hands over nothing, so the thread opens with
+      // no pane.
+      const group = draftGroupOf(id);
+      const own = windowTabs.allTabs.filter((tab) => tab.group === group);
+      const homes = own.filter((tab) => isHomeTab(tab));
+      for (const home of homes) {
+        windowTabs.close(home.id);
+      }
+      if (floats) {
+        // The window stays and becomes the thread's; the tabs move
+        // behind it, and nothing on screen changes.
+        compose.becomeThread(id, sessionId);
+        if (homes.length === own.length) {
+          windowTabs.dropGroup(group);
+        } else {
+          windowTabs.adoptGroup(group, sessionId, { show: false });
+        }
+        return;
+      }
+      compose.remove(group);
+      setArrivedId(sessionId);
+      if (homes.length === own.length) {
+        windowTabs.dropGroup(group);
+        windowTabs.showThread(sessionId);
+      } else {
+        windowTabs.adoptGroup(group, sessionId);
+      }
+      // The thread is on the chat, whatever place the draft was
+      // written over.
+      toChat();
+      // A list narrowed to a topic or a place is a list the new thread
+      // is very likely not in, so the narrowing goes.
+      setThreadFilters(NO_FILTERS);
     })();
   };
   return {
@@ -276,7 +277,7 @@ export function useDrafts({
     deleteDraft,
     newDraft,
     showDraft,
-    startingId,
+    startingIds,
     startThread,
   };
 }
@@ -298,4 +299,10 @@ function isIncludable(tab: WindowTab): boolean {
     computerTabOf(tab.href) !== undefined ||
     parseHref(tab.href).pathname.startsWith("/orchestrator/apps/")
   );
+}
+
+function withoutId(ids: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  const next = new Set(ids);
+  next.delete(id);
+  return next;
 }

@@ -744,7 +744,7 @@ function OrchestratorLayout() {
     deleteDraft,
     newDraft,
     showDraft,
-    startingId,
+    startingIds,
     startThread,
   } = useDrafts({
     compose,
@@ -907,7 +907,6 @@ function OrchestratorLayout() {
                 childTitles={childTitles}
                 compose={compose}
                 drafts={drafts}
-                isStarting={startingId}
                 modelURI={modelURI}
                 onChangeDraft={(id, update) => {
                   setDrafts((current) =>
@@ -933,6 +932,7 @@ function OrchestratorLayout() {
                   openScreen(href, { newTab: true });
                 }}
                 sendContext={() => sendContextRef.current()}
+                startingIds={startingIds}
                 threads={threads.data ?? []}
                 topics={topics}
               />

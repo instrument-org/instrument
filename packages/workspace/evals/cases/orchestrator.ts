@@ -428,34 +428,6 @@ const answeredWithoutATask: Assertion = {
   text: "answered from what it could see, without starting a task",
 };
 
-/**
- * The hand-off channel is the child's last assistant text, cut at 400
- * characters, so a child that writes its report into the chat spends the
- * conversation's context on words the conversation is told not to repeat. What
- * is measured is the child's own last words, since that is what travels.
- */
-function childRepliedInAtMost(chars: number): Assertion {
-  const text = `each task's last word was at most ${chars} characters`;
-  return {
-    check: async ({ childSessions }) => {
-      const children = await childSessions();
-      if (children.length === 0) {
-        return fail(text, "no task was started, so nothing reported back");
-      }
-      const lasts = children.map((child) => ({
-        last: assistantTexts(child.sessions).at(-1) ?? "",
-        title: child.title,
-      }));
-      const tooLong = lasts.filter((one) => one.last.length > chars);
-      const evidence = lasts
-        .map((one) => `${one.title}: ${one.last.length} chars`)
-        .join("; ");
-      return tooLong.length === 0 ? pass(text, evidence) : fail(text, evidence);
-    },
-    text,
-  };
-}
-
 /** A task loaded the skill, by its plain or source-qualified name. */
 function aTaskLoadedSkill(name: string): Assertion {
   const text = `a task loaded the ${name} skill`;
@@ -483,6 +455,34 @@ function aTaskLoadedSkill(name: string): Assertion {
         )
         .join("; ");
       return children.some(loads) ? pass(text, evidence) : fail(text, evidence);
+    },
+    text,
+  };
+}
+
+/**
+ * The hand-off channel is the child's last assistant text, cut at 400
+ * characters, so a child that writes its report into the chat spends the
+ * conversation's context on words the conversation is told not to repeat. What
+ * is measured is the child's own last words, since that is what travels.
+ */
+function childRepliedInAtMost(chars: number): Assertion {
+  const text = `each task's last word was at most ${chars} characters`;
+  return {
+    check: async ({ childSessions }) => {
+      const children = await childSessions();
+      if (children.length === 0) {
+        return fail(text, "no task was started, so nothing reported back");
+      }
+      const lasts = children.map((child) => ({
+        last: assistantTexts(child.sessions).at(-1) ?? "",
+        title: child.title,
+      }));
+      const tooLong = lasts.filter((one) => one.last.length > chars);
+      const evidence = lasts
+        .map((one) => `${one.title}: ${one.last.length} chars`)
+        .join("; ");
+      return tooLong.length === 0 ? pass(text, evidence) : fail(text, evidence);
     },
     text,
   };

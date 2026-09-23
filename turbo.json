@@ -5,6 +5,7 @@
   "concurrency": "4",
   "globalPassThroughEnv": [
     "GOMAXPROCS",
+    "INSTRUMENT_ACTIVITY_HEADINGS",
     "INSTRUMENT_EVAL_HOME",
     "INSTRUMENT_TASK_TOOL",
     "LARGE_FOLDER_EVAL_PATH",

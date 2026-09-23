@@ -86,11 +86,6 @@ const SOURCE_PRIORITY: Record<SkillSourceKind, number> = {
   workspace: 1,
 };
 
-interface WeightedEntry {
-  bundled: boolean;
-  named: boolean;
-}
-
 interface SkillCatalog {
   /** Rendered skills in catalog order, with descriptions as shown. */
   entries: { description: string; name: string }[];
@@ -99,6 +94,11 @@ interface SkillCatalog {
   /** Skills whose description was shortened to fit. */
   shortened: number;
   xml: string;
+}
+
+interface WeightedEntry {
+  bundled: boolean;
+  named: boolean;
 }
 
 /**
@@ -122,8 +122,8 @@ export function renderSkillCatalog(
       descriptionCost: escapedLength(skill.description),
       // Stable identity, because catalog entries can be copied into persisted
       // messages and must not retarget when a namesake is installed later.
-      name: skill.id,
       bundled: BUNDLED_SOURCES.has(skill.source),
+      name: skill.id,
       named: NAMED_SKILLS.has(skill.qualifiedName),
       // Its own trailing newline, so the entry costs add up to `xml.length`
       // once the wrapper is accounted for.

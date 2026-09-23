@@ -60,6 +60,26 @@ interface MountedFolderAttachment {
   mountPoint: string;
 }
 
+function activityGuidance(toolName: string) {
+  return `- Every turn that uses tools opens with \`${toolName}\`, and every change of objective inside that turn starts another one. Both rules are unconditional, a two-call lookup as much as a build, because work that appears with nothing said about it reads as the app acting on its own; the tool says how far one activity stretches. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter says what each individual call does; the activity says why the group of them is happening.`;
+}
+
+/**
+ * Whether this task's agent gets `start_activity`, behind the
+ * `activity_headings` flag and off by default. Measured over real tasks, every
+ * model sent the call as a step of its own rather than beside the first calls
+ * of the phase it heads, so each heading cost a model round trip that did
+ * nothing else: a quarter of one model's steps. Without it, Studio groups a
+ * turn's calls itself and labels them from each call's explanation.
+ *
+ * The rule in the session context is written once, so a flag turned off
+ * mid-session leaves an older session told to call a tool it no longer has;
+ * the tool list follows the flag on every request.
+ */
+function activityHeadingsEnabled() {
+  return getWorkspaceConfig().isActivityHeadingsEnabled();
+}
+
 /**
  * How to choose between browsers, for the builds that have a choice.
  *
@@ -81,26 +101,6 @@ function browserTargetingGuidance() {
     `- Targeting applies to a single invocation, so repeat the flag on every command of an external flow; a bare follow-up silently lands back on the task browser. Switching browsers changes which signed-in identity you act as, so say you are switching rather than doing it silently, ask before working inside the user's own logged-in browser, and re-verify signed-in state afterward instead of assuming the previous session carried over.`,
     `- Treat a refusal as a fork rather than an ending. When the task browser is blocked, challenged, or cannot finish a sign-in, name what refused you and offer to retry the same step in the user's own browser with \`--profile\`, in the same reply and without waiting to be asked. Asking them to clear the block themselves is one option, not the whole answer, and ending on it while a browser that could have worked went unmentioned is the failure to avoid.`,
   ].join("\n");
-}
-
-/**
- * Whether this task's agent gets `start_activity`, behind the
- * `activity_headings` flag and off by default. Measured over real tasks, every
- * model sent the call as a step of its own rather than beside the first calls
- * of the phase it heads, so each heading cost a model round trip that did
- * nothing else: a quarter of one model's steps. Without it, Studio groups a
- * turn's calls itself and labels them from each call's explanation.
- *
- * The rule in the session context is written once, so a flag turned off
- * mid-session leaves an older session told to call a tool it no longer has;
- * the tool list follows the flag on every request.
- */
-function activityHeadingsEnabled() {
-  return getWorkspaceConfig().isActivityHeadingsEnabled();
-}
-
-function activityGuidance(toolName: string) {
-  return `- Every turn that uses tools opens with \`${toolName}\`, and every change of objective inside that turn starts another one. Both rules are unconditional, a two-call lookup as much as a build, because work that appears with nothing said about it reads as the app acting on its own; the tool says how far one activity stretches. The \`${TOOL_EXPLANATION_PARAM_NAME}\` parameter says what each individual call does; the activity says why the group of them is happening.`;
 }
 
 async function buildAttachedFolderContext({
@@ -452,6 +452,14 @@ export const mainAgent = setupAgent({
 
     return [systemMessage, userMessage];
   },
+  getTools: () =>
+    Promise.resolve(
+      Object.values(agentTools).filter(
+        (tool) =>
+          tool.name !== agentTools.StartActivity.name ||
+          activityHeadingsEnabled(),
+      ),
+    ),
   onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
     const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
 
@@ -523,14 +531,6 @@ export const mainAgent = setupAgent({
       getWorkspaceConfig().captureException(result.error);
     }
   },
-  getTools: () =>
-    Promise.resolve(
-      Object.values(agentTools).filter(
-        (tool) =>
-          tool.name !== agentTools.StartActivity.name ||
-          activityHeadingsEnabled(),
-      ),
-    ),
   onStart: async ({ sessionId, taskId }) => {
     await beginSkillChangeTracking({ id: taskId, sessionId });
   },

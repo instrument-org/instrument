@@ -22,9 +22,9 @@ import {
 } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { CheckIcon } from "@phosphor-icons/react/Check";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { ChatsIcon } from "@phosphor-icons/react/Chats";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { ExportIcon } from "@phosphor-icons/react/Export";
@@ -201,33 +201,6 @@ export function MessageFence({ code }: { code: string }) {
   return <MessageCard isStreaming={isStreaming} message={parseMessage(code)} />;
 }
 
-/**
- * A part of the message with its own copy control, floated in the part's top
- * corner while hovered so the text keeps the card's full width.
- */
-function CopyablePart({
-  children,
-  label,
-  value,
-}: {
-  children: ReactNode;
-  /** What the control copies, as its name: "Copy subject". */
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="group/part relative min-w-0 px-2 py-1.5">
-      {children}
-      <CopyButton
-        className="absolute top-1 right-1 rounded-sm bg-card p-1 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border group-hover/part:opacity-100 hover:text-foreground focus-visible:opacity-100"
-        iconSize={13}
-        label={label}
-        onCopy={() => navigator.clipboard.writeText(value)}
-      />
-    </div>
-  );
-}
-
 /** The icon of the app a Send row opens, or a glyph where there is none. */
 function AppIcon({
   fallback,
@@ -242,24 +215,6 @@ function AppIcon({
     <span className="flex size-4 items-center justify-center [&_svg]:size-4">
       {fallback}
     </span>
-  );
-}
-
-/**
- * Who the message is for, as written. A name or a team is only read, so only
- * an email address copies: it is the one part the user would paste somewhere.
- */
-function Recipient({ to }: { to: string }) {
-  // A capturing split leaves every address at an odd index.
-  const parts = to.split(new RegExp(`(${ADDRESS.source})`));
-  return parts.map((part, index) =>
-    index % 2 === 1 ? (
-      <CopyableAddress address={part} key={index} />
-    ) : (
-      <span className="text-foreground" key={index}>
-        {part}
-      </span>
-    ),
   );
 }
 
@@ -287,6 +242,33 @@ function CopyableAddress({ address }: { address: string }) {
   );
 }
 
+/**
+ * A part of the message with its own copy control, floated in the part's top
+ * corner while hovered so the text keeps the card's full width.
+ */
+function CopyablePart({
+  children,
+  label,
+  value,
+}: {
+  children: ReactNode;
+  /** What the control copies, as its name: "Copy subject". */
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="group/part relative min-w-0 px-2 py-1.5">
+      {children}
+      <CopyButton
+        className="absolute top-1 right-1 rounded-sm bg-card p-1 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border group-hover/part:opacity-100 hover:text-foreground focus-visible:opacity-100"
+        iconSize={13}
+        label={label}
+        onCopy={() => navigator.clipboard.writeText(value)}
+      />
+    </div>
+  );
+}
+
 function gmailOf(message: MessageDraft): string {
   const to = (message.to?.match(ADDRESS) ?? []).join(",");
   return `https://mail.google.com/mail/?${query({ body: message.body, fs: "1", su: message.subject, to, view: "cm" })}`;
@@ -303,6 +285,24 @@ function query(params: Record<string, string | undefined>): string {
     .filter(([, value]) => value)
     .map(([key, value]) => `${key}=${encodeURIComponent(value ?? "")}`)
     .join("&");
+}
+
+/**
+ * Who the message is for, as written. A name or a team is only read, so only
+ * an email address copies: it is the one part the user would paste somewhere.
+ */
+function Recipient({ to }: { to: string }) {
+  // A capturing split leaves every address at an odd index.
+  const parts = to.split(new RegExp(`(${ADDRESS.source})`));
+  return parts.map((part, index) =>
+    index % 2 === 1 ? (
+      <CopyableAddress address={part} key={index} />
+    ) : (
+      <span className="text-foreground" key={index}>
+        {part}
+      </span>
+    ),
+  );
 }
 
 /** Everything, the way it pastes: an email's subject over its body. */

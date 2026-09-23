@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 /**
  * Does a model reach for the ```files fence on its own?
  *
@@ -14,8 +15,6 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-
-import { APP_NAME_SLUG } from "@instrument-org/shared";
 
 import { AGENT_FILES_LANGUAGE } from "../../src/constants";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";

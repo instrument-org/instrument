@@ -27,32 +27,6 @@ const SAID_MAX_LENGTH = 200;
 /** How much of a step label the outline keeps. */
 const LABEL_MAX_LENGTH = 120;
 
-/**
- * Where a task's agent has gone since a moment, oldest first, from its newest
- * session: the activities it set, or each call it made when it set none, since
- * `start_activity` sits behind a flag. What an overdue note carries in place of
- * the one latest step, so the conversation reads a trajectory rather than a
- * snapshot.
- */
-export async function trajectorySince(
-  taskId: TaskId,
-  since: Date,
-): Promise<string[]> {
-  const sessionId = await latestSessionId(taskId);
-  if (sessionId.isErr() || !sessionId.value) {
-    return [];
-  }
-  const steps = (
-    await sessionSteps({ sessionId: sessionId.value, taskId })
-  ).filter((step) => step.at >= since);
-  const activities = steps.filter((step) => step.kind === "activity");
-  return (
-    activities.length > 0
-      ? activities
-      : steps.filter((step) => step.kind === "call")
-  ).map((step) => step.text);
-}
-
 /** The outline as text, one step per line, the time in the reader's zone. */
 export function renderSteps(steps: Step[]): string {
   return steps
@@ -128,6 +102,31 @@ export async function sessionSteps({
     }
   }
   return steps;
+}
+
+/**
+ * Where a task's agent has gone since a moment, oldest first, from its newest
+ * session: the activities it set, or each call it made when it set none, since
+ * `start_activity` sits behind a flag. What an overdue note carries in place of
+ * the one latest step, so the conversation reads a trajectory rather than a
+ * snapshot.
+ */
+export async function trajectorySince(
+  taskId: TaskId,
+  since: Date,
+): Promise<string[]> {
+  const sessionId = await latestSessionId(taskId);
+  if (sessionId.isErr() || !sessionId.value) {
+    return [];
+  }
+  const allSteps = await sessionSteps({ sessionId: sessionId.value, taskId });
+  const steps = allSteps.filter((step) => step.at >= since);
+  const activities = steps.filter((step) => step.kind === "activity");
+  return (
+    activities.length > 0
+      ? activities
+      : steps.filter((step) => step.kind === "call")
+  ).map((step) => step.text);
 }
 
 function clip(text: string, maxLength: number): string {

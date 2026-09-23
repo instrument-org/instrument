@@ -188,20 +188,6 @@ export function looksLikeCode(text: string): boolean {
   );
 }
 
-/** The nouns in a tool's name, singular, less its verbs and the app's prefix. */
-export function nounsOf(name: string): Set<string> {
-  const words = name
-    .toLowerCase()
-    .split(/[^a-z]+/)
-    .filter(Boolean);
-  return new Set(
-    words
-      .slice(words.length > 2 ? 1 : 0)
-      .filter((word) => !VERBS.has(word))
-      .map((word) => word.replace(/s$/, "")),
-  );
-}
-
 export function parse(text: string): unknown {
   try {
     return JSON.parse(text) as unknown;
@@ -353,4 +339,18 @@ export function titleOf(record: Json): string {
   }
   const key = Object.keys(record)[0];
   return key === undefined ? "Empty" : key.replaceAll("_", " ");
+}
+
+/** The nouns in a tool's name, singular, less its verbs and the app's prefix. */
+function nounsOf(name: string): Set<string> {
+  const words = name
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter(Boolean);
+  return new Set(
+    words
+      .slice(words.length > 2 ? 1 : 0)
+      .filter((word) => !VERBS.has(word))
+      .map((word) => word.replace(/s$/, "")),
+  );
 }

@@ -1,10 +1,10 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import {
-  rememberedFaviconSource,
-  rememberFaviconSource,
-} from "@/client/lib/favicon-memory";
-import { getFaviconUrl } from "@/client/lib/favicon-url";
+  getFaviconUrl,
+  isIconlessThisSession,
+  markIconlessThisSession,
+} from "@/client/lib/favicon-url";
 import {
   destinationParts,
   mailtoAddress,
@@ -396,24 +396,6 @@ function WebLink({
 }
 
 /**
- * The largest a favicon can be and still be the lookup service saying it has
- * none.
- *
- * Asked for a host it does not know, the service answers 404 with a decodable
- * sixteen-pixel globe of its own. A browser paints an image whose bytes decode
- * whatever the status line said, so nothing about that reaches `onError`, and
- * the response carries no header this origin is allowed to read. What is left
- * is the size: a real icon comes back at the source's own resolution, which
- * this endpoint hands over without upscaling, and the placeholder is always
- * sixteen square.
- *
- * A site whose only icon is a sixteen-pixel one is therefore read as having
- * none. That is the better way to be wrong: what it costs is a link with no
- * icon in place of a sixteen-pixel image resampled into a twelve-pixel box.
- */
-const ABSENT_ICON_SIZE = 16;
-
-/**
  * The site's own icon, and nothing at all when the site has none.
  *
  * A stand-in glyph was the other option and says less than the space it takes:
@@ -421,12 +403,13 @@ const ABSENT_ICON_SIZE = 16;
  * cannot be had, the label and the origin beside it were already carrying the
  * whole message.
  *
- * Read the way every favicon is, from the proxy, and remembered the same way: a link with no icon draws none, so what a
- * first render costs is the width of one that is about to be taken away
- * again, and a transcript naming one host repeatedly is the ordinary case.
+ * Read the way every favicon is, from the app's own store, and a site found
+ * this session to have none draws none at once: a transcript naming one host
+ * repeatedly is the ordinary case, and each render after the first would
+ * otherwise hold the width of an icon about to be taken away again.
  */
 function SiteIcon({ className, href }: { className?: string; href: string }) {
-  const [source, setSource] = useState(() => rememberedFaviconSource(href));
+  const [isIconless, setIconless] = useState(() => isIconlessThisSession(href));
   const src = getFaviconUrl(href);
   const {
     attach,
@@ -434,7 +417,7 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
     onLoad: arrived,
   } = useImageArrival(src, "icon");
 
-  if (source === "none") {
+  if (isIconless) {
     return null;
   }
 
@@ -454,19 +437,11 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
         arrivalClassName,
         className,
       )}
-      // A failed load says nothing about the site, so it hides the icon for
-      // this render without being remembered.
       onError={() => {
-        setSource("none");
+        markIconlessThisSession(href);
+        setIconless(true);
       }}
-      onLoad={(event) => {
-        if (event.currentTarget.naturalWidth <= ABSENT_ICON_SIZE) {
-          setSource("none");
-          rememberFaviconSource(href, "none");
-          return;
-        }
-        arrived();
-      }}
+      onLoad={arrived}
       ref={attach}
       src={src}
     />

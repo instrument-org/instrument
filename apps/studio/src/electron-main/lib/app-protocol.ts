@@ -1,5 +1,5 @@
 import { APP_PROTOCOL } from "@instrument-org/shared";
-import { app, type NativeImage, nativeImage, protocol } from "electron";
+import { app, type NativeImage, nativeImage, net, protocol } from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -9,8 +9,10 @@ import {
   isComputerFileHost,
 } from "./computer-files";
 import { getResourcePath } from "./resource-path";
+import { siteIconFor } from "./site-icons";
 
 const FILE_OPEN_ICON_HOST = "file-open-icon";
+const SITE_ICON_HOST = "site-icon";
 // The renderer runs from `file://` in production, where bundled assets cannot
 // be fetched, so the document viewers load their wasm engines from here
 // instead.
@@ -36,6 +38,9 @@ export function registerAppProtocol() {
     switch (url.hostname) {
       case FILE_OPEN_ICON_HOST: {
         return handleFileOpenIconRequest({ request, url });
+      }
+      case SITE_ICON_HOST: {
+        return handleSiteIconRequest({ request, url });
       }
       case VENDOR_HOST: {
         return handleVendorRequest({ request, url });
@@ -97,6 +102,41 @@ async function handleFileOpenIconRequest({
     });
   } catch {
     return new Response(null, { status: 404 });
+  }
+}
+
+/**
+ * A site's icon by host, from the copy kept on disk (see `site-icons.ts`). A
+ * 404 is the proxy saying the site has none; a 503 is a request that could not
+ * be made, which the renderer must not take as an answer about the site.
+ */
+async function handleSiteIconRequest({
+  request,
+  url,
+}: {
+  request: Request;
+  url: URL;
+}) {
+  if (request.method !== "GET") {
+    return new Response(null, { status: 404 });
+  }
+  const host = decodeURIComponent(url.pathname.slice(1)).toLowerCase();
+  try {
+    const icon = await siteIconFor(host, {
+      dir: path.join(app.getPath("userData"), "site-icons"),
+      fetch: (target, init) => net.fetch(target, init),
+      now: Date.now,
+    });
+    if (!icon) {
+      return new Response(null, { status: 404 });
+    }
+    return new Response(new Uint8Array(icon.bytes), {
+      // The disk copy is the cache; the page's own memory of an image covers a
+      // row drawn twice, and a new launch reads the disk again.
+      headers: { "Cache-Control": "no-cache", "Content-Type": icon.type },
+    });
+  } catch {
+    return new Response(null, { status: 503 });
   }
 }
 

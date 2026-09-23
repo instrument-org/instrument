@@ -1,10 +1,9 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import {
-  type FaviconSource,
-  rememberedFaviconSource,
-  rememberFaviconSource,
-} from "@/client/lib/favicon-memory";
-import { getFaviconUrl } from "@/client/lib/favicon-url";
+  getFaviconUrl,
+  isIconlessThisSession,
+  markIconlessThisSession,
+} from "@/client/lib/favicon-url";
 import { cn } from "@/client/lib/utils";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { type ReactNode, useState } from "react";
@@ -30,14 +29,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
  */
 export const FAVICON_SURFACE_CLASS_NAME = "dark:bg-white/10";
 
-/**
- * The widest image the proxy sends when it has no icon for a site: a 16px
- * globe of its own, under a 404 an `<img>` draws anyway. The proxy is asked
- * for 64 and answers with what the site has, 32 or 64 for a real icon, so an
- * answer this small is its stand-in and not the site's.
- */
-const PROXY_STAND_IN_MAX_PX = 16;
-
 export function Favicon({
   className,
   fallback,
@@ -52,20 +43,9 @@ export function Favicon({
   url: string;
 }) {
   const hostname = URL.canParse(url) ? new URL(url).hostname : url;
-  // A site the proxy has no icon for gets a drawn globe rather than the
-  // proxy's bitmap one scaled up, and a site known to have none draws it at
-  // once. A load that failed hides the icon for this render only: it says
-  // nothing about the site, so it is not remembered.
-  const [source, setSource] = useState<FaviconSource>(() =>
-    rememberedFaviconSource(url),
-  );
-  const hide = ({ remember }: { remember: boolean }) => {
-    setSource("none");
-    if (remember) {
-      rememberFaviconSource(url, "none");
-    }
-    onNone?.();
-  };
+  // A site with no icon gets a drawn globe rather than a bitmap one scaled up,
+  // and one already found to have none this session draws it at once.
+  const [isIconless, setIconless] = useState(() => isIconlessThisSession(url));
   const faviconUrl = getFaviconUrl(url);
   // Taken apart here: what goes to the element's ref is a ref to the lint,
   // and the class beside it is read in render.
@@ -78,7 +58,7 @@ export function Favicon({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        {source === "none" ? (
+        {isIconless ? (
           (fallback ?? (
             <GlobeIcon
               aria-label={`Favicon for ${hostname}`}
@@ -98,18 +78,11 @@ export function Favicon({
               className,
             )}
             onError={() => {
-              hide({ remember: false });
+              markIconlessThisSession(url);
+              setIconless(true);
+              onNone?.();
             }}
-            onLoad={(event) => {
-              // A width of zero is an image with no size of its own (a vector
-              // one, or a test's), which is not the proxy's globe.
-              const { naturalWidth } = event.currentTarget;
-              if (naturalWidth > 0 && naturalWidth <= PROXY_STAND_IN_MAX_PX) {
-                hide({ remember: true });
-                return;
-              }
-              arrived();
-            }}
+            onLoad={arrived}
             ref={attach}
             src={faviconUrl}
           />

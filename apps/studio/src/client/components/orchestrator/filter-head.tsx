@@ -119,7 +119,7 @@ export function FilterHead(props: FilterProps) {
   return (
     <div
       aria-label="Filters"
-      className="flex shrink-0 items-center gap-1 px-3 pt-2"
+      className="flex shrink-0 items-center gap-1 px-3 pt-2 select-none"
       ref={lineRef}
       role="group"
     >

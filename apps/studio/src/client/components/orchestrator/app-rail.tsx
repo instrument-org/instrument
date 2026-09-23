@@ -77,7 +77,7 @@ export function AppRail({
   return (
     <nav
       aria-label="Places"
-      className="flex h-full w-19 shrink-0 flex-col items-center gap-3 border-r border-border bg-muted/40 pt-3 pb-2"
+      className="flex h-full w-19 shrink-0 flex-col items-center gap-3 border-r border-border bg-muted/40 pt-3 pb-2 select-none"
     >
       {/* The way to a new thread, in the brand's own green: round, since the
         word under it is the label and the tile needs none of its own. */}

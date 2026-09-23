@@ -12,10 +12,12 @@
  * nothing the user sees. Adherence is a property of the prompt, which means it
  * has to be measured again whenever the prompt moves.
  */
+import fs from "node:fs";
 import path from "node:path";
 
 import { AGENT_FILES_LANGUAGE } from "../../src/constants";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
+import { MOUNT } from "../../src/mount-points";
 import { type WorkspaceFilePath } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
@@ -208,6 +210,100 @@ const assertNamedMountedFile: Assertion = {
   text: "Named the file in the shared folder",
 };
 
+const EDITED_NOTE = "2026-09-23.md";
+const ADDED_ITEMS = ["dentist", "passport", "water filter"];
+
+function lastAssistantText(sessions: Session.WithMessagesAndParts[]): string {
+  const message = sessions
+    .flatMap((session) => session.messages)
+    .filter(
+      (candidate) =>
+        candidate.role === "assistant" &&
+        candidate.parts.some(
+          (part) => part.type === "text" && part.text.trim() !== "",
+        ),
+    )
+    .at(-1);
+  return (
+    message?.parts
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("\n\n") ?? ""
+  );
+}
+
+function namesEditedNote(text: string): string[] {
+  return fenceBodies(text)
+    .flatMap(fenceLines)
+    .filter((line) => line.endsWith(`/${EDITED_NOTE}`));
+}
+
+/**
+ * The edit actually landed: every item sits in the first section, below what
+ * was there, and the second section is untouched. Without this the fence
+ * assertions could pass on a note nobody changed.
+ */
+const assertNoteEdited: Assertion = {
+  check: async ({ taskId }) => {
+    const text = "Added the items at the bottom of the first section";
+    // Read at the mount the conversation sees, whatever it said, so the edit
+    // is scored apart from whether anyone handed it over.
+    const resolved = await getCurrentFileInfo({
+      filePath:
+        `${MOUNT.attachedFolders}/Journal/${EDITED_NOTE}` as WorkspaceFilePath,
+      taskId,
+    });
+    if (resolved.isErr()) {
+      return { evidence: resolved.error.message, passed: false, text };
+    }
+    const note = fs.readFileSync(resolved.value.hostPath, "utf8");
+    const [first = "", second = ""] = note.split(/^## Reading$/mu);
+    const firstLines = first.trim().split("\n");
+    const tail = firstLines.slice(-ADDED_ITEMS.length).join("\n").toLowerCase();
+    const passed =
+      ADDED_ITEMS.every((item) => tail.includes(item)) &&
+      firstLines
+        .slice(-ADDED_ITEMS.length)
+        .every((row) => row.startsWith("- [ ]")) &&
+      second.includes("Skim the conference talk notes");
+    return { evidence: note, passed, text };
+  },
+  text: "Added the items at the bottom of the first section",
+};
+
+/** The task's receipt named the note it changed, by the path it reached. */
+const assertTaskFencedEditedNote: Assertion = {
+  check: async ({ childSessions }) => {
+    const text = "The task's receipt fenced the note it changed";
+    const children = await childSessions();
+    const receipts = children.map((child) => lastAssistantText(child.sessions));
+    const named = receipts.flatMap(namesEditedNote);
+    return {
+      evidence:
+        named.length > 0
+          ? named.join(" | ")
+          : `No fenced note; receipts: ${JSON.stringify(receipts)}`,
+      passed: named.length > 0,
+      text,
+    };
+  },
+  text: "The task's receipt fenced the note it changed",
+};
+
+/** The conversation's closing reply handed the changed note over. */
+const assertConversationFencedEditedNote: Assertion = {
+  check: ({ sessions }) => {
+    const text = "The closing reply fenced the note that changed";
+    const reply = lastAssistantText(sessions);
+    const named = namesEditedNote(reply);
+    return {
+      evidence: named.length > 0 ? named.join(" | ") : JSON.stringify(reply),
+      passed: named.length > 0,
+      text,
+    };
+  },
+  text: "The closing reply fenced the note that changed",
+};
+
 export const FILES_FENCE_EVALS = [
   defineEval({
     assertions: [
@@ -247,6 +343,30 @@ export const FILES_FENCE_EVALS = [
   defineEval({
     assertions: [assertNoFence],
     name: "files-fence-no-files-involved",
+    prompt:
+      "In two sentences, what is the difference between a semaphore and a mutex?",
+  }),
+  defineEval({
+    // A file of the user's that a task changed in place is handed back where
+    // it sits, by the task to the conversation and by the conversation to the
+    // user, so they can check what was written.
+    assertions: [
+      assertTaskFencedEditedNote,
+      assertConversationFencedEditedNote,
+      assertLinesResolve,
+      assertNoteEdited,
+    ],
+    folders: [{ access: "read-write", path: path.join(FIXTURES, "Journal") }],
+    kind: "orchestrator",
+    name: "files-fence-orchestrator-edited-note",
+    prompt: `Add these as checkboxes at the bottom of the first section of ${EDITED_NOTE} in my Journal folder: call the dentist, renew my passport, order a new water filter.`,
+  }),
+  defineEval({
+    // The mirror: handing back a changed file must not become a fence on
+    // every reply.
+    assertions: [assertNoFence],
+    kind: "orchestrator",
+    name: "files-fence-orchestrator-no-files-involved",
     prompt:
       "In two sentences, what is the difference between a semaphore and a mutex?",
   }),

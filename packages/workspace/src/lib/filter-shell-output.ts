@@ -53,7 +53,11 @@ export function filterShellOutput(
   // `https://token@host`), the form a token reaches git, curl, and package
   // managers in. Without this a token the agent put in a remote or a fetch URL
   // echoes back through progress output, `git remote -v`, and auth errors.
-  filtered = filtered.replaceAll(URL_USERINFO_PATTERN, "$1***@");
+  // The pattern cannot match without `://`, and a scan for that literal is
+  // several times cheaper than the regex on output of tens of megabytes.
+  if (filtered.includes("://")) {
+    filtered = filtered.replaceAll(URL_USERINFO_PATTERN, "$1***@");
+  }
   filtered = filtered.replaceAll(CREDENTIAL_FIELD_PATTERN, "$1=***");
 
   if (rewriteSeparators) {

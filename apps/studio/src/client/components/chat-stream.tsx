@@ -461,8 +461,6 @@ export function ChatStream({
     let lastFooterIndex = 0;
     let previousBrowserStatusNote: string | undefined;
     let visibleAssistantContentCount = 0;
-    // Whether the dots are already standing in for words being composed.
-    let isTypingShown = false;
 
     // The turn being built. A turn is one message per step, so its rows arrive
     // over several passes of the loop below and are held here until the run
@@ -492,22 +490,20 @@ export function ChatStream({
       const seenSourceIds = new Set<string>();
 
       // The conversation's own replies land whole: while a step is still
-      // being composed its words are held back and a typing row stands in,
-      // so what the user reads is what was sent, never what is being typed.
+      // being composed its words are held back and the dots at the tail stand
+      // in, so what the user reads is what was sent, never what is being typed.
       // A reply that was superseded before it finished is never shown.
       const isComposing =
         presentation === "orchestrator" &&
         message.role === "assistant" &&
         ((isAgentRunning && isLastMessage && !message.metadata.finishedAt) ||
           message.metadata.error?.kind === "aborted");
-      let heldBackRowId: StoreId.Part | undefined;
 
       for (const [partIndex, stored] of message.parts.entries()) {
         // What is drawn for the part: the part itself, or the part with the
         // words the turn already said taken off it.
         let part = stored;
         if (isComposing && part.type === "text") {
-          heldBackRowId ??= part.metadata.id;
           continue;
         }
         if (
@@ -517,7 +513,10 @@ export function ChatStream({
         ) {
           const said = part.text.trim();
           if (said !== "") {
-            if (lastSaidInTurn !== undefined && said.startsWith(lastSaidInTurn)) {
+            if (
+              lastSaidInTurn !== undefined &&
+              said.startsWith(lastSaidInTurn)
+            ) {
               // The line again, on its own or with something after it (a
               // files fence, once the file exists): the line stands where it
               // was, and only what follows it is new.
@@ -601,14 +600,6 @@ export function ChatStream({
         if (message.role === "assistant") {
           visibleAssistantContentCount++;
         }
-      }
-
-      if (heldBackRowId !== undefined && isAgentRunning && isLastMessage) {
-        isTypingShown = true;
-        messageRows.push({
-          id: heldBackRowId,
-          node: <TypingRow key={heldBackRowId} />,
-        });
       }
 
       const messageElements = collectGroups({
@@ -812,16 +803,10 @@ export function ChatStream({
     // so the window outlasts it. Drawn at the tail they keep one identity across
     // that whole window, and the first real row replaces the planning line in a
     // single step rather than fading a second copy in beneath it.
-    if (isAwaitingFirstRow) {
+    if (isAwaitingFirstRow && presentation !== "orchestrator") {
       const initialRows = [
-        ...(presentation === "orchestrator"
-          ? []
-          : [<TurnWordmark key={TURN_WORDMARK_ID} />]),
-        presentation === "orchestrator" ? (
-          <TypingRow key={PLANNING_ROW_ID} />
-        ) : (
-          <AwaitingFirstRow key={PLANNING_ROW_ID} />
-        ),
+        <TurnWordmark key={TURN_WORDMARK_ID} />,
+        <AwaitingFirstRow key={PLANNING_ROW_ID} />,
       ];
       elements.push(
         renderAsItems ? (
@@ -837,14 +822,14 @@ export function ChatStream({
       );
     }
 
-    // The conversation at work with nothing on show for it, between calls or
-    // between steps: the dots stand at its end, since that is where the next
-    // thing comes out, whether or not words follow.
+    // The conversation at work: from the moment the user sends, through the
+    // words of a step being composed and the gaps between calls and steps, the
+    // dots stand at its end, since that is where the next thing comes out.
+    // One row under one key for the whole run, so going from one of those to
+    // the next never takes the dots away and fades a new copy in.
     if (
       presentation === "orchestrator" &&
-      isAgentRunning &&
-      !isAwaitingFirstRow &&
-      !isTypingShown
+      (isAgentRunning || isAwaitingFirstRow)
     ) {
       elements.push(
         renderAsItems ? (

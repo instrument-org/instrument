@@ -316,9 +316,14 @@ export function contextReaders({
       activeFilePath === undefined
         ? undefined
         : mountOfHostPath(activeFilePath, state.attachedFolders ?? {});
+    // The record open in an app's inspector goes only to a thread a draft
+    // starts over it, never into a reply to one already going.
+    const app = screenView.app
+      ? { ...screenView.app, reading: undefined }
+      : undefined;
     const shown =
       activeFilePath === undefined
-        ? screenView
+        ? { ...screenView, ...(app ? { app } : {}) }
         : {
             file: {
               ...(activeMount === undefined ? {} : { mount: activeMount }),

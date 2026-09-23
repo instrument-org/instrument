@@ -3,6 +3,10 @@ import { blockToolbarButtonClassName } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import { InternalLink } from "@/client/components/internal-link";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
+import {
+  AppInspector,
+  type InspectorReading,
+} from "@/client/components/orchestrator/app-inspector";
 import { visitsWithin } from "@/client/components/orchestrator/app-visits";
 import { thisComputer } from "@/client/components/orchestrator/computer-name";
 import { ConnectControls } from "@/client/components/orchestrator/connect-controls";
@@ -16,17 +20,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import { Spinner } from "@/client/components/ui/spinner";
+import { cn } from "@/client/lib/utils";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
+import { useState } from "react";
 import { toast } from "sonner";
 
 /** How many of the pages visited in the app its front lists. */
-const VISITS_SHOWN = 8;
+const VISITS_SHOWN = 12;
 
 /**
  * An app's page, which is its front: where you have been in it lately, out
@@ -53,9 +64,21 @@ function AppRoute() {
   const site = app?.site ?? (entry ? `https://${entry.domain}` : undefined);
   const home = app?.home ?? entry?.home ?? site;
   const isConnected = app?.standing === "connected";
+  const canBrowse =
+    isConnected && (app.type === "mcp" || app.type === "mcp-local");
+  const [reading, setReading] = useState<InspectorReading>();
   useOnScreen({
     app: {
       name,
+      ...(reading && canBrowse
+        ? {
+            reading: {
+              args: JSON.stringify(reading.args),
+              title: reading.title,
+              tool: reading.tool,
+            },
+          }
+        : {}),
       slug,
       standing: app?.standing ?? "not-set-up",
     },
@@ -64,10 +87,7 @@ function AppRoute() {
   // The pages the window has shown on the app's site, newest first: the
   // best place to start in an app is where you already were in it.
   const visited = useAtomValue(visitedPagesAtom);
-  const visits = visitsWithin(visited, [{ home, name, site }]).slice(
-    0,
-    VISITS_SHOWN,
-  );
+  const visits = visitsWithin(visited, [{ name, site }]).slice(0, VISITS_SHOWN);
 
   const disconnect = useMutation(
     rpcClient.apps.disconnect.mutationOptions({
@@ -145,14 +165,19 @@ function AppRoute() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
-      <div className="mx-auto w-full max-w-3xl">
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-6">
+      <div
+        className={cn(
+          "mx-auto flex min-h-0 w-full flex-1 flex-col",
+          canBrowse ? "max-w-6xl" : "max-w-3xl",
+        )}
+      >
         {/* No way back up to Apps here: the row above says where this is. */}
-        <div className="flex items-center gap-4">
-          <AppIcon name={name} site={site} size="xl" />
+        <div className="flex items-center gap-3">
+          <AppIcon name={name} site={site} size="lg" />
           <div className="min-w-0">
             <div className="flex items-center gap-1">
-              <h1 className="text-[22px] leading-7 font-semibold">{name}</h1>
+              <h1 className="text-lg leading-6 font-semibold">{name}</h1>
               {app ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -196,9 +221,31 @@ function AppRoute() {
                 </DropdownMenu>
               ) : null}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {domain ?? (app ? app.endpoint : "")}
-            </p>
+            {/* The directory's line about the app folded into the head: one
+              line under the name, the whole of it in a popover so opening it
+              moves nothing on the page. */}
+            {description ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="block max-w-2xl truncate text-left text-xs leading-5 text-muted-foreground hover:text-foreground"
+                    type="button"
+                  >
+                    {description}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-md text-[13px] leading-5"
+                >
+                  {description}
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <p className="text-xs leading-5 text-muted-foreground">
+                {domain ?? (app ? app.endpoint : "")}
+              </p>
+            )}
           </div>
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {/* The site is a site whether or not the app is connected, so the
@@ -230,30 +277,49 @@ function AppRoute() {
           </div>
         </div>
 
-        {/* The directory's line about the app, quiet under the head, until
-          the person has been somewhere in it: a page with rows explains
-          itself. */}
-        {description && visits.length === 0 ? (
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
-        ) : null}
-
         {/* Where you were in the app, first and always: a recent page is a
           row you press, not a name you have to type back into the field,
           and the best way back into a service is the page you were on. */}
-        <section className="mt-8">
-          <p className="mb-2.5 text-[13px] font-medium text-muted-foreground">
-            Recently visited
-          </p>
-          {visits.length > 0 ? (
-            <VisitedPageRows onOpen={openPage} visits={visits} />
+        {/* Where you have been in the app, one row under the head: the
+          quick way back in belongs to the page, not to the browser below. */}
+        {visits.length > 0 ? (
+          canBrowse ? (
+            <section className="mt-4 flex items-center gap-3">
+              <p className="shrink-0 text-[13px] font-medium text-muted-foreground">
+                Recent pages
+              </p>
+              <div className="min-w-0 flex-1">
+                <VisitedPageRows
+                  isCompact
+                  isOneRow
+                  onOpen={openPage}
+                  visits={visits}
+                />
+              </div>
+            </section>
           ) : (
-            <p className="text-[13px] text-muted-foreground">
-              The pages you open in {name} will show up here.
-            </p>
-          )}
-        </section>
+            <section className="mt-6">
+              <p className="mb-1.5 text-[13px] font-medium text-muted-foreground">
+                Recent pages
+              </p>
+              <div className="-mx-2">
+                <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
+              </div>
+            </section>
+          )
+        ) : null}
+
+        {canBrowse ? (
+          <AppInspector
+            name={name}
+            onReading={setReading}
+            runsHere={
+              app.type === "mcp-local" ||
+              /^https?:\/\/(?:127\.|localhost|\[::1\])/.test(app.endpoint)
+            }
+            slug={slug}
+          />
+        ) : null}
 
         {/* While the app is still being set up, the one thing that
           finishes it, in a quiet block: what connecting takes, the control

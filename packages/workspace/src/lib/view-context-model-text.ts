@@ -1,3 +1,4 @@
+import { APP_COMMAND } from "./shell-commands/app-command";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { SKILL_NAMES } from "./skill-names";
 import { systemNote } from "./system-note";
@@ -123,7 +124,7 @@ function screenNote(data: ViewContext) {
     case "apps": {
       if (data.app) {
         return systemNote`
-          When the user sent this, the window showed the page of the app "${data.app.name}" (slug ${data.app.slug}), which is ${describeStanding(data.app.standing)}. "This app", "this", and "it" refer to it.
+          When the user sent this, the window showed the page of the app "${data.app.name}" (slug ${data.app.slug}), which is ${describeStanding(data.app.standing)}. "This app", "this", and "it" refer to it.${data.app.reading ? ` They had "${data.app.reading.title}" open in it; \`${APP_COMMAND.name} call ${data.app.slug} ${data.app.reading.tool} '${data.app.reading.args}'\` reads it, and "this" means that record.` : ""}
         `;
       }
       return systemNote`

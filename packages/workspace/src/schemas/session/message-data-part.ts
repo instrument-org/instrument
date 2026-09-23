@@ -543,6 +543,13 @@ export namespace SessionMessageDataPart {
         name: z.string(),
         /** The service's origin, for its icon. */
         site: z.string().optional(),
+        /**
+         * The record open in the page's inspector, as the read that fetches
+         * it again: a pointer the agent can follow, never the record itself.
+         */
+        reading: z
+          .object({ args: z.string(), title: z.string(), tool: z.string() })
+          .optional(),
         slug: z.string(),
         /** Connected, or what is missing, in the words the Apps screen uses. */
         standing: z.string(),

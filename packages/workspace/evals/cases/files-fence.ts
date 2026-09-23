@@ -15,6 +15,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { APP_NAME_SLUG } from "@instrument-org/shared";
+
 import { AGENT_FILES_LANGUAGE } from "../../src/constants";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
 import { MOUNT } from "../../src/mount-points";
@@ -216,14 +218,13 @@ const ADDED_ITEMS = ["dentist", "passport", "water filter"];
 function lastAssistantText(sessions: Session.WithMessagesAndParts[]): string {
   const message = sessions
     .flatMap((session) => session.messages)
-    .filter(
+    .findLast(
       (candidate) =>
         candidate.role === "assistant" &&
         candidate.parts.some(
           (part) => part.type === "text" && part.text.trim() !== "",
         ),
-    )
-    .at(-1);
+    );
   return (
     message?.parts
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
@@ -289,19 +290,49 @@ const assertTaskFencedEditedNote: Assertion = {
   text: "The task's receipt fenced the note it changed",
 };
 
-/** The conversation's closing reply handed the changed note over. */
-const assertConversationFencedEditedNote: Assertion = {
-  check: ({ sessions }) => {
-    const text = "The closing reply fenced the note that changed";
+// A link whose target is the note, either as its path or as the app's own
+// address for a file; both draw the same chip the fence's card opens.
+const NOTE_LINK = new RegExp(
+  String.raw`\[[^\]]*\]\(\s*((?:${APP_NAME_SLUG}://file/)?/*${MOUNT.attachedFolders.slice(1)}/[^)\s]*${EDITED_NOTE.replaceAll(".", String.raw`\.`)})\s*\)`,
+  "giu",
+);
+
+/**
+ * The conversation's closing reply handed the changed note over in a way the
+ * user can click: the files fence, or a link to it. The evidence says which,
+ * because the carrier a model reaches for is part of what is measured.
+ */
+const assertConversationHandedBackNote: Assertion = {
+  check: async ({ sessions, taskId }) => {
+    const text = "The closing reply handed back the note that changed";
     const reply = lastAssistantText(sessions);
-    const named = namesEditedNote(reply);
+    const handed = [
+      ...namesEditedNote(reply).map((line) => ({ carrier: "fence", line })),
+      ...[...reply.matchAll(NOTE_LINK)].map((match) => ({
+        carrier: "link",
+        line: match[1] ?? "",
+      })),
+    ];
+    if (handed.length === 0) {
+      return { evidence: `none: ${JSON.stringify(reply)}`, passed: false, text };
+    }
+    const results = await Promise.all(
+      handed.map(async ({ carrier, line }) => {
+        const filePath = `/${line.replace(/^.*?:\/\/file\//u, "").replace(/^\/+/u, "")}`;
+        const resolved = await getCurrentFileInfo({
+          filePath: filePath as WorkspaceFilePath,
+          taskId,
+        });
+        return `${carrier} ${line}${resolved.isErr() ? " (does not resolve)" : ""}`;
+      }),
+    );
     return {
-      evidence: named.length > 0 ? named.join(" | ") : JSON.stringify(reply),
-      passed: named.length > 0,
+      evidence: results.join(" | "),
+      passed: results.some((result) => !result.endsWith("(does not resolve)")),
       text,
     };
   },
-  text: "The closing reply fenced the note that changed",
+  text: "The closing reply handed back the note that changed",
 };
 
 export const FILES_FENCE_EVALS = [
@@ -352,8 +383,7 @@ export const FILES_FENCE_EVALS = [
     // user, so they can check what was written.
     assertions: [
       assertTaskFencedEditedNote,
-      assertConversationFencedEditedNote,
-      assertLinesResolve,
+      assertConversationHandedBackNote,
       assertNoteEdited,
     ],
     folders: [{ access: "read-write", path: path.join(FIXTURES, "Journal") }],

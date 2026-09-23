@@ -147,6 +147,55 @@ describe("renderSkillCatalog", () => {
     expect(catalog.xml.length).toBeLessThanOrEqual(namesOnly + 600);
   });
 
+  it("keeps the app's own skills whole before another agent's home directory", () => {
+    const bundled = [
+      skill("zip", "z".repeat(100), "instrument"),
+      skill("skill-creator", "s".repeat(100), "system"),
+    ];
+    const others = Array.from({ length: 5 }, (_, index) =>
+      skill(`other-${index}`, "o".repeat(300), "claude"),
+    );
+    const namesOnly = renderSkillCatalog(
+      [...bundled, ...others].map((entry) => ({ ...entry, description: "" })),
+    ).xml.length;
+    const catalog = renderSkillCatalog([...bundled, ...others], namesOnly + 500);
+
+    expect(
+      catalog.entries.map((entry) => [entry.name, entry.description.length]),
+    ).toEqual([
+      ["system:skill-creator", 100],
+      ["instrument:zip", 100],
+      ...others.map((entry) => [entry.id, 60]),
+    ]);
+    expect(catalog.xml.length).toBeLessThanOrEqual(namesOnly + 500);
+  });
+
+  it("keeps only the named skills whole when the app's own would crowd the rest", () => {
+    const named = skill(SKILL_NAMES.createPage, "n".repeat(100), "instrument");
+    const bundled = skill("zip", "z".repeat(400), "instrument");
+    const others = Array.from({ length: 5 }, (_, index) =>
+      skill(`other-${index}`, "o".repeat(300), "claude"),
+    );
+    const namesOnly = renderSkillCatalog(
+      [named, bundled, ...others].map((entry) => ({
+        ...entry,
+        description: "",
+      })),
+    ).xml.length;
+    const catalog = renderSkillCatalog(
+      [named, bundled, ...others],
+      namesOnly + 700,
+    );
+
+    expect(
+      catalog.entries.map((entry) => [entry.name, entry.description.length]),
+    ).toEqual([
+      ["instrument:create-page", 100],
+      ["instrument:zip", 100],
+      ...others.map((entry) => [entry.id, 100]),
+    ]);
+  });
+
   it("does not treat a namesake from another source as the named skill", () => {
     const namesake = {
       ...skill(SKILL_NAMES.createPage, "n".repeat(300), "cursor"),

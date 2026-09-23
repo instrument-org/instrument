@@ -31,19 +31,23 @@ const CATALOG_TAGS = {
 const CATALOG_CHAR_BUDGET = 8000;
 
 /**
- * Share of the description budget the skills named in prompts and tool
- * descriptions may hold in full before the reservation is given up.
+ * Share of the description budget the skills kept whole may hold before the
+ * reservation is given up.
  *
- * Those are the skills the product steers the model toward by name, and a
- * description cut to the flat cap loses the clause saying when to reach for
- * it, which is the one clause the steering depends on. Half leaves every other
- * skill at least half of what the flat cap alone would have given it. On a
- * developer machine with 54 skills across several agent homes the three named
- * skills need about a quarter, so the reservation holds there; a named skill
- * with a runaway description, or a machine with many more vendors installed,
- * drops back to the flat cap rather than starving the rest.
+ * Two groups are kept whole ahead of the rest, the wider one first. The skills
+ * the app ships are the ones a task needs to do its work at all, so they keep
+ * their descriptions before any other agent's home directory does. Within them,
+ * the skills named in prompts and tool descriptions are the ones the product
+ * steers the model toward by name, and a description cut to the flat cap loses
+ * the clause saying when to reach for it, which is the one clause the steering
+ * depends on. Half leaves every other skill at least half of what the flat cap
+ * alone would have given it; a group past that falls back to the narrower one,
+ * then to the flat cap, rather than starving the rest.
  */
-const NAMED_SKILL_RESERVE_SHARE = 0.5;
+const WHOLE_SKILL_RESERVE_SHARE = 0.5;
+
+/** Sources whose skills ship with the app. */
+const BUNDLED_SOURCES = new Set<SkillSourceKind>([APP_NAME_SLUG, "system"]);
 
 /**
  * Matched against `qualifiedName`, which is the plain name exactly when
@@ -62,7 +66,8 @@ const WRAPPER_COST =
  * Order the catalog lists skills in, and the order the names-only step keeps
  * them in: skills we ship or the user authored here outrank whatever a
  * co-installed agent left in the home directory, so those are the last to be
- * dropped. It has no say in description length; that is `NAMED_SKILLS`.
+ * dropped. It has no say in description length; that is `BUNDLED_SOURCES` and
+ * `NAMED_SKILLS`.
  */
 const SOURCE_PRIORITY: Record<SkillSourceKind, number> = {
   agents: 3,
@@ -81,6 +86,11 @@ const SOURCE_PRIORITY: Record<SkillSourceKind, number> = {
   workspace: 1,
 };
 
+interface WeightedEntry {
+  bundled: boolean;
+  named: boolean;
+}
+
 interface SkillCatalog {
   /** Rendered skills in catalog order, with descriptions as shown. */
   entries: { description: string; name: string }[];
@@ -94,8 +104,8 @@ interface SkillCatalog {
 /**
  * Render the agent-facing skill catalog within a character budget, degrading in
  * three steps: every description in full, then descriptions shortened to a fair
- * share of what is left (the skills the product names by constant keeping
- * theirs whole while they fit), then names alone.
+ * share of what is left (the app's own skills, or failing that the ones it
+ * names by constant, keeping theirs whole while they fit), then names alone.
  */
 export function renderSkillCatalog(
   skills: SkillInfo[],
@@ -113,6 +123,7 @@ export function renderSkillCatalog(
       // Stable identity, because catalog entries can be copied into persisted
       // messages and must not retarget when a namesake is installed later.
       name: skill.id,
+      bundled: BUNDLED_SOURCES.has(skill.source),
       named: NAMED_SKILLS.has(skill.qualifiedName),
       // Its own trailing newline, so the entry costs add up to `xml.length`
       // once the wrapper is accounted for.
@@ -142,19 +153,22 @@ export function renderSkillCatalog(
   const nameOnlyCost = sum(entries.map((entry) => entry.nameOnlyCost));
   if (nameOnlyCost <= entryBudget) {
     const available = entryBudget - nameOnlyCost;
+    const reserveFits = (keep: (entry: WeightedEntry) => boolean) =>
+      sum(entries.filter(keep).map((entry) => entry.descriptionCost)) <=
+      available * WHOLE_SKILL_RESERVE_SHARE;
+    const keptWhole =
+      [
+        (entry: WeightedEntry) => entry.bundled || entry.named,
+        (entry: WeightedEntry) => entry.named,
+      ].find(reserveFits) ?? (() => false);
     const reserved = sum(
-      entries
-        .filter((entry) => entry.named)
-        .map((entry) => entry.descriptionCost),
+      entries.filter(keptWhole).map((entry) => entry.descriptionCost),
     );
-    const keepsNamedWhole = reserved <= available * NAMED_SKILL_RESERVE_SHARE;
-    const keptWhole = (entry: { named: boolean }) =>
-      keepsNamedWhole && entry.named;
     const cap = fairShareLength(
       entries
         .filter((entry) => !keptWhole(entry))
         .map((entry) => entry.descriptionCost),
-      available - (keepsNamedWhole ? reserved : 0),
+      available - reserved,
     );
     return build(
       entries.map((entry) => ({

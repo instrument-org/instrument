@@ -898,46 +898,6 @@ function handedFolders(
 }
 
 /**
- * Refuses a brief that names a folder by a path the task will not have. Mount
- * paths are this conversation's own: the task reaches the folders and files it
- * is handed at paths of its own, and a path none of them covers reaches the
- * task as written, naming nothing there. A folder the task is not handed is
- * still something a brief can talk about, by its name, the way a person would.
- */
-function requireFoldersNamedInBriefHanded(
-  command: "new" | "send",
-  prompt: string,
-  orchestratorFolders: FolderMounts,
-  handed: ({ path: string } | { content: string })[],
-  taskId?: string,
-) {
-  // A file written out on the command has no path, so there is nothing of it
-  // a path in the brief could name.
-  const paths = handed.flatMap((item) => ("path" in item ? [item.path] : []));
-  const unreachable = unreachableMountPaths(
-    prompt,
-    orchestratorFolders,
-    Object.fromEntries(
-      paths.map((itemPath) => [
-        itemPath,
-        { mountName: itemPath, path: itemPath },
-      ]),
-    ),
-  );
-  if (unreachable.length === 0) {
-    return;
-  }
-  const named = unreachable.join(", ");
-  const handOver =
-    command === "new"
-      ? `pass the folder with --folder`
-      : `hand it over first with \`${TASK_COMMAND.name} folder ${taskId ?? "<id>"} --add <path>\``;
-  throw new Error(
-    `${command}: the ${command === "new" ? "brief" : "message"} names ${named}, which this task ${command === "new" ? "is not handed" : "was not handed"}. A task reaches only the folders it is handed, at paths of its own, and your paths are translated to its paths only for those folders. If the task needs the folder, ${handOver}; if not, call the folder by its name rather than its path. Nothing was ${command === "new" ? "created" : "sent"}.`,
-  );
-}
-
-/**
  * The folder of a task's own that a `--remove` spec names.
  *
  * `show` prints a task's folders in this conversation's paths where a mount of
@@ -1068,6 +1028,46 @@ async function requireChild(
     );
   }
   return task.value;
+}
+
+/**
+ * Refuses a brief that names a folder by a path the task will not have. Mount
+ * paths are this conversation's own: the task reaches the folders and files it
+ * is handed at paths of its own, and a path none of them covers reaches the
+ * task as written, naming nothing there. A folder the task is not handed is
+ * still something a brief can talk about, by its name, the way a person would.
+ */
+function requireFoldersNamedInBriefHanded(
+  command: "new" | "send",
+  prompt: string,
+  orchestratorFolders: FolderMounts,
+  handed: ({ content: string } | { path: string })[],
+  taskId?: string,
+) {
+  // A file written out on the command has no path, so there is nothing of it
+  // a path in the brief could name.
+  const paths = handed.flatMap((item) => ("path" in item ? [item.path] : []));
+  const unreachable = unreachableMountPaths(
+    prompt,
+    orchestratorFolders,
+    Object.fromEntries(
+      paths.map((itemPath) => [
+        itemPath,
+        { mountName: itemPath, path: itemPath },
+      ]),
+    ),
+  );
+  if (unreachable.length === 0) {
+    return;
+  }
+  const named = unreachable.join(", ");
+  const handOver =
+    command === "new"
+      ? `pass the folder with --folder`
+      : `hand it over first with \`${TASK_COMMAND.name} folder ${taskId ?? "<id>"} --add <path>\``;
+  throw new Error(
+    `${command}: the ${command === "new" ? "brief" : "message"} names ${named}, which this task ${command === "new" ? "is not handed" : "was not handed"}. A task reaches only the folders it is handed, at paths of its own, and your paths are translated to its paths only for those folders. If the task needs the folder, ${handOver}; if not, call the folder by its name rather than its path. Nothing was ${command === "new" ? "created" : "sent"}.`,
+  );
 }
 
 /**

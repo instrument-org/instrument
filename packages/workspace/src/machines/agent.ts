@@ -74,11 +74,11 @@ type AgentMachineEvent =
    * sentence rather than the end of the job. `saved` when the sender already
    * wrote it to the store.
    */
+  | { reason?: StopReason; type: "stop" }
   | { saved?: boolean; type: "steer"; value: SessionMessage.UserWithParts }
   | { type: "executeToolCalls" }
   | { type: "llmRequest.chunkReceived" }
   | { type: "retry" }
-  | { reason?: StopReason; type: "stop" }
   | {
       type: "updateInteractiveToolCall";
       value: ToolCallUpdate;

@@ -68,11 +68,11 @@ type ParentActorRef = ActorRef<AnyMachineSnapshot, SessionMachineParentEvent>;
 
 type SessionMachineEvent =
   | AgentParentEvent
+  | { reason?: StopReason; type: "stop" }
   | { saved?: boolean; type: "addMessage"; value: SessionMessage.UserWithParts }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
   | { type: "runTurn" }
-  | { reason?: StopReason; type: "stop" }
   | {
       type: "updateInteractiveToolCall";
       value: ToolCallUpdate;

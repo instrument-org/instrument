@@ -396,6 +396,14 @@ function OrchestratorLayout() {
     // Home was once a row of tabs; what an earlier launch kept under it has
     // nowhere to show.
     windowTabs.dropGroup("place:home");
+    // Site favicons were once kept here, data: URIs and all, and nothing
+    // reads them now; left in place they hold the origin's storage quota
+    // that every orchestrator.* atom writes into.
+    try {
+      localStorage.removeItem("orchestrator.site-favicons.v2");
+    } catch {
+      // Storage refused: nothing was freed, and nothing else depends on it.
+    }
     // The tabs come back as they were, and so does the place, and the two
     // have to agree: a place stands on its own group, with at least its own
     // new tab in it, and the chat never shows a place's. Home stands over

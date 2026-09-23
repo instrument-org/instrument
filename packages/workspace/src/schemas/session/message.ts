@@ -566,9 +566,13 @@ export namespace SessionMessage {
             )
             .join(", ");
           const plural = names.length > 1;
-          const loadLine = plural
-            ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
-            : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
+          // The conversation cannot load a skill; a task it briefs can.
+          const loadLine =
+            agentName === "instrument"
+              ? `The user wants ${plural ? "these" : "it"} used: the brief for the work names ${plural ? "each" : "it"} by that exact name, for the task to load.`
+              : plural
+                ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
+                : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
           injectedParts.push({
             text: `Skill ${plural ? "references" : "reference"} in the message above: ${mentions}. ${loadLine}`,
             type: "text",

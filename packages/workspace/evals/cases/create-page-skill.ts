@@ -85,7 +85,7 @@ const leavesCreatePageAlone: Assertion = {
   text: `does not load the ${SKILL_NAMES.createPage} skill for a file the user named by format`,
 };
 
-/** The conversation cannot load a skill, so a skill the user named travels in the brief. */
+/** The conversation cannot load a skill, so the brief is where it names one. */
 const briefNamesCreatePage: Assertion = {
   check: ({ sessions }) => {
     const text = `the brief names the ${SKILL_NAMES.createPage} skill`;
@@ -164,9 +164,8 @@ export const CREATE_PAGE_SKILL_EVALS = [
   }),
 
   defineEval({
-    // Nothing named: a long deliverable is a page, the brief asks for one by
-    // kind, and the task reaches for the skill itself.
-    assertions: [tasksLoadedCreatePage],
+    // Nothing named: a long deliverable is a page, and the brief has to say so.
+    assertions: [briefNamesCreatePage, tasksLoadedCreatePage],
     kind: "orchestrator",
     name: "orchestrator-create-page-for-a-long-answer",
     prompt:

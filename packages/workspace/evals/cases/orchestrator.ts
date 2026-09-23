@@ -292,7 +292,7 @@ const revisedATaskInPlace: Assertion = {
  * named as the way to find something, sites listed to check: each is a step
  * the task follows to the letter, the wrong ones included, and a question
  * that was one search becomes a survey. The exception is a skill the user
- * named, which the create-page cases score the other way.
+ * asked for by the thing it makes, which the page case scores the other way.
  */
 const PRESCRIBES_HOW =
   /\bskills?\b|load_skill|agent-browser|\bbrowser\b|web_search|\bsearch (?:the web|online) (?:with|using|via)\b|\b(?:reddit|discord|twitter|downdetector)\b/i;
@@ -393,6 +393,30 @@ const didNotRaiseEffort: Assertion = {
   text: "did not raise --effort for a quick question",
 };
 
+/** The one skill a brief is meant to name: the kind of thing the user asked for. */
+function briefNamedSkill(name: string): Assertion {
+  const text = `the brief named the ${name} skill`;
+  return {
+    check: ({ sessions }) => {
+      const briefs = briefsOf(sessions);
+      if (briefs.length === 0) {
+        return fail(text, "no task was started");
+      }
+      const naming = briefs.filter(({ brief }) => brief.includes(name));
+      return naming.length > 0
+        ? pass(
+            text,
+            naming.map(({ brief }) => JSON.stringify(brief)).join(" | "),
+          )
+        : fail(
+            text,
+            briefs.map(({ brief }) => JSON.stringify(brief)).join(" | "),
+          );
+    },
+    text,
+  };
+}
+
 const answeredWithoutATask: Assertion = {
   check: ({ sessions }) => {
     const text = "answered from what it could see, without starting a task";
@@ -427,6 +451,38 @@ function childRepliedInAtMost(chars: number): Assertion {
         .map((one) => `${one.title}: ${one.last.length} chars`)
         .join("; ");
       return tooLong.length === 0 ? pass(text, evidence) : fail(text, evidence);
+    },
+    text,
+  };
+}
+
+/** A task loaded the skill, by its plain or source-qualified name. */
+function aTaskLoadedSkill(name: string): Assertion {
+  const text = `a task loaded the ${name} skill`;
+  const loads = (child: { sessions: Session.WithMessagesAndParts[] }) =>
+    child.sessions.some((session) =>
+      session.messages.some((message) =>
+        message.parts.some(
+          (part) =>
+            part.type === "tool-load_skill" &&
+            typeof part.input?.name === "string" &&
+            (part.input.name === name || part.input.name.endsWith(`:${name}`)),
+        ),
+      ),
+    );
+  return {
+    check: async ({ childSessions }) => {
+      const children = await childSessions();
+      if (children.length === 0) {
+        return fail(text, "no task was started");
+      }
+      const evidence = children
+        .map(
+          (child) =>
+            `${child.title}: ${loads(child) ? "loaded" : "did not load"}`,
+        )
+        .join("; ");
+      return children.some(loads) ? pass(text, evidence) : fail(text, evidence);
     },
     text,
   };
@@ -820,14 +876,13 @@ export const ORCHESTRATOR_EVALS = [
   }),
 
   defineEval({
-    // The same rule for a thing to make: the user asked for a page, and the
-    // brief asks for one by kind, naming no skill, since the task has the
-    // catalog and the conversation does not.
+    // The other side of the same rule: the user asked for the kind of thing a
+    // skill makes, and the brief names that skill and nothing about how.
     assertions: [
       delegated(1),
       didNotDoTheWorkItself,
       saidAtMost(280),
-      briefedWhatNotHow,
+      briefNamedSkill("create-page"),
     ],
     kind: "orchestrator",
     name: "orchestrator-asks-for-a-page",
@@ -853,5 +908,31 @@ export const ORCHESTRATOR_EVALS = [
     kind: "orchestrator",
     name: "orchestrator-hands-over-a-sent-file",
     prompt: "wat this",
+  }),
+  defineEval({
+    // A skill the user picked with / in the composer arrives as a mention the
+    // conversation cannot load itself; the brief carries it to the task.
+    assertions: [
+      delegated(1),
+      briefNamedSkill("color"),
+      aTaskLoadedSkill("color"),
+    ],
+    kind: "orchestrator",
+    name: "orchestrator-passes-on-a-mentioned-skill",
+    prompt:
+      "[$color](skill:color) use this to pick a five-color palette for a small coffee shop brand, and put it in my Instrument folder.",
+  }),
+
+  defineEval({
+    // The same ask typed by hand, with no mention part behind it.
+    assertions: [
+      delegated(1),
+      briefNamedSkill("color"),
+      aTaskLoadedSkill("color"),
+    ],
+    kind: "orchestrator",
+    name: "orchestrator-passes-on-a-typed-skill",
+    prompt:
+      "/color use this to pick a five-color palette for a small coffee shop brand, and put it in my Instrument folder.",
   }),
 ];

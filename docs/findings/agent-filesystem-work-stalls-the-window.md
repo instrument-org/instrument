@@ -54,12 +54,15 @@ So `rg --files /mnt/Home | awk '...'` stalls the window for about as long as the
 rg --files ~   →  1,478,220 lines   194,036,698 bytes   (185 MiB)
 ```
 
-That is 74% of the 256 MiB `maxOutputSize` in `create-bash-env.ts`, so nothing errors. The command succeeds and the window stops painting for 25 seconds. One more attached folder and the same call becomes a hard failure instead of a slow one.
+That is nearly three times the 64 MiB `maxOutputSize` in `create-bash-env.ts`, so that call fails outright. A listing under the ceiling succeeds, and the window stops painting while it is carried. `rg --files` over three large folders under `~/Library` prints about 49 MB; piped into `rg -i` or even `head -1`, it froze the thread for 7.9 s and grew the heap by 2.1 GB, where the same search filtered inside ripgrep with `--iglob` took 26 ms. Profiled, none of that is the walk. It is the passes over the string, each linear in its size: the URL-credential regex in `filterShellOutput`, execa escaping the whole output into the error message it builds for rg's exit 2, `virtualizeOutput`, just-bash's handoff to the next stage, and the garbage collection behind all of them.
+
+So `rg` stops itself after 8 MB of stdout (`RG_MAX_STDOUT` in `shell-commands/rg.ts`) and answers with an error that names `--iglob` and `-g`, which puts the fix in front of the agent at the moment it needs it. The prefix it wrote is dropped rather than returned, since a downstream filter over it would read as a complete answer. The same pipeline then stalls 322 ms and grows 115 MB. The bash description also tells the agent to filter names inside `rg` rather than in a pipe.
 
 Two consequences worth keeping separate:
 
 - **Making the file walk native is a partial fix, not the fix.** It removes the syscall storm and leaves the string. The pipeline is an interpreter change, not a command change.
 - **The prompt steers the agent into this path.** The attached-folders text tells the model to reach for `rg` on a large folder, which is correct advice about the walk and silent about the output. Anything that tells the model to prefer `rg` has to tell it to bound the result in the same breath.
+- **The real fix is streaming pipes.** vercel-labs/just-bash#415 is the issue (a stage cannot end its producer), and #453 streams simple pipelines with a 64 KiB buffer and backpressure, with custom commands opting in through `streaming: true`. `rg` would stream only after a follow-up to it; until one is installed, the cap stands.
 
 ## The budgets, and which one you are looking at
 

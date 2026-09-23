@@ -713,17 +713,6 @@ async function threadFor(
  */
 const TURN_START_GRACE_MS = 30_000;
 
-/** The newest message is the user's or a wake's, recent, and not yet answered. */
-function turnIsStarting(messages: SessionMessage.WithParts[]): boolean {
-  const newest = messages.findLast(
-    (message) => message.role === "user" || message.role === "assistant",
-  );
-  return (
-    newest?.role === "user" &&
-    Date.now() - newest.metadata.createdAt.getTime() < TURN_START_GRACE_MS
-  );
-}
-
 function threadIsAlive(taskId: TaskId, sessionId: StoreId.Session): boolean {
   const status = getTaskAgentStatus({
     id: taskId,
@@ -735,5 +724,16 @@ function threadIsAlive(taskId: TaskId, sessionId: StoreId.Session): boolean {
       (actor) =>
         actor.sessionId === sessionId && actor.tags.includes("agent.alive"),
     )
+  );
+}
+
+/** The newest message is the user's or a wake's, recent, and not yet answered. */
+function turnIsStarting(messages: SessionMessage.WithParts[]): boolean {
+  const newest = messages.findLast(
+    (message) => message.role === "user" || message.role === "assistant",
+  );
+  return (
+    newest?.role === "user" &&
+    Date.now() - newest.metadata.createdAt.getTime() < TURN_START_GRACE_MS
   );
 }

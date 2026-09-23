@@ -52,8 +52,8 @@ import {
 } from "../../lib/orchestrator/topics";
 import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
-import { getTaskSettings } from "../../lib/task-settings";
 import { setTaskState } from "../../lib/task-record";
+import { getTaskSettings } from "../../lib/task-settings";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";

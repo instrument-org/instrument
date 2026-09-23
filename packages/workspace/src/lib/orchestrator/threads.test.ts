@@ -482,10 +482,12 @@ describe("listThreads", () => {
       await userSays(taskId, sessionId, "add eggs", 3);
 
       vi.setSystemTime(at(3).getTime() + 5000);
-      expect((await listThreads(taskId))[0]?.state).toBe("working");
+      const soon = await listThreads(taskId);
+      expect(soon[0]?.state).toBe("working");
 
       vi.setSystemTime(at(3).getTime() + 60_000);
-      expect((await listThreads(taskId))[0]?.state).toBe("idle");
+      const later = await listThreads(taskId);
+      expect(later[0]?.state).toBe("idle");
     } finally {
       vi.useRealTimers();
     }

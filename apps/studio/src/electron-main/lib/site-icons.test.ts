@@ -126,9 +126,8 @@ describe("rememberPageIcon", () => {
 
     expect(await rememberPageIcon(page, deps(fetch))).toBe(true);
     expect(fetch.mock.calls[1]?.[0]).toBe(page.iconUrl);
-    expect((await siteIconFor("example.com", deps(fetch)))?.type).toBe(
-      "image/svg+xml",
-    );
+    const icon = await siteIconFor("example.com", deps(fetch));
+    expect(icon?.type).toBe("image/svg+xml");
   });
 
   it("leaves the site alone when the proxy has its icon", async () => {
@@ -145,9 +144,8 @@ describe("rememberPageIcon", () => {
     now += 31 * DAY_MS;
     await siteIconFor("example.com", deps(fetch));
     now += 1;
-    expect((await siteIconFor("example.com", deps(fetch)))?.type).toBe(
-      "image/svg+xml",
-    );
+    const icon = await siteIconFor("example.com", deps(fetch));
+    expect(icon?.type).toBe("image/svg+xml");
   });
 
   it("asks nothing for an icon that is not on the web", async () => {

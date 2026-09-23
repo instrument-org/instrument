@@ -1,10 +1,10 @@
 import {
   computerColumnWidthAtom,
+  type ComputerFolderView,
   computerFolderViewsAtom,
   computerHiddenFilesAtom,
   computerSortAtom,
   computerViewAtom,
-  type ComputerFolderView,
   type FileTab,
 } from "@/client/atoms/orchestrator";
 import {

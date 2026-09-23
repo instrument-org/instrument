@@ -111,16 +111,8 @@ export async function runAppTest({
     guide === null ? [] : guidePlaceholdersLeft(app.manifest, guide);
   const write = `Write it with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, the whole file on stdin.`;
   checks.push(
-    app.manifest.type !== "api"
-      ? {
-          detail:
-            guide === null
-              ? "No guide; an MCP app's tools describe themselves."
-              : `${APP_GUIDE_FILE_NAME} is present.`,
-          name: "guide",
-          status: "pass",
-        }
-      : guide === null
+    app.manifest.type === "api"
+      ? guide === null
         ? {
             name: "guide",
             ...failure(
@@ -138,7 +130,15 @@ export async function runAppTest({
               detail: `${APP_GUIDE_FILE_NAME} is present.`,
               name: "guide",
               status: "pass",
-            },
+            }
+      : {
+          detail:
+            guide === null
+              ? "No guide; an MCP app's tools describe themselves."
+              : `${APP_GUIDE_FILE_NAME} is present.`,
+          name: "guide",
+          status: "pass",
+        },
   );
 
   const { apps } = getWorkspaceConfig();

@@ -19,7 +19,7 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient } from "@/client/rpc/client";
-import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
+import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
@@ -158,7 +158,7 @@ function AppRoute() {
                       className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
                       type="button"
                     >
-                      <DotsThreeIcon className="size-4" weight="bold" />
+                      <DotsThreeVerticalIcon className="size-4" weight="bold" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">

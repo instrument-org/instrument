@@ -175,7 +175,7 @@ function AppRoute() {
         {/* No way back up to Apps here: the row above says where this is. */}
         <div className="flex items-center gap-3">
           <AppIcon name={name} site={site} size="lg" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1">
               <h1 className="text-lg leading-6 font-semibold">{name}</h1>
               {app ? (
@@ -247,7 +247,7 @@ function AppRoute() {
               </p>
             )}
           </div>
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {/* The site is a site whether or not the app is connected, so the
               way to it is always here, wearing the app's own mark;
               connecting is what the agent needs, not what a person needs to

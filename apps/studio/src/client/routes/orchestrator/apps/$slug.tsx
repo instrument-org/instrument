@@ -26,8 +26,8 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { Spinner } from "@/client/components/ui/spinner";
-import { cn } from "@/client/lib/utils";
 import { appMentionToken } from "@/client/lib/app-mention";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";

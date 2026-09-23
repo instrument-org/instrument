@@ -1,6 +1,6 @@
-import { cn } from "@/client/lib/utils";
 import { type VisitedPage } from "@/client/atoms/orchestrator";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
+import { cn } from "@/client/lib/utils";
 
 import { AppIcon } from "./app-icon";
 
@@ -17,13 +17,13 @@ export function VisitedPageRows({
   onOpen,
   visits,
 }: {
-  /** Only as many as fit on one row, for a strip under a page's head. */
-  isOneRow?: boolean;
   /**
    * As a dense grid of one-line entries, as many columns as the width
    * holds: the page's title, then its address, quiet, on the same line.
    */
   isCompact?: boolean;
+  /** Only as many as fit on one row, for a strip under a page's head. */
+  isOneRow?: boolean;
   onOpen: (url: string) => void;
   visits: {
     app: { name: string; site?: string | undefined };

@@ -8,12 +8,12 @@ import { PageSection } from "@/client/components/orchestrator/page-section";
 import { VisitedPageRows } from "@/client/components/orchestrator/visited-page-rows";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
-import { cn } from "@/client/lib/utils";
 import { appMentionToken } from "@/client/lib/app-mention";
+import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
@@ -77,7 +77,7 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
   const waiting = app.standing === "connected" ? undefined : waitingLine(app);
   return (
     <button
-      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center transition-colors hover:bg-accent/50"
+      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
       onAuxClick={onAuxClick}
       onClick={onOpen}
       onContextMenu={onContextMenu}
@@ -140,7 +140,7 @@ function AppsRoute() {
   const matches =
     typed === "" ? more : more.filter((entry) => matchesWords(entry, typed));
   const shown =
-    typed !== "" ? matches : showsAll ? more : more.slice(0, MORE_SHOWN);
+    typed === "" ? showsAll ? more : more.slice(0, MORE_SHOWN) : matches;
   const connectTyped = () => {
     ask(`Connect ${typed}`);
     setQuery("");
@@ -303,7 +303,7 @@ function CatalogTile({
     kind: "screen",
   });
   return (
-    <div className="flex h-16 items-center gap-3 rounded-2xl border border-border bg-card pr-2 pl-3 shadow-xs transition-colors hover:bg-accent/40">
+    <div className="flex h-16 items-center gap-3 rounded-2xl border border-border bg-card pr-2 pl-3 shadow-xs hover:bg-accent/40">
       <button
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
         onAuxClick={onAuxClick}
@@ -326,64 +326,6 @@ function CatalogTile({
           </span>
         </span>
       </button>
-      <GlyphButton onClick={onConnect} size="sm">
-        Connect
-      </GlyphButton>
-    </div>
-  );
-}
-
-/** Whether every word typed is somewhere in the entry's name, domain, tagline, or categories. */
-function matchesWords(entry: CatalogEntry, typed: string): boolean {
-  const haystack = [
-    entry.slug,
-    entry.name,
-    entry.domain,
-    entry.tagline,
-    ...entry.categories,
-  ]
-    .join(" ")
-    .toLowerCase();
-  return typed
-    .toLowerCase()
-    .split(/\s+/)
-    .every((word) => haystack.includes(word));
-}
-
-/** The directory with the services most people know brought to the front, the rest in its own order. */
-/**
- * A service the directory does not list, as a tile beside the ones it does:
- * what was typed, and the promise that Instrument finds it and connects it.
- * Alone when nothing matched; last among the matches otherwise, for the
- * name that was meant and not found.
- */
-function UnlistedTile({
-  isOnlyOne,
-  name,
-  onConnect,
-}: {
-  isOnlyOne: boolean;
-  name: string;
-  onConnect: () => void;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex h-16 items-center gap-3 rounded-2xl border border-dashed border-border pr-2 pl-3 transition-colors hover:bg-accent/40",
-        isOnlyOne && "@lg/apps:col-span-2",
-      )}
-    >
-      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-        <PlusIcon className="size-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-medium">
-          {isOnlyOne ? `“${name}” isn’t listed` : `Connect “${name}” anyway`}
-        </span>
-        <span className="block truncate text-xs text-muted-foreground">
-          Instrument finds how it connects and sets it up.
-        </span>
-      </span>
       <GlyphButton onClick={onConnect} size="sm">
         Connect
       </GlyphButton>
@@ -418,6 +360,23 @@ function MarkSkeletons() {
   );
 }
 
+/** Whether every word typed is somewhere in the entry's name, domain, tagline, or categories. */
+function matchesWords(entry: CatalogEntry, typed: string): boolean {
+  const haystack = [
+    entry.slug,
+    entry.name,
+    entry.domain,
+    entry.tagline,
+    ...entry.categories,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return typed
+    .toLowerCase()
+    .split(/\s+/)
+    .every((word) => haystack.includes(word));
+}
+
 /** Tiles holding the directory's place while it is still on its way. */
 function TileSkeletons() {
   return (
@@ -434,6 +393,47 @@ function TileSkeletons() {
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** The directory with the services most people know brought to the front, the rest in its own order. */
+/**
+ * A service the directory does not list, as a tile beside the ones it does:
+ * what was typed, and the promise that Instrument finds it and connects it.
+ * Alone when nothing matched; last among the matches otherwise, for the
+ * name that was meant and not found.
+ */
+function UnlistedTile({
+  isOnlyOne,
+  name,
+  onConnect,
+}: {
+  isOnlyOne: boolean;
+  name: string;
+  onConnect: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex h-16 items-center gap-3 rounded-2xl border border-dashed border-border pr-2 pl-3 hover:bg-accent/40",
+        isOnlyOne && "@lg/apps:col-span-2",
+      )}
+    >
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+        <PlusIcon className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-medium">
+          {isOnlyOne ? `“${name}” isn’t listed` : `Connect “${name}” anyway`}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          Instrument finds how it connects and sets it up.
+        </span>
+      </span>
+      <GlyphButton onClick={onConnect} size="sm">
+        Connect
+      </GlyphButton>
     </div>
   );
 }

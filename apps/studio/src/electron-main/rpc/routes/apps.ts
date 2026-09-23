@@ -331,8 +331,8 @@ async function withInspectorClient<T>({
 }: {
   context: {
     workspaceConfig: {
-      appsDir: Parameters<typeof loadApp>[0];
       apps: { getCredential: (slug: string) => Promise<null | string> };
+      appsDir: Parameters<typeof loadApp>[0];
     };
   };
   errors: {

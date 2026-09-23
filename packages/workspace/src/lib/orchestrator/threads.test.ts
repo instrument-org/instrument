@@ -13,6 +13,7 @@ import {
   listThreads,
   markThreadSeen,
   markThreadUnseen,
+  renameThread,
   setThreadStarred,
   setThreadTopics,
   threadById,
@@ -342,6 +343,21 @@ describe("listThreads", () => {
     await setThreadStarred(taskId, sessionId, false);
     const [back] = await listThreads(taskId);
     expect(back?.starred).toBe(false);
+  });
+
+  it("takes the name the user typed, without moving its stamp", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Groceries", 1);
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    const [before] = await listThreads(taskId);
+
+    await renameThread(taskId, sessionId, "Weekly shop");
+    const [renamed] = await listThreads(taskId);
+    expect(renamed?.title).toBe("Weekly shop");
+    expect(renamed?.updatedAt).toBe(before?.updatedAt);
+    const stored = await Store.getSession(sessionId, taskId);
+    expect(stored._unsafeUnwrap().titleSettledAt).toBeInstanceOf(Date);
   });
 
   it("is working while a task filed from it runs, and says its step", async () => {

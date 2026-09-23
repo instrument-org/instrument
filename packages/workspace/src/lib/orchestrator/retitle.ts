@@ -15,7 +15,7 @@ import { getTaskSettings } from "../task-settings";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
 import { lastAssistantTextIn } from "./latest-session";
-import { threadIsWorking } from "./threads";
+import { settleThreadTitle, threadIsWorking } from "./threads";
 
 /** How much of the latest reply the title call reads. */
 const REPLY_MAX = 600;
@@ -114,8 +114,8 @@ export async function retitleThread({
  * done; by the time the thread's agent and every task it filed have stopped,
  * the work has said what it is about, so the thread is named again from the
  * root and the latest reply. That is the whole of it: a title that kept
- * moving would be one the user loses in the list, so after the first settle
- * only the user's own ask renames the thread. A turn that leaves something of
+ * moving would be one the user loses in the list, so after the first settle,
+ * or once the user has named the thread themselves, only the user renames it. A turn that leaves something of
  * the thread's still working (a hand-off, a task's report while another
  * runs) waits for the one that settles it, the same moment a notification
  * treats as news.
@@ -160,20 +160,14 @@ async function retitleOnSettle({
     return;
   }
   const session = await Store.getSession(sessionId, id);
-  if (session.isErr() || session.value.retitledAt) {
+  if (session.isErr() || session.value.titleSettledAt) {
     return;
   }
   if (await threadIsWorking(id, sessionId)) {
     return;
   }
   const title = await retitleThread({ id, keep: true, sessionId });
-  if (title === undefined) {
-    return;
+  if (title !== undefined) {
+    await settleThreadTitle(id, sessionId);
   }
-  // Read again: the title call may have just renamed it.
-  const current = await Store.getSession(sessionId, id);
-  if (current.isErr()) {
-    return;
-  }
-  await Store.saveSession({ ...current.value, retitledAt: new Date() }, id);
 }

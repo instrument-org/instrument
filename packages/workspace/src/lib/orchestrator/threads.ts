@@ -203,6 +203,22 @@ export async function markThreadUnseen(
   publisher.publish("session.updated", { id: taskId, sessionId });
 }
 
+/**
+ * Names a thread the way the user typed it, which settles its title: the
+ * app never renames a thread the user has named.
+ */
+export async function renameThread(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+  title: string,
+): Promise<boolean> {
+  return saveMark(taskId, sessionId, (session) => ({
+    ...session,
+    title,
+    titleSettledAt: new Date(),
+  }));
+}
+
 /** Stars a thread, or takes the star off. The stamp stays where it was, as with putting a thread away. */
 export async function setThreadStarred(
   taskId: TaskId,
@@ -239,6 +255,17 @@ export async function setThreadTopics(
     taskId,
   );
   return saved.isOk();
+}
+
+/** Records that the app is done naming a thread, leaving any rename after it to the user. */
+export async function settleThreadTitle(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<boolean> {
+  return saveMark(taskId, sessionId, (session) => ({
+    ...session,
+    titleSettledAt: new Date(),
+  }));
 }
 
 /** One thread by its session id, or none for a session that is not one. */

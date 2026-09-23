@@ -37,12 +37,14 @@ export namespace Session {
      * reader: this boundary cannot be judged, so it stands.
      */
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
-    /**
-     * When the thread was named again from how its first exchange settled.
-     * That happens once: after it, only the user's own ask renames the thread.
-     */
-    retitledAt: z.date().optional(),
     title: z.string(),
+    /**
+     * When the thread's title stopped being the app's to change: its one
+     * automatic rename, once its first exchange settled, or the user naming
+     * it, by hand or from the conversation. After it, only the user renames
+     * the thread.
+     */
+    titleSettledAt: z.date().optional(),
     /**
      * The topics this thread is tagged with, by topic id. On the thread's own
      * record so the thread list is one read and a filter is a predicate over

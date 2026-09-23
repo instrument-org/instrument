@@ -36,8 +36,10 @@ import {
   listThreads,
   markThreadSeen,
   markThreadUnseen,
+  renameThread,
   setThreadStarred,
   setThreadTopics,
+  settleThreadTitle,
   ThreadSchema,
   unarchiveThread,
 } from "../../lib/orchestrator/threads";
@@ -311,7 +313,8 @@ const unarchiveThreadRoute = base
 /**
  * Names a thread again from where it stands now, on the user's ask, as
  * often as they ask; answers with the title it has afterward, or nothing when
- * there was nothing to name it from.
+ * there was nothing to name it from. A name the user asked for settles the
+ * title the same as one they typed.
  */
 const retitleThreadRoute = base
   .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
@@ -321,7 +324,24 @@ const retitleThreadRoute = base
       id: input.id,
       sessionId: input.sessionId,
     });
-    return title === undefined ? {} : { title };
+    if (title === undefined) {
+      return {};
+    }
+    await settleThreadTitle(input.id, input.sessionId);
+    return { title };
+  });
+
+/** Names a thread as the user typed it. */
+const renameThreadRoute = base
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      sessionId: StoreId.SessionSchema,
+      title: z.string().trim().min(1),
+    }),
+  )
+  .handler(async ({ input }) => {
+    await renameThread(input.id, input.sessionId, input.title);
   });
 
 /** The topics a thread carries, replaced whole. */
@@ -512,6 +532,7 @@ export const orchestrator = {
     archive: archiveThreadRoute,
     list: listThreadsRoute,
     live: { list: liveListThreadsRoute },
+    rename: renameThreadRoute,
     retitle: retitleThreadRoute,
     seen: seenThreadRoute,
     setTopics: setThreadTopicsRoute,

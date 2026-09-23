@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const FeatureNameSchema = z.enum([
+  "activity_headings",
   "bash_summary_chip",
   "context_ring",
   "external_browser",
@@ -19,6 +20,11 @@ export const FEATURE_METADATA: Record<
   FeatureName,
   { description: string; title: string }
 > = {
+  activity_headings: {
+    description:
+      "Give task agents the start_activity tool, which heads each phase of work with a title. Off because models always send it as a step of its own, a model round trip that does nothing else.",
+    title: "Activity Headings",
+  },
   bash_summary_chip: {
     description: "Show compact bash command names in tool call summaries.",
     title: "Bash Summary Chip",

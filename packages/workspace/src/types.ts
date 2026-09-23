@@ -162,6 +162,9 @@ export interface WorkspaceConfig {
    * absent altogether where there is no account to read (scripts, evals).
    */
   getUser?: () => Promise<undefined | { email: string; name: string }>;
+  // Whether the main agent gets `start_activity`. Read when its tools and its
+  // session context are built; see `activityHeadingsEnabled` in agents/main.ts.
+  isActivityHeadingsEnabled: () => boolean;
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;

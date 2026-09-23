@@ -42,6 +42,7 @@ export function createStubWorkspaceConfig({
     getAIProviderConfigs: () => [],
     // On for the dev harnesses, which exist to exercise the real thing. The
     // app ships with it off until the macOS permission prompt is handled.
+    isActivityHeadingsEnabled: () => process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
     isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},

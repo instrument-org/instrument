@@ -123,6 +123,7 @@ export function createMockTaskConfig(
       MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
     ),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
+    isActivityHeadingsEnabled: () => false,
     // Off by default, as it ships: a test that wants the external-browser path
     // opts into it the same way a user does.
     isExternalBrowserEnabled: () => options.externalBrowser ?? false,

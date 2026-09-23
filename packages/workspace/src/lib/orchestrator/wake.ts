@@ -29,7 +29,7 @@ import {
   translateTaskFolderPaths,
 } from "./mount-paths";
 import { endedWithoutWords } from "./standing";
-import { activitiesSince } from "./steps";
+import { trajectorySince } from "./steps";
 import { WAKE_SUMMARY_MAX_LENGTH } from "./wake-summary";
 
 /** What a wake carries: the part that starts the orchestrator's turn. */
@@ -55,7 +55,7 @@ const WAKE_DEBOUNCE_MS = 1500;
 const OVERDUE_AFTER_MS = ms("4 minutes");
 const OVERDUE_CHECK_MS = ms("30 seconds");
 
-/** How many of a turn's activities an overdue note carries, latest last. */
+/** How many of a turn's steps an overdue note carries, latest last. */
 const OVERDUE_STEPS = 6;
 
 /** When each child was last reported overdue, so the note comes once per stretch. */
@@ -400,8 +400,8 @@ function schedule(
 }
 
 /**
- * Where a working task stands: how long and how much so far, the activities
- * it set this turn, and what it has written. The two things that tell a task
+ * Where a working task stands: how long and how much so far, where it has
+ * gone this turn, and what it has written. The two things that tell a task
  * doing deep work apart from one that is lost, which its latest step alone
  * does not.
  */
@@ -418,9 +418,9 @@ async function stillWorkingEvent({
 }): Promise<TaskEvent> {
   const usage = await getTaskUsageSummary(taskId);
   const paths = { orchestratorTaskId: orchestratorId, taskId };
-  const activities = await activitiesSince(taskId, turnStart ?? new Date());
+  const trajectory = await trajectorySince(taskId, turnStart ?? new Date());
   const steps = await Promise.all(
-    activities
+    trajectory
       .slice(-OVERDUE_STEPS)
       .map((step) => inOrchestratorPaths(step, paths)),
   );

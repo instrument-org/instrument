@@ -330,6 +330,7 @@ export async function runEvals(
         "../templates/default",
       ),
       getAIProviderConfigs: () => providerConfigs,
+      isActivityHeadingsEnabled: () => process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
       isExternalBrowserEnabled: () => true,
       modelCache: noopModelCache,
       nodeExecEnv: {},

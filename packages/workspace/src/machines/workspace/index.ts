@@ -384,6 +384,7 @@ export const workspaceMachine = setup({
       defaultTaskTemplateDir: string;
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
+      isActivityHeadingsEnabled: () => boolean;
       isExternalBrowserEnabled: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
@@ -414,6 +415,7 @@ export const workspaceMachine = setup({
       ),
       getAIProviderConfigs: input.getAIProviderConfigs,
       ...(input.getUser ? { getUser: input.getUser } : {}),
+      isActivityHeadingsEnabled: input.isActivityHeadingsEnabled,
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
       modelCache: input.modelCache,
       nodeExecEnv: input.nodeExecEnv,

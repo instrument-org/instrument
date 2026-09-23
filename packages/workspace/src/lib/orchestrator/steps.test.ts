@@ -5,7 +5,7 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { Store } from "../store";
-import { activitiesSince, renderSteps, sessionSteps } from "./steps";
+import { renderSteps, sessionSteps, trajectorySince } from "./steps";
 
 vi.mock(import("../session-store-storage"));
 
@@ -204,12 +204,21 @@ describe("sessionSteps", () => {
   it("lists the activities set since a moment, for the overdue note", async () => {
     await seed();
 
-    expect(await activitiesSince(taskId, at(40))).toEqual([
+    expect(await trajectorySince(taskId, at(40))).toEqual([
       "Pinning the review range",
     ]);
-    expect(await activitiesSince(taskId, at(0))).toEqual([
+    expect(await trajectorySince(taskId, at(0))).toEqual([
       "Inspecting runtime changes and history",
       "Pinning the review range",
+    ]);
+  });
+
+  it("lists the calls instead when no activity was set since the moment", async () => {
+    await seed();
+
+    expect(await trajectorySince(taskId, at(46))).toEqual([
+      "bash: Waiting (running)",
+      "bash: Failing (failed)",
     ]);
   });
 });

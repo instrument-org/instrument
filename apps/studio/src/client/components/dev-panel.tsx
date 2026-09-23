@@ -104,6 +104,7 @@ const pillTriggerClassName = `${controlClassName} gap-x-1.5 px-1.5`;
  * other, and the Flags menu prints them next to the flag they stand for.
  */
 const FEATURE_CODES: Record<FeatureName, string> = {
+  activity_headings: "a",
   bash_summary_chip: "b",
   context_ring: "c",
   external_browser: "x",

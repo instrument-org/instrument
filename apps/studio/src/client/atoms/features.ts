@@ -5,6 +5,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { atom } from "jotai";
 
 const defaultFeatures: Features = {
+  activity_headings: false,
   bash_summary_chip: false,
   context_ring: false,
   external_browser: false,

@@ -126,6 +126,7 @@ export function createWorkspaceActor({
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       getAIProviderConfigs,
       getUser: getSignedInUser,
+      isActivityHeadingsEnabled: () => isFeatureEnabled("activity_headings"),
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
       modelCache: diskModelCache,
       nodeExecEnv: {

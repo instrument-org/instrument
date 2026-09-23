@@ -212,16 +212,31 @@ export function ThreadStage({
   /** The thread whose group is up, or nothing while a draft's is. */
   sessionId: StoreId.Session | undefined;
 }) {
-  // Newest last; the one up is always among them.
-  const [kept, setKept] = useState<StoreId.Session[]>([]);
-  if (sessionId !== undefined && kept.at(-1) !== sessionId) {
-    setKept((current) =>
-      [...current.filter((id) => id !== sessionId), sessionId].slice(-KEPT),
-    );
+  // `recency` is newest last, and says which to let go of; the one up is
+  // always among them. `order` is the same threads in the order they arrived,
+  // which is the order they are drawn in: a kept thread moved in the DOM is
+  // detached and put back, which takes its transcript's scroll to the top and
+  // replays every animation in it.
+  const [kept, setKept] = useState<{
+    order: StoreId.Session[];
+    recency: StoreId.Session[];
+  }>({ order: [], recency: [] });
+  if (sessionId !== undefined && kept.recency.at(-1) !== sessionId) {
+    setKept((current) => {
+      const recency = [
+        ...current.recency.filter((id) => id !== sessionId),
+        sessionId,
+      ].slice(-KEPT);
+      const order = current.order.filter((id) => recency.includes(id));
+      return {
+        order: order.includes(sessionId) ? order : [...order, sessionId],
+        recency,
+      };
+    });
   }
   return (
     <>
-      {kept.map((id) => {
+      {kept.order.map((id) => {
         if (floating.includes(id)) {
           return null;
         }

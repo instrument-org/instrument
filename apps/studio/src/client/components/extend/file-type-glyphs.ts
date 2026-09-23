@@ -1,5 +1,6 @@
 // File-type glyphs for the types the @pierre/trees "complete" set leaves on its
-// generic page: media, office documents, mail, calendars, and 3D models. Drawn
+// generic page: media, office documents, mail, calendars, contacts, links,
+// keys, 3D models, and code without a brand glyph. Drawn
 // in that set's vocabulary (16×16, the dog-eared page at 40% behind a solid
 // mark in the same color) so they sit beside the built-ins as one family.
 // Markup is the inside of a <symbol viewBox="0 0 16 16">.
@@ -36,6 +37,44 @@ export const FILE_TYPE_GLYPHS = {
     extensions: ["ics", "ical", "icalendar", "ifb", "vcs"],
     markup: `<path fill="currentColor" d="M2 6h12v5.5a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5z" opacity=".4"/><path fill="currentColor" d="M4.5 3h7A2.5 2.5 0 0 1 14 5.5V6H2v-.5A2.5 2.5 0 0 1 4.5 3M5 1.5a.5.5 0 0 1 1 0V4a.5.5 0 0 1-1 0zm5 0a.5.5 0 0 1 1 0V4a.5.5 0 0 1-1 0zM4 8h2v1.5H4zm3 0h2v1.5H7zm3 0h2v1.5h-2zm-6 2.5h2V12H4zm3 0h2V12H7z"/>`,
   },
+  code: {
+    // Built-in palette: teal. The mark is code-block-duo from Pierre's
+    // @pierre/vscode-icons (MIT, The Pierre Computer Company), for languages
+    // the set has no brand glyph for.
+    colors: ["#17a5af", "#64d1db"],
+    extensions: [
+      "clj",
+      "cs",
+      "dart",
+      "erl",
+      "ex",
+      "exs",
+      "fs",
+      "groovy",
+      "hs",
+      "java",
+      "kt",
+      "kts",
+      "lua",
+      "m",
+      "ml",
+      "php",
+      "pl",
+      "pm",
+      "r",
+      "scala",
+      "vb",
+      "xml",
+      "xsl",
+    ],
+    markup: `<path fill="currentColor" fill-rule="evenodd" d="M8 1q1.99-.02 3.35.27c.91.2 1.67.54 2.26 1.130s.92 1.34 1.12 2.25Q15.01 6.01 15 8a13 13 0 0 1-.27 3.35c-.2.91-.54 1.67-1.12 2.26s-1.34.92-2.26 1.12Q9.99 15.01 8 15a13 13 0 0 1-3.35-.27 4.4 4.4 0 0 1-2.25-1.12 4.4 4.4 0 0 1-1.13-2.26Q.99 9.99 1 8c.01-1.99.07-2.44.27-3.350S1.8 2.98 2.4 2.4a4.4 4.4 0 0 1 2.25-1.13Q6.01.99 8 1" clip-rule="evenodd" opacity=".2"/><path fill="currentColor" d="M6.15 5.15a.5.5 0 1 1 .7.7L4.71 8l2.14 2.15a.5.5 0 1 1-.7.7l-2.5-2.5a.5.5 0 0 1 0-.7zm3 0a.5.5 0 0 1 .7 0l2.5 2.5a.5.5 0 0 1 0 .7l-2.5 2.5a.5.5 0 1 1-.7-.7L11.29 8 9.15 5.850a.5.5 0 0 1 0-.7"/>`,
+  },
+  contact: {
+    // Built-in palette: green.
+    colors: ["#199f43", "#5ecc71"],
+    extensions: ["vcard", "vcf"],
+    markup: `<path fill="currentColor" d="M3.5 3h9A2.5 2.5 0 0 1 15 5.5v5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 1 10.5v-5A2.5 2.5 0 0 1 3.5 3" opacity=".4"/><path fill="currentColor" d="M7 6.75a1.75 1.75 0 1 1-3.5 0 1.75 1.75 0 0 1 3.5 0M2.75 11c0-1.38 1.12-2.25 2.5-2.25s2.5.87 2.5 2.25a.5.5 0 0 1-.5.5h-4a.5.5 0 0 1-.5-.5M9.5 6h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1m0 2.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1"/>`,
+  },
   document: {
     // Built-in palette: blue.
     colors: ["#1a85d4", "#69b1ff"],
@@ -53,6 +92,19 @@ export const FILE_TYPE_GLYPHS = {
       "wpd",
     ],
     markup: `${PAGE}<path fill="currentColor" d="M4.5 8h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1 0-1m0 2h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1m0 2h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1"/>`,
+  },
+  key: {
+    // Built-in palette: yellow. ".key" stays with presentation: Keynote
+    // decks outnumber private keys on the computers this runs on.
+    colors: ["#d5a910", "#ffd452"],
+    extensions: ["cer", "crt", "csr", "der", "p12", "p7b", "pem", "pfx"],
+    markup: `<path fill="currentColor" d="M7.5 7.25h6a.75.75 0 0 1 .75.75v2.25a.5.5 0 0 1-.5.5h-.5a.5.5 0 0 1-.5-.5V9h-1v1.75a.5.5 0 0 1-.5.5h-.5a.5.5 0 0 1-.5-.5V9h-2.75z" opacity=".6"/><path fill="currentColor" fill-rule="evenodd" d="M4.75 4.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5m0 2.5a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5"/>`,
+  },
+  link: {
+    // Built-in palette: blue.
+    colors: ["#1a85d4", "#69b1ff"],
+    extensions: ["desktop", "inetloc", "lnk", "url", "webloc"],
+    markup: `${PAGE}<g fill="none" stroke="currentColor" stroke-width="1.1" transform="rotate(-45 8 10.5)"><rect width="4.4" height="2.2" x="4.3" y="9.4" rx="1.1"/><rect width="4.4" height="2.2" x="7.3" y="9.4" rx="1.1"/></g>`,
   },
   mail: {
     // Built-in palette: cyan.
@@ -120,7 +172,6 @@ export const FILE_TYPE_GLYPHS = {
       "mp4",
       "mpeg",
       "mpg",
-      "mts",
       "ogv",
       "qt",
       "webm",
@@ -142,24 +193,46 @@ export const FILE_TYPE_GLYPHS = {
 export const FILE_TYPE_ALIASES = {
   bash: ["bat", "cmd", "ps1", "psm1"],
   image: [
+    "acorn",
+    "afphoto",
     "arw",
     "cr2",
     "cr3",
     "dng",
     "heic",
+    "heics",
     "heif",
     "jfif",
     "jxl",
+    "kra",
     "nef",
     "orf",
+    "procreate",
     "psd",
+    "pxd",
+    "pxm",
     "raf",
     "raw",
     "rw2",
+    "xcf",
   ],
+  markdown: ["mdown", "mkd", "mkdn"],
   python: ["ipynb"],
-  svg: ["ai", "eps", "fig", "sketch"],
+  svg: ["afdesign", "ai", "eps", "fig", "sketch"],
   table: ["numbers", "xlsm"],
-  text: ["lock", "srt", "toml", "vtt"],
-  zip: ["apk", "appimage", "deb", "dmg", "iso", "msi", "pkg", "rpm", "xip"],
+  text: ["diff", "lock", "patch", "plist", "srt", "strings", "toml", "vtt"],
+  zip: [
+    "apk",
+    "appimage",
+    "appx",
+    "deb",
+    "dmg",
+    "exe",
+    "iso",
+    "msi",
+    "msix",
+    "pkg",
+    "rpm",
+    "xip",
+  ],
 } satisfies Record<string, string[]>;

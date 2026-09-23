@@ -59,7 +59,7 @@ export const WINDOWS_EXTENSIONS = [
 const PROG_ID = `${APP_NAME}.File`;
 
 /** The installed executable's file name, as NSIS knows it. */
- 
+
 const NSIS_EXECUTABLE = "${APP_EXECUTABLE_FILENAME}";
 
 /**

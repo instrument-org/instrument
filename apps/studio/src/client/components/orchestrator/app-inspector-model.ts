@@ -97,8 +97,13 @@ export function detailRead(
       sourceNouns.has(noun),
     ).length;
     // A guess from an id or a name alone needs the two tools to be about the
-    // same thing; a field named exactly as the parameter is enough by itself.
-    if (typeof own !== "string" && shared === 0) {
+    // same thing. A field named exactly as the parameter is enough by itself,
+    // and so is the row's own address handed to a parameter that says it
+    // takes one.
+    const isCertain =
+      typeof own === "string" ||
+      (byName === undefined && byId === undefined && byUrl !== undefined);
+    if (!isCertain && shared === 0) {
       return [];
     }
     return [{ args: { [param.name]: value }, score: shared, tool }];

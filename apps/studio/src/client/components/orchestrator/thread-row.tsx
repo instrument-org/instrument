@@ -255,7 +255,18 @@ export function ThreadRow({
                 row with nothing held takes no line for nothing. */}
               {hasHolds ? (
                 <>
-                  <Peek className="mt-0.5" lines={2} thread={thread} />
+                  {/* Two lines' room while the thread works, since its
+                    step changes with every call and would otherwise move
+                    the row between one line and two; it settles to the
+                    reply's own height once. */}
+                  <Peek
+                    className={cn(
+                      "mt-0.5",
+                      thread.state === "working" && "min-h-10",
+                    )}
+                    lines={2}
+                    thread={thread}
+                  />
                   <div className="mt-1 flex items-end gap-2">
                     <HoldsInThread threadId={thread.id}>
                       <HoldMarks
@@ -274,10 +285,12 @@ export function ThreadRow({
               ) : (
                 // Two lines' room whatever the latest line takes, so the
                 // star sits under the corner's bar rather than beneath it
-                // while the pointer is on the row.
-                <div className="mt-0.5 flex min-h-10 items-end gap-2">
+                // while the pointer is on the row, and the row keeps one
+                // height as the line changes. The line starts under the
+                // title, as it does in a row that holds something.
+                <div className="mt-0.5 flex min-h-10 items-start gap-2">
                   <Peek className="min-w-0 flex-1" lines={2} thread={thread} />
-                  <span className="-mr-1 -mb-0.5 ml-auto shrink-0">
+                  <span className="-mr-1 -mb-0.5 ml-auto shrink-0 self-end">
                     <StarControl thread={thread} />
                   </span>
                 </div>

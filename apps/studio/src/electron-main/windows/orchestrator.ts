@@ -38,13 +38,20 @@ export type OrchestratorAsk =
   | { href: string; type: "openScreen" };
 
 /**
- * Asks made before the window was there to take them, in order: several
- * files handed over at once arrive one by one before the window is. The
- * window's command stream starts empty at subscribe time, so a command
- * published while the renderer is still loading is lost; the layout asks for
- * these once it is up instead.
+ * Asks made before the window's page was there to take them, in order:
+ * several files handed over at once arrive one by one while the window is
+ * still opening. The window's command stream starts empty at subscribe time,
+ * so a command published while the renderer is still loading is lost; the
+ * layout asks for these once it is up instead.
  */
 let pendingAsks: OrchestratorAsk[] = [];
+
+/**
+ * Whether the window's page has taken what waited for it, and so is listening
+ * for asks as they come. A window that exists is not enough: its page may
+ * still be loading, or reloading.
+ */
+let isTakingAsks = false;
 
 export function getOrchestratorWindow(): BrowserWindow | null {
   return orchestratorWindow && !orchestratorWindow.isDestroyed()
@@ -166,8 +173,23 @@ export function openOrchestratorWindow(): BrowserWindow {
     });
   });
 
+  // A page loading afresh is not listening yet; what is asked meanwhile waits
+  // for it to ask again.
+  orchestratorWindow.webContents.on(
+    "did-start-navigation",
+    ({ isMainFrame, isSameDocument }) => {
+      if (isMainFrame && !isSameDocument) {
+        isTakingAsks = false;
+      }
+    },
+  );
+  orchestratorWindow.webContents.on("render-process-gone", () => {
+    isTakingAsks = false;
+  });
+
   orchestratorWindow.on("closed", () => {
     orchestratorWindow = null;
+    isTakingAsks = false;
     publisher.publish("window.focus-changed", null);
     // The window is already out of the list by now, so nothing to exclude.
     if (!hasVisibleWindowOtherThan(null)) {
@@ -230,6 +252,7 @@ export function openOrchestratorWindow(): BrowserWindow {
 export function takePendingOrchestratorAsks(): OrchestratorAsk[] {
   const asks = pendingAsks;
   pendingAsks = [];
+  isTakingAsks = true;
   return asks;
 }
 
@@ -243,7 +266,11 @@ function askOrchestrator(ask: OrchestratorAsk) {
   const window = getOrchestratorWindow();
   if (window) {
     window.focus();
-    publisher.publish("orchestrator.command", ask);
+    if (isTakingAsks) {
+      publisher.publish("orchestrator.command", ask);
+    } else {
+      pendingAsks.push(ask);
+    }
     return;
   }
   pendingAsks.push(ask);

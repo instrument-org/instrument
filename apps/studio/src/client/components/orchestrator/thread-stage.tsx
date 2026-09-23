@@ -1,3 +1,4 @@
+import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { TaskChat } from "@/client/components/task/chat";
@@ -107,7 +108,9 @@ export function ThreadScreen({
   // nothing because the group on screen was another's.
   const into = { group: sessionId, newTab: true, show: true };
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    // The thread is the drop region, so a file let go anywhere over it lands
+    // in the reply, and the pane beside it stays outside.
+    <FileDropRegion className="flex h-full min-h-0 flex-col">
       {/* The thread stands over its tabs, so what a reply hands over opens
           as a tab under it rather than in place of one: the openers all say
           so, and a line a card asks the conversation lands in this thread. */}
@@ -184,7 +187,7 @@ export function ThreadScreen({
           </FileOpenContext>
         </OrchestratorContext>
       </div>
-    </div>
+    </FileDropRegion>
   );
 }
 

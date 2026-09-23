@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isMessageDocument, parseMessage } from "./parse-message";
+import {
+  isMessageDocument,
+  MESSAGE_FENCE,
+  parseMessage,
+} from "./parse-message";
 
 describe("parseMessage", () => {
   it("reads front matter and the body under it", () => {
@@ -57,6 +61,53 @@ describe("parseMessage", () => {
       parseMessage("---\nmessage: email\nsubject: Re: the: plan\n---\nHi")
         .subject,
     ).toBe("Re: the: plan");
+  });
+
+  it("keeps a # in a plain front matter value rather than reading a comment", () => {
+    expect(
+      parseMessage(
+        "---\nmessage: chat\nsubject: Invoice #4521 is overdue\nto: Mom # and Dad\nvia: #design-team\n---\nHi",
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "body": "Hi",
+        "kind": "chat",
+        "subject": "Invoice #4521 is overdue",
+        "to": "Mom # and Dad",
+        "via": "#design-team",
+      }
+    `);
+  });
+
+  it.each([
+    ["a quoted value", '---\nsubject: "Launch: #2"\n---\nHi', "Launch: #2"],
+    ["a list under its key", "---\nsubject:\n  - A\n  - B\n---\nHi", "A, B"],
+  ])("reads %s from the YAML", (_name, source, subject) => {
+    expect(parseMessage(source).subject).toBe(subject);
+  });
+});
+
+describe("MESSAGE_FENCE", () => {
+  it("closes only on a run as long as the one that opened it", () => {
+    const reply =
+      "Here:\n\n````message\nto: Sam\n\nRun this:\n\n```bash\nls\n```\n\nThen tell me.\n````\n\nDone.";
+    expect(
+      [...reply.matchAll(MESSAGE_FENCE)].map((match) => match.groups?.body),
+    ).toMatchInlineSnapshot(`
+      [
+        "
+      to: Sam
+
+      Run this:
+
+      \`\`\`bash
+      ls
+      \`\`\`
+
+      Then tell me.
+      ",
+      ]
+    `);
   });
 });
 

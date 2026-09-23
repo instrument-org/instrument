@@ -61,7 +61,7 @@ function fail(text: string, evidence: string): AssertionResult {
 function fencedMessages(sessions: Session.WithMessagesAndParts[]) {
   return assistantTexts(sessions).flatMap((text) =>
     [...text.matchAll(MESSAGE_FENCE)].map((match) =>
-      parseMessage(match[1] ?? ""),
+      parseMessage(match.groups?.body ?? ""),
     ),
   );
 }

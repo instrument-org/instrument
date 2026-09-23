@@ -59,7 +59,7 @@ function messageSegments(
   let rest = 0;
   for (const match of text.matchAll(MESSAGE_FENCE)) {
     pushWords(text.slice(rest, match.index));
-    segments.push({ kind: "message", text: match[1] ?? "" });
+    segments.push({ kind: "message", text: match.groups?.body ?? "" });
     rest = match.index + match[0].length;
   }
   const tail = text.slice(rest);

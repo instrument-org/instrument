@@ -29,11 +29,12 @@ export interface MessageDraft {
 export type MessageKind = (typeof MESSAGE_KINDS)[number];
 
 /**
- * A ```message fence in a reply, its body captured, in the shape of
- * `FILES_FENCE`.
+ * A ```message fence in a reply, its body captured as `body`. It closes only
+ * on a run of backticks at least as long as the one that opened it, as
+ * Markdown's fences do, so a message opened with four can hold a code block.
  */
 export const MESSAGE_FENCE = new RegExp(
-  String.raw`^[ \t]*\x60{3,}[ \t]*${AGENT_MESSAGE_LANGUAGE}[ \t]*$([\s\S]*?)^[ \t]*\x60{3,}[ \t]*$`,
+  String.raw`^[ \t]*(?<fence>\x60{3,})[ \t]*${AGENT_MESSAGE_LANGUAGE}[ \t]*$(?<body>[\s\S]*?)^[ \t]*\k<fence>\x60*[ \t]*$`,
   "gmu",
 );
 
@@ -100,8 +101,25 @@ function kindOf(
   return subject ? "email" : "other";
 }
 
+// A value YAML reads differently from its text: quoted, a list, a map, a
+// block, or empty with the value on the lines under it.
+const YAML_VALUE = /^(?:["'[{|>]|$)/;
+
+/**
+ * Front matter's fields. A plain value is its line's text as written, since
+ * YAML would read `subject: Invoice #4521` as "Invoice" and a comment; only a
+ * value in YAML's own syntax (quoted, a list) is taken from the parse.
+ */
 function readFrontMatter(yaml: string): Partial<Record<Field, string>> {
   const fields: Partial<Record<Field, string>> = {};
+  for (const line of yaml.split("\n")) {
+    const match = HEADER_LINE.exec(line);
+    const key = match?.[1]?.toLowerCase();
+    const value = (match?.[2] ?? "").trim();
+    if (isField(key) && !YAML_VALUE.test(value)) {
+      fields[key] = value;
+    }
+  }
   let parsed: unknown;
   try {
     parsed = parseYaml(yaml);
@@ -111,7 +129,12 @@ function readFrontMatter(yaml: string): Partial<Record<Field, string>> {
   if (parsed !== null && typeof parsed === "object") {
     for (const [key, value] of Object.entries(parsed)) {
       const field = key.toLowerCase();
-      if (isField(field) && value !== null && value !== undefined) {
+      if (
+        isField(field) &&
+        fields[field] === undefined &&
+        value !== null &&
+        value !== undefined
+      ) {
         fields[field] = Array.isArray(value)
           ? value.map(String).join(", ")
           : String(value).trim();
@@ -119,10 +142,11 @@ function readFrontMatter(yaml: string): Partial<Record<Field, string>> {
     }
     return fields;
   }
+  // Front matter that does not parse is read line by line, quotes and all.
   for (const line of yaml.split("\n")) {
     const match = HEADER_LINE.exec(line);
     const key = match?.[1]?.toLowerCase();
-    if (match && isField(key)) {
+    if (match && isField(key) && fields[key] === undefined) {
       fields[key] = (match[2] ?? "").trim();
     }
   }

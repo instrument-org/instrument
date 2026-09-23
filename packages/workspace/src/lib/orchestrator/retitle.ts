@@ -5,6 +5,7 @@ import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
@@ -14,22 +15,27 @@ import { getTaskSettings } from "../task-settings";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
 import { lastAssistantTextIn } from "./latest-session";
+import { threadIsWorking } from "./threads";
 
 /** How much of the latest reply the title call reads. */
 const REPLY_MAX = 600;
 
 /**
- * Names a thread again from its root and its latest reply, the way each
- * finished turn does, and says what it is called now: the new title, the
- * one it already had when the call agreed with it, or nothing when the
- * thread has no reply to be named from or no model to ask.
+ * Names a thread again from its root and its latest reply, and says what it
+ * is called now: the new title, the one it already had when the call agreed
+ * with it, or nothing when the thread has no reply to be named from or no
+ * model to ask. `keep` asks the call to hold on to an agent-given title
+ * unless the subject has moved; without it, as on the user's own ask, the
+ * call names the thread afresh.
  */
 export async function retitleThread({
   id,
+  keep = false,
   parentSessionId,
   sessionId,
 }: {
   id: TaskId;
+  keep?: boolean;
   parentSessionId?: StoreId.Session | undefined;
   sessionId: StoreId.Session;
 }): Promise<string | undefined> {
@@ -72,7 +78,13 @@ export async function retitleThread({
   if (session.isErr()) {
     return undefined;
   }
+  // A placeholder is the ask's own first words, not a name worth keeping.
+  const currentTitle =
+    keep && !isUntitledChatSessionTitle(session.value.title)
+      ? session.value.title
+      : undefined;
   const title = await generateTitleFromUserMessage({
+    currentTitle,
     message: root,
     model: model.value,
     reply,
@@ -96,20 +108,23 @@ export async function retitleThread({
 }
 
 /**
- * Keeps a thread's title current as the thread goes on.
+ * Names a thread once more, when its first exchange has settled.
  *
  * The title is written from the opening message, before anything has been
- * done; a thread that ran for days is about what it became. So each finished
- * turn of an orchestrator's thread names it again from the root and the
- * latest reply, through the same call that named it first. One subscriber
- * over the session-done topic for the life of the process; a turn that ended
- * without words, or in a task's session, is left alone.
+ * done; by the time the thread's agent and every task it filed have stopped,
+ * the work has said what it is about, so the thread is named again from the
+ * root and the latest reply. That is the whole of it: a title that kept
+ * moving would be one the user loses in the list, so after the first settle
+ * only the user's own ask renames the thread. A turn that leaves something of
+ * the thread's still working (a hand-off, a task's report while another
+ * runs) waits for the one that settles it, the same moment a notification
+ * treats as news.
  */
 export function startThreadRetitle(): void {
   void (async () => {
     for await (const payload of publisher.subscribe("session.done")) {
       try {
-        await retitleThread(payload);
+        await retitleOnSettle(payload);
       } catch (error) {
         getWorkspaceConfig().captureException(error);
       }
@@ -126,4 +141,39 @@ function isRoot(
       (part) => part.type === "text" && part.text.trim() !== "",
     )
   );
+}
+
+async function retitleOnSettle({
+  id,
+  parentSessionId,
+  sessionId,
+}: {
+  id: TaskId;
+  parentSessionId?: StoreId.Session | undefined;
+  sessionId: StoreId.Session;
+}): Promise<void> {
+  if (parentSessionId) {
+    return;
+  }
+  const settings = await getTaskSettings(taskDir(id));
+  if (settings?.kind !== "orchestrator") {
+    return;
+  }
+  const session = await Store.getSession(sessionId, id);
+  if (session.isErr() || session.value.retitledAt) {
+    return;
+  }
+  if (await threadIsWorking(id, sessionId)) {
+    return;
+  }
+  const title = await retitleThread({ id, keep: true, sessionId });
+  if (title === undefined) {
+    return;
+  }
+  // Read again: the title call may have just renamed it.
+  const current = await Store.getSession(sessionId, id);
+  if (current.isErr()) {
+    return;
+  }
+  await Store.saveSession({ ...current.value, retitledAt: new Date() }, id);
 }

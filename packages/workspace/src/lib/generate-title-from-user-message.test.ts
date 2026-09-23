@@ -511,3 +511,43 @@ describe("generateTitleFromUserMessage", () => {
     });
   });
 });
+
+describe("generateTitleFromUserMessage with a current title", () => {
+  async function callWith(currentTitle?: string) {
+    const mockLanguageModel = createMockLanguageModel("Lentil soup for dinner");
+    const model = createMockAIGatewayModel();
+    createMockTaskConfig(TaskIdSchema.parse("mock"), {
+      aiSDKModel: mockLanguageModel,
+      model,
+    });
+    await generateTitleFromUserMessage({
+      currentTitle,
+      message: createMockMessage("what should I make for dinner"),
+      model,
+      reply: "Here is a lentil soup recipe.",
+      workspaceConfig: getWorkspaceConfig(),
+    });
+    const prompt = mockLanguageModel.doGenerateCalls[0]?.prompt ?? [];
+    const system = prompt.find((entry) => entry.role === "system");
+    return {
+      system: system?.role === "system" ? system.content : "",
+      user: JSON.stringify(prompt.filter((entry) => entry.role === "user")),
+    };
+  }
+
+  // Each call words the same subject its own way, so a thread renamed from
+  // scratch on every call would never hold a name.
+  it("hands the model the title and asks it to keep it", async () => {
+    const { system, user } = await callWith("Dinner ideas with lentils");
+
+    expect(user).toContain("Current title: Dinner ideas with lentils");
+    expect(system).toContain("<current_title>");
+  });
+
+  it("says nothing about keeping a title when there is none", async () => {
+    const { system, user } = await callWith();
+
+    expect(user).not.toContain("Current title:");
+    expect(system).not.toContain("<current_title>");
+  });
+});

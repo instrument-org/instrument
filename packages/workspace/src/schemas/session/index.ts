@@ -37,6 +37,11 @@ export namespace Session {
      * reader: this boundary cannot be judged, so it stands.
      */
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
+    /**
+     * When the thread was named again from how its first exchange settled.
+     * That happens once: after it, only the user's own ask renames the thread.
+     */
+    retitledAt: z.date().optional(),
     title: z.string(),
     /**
      * The topics this thread is tagged with, by topic id. On the thread's own

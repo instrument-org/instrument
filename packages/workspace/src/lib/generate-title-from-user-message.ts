@@ -35,12 +35,18 @@ class UnnameableMessage extends Error {
 }
 
 export function generateTitleFromUserMessage({
+  currentTitle,
   message,
   model,
   projectName,
   reply,
   workspaceConfig,
 }: {
+  /**
+   * The name the agent already gave the work, which the call keeps unless the
+   * subject has moved: a title that changes is one the user loses in a list.
+   */
+  currentTitle?: string;
   message: SessionMessage.UserWithParts;
   model: AIGatewayModel.Type;
   projectName?: string;
@@ -58,9 +64,14 @@ export function generateTitleFromUserMessage({
       if (!opening.trim()) {
         throw new Error("No user message");
       }
-      const userMessage = reply
-        ? `${opening}\n\nLatest reply: ${reply}`
-        : opening;
+      const sections = [opening];
+      if (reply) {
+        sections.push(`Latest reply: ${reply}`);
+      }
+      if (currentTitle) {
+        sections.push(`Current title: ${currentTitle}`);
+      }
+      const userMessage = sections.join("\n\n");
 
       const aiSDKModelResult = await fetchAISDKModel({
         captureException: workspaceConfig.captureException,
@@ -93,7 +104,11 @@ export function generateTitleFromUserMessage({
           effort: "low",
           reasoning: model.reasoning,
         }),
-        system: buildSystemPrompt(projectName, reply !== undefined),
+        system: buildSystemPrompt({
+          hasCurrentTitle: currentTitle !== undefined,
+          projectName,
+          withReply: reply !== undefined,
+        }),
       });
 
       if (!result.text.trim()) {
@@ -158,7 +173,15 @@ export function generateTitleFromUserMessage({
   });
 }
 
-function buildSystemPrompt(projectName?: string, withReply = false): string {
+function buildSystemPrompt({
+  hasCurrentTitle,
+  projectName,
+  withReply,
+}: {
+  hasCurrentTitle: boolean;
+  projectName: string | undefined;
+  withReply: boolean;
+}): string {
   // The project name is what every task in the project has in common, which
   // makes it the one thing a title cannot spend words on and the one thing that
   // fills in what a short message leaves out. Given both ways round, with the
@@ -181,6 +204,15 @@ function buildSystemPrompt(projectName?: string, withReply = false): string {
         <reply>
         The message opened a thread that has since been answered, and the agent's latest reply follows it after "Latest reply:". The reply says what the work turned out to be, so let it sharpen the title: a message asking "what should I make for dinner" answered with a lentil soup recipe is "Lentil soup for dinner". Name the subject the message and the reply share; never name the act of replying, and never a title that is only the reply's own words.
         </reply>`}\n\n`
+    : "";
+
+  // Two calls over the same thread word the same subject differently, so
+  // without a pull towards the name it has, every call is a rename.
+  const currentTitleSection = hasCurrentTitle
+    ? `${dedent`
+        <current_title>
+        The work already has a title, given after "Current title:". The user finds the work in their list by it, and a title that changes under them is one they lose. Answer with it exactly, character for character, unless it now names a different subject than the one the work is about. A better wording, a sharper phrase, or one more detail is not a reason to change it; a subject that has moved on is.
+        </current_title>`}\n\n`
     : "";
 
   // What the examples teach is specificity, not grammar: name the thing, keep
@@ -231,7 +263,7 @@ function buildSystemPrompt(projectName?: string, withReply = false): string {
     If the message carries nothing to name -- a greeting, a single word, a test -- return nothing at all. An empty answer is correct and expected; the user's own words are kept instead. Never invent a subject, and never fall back to naming the day, the time, or the kind of message it is.
     </important>
 
-    ${projectSection}${replySection}<rules>
+    ${projectSection}${replySection}${currentTitleSection}<rules>
     - Specific over short. Prefer concrete nouns and the distinguishing detail -- the file, the folder, the site, the format, the number -- over a vague label that would fit a hundred other messages
     - Maximum ${MAX_TITLE_WORDS} words. It is a ceiling, not a target, but do not drop the distinguishing detail to come in under it
     - Rarely one word, and never a bare category noun ("Video", "Skill", "Data")

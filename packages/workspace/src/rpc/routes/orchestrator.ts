@@ -309,9 +309,9 @@ const unarchiveThreadRoute = base
   });
 
 /**
- * Names a thread again from where it stands now, the way a finished turn
- * does, on the user's ask rather than the turn's; answers with the title it
- * has afterward, or nothing when there was nothing to name it from.
+ * Names a thread again from where it stands now, on the user's ask, as
+ * often as they ask; answers with the title it has afterward, or nothing when
+ * there was nothing to name it from.
  */
 const retitleThreadRoute = base
   .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))

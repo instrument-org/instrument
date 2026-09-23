@@ -253,6 +253,22 @@ export async function threadById(
   return threadFor(taskId, session.value, await loadShared(taskId));
 }
 
+/**
+ * Whether anything of the thread's is still moving: its own agent, or a task
+ * filed from it that is not stopped on an ask. A thread that is not has
+ * settled, and the next move is the user's.
+ */
+export async function threadIsWorking(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<boolean> {
+  if (threadIsAlive(taskId, sessionId)) {
+    return true;
+  }
+  const { running } = await orchestratorActivity(taskId);
+  return running.some((task) => task.thread === sessionId && !task.waiting);
+}
+
 /** Brings a thread back into the inbox. */
 export async function unarchiveThread(
   taskId: TaskId,

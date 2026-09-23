@@ -288,6 +288,40 @@ print(__main__ is sys.modules['__main__'], pickle.loads(pickle.dumps(Point(7))).
     expect(result.stderr).toContain("Copy the file into the task first");
   });
 
+  it.each([
+    {
+      command: `python -c "import numpy; open('/mnt/Docs/readme.txt')"`,
+      shape: "-c code",
+    },
+    {
+      command: "python <<'PY'\nimport numpy\nopen('/mnt/Docs/readme.txt')\nPY",
+      shape: "a heredoc",
+    },
+  ])(
+    "refuses an attached-folder path in $shape it sends to the native interpreter",
+    async ({ command }) => {
+      await fs.mkdir(
+        path.join(
+          taskRoot,
+          ".venv",
+          "lib",
+          "python3.12",
+          "site-packages",
+          "numpy",
+        ),
+        { recursive: true },
+      );
+      const result = await run(command);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(
+        "python: this program imports numpy, installed in the task's virtualenv, so it runs there, as `python-native` does.",
+      );
+      expect(result.stderr).toContain("/mnt");
+      expect(result.stderr).not.toContain("Run it with `python` instead");
+    },
+  );
+
   it("keeps a program in the sandbox when the package it imports is not installed", async () => {
     await fs.mkdir(
       path.join(

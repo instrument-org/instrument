@@ -393,11 +393,6 @@ async function runNativePython(
 
   const { env, taskCwd } = resolveCommandContext(taskId, ctx);
 
-  const venvError = await ensureTaskVenv({ ctx, taskId });
-  if (venvError !== undefined) {
-    return { exitCode: 1, stderr: venvError, stdout: "" };
-  }
-
   // Inline program text (`-c` code, or a heredoc program when python reads
   // the script from stdin) resolves paths against the host filesystem, so
   // bridge sandbox-virtual paths the same way argv paths are bridged.
@@ -443,6 +438,12 @@ async function runNativePython(
     if (scanError !== undefined) {
       return fail(scanError);
     }
+  }
+
+  // After the path checks, so a run they refuse costs no virtualenv.
+  const venvError = await ensureTaskVenv({ ctx, taskId });
+  if (venvError !== undefined) {
+    return { exitCode: 1, stderr: venvError, stdout: "" };
   }
 
   const result = await execShim(taskVenvPython(taskId), finalArgs, {

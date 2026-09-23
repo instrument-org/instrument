@@ -180,6 +180,200 @@ const tools = base
   });
 
 /**
+ * Whether a tool may be pressed from the inspector: the server says it only
+ * reads, and it is not one that brings something up on the screen, which a
+ * read-only hint still allows.
+ */
+function isInspectorRead(tool: {
+  annotations?: { destructiveHint?: boolean; readOnlyHint?: boolean };
+  name: string;
+}): boolean {
+  return (
+    tool.annotations?.readOnlyHint === true &&
+    tool.annotations.destructiveHint !== true &&
+    !/(?:^|_)(?:open|show|focus|select)(?:_|$)/i.test(tool.name)
+  );
+}
+
+const InspectorToolSchema = z.object({
+  description: z.string(),
+  isRead: z.boolean(),
+  name: z.string(),
+  /** Every parameter, required first. */
+  params: z.array(
+    z.object({
+      description: z.string().optional(),
+      enum: z.array(z.string()).optional(),
+      name: z.string(),
+      required: z.boolean(),
+      type: z.string().optional(),
+    }),
+  ),
+  title: z.string().optional(),
+});
+
+/** An MCP app's tools as the inspector reads them: which ones only read, and what each takes. */
+const inspect = base
+  .input(z.object({ slug: AppSlugSchema }))
+  .output(z.array(InspectorToolSchema))
+  .handler(async ({ context, errors, input, signal }) => {
+    const listed = await withInspectorClient({
+      context,
+      errors,
+      run: (client) => listMcpTools(client),
+      signal,
+      slug: input.slug,
+    });
+    return listed.map((tool) => {
+      const schema = (tool.inputSchema ?? {}) as {
+        properties?: Record<
+          string,
+          { description?: string; enum?: unknown[]; type?: unknown }
+        >;
+        required?: string[];
+      };
+      const required = new Set(schema.required ?? []);
+      const params = Object.entries(schema.properties ?? {})
+        .map(([name, property]) => ({
+          description: property.description,
+          enum: Array.isArray(property.enum)
+            ? property.enum.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : undefined,
+          name,
+          required: required.has(name),
+          type: typeof property.type === "string" ? property.type : undefined,
+        }))
+        .toSorted((a, b) => Number(b.required) - Number(a.required));
+      return {
+        description: tool.description,
+        isRead: isInspectorRead(tool),
+        name: tool.name,
+        params,
+        title: tool.annotations?.title,
+      };
+    });
+  });
+
+/**
+ * Run one tool for the inspector. Refused unless the server marks it as a
+ * read, checked here against a fresh listing rather than trusted from the
+ * page.
+ */
+const read = base
+  .input(
+    z.object({
+      args: z.record(z.string(), z.unknown()).default({}),
+      slug: AppSlugSchema,
+      tool: z.string(),
+    }),
+  )
+  .output(
+    z.object({
+      /** Pictures the tool returned, as data: URLs. */
+      images: z.array(z.string()),
+      isError: z.boolean(),
+      ms: z.number(),
+      text: z.string(),
+    }),
+  )
+  .handler(async ({ context, errors, input, signal }) =>
+    withInspectorClient({
+      context,
+      errors,
+      run: async (client) => {
+        const listed = await listMcpTools(client);
+        const tool = listed.find((entry) => entry.name === input.tool);
+        if (!tool || !isInspectorRead(tool)) {
+          throw new Error(`${input.tool} is not a read the inspector may run.`);
+        }
+        const started = Date.now();
+        const result = await client.callTool({
+          arguments: input.args,
+          name: input.tool,
+        });
+        // Content blocks as the SDK hands them over: unknown past `type`.
+        const blocks = (
+          Array.isArray(result.content) ? result.content : []
+        ) as {
+          data?: string;
+          mimeType?: string;
+          text?: string;
+          type: string;
+        }[];
+        return {
+          images: blocks.flatMap((block) =>
+            block.type === "image" && block.data && block.mimeType
+              ? [`data:${block.mimeType};base64,${block.data}`]
+              : [],
+          ),
+          isError: result.isError === true,
+          ms: Date.now() - started,
+          text: blocks
+            .flatMap((block) =>
+              block.type === "text" && block.text ? [block.text] : [],
+            )
+            .join("\n"),
+        };
+      },
+      signal,
+      slug: input.slug,
+    }),
+  );
+
+async function withInspectorClient<T>({
+  context,
+  errors,
+  run,
+  signal,
+  slug: rawSlug,
+}: {
+  context: {
+    workspaceConfig: {
+      appsDir: Parameters<typeof loadApp>[0];
+      apps: { getCredential: (slug: string) => Promise<null | string> };
+    };
+  };
+  errors: {
+    API_ERROR: (options: { message: string }) => Error;
+    NOT_FOUND: (options: { message: string }) => Error;
+  };
+  run: Parameters<typeof withAppMcpClient>[0]["run"] extends (
+    client: infer C,
+  ) => Promise<unknown>
+    ? (client: C) => Promise<T>
+    : never;
+  signal?: AbortSignal;
+  slug: string;
+}): Promise<T> {
+  const loaded = await loadApp(context.workspaceConfig.appsDir, rawSlug);
+  if (loaded.isErr()) {
+    throw errors.NOT_FOUND({ message: loaded.error.message });
+  }
+  const { manifest, manifestHash, slug } = loaded.value;
+  if (!isMcpManifest(manifest)) {
+    throw errors.NOT_FOUND({ message: `${slug} is not an MCP app.` });
+  }
+  const credential =
+    manifest.auth.kind === "none" || manifest.auth.kind === "oauth"
+      ? null
+      : await context.workspaceConfig.apps.getCredential(slug);
+  const result = await withAppMcpClient({
+    credential,
+    manifest,
+    manifestHash,
+    run,
+    signal,
+    slug,
+  });
+  if (result.isErr()) {
+    throw errors.API_ERROR({ message: result.error.message });
+  }
+  return result.value;
+}
+
+/**
  * Start a sign-in. Hands the authorization page's address back rather than
  * opening it: the window opens it in its own browser, where the callback
  * lands too.
@@ -376,8 +570,10 @@ export const apps = {
   disconnect,
   dismiss,
   guide,
+  inspect,
   list,
   live,
+  read,
   remove,
   setCredential,
   startOAuth,

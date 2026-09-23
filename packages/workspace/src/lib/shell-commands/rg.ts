@@ -30,6 +30,21 @@ export const RG_COMMAND = {
 } as const;
 
 /**
+ * The most stdout `rg` may write before it is stopped, in characters.
+ *
+ * Every byte of it is collected, rewritten, and filtered on the main thread,
+ * then handed whole to the next pipeline stage, since just-bash pipelines do not
+ * stream (vercel-labs/just-bash#415). `rg --files` over a few large attached
+ * folders prints about 50 MB of paths, and piping that into `rg -i` or `head`
+ * froze the window for eight seconds and grew the heap by 2 GB; the same search
+ * filtered inside ripgrep with `--iglob` took 26 ms. A later stage cannot stop
+ * the producer, so the cap is on the producer.
+ */
+const RG_MAX_STDOUT = 8 * 1024 * 1024;
+
+const RG_MAX_STDOUT_ERROR = `${RG_COMMAND.name}: stopped after ${RG_MAX_STDOUT / 1024 / 1024} MB of output, which the app collects in full before a pipe or redirection sees any of it. Narrow it inside rg: \`--iglob '*name*'\` (case-insensitive) or \`-g '*.ext'\` to filter paths, a narrower folder, or \`-l\` / \`-m N\` to shorten a content search.\n`;
+
+/**
  * Flags that make ripgrep run another program: `--pre`/`--pre-glob` hand every
  * candidate file to a command of the agent's choosing, `--hostname-bin` runs
  * one outright, and `-z`/`--search-zip` decompresses through external tools.
@@ -136,6 +151,7 @@ export function createRgCommand({
         cancelSignal: ctx.signal,
         cwd: taskCwd,
         env,
+        maxBuffer: { stdout: RG_MAX_STDOUT },
         // ripgrep picks between reading stdin and walking the working directory
         // by stat'ing fd 0, so the piped bytes have to reach it as a real pipe.
         // Handing it an ignored stdin instead makes `cmd | rg PATTERN` search
@@ -151,6 +167,17 @@ export function createRgCommand({
           : { stdin: "ignore" }),
       },
     );
+
+    if (result.isMaxBuffer) {
+      // The prefix it wrote is dropped rather than returned: piped onward it
+      // reads as a complete listing, and a filter over it silently misses
+      // everything past the cut.
+      return {
+        exitCode: 2,
+        stderr: RG_MAX_STDOUT_ERROR,
+        stdout: "",
+      };
+    }
 
     const streams = mapStreams(shimOutput(result, RG_COMMAND.name), (text) =>
       filterShellOutput(

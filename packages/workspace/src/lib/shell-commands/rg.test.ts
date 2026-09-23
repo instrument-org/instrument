@@ -230,6 +230,18 @@ describe("rg command", () => {
     expect(result.stdout).not.toContain(attachedDir);
   });
 
+  it("stops at its output cap and points at filtering inside rg", async () => {
+    await fs.writeFile(
+      path.join(attachedDir, "big.txt"),
+      "NEEDLE\n".repeat(1_500_000),
+    );
+
+    const result = await run("rg NEEDLE /mnt/Docs | wc -l", true);
+
+    expect(result.stdout.trim()).toBe("0");
+    expect(result.stderr).toMatch(/^rg: stopped after 8 MB of output.*--iglob/);
+  });
+
   it("leaves backslashes in matched lines alone", async () => {
     await fs.writeFile(
       path.join(taskRoot, "work", "escapes.ts"),

@@ -98,6 +98,9 @@ export async function execShim(
     // The binary that was launched, kept so a diagnostic can name the command
     // the way the agent spells it rather than by its path on this machine.
     file,
+    // Set when the subprocess was stopped for passing a `maxBuffer` the shim
+    // passed in, so what it wrote is a prefix rather than the whole output.
+    isMaxBuffer: result.isMaxBuffer,
     // Set when the subprocess failed without producing output of its own, which
     // is the only diagnostic a shim can report in that case.
     shortMessage: result.shortMessage,

@@ -59,7 +59,11 @@ export function QuestionCard({
   const isOpen = status === "open";
   const selected =
     output && "selectedChoice" in output ? output.selectedChoice : undefined;
-  const isOwnAnswer = selected !== undefined && !choices.includes(selected);
+  // The answer is stored trimmed, so a choice written with stray spaces is
+  // matched by its trimmed text.
+  const isOwnAnswer =
+    selected !== undefined &&
+    !choices.some((choice) => choice.trim() === selected);
 
   const answer = (
     answered: { declined: true } | { selectedChoice: string },
@@ -88,7 +92,7 @@ export function QuestionCard({
         <p className="mb-3 text-sm">{question}</p>
         <div className="space-y-1.5" role={isOpen ? "radiogroup" : undefined}>
           {choices.map((choice, index) => {
-            const isSelected = choice === selected;
+            const isSelected = choice.trim() === selected;
             const row = <ChoiceRow isSelected={isSelected}>{choice}</ChoiceRow>;
             const className = rowClassName({ isOpen, isSelected });
             return isOpen ? (

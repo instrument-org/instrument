@@ -32,6 +32,16 @@ describe("choose", () => {
     `);
   });
 
+  it("reads a choice written with stray spaces as selected, since the answer is stored trimmed", () => {
+    expect(
+      TOOLS.Choose.toModelOutput({
+        input: { ...input, choices: ["React ", "Vue"] },
+        output: { selectedChoice: "React" },
+        toolCallId: "test",
+      }).value,
+    ).toBe("User selected: React");
+  });
+
   // What the card sends is checked against this schema before it reaches the
   // agent, so a blank answer or note has to be refused here.
   it.each([

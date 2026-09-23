@@ -42,7 +42,9 @@ export const Choose = setupTool({
     const answer =
       "declined" in output
         ? "The user skipped the question. Decide without the answer: take the likelier reading and say which, or say what you cannot do without it."
-        : input.choices.includes(output.selectedChoice)
+        : input.choices.some(
+              (choice) => choice.trim() === output.selectedChoice,
+            )
           ? `User selected: ${output.selectedChoice}`
           : `User answered in their own words: ${output.selectedChoice}`;
     return {

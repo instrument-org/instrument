@@ -52,6 +52,7 @@ import {
 } from "../../lib/orchestrator/topics";
 import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
+import { getTaskSettings } from "../../lib/task-settings";
 import { setTaskState } from "../../lib/task-record";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { StoreId } from "../../schemas/store-id";
@@ -196,9 +197,10 @@ const listThreadsRoute = base
  * state is read off its actor rather than the store, so a turn ending, which
  * writes nothing after its last reply, is heard from the actor itself; read
  * only on writes, a list would say working for as long as it took the next
- * one to land. The tasks filed from a thread are read the same way but not
- * heard: what they do reaches the list with the thread's own writes, their
- * wake among them. Subscribed the moment it is called rather than when it is
+ * one to land. A task filed from a thread is heard when it starts a tool
+ * call, since that is when the step its row shows changes, and not on every
+ * token it streams; the rest of what it does reaches the list with the
+ * thread's own writes, its wake among them. Subscribed the moment it is called rather than when it is
  * first pulled, so a read taken right after has nothing land unobserved
  * between the two; an event the read already covered only costs one re-read.
  * A burst of events collapses into one firing per pull, since the next batch
@@ -211,6 +213,7 @@ export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
   const sessionTags = publisher.subscribe("session.tagsChanged", { signal });
   const sessionDone = publisher.subscribe("session.done", { signal });
   const appUpdates = publisher.subscribe("app.updated", { signal });
+  const partUpdates = publisher.subscribe("part.updated", { signal });
   async function* changed() {
     for await (const _batch of batches) {
       yield null;
@@ -229,6 +232,31 @@ export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
       }
     }
   }
+  const parents = new Map<TaskId, Promise<TaskId | undefined>>();
+  const parentOf = (taskId: TaskId) => {
+    const known = parents.get(taskId);
+    if (known) {
+      return known;
+    }
+    const read = getTaskSettings(taskDir(taskId)).then(
+      (settings) => settings?.parentTaskId,
+    );
+    parents.set(taskId, read);
+    return read;
+  };
+  async function* childSteps() {
+    for await (const { id: childId, part } of partUpdates) {
+      if (
+        childId !== id &&
+        part.type.startsWith("tool-") &&
+        "state" in part &&
+        part.state === "input-available" &&
+        (await parentOf(childId)) === id
+      ) {
+        yield null;
+      }
+    }
+  }
   async function* merged() {
     try {
       yield* mergeGenerators([
@@ -238,6 +266,7 @@ export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
         forThisTask(sessionTags),
         forThisTask(sessionDone),
         everyOne(appUpdates),
+        childSteps(),
       ]);
     } finally {
       await batches.return();

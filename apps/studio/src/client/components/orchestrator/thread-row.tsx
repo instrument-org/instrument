@@ -477,10 +477,12 @@ function Peek({
       {isWorking ? (
         // `brand-shiny-text` is an inline-block, which a parent's truncate
         // cannot shrink, so the step carries its own clamp. With no step to
-        // name yet the line says that Instrument is at it, rather than
-        // repeating the last thing said as if it were happening now.
+        // name yet the line names the task at work, and with no task the
+        // thread's own agent, rather than repeating the last thing said as if
+        // it were happening now.
         <span className={cn("brand-shiny-text min-w-0", clamp)}>
           {thread.runningTasks.find((task) => task.step)?.step ??
+            thread.runningTasks.find((task) => !task.waiting)?.title ??
             "Instrument is working"}
         </span>
       ) : isWaiting ? (

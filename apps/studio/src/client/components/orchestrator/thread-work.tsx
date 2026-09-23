@@ -75,9 +75,13 @@ export function ThreadWork({
               <span className="block truncate text-[12px] font-medium">
                 {task.title}
               </span>
-              <span className="block max-w-full truncate text-[11px]">
-                <WorkLine task={task} />
-              </span>
+              {/* The title is already the line above, so a task with no
+                  step or ask yet has nothing to add under it. */}
+              {(task.step ?? task.waiting) && (
+                <span className="block max-w-full truncate text-[11px]">
+                  <WorkLine task={task} />
+                </span>
+              )}
             </span>
             <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
           </button>

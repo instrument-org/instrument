@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { publisher } from "../publisher";
@@ -7,6 +8,33 @@ import { threadChanges } from "./orchestrator";
 
 const taskId = TaskIdSchema.parse("orchestrator-changes");
 const otherTaskId = TaskIdSchema.parse("orchestrator-other");
+const childTaskId = TaskIdSchema.parse("orchestrator-child");
+
+vi.mock(import("../../lib/task-settings"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  getTaskSettings: (dir: string) =>
+    Promise.resolve(
+      dir.endsWith(childTaskId)
+        ? { kind: "task" as const, name: "Child", parentTaskId: taskId }
+        : undefined,
+    ),
+}));
+
+/** A child's bash call as it lands, in the state a tool part reaches. */
+const toolPart = (
+  state: "input-available" | "input-streaming",
+): SessionMessagePart.Type => ({
+  input: { command: "ls", explanation: "Listing" },
+  metadata: {
+    createdAt: new Date(),
+    id: StoreId.newPartId(),
+    messageId: StoreId.newMessageId(),
+    sessionId: StoreId.newSessionId(),
+  },
+  state,
+  toolCallId: "call_1",
+  type: "tool-bash",
+});
 
 /** Whether the stream fires within a tick, so a silence can be asserted too. */
 async function fired(
@@ -68,6 +96,35 @@ describe("threadChanges", () => {
     const next = changes.next();
     publisher.publish(topic, payload);
     expect(await fired(next)).toBe(false);
+    controller.abort();
+    await changes.return();
+  });
+
+  it.each([
+    [
+      "fires when a task filed from it starts a call",
+      childTaskId,
+      "input-available",
+      true,
+    ],
+    [
+      "stays quiet while a child's call is still streaming in",
+      childTaskId,
+      "input-streaming",
+      false,
+    ],
+    [
+      "stays quiet on a call in a task it did not file",
+      otherTaskId,
+      "input-available",
+      false,
+    ],
+  ] as const)("%s", async (_name, id, state, expected) => {
+    const controller = new AbortController();
+    const changes = threadChanges(taskId, controller.signal);
+    const next = changes.next();
+    publisher.publish("part.updated", { id, part: toolPart(state) });
+    expect(await fired(next)).toBe(expected);
     controller.abort();
     await changes.return();
   });

@@ -13,6 +13,7 @@ import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
@@ -211,7 +212,7 @@ function AppsRoute() {
           </form>
           {catalog.data === undefined ? (
             <TileSkeletons />
-          ) : shown.length > 0 ? (
+          ) : shown.length > 0 || typed !== "" ? (
             <div className="grid grid-cols-1 gap-3 @lg/apps:grid-cols-2">
               {shown.map((entry) => (
                 <CatalogTile
@@ -225,20 +226,16 @@ function AppsRoute() {
                   }}
                 />
               ))}
+              {typed === "" ? null : (
+                <UnlistedTile
+                  isOnlyOne={matches.length === 0}
+                  name={typed}
+                  onConnect={connectTyped}
+                />
+              )}
             </div>
           ) : null}
-          {typed !== "" ? (
-            <div className="mt-3 flex items-center gap-3 text-[13px] text-muted-foreground">
-              <span className="min-w-0 flex-1 truncate">
-                {matches.length === 0
-                  ? `Nothing in the directory matches “${typed}”.`
-                  : "Not the one you meant?"}
-              </span>
-              <GlyphButton onClick={connectTyped} size="sm">
-                Connect “{typed}”
-              </GlyphButton>
-            </div>
-          ) : more.length > MORE_SHOWN ? (
+          {typed === "" && more.length > MORE_SHOWN ? (
             <button
               className="mt-3 text-[13px] text-muted-foreground hover:text-foreground"
               onClick={() => {
@@ -354,6 +351,46 @@ function matchesWords(entry: CatalogEntry, typed: string): boolean {
 }
 
 /** The directory with the services most people know brought to the front, the rest in its own order. */
+/**
+ * A service the directory does not list, as a tile beside the ones it does:
+ * what was typed, and the promise that Instrument finds it and connects it.
+ * Alone when nothing matched; last among the matches otherwise, for the
+ * name that was meant and not found.
+ */
+function UnlistedTile({
+  isOnlyOne,
+  name,
+  onConnect,
+}: {
+  isOnlyOne: boolean;
+  name: string;
+  onConnect: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex h-16 items-center gap-3 rounded-2xl border border-dashed border-border pr-2 pl-3 transition-colors hover:bg-accent/40",
+        isOnlyOne && "@lg/apps:col-span-2",
+      )}
+    >
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+        <PlusIcon className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-medium">
+          {isOnlyOne ? `“${name}” isn’t listed` : `Connect “${name}” anyway`}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          Instrument finds how it connects and sets it up.
+        </span>
+      </span>
+      <GlyphButton onClick={onConnect} size="sm">
+        Connect
+      </GlyphButton>
+    </div>
+  );
+}
+
 function featuredFirst(entries: CatalogEntry[]): CatalogEntry[] {
   const bySlug = new Map(entries.map((entry) => [entry.slug, entry]));
   const front = FEATURED.flatMap((slug) => {

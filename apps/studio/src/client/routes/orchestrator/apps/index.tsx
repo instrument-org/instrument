@@ -11,9 +11,8 @@ import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { useQuery } from "@tanstack/react-query";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
@@ -77,7 +76,7 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
   const waiting = app.standing === "connected" ? undefined : waitingLine(app);
   return (
     <button
-      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center"
+      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center transition-colors hover:bg-accent/50"
       onAuxClick={onAuxClick}
       onClick={onOpen}
       onContextMenu={onContextMenu}
@@ -112,7 +111,7 @@ function AppsRoute() {
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   const visited = useAtomValue(visitedPagesAtom);
-  const [other, setOther] = useState("");
+  const [query, setQuery] = useState("");
   const [showsAll, setShowsAll] = useState(false);
 
   const apps = list.data?.apps ?? [];
@@ -136,6 +135,15 @@ function AppsRoute() {
       site: `https://${entry.domain}`,
     })),
   ]).slice(0, RECENT_SHOWN);
+  const typed = query.trim();
+  const matches =
+    typed === "" ? more : more.filter((entry) => matchesWords(entry, typed));
+  const shown =
+    typed !== "" ? matches : showsAll ? more : more.slice(0, MORE_SHOWN);
+  const connectTyped = () => {
+    ask(`Connect ${typed}`);
+    setQuery("");
+  };
   const openApp = (slug: string) => {
     void navigate({ params: { slug }, to: "/orchestrator/apps/$slug" });
   };
@@ -149,7 +157,9 @@ function AppsRoute() {
           </PageSection>
         ) : own.length > 0 ? (
           <PageSection title="Your apps">
-            <div className="flex flex-wrap gap-x-2 gap-y-4">
+            {/* Pulled in by the gap between a mark's box and its icon, so
+                the icons line up under the heading. */}
+            <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-4">
               {own.map((app) => (
                 <AppMark
                   app={app}
@@ -171,37 +181,39 @@ function AppsRoute() {
           </PageSection>
         ) : null}
 
-        {/* The services still to connect: a dozen most people know, the
-            rest behind the head's button, and at the end a row for one
-            nobody listed. Every Connect is a message to the conversation,
-            since Instrument does the connecting. */}
+        {/* The services still to connect, searchable: a dozen most people
+            know until something is typed, then whatever matches, and for a
+            name the directory does not have, the way to ask for it anyway.
+            Every Connect is a message to the conversation, since Instrument
+            does the connecting. */}
         <PageSection
-          {...(more.length > MORE_SHOWN
-            ? {
-                action: showsAll
-                  ? {
-                      icon: <CaretUpIcon className="size-4" />,
-                      label: "Fewer",
-                      onOpen: () => {
-                        setShowsAll(false);
-                      },
-                    }
-                  : {
-                      icon: <CaretDownIcon className="size-4" />,
-                      label: `All ${more.length}`,
-                      onOpen: () => {
-                        setShowsAll(true);
-                      },
-                    },
-              }
-            : {})}
           title={own.length > 0 ? "Connect more apps" : "Connect an app"}
         >
+          <form
+            className="relative mb-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (typed !== "" && matches.length === 0) {
+                connectTyped();
+              }
+            }}
+          >
+            <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              aria-label="Search apps"
+              className="h-9 w-full rounded-lg border border-border bg-background pr-3 pl-9 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+              placeholder="Search apps, or name any service"
+              value={query}
+            />
+          </form>
           {catalog.data === undefined ? (
             <TileSkeletons />
-          ) : (
+          ) : shown.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 @lg/apps:grid-cols-2">
-              {(showsAll ? more : more.slice(0, MORE_SHOWN)).map((entry) => (
+              {shown.map((entry) => (
                 <CatalogTile
                   entry={entry}
                   key={entry.slug}
@@ -214,33 +226,29 @@ function AppsRoute() {
                 />
               ))}
             </div>
-          )}
-          <form
-            className="mt-3 flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2 shadow-xs"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const name = other.trim();
-              if (!name) {
-                return;
-              }
-              ask(`Connect ${name}`);
-              setOther("");
-            }}
-          >
-            <AppIcon />
-            <input
-              aria-label="Something else"
-              className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
-              onChange={(event) => {
-                setOther(event.target.value);
+          ) : null}
+          {typed !== "" ? (
+            <div className="mt-3 flex items-center gap-3 text-[13px] text-muted-foreground">
+              <span className="min-w-0 flex-1 truncate">
+                {matches.length === 0
+                  ? `Nothing in the directory matches “${typed}”.`
+                  : "Not the one you meant?"}
+              </span>
+              <GlyphButton onClick={connectTyped} size="sm">
+                Connect “{typed}”
+              </GlyphButton>
+            </div>
+          ) : more.length > MORE_SHOWN ? (
+            <button
+              className="mt-3 text-[13px] text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setShowsAll(!showsAll);
               }}
-              placeholder="Another service, API, or name"
-              value={other}
-            />
-            <GlyphButton disabled={other.trim() === ""} size="sm" type="submit">
-              Connect
-            </GlyphButton>
-          </form>
+              type="button"
+            >
+              {showsAll ? "Show fewer" : `Show all ${more.length}`}
+            </button>
+          ) : null}
         </PageSection>
 
         {list.data && list.data.invalid.length > 0 ? (
@@ -298,7 +306,7 @@ function CatalogTile({
     kind: "screen",
   });
   return (
-    <div className="flex h-16 items-center gap-3 rounded-2xl border border-border bg-card pr-2 pl-3 shadow-xs">
+    <div className="flex h-16 items-center gap-3 rounded-2xl border border-border bg-card pr-2 pl-3 shadow-xs transition-colors hover:bg-accent/40">
       <button
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
         onAuxClick={onAuxClick}
@@ -306,7 +314,12 @@ function CatalogTile({
         onContextMenu={onContextMenu}
         type="button"
       >
-        <AppIcon name={entry.name} site={`https://${entry.domain}`} />
+        {/* No plate of its own: the tile is the box it sits in. */}
+        <AppIcon
+          className="size-8 rounded-md bg-transparent p-0 shadow-none ring-0"
+          name={entry.name}
+          site={`https://${entry.domain}`}
+        />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-medium">
             {entry.name}
@@ -321,6 +334,23 @@ function CatalogTile({
       </GlyphButton>
     </div>
   );
+}
+
+/** Whether every word typed is somewhere in the entry's name, domain, tagline, or categories. */
+function matchesWords(entry: CatalogEntry, typed: string): boolean {
+  const haystack = [
+    entry.slug,
+    entry.name,
+    entry.domain,
+    entry.tagline,
+    ...entry.categories,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return typed
+    .toLowerCase()
+    .split(/\s+/)
+    .every((word) => haystack.includes(word));
 }
 
 /** The directory with the services most people know brought to the front, the rest in its own order. */

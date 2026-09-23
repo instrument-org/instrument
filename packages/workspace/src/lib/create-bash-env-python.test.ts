@@ -148,7 +148,7 @@ describe("python inside the sandbox", () => {
     `);
   });
 
-  it("sends a missing package to pip and python-native", async () => {
+  it("sends a missing package to pip, to run again once installed", async () => {
     const result = await run(`python -c "import numpy"`);
 
     expect(result.exitCode).toBe(1);
@@ -156,7 +156,7 @@ describe("python inside the sandbox", () => {
       "ModuleNotFoundError: No module named 'numpy'",
     );
     expect(result.stderr).toContain(
-      "python: 'numpy' is not in the standard library, which is all this sandboxed python has. Install it with `pip install numpy` and run the script with `python-native`",
+      "python: 'numpy' is not in the standard library, which is all this sandboxed python has. Install it with `pip install numpy` and run the script again: a program that imports an installed package runs in the task's virtualenv, as `python-native` does",
     );
   });
 
@@ -258,6 +258,53 @@ print(__main__ is sys.modules['__main__'], pickle.loads(pickle.dumps(Point(7))).
     // A skill script has no sandboxed run to be redirected to.
     expect(result.stderr).not.toContain("Run it with `python` instead");
     expect(result.stderr).toContain("Copy the file into the task first");
+  });
+
+  it("runs a program importing an installed package natively", async () => {
+    // As with the skill script above, the native run shows as the mount guard
+    // it answers with, since this test has no uv to build the virtualenv.
+    await fs.mkdir(
+      path.join(
+        taskRoot,
+        ".venv",
+        "lib",
+        "python3.12",
+        "site-packages",
+        "numpy",
+      ),
+      { recursive: true },
+    );
+    await fs.writeFile(
+      path.join(taskRoot, "work", "stats.py"),
+      "import sys\nimport numpy as np\nprint(open(sys.argv[1]).read())\n",
+    );
+    const result = await run("python work/stats.py /mnt/Docs/readme.txt");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "python: this program imports numpy, installed in the task's virtualenv, so it runs there, as `python-native` does.",
+    );
+    expect(result.stderr).not.toContain("Run it with `python` instead");
+    expect(result.stderr).toContain("Copy the file into the task first");
+  });
+
+  it("keeps a program in the sandbox when the package it imports is not installed", async () => {
+    await fs.mkdir(
+      path.join(
+        taskRoot,
+        ".venv",
+        "lib",
+        "python3.12",
+        "site-packages",
+        "numpy",
+      ),
+      { recursive: true },
+    );
+    const result = await run(
+      `python -c "import json; print(open('/mnt/Docs/readme.txt').read().strip())"`,
+    );
+
+    expect(result).toMatchObject({ exitCode: 0, stdout: "hello docs\n" });
   });
 
   it("answers `which` for both interpreters and js-exec", async () => {

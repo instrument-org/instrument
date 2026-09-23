@@ -1,4 +1,6 @@
 import { defineCommand, latin1FromBytes } from "just-bash";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
@@ -6,7 +8,7 @@ import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { isAtOrUnder } from "../path-containment";
 import { taskDir } from "../task-dir-utils";
-import { taskVenvPython } from "../uv";
+import { taskVenvDir, taskVenvPython } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
   bridgeInlineCodePaths,
@@ -29,12 +31,13 @@ import { ensureTaskVenv } from "./uv";
  * that sees only the task directory. It is where `pip install` puts packages,
  * and it is the only one that can run a package or a native binary.
  *
- * The one place `python` runs natively on its own is a loaded skill's script:
- * a skill declares the dependencies its scripts import, and those were
- * installed into the virtualenv when the skill was loaded.
+ * `python` runs natively on its own in two cases, so the agent can write
+ * `python` the way it would anywhere: a loaded skill's script, whose declared
+ * dependencies were installed into the virtualenv when the skill was loaded,
+ * and a program that imports a package already installed there.
  */
 export const PYTHON_COMMAND = {
-  description: `Run Python (CPython 3.13, standard library only) inside the sandbox: it reads ${MOUNT.attachedFolders} and ${MOUNT.task} paths directly and honors read-only mounts. It cannot import an installed package, start a process, open https (no ssl; \`import jb_http\` fetches), or open a file over 8 MB; for those, run the script with \`python-native\`. A loaded skill's script under work/skills/ runs natively on its own.`,
+  description: `Run Python (CPython 3.13, standard library only) inside the sandbox: it reads ${MOUNT.attachedFolders} and ${MOUNT.task} paths directly and honors read-only mounts. It cannot start a process, open https (no ssl; \`import jb_http\` fetches), or open a file over 8 MB; for those, run the script with \`python-native\`. A program that imports a package \`pip\` installed, or a loaded skill's script under work/skills/, runs natively on its own, as \`python-native\` would.`,
   name: "python",
 } as const;
 
@@ -89,6 +92,13 @@ function createSandboxedPythonCommand(taskId: TaskId, name: string) {
 
     if (isSkillScriptInvocation(args, ctx)) {
       return runNativePython(taskId, name, args, ctx, { skillScript: true });
+    }
+
+    const installed = await installedPackagesImported(taskId, args, ctx);
+    if (installed.length > 0) {
+      return runNativePython(taskId, name, args, ctx, {
+        importsInstalled: installed,
+      });
     }
 
     // The bundled interpreter this command shadows. Absent only if the shell
@@ -148,7 +158,7 @@ function explainSandboxedPythonFailure(stderr: string): string {
     notes.push(
       STDLIB_MODULE_NAMES.has(topLevel)
         ? `'${topLevel}' is part of the standard library but this WebAssembly build of CPython does not include it. Run the script with \`${PYTHON_NATIVE_COMMAND.name}\` instead${topLevel === "sqlite3" ? `, or query the database with the \`sqlite3\` command` : ""}.`
-        : `'${topLevel}' is not in the standard library, which is all this sandboxed python has. Install it with \`pip install ${topLevel}\` and run the script with \`${PYTHON_NATIVE_COMMAND.name}\`, which uses the task's virtualenv but sees only the task folder (copy an attached file into the task first).`,
+        : `'${topLevel}' is not in the standard library, which is all this sandboxed python has. Install it with \`pip install ${topLevel}\` and run the script again: a program that imports an installed package runs in the task's virtualenv, as \`${PYTHON_NATIVE_COMMAND.name}\` does, which sees only the task folder (copy an attached file into the task first).`,
     );
   }
 
@@ -181,6 +191,100 @@ function explainSandboxedPythonFailure(stderr: string): string {
     text += `${PYTHON_COMMAND.name}: ${note}\n`;
   }
   return text;
+}
+
+/**
+ * The packages installed in the task's virtualenv that the program this
+ * invocation runs imports, read from its import statements.
+ *
+ * Static and approximate by design: an import assembled at run time, or one
+ * behind a line continuation, is missed, and the program then runs in the
+ * sandbox, whose failure for a missing module names `python-native`. A
+ * package that is imported but not installed routes nothing either, since the
+ * sandbox's error is the one that says to install it.
+ */
+async function installedPackagesImported(
+  taskId: TaskId,
+  args: string[],
+  ctx: Parameters<Parameters<typeof defineCommand>[1]>[1],
+): Promise<string[]> {
+  const program = await programText(args, ctx);
+  if (program === undefined) {
+    return [];
+  }
+  const packages = importedModules(program).filter(
+    (module) => !STDLIB_MODULE_NAMES.has(module),
+  );
+  if (packages.length === 0) {
+    return [];
+  }
+  const installed = await sitePackagesEntries(taskId);
+  return packages.filter((module) =>
+    installed.some(
+      (entry) =>
+        entry === module ||
+        entry === `${module}.py` ||
+        (entry.startsWith(`${module}.`) && /\.(?:so|pyd)$/u.test(entry)),
+    ),
+  );
+}
+
+/**
+ * The program an invocation runs: `-c` code, a program read from stdin (a
+ * heredoc), or the script file. Undefined for `-m` and for a file that cannot
+ * be read, which leave the choice of interpreter as it was.
+ */
+async function programText(
+  args: string[],
+  ctx: Parameters<Parameters<typeof defineCommand>[1]>[1],
+): Promise<string | undefined> {
+  const scriptIndex = pythonScriptArgIndex(args);
+  if (scriptIndex !== undefined) {
+    try {
+      return await ctx.fs.readFile(
+        ctx.fs.resolvePath(ctx.cwd, args[scriptIndex] ?? ""),
+        "utf8",
+      );
+    } catch {
+      // Unreadable here means unreadable to either interpreter, which is
+      // the interpreter's own error to report.
+      return;
+    }
+  }
+  const mode = args.find((arg) => ["-", "-c", "-m"].includes(arg));
+  if (mode === "-c") {
+    return args[args.indexOf("-c") + 1];
+  }
+  if (mode === "-m") {
+    return undefined;
+  }
+  return latin1FromBytes(ctx.stdin) || undefined;
+}
+
+const IMPORT_LINE = /^[ \t]*import[ \t]+([^\n#;]+)/gmu;
+const FROM_IMPORT_LINE =
+  /^[ \t]*from[ \t]+([A-Za-z_]\w*)(?:\.[\w.]*)?[ \t]+import\b/gmu;
+
+/**
+ * The top-level modules a program imports: `numpy` for `import numpy as np`,
+ * `PIL` for `from PIL import Image`. A relative import names no package.
+ */
+export function importedModules(program: string): string[] {
+  const modules = new Set<string>();
+  for (const match of program.matchAll(IMPORT_LINE)) {
+    for (const clause of (match[1] ?? "").split(",")) {
+      const name = /^\s*([A-Za-z_]\w*)/u.exec(clause)?.[1];
+      if (name !== undefined) {
+        modules.add(name);
+      }
+    }
+  }
+  for (const match of program.matchAll(FROM_IMPORT_LINE)) {
+    if (match[1] !== undefined) {
+      modules.add(match[1]);
+    }
+  }
+  return [...modules];
 }
 
 /**
@@ -242,16 +346,20 @@ function pythonScriptArgIndex(args: string[]): number | undefined {
  * Every virtual path has to be bridged to a host path first, and an attached
  * folder has no host path a subprocess may receive, so those fail before
  * anything spawns. What that failure recommends depends on how we got here:
- * an agent that typed `python` on a skill script cannot be sent back to
- * `python`, so it is told to copy the file in; anyone else is told that the
- * sandboxed `python` reads the folder directly.
+ * an agent that typed `python` and was sent here, for a skill script or for a
+ * program importing an installed package, cannot be sent back to `python`, so
+ * it is told to copy the file in, and why this run is native; anyone else is
+ * told that the sandboxed `python` reads the folder directly.
  */
 async function runNativePython(
   taskId: TaskId,
   name: string,
   args: string[],
   ctx: Parameters<Parameters<typeof defineCommand>[1]>[1],
-  { skillScript = false }: { skillScript?: boolean } = {},
+  {
+    importsInstalled,
+    skillScript = false,
+  }: { importsInstalled?: string[]; skillScript?: boolean } = {},
 ) {
   // Catch `python -m pip` before hitting the interpreter; the venv has no
   // seeded pip module, so it would fail with "No module named pip". Direct
@@ -264,15 +372,23 @@ async function runNativePython(
     };
   }
 
-  const sandboxedAlternative = skillScript
-    ? undefined
-    : `Run it with \`${PYTHON_COMMAND.name}\` instead, which reads attached folders directly, if the script needs no installed package.`;
+  const sandboxedAlternative =
+    skillScript || importsInstalled
+      ? undefined
+      : `Run it with \`${PYTHON_COMMAND.name}\` instead, which reads attached folders directly, if the script needs no installed package.`;
+  const fail = (stderr: string) => ({
+    exitCode: 1,
+    stderr: importsInstalled
+      ? `${name}: this program imports ${importsInstalled.join(", ")}, installed in the task's virtualenv, so it runs there, as \`${PYTHON_NATIVE_COMMAND.name}\` does.\n${stderr}`
+      : stderr,
+    stdout: "",
+  });
 
   const unreachable = unreachablePathArgError(name, args, ctx.cwd, {
     alternative: sandboxedAlternative,
   });
   if (unreachable !== undefined) {
-    return { exitCode: 1, stderr: unreachable, stdout: "" };
+    return fail(unreachable);
   }
 
   const { env, taskCwd } = resolveCommandContext(taskId, ctx);
@@ -299,7 +415,7 @@ async function runNativePython(
       { alternative: sandboxedAlternative },
     );
     if ("error" in bridged) {
-      return { exitCode: 1, stderr: bridged.error, stdout: "" };
+      return fail(bridged.error);
     }
     bridgedArgs[codeIndex] = bridged.code;
   } else if (stdin && readsProgramFromStdin) {
@@ -307,7 +423,7 @@ async function runNativePython(
       alternative: sandboxedAlternative,
     });
     if ("error" in bridged) {
-      return { exitCode: 1, stderr: bridged.error, stdout: "" };
+      return fail(bridged.error);
     }
     stdin = bridged.code;
   }
@@ -325,7 +441,7 @@ async function runNativePython(
       { alternative: sandboxedAlternative },
     );
     if (scanError !== undefined) {
-      return { exitCode: 1, stderr: scanError, stdout: "" };
+      return fail(scanError);
     }
   }
 
@@ -344,4 +460,26 @@ async function runNativePython(
       filterShellOutput(text, taskDir(taskId)),
     ),
   };
+}
+
+/** What the task's virtualenv has installed, by file name, or none. */
+async function sitePackagesEntries(taskId: TaskId): Promise<string[]> {
+  const venv = taskVenvDir(taskId);
+  const libDirs =
+    process.platform === "win32"
+      ? [path.join(venv, "Lib")]
+      : await fs
+          .readdir(path.join(venv, "lib"))
+          .then((names) =>
+            names
+              .filter((name) => name.startsWith("python"))
+              .map((name) => path.join(venv, "lib", name)),
+          )
+          .catch(() => []);
+  const entries = await Promise.all(
+    libDirs.map((dir) =>
+      fs.readdir(path.join(dir, "site-packages")).catch(() => []),
+    ),
+  );
+  return entries.flat();
 }

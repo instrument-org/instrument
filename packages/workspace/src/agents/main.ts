@@ -371,7 +371,7 @@ export const mainAgent = setupAgent({
     Install with \`${PNPM_COMMAND.name} add <pkg>\` from the task root, where you already are. The task's \`node_modules\` sits at that root, so what you install resolves from every folder in the task and from inline \`${NODE_COMMAND.name} -e\` code alike.
     A loaded skill is its own package with its own \`node_modules\`, holding the dependencies its own scripts declare. Those are not visible to code elsewhere in the task, so either run the skill's scripts where they sit, or install what you need at the task root and write your own against it. Skill files are yours to edit -- treat them as a starting point, not read-only templates.
 
-    Write scripts in TypeScript, Python, or bash. Python has two interpreters: \`${PYTHON_COMMAND.name}\` is the sandboxed one with the standard library, which reads attached folders as written, and \`${PYTHON_NATIVE_COMMAND.name}\` is the task's virtualenv, which runs what \`pip\` installed but sees only the task folder. A script that imports a package is \`${PYTHON_NATIVE_COMMAND.name}\`'s; anything else is \`${PYTHON_COMMAND.name}\`'s.
+    Write scripts in TypeScript, Python, or bash. Python has two interpreters: \`${PYTHON_COMMAND.name}\` is the sandboxed one with the standard library, which reads attached folders as written, and \`${PYTHON_NATIVE_COMMAND.name}\` is the task's virtualenv, which runs what \`pip\` installed but sees only the task folder. \`${PYTHON_COMMAND.name}\` runs a program that imports a package \`pip\` installed in the virtualenv on its own, so such a script sees only the task folder under either name.
 
     # File Changes
     - There is no automatic version history for task files.

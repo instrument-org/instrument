@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { taskDir } from "../task-dir-utils";
-import { createPythonNativeCommand } from "./python";
+import { createPythonNativeCommand, importedModules } from "./python";
 
 vi.mock("execa");
 vi.mock("./uv", () => ({
@@ -143,5 +143,23 @@ describe("python-native", () => {
     expect(result.stderr).toContain("Run it with `python` instead");
     expect(result.stderr).toContain("copy the file into the task first");
     expect(vi.mocked(execa)).not.toHaveBeenCalled();
+  });
+});
+
+describe("importedModules", () => {
+  it("reads the top-level module of each import, and none from a relative one", () => {
+    expect(
+      importedModules(
+        [
+          "import numpy as np, os",
+          "from PIL import Image",
+          "  from faster_whisper.transcribe import WhisperModel",
+          "from . import helper",
+          "from .local import thing",
+          "# import commented",
+          "x = 1; import json",
+        ].join("\n"),
+      ),
+    ).toEqual(["numpy", "os", "PIL", "faster_whisper"]);
   });
 });

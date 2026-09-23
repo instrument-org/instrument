@@ -334,6 +334,7 @@ export const LoadSkill = setupTool({
           : [
               `The skill's locked Python dependencies were installed in the task's \`.venv\`.`,
               `Run its Python scripts with \`python\`; do not install packages the skill already provides.`,
+              `Those are its required dependencies only: a package its instructions say to \`pip install\` for one use is not installed until you install it.`,
             ].join(" ");
       });
       installSection = `\n\n${installText.join("\n\n")}`;

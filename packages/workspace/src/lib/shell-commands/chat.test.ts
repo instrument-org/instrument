@@ -126,7 +126,7 @@ describe("chat threads", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
-      `${groceries}  idle  "Groceries for the week"  #Home  Starting the list.\n${lisbon}  idle  "Trip to Lisbon"  nothing yet\n`,
+      `${groceries}  idle  "Groceries for the week"  #Home  Starting the list.\n${lisbon}  working  "Trip to Lisbon"  nothing yet\n`,
     );
 
     const filtered = await run(taskId, "threads", "--topic", "home");

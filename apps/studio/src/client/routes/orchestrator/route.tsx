@@ -584,6 +584,9 @@ function OrchestratorLayout() {
     showTasksFace,
     threads: threads.data,
     threadTitles,
+    toApps: () => {
+      setPlace("apps");
+    },
     toChat,
     windowTabs,
   });

@@ -1,4 +1,9 @@
-import { placeOfGroup, THREADS_HREF } from "@/client/atoms/orchestrator";
+import {
+  APPS_HREF,
+  placeGroupOf,
+  placeOfGroup,
+  THREADS_HREF,
+} from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -38,6 +43,7 @@ export function useOpeners({
   showTasksFace,
   threads,
   threadTitles,
+  toApps,
   toChat,
   windowTabs,
 }: {
@@ -53,6 +59,8 @@ export function useOpeners({
   /** The threads the window has, once the list has been read. */
   threads: Thread[] | undefined;
   threadTitles: Map<StoreId.Session, string>;
+  /** Puts the window on Apps, for an app opened from wherever it stands. */
+  toApps: () => void;
   /** Puts the window on the chat, for a thread coming on screen from wherever it stands. */
   toChat: () => void;
   windowTabs: ReturnType<typeof useWindowTabs>;
@@ -145,6 +153,19 @@ export function useOpeners({
     const memory = memoryOfHref(href);
     if (memory) {
       openSettings({ memory, tab: "Memory" });
+      return;
+    }
+    // An app lives in Apps: the window stands there, on the tab already at
+    // the app or a new one beside what Apps had up, wherever it was asked
+    // for from.
+    if (parseHref(href).pathname.startsWith(`${APPS_HREF}/`)) {
+      windowTabs.showPlace("apps");
+      windowTabs.openOrFocusScreen(href, {
+        group: placeGroupOf("apps"),
+        isOpened: true,
+        show: true,
+      });
+      toApps();
       return;
     }
     if (into !== undefined && into !== windowTabs.group) {

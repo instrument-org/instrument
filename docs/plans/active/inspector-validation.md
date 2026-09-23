@@ -1,6 +1,6 @@
 # Plan: validate the inspector before drawing it again
 
-Status: proposed, not started. Nothing here is committed until the questions below have answers; the wireframe that prompted it is a scratch artifact and the direction is unproven.
+Status: proposed. Drafts measured (below); Linear and Notion not yet. Nothing here is committed until the questions below have answers; the wireframe that prompted it is a scratch artifact and the direction is unproven.
 
 ## What the inspector is
 
@@ -27,6 +27,18 @@ It is only worth building if the data on disk and behind the connection already 
 6. **Can Drafts be read at all?** Three paths, in order of how little the person has to do: an MCP package on the registry that reads the app's store; the app's own scripting dictionary through `osascript` on the host, which costs one macOS automation prompt; the app's local database, whose format is undocumented and can change under us. Record which one answers, what a draft record holds, and whether tags and workspaces are listable. Fail if only the database path works.
 7. **How slow is a click?** A local server that starts per operation turns every row press into a spawn. Measure a cold start for a node stdio server; past about a second the inspector needs the pooled process with an idle timeout that the apps plan already lists as later work. Hosted servers pay a network round trip per click instead; measure that too, and decide the cache (key on tool plus arguments, a short life) before dogfooding.
 8. **What does the connection let a viewer do?** Reads run under the same connection record as the agent's calls, so an app the person connected for the agent is also readable by hand. Confirm a read-only tool call cannot be turned into a write by argument (a `search` that accepts an `update` flag, say) by reading each allowed tool's input schema for verbs.
+
+## Drafts, measured
+
+`@agiletortoise/drafts-mcp-server` 1.0.12 exists on npm and reads Drafts through AppleScript, so question 6 passes by the scripting path. Probed from a scratch script with the SDK client on macOS against a library of 37 drafts:
+
+- **Reads vs writes (1):** all 20 tools carry annotations. 13 say `readOnlyHint: true`; every write says false, and `update`, `trash` and `run_action` also say `destructiveHint: true`. One trap: `drafts_open` is marked read-only but brings the draft up in the Drafts window, so the hint means "changes no data", not "has no effect". The inspector's allowed set is read-only hints minus anything named `open`, or it needs a human look per server after all.
+- **Bare answers (2):** `list_workspaces`, `list_tags`, `list_actions`, `get_drafts`, `get_current` and `get_current_workspace` all answer `{}`.
+- **Shape (3):** every answer is one text block holding JSON; no `outputSchema`, no `structuredContent`. Lists are arrays of objects with `name` (workspaces, tags, actions) or `id` plus `title` (drafts). Summaries omit `content`; the detail carries it.
+- **Drill (4):** records call their key `id`, and `get_draft` requires `uuid`. The name rule in question 4 misses it; matching a lone required string parameter whose description says "UUID" against an id field of UUID shape finds it. Workspace and tag names drill the same way into `get_workspace_drafts` and `get_tag`.
+- **Links (5):** `permalink` is a `drafts://` URL, which opens the draft in Drafts rather than as a page. Other apps will have their own schemes, so a link is "a URL the OS can open", not only http(s).
+- **Facets:** `get_drafts` has an optional `folder` enum (`inbox`, `archive`, `trash`) and optional `tag` and `flagged` filters. Optional enum parameters on a bare list tool are a generic way to draw filters with no per-app code.
+- **Speed (7):** the stdio server connects in about 100 ms. The cost is AppleScript: the first call about 1.5 s, `get_drafts` about 5.7 s for 37 drafts, `get_workspace_drafts` about 2.4 s, a single draft or tag about 0.4 s. Per-operation spawning is not the problem; the list reads need a cache, and a large library will need one more.
 
 ## How to run it
 

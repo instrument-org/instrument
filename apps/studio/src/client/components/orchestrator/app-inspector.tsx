@@ -1,11 +1,11 @@
-import { thisComputer } from "@/client/components/orchestrator/computer-name";
-import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { MarkdownCodeBlock } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import { Markdown } from "@/client/components/markdown";
+import { thisComputer } from "@/client/components/orchestrator/computer-name";
+import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { cn } from "@/client/lib/utils";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
@@ -15,8 +15,26 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-type Tool = RPCOutput["apps"]["inspect"][number];
-type Json = Record<string, unknown>;
+import {
+  childrenOf,
+  detailRead,
+  isBare,
+  isLink,
+  isListAnswer,
+  isObject,
+  type Json,
+  labelOf,
+  languageOf,
+  listsFirst,
+  looksLikeCode,
+  parse,
+  parseSequence,
+  recordsOf,
+  splitCode,
+  summaryOf,
+  titleOf,
+  type Tool,
+} from "./app-inspector-model";
 
 /** The inspector's card, shared with its skeleton so nothing moves when it fills. */
 const FRAME_CLASS_NAME =
@@ -28,26 +46,12 @@ const ROW_WIDTHS = ["w-3/4", "w-1/2", "w-2/3", "w-5/6", "w-2/5", "w-3/5"];
 /** How long an answer is reused before the server is asked again. */
 const STALE_MS = 60_000;
 
-const TITLE_KEYS = [
-  "title",
-  "name",
-  "subject",
-  "identifier",
-  "summary",
-  "label",
-  "displayName",
-];
-const ID_KEYS = ["id", "uuid", "key"];
-const VERBS = new Set([
-  "fetch",
-  "find",
-  "get",
-  "list",
-  "query",
-  "read",
-  "retrieve",
-  "search",
-]);
+/** What the person has open in the inspector, as the read that fetches it again. */
+export interface InspectorReading {
+  args: Json;
+  title: string;
+  tool: string;
+}
 
 /**
  * A generic browser of a connected app's own data: the reads that answer
@@ -63,10 +67,10 @@ export function AppInspector({
   slug,
 }: {
   name: string;
-  /** Whether the app's server is on this computer, which is what an unreachable one most often means. */
-  runsHere: boolean;
   /** Told what record is open, for the note the agent reads with the next message. */
   onReading: (reading: InspectorReading | undefined) => void;
+  /** Whether the app's server is on this computer, which is what an unreachable one most often means. */
+  runsHere: boolean;
   slug: string;
 }) {
   const tools = useQuery({
@@ -111,7 +115,6 @@ export function AppInspector({
     );
   }
   const reads = tools.data.filter((tool) => tool.isRead);
-  const isBare = (tool: Tool) => tool.params.every((p) => !p.required);
   // Everything the app offers, in three groups: what a press reads, what
   // reads only with something asked of it, and what changes things. Only
   // the first group ever runs here; the others are described.
@@ -186,79 +189,169 @@ export function AppInspector({
 }
 
 /**
- * A tool that does not run from here, described: what it says it does and
- * what it takes. For one that changes things, what would change is said
- * plainly, since that is why it is here rather than a button.
+ * Code as the transcript draws it, highlighted, with any prose a server put
+ * after it (instructions for the agent, most often) kept as words.
  */
-function ToolSheet({ appName, tool }: { appName: string; tool: Tool }) {
+function CodeAndProse({ text }: { text: string }) {
+  const { code, prose } = splitCode(text);
   return (
-    <div className="col-span-2 flex min-w-0 flex-col">
-      <div className="border-b border-border px-4 py-2.5">
-        <p className="truncate text-[13px] leading-5 font-semibold">
-          {labelOf(tool)}
-        </p>
-        <p className="truncate text-[11px] text-muted-foreground">
-          {tool.isRead
-            ? "Reads something you name. Ask in a chat to use it."
-            : `Changes things in ${appName}. Runs only when you ask in a chat.`}
-        </p>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="flex flex-col gap-5">
-          {tool.description ? <Markdown markdown={tool.description} /> : null}
-          {tool.params.length > 0 ? (
-            <dl className="grid grid-cols-[minmax(6rem,11rem)_minmax(0,1fr)] gap-x-4 gap-y-2.5 border-t border-border pt-4">
-              {tool.params.map((param) => (
-                <div className="contents" key={param.name}>
-                  <dt className="min-w-0">
-                    <span className="block truncate font-mono text-xs">
-                      {param.name}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {[param.type, param.required ? "required" : undefined]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </dt>
-                  <dd className="min-w-0 text-[13px] leading-5">
-                    {param.description}
-                    {param.enum?.length ? (
-                      <span className="mt-1 flex flex-wrap gap-1">
-                        {param.enum.map((value) => (
-                          <span
-                            className="rounded-md bg-muted px-1.5 py-px font-mono text-xs"
-                            key={value}
-                          >
-                            {value}
-                          </span>
-                        ))}
-                      </span>
-                    ) : null}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
+    <>
+      <MarkdownCodeBlock code={code} language={languageOf(code)} />
+      {prose ? (
+        <div className="text-muted-foreground">
+          <Markdown markdown={prose} />
         </div>
-      </div>
-    </div>
+      ) : null}
+    </>
   );
 }
 
-function Section({
-  children,
-  name,
+/**
+ * A record's fields, and when some read takes exactly what the record
+ * carries, that read's fuller answer in its place.
+ */
+function Detail({
+  isSourceFetching,
+  onBack,
+  onReading,
+  onRefreshSource,
+  reads,
+  record,
+  slug,
+  source,
+  sourceArgs,
 }: {
-  children: React.ReactNode;
-  name: string;
+  /** Whether the list this record came from is being read again. */
+  isSourceFetching: boolean;
+  onBack?: () => void;
+  onReading: (reading: InspectorReading | undefined) => void;
+  /** Reads the list again, for a record no read of its own fetches. */
+  onRefreshSource: () => void;
+  reads: Tool[];
+  record: Json;
+  slug: string;
+  source: Tool;
+  sourceArgs: Json;
 }) {
+  const guess = detailRead(reads, source, record);
+  const detail = useQuery({
+    ...rpcClient.apps.read.queryOptions({
+      input: {
+        args: guess?.args ?? {},
+        slug,
+        tool: guess?.tool.name ?? "",
+      },
+    }),
+    enabled: guess !== undefined,
+    staleTime: STALE_MS,
+  });
+  // A guessed read that fails was the wrong guess, not something to show:
+  // the row's own fields stand in.
+  const drill =
+    guess && !detail.isError && !detail.data?.isError ? guess : undefined;
+  // A record listed inside this one, opened in its place.
+  const [opened, setOpened] = useState<Json>();
+  const title = titleOf(record);
+  useReportReading(
+    onReading,
+    opened
+      ? null
+      : drill
+        ? { args: drill.args, title, tool: drill.tool.name }
+        : { args: sourceArgs, title, tool: source.name },
+  );
+
+  const fuller = detail.data ? parse(detail.data.text) : undefined;
+  const shown = isObject(fuller) ? fuller : undefined;
+  const drilledRecords =
+    fuller !== undefined && shown === undefined ? recordsOf(fuller) : [];
+
+  if (opened && drill) {
+    return (
+      <Detail
+        isSourceFetching={detail.isFetching}
+        onBack={() => {
+          setOpened(undefined);
+        }}
+        onReading={onReading}
+        onRefreshSource={() => void detail.refetch()}
+        reads={reads}
+        record={opened}
+        slug={slug}
+        source={drill.tool}
+        sourceArgs={drill.args}
+      />
+    );
+  }
   return (
-    <section className="mt-6 flex min-h-0 min-w-0 flex-1 animate-in flex-col duration-300 fade-in-0">
-      <p className="mb-2.5 text-[13px] font-medium text-muted-foreground">
-        Browse {name}
-      </p>
-      {children}
-    </section>
+    <>
+      <PaneHeader
+        copyText={detail.data?.text ?? JSON.stringify(record, null, 2)}
+        isFetching={drill ? detail.isFetching : isSourceFetching}
+        meta={
+          drill && detail.isError
+            ? detail.error.message
+            : labelOf(drill?.tool ?? source)
+        }
+        onBack={onBack}
+        onRefresh={() => {
+          if (drill) {
+            void detail.refetch();
+          } else {
+            onRefreshSource();
+          }
+        }}
+        title={title}
+      />
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+        {drill && detail.isPending ? (
+          <SkeletonFields />
+        ) : detail.data && fuller === undefined ? (
+          <Markdown markdown={detail.data.text} />
+        ) : (
+          <Fields record={shown ?? record} />
+        )}
+        {drilledRecords.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              {drilledRecords.length} in it
+            </p>
+            <ul className="-mx-2 flex flex-col">
+              {drilledRecords.map((entry, index) => (
+                <li key={index}>
+                  <button
+                    className="group/row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent"
+                    onClick={() => {
+                      setOpened(entry);
+                    }}
+                    type="button"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {titleOf(entry)}
+                    </span>
+                    <CaretRightIcon className="size-3 shrink-0 text-muted-foreground opacity-0 group-hover/row:opacity-100" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/** A record as a tree: every field a row, containers folded until pressed. */
+function Fields({ record }: { record: Json }) {
+  const entries = Object.entries(record).filter(
+    ([, value]) => value !== null && value !== "",
+  );
+  return (
+    <div className="flex flex-col text-[13px] leading-5">
+      {entries.map(([key, value]) => (
+        <TreeRow depth={0} key={key} name={key} value={value} />
+      ))}
+    </div>
   );
 }
 
@@ -276,12 +369,12 @@ function PaneHeader({
   onRefresh,
   title,
 }: {
-  /** Back to the record this one was opened from, when it was. */
-  onBack?: () => void;
   /** What Copy puts on the clipboard: the answer as the app gave it. */
   copyText?: string;
   isFetching: boolean;
   meta?: string;
+  /** Back to the record this one was opened from, when it was. */
+  onBack?: () => void;
   onRefresh: () => void;
   title: string;
 }) {
@@ -418,8 +511,8 @@ function Records({
       <div className="col-span-2 flex min-w-0 flex-col">
         {facetBar}
         <PaneHeader
-          isFetching={answer.isFetching}
           copyText={answer.data?.text || undefined}
+          isFetching={answer.isFetching}
           onRefresh={() => void answer.refetch()}
           title={labelOf(tool)}
         />
@@ -457,7 +550,7 @@ function Records({
                   index === shownIndex && "bg-accent font-medium",
                 )}
                 // Records carry no stable key the inspector can know of.
-                // eslint-disable-next-line react/no-array-index-key
+
                 key={index}
                 onClick={() => {
                   onPick(index);
@@ -483,10 +576,10 @@ function Records({
           <Detail
             isSourceFetching={answer.isFetching}
             key={`${tool.name}:${String(shownIndex)}`}
-            onRefreshSource={() => void answer.refetch()}
             onReading={onReading}
-            record={record}
+            onRefreshSource={() => void answer.refetch()}
             reads={reads}
+            record={record}
             slug={slug}
             source={tool}
             sourceArgs={args}
@@ -497,6 +590,131 @@ function Records({
       </div>
     </>
   );
+}
+
+function Section({
+  children,
+  name,
+}: {
+  children: React.ReactNode;
+  name: string;
+}) {
+  return (
+    <section className="mt-6 flex min-h-0 min-w-0 flex-1 animate-in flex-col duration-300 fade-in-0">
+      <p className="mb-2.5 text-[13px] font-medium text-muted-foreground">
+        Browse {name}
+      </p>
+      {children}
+    </section>
+  );
+}
+
+function SkeletonFields() {
+  return (
+    <div className="grid grid-cols-[minmax(5rem,9rem)_minmax(0,1fr)] gap-x-4 gap-y-3">
+      {ROW_WIDTHS.map((width) => (
+        <div className="contents" key={width}>
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className={cn("h-3.5", width)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkeletonRows({ count }: { count: number }) {
+  return (
+    <div className="flex flex-col">
+      {Array.from({ length: count }, (_, index) => (
+        // Placeholders have nothing but their place to be keyed by.
+
+        <div className="flex h-8 items-center px-2" key={index}>
+          <Skeleton
+            className={cn("h-3.5", ROW_WIDTHS[index % ROW_WIDTHS.length])}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A tool that does not run from here, described: what it says it does and
+ * what it takes. For one that changes things, what would change is said
+ * plainly, since that is why it is here rather than a button.
+ */
+function ToolSheet({ appName, tool }: { appName: string; tool: Tool }) {
+  return (
+    <div className="col-span-2 flex min-w-0 flex-col">
+      <div className="border-b border-border px-4 py-2.5">
+        <p className="truncate text-[13px] leading-5 font-semibold">
+          {labelOf(tool)}
+        </p>
+        <p className="truncate text-[11px] text-muted-foreground">
+          {tool.isRead
+            ? "Reads something you name. Ask in a chat to use it."
+            : `Changes things in ${appName}. Runs only when you ask in a chat.`}
+        </p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="flex flex-col gap-5">
+          {tool.description ? <Markdown markdown={tool.description} /> : null}
+          {tool.params.length > 0 ? (
+            <dl className="grid grid-cols-[minmax(6rem,11rem)_minmax(0,1fr)] gap-x-4 gap-y-2.5 border-t border-border pt-4">
+              {tool.params.map((param) => (
+                <div className="contents" key={param.name}>
+                  <dt className="min-w-0">
+                    <span className="block truncate font-mono text-xs">
+                      {param.name}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {[param.type, param.required ? "required" : undefined]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </dt>
+                  <dd className="min-w-0 text-[13px] leading-5">
+                    {param.description}
+                    {param.enum?.length ? (
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {param.enum.map((value) => (
+                          <span
+                            className="rounded-md bg-muted px-1.5 py-px font-mono text-xs"
+                            key={value}
+                          >
+                            {value}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Tells the page what is open, by value, and takes it back on the way out. */
+function useReportReading(
+  onReading: (reading: InspectorReading | undefined) => void,
+  /** Null while something opened from it is reporting instead. */
+  reading: InspectorReading | null,
+) {
+  const key = JSON.stringify(reading);
+  useEffect(() => {
+    const current = JSON.parse(key) as InspectorReading | null;
+    if (current === null) {
+      return;
+    }
+    onReading(current);
+    return () => {
+      onReading(undefined);
+    };
+  }, [key, onReading]);
 }
 
 /** An answer read whole: the error it is, the pictures in it, then its words. */
@@ -539,7 +757,7 @@ function WholeAnswer({
           <div
             className="border-t border-border pt-4 first:border-0 first:pt-0"
             // The values have no identity beyond their order.
-            // eslint-disable-next-line react/no-array-index-key
+
             key={index}
           >
             {isObject(value) ? (
@@ -558,298 +776,113 @@ function WholeAnswer({
   );
 }
 
-/**
- * Code as the transcript draws it, highlighted, with any prose a server put
- * after it (instructions for the agent, most often) kept as words.
- */
-function CodeAndProse({ text }: { text: string }) {
-  const { code, prose } = splitCode(text);
-  return (
-    <>
-      <MarkdownCodeBlock code={code} language={languageOf(code)} />
-      {prose ? (
-        <div className="text-muted-foreground">
-          <Markdown markdown={prose} />
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-/**
- * Where code ends and prose begins: the first line that reads as a sentence
- * straight after one that closes a block.
- */
-function splitCode(text: string): { code: string; prose: string } {
-  const lines = text.split("\n");
-  const end = lines.findIndex(
-    (line, index) =>
-      index > 0 &&
-      /^[)\]}][;)]*\s*$/.test(lines[index - 1] ?? "") &&
-      /^[A-Z][\w' -]*[\s:.,]/.test(line),
-  );
-  return end === -1
-    ? { code: text, prose: "" }
-    : {
-        code: lines.slice(0, end).join("\n"),
-        prose: lines.slice(end).join("\n").trim(),
-      };
-}
-
-/** A best guess at the language, for highlighting only. */
-function languageOf(code: string): string | undefined {
-  if (/^\s*[[{]/.test(code)) {
-    return "json";
-  }
-  if (
-    /<[A-Za-z][^>]*>/.test(code) &&
-    /\b(?:return|export|function|const)\b/.test(code)
-  ) {
-    return "tsx";
-  }
-  if (/^\s*</.test(code)) {
-    return "html";
-  }
-  if (/\b(?:import|export|const|function)\b/.test(code)) {
-    return "typescript";
-  }
-  return undefined;
-}
-
-/** Tells the page what is open, by value, and takes it back on the way out. */
-function useReportReading(
-  onReading: (reading: InspectorReading | undefined) => void,
-  /** Null while something opened from it is reporting instead. */
-  reading: InspectorReading | null,
-) {
-  const key = JSON.stringify(reading);
-  useEffect(() => {
-    const current = JSON.parse(key) as InspectorReading | null;
-    if (current === null) {
-      return;
-    }
-    onReading(current);
-    return () => {
-      onReading(undefined);
-    };
-  }, [key, onReading]);
-}
-
-/**
- * Whether an answer is a list of things: an array, or an object holding one
- * (a page of results wrapped in paging).
- */
-function isListAnswer(value: unknown): boolean {
-  if (Array.isArray(value)) {
-    return true;
-  }
-  return (
-    isObject(value) &&
-    Object.values(value).some(
-      (entry) =>
-        Array.isArray(entry) && (entry.length === 0 || entry.some(isObject)),
-    )
-  );
-}
-
-/** Source code or markup, which keeps its lines rather than wrapping them. */
-function looksLikeCode(text: string): boolean {
-  const lines = text.split("\n");
-  return (
-    lines.length > 3 &&
-    (lines.some((line) => line.length > 160) ||
-      /^\s*(?:import |export |const |function |<[a-z!])/im.test(text))
-  );
-}
-
-function SkeletonRows({ count }: { count: number }) {
-  return (
-    <div className="flex flex-col">
-      {Array.from({ length: count }, (_, index) => (
-        // Placeholders have nothing but their place to be keyed by.
-        // eslint-disable-next-line react/no-array-index-key
-        <div className="flex h-8 items-center px-2" key={index}>
-          <Skeleton
-            className={cn("h-3.5", ROW_WIDTHS[index % ROW_WIDTHS.length])}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SkeletonFields() {
-  return (
-    <div className="grid grid-cols-[minmax(5rem,9rem)_minmax(0,1fr)] gap-x-4 gap-y-3">
-      {ROW_WIDTHS.map((width) => (
-        <div className="contents" key={width}>
-          <Skeleton className="h-3 w-16" />
-          <Skeleton className={cn("h-3.5", width)} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** What the person has open in the inspector, as the read that fetches it again. */
-export interface InspectorReading {
-  args: Json;
-  title: string;
-  tool: string;
-}
-
-/**
- * A record's fields, and when some read takes exactly what the record
- * carries, that read's fuller answer in its place.
- */
-function Detail({
-  isSourceFetching,
-  onBack,
-  onReading,
-  onRefreshSource,
-  record,
-  reads,
-  slug,
-  source,
-  sourceArgs,
-}: {
-  /** Whether the list this record came from is being read again. */
-  isSourceFetching: boolean;
-  onBack?: () => void;
-  onReading: (reading: InspectorReading | undefined) => void;
-  /** Reads the list again, for a record no read of its own fetches. */
-  onRefreshSource: () => void;
-  record: Json;
-  reads: Tool[];
-  slug: string;
-  source: Tool;
-  sourceArgs: Json;
-}) {
-  const guess = detailRead(reads, source, record);
-  const detail = useQuery({
-    ...rpcClient.apps.read.queryOptions({
-      input: {
-        args: guess?.args ?? {},
-        slug,
-        tool: guess?.tool.name ?? "",
-      },
-    }),
-    enabled: guess !== undefined,
-    staleTime: STALE_MS,
-  });
-  // A guessed read that fails was the wrong guess, not something to show:
-  // the row's own fields stand in.
-  const drill =
-    guess && !detail.isError && !detail.data?.isError ? guess : undefined;
-  // A record listed inside this one, opened in its place.
-  const [opened, setOpened] = useState<Json>();
-  const title = titleOf(record);
-  useReportReading(
-    onReading,
-    opened
-      ? null
-      : drill
-        ? { args: drill.args, title, tool: drill.tool.name }
-        : { args: sourceArgs, title, tool: source.name },
-  );
-
-  const fuller = detail.data ? parse(detail.data.text) : undefined;
-  const shown = isObject(fuller) ? fuller : undefined;
-  const drilledRecords =
-    fuller !== undefined && shown === undefined ? recordsOf(fuller) : [];
-
-  if (opened && drill) {
-    return (
-      <Detail
-        isSourceFetching={detail.isFetching}
-        onBack={() => {
-          setOpened(undefined);
-        }}
-        onReading={onReading}
-        onRefreshSource={() => void detail.refetch()}
-        record={opened}
-        reads={reads}
-        slug={slug}
-        source={drill.tool}
-        sourceArgs={drill.args}
-      />
-    );
-  }
-  return (
-    <>
-      <PaneHeader
-        copyText={detail.data?.text ?? JSON.stringify(record, null, 2)}
-        onBack={onBack}
-        isFetching={drill ? detail.isFetching : isSourceFetching}
-        meta={
-          drill && detail.isError
-            ? detail.error.message
-            : labelOf(drill?.tool ?? source)
-        }
-        onRefresh={() => {
-          if (drill) {
-            void detail.refetch();
-          } else {
-            onRefreshSource();
-          }
-        }}
-        title={title}
-      />
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-        {drill && detail.isPending ? (
-          <SkeletonFields />
-        ) : detail.data && fuller === undefined ? (
-          <Markdown markdown={detail.data.text} />
-        ) : (
-          <Fields record={shown ?? record} />
-        )}
-        {drilledRecords.length > 0 ? (
-          <div className="flex flex-col gap-1">
-            <p className="text-xs font-medium text-muted-foreground">
-              {drilledRecords.length} in it
-            </p>
-            <ul className="-mx-2 flex flex-col">
-              {drilledRecords.map((entry, index) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <li key={index}>
-                  <button
-                    className="group/row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent"
-                    onClick={() => {
-                      setOpened(entry);
-                    }}
-                    type="button"
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {titleOf(entry)}
-                    </span>
-                    <CaretRightIcon className="size-3 shrink-0 text-muted-foreground opacity-0 group-hover/row:opacity-100" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-      </div>
-    </>
-  );
-}
-
-/** A record as a tree: every field a row, containers folded until pressed. */
-function Fields({ record }: { record: Json }) {
-  const entries = Object.entries(record).filter(
-    ([, value]) => value !== null && value !== "",
-  );
-  return (
-    <div className="flex flex-col text-[13px] leading-5">
-      {entries.map(([key, value]) => (
-        <TreeRow depth={0} key={key} name={key} value={value} />
-      ))}
-    </div>
-  );
-}
-
 /** How far each level of the tree sits in from the one it opened from. */
 const TREE_INDENT_PX = 16;
+
+/** A plain value, drawn by what it is. */
+function Leaf({ name, value }: { name?: string; value: unknown }) {
+  // A count of milliseconds or seconds under a name that says it is a time.
+  if (
+    typeof value === "number" &&
+    name !== undefined &&
+    /(?:at|date|time|timestamp)$/i.test(name) &&
+    value > 1e9 &&
+    value < 1e14
+  ) {
+    return (
+      <span title={String(value)}>
+        {new Date(value > 1e11 ? value : value * 1000).toLocaleString()}
+      </span>
+    );
+  }
+  if (typeof value === "string") {
+    if (isLink(value)) {
+      return <LinkValue url={value} />;
+    }
+    return value.length > 160 || value.includes("\n") ? (
+      <LongText text={value} />
+    ) : (
+      <span className="wrap-break-word">{value}</span>
+    );
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0 ? (
+      <span className="text-muted-foreground">none</span>
+    ) : (
+      <span className="flex flex-wrap gap-1">
+        {value.map((entry, index) => (
+          <span
+            className="rounded-md bg-muted px-1.5 py-px text-xs"
+
+            key={index}
+          >
+            {String(entry)}
+          </span>
+        ))}
+      </span>
+    );
+  }
+  if (isObject(value)) {
+    return <span className="text-muted-foreground">none</span>;
+  }
+  if (value === null || value === undefined) {
+    return <span className="text-muted-foreground">null</span>;
+  }
+  return <span className="tabular-nums">{JSON.stringify(value)}</span>;
+}
+
+function LinkValue({ url }: { url: string }) {
+  const { openPage } = useOrchestrator();
+  return (
+    <button
+      className="max-w-full truncate text-left text-primary hover:underline"
+      onClick={() => {
+        if (/^https?:\/\//i.test(url)) {
+          openPage(url, { newTab: true });
+          return;
+        }
+        void safe(rpcClient.utils.openExternalLink.call({ url })).then(
+          ([error]) => {
+            if (error) {
+              toast.error("Could not open that link");
+            }
+          },
+        );
+      }}
+      title={url}
+      type="button"
+    >
+      {url}
+    </button>
+  );
+}
+
+function LongText({ text }: { text: string }) {
+  const [isOpen, setOpen] = useState(false);
+  return (
+    <div>
+      <p
+        className={cn(
+          "leading-5 wrap-break-word whitespace-pre-wrap",
+          !isOpen && "line-clamp-4",
+        )}
+      >
+        {text}
+      </p>
+      {text.length > 400 || text.split("\n").length > 6 ? (
+        <button
+          className="mt-0.5 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            setOpen(!isOpen);
+          }}
+          type="button"
+        >
+          {isOpen ? "Show less" : "Show all"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * One field: its name, then its value right beside it rather than across a
@@ -938,7 +971,7 @@ function TreeRow({
             <TreeRow
               depth={depth + 1}
               // Keys repeat in arrays of arrays; the order is the identity.
-              // eslint-disable-next-line react/no-array-index-key
+
               key={`${key}:${index}`}
               name={key}
               value={entry}
@@ -947,342 +980,4 @@ function TreeRow({
         : null}
     </>
   );
-}
-
-/**
- * What a container holds, as rows, or nothing for a value that is not one.
- * A list of plain values is drawn inline rather than opened.
- */
-function childrenOf(value: unknown): [string, unknown][] | undefined {
-  if (Array.isArray(value)) {
-    if (
-      value.length === 0 ||
-      value.every((entry) => typeof entry !== "object" || entry === null)
-    ) {
-      return undefined;
-    }
-    return value.map((entry, index) => [String(index + 1), entry]);
-  }
-  if (isObject(value)) {
-    const entries = Object.entries(value);
-    return entries.length === 0 ? undefined : entries;
-  }
-  return undefined;
-}
-
-/** A folded container in one line: what it is called, and how much is in it. */
-function summaryOf(value: unknown, count: number): string {
-  if (Array.isArray(value)) {
-    const first = value.find(isObject);
-    const names = value
-      .filter(isObject)
-      .slice(0, 3)
-      .map((entry) => titleOf(entry));
-    return first
-      ? `${names.join(", ")}${count > 3 ? ", …" : ""} (${count})`
-      : `${count} items`;
-  }
-  if (isObject(value)) {
-    const named = [...TITLE_KEYS, ...ID_KEYS].some(
-      (key) => typeof value[key] === "string",
-    );
-    return named
-      ? `${titleOf(value)} · ${count} ${count === 1 ? "field" : "fields"}`
-      : `${count} ${count === 1 ? "field" : "fields"}`;
-  }
-  return "";
-}
-
-/** A plain value, drawn by what it is. */
-function Leaf({ name, value }: { name?: string; value: unknown }) {
-  // A count of milliseconds or seconds under a name that says it is a time.
-  if (
-    typeof value === "number" &&
-    name !== undefined &&
-    /(?:at|date|time|timestamp)$/i.test(name) &&
-    value > 1e9 &&
-    value < 1e14
-  ) {
-    return (
-      <span title={String(value)}>
-        {new Date(value > 1e11 ? value : value * 1000).toLocaleString()}
-      </span>
-    );
-  }
-  if (typeof value === "string") {
-    if (isLink(value)) {
-      return <LinkValue url={value} />;
-    }
-    return value.length > 160 || value.includes("\n") ? (
-      <LongText text={value} />
-    ) : (
-      <span className="wrap-break-word">{value}</span>
-    );
-  }
-  if (Array.isArray(value)) {
-    return value.length === 0 ? (
-      <span className="text-muted-foreground">none</span>
-    ) : (
-      <span className="flex flex-wrap gap-1">
-        {value.map((entry, index) => (
-          <span
-            className="rounded-md bg-muted px-1.5 py-px text-xs"
-            // eslint-disable-next-line react/no-array-index-key
-            key={index}
-          >
-            {String(entry)}
-          </span>
-        ))}
-      </span>
-    );
-  }
-  if (isObject(value)) {
-    return <span className="text-muted-foreground">none</span>;
-  }
-  if (value === null || value === undefined) {
-    return <span className="text-muted-foreground">null</span>;
-  }
-  return <span className="tabular-nums">{JSON.stringify(value)}</span>;
-}
-
-function LongText({ text }: { text: string }) {
-  const [isOpen, setOpen] = useState(false);
-  return (
-    <div>
-      <p
-        className={cn(
-          "leading-5 wrap-break-word whitespace-pre-wrap",
-          !isOpen && "line-clamp-4",
-        )}
-      >
-        {text}
-      </p>
-      {text.length > 400 || text.split("\n").length > 6 ? (
-        <button
-          className="mt-0.5 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            setOpen(!isOpen);
-          }}
-          type="button"
-        >
-          {isOpen ? "Show less" : "Show all"}
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-function LinkValue({ url }: { url: string }) {
-  const { openPage } = useOrchestrator();
-  return (
-    <button
-      className="max-w-full truncate text-left text-primary hover:underline"
-      onClick={() => {
-        if (/^https?:\/\//i.test(url)) {
-          openPage(url, { newTab: true });
-          return;
-        }
-        void safe(rpcClient.utils.openExternalLink.call({ url })).then(
-          ([error]) => {
-            if (error) {
-              toast.error("Could not open that link");
-            }
-          },
-        );
-      }}
-      title={url}
-      type="button"
-    >
-      {url}
-    </button>
-  );
-}
-
-/** The server's title, else its name less the app's prefix, in words. */
-function labelOf(tool: Tool): string {
-  if (tool.title) {
-    return tool.title;
-  }
-  const words = tool.name.split(/[-_\s]+/).filter(Boolean);
-  const rest = words.length > 2 ? words.slice(1) : words;
-  const text = rest.join(" ");
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-/** Lists first: they are what a person browsing starts from. */
-function listsFirst(a: Tool, b: Tool): number {
-  const isList = (tool: Tool) => /(?:^|[-_])list(?:[-_]|$)/i.test(tool.name);
-  return Number(isList(b)) - Number(isList(a));
-}
-
-function parse(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * JSON values written one after another, as some servers answer with
- * several blocks joined: each top-level value, or nothing when the text is
- * not that.
- */
-function parseSequence(text: string): unknown[] | undefined {
-  const values: unknown[] = [];
-  let depth = 0;
-  let start = -1;
-  let inString = false;
-  for (let index = 0; index < text.length; index++) {
-    const char = text[index];
-    if (inString) {
-      if (char === "\\") {
-        index++;
-      } else if (char === '"') {
-        inString = false;
-      }
-      continue;
-    }
-    if (char === '"') {
-      inString = true;
-    } else if (char === "{" || char === "[") {
-      if (depth === 0) {
-        start = index;
-      }
-      depth++;
-    } else if (char === "}" || char === "]") {
-      depth--;
-      if (depth === 0 && start !== -1) {
-        const value = parse(text.slice(start, index + 1));
-        if (value === undefined) {
-          return undefined;
-        }
-        values.push(value);
-        start = -1;
-      }
-    } else if (depth === 0 && char !== undefined && !/\s/.test(char)) {
-      return undefined;
-    }
-  }
-  return values.length > 1 ? values : undefined;
-}
-
-function isObject(value: unknown): value is Json {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
- * The rows an answer holds: an array as it is, an object's first array of
- * objects (a page of results wrapped in paging), else the object alone.
- */
-function recordsOf(value: unknown): Json[] {
-  if (Array.isArray(value)) {
-    return value.map((entry: unknown) =>
-      isObject(entry) ? entry : { value: entry },
-    );
-  }
-  if (isObject(value)) {
-    // A page of results wrapped in paging, empty or not.
-    const list = Object.values(value).find(
-      (entry) =>
-        Array.isArray(entry) && (entry.length === 0 || entry.some(isObject)),
-    );
-    return Array.isArray(list) ? recordsOf(list) : [value];
-  }
-  return [{ value }];
-}
-
-function titleOf(record: Json): string {
-  // A field named for what it is (`title`, `name`), then one named as a
-  // kind of it (`nodeName`, `page_title`), then an id.
-  const named = Object.keys(record).filter((key) =>
-    /(?:name|title)$/i.test(key),
-  );
-  for (const key of [...TITLE_KEYS, ...named, ...ID_KEYS]) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim() !== "") {
-      return value;
-    }
-  }
-  const first = Object.values(record).find(
-    (value) => typeof value === "string" && value.trim() !== "",
-  );
-  if (typeof first === "string") {
-    return first;
-  }
-  const key = Object.keys(record)[0];
-  return key === undefined ? "Empty" : key.replaceAll("_", " ");
-}
-
-function isLink(value: string): boolean {
-  return /^[a-z][\w+.-]*:\/\/\S+$/i.test(value);
-}
-
-/** The nouns in a tool's name, singular, less its verbs and the app's prefix. */
-function nounsOf(name: string): Set<string> {
-  const words = name
-    .toLowerCase()
-    .split(/[^a-z]+/)
-    .filter(Boolean);
-  return new Set(
-    words
-      .slice(words.length > 2 ? 1 : 0)
-      .filter((word) => !VERBS.has(word))
-      .map((word) => word.replace(/s$/, "")),
-  );
-}
-
-/**
- * The read that takes exactly what this record carries: one required
- * parameter, filled from the field of the same name, or from the record's
- * id when the parameter is some kind of id. Among several, the one whose
- * name shares a noun with the list the record came from.
- */
-function detailRead(
-  reads: Tool[],
-  source: Tool,
-  record: Json,
-): undefined | { args: Json; tool: Tool } {
-  const sourceNouns = nounsOf(source.name);
-  const id = ID_KEYS.map((key) => record[key]).find(
-    (value) => typeof value === "string",
-  );
-  const candidates = reads.flatMap((tool) => {
-    const required = tool.params.filter((param) => param.required);
-    const param = required[0];
-    if (tool.name === source.name || required.length !== 1 || !param) {
-      return [];
-    }
-    const own = record[param.name];
-    const byName =
-      typeof own === "string"
-        ? own
-        : /name$/i.test(param.name) && typeof record.name === "string"
-          ? record.name
-          : undefined;
-    const byId =
-      /(?:^|_|[a-z])(?:id|uuid)$/i.test(param.name) ||
-      /\b(?:id|uuid)\b/i.test(param.description ?? "")
-        ? id
-        : undefined;
-    // Some services name a thing by its address rather than an id.
-    const byUrl =
-      /\burl\b/i.test(param.description ?? "") && typeof record.url === "string"
-        ? record.url
-        : undefined;
-    const value = byName ?? byId ?? byUrl;
-    if (value === undefined) {
-      return [];
-    }
-    const shared = [...nounsOf(tool.name)].filter((noun) =>
-      sourceNouns.has(noun),
-    ).length;
-    // A guess from an id or a name alone needs the two tools to be about the
-    // same thing; a field named exactly as the parameter is enough by itself.
-    if (typeof own !== "string" && shared === 0) {
-      return [];
-    }
-    return [{ args: { [param.name]: value }, score: shared, tool }];
-  });
-  return candidates.toSorted((a, b) => b.score - a.score)[0];
 }

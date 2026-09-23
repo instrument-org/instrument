@@ -4,7 +4,7 @@
  *
  * The task prompt names the skill and tells the model to err toward it for
  * anything long, structured, or worth keeping; the orchestrator's brief rule
- * names it for the same deliverables and whenever the user asks for a page.
+ * names it whenever the user asks for a page.
  * Both are prompt lines, so neither can be read off the source.
  *
  * A sandboxed eval home holds far fewer skills than a real machine, so the
@@ -161,14 +161,5 @@ export const CREATE_PAGE_SKILL_EVALS = [
     name: "orchestrator-create-page-by-name",
     prompt:
       "Can you use your create page ability to just make me a quick and small demo page? I want to just demonstrate the functionality here",
-  }),
-
-  defineEval({
-    // Nothing named: a long deliverable is a page, and the brief has to say so.
-    assertions: [briefNamesCreatePage, tasksLoadedCreatePage],
-    kind: "orchestrator",
-    name: "orchestrator-create-page-for-a-long-answer",
-    prompt:
-      "Put together a one-page guide to choosing a home espresso machine under $500 and put it in my Instrument folder.",
   }),
 ];

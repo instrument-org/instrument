@@ -8,11 +8,13 @@ import { type Assertion, defineEval } from "../harness";
  *
  * `python` runs inside the sandbox and reads an attached folder in place, so
  * a standard-library parse of a mounted file should involve no copy into the
- * task. `python-native` is the one that runs a package, and the only route to
- * it is the message the sandboxed interpreter prints when an import fails.
- * These check that a model takes the direct path when it exists and follows
- * the signpost when it does not, since a unit test can show the message is
- * printed and nothing about whether it is read.
+ * task. A package runs in the task's virtualenv, which `python` goes to on its
+ * own once the package is installed, and the route there is the message the
+ * sandboxed interpreter prints when an import fails. The virtualenv cannot see
+ * the mount, so a package run on a mounted file also has to be copied in, and
+ * the refusal says so. These check that a model takes the direct path when it
+ * exists and follows the signposts when it does not, since a unit test can
+ * show a message is printed and nothing about whether it is read.
  */
 const DATA_FIXTURE = path.resolve(import.meta.dirname, "../fixtures/Data");
 
@@ -111,40 +113,52 @@ const ranPythonOnTheMount: Assertion = {
   text: "ran python on the mounted file",
 };
 
-/** After the import failed, the package went in and the native interpreter ran it. */
-const followedTheSignpostToPythonNative: Assertion = {
+/** Where the package went in, or -1. */
+function pandasInstalledAt(commands: string[]): number {
+  return commands.findIndex((command) =>
+    /\b(?:pip3?|uv pip)\s+install\s[^|;&]*pandas/.test(command),
+  );
+}
+
+/** After the import failed, the package went in and a Python ran it, under either name. */
+const installedThePackageAndRanIt: Assertion = {
   check: ({ sessions }) => {
     const commands = bashCommands(sessions);
-    const installed = commands.findIndex((command) =>
-      /\b(?:pip3?|uv pip)\s+install\s[^|;&]*pandas/.test(command),
-    );
-    const ranNative = commands.findIndex(
+    const installed = pandasInstalledAt(commands);
+    const ran = commands.findIndex(
       (command, index) =>
-        index > installed && command.includes("python-native"),
+        // The same command counts when python comes after the install in it:
+        // `pip install pandas && python -c ...`.
+        (index > installed ||
+          (index === installed &&
+            /install[^\n]*python(?:3|-native)?\s/.test(command))) &&
+        /(?:^|[\s;&|(])python(?:3|-native)?\s/.test(command),
     );
-    const passed = installed !== -1 && ranNative !== -1;
+    const passed = installed !== -1 && ran !== -1;
     return {
       evidence: passed
-        ? `pip install at command ${installed + 1}, python-native at ${ranNative + 1} of ${commands.length}`
-        : `install ${installed === -1 ? "never happened" : `at ${installed + 1}`}, python-native ${ranNative === -1 ? "never ran after it" : `at ${ranNative + 1}`}. Commands: ${commands.join(" | ").slice(0, 500)}`,
+        ? `pip install at command ${installed + 1}, python at ${ran + 1} of ${commands.length}: ${(commands[ran] ?? "").slice(0, 120)}`
+        : `install ${installed === -1 ? "never happened" : `at ${installed + 1}`}, python ${ran === -1 ? "never ran after it" : `at ${ran + 1}`}. Commands: ${commands.join(" | ").slice(0, 500)}`,
       passed,
-      text: "installed the package and ran it with python-native",
+      text: "installed the package and ran it",
     };
   },
-  text: "installed the package and ran it with python-native",
+  text: "installed the package and ran it",
 };
 
 /** The message says once what to do; a model that loops on the failing import did not read it. */
 const didNotRetryTheSandboxedImport: Assertion = {
   check: ({ sessions }) => {
-    const failing = bashCommands(sessions).filter(
-      (command) =>
+    const commands = bashCommands(sessions);
+    const installed = pandasInstalledAt(commands);
+    const failing = commands.filter(
+      (command, index) =>
+        (installed === -1 || index < installed) &&
         /(?:^|[\s;&|(])python3?\s/.test(command) &&
-        !command.includes("python-native") &&
         command.includes("pandas"),
     );
     return {
-      evidence: `${failing.length} sandboxed python command(s) imported pandas`,
+      evidence: `${failing.length} python command(s) imported pandas before it was installed`,
       passed: failing.length <= 2,
       text: "did not keep retrying the sandboxed import",
     };
@@ -201,11 +215,11 @@ export const SANDBOXED_PYTHON_EVALS = [
   defineEval({
     assertions: [
       replyContains("the total revenue", TOTAL_REVENUE),
-      followedTheSignpostToPythonNative,
+      installedThePackageAndRanIt,
       didNotRetryTheSandboxedImport,
     ],
     folders: [{ access: "read-only", path: DATA_FIXTURE }],
-    name: "python-native-after-a-missing-package",
+    name: "python-runs-a-package-once-installed",
     prompt:
       "Use pandas for this, not the csv module: load regional-sales.csv from my Data folder into a DataFrame, add a revenue column (units times unit_price), and tell me the total revenue for the year and the per-region totals, to the cent. Just the numbers in your reply; no files.",
   }),

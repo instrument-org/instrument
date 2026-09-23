@@ -1239,28 +1239,28 @@ export const PromptInput = ({
                 />
               )}
               <Button
-              aria-label={isStoppable ? "Stop" : "Send"}
-              className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
-              disabled={isStoppable ? false : !canSubmit}
-              onClick={(e) => {
-                if (isStoppable) {
-                  handleStop();
-                } else {
-                  const openInNewTab =
-                    allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
-                  handleSubmit(openInNewTab);
-                }
-              }}
-              variant="brand"
-            >
-              {isStoppable ? (
-                <StopIcon className="size-4" weight="fill" />
-              ) : isLoading ? (
-                <Spinner className="size-4" />
-              ) : (
-                <ArrowUpIcon className="size-4" />
-              )}
-            </Button>
+                aria-label={isStoppable ? "Stop" : "Send"}
+                className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
+                disabled={isStoppable ? false : !canSubmit}
+                onClick={(e) => {
+                  if (isStoppable) {
+                    handleStop();
+                  } else {
+                    const openInNewTab =
+                      allowOpenInNewTab && (isMacOS() ? e.metaKey : e.ctrlKey);
+                    handleSubmit(openInNewTab);
+                  }
+                }}
+                variant="brand"
+              >
+                {isStoppable ? (
+                  <StopIcon className="size-4" weight="fill" />
+                ) : isLoading ? (
+                  <Spinner className="size-4" />
+                ) : (
+                  <ArrowUpIcon className="size-4" />
+                )}
+              </Button>
             </>
           ) : undefined
         }

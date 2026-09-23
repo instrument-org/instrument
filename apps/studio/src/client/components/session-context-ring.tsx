@@ -129,7 +129,7 @@ export function SessionContextRing({
 
   return (
     <Tooltip>
-      <TooltipTrigger className="flex size-8 items-center justify-center">
+      <TooltipTrigger className="flex size-7 items-center justify-center">
         <svg
           className={strokeColor}
           fill="none"

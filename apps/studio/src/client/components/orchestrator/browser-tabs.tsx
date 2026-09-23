@@ -954,6 +954,23 @@ export function BrowserTabs({
  * looked up by address, since a page that announced none or a stale one is
  * still on a site with one; else the globe.
  */
+/**
+ * Whether the renderer's `img-src` lets it load an icon a page reported for
+ * itself: embedded bytes, or a page served on this machine. A site's own icon
+ * elsewhere on the web is refused there, so its tab is drawn from the proxy
+ * rather than from a request that can only fail.
+ */
+function isDrawableHere(src: string): boolean {
+  if (/^(?:data|blob):/i.test(src)) {
+    return true;
+  }
+  if (!URL.canParse(src)) {
+    return false;
+  }
+  const { hostname, protocol } = new URL(src);
+  return /^https?:$/.test(protocol) && hostname.endsWith(".localhost");
+}
+
 export function TabIcon({
   favicon,
   url,
@@ -962,7 +979,7 @@ export function TabIcon({
   url: string | undefined;
 }) {
   const [failed, setFailed] = useState<string | undefined>();
-  if (favicon && failed !== favicon) {
+  if (favicon && failed !== favicon && isDrawableHere(favicon)) {
     return (
       <img
         alt=""

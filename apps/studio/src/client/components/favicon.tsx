@@ -52,26 +52,21 @@ export function Favicon({
   url: string;
 }) {
   const hostname = URL.canParse(url) ? new URL(url).hostname : url;
-  // The proxy first, and the site's own icon when the proxy has none for it:
-  // a site the proxy never fetched, or one behind a sign-in, still serves
-  // its own. A site with none anywhere gets a drawn globe rather than a
-  // bitmap one scaled up. Where the chain ended last time is where it
-  // starts this time, so a site known to have none draws its glyph at once.
+  // A site the proxy has no icon for gets a drawn globe rather than the
+  // proxy's bitmap one scaled up, and a site known to have none draws it at
+  // once. A load that failed hides the icon for this render only: it says
+  // nothing about the site, so it is not remembered.
   const [source, setSource] = useState<FaviconSource>(() =>
     rememberedFaviconSource(url),
   );
-  const fallBack = () => {
-    const next = source === "proxy" && URL.canParse(url) ? "site" : "none";
-    setSource(next);
-    rememberFaviconSource(url, next);
-    if (next === "none") {
-      onNone?.();
+  const hide = ({ remember }: { remember: boolean }) => {
+    setSource("none");
+    if (remember) {
+      rememberFaviconSource(url, "none");
     }
+    onNone?.();
   };
-  const faviconUrl =
-    source === "site"
-      ? `${new URL(url).origin}/favicon.ico`
-      : getFaviconUrl(url);
+  const faviconUrl = getFaviconUrl(url);
   // Taken apart here: what goes to the element's ref is a ref to the lint,
   // and the class beside it is read in render.
   const {
@@ -102,17 +97,15 @@ export function Favicon({
               arrivalClassName,
               className,
             )}
-            onError={fallBack}
+            onError={() => {
+              hide({ remember: false });
+            }}
             onLoad={(event) => {
               // A width of zero is an image with no size of its own (a vector
               // one, or a test's), which is not the proxy's globe.
               const { naturalWidth } = event.currentTarget;
-              if (
-                source === "proxy" &&
-                naturalWidth > 0 &&
-                naturalWidth <= PROXY_STAND_IN_MAX_PX
-              ) {
-                fallBack();
+              if (naturalWidth > 0 && naturalWidth <= PROXY_STAND_IN_MAX_PX) {
+                hide({ remember: true });
                 return;
               }
               arrived();

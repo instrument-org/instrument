@@ -1,36 +1,33 @@
 /**
- * Where a site's icon was last found, remembered across launches.
+ * Which sites have no icon, remembered across launches.
  *
- * An icon is read from the proxy first, then from the site itself, then from
- * nowhere, and every step down that chain is a request that fails before the
- * next one is made. A site with no icon anywhere costs two failed requests
- * and a glyph that arrives late, and it costs them again on the next mount
- * and the next launch, which is a row of chips whose marks flicker in one at
- * a time every time the app opens. Remembering the answer per host makes the
- * second reading, and every reading after a launch, land where the first one
- * ended.
+ * An icon is read from the proxy, and a site the proxy has nothing for is
+ * answered with its stand-in globe rather than an error. That answer costs a
+ * request and a glyph that arrives late, and it costs them again on the next
+ * mount and the next launch, which is a row of chips whose marks flicker in
+ * one at a time every time the app opens. Remembering it per host makes every
+ * later reading land where the first one ended.
  *
- * Only the deviations are kept: the proxy is where a site is looked for by
- * default, so a host not in the memory is one whose icon the proxy serves, or
- * one never asked about. What is kept expires, so a site that gains an icon
- * is found again, and nothing is remembered while the network is down, since
- * an icon that could not be fetched is not an icon the site lacks.
+ * Only that answer is kept. A load that failed says nothing about the site,
+ * only about the request, so it is never remembered: a blip would otherwise
+ * strip a site of its icon everywhere for as long as the memory holds. What is
+ * kept expires, so a site that gains an icon is found again, and nothing is
+ * remembered while the network is down.
  */
 
 import { z } from "zod";
 
-/** Where the icon is being read from: the proxy, then the site itself, then nowhere. */
-export type FaviconSource = "none" | "proxy" | "site";
+/** Where the icon is read from: the proxy, or nowhere for a site it has none for. */
+export type FaviconSource = "none" | "proxy";
 
-const STORAGE_KEY = "studio.favicon-memory.v1";
+const STORAGE_KEY = "studio.favicon-memory.v2";
 
-/** How long a remembered answer holds: a fortnight for none, longer for a site serving its own. */
+/** How long a remembered absence holds. */
 const NONE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
-const SITE_TTL_MS = 60 * 24 * 60 * 60 * 1000;
 
 const EntrySchema = z.object({
   at: z.number(),
-  source: z.enum(["none", "site"]),
+  source: z.literal("none"),
 });
 type Entry = z.output<typeof EntrySchema>;
 
@@ -54,14 +51,12 @@ export function rememberedFaviconSource(url: string): FaviconSource {
   if (!entry) {
     return "proxy";
   }
-  const ttl = entry.source === "none" ? NONE_TTL_MS : SITE_TTL_MS;
-  return Date.now() - entry.at > ttl ? "proxy" : entry.source;
+  return Date.now() - entry.at > NONE_TTL_MS ? "proxy" : entry.source;
 }
 
 /**
- * Records where a site's icon turned out to be. The proxy is the default and
- * is forgotten rather than stored; nothing is stored while offline, when a
- * failed fetch says nothing about the site.
+ * Records whether the proxy had an icon for a site. The proxy is the default
+ * and is forgotten rather than stored; nothing is stored while offline.
  */
 export function rememberFaviconSource(url: string, source: FaviconSource) {
   if (!navigator.onLine) {

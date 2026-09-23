@@ -421,17 +421,13 @@ const ABSENT_ICON_SIZE = 16;
  * cannot be had, the label and the origin beside it were already carrying the
  * whole message.
  *
- * Read the way every favicon is, the proxy first and then the site itself,
- * and remembered the same way: a link with no icon draws none, so what a
+ * Read the way every favicon is, from the proxy, and remembered the same way: a link with no icon draws none, so what a
  * first render costs is the width of one that is about to be taken away
  * again, and a transcript naming one host repeatedly is the ordinary case.
  */
 function SiteIcon({ className, href }: { className?: string; href: string }) {
   const [source, setSource] = useState(() => rememberedFaviconSource(href));
-  const src =
-    source === "site" && URL.canParse(href)
-      ? `${new URL(href).origin}/favicon.ico`
-      : getFaviconUrl(href);
+  const src = getFaviconUrl(href);
   const {
     attach,
     className: arrivalClassName,
@@ -441,12 +437,6 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
   if (source === "none") {
     return null;
   }
-
-  const fallBack = () => {
-    const next = source === "proxy" && URL.canParse(href) ? "site" : "none";
-    setSource(next);
-    rememberFaviconSource(href, next);
-  };
 
   return (
     <img
@@ -464,13 +454,15 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
         arrivalClassName,
         className,
       )}
-      onError={fallBack}
+      // A failed load says nothing about the site, so it hides the icon for
+      // this render without being remembered.
+      onError={() => {
+        setSource("none");
+      }}
       onLoad={(event) => {
-        if (
-          source === "proxy" &&
-          event.currentTarget.naturalWidth <= ABSENT_ICON_SIZE
-        ) {
-          fallBack();
+        if (event.currentTarget.naturalWidth <= ABSENT_ICON_SIZE) {
+          setSource("none");
+          rememberFaviconSource(href, "none");
           return;
         }
         arrived();

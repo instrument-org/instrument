@@ -35,12 +35,6 @@ describe("favicon memory", () => {
     expect(rememberedFaviconSource("https://example.com/")).toBe("proxy");
   });
 
-  it("keeps a site's own icon longer than its absence", () => {
-    rememberFaviconSource("https://example.com/", "site");
-    vi.advanceTimersByTime(15 * 24 * 60 * 60 * 1000);
-    expect(rememberedFaviconSource("https://example.com/")).toBe("site");
-  });
-
   it("drops a host once the proxy serves it again", () => {
     rememberFaviconSource("https://example.com/", "none");
     rememberFaviconSource("https://example.com/", "proxy");

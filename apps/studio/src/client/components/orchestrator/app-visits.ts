@@ -17,17 +17,23 @@ export function isOnSite(pageUrl: string, site: string): boolean {
 
 /**
  * The pages visited on the apps' sites, in the order they were visited,
- * newest first, each with the app it is on. A page on two apps' sites is the
- * first app's, so one page is one row.
+ * newest first, each with the app it is on. An app's site is where the
+ * directory says it is and where its signed-in app opens, which are not
+ * always one domain: Notion is `notion.so` in the directory and
+ * `app.notion.com` once signed in. A page on two apps' sites is the first
+ * app's, so one page is one row.
  */
-export function visitsWithin<App extends { site?: string | undefined }>(
+export function visitsWithin<
+  App extends { home?: string | undefined; site?: string | undefined },
+>(
   visited: readonly VisitedPage[],
   apps: readonly App[],
 ): { app: App; page: VisitedPage }[] {
   return visited.flatMap((page) => {
-    const app = apps.find(
-      (candidate) =>
-        candidate.site !== undefined && isOnSite(page.url, candidate.site),
+    const app = apps.find((candidate) =>
+      [candidate.site, candidate.home].some(
+        (site) => site !== undefined && isOnSite(page.url, site),
+      ),
     );
     return app ? [{ app, page }] : [];
   });

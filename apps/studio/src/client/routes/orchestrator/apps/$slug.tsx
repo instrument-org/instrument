@@ -64,7 +64,10 @@ function AppRoute() {
   // The pages the window has shown on the app's site, newest first: the
   // best place to start in an app is where you already were in it.
   const visited = useAtomValue(visitedPagesAtom);
-  const visits = visitsWithin(visited, [{ name, site }]).slice(0, VISITS_SHOWN);
+  const visits = visitsWithin(visited, [{ home, name, site }]).slice(
+    0,
+    VISITS_SHOWN,
+  );
 
   const disconnect = useMutation(
     rpcClient.apps.disconnect.mutationOptions({

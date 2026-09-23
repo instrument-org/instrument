@@ -23,18 +23,22 @@ vi.mock(import("../../lib/task-settings"), async (importOriginal) => ({
 /** A child's bash call as it lands, in the state a tool part reaches. */
 const toolPart = (
   state: "input-available" | "input-streaming",
-): SessionMessagePart.Type => ({
-  input: { command: "ls", explanation: "Listing" },
-  metadata: {
-    createdAt: new Date(),
-    id: StoreId.newPartId(),
-    messageId: StoreId.newMessageId(),
-    sessionId: StoreId.newSessionId(),
-  },
-  state,
-  toolCallId: "call_1",
-  type: "tool-bash",
-});
+): SessionMessagePart.Type => {
+  const base = {
+    input: { command: "ls", explanation: "Listing", yieldMs: 30_000 },
+    metadata: {
+      createdAt: new Date(),
+      id: StoreId.newPartId(),
+      messageId: StoreId.newMessageId(),
+      sessionId: StoreId.newSessionId(),
+    },
+    toolCallId: "call_1",
+    type: "tool-bash" as const,
+  };
+  return state === "input-available"
+    ? { ...base, state: "input-available" }
+    : { ...base, state: "input-streaming" };
+};
 
 /** Whether the stream fires within a tick, so a silence can be asserted too. */
 async function fired(

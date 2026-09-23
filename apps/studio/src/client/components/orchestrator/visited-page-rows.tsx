@@ -55,7 +55,9 @@ export function VisitedPageRows({
                 type="button"
               >
                 <AppIcon name={app.name} site={app.site} size="sm" />
-                <span className="max-w-[65%] shrink-0 truncate text-[13px]">
+                {/* The title keeps its room; the address takes what is left and
+                    gives it up first, so only one of the two is ever cut. */}
+                <span className="min-w-0 shrink truncate text-[13px]">
                   {page.title || shownAddress(page.url)}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">

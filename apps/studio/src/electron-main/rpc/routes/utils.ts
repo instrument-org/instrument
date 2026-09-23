@@ -4,6 +4,7 @@ import type {
   SupportedEditorId,
 } from "@/shared/schemas/editors";
 
+import { storeFileOpenNativeImage } from "@/electron-main/lib/app-protocol";
 import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { computerFileBase as computerFileBaseUrl } from "@/electron-main/lib/computer-files";
@@ -252,6 +253,37 @@ const openExternalLink = base
       throw errors.INVALID_URL();
     }
   });
+
+const SendTargetSchema = z.object({
+  iconUrl: z.string().nullable(),
+  name: z.string(),
+});
+
+/**
+ * The apps a message card's Send menu opens: the one that takes `mailto:`
+ * links and the default browser, each with its name and icon, so the menu says
+ * where a draft will land. Null where the platform cannot say (Linux).
+ */
+const sendTargets = base
+  .output(
+    z.object({
+      browser: SendTargetSchema.nullable(),
+      mail: SendTargetSchema.nullable(),
+    }),
+  )
+  .handler(async () => ({
+    browser: await appForProtocol("https://"),
+    mail: await appForProtocol("mailto:"),
+  }));
+
+async function appForProtocol(url: string) {
+  try {
+    const info = await app.getApplicationInfoForProtocol(url);
+    return { iconUrl: await storeFileOpenNativeImage(info.icon), name: info.name };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Hands text to the OS's share menu, drawn where the pointer is, so it goes to
@@ -882,6 +914,7 @@ export const utils = {
   prepareDrag,
   readDiagnosticLog,
   saveDiagnosticLog,
+  sendTargets,
   shareText,
   showContextMenu,
   showFileInFolder,

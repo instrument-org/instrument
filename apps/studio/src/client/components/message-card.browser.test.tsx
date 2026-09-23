@@ -73,9 +73,10 @@ test("a reply's message fence stands under the bubble as a card", async () => {
     .toBeVisible();
   await expect(ariaSnapshot(screen.locator)).resolves.toMatchInlineSnapshot(`
     "- paragraph: Here's a note for Marcy.
-    - text: Email to Marcy <marcy@example.com>
-    - button "Copy recipient"
-    - paragraph: Dishwasher still broken
+    - text: Email to Marcy <
+    - button "marcy@example.com"
+    - text: ">"
+    - paragraph: Subject Dishwasher still broken
     - button "Copy subject"
     - paragraph: Hi Marcy, The dishwasher has been out for two weeks now. Could someone come by this week? Thanks, Casey
     - button "Copy body"
@@ -108,7 +109,6 @@ test("a message file named in a files fence draws as the card", async () => {
     .toBeVisible();
   await expect(ariaSnapshot(screen.locator)).resolves.toMatchInlineSnapshot(`
     "- text: Text to Sam
-    - button "Copy recipient"
     - button "text-to-sam.md"
     - paragraph: Running 15 late, order for me.
     - button "Copy body"

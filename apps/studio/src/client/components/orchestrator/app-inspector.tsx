@@ -43,6 +43,9 @@ const FRAME_CLASS_NAME =
 /** Widths for skeleton rows, varied so a column reads as a list. */
 const ROW_WIDTHS = ["w-3/4", "w-1/2", "w-2/3", "w-5/6", "w-2/5", "w-3/5"];
 
+/** How long the app may take to list its tools before the page says it is waiting. */
+const SLOW_AFTER_MS = 400;
+
 /** How long an answer is reused before the server is asked again. */
 const STALE_MS = 60_000;
 
@@ -77,14 +80,23 @@ export function AppInspector({
     ...rpcClient.apps.inspect.queryOptions({ input: { slug } }),
     staleTime: STALE_MS,
   });
+  const isSlow = useSlowAfter(tools.isPending, SLOW_AFTER_MS);
   const [kind, setKind] = useState<string>();
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<number>();
 
-  // Nothing until the app has said what it can do: an app with nothing to
-  // browse never shows the section at all, not even for a moment.
+  // Nothing for a moment, so an app that answers at once never flashes a
+  // placeholder; past that, one quiet line saying the app is being read,
+  // which is all that leaves again if it has nothing to browse.
   if (tools.isPending) {
-    return null;
+    return isSlow ? (
+      <Section name={name}>
+        <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+          <ArrowClockwiseIcon className="size-3.5 animate-spin" />
+          Reading what {name} can do…
+        </p>
+      </Section>
+    ) : null;
   }
   if (tools.isError) {
     return (
@@ -715,6 +727,23 @@ function useReportReading(
       onReading(undefined);
     };
   }, [key, onReading]);
+}
+
+/** True once something has been pending for longer than the delay. */
+function useSlowAfter(isPending: boolean, delayMs: number): boolean {
+  const [hasWaited, setWaited] = useState(false);
+  useEffect(() => {
+    if (!isPending) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setWaited(true);
+    }, delayMs);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isPending, delayMs]);
+  return isPending && hasWaited;
 }
 
 /** An answer read whole: the error it is, the pictures in it, then its words. */

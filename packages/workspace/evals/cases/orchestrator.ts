@@ -292,7 +292,7 @@ const revisedATaskInPlace: Assertion = {
  * named as the way to find something, sites listed to check: each is a step
  * the task follows to the letter, the wrong ones included, and a question
  * that was one search becomes a survey. The exception is a skill the user
- * asked for by the thing it makes, which the page case scores the other way.
+ * named, which the create-page cases score the other way.
  */
 const PRESCRIBES_HOW =
   /\bskills?\b|load_skill|agent-browser|\bbrowser\b|web_search|\bsearch (?:the web|online) (?:with|using|via)\b|\b(?:reddit|discord|twitter|downdetector)\b/i;
@@ -392,30 +392,6 @@ const didNotRaiseEffort: Assertion = {
   },
   text: "did not raise --effort for a quick question",
 };
-
-/** The one skill a brief is meant to name: the kind of thing the user asked for. */
-function briefNamedSkill(name: string): Assertion {
-  const text = `the brief named the ${name} skill`;
-  return {
-    check: ({ sessions }) => {
-      const briefs = briefsOf(sessions);
-      if (briefs.length === 0) {
-        return fail(text, "no task was started");
-      }
-      const naming = briefs.filter(({ brief }) => brief.includes(name));
-      return naming.length > 0
-        ? pass(
-            text,
-            naming.map(({ brief }) => JSON.stringify(brief)).join(" | "),
-          )
-        : fail(
-            text,
-            briefs.map(({ brief }) => JSON.stringify(brief)).join(" | "),
-          );
-    },
-    text,
-  };
-}
 
 const answeredWithoutATask: Assertion = {
   check: ({ sessions }) => {
@@ -844,13 +820,14 @@ export const ORCHESTRATOR_EVALS = [
   }),
 
   defineEval({
-    // The other side of the same rule: the user asked for the kind of thing a
-    // skill makes, and the brief names that skill and nothing about how.
+    // The same rule for a thing to make: the user asked for a page, and the
+    // brief asks for one by kind, naming no skill, since the task has the
+    // catalog and the conversation does not.
     assertions: [
       delegated(1),
       didNotDoTheWorkItself,
       saidAtMost(280),
-      briefNamedSkill("create-page"),
+      briefedWhatNotHow,
     ],
     kind: "orchestrator",
     name: "orchestrator-asks-for-a-page",

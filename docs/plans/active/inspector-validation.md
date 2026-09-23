@@ -1,6 +1,6 @@
 # Plan: validate the inspector before drawing it again
 
-Status: proposed. Drafts measured (below); Linear and Notion not yet. Nothing here is committed until the questions below have answers; the wireframe that prompted it is a scratch artifact and the direction is unproven.
+Status: built on the app page as a generic browser (Views, Lookups, Actions), in dogfooding. The measurements below are what it was built on; Linear is still unmeasured. Nothing here is committed until the questions below have answers; the wireframe that prompted it is a scratch artifact and the direction is unproven.
 
 ## What the inspector is
 
@@ -39,6 +39,16 @@ It is only worth building if the data on disk and behind the connection already 
 - **Links (5):** `permalink` is a `drafts://` URL, which opens the draft in Drafts rather than as a page. Other apps will have their own schemes, so a link is "a URL the OS can open", not only http(s).
 - **Facets:** `get_drafts` has an optional `folder` enum (`inbox`, `archive`, `trash`) and optional `tag` and `flagged` filters. Optional enum parameters on a bare list tool are a generic way to draw filters with no per-app code.
 - **Speed (7):** the stdio server connects in about 100 ms. The cost is AppleScript: the first call about 1.5 s, `get_drafts` about 5.7 s for 37 drafts, `get_workspace_drafts` about 2.4 s, a single draft or tag about 0.4 s. Per-operation spawning is not the problem; the list reads need a cache, and a large library will need one more.
+
+## Notion, Figma Desktop, Paper and PostHog, measured
+
+Probed through the app's own connections, in the running app:
+
+- **Notion (hosted, OAuth):** all 45 tools annotated, 27 read-only, 12 answer `{}`. Pages carry `title` and `url` but no `id`; `notion-fetch` takes "the ID or URL", so a drill matches a url field to a parameter whose description says URL. Several reads are the server talking to the agent (an upsell next-steps tool, a tool-access report), and one needs a paid plan: annotations alone do not tell a person's view from the model's.
+- **Figma Desktop (loopback HTTP):** every read answers `{}` against the current selection, so answers go stale as the selection moves and each pane needs its own refresh. Shapes vary per tool: TSX followed by instructions for the agent, an image block, a flat name→value object, a `nodes` list, plain text.
+- **Paper (loopback HTTP):** answers are sometimes two JSON values back to back, which parse as a sequence and not as one document. A guessed drill from a file row picked an unrelated lookup; a guess now needs the two tools to share a noun, and a failed guess falls back to the row's own fields.
+- **PostHog (hosted):** one tool, `exec`, a command line of its own, not marked read-only. Nothing is browsable; the tool is described and never run.
+- **Figma Desktop and Paper** are unreachable while their desktop apps are closed, which is the common failure for a server that runs on this computer.
 
 ## How to run it
 

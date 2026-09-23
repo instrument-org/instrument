@@ -67,6 +67,7 @@ export function useInlineRename({
   };
 
   return {
+    cancel,
     inputProps: {
       disabled: isSaving,
       onBlur: () => {

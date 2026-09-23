@@ -23,7 +23,6 @@ import { type Thread, type Topic } from "./threads";
 /** What each of the row's own routes was asked, by name. */
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
-  retitle: vi.fn(),
   seen: vi.fn(),
   star: vi.fn(),
   transcript: vi.fn(),
@@ -58,7 +57,6 @@ vi.mock("@/client/rpc/client", () => {
         orchestrator: {
           threads: {
             archive: routeOf(calls.archive),
-            retitle: routeOf(calls.retitle),
             seen: routeOf(calls.seen),
             star: routeOf(calls.star),
             unarchive: routeOf(calls.unarchive),
@@ -926,7 +924,6 @@ describe("the row's actions", () => {
       "Archive",
       "Mark as read",
       "Star",
-      "Rename",
       "Save transcript",
       "Topics",
     ]);

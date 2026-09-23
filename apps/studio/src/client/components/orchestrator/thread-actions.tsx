@@ -6,7 +6,6 @@ import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClo
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { EnvelopeSimpleOpenIcon } from "@phosphor-icons/react/EnvelopeSimpleOpen";
-import { MagicWandIcon } from "@phosphor-icons/react/MagicWand";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -32,9 +31,7 @@ export function useThreadActions(thread: Thread): RowAction[] {
  * an undo in the toast either way; marking it read while something in it
  * is unseen, or unread again once it has replies to be unread, with no
  * toast at all, since the row itself says which it is; and, in the menu
- * alone, starring it, naming it again from where its conversation stands
- * (the same call that names it after each finished turn), and saving its
- * transcript.
+ * alone, starring it and saving its transcript.
  *
  * Answered for any thread by one set of mutations, so a list asks once and
  * hands each row its actions, rather than every row registering its own ten
@@ -43,15 +40,6 @@ export function useThreadActions(thread: Thread): RowAction[] {
  */
 export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
   const { taskId } = useOrchestrator();
-  const retitle = useMutation(
-    rpcClient.workspace.orchestrator.threads.retitle.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to rename the thread", {
-          description: error.message,
-        });
-      },
-    }),
-  );
   const transcript = useTranscriptActions({ id: taskId, sessionId: undefined });
   // Each way's toast offers the other way back, so an undo can be undone.
   // The toasts hang off the mutations rather than off the calls, since the
@@ -171,27 +159,6 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
             star.mutate({ ...input, starred: true });
           },
         };
-    const rename: RowAction = {
-      icon: <MagicWandIcon className="size-3.5" />,
-      id: "rename",
-      label: "Rename",
-      menuOnly: true,
-      run: () => {
-        // The toast compares against the title the thread had when asked,
-        // which only this call knows.
-        retitle.mutate(input, {
-          onSuccess: ({ title }) => {
-            if (title === undefined) {
-              toast("Nothing to name it from yet");
-            } else if (title === thread.title) {
-              toast("The name still fits");
-            } else {
-              toast(`Renamed to “${title}”`);
-            }
-          },
-        });
-      },
-    };
     // Saves without opening anything: the transcript lands in Downloads,
     // named for the thread, and its path on the clipboard.
     const save: RowAction = {
@@ -206,6 +173,6 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
         });
       },
     };
-    return [put, ...mark, { ...starred, menuOnly: true }, rename, save];
+    return [put, ...mark, { ...starred, menuOnly: true }, save];
   };
 }

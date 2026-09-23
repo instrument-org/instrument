@@ -30,7 +30,9 @@ import { OrchestratorContext, useOrchestrator } from "./context";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { ThreadScreen } from "./thread-stage";
+import { ThreadTitle } from "./thread-title";
 import { type Thread } from "./threads";
+import { useThreadRename } from "./use-thread-rename";
 import { useWindowTabs } from "./window-tabs";
 
 /** A thread's small view's height, in layout px: enough of the conversation to follow a reply arriving. */
@@ -94,8 +96,8 @@ export function ThreadBar({
  * A thread's small view: the conversation in a window docked to the row's
  * bottom-right corner, over whatever place the window stands in, the way a
  * video keeps playing in its small window over the page that owns it. Its
- * head carries the pulse while the thread works, the thread's title, and
- * the window's three buttons; under the head a picture of the thread's tabs
+ * head carries the pulse while the thread works, the thread's title, which
+ * renames it when clicked, and the window's three buttons; under the head a picture of the thread's tabs
  * as they stand in its pane, to look at and to go to, never to manage; and
  * under that the thread's own transcript, work line and reply box, mounted
  * here and nowhere else while the thread floats.
@@ -142,6 +144,7 @@ export function ThreadWindow({
   const { allTabs } = useWindowTabs();
   const tabs = allTabs.filter((tab) => tab.group === sessionId);
   const isWorking = thread?.state === "working";
+  const rename = useThreadRename(thread);
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
@@ -165,9 +168,20 @@ export function ThreadWindow({
         ) : (
           <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
         )}
-        <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-          {thread?.title ?? "Thread"}
-        </h2>
+        {thread ? (
+          <h2 className="flex min-w-0 flex-1">
+            <ThreadTitle
+              className="text-[13px] font-semibold"
+              grow
+              rename={rename}
+              title={thread.title}
+            />
+          </h2>
+        ) : (
+          <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+            Thread
+          </h2>
+        )}
         <div className="flex shrink-0 items-center gap-0.5">
           <WindowButton label="Minimize" onClick={onMinimize}>
             <MinusIcon className="size-4" />

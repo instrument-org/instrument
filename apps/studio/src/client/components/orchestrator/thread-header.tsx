@@ -14,23 +14,26 @@ import {
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { TagIcon } from "@phosphor-icons/react/Tag";
-import { type ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 
 import { useThreadActions } from "./thread-actions";
 import { TopicPill } from "./thread-row";
+import { ThreadTitle } from "./thread-title";
 import { type Thread, type Topic } from "./threads";
 import { TopicMark } from "./topic-mark";
+import { type ThreadRename, useThreadRename } from "./use-thread-rename";
 
 /**
  * The head over a thread's conversation, the way a task's page heads its
- * chat: its title at the left, the topics it is filed under after it, and
- * the thread's own menu hugging them, and at the right the glyph that pops
- * the conversation out into its small view in the corner (lit while it is
- * out, when pressing it brings the conversation back), then the pane
- * toggle while the pane is closed. No way out of the thread here: the
+ * chat: its title at the left, which renames the thread when clicked, the
+ * topics it is filed under after it, and the thread's own menu hugging them,
+ * and at the right the glyph that pops the conversation out into its small
+ * view in the corner (lit while it is out, when pressing it brings the
+ * conversation back), then the pane toggle while the pane is closed. No way out of the thread here: the
  * thread stays beside the inbox until the inbox is dragged over it. Nothing
  * under the head but air: the transcript starts below.
  */
@@ -56,12 +59,21 @@ export function ThreadHeader({
     const topic = topics.find((entry) => entry.id === id);
     return topic ? [topic] : [];
   });
+  const rename = useThreadRename(thread);
   return (
     <div className="flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
       <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2 select-none">
-        <h2 className="min-w-0 truncate text-sm font-medium">
-          {thread?.title ?? "Thread"}
-        </h2>
+        {thread ? (
+          <h2 className="flex min-w-0">
+            <ThreadTitle
+              className="text-sm font-medium"
+              rename={rename}
+              title={thread.title}
+            />
+          </h2>
+        ) : (
+          <h2 className="min-w-0 truncate text-sm font-medium">Thread</h2>
+        )}
         {/* After the title, the way mail puts a label after a subject. */}
         {filed.map((topic) => (
           <TopicPill key={topic.id} topic={topic} />
@@ -70,6 +82,7 @@ export function ThreadHeader({
           <ThreadMenu
             onNewTopic={onNewTopic}
             onSetTopics={onSetTopics}
+            rename={rename}
             thread={thread}
             topics={topics}
           />
@@ -105,21 +118,26 @@ export function ThreadHeader({
 /**
  * The thread's own menu, beside its title: what the inbox row offers from
  * its edge and its menu (putting it away, marking it read, starring it,
- * renaming it from where its conversation stands, saving its transcript),
- * and its topics.
+ * saving its transcript), renaming it, which opens the title's field, and
+ * its topics.
  */
 function ThreadMenu({
   onNewTopic,
   onSetTopics,
+  rename,
   thread,
   topics,
 }: {
   onNewTopic: () => void;
   onSetTopics: (topics: string[]) => void;
+  rename: ThreadRename;
   thread: Thread;
   topics: Topic[];
 }) {
   const actions = useThreadActions(thread);
+  // The menu hands focus back to its trigger as it closes, which would land
+  // after the field took it and blur the rename shut.
+  const renaming = useRef(false);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -138,13 +156,31 @@ function ThreadMenu({
           <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
+      <DropdownMenuContent
+        align="start"
+        className="w-56"
+        onCloseAutoFocus={(event) => {
+          if (renaming.current) {
+            renaming.current = false;
+            event.preventDefault();
+          }
+        }}
+      >
         {actions.map((action) => (
           <DropdownMenuItem key={action.id} onSelect={action.run}>
             {action.icon}
             {action.label}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuItem
+          onSelect={() => {
+            renaming.current = true;
+            rename.start();
+          }}
+        >
+          <PencilSimpleIcon className="size-3.5" />
+          Rename
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>

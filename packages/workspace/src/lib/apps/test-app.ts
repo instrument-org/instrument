@@ -104,28 +104,41 @@ export async function runAppTest({
   // A guide still carrying the skeleton's prompts is worse than none: it
   // passes as "present", and then the first request in a task is answered with
   // the blank form instead of the endpoint it asked about. The prompts left in
-  // it are the questions about this service nobody wrote down.
-  const unanswered = guide === null ? [] : guidePlaceholdersLeft(guide);
+  // it are the questions about this service nobody wrote down. Only an API
+  // app's guide is handed to a request; an MCP app's tools describe
+  // themselves.
+  const unanswered =
+    guide === null ? [] : guidePlaceholdersLeft(app.manifest, guide);
+  const write = `Write it with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, the whole file on stdin.`;
   checks.push(
-    guide === null
+    app.manifest.type !== "api"
       ? {
+          detail:
+            guide === null
+              ? "No guide; an MCP app's tools describe themselves."
+              : `${APP_GUIDE_FILE_NAME} is present.`,
           name: "guide",
-          ...failure(
-            `${APP_GUIDE_FILE_NAME} is missing or empty. Write it before connecting: what the service is for, and for an API app the endpoints and conventions a request needs.`,
-          ),
+          status: "pass",
         }
-      : unanswered.length > 0
+      : guide === null
         ? {
             name: "guide",
             ...failure(
-              `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} is still the skeleton \`${APP_COMMAND.name} new\` wrote: ${unanswered.length} of its prompts are unanswered. Answer them from what you know about the service before connecting, since this file is what the first request in a task is handed instead of its answer. Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+              `${APP_GUIDE_FILE_NAME} is missing or empty. An API app needs one before connecting: what the service is for, the endpoints a request needs, and its conventions. ${write}`,
             ),
           }
-        : {
-            detail: `${APP_GUIDE_FILE_NAME} is present.`,
-            name: "guide",
-            status: "pass",
-          },
+        : unanswered.length > 0
+          ? {
+              name: "guide",
+              ...failure(
+                `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left: ${unanswered.length} unanswered. Answer them from what you know about the service before connecting, since this file is what the first request in a task is handed instead of its answer. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+              ),
+            }
+          : {
+              detail: `${APP_GUIDE_FILE_NAME} is present.`,
+              name: "guide",
+              status: "pass",
+            },
   );
 
   const { apps } = getWorkspaceConfig();

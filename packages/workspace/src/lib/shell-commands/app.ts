@@ -7,6 +7,7 @@ import {
   type AppCatalogEntry,
   catalogEntryLocalServer,
   catalogEntryMcpEndpoint,
+  findCatalogEntry,
   searchAppCatalog,
 } from "../apps/catalog";
 import {
@@ -28,11 +29,13 @@ import { withAppMcpClient } from "../apps/mcp/run";
 import { performAppRequest, redactCredential } from "../apps/request";
 import {
   type AppInfo,
+  guidePlaceholdersLeft,
   guideSkeleton,
   listApps,
   loadApp,
   readAppGuide,
   writeAppFolder,
+  writeAppGuide,
 } from "../apps/store";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
 import { boundaryContainmentNote, boundContent } from "../content-boundary";
@@ -55,7 +58,7 @@ export interface AppCommandContext {
 
 /** How a service is reached: one decision, shared by the index and the detail. */
 type CatalogWayIn =
-  | { auth: string; endpoint: string; kind: "api" }
+  | { auth: string; endpoint: string; kind: "api"; test?: string }
   | { endpoint: string; kind: "mcp"; open: boolean }
   | { kind: "browser"; where: string }
   | { kind: "local"; package: string; runtime: "node" | "python" };
@@ -76,8 +79,10 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       filter by name, domain, or category, the services they name first. With
       no words, the whole directory one line each; add a word for the detail.
   ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package>) [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--test <path>] [--force]
-      Write ${MOUNT.apps}/<slug>/${APP_MANIFEST_FILE_NAME}, and a ${APP_GUIDE_FILE_NAME} to fill in when
-      there is none. An MCP app defaults to oauth (a one-click sign-in, no key);
+      Write ${MOUNT.apps}/<slug>/${APP_MANIFEST_FILE_NAME}, and a ${APP_GUIDE_FILE_NAME} when there is
+      none, from the directory's entry for the service when it has one. An
+      MCP app's guide is done as written; an API app's may leave prompts to
+      answer with \`${APP_COMMAND.name} guide\`. An MCP app defaults to oauth (a one-click sign-in, no key);
       an API app to bearer, and needs --test, a cheap GET that proves the key.
       A key the service documents as HTTP Basic credentials takes basic (the key
       alone) or basic:<user> (the key as the password behind a fixed username);
@@ -107,8 +112,9 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       One request through an API app, the path relative to its base. The first
       request in a task hands back the app's guide instead; read it, then
       repeat. The body can come on stdin.
-  ${APP_COMMAND.name} guide <slug>
-      The app's ${APP_GUIDE_FILE_NAME}.
+  ${APP_COMMAND.name} guide <slug> [<<'EOF' ... EOF]
+      The app's ${APP_GUIDE_FILE_NAME}. With the whole file on stdin through a
+      quoted heredoc, write it instead: how an API app's prompts get answered.
   ${APP_COMMAND.name} disconnect <slug>
       Take the app's key or sign-in away. Its folder stays.
 
@@ -139,7 +145,7 @@ export function createAppCommand(context: AppCommandContext) {
           return await runDisconnect(rest, context);
         }
         case "guide": {
-          return await runGuide(rest, context);
+          return await runGuide(rest, context, ctx.stdin);
         }
         case "list": {
           return await runList(context);
@@ -232,7 +238,12 @@ function catalogWayIn(entry: AppCatalogEntry): CatalogWayIn {
     }
     const auth = catalogKeyPlacement(surface.auth);
     if (auth !== undefined) {
-      return { auth, endpoint: surface.endpoint, kind: "api" };
+      return {
+        auth,
+        endpoint: surface.endpoint,
+        kind: "api",
+        test: entry.apiGuide?.test,
+      };
     }
   }
   return { kind: "browser", where: entry.home ?? `https://${entry.domain}` };
@@ -261,7 +272,7 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
       : way.kind === "local"
         ? `${start} --local ${way.package} --runtime ${way.runtime}`
         : way.kind === "api"
-          ? `${start} --api ${way.endpoint} --auth ${way.auth} --test <a cheap GET, such as /me>`
+          ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : `not as an app from here: every way in needs a sign-in client of the user's own, which the sign-in card cannot make. The user can sign in on the Browser screen (${way.where}), and a task handed that tab works there.`;
   return [
     `${entry.slug}  ${entry.name}  ${entry.domain}`,
@@ -555,8 +566,25 @@ async function runDisconnect(args: string[], context: AppCommandContext) {
   );
 }
 
-async function runGuide(args: string[], context: AppCommandContext) {
+async function runGuide(
+  args: string[],
+  context: AppCommandContext,
+  stdin: ByteString,
+) {
   const app = await requireApp(args[0], context, { connected: false });
+  const written = subprocessStdin(stdin)?.toString("utf8").trim();
+  if (written) {
+    if (await allowedSlugs(context.taskId)) {
+      throw new Error("only the conversation sets apps up; a task uses them.");
+    }
+    await writeAppGuide(app.dir, written);
+    const left = guidePlaceholdersLeft(app.manifest, written);
+    return ok(
+      left.length > 0
+        ? `Wrote ${MOUNT.apps}/${app.slug}/${APP_GUIDE_FILE_NAME}, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
+        : `Wrote ${MOUNT.apps}/${app.slug}/${APP_GUIDE_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with connect_app.\n`,
+    );
+  }
   const guide = await readAppGuide(app.dir);
   if (guide === null) {
     throw new Error(
@@ -694,12 +722,19 @@ async function runNew(args: string[], context: AppCommandContext) {
       `${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME} already exists. Edit it with your file tools, or pass --force to replace it.`,
     );
   }
-  await writeAppFolder({
-    appsDir,
-    guide: guideSkeleton(manifest),
+  const guide = guideSkeleton(
     manifest,
-    slug,
-  });
+    findCatalogEntry(
+      slug,
+      manifest.type === "mcp"
+        ? manifest.url
+        : manifest.type === "api"
+          ? manifest.baseUrl
+          : undefined,
+    ),
+  );
+  await writeAppFolder({ appsDir, guide, manifest, slug });
+  const prompts = guidePlaceholdersLeft(manifest, guide);
   // A key already in the store outlives the manifest that asked for it, so
   // rewriting one to try another auth placement costs the user nothing: the
   // test reuses what they already pasted. Asking again for a key we hold is
@@ -717,7 +752,7 @@ async function runNew(args: string[], context: AppCommandContext) {
           ? `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`
           : `A key for this app is already stored: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with connect_app only once every placement has been refused.`;
   return ok(
-    `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() ? "" : ` and a ${APP_GUIDE_FILE_NAME} to fill in`}. ${next}\n`,
+    `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
 }
 

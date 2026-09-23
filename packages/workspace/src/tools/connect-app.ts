@@ -73,17 +73,20 @@ export const ConnectApp = setupTool({
       });
     }
     const { dir, manifest, slug } = loaded.value;
-    // The test that runs once the user has acted fails on an unwritten
-    // guide, so a card asked for before it is written puts that failure in
-    // front of the user, after their click, as something they cannot fix.
+    // The test that runs once the user has acted fails on an API app's
+    // unwritten guide, so a card asked for before it is written puts that
+    // failure in front of the user, after their click, as something they
+    // cannot fix.
     const guide = await readAppGuide(dir);
-    const unanswered = guide === null ? [] : guidePlaceholdersLeft(guide);
-    if (guide === null || unanswered.length > 0) {
+    const unanswered =
+      guide === null ? [] : guidePlaceholdersLeft(manifest, guide);
+    if (manifest.type === "api" && (guide === null || unanswered.length > 0)) {
+      const write = `Write it yourself with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\` (the whole file on stdin), then ask again.`;
       return ok({
         message:
           guide === null
-            ? `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} is missing. Write it yourself before asking: what ${manifest.name} is for, and what a call has to get right.`
-            : `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} is still the skeleton \`${APP_COMMAND.name} new\` wrote. Answer its prompts yourself, in a few lines from what you know about ${manifest.name}, then ask again. Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+            ? `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} is missing: what ${manifest.name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
+            : `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left, a few lines each from what you know about ${manifest.name}. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
         slug,
         state: "failure" as const,
       });

@@ -9,6 +9,19 @@ import catalogSeed from "./catalog-seed.json";
  * changing this shape.
  */
 const AppCatalogEntrySchema = z.object({
+  /**
+   * For a service reached through its REST API, what its guide needs beyond
+   * the description: the endpoints a request reaches for, what a request has
+   * to get right, and the cheap GET that proves a key. An MCP server's tools
+   * describe themselves, so an entry reached that way has none.
+   */
+  apiGuide: z
+    .object({
+      conventions: z.string(),
+      endpoints: z.string(),
+      test: z.string(),
+    })
+    .optional(),
   authMethods: z.array(
     z.object({
       label: z.string(),
@@ -78,6 +91,26 @@ export function catalogEntryMcpEndpoint(
 export function catalogEntrySupportsApiKey(entry: AppCatalogEntry): boolean {
   return entry.authMethods.some((method) =>
     ["api_key", "pat", "token"].includes(method.type),
+  );
+}
+
+/**
+ * The directory's entry for an app being set up: the one its slug names, or
+ * failing that the one whose endpoint it points at, since the agent picks the
+ * slug and the endpoint comes from the directory's own set-up line.
+ */
+export function findCatalogEntry(
+  slug: string,
+  endpoint: string | undefined,
+): AppCatalogEntry | undefined {
+  const catalog = getAppCatalog();
+  return (
+    catalog.find((entry) => entry.slug === slug) ??
+    (endpoint === undefined
+      ? undefined
+      : catalog.find((entry) =>
+          entry.interfaces.some((surface) => surface.endpoint === endpoint),
+        ))
   );
 }
 

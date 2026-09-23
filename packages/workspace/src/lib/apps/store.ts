@@ -6,6 +6,7 @@ import path from "node:path";
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
 import { APP_COMMAND } from "../shell-commands/app-command";
+import { type AppCatalogEntry } from "./catalog";
 import {
   APP_GUIDE_FILE_NAME,
   APP_MANIFEST_FILE_NAME,
@@ -129,6 +130,14 @@ export async function readAppGuide(
   }
 }
 
+export async function writeAppGuide(appDir: AbsolutePath, guide: string) {
+  await fs.writeFile(
+    path.join(appDir, APP_GUIDE_FILE_NAME),
+    `${guide.trimEnd()}\n`,
+    "utf8",
+  );
+}
+
 /**
  * The prompts `guideSkeleton` leaves for the agent to answer, in one place so
  * the skeleton that writes them and the check that looks for them cannot drift
@@ -139,34 +148,51 @@ const GUIDE_PROMPTS = {
     "Anything a request has to get right that the service does not say in its errors.",
   endpoints:
     "List the endpoints the work needs, with an example each: the method, the path relative to the base URL, the parameters, and what comes back. Pagination and rate limits go here too.",
-  local:
-    "Say here what has to be true on this machine for it to work (an app installed, a file in place).",
   purpose: "What this app is for, in a sentence or two.",
 } as const;
 
 /**
- * Which of the skeleton's prompts are still sitting in a guide unanswered.
+ * Which of the skeleton's prompts an app still has to answer before it
+ * connects.
  *
- * The guide is what the first request in a task is handed instead of its
- * answer, so a folder that connects with the skeleton in place spends that
- * turn showing the agent the form it was asked to fill in. Every prompt still
- * there is a question about the service nobody wrote down.
+ * Only an API app's guide is read: it is what the first request in a task is
+ * handed instead of its answer, so a folder that connects with the skeleton in
+ * place spends that turn showing the agent the form it was asked to fill in.
+ * An MCP app's tools describe themselves and nothing hands its guide to a
+ * task, so it never waits on one.
  */
-export function guidePlaceholdersLeft(guide: string): string[] {
+export function guidePlaceholdersLeft(
+  manifest: AppManifest,
+  guide: string,
+): string[] {
+  if (manifest.type !== "api") {
+    return [];
+  }
   return Object.values(GUIDE_PROMPTS).filter((prompt) =>
     guide.includes(prompt),
   );
 }
 
-/** A guide the agent fills in: what the app is for, and how it is reached. */
-export function guideSkeleton(manifest: AppManifest): string {
-  const reach =
-    manifest.type === "mcp-local"
-      ? `Runs on this machine from the ${manifest.runtime === "node" ? "npm" : "PyPI"} package ${manifest.package}: \`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one. ${GUIDE_PROMPTS.local}`
-      : manifest.type === "mcp"
-        ? `Reached through its MCP server at ${manifest.url}: \`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one.`
-        : `Reached through its API at ${manifest.baseUrl}: \`${APP_COMMAND.name} request <slug> GET /path\`.\n\n## Endpoints\n\n${GUIDE_PROMPTS.endpoints}`;
-  return `# ${manifest.name}\n\n${GUIDE_PROMPTS.purpose}\n\n${reach}\n\n## Conventions\n\n${GUIDE_PROMPTS.conventions}\n`;
+/**
+ * An app's first guide: what the directory says the service is for, and how
+ * it is reached. An MCP app's is complete as written. An API app's carries
+ * the directory's endpoints and conventions when it has them, and otherwise
+ * the prompts the agent answers before connecting.
+ */
+export function guideSkeleton(
+  manifest: AppManifest,
+  entry?: AppCatalogEntry,
+): string {
+  const tools = `\`${APP_COMMAND.name} tools <slug>\` lists what it can do, \`${APP_COMMAND.name} call <slug> <tool> '<json>'\` runs one.`;
+  if (manifest.type !== "api") {
+    const reach =
+      manifest.type === "mcp-local"
+        ? `Runs on this machine from the ${manifest.runtime === "node" ? "npm" : "PyPI"} package ${manifest.package}: ${tools}`
+        : `Reached through its MCP server at ${manifest.url}: ${tools}`;
+    return `# ${manifest.name}\n\n${entry ? `${entry.description}\n\n` : ""}${reach}\n`;
+  }
+  const guide = entry?.apiGuide;
+  return `# ${manifest.name}\n\n${entry?.description ?? GUIDE_PROMPTS.purpose}\n\nReached through its API at ${manifest.baseUrl}: \`${APP_COMMAND.name} request <slug> GET /path\`.\n\n## Endpoints\n\n${guide?.endpoints ?? GUIDE_PROMPTS.endpoints}\n\n## Conventions\n\n${guide?.conventions ?? GUIDE_PROMPTS.conventions}\n`;
 }
 
 /** Write a manifest and, when the folder has none, a guide to fill in. */

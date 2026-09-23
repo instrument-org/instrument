@@ -1,4 +1,9 @@
-import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import {
+  createCommandContext,
+  EMPTY_BYTES,
+  encodeUtf8ToBytes,
+  InMemoryFs,
+} from "just-bash";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -17,14 +22,25 @@ afterEach(() => {
 });
 
 async function app(...args: string[]) {
+  return appWithStdin(undefined, ...args);
+}
+
+async function appWithStdin(stdin: string | undefined, ...args: string[]) {
   return createAppCommand({ taskId }).execute(
     args,
     createCommandContext({
       cwd: "/task",
       env: new Map<string, string>(),
       fs: new InMemoryFs(),
-      stdin: EMPTY_BYTES,
+      stdin: stdin === undefined ? EMPTY_BYTES : encodeUtf8ToBytes(stdin),
     }),
+  );
+}
+
+async function guideOf(slug: string) {
+  return fs.readFile(
+    path.join(getWorkspaceConfig().appsDir, slug, "guide.md"),
+    "utf8",
   );
 }
 
@@ -80,28 +96,129 @@ describe("app test and the guide skeleton", () => {
   // only asked whether the file was non-empty, so the form passed. The cost
   // landed one turn later: the first request in a task is answered with the
   // guide, and an unanswered one teaches the agent nothing about the service.
-  it("refuses to connect an app whose guide is still the form", async () => {
-    await newApiApp("stub-guide", "--auth", "basic");
+  it("refuses to connect an API app the directory does not know while its guide is the form", async () => {
+    const made = await app(
+      "new",
+      "stub-guide",
+      "--name",
+      "Unknown",
+      "--api",
+      "https://api.unknown.invalid/v1",
+      "--test",
+      "/me",
+    );
+    expect(made.stdout).toContain("The guide has 3 prompts to answer");
 
     const result = await app("test", "stub-guide");
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("FAIL guide:");
-    expect(result.stderr).toContain("is still the skeleton");
-    expect(result.stderr).toContain("3 of its prompts are unanswered");
+    expect(result.stderr).toContain("3 unanswered");
+    expect(result.stderr).toContain("app guide stub-guide <<'EOF'");
   });
 
-  it("passes the guide check once the prompts are answered", async () => {
-    await newApiApp("real-guide", "--auth", "basic");
-    await fs.writeFile(
-      path.join(getWorkspaceConfig().appsDir, "real-guide", "guide.md"),
-      "# WakaTime\n\nCoding time recorded by an editor plugin.\n\n## Endpoints\n\nGET /users/current/summaries?range=Today\n",
-      "utf8",
+  it("passes the guide check once the guide is written through app guide", async () => {
+    await app(
+      "new",
+      "real-guide",
+      "--name",
+      "Unknown",
+      "--api",
+      "https://api.unknown.invalid/v1",
+      "--test",
+      "/me",
     );
+
+    const written = await appWithStdin(
+      "# Unknown\n\nA test service.\n\n## Endpoints\n\nGET /things\n\n## Conventions\n\nNone known.\n",
+      "guide",
+      "real-guide",
+    );
+    expect(written.stdout).toContain("Wrote /apps/real-guide/guide.md.");
+    expect(await guideOf("real-guide")).toContain("GET /things");
 
     const result = await app("test", "real-guide");
 
     expect(result.stderr).toContain("PASS guide:");
+  });
+
+  it("says which prompts a written guide still carries", async () => {
+    await app(
+      "new",
+      "half-guide",
+      "--name",
+      "Unknown",
+      "--api",
+      "https://api.unknown.invalid/v1",
+      "--test",
+      "/me",
+    );
+    const skeleton = await guideOf("half-guide");
+
+    const written = await appWithStdin(
+      skeleton.replace(
+        "What this app is for, in a sentence or two.",
+        "Things.",
+      ),
+      "guide",
+      "half-guide",
+    );
+
+    expect(written.stdout).toContain("but these prompts are still in it");
+    expect(written.stdout).not.toContain("What this app is for");
+  });
+
+  it("fills an MCP app's guide from the directory and does not gate on it", async () => {
+    const made = await app(
+      "new",
+      "paper",
+      "--name",
+      "Paper",
+      "--mcp",
+      "http://127.0.0.1:29979/mcp",
+      "--auth",
+      "none",
+    );
+    expect(made.stdout).not.toContain("prompts to answer");
+    expect(await guideOf("paper")).toContain(
+      "Paper's MCP server runs inside Paper Desktop",
+    );
+
+    // Paper Desktop answering on this machine passes the whole test, which
+    // reports on stdout rather than stderr.
+    const result = await app("test", "paper");
+
+    expect(`${result.stdout}${result.stderr}`).toContain("PASS guide:");
+  });
+
+  it("does not gate an MCP app the directory does not know on its guide", async () => {
+    await app(
+      "new",
+      "unknown-mcp",
+      "--name",
+      "Unknown",
+      "--mcp",
+      "https://mcp.unknown.invalid/mcp",
+    );
+
+    expect(await guideOf("unknown-mcp")).toMatchInlineSnapshot(`
+      "# Unknown
+
+      Reached through its MCP server at https://mcp.unknown.invalid/mcp: \`app tools <slug>\` lists what it can do, \`app call <slug> <tool> '<json>'\` runs one.
+      "
+    `);
+
+    const result = await app("test", "unknown-mcp");
+
+    expect(result.stderr).toContain("PASS guide:");
+  });
+
+  it("finds the directory's entry by endpoint when the slug differs", async () => {
+    await newApiApp("my-waka", "--auth", "basic");
+
+    expect(await guideOf("my-waka")).toContain(
+      "WakaTime records time spent coding",
+    );
   });
 });
 

@@ -27,6 +27,7 @@ import {
 import { latestSessionId } from "./latest-session";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
+import { hasPendingWake } from "./wake";
 
 /** How much of the agent's last reply a thread's row shows. */
 const LATEST_MAX = 160;
@@ -637,7 +638,9 @@ async function threadFor(
   const ownAsk = askIn(messages);
   const working =
     (threadIsAlive(taskId, session.id) && ownAsk === undefined) ||
-    filed.some((task) => !task.waiting);
+    turnIsStarting(messages) ||
+    filed.some((task) => !task.waiting) ||
+    filedTasks.some((filedTask) => hasPendingWake(taskId, filedTask));
   const ask = working ? undefined : askOf(messages, filed);
   const state = working ? "working" : ask ? "waiting" : "idle";
 
@@ -702,6 +705,25 @@ async function threadFor(
 }
 
 /** Whether the thread's own agent is at work this moment. */
+/**
+ * How long a message with no reply yet counts as its turn starting. A message
+ * is written before the agent it starts is running, so a list read between the
+ * two would otherwise call the thread idle and show its last reply for a
+ * moment; one that never starts an agent stops counting after this.
+ */
+const TURN_START_GRACE_MS = 30_000;
+
+/** The newest message is the user's or a wake's, recent, and not yet answered. */
+function turnIsStarting(messages: SessionMessage.WithParts[]): boolean {
+  const newest = messages.findLast(
+    (message) => message.role === "user" || message.role === "assistant",
+  );
+  return (
+    newest?.role === "user" &&
+    Date.now() - newest.metadata.createdAt.getTime() < TURN_START_GRACE_MS
+  );
+}
+
 function threadIsAlive(taskId: TaskId, sessionId: StoreId.Session): boolean {
   const status = getTaskAgentStatus({
     id: taskId,

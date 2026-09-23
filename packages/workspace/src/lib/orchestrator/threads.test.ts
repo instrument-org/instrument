@@ -28,6 +28,12 @@ const running = vi.hoisted(() => {
   return { value };
 });
 const alive = vi.hoisted(() => ({ value: new Set<string>() }));
+const pendingWakes = vi.hoisted(() => ({ value: new Set<string>() }));
+
+vi.mock(import("./wake"), () => ({
+  hasPendingWake: (_orchestratorId: string, taskId: string) =>
+    pendingWakes.value.has(taskId),
+}));
 
 // What the machine would say: which tasks are at work, and which sessions
 // have a live agent. Neither exists in a test, so both are dials.
@@ -66,6 +72,7 @@ const freshTask = () =>
 beforeEach(() => {
   running.value = [];
   alive.value = new Set();
+  pendingWakes.value = new Set();
 });
 
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));
@@ -461,6 +468,43 @@ describe("listThreads", () => {
     expect(thread?.state).toBe("working");
     expect(thread?.latest?.kind).toBe("step");
     expect(thread?.latest?.text).toBe("Running a command");
+  });
+
+  // A message is written before the agent it starts is running, so a list
+  // read in between must not call the thread idle and show its last reply.
+  it("is working while a message it was just sent waits for its agent, for a while", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const taskId = freshTask();
+      const sessionId = await session(taskId, "Groceries", 1);
+      await userSays(taskId, sessionId, "make me a grocery list", 1);
+      await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
+      await userSays(taskId, sessionId, "add eggs", 3);
+
+      vi.setSystemTime(at(3).getTime() + 5000);
+      expect((await listThreads(taskId))[0]?.state).toBe("working");
+
+      vi.setSystemTime(at(3).getTime() + 60_000);
+      expect((await listThreads(taskId))[0]?.state).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is working while a task filed from it has finished and its wake waits to be written", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
+    const child = TaskIdSchema.parse("grocery-list-done");
+    await setTaskState(taskDir(taskId), {
+      taskThreads: { [child]: sessionId },
+    });
+    pendingWakes.value = new Set([child]);
+
+    const [thread] = await listThreads(taskId);
+
+    expect(thread?.state).toBe("working");
   });
 
   it("is waiting while its last turn ended on a question", async () => {

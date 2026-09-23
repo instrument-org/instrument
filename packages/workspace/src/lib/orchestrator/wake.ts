@@ -128,6 +128,15 @@ const pending = new Map<
 >();
 
 /**
+ * Whether a task's finish is waiting out the debounce before its wake is
+ * written. The thread it was filed from is still at work in that gap: its task
+ * has stopped and its own agent has not started on the news yet.
+ */
+export function hasPendingWake(orchestratorId: TaskId, taskId: TaskId) {
+  return pending.get(orchestratorId)?.events.has(taskId) ?? false;
+}
+
+/**
  * Wakes an orchestrator when a task it created finishes a turn.
  *
  * One subscriber over the session-done topic for the life of the process. A

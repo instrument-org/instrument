@@ -1,6 +1,6 @@
 # Plan: validate the inspector before drawing it again
 
-Status: built on the app page as a generic browser (Views, Lookups, Actions), in dogfooding. The measurements below are what it was built on; Linear is still unmeasured. Nothing here is committed until the questions below have answers; the wireframe that prompted it is a scratch artifact and the direction is unproven.
+Status: built on the app page as a generic browser (Views, Lookups, Actions), in dogfooding. The measurements below are what it was built on; Linear is still unmeasured.
 
 ## What the inspector is
 

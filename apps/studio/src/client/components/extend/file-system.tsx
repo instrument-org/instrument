@@ -2,6 +2,10 @@ import {
   FileThumbnail,
   useNaturalAspectRatio,
 } from "@/client/components/extend/file-thumbnail";
+import {
+  FILE_TYPE_ALIASES,
+  FILE_TYPE_GLYPHS,
+} from "@/client/components/extend/file-type-glyphs";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -919,16 +923,6 @@ function escapeXmlAttribute(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 }
-// The @pierre/trees "complete" set — the full, colored suite with brand and
-// framework glyphs — ships as an SVG sprite. The list view tree consumes it
-// natively inside its shadow DOM; the icon, column, and gallery views render
-// the same sprite from the light DOM so every view falls back to the same
-// file-type icon when a file has no thumbnail.
-const FILE_ICON_SPRITE_SHEET = getBuiltInSpriteSheet("complete");
-const { resolveIcon: resolveFileIcon } = createFileTreeIconResolver({
-  colored: true,
-  set: "complete",
-});
 // Per-token light/dark colors mirroring the palette the tree applies inside
 // its shadow DOM. Tokens without an entry (font, nextjs, stylelint) stay
 // muted-foreground there too.
@@ -983,7 +977,62 @@ const FILE_ICON_COLORS: Record<string, [light: string, dark: string]> = {
   yml: ["#d52c36", "#ff6762"],
   zig: ["#d47628", "#ffa359"],
   zip: ["#d47628", "#ffa359"],
+  ...Object.fromEntries(
+    Object.entries(FILE_TYPE_GLYPHS).map(([token, glyph]) => [
+      token,
+      glyph.colors,
+    ]),
+  ),
 };
+// The set's gaps (file-type-glyphs.ts) ride in as extension remaps onto our
+// own symbols. A remapped icon carries no data-icon-token, so each symbol
+// colors itself: from the --fs-file-icon-* variable in the light DOM, and
+// from the light-dark() fallback inside the tree, which resets those
+// variables so its selected rows flip palettes the way built-ins do.
+const FILE_TYPE_ICON_TOKENS: [
+  token: string,
+  markup: string,
+  extensions: string[],
+][] = [
+  ...Object.entries(FILE_TYPE_GLYPHS).map(
+    ([token, glyph]): [string, string, string[]] => [
+      token,
+      glyph.markup,
+      glyph.extensions,
+    ],
+  ),
+  ...Object.entries(FILE_TYPE_ALIASES).map(
+    ([token, extensions]): [string, string, string[]] => [
+      token,
+      `<use href="#file-tree-builtin-${token}"/>`,
+      extensions,
+    ],
+  ),
+];
+const FILE_TYPE_ICON_SYMBOLS = FILE_TYPE_ICON_TOKENS.map(([token, markup]) => {
+  const [light, dark] = FILE_ICON_COLORS[token] ?? ["#84848a", "#adadb1"];
+  return `<symbol id="file-system-icon-${token}" viewBox="0 0 16 16"><g style="color: var(--fs-file-icon-${token}, light-dark(${light}, ${dark}))">${markup}</g></symbol>`;
+}).join("");
+const FILE_TYPE_ICONS_BY_EXTENSION = Object.fromEntries(
+  FILE_TYPE_ICON_TOKENS.flatMap(([token, , extensions]) =>
+    extensions.map((extension) => [
+      extension,
+      { name: `file-system-icon-${token}`, viewBox: "0 0 16 16" },
+    ]),
+  ),
+);
+const FILE_TYPE_ICON_TREE_CSS = `:host { ${FILE_TYPE_ICON_TOKENS.map(([token]) => `--fs-file-icon-${token}: initial;`).join(" ")} }`;
+// The @pierre/trees "complete" set — the full, colored suite with brand and
+// framework glyphs — ships as an SVG sprite. The list view tree consumes it
+// natively inside its shadow DOM; the icon, column, and gallery views render
+// the same sprite from the light DOM so every view falls back to the same
+// file-type icon when a file has no thumbnail.
+const FILE_ICON_SPRITE_SHEET = `${getBuiltInSpriteSheet("complete")}<svg data-icon-sprite aria-hidden="true" width="0" height="0">${FILE_TYPE_ICON_SYMBOLS}</svg>`;
+const { resolveIcon: resolveFileIcon } = createFileTreeIconResolver({
+  byFileExtension: FILE_TYPE_ICONS_BY_EXTENSION,
+  colored: true,
+  set: "complete",
+});
 function fileIconColorVariables(mode: 0 | 1) {
   return Object.entries(FILE_ICON_COLORS)
     .map(([token, colors]) => `--fs-file-icon-${token}: ${colors[mode]};`)
@@ -4346,6 +4395,7 @@ function FileSystemPierreTree({
       }
     > = {};
     const symbols: string[] = [
+      FILE_TYPE_ICON_SYMBOLS,
       `<symbol id="file-system-chevron" viewBox="0 0 24 24"><path d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></symbol>`,
     ];
     let thumbnailCount = 0;
@@ -4364,6 +4414,7 @@ function FileSystemPierreTree({
       thumbnailCount += 1;
     }
     return {
+      byFileExtension: FILE_TYPE_ICONS_BY_EXTENSION,
       byFileName,
       colored: true,
       remap: {
@@ -4442,6 +4493,7 @@ function FileSystemPierreTree({
       return { text: formatByteSize(entry.size) ?? "—", title: dateColumn };
     },
     unsafeCSS: `
+      ${FILE_TYPE_ICON_TREE_CSS}
       button[data-type='item']:not([data-item-selected]):hover {
         background: color-mix(in oklab, var(--color-accent) 50%, transparent);
       }

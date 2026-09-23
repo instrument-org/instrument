@@ -23,12 +23,12 @@ import {
 } from "@/electron-main/windows/onboarding";
 import {
   getOrchestratorWindow,
+  openOrchestratorFile,
   openOrchestratorScreen,
   openOrchestratorWindow,
   updateOrchestratorWindowBackgroundColor,
 } from "@/electron-main/windows/orchestrator";
 import { revealTask } from "@/electron-main/windows/reveal-task";
-import { fileHref } from "@/shared/computer-href";
 import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_PROTOCOL } from "@instrument-org/shared";
@@ -40,7 +40,6 @@ import {
   protocol,
   session,
 } from "electron";
-import path from "node:path";
 
 import { startAgentCompletionNotifications } from "./lib/agent-completion-notifications";
 import { registerAppProtocol } from "./lib/app-protocol";
@@ -101,7 +100,7 @@ if (gotTheLock) {
     for (const filePath of filesInArgv(commandLine, {
       defaultApp: process.defaultApp,
     })) {
-      openHandedFile(filePath);
+      openOrchestratorFile(filePath);
     }
   });
 
@@ -110,14 +109,14 @@ if (gotTheLock) {
   // launches the app arrives before it is; the screen waits for the window.
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
-    openHandedFile(filePath);
+    openOrchestratorFile(filePath);
   });
 
   // The same hand-over on Windows and Linux, for a launch that starts the app.
   for (const filePath of filesInArgv(process.argv, {
     defaultApp: process.defaultApp,
   })) {
-    openHandedFile(filePath);
+    openOrchestratorFile(filePath);
   }
 
   // eslint-disable-next-line unicorn/prefer-top-level-await
@@ -353,11 +352,6 @@ function handleDeepLink(url: string) {
   if (link && isFeatureEnabled("instrument_2")) {
     openOrchestratorScreen(link.href);
   }
-}
-
-/** A file handed to the app from outside it, opened as a Files tab in its folder. */
-function openHandedFile(filePath: string) {
-  openOrchestratorScreen(fileHref(filePath, { tree: path.dirname(filePath) }));
 }
 
 function shouldShowOnboarding(): boolean {

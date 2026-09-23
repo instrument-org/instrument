@@ -54,7 +54,7 @@ interface PublisherEvents {
   // Asked of the orchestrator window by a swipe, a thumb button, a menu
   // chord, or a link from outside the app, all of which reach the main process
   // rather than the page: history either way, the close of the tab on screen,
-  // the caret in the window's field, or a screen to put up.
+  // the caret in the window's field, a screen to put up, or a file to open.
   "orchestrator.command":
     | "back"
     | "closeTab"
@@ -70,6 +70,7 @@ interface PublisherEvents {
     | "reopenTab"
     | "search"
     | "toggleInbox"
+    | { hostPath: string; type: "openFile" }
     | { href: string; type: "openScreen" }
     | { index: number; type: "selectTab" };
   "preferences.updated": null;

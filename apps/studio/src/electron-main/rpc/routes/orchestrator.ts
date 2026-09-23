@@ -1,6 +1,6 @@
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { takePendingOrchestratorScreen } from "@/electron-main/windows/orchestrator";
+import { takePendingOrchestratorAsks } from "@/electron-main/windows/orchestrator";
 import { z } from "zod";
 
 const events = {
@@ -15,15 +15,22 @@ const events = {
 };
 
 /**
- * The screen a link from outside the app asked for while this window was
+ * What links and files from outside the app asked for while this window was
  * still opening, which the command stream could not carry to it. Asked once,
  * as the window comes up.
  */
-const takePendingScreen = base
-  .output(z.string().nullable())
-  .handler(() => takePendingOrchestratorScreen());
+const takePending = base
+  .output(
+    z.array(
+      z.discriminatedUnion("type", [
+        z.object({ hostPath: z.string(), type: z.literal("openFile") }),
+        z.object({ href: z.string(), type: z.literal("openScreen") }),
+      ]),
+    ),
+  )
+  .handler(() => takePendingOrchestratorAsks());
 
 export const orchestrator = {
   events,
-  takePendingScreen,
+  takePending,
 };

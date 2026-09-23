@@ -766,57 +766,63 @@ function OrchestratorLayout() {
   // The inbox's rows as the pane lists them, for stepping through them by
   // chord; the pane says what it shows, since it holds the filters.
   const listedThreads = useRef<StoreId.Session[]>([]);
-  useWindowCommands({
-    back: goBack,
-    closeTab: () => {
-      if (active) {
-        requestClose(active.id);
-      }
+  useWindowCommands(
+    {
+      back: goBack,
+      closeTab: () => {
+        if (active) {
+          requestClose(active.id);
+        }
+      },
+      forward: goForward,
+      newTab: openNewTab,
+      newThread: newDraft,
+      // In Files whatever was on screen: a file from outside the app is the
+      // person's own, never something a thread asked for.
+      openFile: openFileInFiles,
+      // Put away only while something is on screen to have the window; with
+      // nothing beside it the column is the window, and stays.
+      openScreen: (href) => {
+        openScreen(href, { newTab: true });
+      },
+      reopenTab: () => {
+        const tab = popClosed();
+        if (!tab) {
+          return;
+        }
+        if (tab.kind === "page") {
+          browser?.open(tab.url);
+        } else {
+          openScreen(tab.href, { newTab: true });
+        }
+      },
+      search: focusOmnibar,
+      selectRelative: windowTabs.selectRelative,
+      selectTab: windowTabs.selectIndex,
+      toggleInbox: () => {
+        // The inbox is the chat's; elsewhere the chord has nothing to move.
+        if (isChat) {
+          setInboxOpen((isOpen) => !isOpen || !showsRightArea);
+        }
+      },
+      // The next or previous row of the inbox from the thread on screen; from
+      // no thread, the list's first or last.
+      selectThread: (direction) => {
+        const listed = listedThreads.current;
+        const at = threadUp === undefined ? -1 : listed.indexOf(threadUp);
+        const next =
+          at === -1
+            ? direction === 1
+              ? listed[0]
+              : listed.at(-1)
+            : listed[at + direction];
+        if (next !== undefined) {
+          openScreen(`${THREADS_HREF}/${next}`);
+        }
+      },
     },
-    forward: goForward,
-    newTab: openNewTab,
-    newThread: newDraft,
-    // Put away only while something is on screen to have the window; with
-    // nothing beside it the column is the window, and stays.
-    openScreen: (href) => {
-      openScreen(href, { newTab: true });
-    },
-    reopenTab: () => {
-      const tab = popClosed();
-      if (!tab) {
-        return;
-      }
-      if (tab.kind === "page") {
-        browser?.open(tab.url);
-      } else {
-        openScreen(tab.href, { newTab: true });
-      }
-    },
-    search: focusOmnibar,
-    selectRelative: windowTabs.selectRelative,
-    selectTab: windowTabs.selectIndex,
-    toggleInbox: () => {
-      // The inbox is the chat's; elsewhere the chord has nothing to move.
-      if (isChat) {
-        setInboxOpen((isOpen) => !isOpen || !showsRightArea);
-      }
-    },
-    // The next or previous row of the inbox from the thread on screen; from
-    // no thread, the list's first or last.
-    selectThread: (direction) => {
-      const listed = listedThreads.current;
-      const at = threadUp === undefined ? -1 : listed.indexOf(threadUp);
-      const next =
-        at === -1
-          ? direction === 1
-            ? listed[0]
-            : listed.at(-1)
-          : listed[at + direction];
-      if (next !== undefined) {
-        openScreen(`${THREADS_HREF}/${next}`);
-      }
-    },
-  });
+    { isReady: ids !== undefined },
+  );
   const screens: null | OrchestratorWindow = ids
     ? {
         // No session: a line a button hands over at the top level opens a

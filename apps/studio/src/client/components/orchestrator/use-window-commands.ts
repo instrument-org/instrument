@@ -1,41 +1,52 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { requestBrowserFind } from "@/client/lib/foreground-browser-registry";
 import { isMacOS } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { safe } from "@orpc/client";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
 /**
  * What the main process asks of the window: back and forward from a trackpad
  * swipe, a thumb button or the History menu, the tab chords (close, new,
- * reopen, next and previous, one by number), the caret into the field, and a
- * screen a link from outside the app named.
+ * reopen, next and previous, one by number), the caret into the field, a
+ * screen a link from outside the app named, and a file handed to the app.
  * On a Mac the thumb buttons reach the page as mouse events, so they are
  * answered here; elsewhere they arrive through the main process. Chromium
  * walks the renderer's own history on the same mouseup unless the page
  * consumes it, and that history is not the tab's: left alone, back moved the
  * tab one step and the renderer one step, and the second undid the first.
  */
-export function useWindowCommands(handlers: {
-  /** The tab's own history, which is the only history a thumb or a menu reaches. */
-  back: () => void;
-  closeTab: () => void;
-  forward: () => void;
-  newTab: () => void;
-  /** A draft of a new thread, at the corner. */
-  newThread: () => void;
-  /** A screen by its route, in a tab of its own, since what asked is not in any tab. */
-  openScreen: (href: string) => void;
-  reopenTab: () => void;
-  /** The caret into the window's field, wherever it was. */
-  search: () => void;
-  selectRelative: (direction: -1 | 1) => void;
-  selectTab: (index: number) => void;
-  /** The next or previous thread of the inbox, as listed. */
-  selectThread: (direction: -1 | 1) => void;
-  /** The inbox column put away or brought back. */
-  toggleInbox: () => void;
-}) {
+export function useWindowCommands(
+  handlers: {
+    /** The tab's own history, which is the only history a thumb or a menu reaches. */
+    back: () => void;
+    closeTab: () => void;
+    forward: () => void;
+    newTab: () => void;
+    /** A draft of a new thread, at the corner. */
+    newThread: () => void;
+    /** A file handed to the app from outside it: a double click, Open With, or a launch naming it. */
+    openFile: (hostPath: string) => void;
+    /** A screen by its route, in a tab of its own, since what asked is not in any tab. */
+    openScreen: (href: string) => void;
+    reopenTab: () => void;
+    /** The caret into the window's field, wherever it was. */
+    search: () => void;
+    selectRelative: (direction: -1 | 1) => void;
+    selectTab: (index: number) => void;
+    /** The next or previous thread of the inbox, as listed. */
+    selectThread: (direction: -1 | 1) => void;
+    /** The inbox column put away or brought back. */
+    toggleInbox: () => void;
+  },
+  {
+    isReady,
+  }: {
+    /** Whether the window can show what was asked of it while it was opening. */
+    isReady: boolean;
+  },
+) {
   const router = useRouter();
   // The stream is opened once; what a chord means is read at the moment it
   // fires, off whatever tab is up then.
@@ -98,7 +109,7 @@ export function useWindowCommands(handlers: {
             if (command.type === "selectTab") {
               latest.current.selectTab(command.index);
             } else {
-              latest.current.openScreen(command.href);
+              answer(latest.current, command);
             }
             continue;
           }
@@ -175,4 +186,33 @@ export function useWindowCommands(handlers: {
       window.removeEventListener("auxclick", swallow, { capture: true });
     };
   }, [router]);
+  // What links and files from outside asked for while this window was
+  // opening: the command stream could not carry them to a renderer not yet
+  // listening, so they are asked for once the window can show them.
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+    void (async () => {
+      const [, asks] = await safe(rpcClient.orchestrator.takePending.call());
+      for (const ask of asks ?? []) {
+        answer(latest.current, ask);
+      }
+    })();
+  }, [isReady]);
+}
+
+/** Puts up what something outside the window asked for: a file, or a screen by its route. */
+function answer(
+  handlers: {
+    openFile: (hostPath: string) => void;
+    openScreen: (href: string) => void;
+  },
+  ask: RPCOutput["orchestrator"]["takePending"][number],
+) {
+  if (ask.type === "openFile") {
+    handlers.openFile(ask.hostPath);
+  } else {
+    handlers.openScreen(ask.href);
+  }
 }

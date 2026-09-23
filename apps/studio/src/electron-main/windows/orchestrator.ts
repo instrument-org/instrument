@@ -28,12 +28,22 @@ const ORCHESTRATOR_HEIGHT = 840;
 let orchestratorWindow: BrowserWindow | null = null;
 
 /**
- * A screen asked for before the window was there to show it. The window's
- * command stream starts empty at subscribe time, so a command published while
- * the renderer is still loading is lost; the layout asks for this once it is
- * up instead.
+ * What something outside the window asks it to put up: a screen by its
+ * route, from a link, or a file handed to the app, which the window places
+ * itself.
  */
-let pendingScreen: null | string = null;
+export type OrchestratorAsk =
+  | { hostPath: string; type: "openFile" }
+  | { href: string; type: "openScreen" };
+
+/**
+ * Asks made before the window was there to take them, in order: several
+ * files handed over at once arrive one by one before the window is. The
+ * window's command stream starts empty at subscribe time, so a command
+ * published while the renderer is still loading is lost; the layout asks for
+ * these once it is up instead.
+ */
+let pendingAsks: OrchestratorAsk[] = [];
 
 export function getOrchestratorWindow(): BrowserWindow | null {
   return orchestratorWindow && !orchestratorWindow.isDestroyed()
@@ -42,22 +52,19 @@ export function getOrchestratorWindow(): BrowserWindow | null {
 }
 
 /**
+ * Opens a file handed to the app from outside it, a double click or Open
+ * With, in the window that is open or the one this opens.
+ */
+export function openOrchestratorFile(hostPath: string) {
+  askOrchestrator({ hostPath, type: "openFile" });
+}
+
+/**
  * Puts a screen of the window up, by its route: in the window that is open,
  * or in the one this opens. What a link from outside the app asks for.
  */
 export function openOrchestratorScreen(href: string) {
-  const window = getOrchestratorWindow();
-  if (window) {
-    window.focus();
-    publisher.publish("orchestrator.command", { href, type: "openScreen" });
-    return;
-  }
-  pendingScreen = href;
-  // A link that launched the app arrives before it is ready to make a window;
-  // boot opens this one itself, and the screen waits for it.
-  if (app.isReady()) {
-    openOrchestratorWindow();
-  }
+  askOrchestrator({ href, type: "openScreen" });
 }
 
 /**
@@ -213,16 +220,31 @@ export function openOrchestratorWindow(): BrowserWindow {
   return orchestratorWindow;
 }
 
-/** The screen a link asked for while the window was opening, once, then nothing. */
-export function takePendingOrchestratorScreen(): null | string {
-  const href = pendingScreen;
-  pendingScreen = null;
-  return href;
+/** What was asked of the window while it was opening, once, then nothing. */
+export function takePendingOrchestratorAsks(): OrchestratorAsk[] {
+  const asks = pendingAsks;
+  pendingAsks = [];
+  return asks;
 }
 
 export function updateOrchestratorWindowBackgroundColor() {
   if (orchestratorWindow && !orchestratorWindow.isDestroyed()) {
     orchestratorWindow.setBackgroundColor(getBackgroundColor());
+  }
+}
+
+function askOrchestrator(ask: OrchestratorAsk) {
+  const window = getOrchestratorWindow();
+  if (window) {
+    window.focus();
+    publisher.publish("orchestrator.command", ask);
+    return;
+  }
+  pendingAsks.push(ask);
+  // An ask that launched the app arrives before it is ready to make a window;
+  // boot opens this one itself, and the ask waits for it.
+  if (app.isReady()) {
+    openOrchestratorWindow();
   }
 }
 

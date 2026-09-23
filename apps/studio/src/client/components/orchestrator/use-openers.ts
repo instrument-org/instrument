@@ -221,23 +221,6 @@ export function useOpeners({
   useEffect(() => {
     openers.current = { openNamedPath, openPage, openScreen };
   });
-  // A screen a link from outside asked for while this window was opening:
-  // the command stream below could not carry it to a renderer not yet
-  // listening, so it is asked for once the window can show it.
-  const isReady = ids !== undefined;
-  useEffect(() => {
-    if (!isReady) {
-      return;
-    }
-    void (async () => {
-      const [, href] = await safe(
-        rpcClient.orchestrator.takePendingScreen.call(),
-      );
-      if (href) {
-        openers.current.openScreen(href, { newTab: true });
-      }
-    })();
-  }, [isReady]);
   useEffect(() => {
     if (!ids) {
       return;

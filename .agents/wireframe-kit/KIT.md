@@ -4,15 +4,76 @@ The pieces of Studio, for drawing a proposed flow with `create-page`'s wireframe
 
 `create-page` comes from the `instrument-org/skills` registry. Its wireframe template looks for this folder and reads this file when it finds one.
 
-## Using it
+There are two kits here, one per window. **The 2.0 window** (app rail, inbox, threads, Apps and Files, the floating chat) is `window-2.js`, built into pages by `build.mjs`; draw with it unless the flow is about the classic window. **The classic window** (task sidebar, conversation, artifact panel) is the functions further down, pasted by hand.
+
+## The 2.0 window
+
+`window-2.js` is the window as built, measured off the running app and redrawn at 1280x800 in the light theme; `brands.js` holds the brand marks it draws, as data URIs. A page is a **part**: a script that defines `META` and `states`, and nothing else. `build.mjs` puts the part, the kit and the template's marks into a copy of the skill's starter and template, and evaluates every frame in Node first, so a frame that renders `undefined` or lacks a caption fails the build rather than the page:
+
+```bash
+node .agents/wireframe-kit/build.mjs part.js ~/wireframes/YYYY-MM-DD-<topic>.html
+RAW=3 node .agents/wireframe-kit/build.mjs part.js out.html   # also writes out.raw.html: frame 3 alone at true size
+```
+
+It reads the skill from `~/.claude/skills/create-page`, or from `CREATE_PAGE_DIR`.
+
+```js
+const META = {
+  title: "The dock stands up", // the page's name
+  line: "What is proposed and what the frames settle, in one line.",
+  source: "What the frames are drawn against, and what was invented.",
+  slotH: 320, // optional: the tile height in the grid
+};
+
+const states = [
+  {
+    title: "A press opens the pane",
+    note: "What this frame proves, not what it shows.",
+    body: win2({
+      bar: winBar({ inbox: true }),
+      body:
+        inboxCol({ on: 0 }) +
+        thread({ working: "Checking fares on flytap.com" }) +
+        paneCard({
+          tabs: [{ site: "tap", agent: true }, { file: "itinerary" }],
+        }),
+    }),
+  },
+];
+```
+
+| Function                                             | Draws                                                                                          |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `win2({ bar, on, body, over, railMark })`            | The whole window: bar, rail with `on` lit, `body` beside it, `over` on a layer over everything |
+| `winBar({ inbox, middle, right })`                   | The 40px window bar; `inbox` adds the inbox toggle past the traffic lights                     |
+| `rail(on, { mark })`                                 | The 76px rail: New, Home, Chat, Apps (the app fan), Files, Settings                            |
+| `inboxCol({ on, w, rows })`, `row(r, { on })`        | The inbox column (filter line, search, two-line rows) and one row                              |
+| `thread({ title, body, working, head, foot })`       | A thread: head, transcript, working line, reply box                                            |
+| `threadHead`, `you`, `agent`, `workLine`, `replyBox` | Its pieces: the user's green pill, the agent's gray bubble, the working line, the reply box    |
+| `fileRow(key)`, `pageRow(site)`                      | A file or page the agent linked, as a thin row in the transcript                               |
+| `paneCard({ tabs, active, body, w })`                | The pane beside a thread: tab strip, location row, page                                        |
+| `tabPill`, `tabStrip`, `locRow`                      | A tab, a row of them, and the back/forward/home/omnibar row                                    |
+| `page(tab)`                                          | A plausible body for a tab: `PAGES` has the Lisbon sites, the files, and a fresh tab           |
+| `placeCard({ tabs, active, body })`                  | Apps or Files: a card with its own tab strip and location row                                  |
+| `finder({ pick })`, `homeBody()`                     | Files' Finder tab and the Home landing page                                                    |
+| `smallChat({ title, tabs, body, working })`          | The floating chat, 420x560 at the bottom right, with its read-only row of the thread's tabs    |
+| `miniBar`, `menu(items, pos)`, `sheet(inner, size)`  | A minimized chat, a popover menu, a modal sheet over a dimmed window                           |
+
+A tab is `{ site }` (a key of `SITES`), `{ file }` (a key of `FILES`) or `{ newtab: true }`, with `agent: true` on one a task is driving. The shared scenario is the documents fixture's thread "Lisbon trip itinerary with ticket prices" (`LISBON_TITLE`, `lisbon(stage)` for its transcript); keep to it so a round's files compare. `ROWS` beyond the fixture's three threads are invented, and a page's `source` line says so.
+
+Marks come from the template (`clickable`, `fresh`, `noted`, `ann`, `cursor`) and are in scope for a part. Icons are Phosphor regular only (`ph ph-name`): the starter loads no other weight, so `ph-fill` draws nothing.
+
+When the product moves, measure it again rather than trusting this file: boot a disposable instance (`studio-drive.mjs boot --workspace documents` with the `instrument_2` flag on) and screenshot the 2.0 window, then correct `window-2.js` to match.
+
+## The classic window
 
 1. Start from the wireframe template as `create-page` describes.
 2. Paste the functions below that the flow calls into the page's script, in place of the template's neutral ones of the same name (this `navItem` replaces that one). Leave out the rest.
 3. Draw at true size: a whole Studio window is 1280x800, a settings panel about 520 wide.
 
-The kit draws Studio in its light theme whatever theme the reader has picked: `[color-scheme:light]` on `appWindow` and `surface` is what the skin's `light-dark()` tokens resolve against inside the frame. Write class names out whole, since a class built by interpolation (`bg-${tone}-500`) is invisible to Tailwind's scanner and produces no styles.
+This kit draws Studio in its light theme whatever theme the reader has picked: `[color-scheme:light]` on `appWindow` and `surface` is what the skin's `light-dark()` tokens resolve against inside the frame. Write class names out whole, since a class built by interpolation (`bg-${tone}-500`) is invisible to Tailwind's scanner and produces no styles.
 
-## The functions
+### The functions
 
 | Function                             | Draws                                                                   |
 | ------------------------------------ | ----------------------------------------------------------------------- |
@@ -95,7 +156,7 @@ const surface = (inner) => `
   </div>`;
 ```
 
-## Looking like this product
+### Looking like this product
 
 The kit encodes most of this. The table is for what it does not cover, and for checking the kit against source when it looks stale.
 

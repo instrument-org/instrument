@@ -12,7 +12,13 @@ import type { KnipConfig } from "knip";
 const projectFiles = "**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts,css}!";
 
 const config: KnipConfig = {
-  ignore: ["registry/**/*", ".agents/skills/**/*", ".claude/skills/**/*"],
+  // The 2.0 wireframe kit's .js files are page scripts build.mjs reads as text, not modules.
+  ignore: [
+    "registry/**/*",
+    ".agents/skills/**/*",
+    ".claude/skills/**/*",
+    ".agents/wireframe-kit/*.js",
+  ],
   // Namespace members are exported for organization (see AGENTS.md), not always
   // consumed cross-file. knip 5 did not check them; keep that scope under knip 6.
   rules: {
@@ -20,7 +26,7 @@ const config: KnipConfig = {
   },
   workspaces: {
     ".": {
-      entry: ["scripts/*.ts!", ".agents/wireframe-kit/*.ts!"],
+      entry: ["scripts/*.ts!", ".agents/wireframe-kit/*.{ts,mjs}!"],
       ignoreBinaries: ["actionlint", "electron", "powershell.exe"],
       ignoreDependencies: [
         "@instrument-org/agent-hooks", // Used in .codex/hooks.json and .claude/settings.json hook commands

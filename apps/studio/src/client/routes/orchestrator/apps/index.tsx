@@ -25,7 +25,7 @@ type CatalogEntry = RPCOutput["apps"]["catalog"][number];
  * How many pages visited across the apps the page lists: enough to find the
  * one from this morning, few enough that the apps stay the head of the page.
  */
-const RECENT_SHOWN = 8;
+const RECENT_SHOWN = 9;
 
 /** How many of the directory's services are offered before the rest are behind the head's button. */
 const MORE_SHOWN = 12;
@@ -164,8 +164,10 @@ function AppsRoute() {
         ) : null}
 
         {visits.length > 0 ? (
-          <PageSection title="Recent">
-            <VisitedPageRows onOpen={openPage} visits={visits} />
+          <PageSection title="Recent pages">
+            <div className="-mx-2">
+              <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
+            </div>
           </PageSection>
         ) : null}
 
@@ -193,7 +195,7 @@ function AppsRoute() {
                     },
               }
             : {})}
-          title={own.length > 0 ? "More apps" : "Connect an app"}
+          title={own.length > 0 ? "Connect more apps" : "Connect an app"}
         >
           {catalog.data === undefined ? (
             <TileSkeletons />

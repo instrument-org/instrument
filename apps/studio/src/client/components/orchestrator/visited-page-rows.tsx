@@ -1,3 +1,4 @@
+import { cn } from "@/client/lib/utils";
 import { type VisitedPage } from "@/client/atoms/orchestrator";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 
@@ -11,9 +12,18 @@ import { AppIcon } from "./app-icon";
  * window does.
  */
 export function VisitedPageRows({
+  isCompact = false,
+  isOneRow = false,
   onOpen,
   visits,
 }: {
+  /** Only as many as fit on one row, for a strip under a page's head. */
+  isOneRow?: boolean;
+  /**
+   * As a dense grid of one-line entries, as many columns as the width
+   * holds: the page's title, then its address, quiet, on the same line.
+   */
+  isCompact?: boolean;
   onOpen: (url: string) => void;
   visits: {
     app: { name: string; site?: string | undefined };
@@ -21,6 +31,43 @@ export function VisitedPageRows({
   }[];
 }) {
   const gesturesFor = useGesturesFor();
+  if (isCompact) {
+    return (
+      <ul
+        className={cn(
+          "grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-x-2",
+          // Rows past the first take no height, and the list clips them.
+          isOneRow && "auto-rows-[0] grid-rows-[auto] overflow-hidden",
+        )}
+      >
+        {visits.map(({ app, page }) => {
+          const gestures = gesturesFor({ kind: "page", url: page.url });
+          return (
+            <li className="min-w-0" key={page.url}>
+              <button
+                className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left hover:bg-accent/60"
+                onAuxClick={gestures.onAuxClick}
+                onClick={() => {
+                  onOpen(page.url);
+                }}
+                onContextMenu={gestures.onContextMenu}
+                title={page.url}
+                type="button"
+              >
+                <AppIcon name={app.name} site={app.site} size="sm" />
+                <span className="max-w-[65%] shrink-0 truncate text-[13px]">
+                  {page.title || shownAddress(page.url)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                  {shownAddress(page.url)}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
   return (
     <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
       {visits.map(({ app, page }) => {

@@ -132,7 +132,6 @@ function AppsRoute() {
   const visits = visitsWithin(visited, [
     ...apps,
     ...more.map((entry) => ({
-      home: entry.home,
       name: entry.name,
       site: `https://${entry.domain}`,
     })),

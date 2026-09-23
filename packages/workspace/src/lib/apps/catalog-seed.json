@@ -1763,7 +1763,7 @@
       "name": "Notion",
       "tagline": "Pages, databases, and comments as agent-editable workspace memory.",
       "description": "Notion's hosted MCP server lets agents search, create, and reorganize workspace content. The REST API underneath uses internal integrations with explicit page-level sharing — a natural permission boundary for agents.",
-      "domain": "notion.so",
+      "domain": "notion.com",
       "categories": ["productivity", "knowledge-base"],
       "authMethods": [
         {
@@ -1792,7 +1792,7 @@
         }
       ],
       "docsUrl": "https://developers.notion.com",
-      "home": "https://www.notion.so"
+      "home": "https://app.notion.com"
     },
     {
       "slug": "otter",

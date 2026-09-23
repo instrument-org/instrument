@@ -52,27 +52,6 @@ describe("visitsWithin", () => {
     ]);
   });
 
-  it("counts a page where the app's signed-in home is, on a domain the directory does not name", () => {
-    expect(
-      visitsWithin(
-        [
-          {
-            at: 1,
-            title: "Private Agent Docs",
-            url: "https://app.notion.com/p/3d48f368",
-          },
-        ],
-        [
-          {
-            home: "https://app.notion.com",
-            name: "Notion",
-            site: "https://www.notion.so",
-          },
-        ],
-      ).map(({ page }) => page.title),
-    ).toEqual(["Private Agent Docs"]);
-  });
-
   it("holds to one app's site when asked about that app alone", () => {
     expect(
       visitsWithin(visited, apps.slice(0, 1)).map(({ page }) => page.title),

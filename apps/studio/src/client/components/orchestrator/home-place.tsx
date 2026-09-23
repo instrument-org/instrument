@@ -178,11 +178,20 @@ function FileTile({
   from: string | undefined;
   onOpen: () => void;
 }) {
+  // A button in role only: the picture is a document's viewer, which can draw
+  // a button of its own, and a button cannot hold another.
   return (
-    <button
-      className="group/tile flex min-w-0 flex-col text-left"
+    <div
+      className="group/tile flex min-w-0 cursor-default flex-col text-left"
       onClick={onOpen}
-      type="button"
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       <div className="h-28 w-full overflow-hidden rounded-lg bg-card shadow-sm ring-1 ring-border group-hover/tile:ring-foreground/25">
         <FilePicture file={file} />
@@ -194,7 +203,7 @@ function FileTile({
       <p className="h-4 truncate text-[11px] leading-4 text-muted-foreground">
         {from}
       </p>
-    </button>
+    </div>
   );
 }
 

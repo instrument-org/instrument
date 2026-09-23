@@ -70,11 +70,14 @@ function DocumentThumbnail({ children }: { children: ReactNode }) {
     // `contain-inline-size`: the box's own width says nothing about the
     // document in it, so a wide line in the viewer cannot widen the column
     // the thumbnail sits in.
+    // Inert as well as untouchable: the viewer draws controls of its own,
+    // and a picture of a document has none a click or a tab can reach.
     <div
       className={cn(
         "pointer-events-none contain-inline-size",
         THUMBNAIL_BOX_CLASS,
       )}
+      inert
     >
       {/* The viewer is laid out at the box's width divided by the scale and
           drawn scaled back down, so it fills the box edge to edge; what it

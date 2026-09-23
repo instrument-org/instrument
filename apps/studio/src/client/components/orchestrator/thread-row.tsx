@@ -488,16 +488,7 @@ function Peek({
       )}
     >
       {isWorking ? (
-        // `brand-shiny-text` is an inline-block, which a parent's truncate
-        // cannot shrink, so the step carries its own clamp. With no step to
-        // name yet the line names the task at work, and with no task the
-        // thread's own agent, rather than repeating the last thing said as if
-        // it were happening now.
-        <span className={cn("brand-shiny-text min-w-0", clamp)}>
-          {thread.runningTasks.find((task) => task.step)?.step ??
-            thread.runningTasks.find((task) => !task.waiting)?.title ??
-            "Instrument is working"}
-        </span>
+        <WorkingPeek lines={lines} thread={thread} />
       ) : isWaiting ? (
         <>
           <QuestionIcon
@@ -512,6 +503,50 @@ function Peek({
         <span className={cn("min-w-0 text-muted-foreground", clamp)}>
           {thread.latest?.text}
         </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * What a working thread is doing. In two lines, the task at work by its title
+ * and under it the step it is on, each held to one line, so the row keeps its
+ * height as the step changes with every call; the step line is empty until
+ * the task's first call lands. In one line, the step, or the task's title
+ * before it has one. With no task at work, the thread's own agent is.
+ */
+function WorkingPeek({ lines, thread }: { lines: 1 | 2; thread: Thread }) {
+  const working = thread.runningTasks.filter((task) => !task.waiting);
+  const lead = working.find((task) => task.step) ?? working[0];
+  // `brand-shiny-text` is an inline-block, which a parent's truncate cannot
+  // shrink, so each line carries its own.
+  if (!lead) {
+    return (
+      <span className="brand-shiny-text min-w-0 truncate">
+        Instrument is working
+      </span>
+    );
+  }
+  if (lines === 1) {
+    return (
+      <span className="brand-shiny-text min-w-0 truncate">
+        {lead.step ?? lead.title}
+      </span>
+    );
+  }
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="min-w-0 truncate text-foreground/80">
+        {lead.title}
+        {working.length > 1 && (
+          <span className="text-muted-foreground">
+            {" "}
+            and {working.length - 1} more
+          </span>
+        )}
+      </span>
+      {lead.step && (
+        <span className="brand-shiny-text min-w-0 truncate">{lead.step}</span>
       )}
     </span>
   );

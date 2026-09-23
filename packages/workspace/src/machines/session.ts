@@ -36,6 +36,7 @@ import {
   type AgentParentEvent,
   type ToolCallUpdate,
 } from "./agent";
+import { type StopReason } from "./execute-tool-call";
 
 export type SessionMachineParentEvent =
   | {
@@ -71,7 +72,7 @@ type SessionMachineEvent =
   | { type: "done" }
   | { type: "error"; value: { message: string } }
   | { type: "runTurn" }
-  | { type: "stop" }
+  | { reason?: StopReason; type: "stop" }
   | {
       type: "updateInteractiveToolCall";
       value: ToolCallUpdate;
@@ -120,9 +121,12 @@ export const sessionMachine = setup({
         }),
     }),
 
-    stopAgent: ({ context }) => {
+    stopAgent: ({ context, event }) => {
       if (context.agentRef) {
-        context.agentRef.send({ type: "stop" });
+        context.agentRef.send({
+          reason: event.type === "stop" ? event.reason : undefined,
+          type: "stop",
+        });
       }
     },
   },
@@ -431,7 +435,7 @@ export const sessionMachine = setup({
             context.agent.name === "instrument" &&
             isTypedByUser(event.value)
           ) {
-            enqueue.raise({ type: "stop" });
+            enqueue.raise({ reason: "superseded", type: "stop" });
             return;
           }
           agentRef.send({

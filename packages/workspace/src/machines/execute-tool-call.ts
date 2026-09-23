@@ -12,7 +12,21 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { getToolByType } from "../tools/all";
 
-type CancellationReason = "manual" | "timeout" | "unknown";
+/**
+ * Why a run was stopped: the user stopped it, or the user wrote again while
+ * the conversation was still replying, which starts the reply over.
+ */
+export type StopReason = "manual" | "superseded";
+
+type CancellationReason = "timeout" | "unknown" | StopReason;
+
+const STOPPED_BECAUSE: Record<CancellationReason, string> = {
+  manual: "This action was stopped by you.",
+  superseded:
+    "This action was interrupted by a newer message from the user, and may not have finished.",
+  timeout: "This action was stopped because it took too long.",
+  unknown: "This action was stopped.",
+};
 
 /**
  * Writes the terminal record for a tool call that will never produce its own
@@ -52,7 +66,7 @@ export async function saveStoppedToolCallPart(
       // the fields written here are the ones an errored call carries.
       return {
         ...current,
-        errorText: `This action was stopped${input.reason === "timeout" ? " because it took too long" : input.reason === "manual" ? " by you" : ""}.`,
+        errorText: STOPPED_BECAUSE[input.reason],
         metadata: {
           ...current.metadata,
           endedAt: getCurrentDate(),
@@ -131,7 +145,7 @@ export const executeToolCallMachine = setup({
       spawnAgent: SpawnAgentFunction;
       taskId: TaskId;
     },
-    events: {} as { type: "stop" },
+    events: {} as { reason?: StopReason; type: "stop" },
     input: {} as {
       agentName: AgentName;
       model: AIGatewayModel.Type;
@@ -199,7 +213,9 @@ export const executeToolCallMachine = setup({
       },
       on: {
         stop: {
-          actions: assign({ cancellationReason: "manual" }),
+          actions: assign({
+            cancellationReason: ({ event }) => event.reason ?? "manual",
+          }),
           target: "Cancelling",
         },
       },

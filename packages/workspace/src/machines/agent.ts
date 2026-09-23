@@ -33,6 +33,7 @@ import { type AnyAgentTool } from "../tools/types";
 import {
   executeToolCallMachine,
   saveStoppedToolCallPart,
+  type StopReason,
 } from "./execute-tool-call";
 
 export type AgentParentEvent =
@@ -77,7 +78,7 @@ type AgentMachineEvent =
   | { type: "executeToolCalls" }
   | { type: "llmRequest.chunkReceived" }
   | { type: "retry" }
-  | { type: "stop" }
+  | { reason?: StopReason; type: "stop" }
   | {
       type: "updateInteractiveToolCall";
       value: ToolCallUpdate;
@@ -117,7 +118,7 @@ export const agentMachine = setup({
       {
         parentMessageId: StoreId.Message;
         sessionId: StoreId.Session;
-        stopRequested: boolean;
+        stopReason?: StopReason;
         taskId: TaskId;
       }
     >(async ({ input, signal }) => {
@@ -173,7 +174,7 @@ export const agentMachine = setup({
           saveStoppedToolCallPart(
             {
               part,
-              reason: input.stopRequested ? "manual" : "unknown",
+              reason: input.stopReason ?? "unknown",
               taskId: input.taskId,
             },
             { signal },
@@ -361,7 +362,8 @@ export const agentMachine = setup({
       /** Messages waiting for the next point between steps; see `steer`. */
       steeringMessages: SessionMessage.UserWithParts[];
       stepCount: number;
-      stopRequested: boolean;
+      /** Set when a stop, rather than an error or the end of the turn, ends the run. */
+      stopReason?: StopReason;
       taskId: TaskId;
       toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
       toolChoice?: "auto" | "none" | "required";
@@ -405,7 +407,6 @@ export const agentMachine = setup({
     spawnAgent: input.spawnAgent,
     steeringMessages: [],
     stepCount: 0,
-    stopRequested: false,
     taskId: input.taskId,
     toolCallQueue: [],
     toolChoice: input.toolChoice,
@@ -439,9 +440,12 @@ export const agentMachine = setup({
       }),
     },
     stop: {
-      // Recorded so the finalizing sweep can tell a user stop (parts get the
-      // "stopped by you" copy) from an error-driven finish.
-      actions: assign({ stopRequested: true }),
+      // Recorded so the finalizing sweep can say why each part it closes
+      // stopped: by the user, by a newer message superseding the reply, or,
+      // with no reason, by an error-driven finish.
+      actions: assign({
+        stopReason: ({ event }) => event.reason ?? "manual",
+      }),
       target: ".Finishing",
     },
     updateInteractiveToolCall: {
@@ -524,12 +528,17 @@ export const agentMachine = setup({
         // Handled here instead of falling through to the machine-level `stop`:
         // leaving this state hard-stops the invoked child, which skips its own
         // `stop` handler and leaves the tool part stuck in `input-available`.
-        // Staying put lets the child write its "stopped by you" part first, and
+        // Staying put lets the child write its own stopped part first, and
         // `MaybeExecutingToolCalls` routes to `Finishing` once it is done.
         stop: {
           actions: [
-            assign({ stopRequested: true }),
-            sendTo("toolCall", { type: "stop" }),
+            assign({
+              stopReason: ({ event }) => event.reason ?? "manual",
+            }),
+            sendTo("toolCall", ({ event }) => ({
+              reason: event.reason,
+              type: "stop" as const,
+            })),
           ],
         },
       },
@@ -543,7 +552,7 @@ export const agentMachine = setup({
             input: ({ context }) => ({
               parentMessageId: context.parentMessageId,
               sessionId: context.sessionId,
-              stopRequested: context.stopRequested,
+              stopReason: context.stopReason,
               taskId: context.taskId,
             }),
             onDone: "#agent.Done",
@@ -560,7 +569,7 @@ export const agentMachine = setup({
               // buy the turn nothing for the read it costs.
               guard: ({ context }) =>
                 context.unaccountedStreamCount === 0 &&
-                !context.stopRequested &&
+                context.stopReason === undefined &&
                 context.pendingToolCalls.length === 0 &&
                 context.toolCallQueue.length === 0,
               target: "#agent.Done",
@@ -744,7 +753,7 @@ export const agentMachine = setup({
     MaybeExecutingToolCalls: {
       always: [
         {
-          guard: ({ context }) => context.stopRequested,
+          guard: ({ context }) => context.stopReason !== undefined,
           target: "Finishing",
         },
         {

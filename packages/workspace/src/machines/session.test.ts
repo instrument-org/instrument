@@ -1586,6 +1586,36 @@ describe("sessionMachine", () => {
       `);
     });
 
+    // The user writing again while the conversation replies stops the reply,
+    // and the call it cut short says so rather than that the user stopped it.
+    it("says a call was interrupted by a newer message when that is why it stopped", async () => {
+      const result = await createActorAndTask({
+        chunkSets: [readFileChunks, writeFileChunks, finishChunks],
+      });
+      result.actor.start();
+
+      await waitFor(
+        result.actor,
+        (state) =>
+          state.matches({ Agent: "UsingReadOnlyTools" }) &&
+          state.context.agentRef?.getSnapshot().context.agent.name === "main",
+      ).then(async () => {
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          return;
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCall"));
+      });
+
+      result.actor.send({ reason: "superseded", type: "stop" });
+      await waitFor(result.actor, (state) => state.status === "done");
+
+      const session = await runTestMachine(result);
+      expect(sessionToShorthand(session)).toContain(
+        "<error>This action was interrupted by a newer message from the user, and may not have finished.</error>",
+      );
+    });
+
     // A message sent while the agent is inside a tool call is written into
     // the transcript at the next point between steps and seen by the request
     // that follows, and once heard it is not run again as a turn of its own.

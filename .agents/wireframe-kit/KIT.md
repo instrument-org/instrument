@@ -11,7 +11,7 @@ There are two kits here, one per window. **The 2.0 window** (app rail, inbox, th
 `window-2.js` is the window as built, measured off the running app and redrawn at 1280x800 in the light theme; `brands.js` holds the brand marks it draws, as data URIs. A page is a **part**: a script that defines `META` and `states`, and nothing else. `build.mjs` puts the part, the kit and the template's marks into a copy of the skill's starter and template, and evaluates every frame in Node first, so a frame that renders `undefined` or lacks a caption fails the build rather than the page:
 
 ```bash
-node .agents/wireframe-kit/build.mjs part.js ~/wireframes/YYYY-MM-DD-<topic>.html
+node .agents/wireframe-kit/build.mjs part.js ~/wireframes/YYYY-MM-DD-<surface>-<variant>.html
 RAW=3 node .agents/wireframe-kit/build.mjs part.js out.html   # also writes out.raw.html: frame 3 alone at true size
 ```
 
@@ -19,7 +19,7 @@ It reads the skill from `~/.claude/skills/create-page`, or from `CREATE_PAGE_DIR
 
 ```js
 const META = {
-  title: "The dock stands up", // the page's name
+  title: "Thread pages: live tile column", // surface, then what this take tries
   line: "What is proposed and what the frames settle, in one line.",
   source: "What the frames are drawn against, and what was invented.",
   slotH: 320, // optional: the tile height in the grid
@@ -175,6 +175,15 @@ Two that are wrong on sight if you guess:
 
 - **The user bubble is a white-to-near-white gradient with a shadow, not a grey fill.** The small top-right corner against three large ones is the most recognizable detail in the transcript.
 - **Action buttons are small and quiet.** 14px icons at 4px padding, muted until hover. Drawn at 24px with borders, the frame reads as a different product.
+
+## Naming a page
+
+`create-page`'s wireframe template sets the rule: the surface, a colon, then what this take tries, with the claim in the line under it. The surfaces, in the words to use:
+
+- **2.0 window:** Rail, Home, Inbox, Thread, Reply box, Thread tabs, Pane, Window tabs, Floating chat, Composer, Files, Apps, Settings
+- **Classic window:** Sidebar, Conversation, Composer, Artifact panel, Settings
+
+A page about how two surfaces share the screen names the pair (*Page and chat: chat as corner picture*). Takes on one question share the surface so they sort together: *Thread tabs: dock over reply box*, *Thread tabs: dock under reply box*.
 
 ## Where the files go
 

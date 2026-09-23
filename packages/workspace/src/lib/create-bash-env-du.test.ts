@@ -38,6 +38,8 @@ async function run(command: string, { orchestrator = false } = {}) {
   });
   const bash = await createBashEnv({
     attachedFolders: {
+      // Deleted on disk since it was attached, so the sandbox leaves it out.
+      Gone: attach("Gone", path.join(tmpDir, "Gone")),
       Home: attach("Home", homeDir),
       Wide: attach("Wide", wideDir),
     },
@@ -157,6 +159,7 @@ describe("du", () => {
     const result = await run("du -sb /mnt");
 
     expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
     expect(result.stdout).toMatch(/^\d+\t\/mnt\n$/);
   });
 

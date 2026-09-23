@@ -616,6 +616,7 @@ export async function createBashEnv({
         taskId,
       }),
       createDuCommand({
+        apps: orchestrator !== undefined,
         attachedFolders,
         extraMounts: orchestrator?.childMounts,
         projectFolderName,

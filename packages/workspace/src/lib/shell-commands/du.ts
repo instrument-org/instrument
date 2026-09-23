@@ -1,4 +1,5 @@
 import { defineCommand } from "just-bash";
+import fs from "node:fs/promises";
 import { Worker } from "node:worker_threads";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
@@ -73,11 +74,14 @@ interface DuRoot {
  * every mount -- goes to just-bash's `du` unchanged.
  */
 export function createDuCommand({
+  apps,
   attachedFolders,
   extraMounts,
   projectFolderName,
   taskId,
 }: {
+  /** Whether the shell mounts the apps directory at `/apps`, as the orchestrator's does. */
+  apps?: boolean;
   attachedFolders?: Record<string, FolderAttachment.Type>;
   extraMounts?: WorkspaceFsMount[];
   projectFolderName?: string;
@@ -101,6 +105,7 @@ export function createDuCommand({
     }
 
     const layout = buildWorkspaceFsLayout({
+      apps,
       attachedFolders,
       extraMounts,
       projectFolderName,
@@ -118,6 +123,21 @@ export function createDuCommand({
       );
       if (resolved === null) {
         return await fallback();
+      }
+      if (resolved.kind === "mounts") {
+        // The sandbox leaves out a mount whose folder is gone from disk, so
+        // it is not one of the directory's children here either.
+        const present = await Promise.all(
+          resolved.children.map((child) =>
+            fs.stat(child.hostPath).then(
+              () => true,
+              () => false,
+            ),
+          ),
+        );
+        resolved.children = resolved.children.filter(
+          (_child, index) => present[index],
+        );
       }
       operands.push(resolved);
     }

@@ -34,7 +34,9 @@ export function AppIcon({
   const box = {
     lg: "size-12 rounded-xl p-2 shadow-xs ring-1 ring-border",
     md: "size-9 rounded-lg p-1.5 shadow-xs ring-1 ring-border",
-    sm: "size-4 rounded-sm",
+    // A favicon's own corners at this size: a tighter radius than the plates,
+    // so a small initial reads as a site's mark and not a pill.
+    sm: "size-4 rounded-[3px]",
     xl: "size-16 rounded-2xl p-2.5 shadow-xs ring-1 ring-border",
   }[size];
   const label = name ?? hostOf(site);
@@ -50,6 +52,10 @@ export function AppIcon({
             : size === "sm"
               ? "text-[9px]"
               : "text-sm",
+        // Line height pinned to the letter, so its box is never taller than a
+        // small plate and the letter sits centered rather than low. After the
+        // size, since a font size given later would take the line height back.
+        "leading-none",
       )}
       role="img"
       style={{ backgroundColor: colorFor(label) }}

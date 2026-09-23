@@ -193,6 +193,21 @@ describe("PromptEditor app chips", () => {
     expect(chipIcon(container)).not.toBeNull();
   });
 
+  it("draws a local app's initial rather than the generic mark", () => {
+    const { container } = renderWithProviders(
+      <PromptEditor
+        apps={[{ name: "Drafts", slug: "drafts" }]}
+        {...editorProps}
+        autoFocus={false}
+        defaultValue="Ask [Drafts](instrument://app/drafts)"
+        onChange={noop}
+      />,
+    );
+    expect(
+      container.querySelector('[data-app="drafts"] [role="img"]'),
+    ).not.toBeNull();
+  });
+
   it("draws it once the apps arrive after the draft opened", () => {
     const { container, rerender } = renderWithProviders(
       <PromptEditor

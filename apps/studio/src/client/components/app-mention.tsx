@@ -34,7 +34,10 @@ export function AppMention({
       className={cn(INLINE_CHIP_CLASS_NAME, "hover:bg-muted/50")}
       data-app={app.slug}
     >
-      {known?.site ? (
+      {/* Any app the window knows gets its face, a site's icon or its own
+          initial, the way the transcript's chip draws it; only a name the
+          window has no app for gets the generic mark. */}
+      {known ? (
         <AppIcon
           className="size-3! rounded-xs"
           name={known.name}
@@ -64,7 +67,7 @@ export function AppMenuRow({
   return (
     <>
       <AppIcon
-        className="size-4! rounded-sm"
+        className="size-4! rounded-[3px]"
         name={app.name}
         site={app.site}
         size="sm"

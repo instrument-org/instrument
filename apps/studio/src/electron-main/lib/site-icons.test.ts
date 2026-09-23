@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { siteIconFor } from "./site-icons";
+import { rememberPageIcon, siteIconFor } from "./site-icons";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
@@ -107,6 +107,58 @@ describe("siteIconFor", () => {
     const fetch = proxyAnswering();
 
     expect(await siteIconFor(host, deps(fetch))).toBeUndefined();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("rememberPageIcon", () => {
+  const page = {
+    iconUrl: "https://example.com/static/icon.svg",
+    pageUrl: "https://example.com/wiki/Jar",
+  };
+  const svg = () =>
+    Promise.resolve(
+      new Response("<svg/>", { headers: { "content-type": "image/svg+xml" } }),
+    );
+
+  it("keeps a page's own icon for a site the proxy has none for", async () => {
+    const fetch = proxyAnswering(none, svg);
+
+    expect(await rememberPageIcon(page, deps(fetch))).toBe(true);
+    expect(fetch.mock.calls[1]?.[0]).toBe(page.iconUrl);
+    expect((await siteIconFor("example.com", deps(fetch)))?.type).toBe(
+      "image/svg+xml",
+    );
+  });
+
+  it("leaves the site alone when the proxy has its icon", async () => {
+    const fetch = proxyAnswering(found);
+
+    expect(await rememberPageIcon(page, deps(fetch))).toBe(false);
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the page's icon when the proxy still has none a month later", async () => {
+    const fetch = proxyAnswering(none, svg, none);
+    await rememberPageIcon(page, deps(fetch));
+
+    now += 31 * DAY_MS;
+    await siteIconFor("example.com", deps(fetch));
+    now += 1;
+    expect((await siteIconFor("example.com", deps(fetch)))?.type).toBe(
+      "image/svg+xml",
+    );
+  });
+
+  it("asks nothing for an icon that is not on the web", async () => {
+    const fetch = proxyAnswering();
+
+    expect(
+      await rememberPageIcon(
+        { ...page, iconUrl: "file:///etc/passwd" },
+        deps(fetch),
+      ),
+    ).toBe(false);
     expect(fetch).not.toHaveBeenCalled();
   });
 });

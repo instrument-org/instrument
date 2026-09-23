@@ -27,8 +27,9 @@ export function getFaviconUrl(url: string): string {
  */
 const iconlessThisSession = new Set<string>();
 
-function hostOf(url: string) {
-  return URL.canParse(url) ? new URL(url).hostname : url;
+/** A site just given an icon, so the next row that draws it asks again. */
+export function forgetIconlessThisSession(url: string) {
+  iconlessThisSession.delete(hostOf(url));
 }
 
 export function isIconlessThisSession(url: string): boolean {
@@ -37,4 +38,8 @@ export function isIconlessThisSession(url: string): boolean {
 
 export function markIconlessThisSession(url: string) {
   iconlessThisSession.add(hostOf(url));
+}
+
+function hostOf(url: string) {
+  return URL.canParse(url) ? new URL(url).hostname : url;
 }

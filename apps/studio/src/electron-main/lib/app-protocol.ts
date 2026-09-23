@@ -9,7 +9,7 @@ import {
   isComputerFileHost,
 } from "./computer-files";
 import { getResourcePath } from "./resource-path";
-import { siteIconFor } from "./site-icons";
+import { type Deps as SiteIconDeps, siteIconFor } from "./site-icons";
 
 const FILE_OPEN_ICON_HOST = "file-open-icon";
 const SITE_ICON_HOST = "site-icon";
@@ -54,6 +54,15 @@ export function registerAppProtocol() {
       }
     }
   });
+}
+
+/** Where site icons are kept, and the network they are fetched over. */
+export function siteIconDeps(): SiteIconDeps {
+  return {
+    dir: path.join(app.getPath("userData"), "site-icons"),
+    fetch: (target, init) => net.fetch(target, init),
+    now: Date.now,
+  };
 }
 
 export async function storeFileOpenIcon(base64: string) {
@@ -122,11 +131,7 @@ async function handleSiteIconRequest({
   }
   const host = decodeURIComponent(url.pathname.slice(1)).toLowerCase();
   try {
-    const icon = await siteIconFor(host, {
-      dir: path.join(app.getPath("userData"), "site-icons"),
-      fetch: (target, init) => net.fetch(target, init),
-      now: Date.now,
-    });
+    const icon = await siteIconFor(host, siteIconDeps());
     if (!icon) {
       return new Response(null, { status: 404 });
     }

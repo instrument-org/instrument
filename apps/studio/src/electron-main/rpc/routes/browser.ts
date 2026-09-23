@@ -4,6 +4,8 @@ import {
   setRasterBudget,
 } from "@/electron-main/browser-view/guest-surface";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
+import { siteIconDeps } from "@/electron-main/lib/app-protocol";
+import { rememberPageIcon as keepPageIcon } from "@/electron-main/lib/site-icons";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type BrowserGuestTarget } from "@/shared/browser";
@@ -134,9 +136,21 @@ const setEmulatedDevice = base
     getBrowserViewManager()?.setEmulatedDevice(input.targetId, input.device);
   });
 
+/**
+ * A browser tab's page named its own icon: kept for its site when the favicon
+ * proxy has none, so a site the person opened draws its real mark everywhere.
+ */
+const rememberPageIcon = base
+  .input(z.object({ iconUrl: z.string(), pageUrl: z.string() }))
+  .output(z.object({ stored: z.boolean() }))
+  .handler(async ({ input }) => ({
+    stored: await keepPageIcon(input, siteIconDeps()),
+  }));
+
 export const browser = {
   events,
   live,
+  rememberPageIcon,
   setEmulatedDevice,
   syncFocus,
   syncGuestSurface,

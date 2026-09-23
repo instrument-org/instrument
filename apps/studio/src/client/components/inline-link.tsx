@@ -304,6 +304,59 @@ function MailLink({
 }
 
 /**
+ * The site's own icon, and nothing at all when the site has none.
+ *
+ * A stand-in glyph was the other option and says less than the space it takes:
+ * a globe in front of a link is a picture of the word link. Where an icon
+ * cannot be had, the label and the origin beside it were already carrying the
+ * whole message.
+ *
+ * Read the way every favicon is, from the app's own store, and a site found
+ * this session to have none draws none at once: a transcript naming one host
+ * repeatedly is the ordinary case, and each render after the first would
+ * otherwise hold the width of an icon about to be taken away again.
+ */
+function SiteIcon({ className, href }: { className?: string; href: string }) {
+  const [isIconless, setIconless] = useState(() => isIconlessThisSession(href));
+  const src = getFaviconUrl(href);
+  const {
+    attach,
+    className: arrivalClassName,
+    onLoad: arrived,
+  } = useImageArrival(src, "icon");
+
+  if (isIconless) {
+    return null;
+  }
+
+  return (
+    <img
+      alt=""
+      // A reply is rendered as prose, and prose gives every image a margin of
+      // over an em on each side. On a picture between two paragraphs that is
+      // right; on an icon inside a sentence it is a line twice the height of
+      // the ones around it. Important because the typography styles and a
+      // utility class carry the same specificity, so the plain utility only
+      // wins where prose was not applied in the first place -- which is to say,
+      // everywhere the margin was already zero.
+      className={cn(
+        "my-0! size-3 shrink-0 rounded-xs align-middle",
+        FAVICON_SURFACE_CLASS_NAME,
+        arrivalClassName,
+        className,
+      )}
+      onError={() => {
+        markIconlessThisSession(href);
+        setIconless(true);
+      }}
+      onLoad={arrived}
+      ref={attach}
+      src={src}
+    />
+  );
+}
+
+/**
  * A link to a page: the site's icon, the label, and the origin it leads to when
  * the label does not already say.
  *
@@ -392,58 +445,5 @@ function WebLink({
         <LinkDestination url={url} />
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-/**
- * The site's own icon, and nothing at all when the site has none.
- *
- * A stand-in glyph was the other option and says less than the space it takes:
- * a globe in front of a link is a picture of the word link. Where an icon
- * cannot be had, the label and the origin beside it were already carrying the
- * whole message.
- *
- * Read the way every favicon is, from the app's own store, and a site found
- * this session to have none draws none at once: a transcript naming one host
- * repeatedly is the ordinary case, and each render after the first would
- * otherwise hold the width of an icon about to be taken away again.
- */
-function SiteIcon({ className, href }: { className?: string; href: string }) {
-  const [isIconless, setIconless] = useState(() => isIconlessThisSession(href));
-  const src = getFaviconUrl(href);
-  const {
-    attach,
-    className: arrivalClassName,
-    onLoad: arrived,
-  } = useImageArrival(src, "icon");
-
-  if (isIconless) {
-    return null;
-  }
-
-  return (
-    <img
-      alt=""
-      // A reply is rendered as prose, and prose gives every image a margin of
-      // over an em on each side. On a picture between two paragraphs that is
-      // right; on an icon inside a sentence it is a line twice the height of
-      // the ones around it. Important because the typography styles and a
-      // utility class carry the same specificity, so the plain utility only
-      // wins where prose was not applied in the first place -- which is to say,
-      // everywhere the margin was already zero.
-      className={cn(
-        "my-0! size-3 shrink-0 rounded-xs align-middle",
-        FAVICON_SURFACE_CLASS_NAME,
-        arrivalClassName,
-        className,
-      )}
-      onError={() => {
-        markIconlessThisSession(href);
-        setIconless(true);
-      }}
-      onLoad={arrived}
-      ref={attach}
-      src={src}
-    />
   );
 }

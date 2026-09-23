@@ -17,8 +17,14 @@ import { z } from "zod";
  * nothing about the site, so it is never kept: the copy on disk is served if
  * there is one, and otherwise the renderer is told to try again later.
  *
- * Only the host is ever sent anywhere, and only to the proxy. A page's path and
- * query are the half worth keeping private, and an icon belongs to the site.
+ * Only the host is ever sent to the proxy. A page's path and query are the half
+ * worth keeping private, and an icon belongs to the site.
+ *
+ * A site the proxy has nothing for can still have an icon of its own, and a
+ * page opened in one of the app's browser tabs says where it is. That icon is
+ * fetched and kept in the proxy's place (`rememberPageIcon`), so the app only
+ * ever asks a site itself about a page the person actually opened, never about
+ * one a model merely named.
  */
 
 const FOUND_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -33,23 +39,64 @@ const StoredSchema = z.discriminatedUnion("found", [
   z.object({ at: z.number(), found: z.literal(false) }),
   z.object({ at: z.number(), found: z.literal(true), type: z.string() }),
 ]);
-type Stored = z.output<typeof StoredSchema>;
+export interface Deps {
+  dir: string;
+  fetch: (url: string, init: RequestInit) => Promise<Response>;
+  now: () => number;
+}
 
 interface SiteIcon {
   bytes: Buffer;
   type: string;
 }
 
-interface Deps {
-  dir: string;
-  fetch: (url: string, init: RequestInit) => Promise<Response>;
-  now: () => number;
-}
+type Stored = z.output<typeof StoredSchema>;
 
 const inFlight = new Map<string, Promise<"failed" | "none" | SiteIcon>>();
 
-function isSiteIconHost(host: string): boolean {
-  return HOST_PATTERN.test(host);
+/**
+ * Keeps the icon a page reported for itself, when the proxy has none for its
+ * site. Told by a browser tab whenever its page names an icon; says whether
+ * the site now has one it did not have before, so the caller can draw it.
+ */
+export async function rememberPageIcon(
+  { iconUrl, pageUrl }: { iconUrl: string; pageUrl: string },
+  deps: Deps,
+): Promise<boolean> {
+  if (!URL.canParse(pageUrl) || !URL.canParse(iconUrl)) {
+    return false;
+  }
+  const host = new URL(pageUrl).hostname;
+  if (!/^https?:$/.test(new URL(iconUrl).protocol)) {
+    return false;
+  }
+  try {
+    if (await siteIconFor(host, deps)) {
+      return false;
+    }
+  } catch {
+    // The proxy could not be asked; the page's own icon is no worse a guess.
+  }
+  if (!isSiteIconHost(host) || isLocalHost(host)) {
+    return false;
+  }
+  try {
+    const response = await deps.fetch(iconUrl, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    const type = response.headers.get("content-type")?.split(";")[0]?.trim();
+    if (!response.ok || !type?.startsWith("image/")) {
+      return false;
+    }
+    await keep(
+      host,
+      { bytes: Buffer.from(await response.arrayBuffer()), type },
+      deps,
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -78,7 +125,9 @@ export async function siteIconFor(
   }
   if (kept) {
     // Stale: served as it is, and fetched again behind it.
-    void refresh(host, deps).catch(() => undefined);
+    void refresh(host, deps).catch(() => {
+      // A refresh that fails leaves the stale copy standing.
+    });
     return kept;
   }
 
@@ -89,17 +138,8 @@ export async function siteIconFor(
   return fetched === "none" ? undefined : fetched;
 }
 
-/** One fetch per host at a time, however many rows ask at once. */
-function refresh(host: string, deps: Deps) {
-  const pending = inFlight.get(host);
-  if (pending) {
-    return pending;
-  }
-  const run = fetchAndKeep(host, deps).finally(() => {
-    inFlight.delete(host);
-  });
-  inFlight.set(host, run);
-  return run;
+function bytesPath(host: string, dir: string) {
+  return path.join(dir, `${host}.icon`);
 }
 
 async function fetchAndKeep(
@@ -115,6 +155,15 @@ async function fetchAndKeep(
     return "failed";
   }
   if (response.status === 404) {
+    // An icon a page gave for itself stands until the proxy has one.
+    const stored = await readStored(host, deps.dir);
+    const kept = stored?.found
+      ? await readBytes(host, stored.type, deps.dir)
+      : undefined;
+    if (stored?.found && kept) {
+      await writeStored(host, { ...stored, at: deps.now() }, deps.dir);
+      return kept;
+    }
     await writeStored(host, { at: deps.now(), found: false }, deps.dir);
     return "none";
   }
@@ -126,20 +175,11 @@ async function fetchAndKeep(
   if (!type.startsWith("image/")) {
     return "failed";
   }
-  const bytes = Buffer.from(await response.arrayBuffer());
-  await fs.mkdir(deps.dir, { recursive: true });
-  // Written to a temp name and moved into place, so a reader never sees half.
-  const target = bytesPath(host, deps.dir);
-  const temporary = `${target}.${process.pid}.${deps.now()}.tmp`;
-  await fs.writeFile(temporary, bytes);
-  await fs.rename(temporary, target);
-  await writeStored(host, { at: deps.now(), found: true, type }, deps.dir);
-  return { bytes, type };
-}
-
-function proxyUrl(host: string) {
-  const origin = encodeURIComponent(`https://${host}`);
-  return `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${origin}&size=64`;
+  return keep(
+    host,
+    { bytes: Buffer.from(await response.arrayBuffer()), type },
+    deps,
+  );
 }
 
 /** A host the proxy cannot see: this machine, or an address rather than a name. */
@@ -149,12 +189,44 @@ function isLocalHost(host: string) {
   );
 }
 
+function isSiteIconHost(host: string): boolean {
+  return HOST_PATTERN.test(host);
+}
+
+async function keep(host: string, icon: SiteIcon, deps: Deps) {
+  await fs.mkdir(deps.dir, { recursive: true });
+  // Written to a temp name and moved into place, so a reader never sees half.
+  const target = bytesPath(host, deps.dir);
+  const temporary = `${target}.${process.pid}.${deps.now()}.tmp`;
+  await fs.writeFile(temporary, icon.bytes);
+  await fs.rename(temporary, target);
+  await writeStored(
+    host,
+    { at: deps.now(), found: true, type: icon.type },
+    deps.dir,
+  );
+  return icon;
+}
+
 function metaPath(host: string, dir: string) {
   return path.join(dir, `${host}.json`);
 }
 
-function bytesPath(host: string, dir: string) {
-  return path.join(dir, `${host}.icon`);
+function proxyUrl(host: string) {
+  const origin = encodeURIComponent(`https://${host}`);
+  return `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${origin}&size=64`;
+}
+
+async function readBytes(
+  host: string,
+  type: string,
+  dir: string,
+): Promise<SiteIcon | undefined> {
+  try {
+    return { bytes: await fs.readFile(bytesPath(host, dir)), type };
+  } catch {
+    return undefined;
+  }
 }
 
 async function readStored(
@@ -171,16 +243,17 @@ async function readStored(
   }
 }
 
-async function readBytes(
-  host: string,
-  type: string,
-  dir: string,
-): Promise<SiteIcon | undefined> {
-  try {
-    return { bytes: await fs.readFile(bytesPath(host, dir)), type };
-  } catch {
-    return undefined;
+/** One fetch per host at a time, however many rows ask at once. */
+function refresh(host: string, deps: Deps) {
+  const pending = inFlight.get(host);
+  if (pending) {
+    return pending;
   }
+  const run = fetchAndKeep(host, deps).finally(() => {
+    inFlight.delete(host);
+  });
+  inFlight.set(host, run);
+  return run;
 }
 
 async function writeStored(host: string, stored: Stored, dir: string) {

@@ -19,6 +19,7 @@ import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
+import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
@@ -616,6 +617,19 @@ export function BrowserTabs({
               page.url === url ? { ...page, favicon } : page,
             ),
           );
+          // The site's own icon, kept for it where the favicon proxy has
+          // none; only for a page opened here, never one merely named.
+          const pageUrl = url;
+          if (pageUrl !== undefined) {
+            void rpcClient.browser.rememberPageIcon
+              .call({ iconUrl: favicon, pageUrl })
+              .then(({ stored }) => {
+                if (stored) {
+                  forgetIconlessThisSession(pageUrl);
+                }
+              })
+              .catch(() => {});
+          }
         }
       };
       onNavigate();
@@ -949,28 +963,6 @@ export function BrowserTabs({
   );
 }
 
-/**
- * The page's own icon when it has announced one and it loads; else the site's,
- * looked up by address, since a page that announced none or a stale one is
- * still on a site with one; else the globe.
- */
-/**
- * Whether the renderer's `img-src` lets it load an icon a page reported for
- * itself: embedded bytes, or a page served on this machine. A site's own icon
- * elsewhere on the web is refused there, so its tab is drawn from the proxy
- * rather than from a request that can only fail.
- */
-function isDrawableHere(src: string): boolean {
-  if (/^(?:data|blob):/i.test(src)) {
-    return true;
-  }
-  if (!URL.canParse(src)) {
-    return false;
-  }
-  const { hostname, protocol } = new URL(src);
-  return /^https?:$/.test(protocol) && hostname.endsWith(".localhost");
-}
-
 export function TabIcon({
   favicon,
   url,
@@ -1116,6 +1108,28 @@ function FilePageReload({
     shown.current = modifiedAt;
   }, [modifiedAt, target]);
   return null;
+}
+
+/**
+ * The page's own icon when it has announced one and it loads; else the site's,
+ * looked up by address, since a page that announced none or a stale one is
+ * still on a site with one; else the globe.
+ */
+/**
+ * Whether the renderer's `img-src` lets it load an icon a page reported for
+ * itself: embedded bytes, or a page served on this machine. A site's own icon
+ * elsewhere on the web is refused there, so its tab is drawn from the proxy
+ * rather than from a request that can only fail.
+ */
+function isDrawableHere(src: string): boolean {
+  if (/^(?:data|blob):/i.test(src)) {
+    return true;
+  }
+  if (!URL.canParse(src)) {
+    return false;
+  }
+  const { hostname, protocol } = new URL(src);
+  return /^https?:$/.test(protocol) && hostname.endsWith(".localhost");
 }
 
 /** Two addresses are the same tab when they differ only by a trailing slash or a fragment. */

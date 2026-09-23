@@ -200,6 +200,21 @@ describe("ComposerFrame as a pill", () => {
     expect(frame.getBoundingClientRect().height).toBe(40);
   });
 
+  // A chip's remove button hangs 8px off its corner, and the row scrolls, so
+  // anything nearer the row's edge than that is cut by the row's own clip.
+  it("leaves room inside the attachments row for a chip's remove button", async () => {
+    const { attachments } = await renderFrame({
+      attachmentCount: 1,
+      layout: "pill",
+    });
+
+    const row = attachments().getBoundingClientRect();
+    const chip = attachments().firstElementChild?.getBoundingClientRect();
+    expect(chip).toBeDefined();
+    expect((chip?.top ?? 0) - row.top).toBeGreaterThanOrEqual(8);
+    expect((chip?.left ?? 0) - row.left).toBeGreaterThanOrEqual(8);
+  });
+
   // The regression: the editor took the height of the draft rather than the
   // height the box had for it, so a long one grew past the cap and, being
   // centered in its row, painted out of both ends of the pill. Both with and

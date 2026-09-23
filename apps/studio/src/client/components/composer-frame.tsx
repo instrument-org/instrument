@@ -69,7 +69,7 @@ export function ComposerFrame({
   overlay?: React.ReactNode;
   /** The box itself, for anything that has to be sized or placed against it. */
   ref?: React.Ref<HTMLDivElement>;
-  /** The pill's right end: the send button. */
+  /** The pill's right end: the send button, and anything that reads beside it. */
   trailing?: React.ReactNode;
 }) {
   if (layout === "pill") {
@@ -108,9 +108,11 @@ export function ComposerFrame({
             </motion.div>
           ) : null}
         </AnimatePresence>
+        {/* The negative margin makes room inside the scroller for the remove
+            buttons that sit outside the chips, which its clip would cut. */}
         {attachments ? (
           <div
-            className="flex max-h-24 min-h-0 flex-wrap items-start gap-1.5 overflow-y-auto px-1 pt-1 pb-1.5"
+            className="-mx-1 -mt-1 flex max-h-24 min-h-0 flex-wrap items-start gap-1.5 overflow-y-auto px-2 pt-2 pb-1.5"
             data-slot="composer-attachments"
           >
             {attachments}

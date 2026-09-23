@@ -1127,13 +1127,6 @@ export const PromptInput = ({
                 />
               )}
               {lead}
-              {features.context_ring && id && selectedSessionId && (
-                <SessionContextRing
-                  id={id}
-                  model={selectedModel}
-                  selectedSessionId={selectedSessionId}
-                />
-              )}
             </>
           ) : undefined
         }
@@ -1237,7 +1230,15 @@ export const PromptInput = ({
         ref={setComposerBounds}
         trailing={
           variant === "pill" ? (
-            <Button
+            <>
+              {features.context_ring && id && selectedSessionId && (
+                <SessionContextRing
+                  id={id}
+                  model={selectedModel}
+                  selectedSessionId={selectedSessionId}
+                />
+              )}
+              <Button
               aria-label={isStoppable ? "Stop" : "Send"}
               className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
               disabled={isStoppable ? false : !canSubmit}
@@ -1260,6 +1261,7 @@ export const PromptInput = ({
                 <ArrowUpIcon className="size-4" />
               )}
             </Button>
+            </>
           ) : undefined
         }
       >

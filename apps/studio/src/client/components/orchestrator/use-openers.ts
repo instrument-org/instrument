@@ -91,8 +91,8 @@ export function useOpeners({
       browser?.navigate(url);
       return active.id;
     }
-    // A tab of its own is asked for once per place: a page already open in
-    // this group at that address comes forward rather than opening again.
+    // A tab of its own: a website opens again however many tabs are on it,
+    // and a file already open in this group comes forward.
     if (newTab && !isFreshNewTab) {
       return browser?.openOrFocus(url);
     }

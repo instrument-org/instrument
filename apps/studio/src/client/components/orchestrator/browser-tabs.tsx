@@ -71,12 +71,11 @@ export interface BrowserTabsHandle {
    */
   open: (url?: string, options?: OpenOptions) => StoreId.Session;
   /**
-   * Shows the page tab already at that address in the group on screen or the
-   * group given, or opens one there. Given a tab to replace, a page opened
-   * takes that tab's place in the strip rather than arriving beside it, and
-   * says which of the two it did.
+   * Opens a page in the group on screen or the group given, or shows the tab
+   * already on it when the address is a file's. Given a tab to replace, a
+   * page opened takes that tab's place in the strip rather than arriving
+   * beside it. Returns the tab the page is in.
    */
-  /** Returns the tab the page is in: the site's tab it went to, or the one opened for it. */
   openOrFocus: (url: string, options?: OpenOptions) => string;
   /**
    * Reads the page on screen as it is at that moment, or the page in the tab
@@ -763,44 +762,24 @@ export function BrowserTabs({
       },
       open: (url, options) => openTab(url, options),
       openOrFocus: (url, options) => {
-        // A tab still on that site, by where it is now: a tab that was opened
-        // there and has since wandered off is not the site.
-        const origin = originOf(url);
-        // Among the group's own: a thread's page is the thread's, and
-        // another thread's tab at the same site is not this one's. A task's
-        // tab is the task's, driving where the task drives it.
         const key = options?.group ?? latest.current.group;
-        const own = latest.current.tabs.filter(
-          (tab) => tab.group === key && !tab.taskId,
-        );
-        const atAddress = own.find((tab) => sameAddress(tab.url, url));
-        const onSite =
-          atAddress ??
-          own.find(
-            (tab) => origin !== undefined && originOf(tab.url) === origin,
-          );
-        if (onSite) {
+        // A file has one tab per place, the way it has one tab in Files; a
+        // website gets a tab every time it is asked for, however many are
+        // already open at that address. Among the group's own: another
+        // thread's tab on the file is that thread's, and a task's tab is the
+        // task's, driving where the task drives it.
+        const atFile =
+          hostPathOfFileUrl(url) === undefined
+            ? undefined
+            : latest.current.tabs.find(
+                (tab) =>
+                  tab.group === key && !tab.taskId && sameAddress(tab.url, url),
+              );
+        if (atFile) {
           if (options?.show || key === latest.current.group) {
-            setAllTabs((current) => selectTab(current, onSite.id));
+            setAllTabs((current) => selectTab(current, atFile.id));
           }
-          // The site's tab is the place, and the page asked for is where it
-          // goes: a second page on a site the window already has a tab for
-          // lands in that tab rather than in a second tab or, worse, nowhere.
-          if (!atAddress) {
-            setAllTabs((current) => ({
-              ...current,
-              tabs: current.tabs.map((tab) =>
-                tab.id === onSite.id
-                  ? { ...tab, future: [], pageBackSteps: 0, url }
-                  : tab,
-              ),
-            }));
-            const webview = getWebviewElement(targetOf(onSite));
-            if (webview) {
-              void webview.loadURL(url);
-            }
-          }
-          return onSite.id;
+          return atFile.id;
         }
         // A group waiting behind with its new tab up gets the page in that
         // tab, the way the group on screen does: the tab that was there to

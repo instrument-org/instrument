@@ -82,9 +82,13 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, null | ShortcutAction> = {
   newTask: () => {
     sendAppCommand({ to: "/new-tab", type: "navigate" });
   },
-  reloadApp: () => {
-    // The whole tabbed app is one web contents, so this reloads it.
-    getMainWindow()?.webContents.reload();
+  reloadApp: ({ focusedWindow }) => {
+    // The window the chord fired in, which under Instrument 2.0 is the 2.0
+    // window while the classic one sits hidden behind it. The classic window's
+    // whole tabbed app is one web contents, so there this reloads all of it.
+    const target =
+      focusedWindow instanceof BrowserWindow ? focusedWindow : getMainWindow();
+    target?.webContents.reload();
   },
   reloadPage: () => {
     reload();
@@ -162,13 +166,23 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, null | ShortcutAction> = {
  * The menu keeps its accelerators for display, and for the one case this can't
  * see: a focused browser guest is its own webContents, whose unhandled keys
  * reach the native menu without passing through here.
+ *
+ * `group` binds one group of the table alone, for a window whose other chords
+ * are its own.
  */
-export function bindShortcutAccelerators(webContents: WebContents) {
+export function bindShortcutAccelerators(
+  webContents: WebContents,
+  { group }: { group?: ShortcutDescriptor["group"] } = {},
+) {
   const bound = SHORTCUT_ENTRIES.flatMap(({ descriptor, id }) => {
     const run = SHORTCUT_ACTIONS[id];
     // A `renderer` chord belongs to the page (see `owner`), so it is never
     // taken here.
-    if (!run || descriptor.owner === "renderer") {
+    if (
+      !run ||
+      descriptor.owner === "renderer" ||
+      (group && descriptor.group !== group)
+    ) {
       return [];
     }
     return shortcutChords(descriptor).map((chord) => ({

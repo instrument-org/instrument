@@ -209,10 +209,10 @@ index 00044d8b..e5933efc 100644
      // It's a directory
      let entries = await ctx.fs.readdir(fullPath);
      traversalBudget.checkpoint();
-+    // Every name read is charged against the entry limit, as find charges
-+    // them, so a recursive listing is bounded by how much of the tree it has
-+    // read rather than by how many directories it has entered.
-+    traversalBudget.discover(entries.length);
++    // A recursive listing charges every name read against the entry limit,
++    // as find does; one directory listed on its own is not a walk, so a
++    // folder of any size lists.
++    if (recursive) traversalBudget.discover(entries.length);
  
      // Filter hidden files unless -a or -A
      if (!showHidden) {

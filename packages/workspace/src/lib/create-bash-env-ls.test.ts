@@ -91,6 +91,17 @@ describe("ls over a large attached folder", () => {
     expect(result.stderr).toMatch(/ls: filesystem traversal .*limit exceeded/);
   });
 
+  it("lists directories past the orchestrator's entry budget when not recursing", async () => {
+    const result = await run("ls /mnt/Home/d00 /mnt/Home/d01 /mnt/Home/d02", {
+      orchestrator: true,
+    });
+
+    expect(result.stderr).toBe("");
+    expect(
+      result.stdout.split("\n").filter((line) => line.startsWith("f")),
+    ).toHaveLength(DIRECTORIES * FILES_PER_DIRECTORY);
+  });
+
   it("stops find at the same budget without leaving reads running", async () => {
     // A directory read still in flight when find fails used to settle after
     // the command returned and surface as an unhandled rejection, which

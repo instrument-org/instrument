@@ -9,7 +9,6 @@ import {
 } from "../constants";
 import { buildAppsContextText } from "../lib/apps/context";
 import { assignAttachedMounts } from "../lib/attached-folder-mounts";
-import { buildAvailableSkillsContext } from "../lib/available-skills-context";
 import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
@@ -17,7 +16,6 @@ import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { CHAT_COMMAND } from "../lib/shell-commands/chat-command";
 import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
-import { SKILL_NAMES } from "../lib/skill-names";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskState } from "../lib/task-record";
 import {
@@ -130,7 +128,7 @@ ${
       - Brief a task the way you would brief a capable colleague who knows nothing about this conversation: the goal, what done looks like, which folders it has and what each holds, where a deliverable goes, and how big the job is ("a quick look is enough", "take the time to get this right"). Carry over what the user said that matters, in their words. Give it a short title with --name.
       - Say what, not how. The task has its own search, browser, file tools, and skills, and chooses among them better from inside the work than a brief can from here. A brief that names the tool to use, lists the sites or sources to check, or lays out the steps gets every one of them followed, the wrong ones included, and a question that was one search becomes ten minutes of survey. A brief the size of the ask keeps the task the size of the ask: a question is the question and the shape of its answer, and nothing else. "Are players being disconnected from WoW Forever today? A sentence or two on what you find and where you saw it." is that whole brief; a list of places to look, things to establish along the way, or details to cover is a project, and the task delivers one.
       - A finished task hands you its last message whole, and it knows its reader is you. Ask for what the user asked for. A question wants its answer in that message: the fact, the number, the yes or no with the why in a sentence, and no file. Something made (a document, a page, a spreadsheet, a set of files) wants the file, so the brief names it and the folder it goes in, and the message is a receipt naming it. Findings that will not fit a paragraph are a file too, with the verdict in the message. Never findings restated or a file summarized in the message, which you read from the file, and never a brief that promises to place the file afterward ("write it to your folder, I will move it"): name the folder it belongs in, and the task writes there.
-      - Skills: a task has skills, recipes it loads by name with its \`${TOOL_NAMES.loadSkill}\` tool, and it picks the ones its work calls for by itself. Your context names the few that make a thing a user asks for by kind (a page, a PDF, a Word document, a slide deck, a spreadsheet), plus any the user wrote here. When the user names one of those or asks for the thing it makes, the brief says to load that skill by its exact name and leaves the how to it: a brief that spells out how to build the thing gets the prose followed and the skill never opened. A page the user asks for is the \`${SKILL_NAMES.createPage}\` skill, named in the brief, never a description of an HTML file. That is the whole of it: a skill is never the way to do something else, and "use the browser skill to find X" has the task browsing where a search would do.
+      - Skills: a task has its own, loads them with its \`${TOOL_NAMES.loadSkill}\` tool, and picks the ones its work calls for. You are not told which exist, and a brief never names one on your say-so. The one exception is a skill the user pointed at: a note on their message names it, because they mentioned it, picked a kind of page on the draft, or had it open, and the brief passes it on by that exact name. Otherwise ask for the thing by kind (a page, a PDF, a slide deck, a spreadsheet) and leave the how to the task: a brief that spells out how to build it, an HTML file described instead of a page asked for, gets the prose followed and the skill never opened.
       - A link the user gave you goes into the brief as they wrote it, told to the task as something to read and follow, and nothing you write stands in for what is behind it. You cannot open a link, so what you think it says is a guess, and a brief carrying both the link and the guess gets the guess followed and the link never opened: the task has enough to look finished, and neither of you finds out. Say in the brief that a link it could not read is to be reported back, not worked around.
       ${TASK_TOOL_ENABLED ? "" : `- Always pass the brief and any message through the quoted heredoc, never as a double-quoted argument: the shell expands \`$\` inside double quotes, so "under $800" reaches the task as "under 00". Single-quote the title.`}
       - Folders: the user's home folder is mounted for you under \`${MOUNT.attachedFolders}/<name>\` (your context lists the mounts), and so is everything inside it: Desktop, Documents, Downloads, all of it. Whole, it is read-only, for you and for a task, since ${APP_NAME} keeps its own data inside it; a folder inside it goes to a task read and write. A task sees none of it unless you pass \`--folder\`: hand it the one folder the work needs (\`--folder ${MOUNT.attachedFolders}/<home>/Downloads\`), which is read and write for it unless you add \`:ro\`; never the whole home. ${process.platform === "darwin" ? `macOS may ask the user itself when a task is handed Desktop, Documents, Downloads or a removable volume for the first time; the task starts and waits on their answer. A folder they declined before makes \`${TASK_COMMAND.name} new\` refuse, saying so, and the fix is theirs: allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.` : `\`${TASK_COMMAND.name} new\` refuses a folder the user's account cannot read, saying so; tell them rather than trying again.`} \`${agentTools.RequestFolder.name}\` is for a folder outside your mounts, on another volume; never for one you can already reach, and never for write access to a folder inside your mounts, which \`--folder\` already gives.
@@ -224,10 +222,6 @@ ${
         : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;
 
     const appsText = await buildAppsContextText();
-    const skillsText = await buildAvailableSkillsContext({
-      described: "deliverables",
-      intro: `The skills a brief may name, of those installed on this machine when this session started. A task loads one with \`${TOOL_NAMES.loadSkill}\` by the exact name shown here; you cannot, so a brief names it, and only when the user named it or asked for the thing it makes.`,
-    });
     const userMessage = createContextMessage({
       agentName: name,
       now,
@@ -237,7 +231,6 @@ ${
         await getUserText(),
         foldersText,
         appsText,
-        skillsText,
       ],
     });
 

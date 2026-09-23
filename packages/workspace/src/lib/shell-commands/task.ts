@@ -908,16 +908,19 @@ function requireFoldersNamedInBriefHanded(
   command: "new" | "send",
   prompt: string,
   orchestratorFolders: FolderMounts,
-  handed: { path: string }[],
+  handed: ({ path: string } | { content: string })[],
   taskId?: string,
 ) {
+  // A file written out on the command has no path, so there is nothing of it
+  // a path in the brief could name.
+  const paths = handed.flatMap((item) => ("path" in item ? [item.path] : []));
   const unreachable = unreachableMountPaths(
     prompt,
     orchestratorFolders,
     Object.fromEntries(
-      handed.map((item) => [
-        item.path,
-        { mountName: item.path, path: item.path },
+      paths.map((itemPath) => [
+        itemPath,
+        { mountName: itemPath, path: itemPath },
       ]),
     ),
   );

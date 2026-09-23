@@ -50,6 +50,12 @@ const FOCUS_PROBE_TIMEOUT_MS = 1000;
 const FOCUS_REPAIR_TIMEOUT_MS = 1000;
 const FOCUS_REPAIR_POLL_MS = 50;
 
+// How long the host waits on any one question it asks the guest around a
+// command (is it rendering, what is under the press, where is the element
+// now). A timer inside the guest cannot bound these: a page whose main thread
+// is blocked never runs it, so the wait is bounded here.
+const GUEST_PROBE_TIMEOUT_MS = 1000;
+
 // The measurement agent-browser took of the element it is about to click,
 // kept briefly so the press that follows can be checked against it.
 const lastMeasurement = new WeakMap<
@@ -198,7 +204,7 @@ export async function sendCommand({
   // A guest that is not rendering (Studio hidden, minimized, or covered by
   // other windows) never acknowledges a press, so the command would hang until
   // the timeout below and read as a slow page. Refuse up front and say why.
-  if (method.startsWith("Input.") && !(await guestIsRendering(entry))) {
+  if (method.startsWith("Input.") && !(await guestIsRendering(entry, method))) {
     log.warn(
       `refused ${method} targetId=${targetId}: page is not rendering ${(await describeHost?.(targetId)) ?? ""}`,
     );
@@ -489,7 +495,10 @@ async function refusePressThatWouldMiss(entry: BrowserEntry, params: unknown) {
     return;
   }
   const now = pointOf(
-    await wc.debugger.sendCommand(measured.method, measured.params).catch(noop),
+    await withinGuestProbeTimeout(
+      wc.debugger.sendCommand(measured.method, measured.params).catch(noop),
+      noop,
+    ),
   );
   if (
     now &&
@@ -525,7 +534,10 @@ async function describePress(
   }
   const wc = entry.webContents;
   const hit: Promise<unknown> = wc
-    ? wc.executeJavaScript(describeHitScript(x, y))
+    ? withinGuestProbeTimeout(
+        wc.executeJavaScript(describeHitScript(x, y)),
+        () => "hit=unknown",
+      )
     : Promise.resolve(undefined);
   const [what, host] = await Promise.all([
     hit.then(String, () => "hit=unknown"),
@@ -547,9 +559,10 @@ async function remeasureUntilStable(
   let previous = first;
   for (let round = 0; round < MAX_REMEASURES; round++) {
     await waitForTwoFrames(wc);
-    const current: unknown = await wc.debugger
-      .sendCommand(method, params)
-      .catch(noop);
+    const current: unknown = await withinGuestProbeTimeout(
+      wc.debugger.sendCommand(method, params).catch(noop),
+      noop,
+    );
     if (
       current === undefined ||
       JSON.stringify(current) === JSON.stringify(previous)
@@ -569,7 +582,10 @@ const SETTLE_FRAMES_SCRIPT =
   "new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); setTimeout(resolve, 100); })";
 
 async function waitForTwoFrames(wc: WebContents): Promise<void> {
-  await wc.executeJavaScript(SETTLE_FRAMES_SCRIPT).catch(noop);
+  await withinGuestProbeTimeout(
+    wc.executeJavaScript(SETTLE_FRAMES_SCRIPT).catch(noop),
+    noop,
+  );
 }
 
 // Whether the guest is producing frames, which is what input acknowledgement
@@ -615,7 +631,12 @@ async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
   }
 }
 
-async function guestIsRendering(entry: BrowserEntry): Promise<boolean> {
+// A guest that does not answer the probe at all has a blocked main thread
+// rather than a hidden window, and fails the command as unresponsive.
+async function guestIsRendering(
+  entry: BrowserEntry,
+  method: string,
+): Promise<boolean> {
   const wc = entry.webContents;
   if (!wc || wc.isDestroyed()) {
     return true;
@@ -626,8 +647,19 @@ async function guestIsRendering(entry: BrowserEntry): Promise<boolean> {
   }
   let rendering: unknown;
   try {
-    rendering = await wc.executeJavaScript(RENDERING_PROBE_SCRIPT);
-  } catch {
+    rendering = await withinGuestProbeTimeout(
+      wc.executeJavaScript(RENDERING_PROBE_SCRIPT),
+      () => {
+        throw new CdpCommandTimeoutError(
+          method,
+          `CDP command timed out: ${method}. The page did not answer within ${GUEST_PROBE_TIMEOUT_MS / 1000}s, so the input was not sent; it may be unresponsive or still loading. Take a snapshot to see its current state before retrying.`,
+        );
+      },
+    );
+  } catch (error) {
+    if (error instanceof CdpCommandTimeoutError) {
+      throw error;
+    }
     return true;
   }
   if (rendering === false) {
@@ -657,4 +689,30 @@ async function repairGuestKeyboardFocus(
     }
   } while (Date.now() < deadline);
   return false;
+}
+
+// Settles with the guest's answer, or with what `onTimeout` gives once the
+// host has waited GUEST_PROBE_TIMEOUT_MS; an answer arriving after that is
+// ignored.
+async function withinGuestProbeTimeout<T>(
+  answer: Promise<T>,
+  onTimeout: () => T,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      answer,
+      new Promise<T>((resolve, reject) => {
+        timeout = setTimeout(() => {
+          try {
+            resolve(onTimeout());
+          } catch (error) {
+            reject(error);
+          }
+        }, GUEST_PROBE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }

@@ -241,6 +241,45 @@ describe("sendCommand", () => {
 
       expect(vi.getTimerCount()).toBe(0);
     });
+
+    it("fails input as timed out when the guest never answers the rendering probe", async () => {
+      vi.useFakeTimers();
+      const wcSendCommand = vi.fn();
+      const entry = makeEntry({
+        rendering: new Promise(noop),
+        sendCommand: wcSendCommand,
+      });
+      const sent = sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Input.dispatchKeyEvent",
+        params: { type: "keyDown" },
+        targetId: TARGET_ID,
+      });
+      const settled = sent.catch((error: unknown) => error);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await settled).toBeInstanceOf(CdpCommandTimeoutError);
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    });
+
+    it("answers a scroll when the guest never answers the settling probe", async () => {
+      vi.useFakeTimers();
+      const entry = makeEntry({
+        hasFocus: new Promise(noop),
+        sendCommand: vi.fn().mockResolvedValue({ model: { content: [] } }),
+      });
+      const sent = sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "DOM.scrollIntoViewIfNeeded",
+        params: { nodeId: 1 },
+        targetId: TARGET_ID,
+      });
+
+      await vi.advanceTimersByTimeAsync(1000);
+      await expect(sent).resolves.toEqual({ model: { content: [] } });
+    });
   });
 
   it("throws when webContents is unavailable for a pass-through method", async () => {

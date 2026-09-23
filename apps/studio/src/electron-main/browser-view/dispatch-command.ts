@@ -707,7 +707,7 @@ async function withinGuestProbeTimeout<T>(
           try {
             resolve(onTimeout());
           } catch (error) {
-            reject(error);
+            reject(error instanceof Error ? error : new Error(String(error)));
           }
         }, GUEST_PROBE_TIMEOUT_MS);
       }),

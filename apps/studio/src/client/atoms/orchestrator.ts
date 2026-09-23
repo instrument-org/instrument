@@ -444,10 +444,10 @@ export const computerFolderViewsAtom = atomWithStorage<
   Record<string, ComputerFolderView>
 >("orchestrator.computer-folder-views.v1", {}, undefined, { getOnInit: true });
 
-export type ComputerFolderView = {
+export interface ComputerFolderView {
   sort: FileSystemSortState;
   view: "columns" | "gallery" | "icons" | "list";
-};
+}
 
 /**
  * Whether a file tab shows the tree beside its document. One answer for

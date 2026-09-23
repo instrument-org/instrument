@@ -628,7 +628,7 @@ export function BrowserTabs({
                   forgetIconlessThisSession(pageUrl);
                 }
               })
-              .catch(() => {});
+              .catch(() => null);
           }
         }
       };

@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { Spinner } from "@/client/components/ui/spinner";
+import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -214,7 +215,9 @@ function AppRoute() {
             {isConnected ? (
               <GlyphButton
                 onClick={() => {
-                  ask(`What can you do with ${name} for me?`);
+                  ask(
+                    `What can you do with ${appMentionToken({ name, slug })} for me?`,
+                  );
                 }}
                 size="sm"
               >
@@ -279,8 +282,8 @@ function AppRoute() {
                   onClick={() => {
                     ask(
                       app && app.standing !== "untested"
-                        ? `Finish connecting ${name}`
-                        : `Connect ${name}`,
+                        ? `Finish connecting ${appMentionToken({ name, slug })}`
+                        : `Connect ${appMentionToken({ name, slug })}`,
                     );
                   }}
                   size="sm"

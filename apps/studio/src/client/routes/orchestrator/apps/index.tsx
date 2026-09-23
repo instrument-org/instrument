@@ -9,6 +9,7 @@ import { VisitedPageRows } from "@/client/components/orchestrator/visited-page-r
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
+import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
@@ -203,7 +204,7 @@ function AppsRoute() {
                   entry={entry}
                   key={entry.slug}
                   onConnect={() => {
-                    ask(`Connect ${entry.name}`);
+                    ask(`Connect ${appMentionToken(entry)}`);
                   }}
                   onOpen={() => {
                     openApp(entry.slug);

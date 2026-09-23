@@ -133,6 +133,18 @@ describe("Markdown links", () => {
     );
   });
 
+  // A reply taught to link a task as `instrument://task/<id>` links a file the
+  // same way, and the path in it is the file it meant.
+  it("opens an app link to a file as that file", () => {
+    renderMarkdown(
+      "Added them to [2026-09-23.md](instrument://file//mnt/Journal/2026-09-23.md).",
+    );
+
+    expect(screen.getByRole("button", { name: "2026-09-23.md" }).title).toBe(
+      "/mnt/Journal/2026-09-23.md",
+    );
+  });
+
   it("opens a task-relative link", () => {
     renderMarkdown("Wrote [`notes.md`](output/notes.md).");
 

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { instrumentLinkOf, instrumentUrlOf } from "./instrument-link";
+import {
+  filePathOfInstrumentLink,
+  instrumentLinkOf,
+  instrumentUrlOf,
+} from "./instrument-link";
 
 describe("instrumentLinkOf", () => {
   it.each([
@@ -117,5 +121,18 @@ describe("instrumentUrlOf", () => {
   it("reads back what it wrote", () => {
     const href = "/orchestrator/skills/create-page";
     expect(instrumentLinkOf(instrumentUrlOf(href) ?? "")?.href).toBe(href);
+  });
+});
+
+describe("filePathOfInstrumentLink", () => {
+  it.each([
+    ["instrument://file//mnt/Journal/2026-09-23.md", "/mnt/Journal/2026-09-23.md"],
+    ["instrument://file/mnt/Journal/2026-09-23.md", "/mnt/Journal/2026-09-23.md"],
+    ["instrument://File/mnt/My%20Notes/a.md", "/mnt/My Notes/a.md"],
+    ["instrument://file/", undefined],
+    ["instrument://thread/ses_01", undefined],
+    ["https://file/mnt/a.md", undefined],
+  ])("%s", (url, path) => {
+    expect(filePathOfInstrumentLink(url)).toBe(path);
   });
 });

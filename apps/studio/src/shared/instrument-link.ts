@@ -89,6 +89,26 @@ export function instrumentLinkOf(url: string): InstrumentLink | undefined {
 }
 
 /**
+ * The file path an `instrument://file/<path>` address names, or undefined for
+ * any other address. A file is handed over as a path, not as a place in the
+ * window, but a reply taught to link tasks and threads this way reaches for
+ * the same form for a file, and the path in it is the one it meant.
+ */
+export function filePathOfInstrumentLink(url: string): string | undefined {
+  if (!URL.canParse(url)) {
+    return undefined;
+  }
+  const parsed = new URL(url);
+  if (!SCHEMES.has(parsed.protocol) || parsed.host.toLowerCase() !== "file") {
+    return undefined;
+  }
+  // `instrument://file//mnt/a.md` and `instrument://file/mnt/a.md` both mean
+  // the absolute path the reply had in hand.
+  const path = decoded(parsed.pathname).replace(/^\/+/, "/");
+  return path === "/" ? undefined : path;
+}
+
+/**
  * The address that names what a screen href shows, as the released app
  * answers to it, for handing to someone outside the window. Undefined for a
  * screen no address names.

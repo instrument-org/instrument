@@ -5,7 +5,10 @@ import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
-import { instrumentLinkOf } from "@/shared/instrument-link";
+import {
+  filePathOfInstrumentLink,
+  instrumentLinkOf,
+} from "@/shared/instrument-link";
 import { APP_NAME_SLUG, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   AGENT_FILES_LANGUAGE,
@@ -684,13 +687,19 @@ const MarkdownLink = ({
 // A link into the app is the same scheme the default drops, passed through
 // whole for `InlineLink` to read: only an address that names something here
 // goes, so one with a noun the app has no screen for is dropped as any unknown
-// scheme is, rather than reaching the OS as a link to nothing.
+// scheme is, rather than reaching the OS as a link to nothing. The one noun
+// that names no screen, `file`, is reduced to its path the way a `file:` URL
+// is, so it reaches `TaskFileLink` too.
 const markdownUrlTransform: UrlTransform = (url, key, node) => {
   if (key === "src" && node.tagName === "img" && url.startsWith("data:")) {
     return url;
   }
   if (key === "href" && instrumentLinkOf(url)) {
     return url;
+  }
+  const filePath = key === "href" ? filePathOfInstrumentLink(url) : undefined;
+  if (filePath !== undefined) {
+    return filePath;
   }
   if (!/^file:/i.test(url)) {
     return defaultUrlTransform(url);

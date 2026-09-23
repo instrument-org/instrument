@@ -110,6 +110,22 @@ export interface BrowserViewManager {
 
 let managerInstance: BrowserViewManager | undefined;
 
+// Whether the host renderer is showing a guest: `parked` when it or an
+// ancestor is at the pool's near-zero parking opacity, `offscreen` when laid
+// out outside the window, `missing` when no mounted webview holds it.
+const describeTabScript = (guestId: number) => `(() => {
+  const webview = [...document.querySelectorAll("webview")].find((w) => {
+    try { return w.getWebContentsId() === ${guestId}; } catch { return false; }
+  });
+  if (!webview) return "missing";
+  for (let el = webview; el; el = el.parentElement) {
+    if (Number(getComputedStyle(el).opacity) < 0.01) return "parked";
+  }
+  const r = webview.getBoundingClientRect();
+  const onScreen = r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight;
+  return onScreen ? "shown" : "offscreen";
+})()`;
+
 export function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
   // Per host, a FIFO of target ids accepted in `will-attach-webview`, drained
@@ -123,6 +139,31 @@ export function createBrowserViewManager(): BrowserViewManager {
     hosts.get(entries.get(targetId)?.host ?? "main") ?? null;
   // Bounces focus stolen by agent CDP activity back to the host renderer.
   const focusGuard = createFocusGuard({ restoreHostFocus });
+
+  // Whether the user could have seen a target's guest: its window's state, and
+  // whether the host renderer shows its tab or parks it (see browser-pool.ts).
+  // Written into the log line for each agent press.
+  async function describeHost(targetId: BrowserTargetId): Promise<string> {
+    const host = hostOf(targetId);
+    const guestId = entries.get(targetId)?.webContents?.id;
+    if (!host || host.isDestroyed() || guestId === undefined) {
+      return "window=none";
+    }
+    const win = BrowserWindow.fromWebContents(host);
+    const window = win
+      ? win.isMinimized()
+        ? "minimized"
+        : win.isVisible()
+          ? win.isFocused()
+            ? "focused"
+            : "unfocused"
+          : "hidden"
+      : "none";
+    const tab: unknown = await host
+      .executeJavaScript(describeTabScript(guestId))
+      .catch(() => "unknown");
+    return `window=${window} tab=${String(tab)}`;
+  }
 
   function restoreHostFocus(targetId: BrowserTargetId) {
     const host = hostOf(targetId);
@@ -224,13 +265,12 @@ export function createBrowserViewManager(): BrowserViewManager {
     });
     // Mute: the page may be agent-driven and not visible to the user.
     guest.setAudioMuted(true);
-    // Keep the guest compositing when the whole Studio window is
-    // minimized/occluded (e.g. the agent captures while the user is in another
-    // app). A visible window already keeps the paint-host guest painting via its
-    // visibility:visible layout regardless of this flag; guest visibility is
-    // window-driven, not element-CSS-driven. This only matters once the window
-    // itself is hidden, when Chromium would otherwise mark the page hidden and
-    // stop producing the frames capture/Input.dispatch need.
+    // Keep the guest's timers and animations running while the Studio window
+    // is minimized or occluded (e.g. the agent works while the user is in
+    // another app). It does not guarantee frames: a guest in a window covered
+    // by another app's can render nothing while still reporting itself
+    // visible, and input then goes unacknowledged. dispatch-command.ts probes
+    // for a frame before sending input rather than trusting this flag.
     guest.setBackgroundThrottling(false);
 
     // Mouse thumb-button navigation + right-click menu so the user can drive it.
@@ -530,6 +570,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     ) => {
       const dispatch = () =>
         sendCommand({
+          describeHost,
           ensureDebuggerAttached,
           entries,
           method,

@@ -21,6 +21,7 @@ import {
   recordEffectiveGuestSurface,
   setRasterBudget,
 } from "./guest-surface";
+import { log } from "./log";
 
 const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
@@ -39,6 +40,9 @@ interface FakeWebContents {
   printToPDF?: ReturnType<typeof vi.fn>;
 }
 
+const isRenderingProbe = (code: string) =>
+  code.includes("resolve(true)") && code.includes("requestAnimationFrame");
+
 function makeEntry({
   attached = true,
   capturePage,
@@ -47,6 +51,7 @@ function makeEntry({
   // own cases below.
   hasFocus = true,
   printToPDF,
+  rendering = true,
   sendCommand: wcSendCommand = vi.fn(),
   targetId = TARGET_ID,
   webContents = true,
@@ -56,6 +61,7 @@ function makeEntry({
   destroyed?: boolean;
   hasFocus?: boolean | Promise<unknown>;
   printToPDF?: ReturnType<typeof vi.fn>;
+  rendering?: boolean | Promise<unknown>;
   sendCommand?: ReturnType<typeof vi.fn>;
   targetId?: BrowserTargetId;
   webContents?: boolean;
@@ -67,11 +73,10 @@ function makeEntry({
           isAttached: () => attached,
           sendCommand: wcSendCommand,
         },
-        executeJavaScript: vi
-          .fn()
-          .mockImplementation(() =>
-            hasFocus instanceof Promise ? hasFocus : Promise.resolve(hasFocus),
-          ),
+        executeJavaScript: vi.fn().mockImplementation((code: string) => {
+          const answer = isRenderingProbe(code) ? rendering : hasFocus;
+          return answer instanceof Promise ? answer : Promise.resolve(answer);
+        }),
         isDestroyed: () => destroyed,
         printToPDF,
       }
@@ -556,6 +561,212 @@ describe("sendCommand", () => {
   // Chromium delivers keyboard input to whichever widget holds keyboard focus,
   // not to the WebContents whose debugger carried the command. A guest without
   // focus types into Studio's own window, so it must reclaim focus first.
+  // Pages reflow a frame or two after a scroll, so a point measured straight
+  // after one can be stale by the time the press lands.
+  describe("settling after a scroll", () => {
+    const box = (y: number) => ({
+      model: { content: [0, y, 10, y, 10, y + 10, 0, y + 10] },
+    });
+
+    it("answers a scroll only once the element's box holds still", async () => {
+      const boxes = [box(393), box(356), box(356)];
+      const wcSendCommand = vi
+        .fn()
+        .mockImplementation((method: string) =>
+          Promise.resolve(method === "DOM.getBoxModel" ? boxes.shift() : {}),
+        );
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+
+      await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "DOM.scrollIntoViewIfNeeded",
+        params: { backendNodeId: 7 },
+        targetId: TARGET_ID,
+      });
+
+      expect(
+        wcSendCommand.mock.calls.filter(([m]) => m === "DOM.getBoxModel"),
+      ).toHaveLength(3);
+    });
+
+    it("re-runs agent-browser's scroll-and-measure script until two runs agree", async () => {
+      const points = [
+        { x: 1, y: 427 },
+        { x: 1, y: 390 },
+        { x: 1, y: 390 },
+      ];
+      const wcSendCommand = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve({ result: { value: points.shift() } }),
+        );
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+
+      const result = await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Runtime.evaluate",
+        params: {
+          expression:
+            "(() => { el.scrollIntoView({ block: 'center' }); const blockerAt = 0; return { x, y }; })()",
+        },
+        targetId: TARGET_ID,
+      });
+
+      expect(result).toEqual({ result: { value: { x: 1, y: 390 } } });
+      expect(wcSendCommand).toHaveBeenCalledTimes(3);
+    });
+
+    it.each([
+      ["refuses", 356, /layout shifted/],
+      ["sends", 393, null],
+    ])(
+      "%s a press when the element measures at y=%s again",
+      async (_label, yNow, refusal) => {
+        const boxes = [box(393), box(yNow)];
+        const wcSendCommand = vi
+          .fn()
+          .mockImplementation((method: string) =>
+            Promise.resolve(method === "DOM.getBoxModel" ? boxes.shift() : {}),
+          );
+        const entry = makeEntry({ sendCommand: wcSendCommand });
+        const entries = new Map([[TARGET_ID, entry]]);
+        const send = (method: string, params: unknown) =>
+          sendCommand({
+            ensureDebuggerAttached: vi.fn(),
+            entries,
+            method,
+            params,
+            targetId: TARGET_ID,
+          });
+
+        await send("DOM.getBoxModel", { backendNodeId: 7 });
+        const press = send("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x: 5,
+          y: 398,
+        });
+
+        if (refusal) {
+          await expect(press).rejects.toThrow(refusal);
+          expect(wcSendCommand).not.toHaveBeenCalledWith(
+            "Input.dispatchMouseEvent",
+            expect.anything(),
+          );
+        } else {
+          await press;
+          expect(wcSendCommand).toHaveBeenCalledWith(
+            "Input.dispatchMouseEvent",
+            expect.objectContaining({ type: "mousePressed" }),
+          );
+        }
+      },
+    );
+
+    it("runs any other evaluation once", async () => {
+      const wcSendCommand = vi.fn().mockResolvedValue({ result: {} });
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+
+      await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Runtime.evaluate",
+        params: { expression: "location.href" },
+        targetId: TARGET_ID,
+      });
+
+      expect(wcSendCommand).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("logs each press with what it hit and whether the user could see it", async () => {
+    const info = vi.spyOn(log, "info").mockImplementation(noop);
+    const entry = makeEntry({
+      hasFocus: Promise.resolve("hit=p#mwFw target=none visibility=visible"),
+      sendCommand: vi.fn().mockResolvedValue({}),
+    });
+
+    await sendCommand({
+      describeHost: () => Promise.resolve("window=focused tab=shown"),
+      ensureDebuggerAttached: vi.fn(),
+      entries: new Map([[TARGET_ID, entry]]),
+      method: "Input.dispatchMouseEvent",
+      params: { type: "mousePressed", x: 5, y: 398 },
+      targetId: TARGET_ID,
+    });
+
+    expect(info).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^agent press targetId=\S+ at=5,398 hit=p#mwFw target=none visibility=visible window=focused tab=shown ack=\d+ms$/,
+      ),
+    );
+    info.mockRestore();
+  });
+
+  // A page that is not rendering never acknowledges a press, so input to it
+  // would hang until the timeout; it is refused up front with the reason.
+  describe("not-rendering gate", () => {
+    it.each([
+      "Input.dispatchMouseEvent",
+      "Input.dispatchKeyEvent",
+      "Input.insertText",
+      "Input.synthesizeTapGesture",
+    ])("refuses %s while the page is not rendering", async (method) => {
+      const wcSendCommand = vi.fn();
+      const entry = makeEntry({ rendering: false, sendCommand: wcSendCommand });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      await expect(
+        sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method,
+          params: {},
+          requestGuestFocus: vi.fn(),
+          targetId: TARGET_ID,
+        }),
+      ).rejects.toThrow(/hidden, minimized, or covered by other windows/);
+
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    });
+
+    it("still answers reads while the page is not rendering", async () => {
+      const wcSendCommand = vi.fn().mockResolvedValue({ result: {} });
+      const entry = makeEntry({ rendering: false, sendCommand: wcSendCommand });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Runtime.evaluate",
+        params: { expression: "1" },
+        targetId: TARGET_ID,
+      });
+
+      expect(wcSendCommand).toHaveBeenCalled();
+    });
+
+    it("delivers input when the rendering probe fails", async () => {
+      const wcSendCommand = vi.fn().mockResolvedValue({});
+      const entry = makeEntry({
+        rendering: Promise.reject(new Error("renderer gone")),
+        sendCommand: wcSendCommand,
+      });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Input.dispatchMouseEvent",
+        params: { type: "mouseMoved", x: 1, y: 1 },
+        targetId: TARGET_ID,
+      });
+
+      expect(wcSendCommand).toHaveBeenCalled();
+    });
+  });
+
   describe("keyboard focus gate", () => {
     // A repair channel that only reports focus once the renderer has been asked
     // for it, the way the real `<webview>` focus round trip behaves.
@@ -571,7 +782,9 @@ describe("sendCommand", () => {
       };
       wc.executeJavaScript = vi
         .fn()
-        .mockImplementation(() => Promise.resolve(focused));
+        .mockImplementation((code: string) =>
+          Promise.resolve(isRenderingProbe(code) ? true : focused),
+        );
       return { entry, requestGuestFocus, wcSendCommand };
     }
 

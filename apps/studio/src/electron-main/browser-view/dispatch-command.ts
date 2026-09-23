@@ -1,11 +1,12 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
+import type { WebContents } from "electron";
 
 import {
   type BrowserTargetId,
   CdpCommandTimeoutError,
 } from "@instrument-org/workspace/electron";
-import { sleep } from "radashi";
+import { noop, sleep } from "radashi";
 
 import type { BrowserEntry } from "./entry";
 
@@ -49,7 +50,18 @@ const FOCUS_PROBE_TIMEOUT_MS = 1000;
 const FOCUS_REPAIR_TIMEOUT_MS = 1000;
 const FOCUS_REPAIR_POLL_MS = 50;
 
+// The measurement agent-browser took of the element it is about to click,
+// kept briefly so the press that follows can be checked against it.
+const lastMeasurement = new WeakMap<
+  BrowserEntry,
+  { at: number; method: string; params: unknown; result: unknown }
+>();
+const MEASUREMENT_FRESH_MS = 2000;
+// Half a CSS pixel is rounding, not movement.
+const MOVED_PX = 0.5;
+
 export async function sendCommand({
+  describeHost,
   ensureDebuggerAttached,
   entries,
   method,
@@ -57,6 +69,9 @@ export async function sendCommand({
   requestGuestFocus,
   targetId,
 }: {
+  // Whether the user could see the guest: its window's state and whether its
+  // tab is shown or parked. Absent in tests; the press log then omits it.
+  describeHost?: (targetId: BrowserTargetId) => Promise<string>;
   ensureDebuggerAttached: (entry: BrowserEntry) => void;
   entries: Map<BrowserTargetId, BrowserEntry>;
   method: string;
@@ -180,6 +195,33 @@ export async function sendCommand({
     return {};
   }
 
+  // A guest that is not rendering (Studio hidden, minimized, or covered by
+  // other windows) never acknowledges a press, so the command would hang until
+  // the timeout below and read as a slow page. Refuse up front and say why.
+  if (method.startsWith("Input.") && !(await guestIsRendering(entry))) {
+    log.warn(
+      `refused ${method} targetId=${targetId}: page is not rendering ${(await describeHost?.(targetId)) ?? ""}`,
+    );
+    throw new Error(
+      "Input was not delivered: the Instrument window is hidden, minimized, or covered by other windows, so this page is not rendering and cannot receive clicks, taps, or key presses. Reading it (snapshot, get text, eval, screenshot) still works. Ask the user to bring the Instrument window into view, then retry.",
+    );
+  }
+
+  // The press goes where the element was measured. If the page has moved it
+  // since, the press would land on whatever took its place and still report
+  // success, so measure once more and refuse a press that would miss.
+  // One line per press saying what was under the point and whether the user
+  // could see the page, so a click that did nothing can be told apart from one
+  // that landed somewhere else or on a page nobody was looking at.
+  let press: null | { at: number; context: string } = null;
+  if (method === "Input.dispatchMouseEvent" && isPress(params)) {
+    await refusePressThatWouldMiss(entry, params);
+    press = {
+      at: Date.now(),
+      context: await describePress(entry, params, describeHost),
+    };
+  }
+
   if (
     KEYBOARD_COMMANDS.has(method) &&
     !(await guestHoldsKeyboardFocus(entry))
@@ -251,7 +293,7 @@ export async function sendCommand({
             method as "Input.dispatchMouseEvent" | "Input.synthesizeTapGesture",
           );
           const detail = isMouse
-            ? `CDP command timed out: ${method}. The page is not responding to click/tap events -- this is a known Chromium behavior when the compositor thread is blocked (e.g. the page is still loading or is unresponsive). Try navigating directly to a URL instead of clicking, or ask the user to reload the app if the problem persists.`
+            ? `CDP command timed out: ${method}. The page did not acknowledge the input within 5s; it may still be loading or be unresponsive. Take a snapshot to see its current state before retrying.`
             : `CDP command timed out: ${method}. The browser tab is not responding. The page may be unresponsive or still loading. Try navigating directly to a URL or ask the user to reload the app if the problem persists.`;
           reject(new CdpCommandTimeoutError(method, detail));
         }, timeoutMs);
@@ -259,8 +301,51 @@ export async function sendCommand({
     ]).finally(() => {
       clearTimeout(timeout);
     });
+    if (press) {
+      log.info(
+        `agent press targetId=${targetId} ${press.context} ack=${Date.now() - press.at}ms`,
+      );
+    }
+    // agent-browser measures an element straight after scrolling it into view
+    // and clicks the point it measured. Pages reflow in response to a scroll a
+    // frame or two later (a sticky header or a collapsing table of contents
+    // observing it), which moves the element before the press arrives and
+    // lands the click on whatever took its place. Answering the scroll only
+    // once the element's box has held still makes the measurement that follows
+    // see the settled layout.
+    if (method === "DOM.getBoxModel") {
+      lastMeasurement.set(entry, { at: Date.now(), method, params, result });
+    }
+    if (method === "DOM.scrollIntoViewIfNeeded") {
+      await remeasureUntilStable(
+        wc,
+        "DOM.getBoxModel",
+        params,
+        await wc.debugger.sendCommand("DOM.getBoxModel", params).catch(noop),
+      );
+    }
+    // Selector and `find` clicks scroll and measure inside one script, so the
+    // reflow cannot be waited out between the two; run it again until two runs
+    // agree and answer with that measurement. The script finds the same
+    // element and scrolls only when it is out of view, so a repeat moves
+    // nothing that has already settled.
+    if (measuresAfterScrolling(method, params)) {
+      const settled = await remeasureUntilStable(wc, method, params, result);
+      lastMeasurement.set(entry, {
+        at: Date.now(),
+        method,
+        params,
+        result: settled,
+      });
+      return settled;
+    }
     return result;
   } catch (error) {
+    if (press) {
+      log.warn(
+        `agent press targetId=${targetId} ${press.context} ack=failed after ${Date.now() - press.at}ms`,
+      );
+    }
     log.error(
       `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`,
     );
@@ -334,6 +419,171 @@ function getWindowForTargetStub(
   };
 }
 
+function isPress(params: unknown): boolean {
+  return (params as undefined | { type?: unknown })?.type === "mousePressed";
+}
+
+// agent-browser's script that scrolls an element into view and returns the
+// point to click, recognized by the overlay check it carries. It measures in
+// the same task that scrolled, before the page has reacted to the scroll.
+function measuresAfterScrolling(method: string, params: unknown): boolean {
+  const p = (params ?? {}) as {
+    expression?: unknown;
+    functionDeclaration?: unknown;
+  };
+  const source =
+    method === "Runtime.evaluate"
+      ? p.expression
+      : method === "Runtime.callFunctionOn"
+        ? p.functionDeclaration
+        : undefined;
+  return (
+    typeof source === "string" &&
+    source.includes("scrollIntoView") &&
+    source.includes("blockerAt")
+  );
+}
+
+// The point a measurement says to click: the centre of a box model's content
+// quad, or the point agent-browser's scroll-and-measure script returned.
+function pointOf(result: unknown): null | { x: number; y: number } {
+  const r = result as null | {
+    model?: { content?: number[] };
+    result?: { value?: { x?: unknown; y?: unknown } };
+  };
+  const [x1, y1, x2, y2, x3, y3, x4, y4] = r?.model?.content ?? [];
+  if (
+    x1 !== undefined &&
+    y1 !== undefined &&
+    x2 !== undefined &&
+    y2 !== undefined &&
+    x3 !== undefined &&
+    y3 !== undefined &&
+    x4 !== undefined &&
+    y4 !== undefined
+  ) {
+    return { x: (x1 + x2 + x3 + x4) / 4, y: (y1 + y2 + y3 + y4) / 4 };
+  }
+  const value = r?.result?.value;
+  if (typeof value?.x === "number" && typeof value.y === "number") {
+    return { x: value.x, y: value.y };
+  }
+  return null;
+}
+
+async function refusePressThatWouldMiss(entry: BrowserEntry, params: unknown) {
+  const wc = entry.webContents;
+  const measured = lastMeasurement.get(entry);
+  lastMeasurement.delete(entry);
+  if (!wc || !measured || Date.now() - measured.at > MEASUREMENT_FRESH_MS) {
+    return;
+  }
+  const then = pointOf(measured.result);
+  const press = params as { x?: number; y?: number };
+  // Only a press aimed at the measured point is a click on that element.
+  if (
+    !then ||
+    Math.abs((press.x ?? Number.NaN) - then.x) > MOVED_PX ||
+    Math.abs((press.y ?? Number.NaN) - then.y) > MOVED_PX
+  ) {
+    return;
+  }
+  const now = pointOf(
+    await wc.debugger.sendCommand(measured.method, measured.params).catch(noop),
+  );
+  if (
+    now &&
+    (Math.abs(now.x - then.x) > MOVED_PX || Math.abs(now.y - then.y) > MOVED_PX)
+  ) {
+    log.warn(
+      `refused press targetId=${entry.targetId}: element moved from ${then.x},${then.y} to ${now.x},${now.y}`,
+    );
+    throw new Error(
+      "The click was not sent: the page's layout shifted after the element was measured, so the press would have landed on whatever moved into its place. Run the same click again.",
+    );
+  }
+}
+
+// What the press is about to hit, as the guest's own hit test sees it: the
+// element under the point and the nearest thing that acts on a click, which is
+// `none` when the press would land on plain text.
+const describeHitScript = (x: number, y: number) => `(() => {
+  const name = (el) => el ? el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") : "none";
+  const hit = document.elementFromPoint(${x}, ${y});
+  const target = hit?.closest("a[href], button, input, select, textarea, label, summary, [role=button], [role=link], [onclick]");
+  return "hit=" + name(hit) + " target=" + name(target) + " visibility=" + document.visibilityState;
+})()`;
+
+async function describePress(
+  entry: BrowserEntry,
+  params: unknown,
+  describeHost?: (targetId: BrowserTargetId) => Promise<string>,
+): Promise<string> {
+  const { x, y } = params as { x?: number; y?: number };
+  if (typeof x !== "number" || typeof y !== "number") {
+    return "at=unknown";
+  }
+  const wc = entry.webContents;
+  const hit: Promise<unknown> = wc
+    ? wc.executeJavaScript(describeHitScript(x, y))
+    : Promise.resolve(undefined);
+  const [what, host] = await Promise.all([
+    hit.then(String, () => "hit=unknown"),
+    describeHost?.(entry.targetId).catch(() => "host=unknown"),
+  ]);
+  return [`at=${x},${y}`, what, host].filter(Boolean).join(" ");
+}
+
+// Rounds of "wait two frames, measure again" before settling for the latest
+// answer, which an element that never stops moving gets, as before.
+const MAX_REMEASURES = 5;
+
+async function remeasureUntilStable(
+  wc: WebContents,
+  method: string,
+  params: unknown,
+  first: unknown,
+): Promise<unknown> {
+  let previous = first;
+  for (let round = 0; round < MAX_REMEASURES; round++) {
+    await waitForTwoFrames(wc);
+    const current: unknown = await wc.debugger
+      .sendCommand(method, params)
+      .catch(noop);
+    if (
+      current === undefined ||
+      JSON.stringify(current) === JSON.stringify(previous)
+    ) {
+      return current ?? previous;
+    }
+    previous = current;
+  }
+  return previous;
+}
+
+// Resolves after the guest has rendered two animation frames, which is when a
+// layout reacting to a scroll has landed. A page that is not rendering never
+// fires requestAnimationFrame, so a timer bounds the wait, and a failed probe
+// is no reason to fail the command it follows.
+const SETTLE_FRAMES_SCRIPT =
+  "new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); setTimeout(resolve, 100); })";
+
+async function waitForTwoFrames(wc: WebContents): Promise<void> {
+  await wc.executeJavaScript(SETTLE_FRAMES_SCRIPT).catch(noop);
+}
+
+// Whether the guest is producing frames, which is what input acknowledgement
+// waits on. Its visibilityState is no guide: background throttling is off for
+// guests, so a guest in a covered window reports "visible" while rendering
+// nothing. A page that renders answers one animation frame well inside the
+// probe's window. Fails open when the probe itself errors, and a passing answer
+// is reused briefly so the move, press, and release of one click pay for it
+// once.
+const RENDERING_PROBE_SCRIPT =
+  "new Promise((resolve) => { requestAnimationFrame(() => resolve(true)); setTimeout(() => resolve(false), 150); })";
+const RENDERING_REUSE_MS = 1000;
+const renderingSeenAt = new WeakMap<BrowserEntry, number>();
+
 // Whether the guest currently holds Chromium's keyboard focus, which is the
 // precondition for CDP keyboard input reaching it at all. Asked of the guest
 // document rather than derived from our own bookkeeping: `webContents`
@@ -363,6 +613,29 @@ async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
       clearTimeout(timeout);
     }
   }
+}
+
+async function guestIsRendering(entry: BrowserEntry): Promise<boolean> {
+  const wc = entry.webContents;
+  if (!wc || wc.isDestroyed()) {
+    return true;
+  }
+  const seenAt = renderingSeenAt.get(entry);
+  if (seenAt !== undefined && Date.now() - seenAt < RENDERING_REUSE_MS) {
+    return true;
+  }
+  let rendering: unknown;
+  try {
+    rendering = await wc.executeJavaScript(RENDERING_PROBE_SCRIPT);
+  } catch {
+    return true;
+  }
+  if (rendering === false) {
+    renderingSeenAt.delete(entry);
+    return false;
+  }
+  renderingSeenAt.set(entry, Date.now());
+  return true;
 }
 
 // Ask the renderer to focus the guest, then wait for the guest to agree that

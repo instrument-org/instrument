@@ -171,3 +171,47 @@ describe("PromptEditor", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+describe("PromptEditor app chips", () => {
+  const paper = { name: "Paper", site: "https://paper.design", slug: "paper" };
+  const draft = "What can you do with [Paper](instrument://app/paper) for me?";
+  const chipIcon = (container: HTMLElement) =>
+    container.querySelector(
+      '[data-app="paper"] [role="img"], [data-app="paper"] img',
+    );
+
+  it("draws the app's own icon for a mention the draft starts with", () => {
+    const { container } = renderWithProviders(
+      <PromptEditor
+        apps={[paper]}
+        {...editorProps}
+        autoFocus={false}
+        defaultValue={draft}
+        onChange={noop}
+      />,
+    );
+    expect(chipIcon(container)).not.toBeNull();
+  });
+
+  it("draws it once the apps arrive after the draft opened", () => {
+    const { container, rerender } = renderWithProviders(
+      <PromptEditor
+        apps={[]}
+        {...editorProps}
+        autoFocus={false}
+        defaultValue={draft}
+        onChange={noop}
+      />,
+    );
+    rerender(
+      <PromptEditor
+        apps={[paper]}
+        {...editorProps}
+        autoFocus={false}
+        defaultValue={draft}
+        onChange={noop}
+      />,
+    );
+    expect(chipIcon(container)).not.toBeNull();
+  });
+});

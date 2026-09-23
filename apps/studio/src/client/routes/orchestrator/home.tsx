@@ -3,7 +3,6 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
-import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
@@ -29,7 +28,6 @@ import { type OpenTarget } from "@/client/lib/open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
@@ -40,9 +38,9 @@ import ms from "ms";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /**
- * A new tab: the places the user kept, the apps this workspace reaches, the
- * computer and the folders a person keeps things in, the kinds of page
- * Instrument can make, and under them the files the conversation has shown.
+ * A new tab: the places the user kept, the computer and the folders a
+ * person keeps things in, the kinds of page Instrument can make, and under
+ * them the files the conversation has shown.
  * Each section is a head with a way to the rest of it and a grid of tiles,
  * one gesture for everything on the page; whatever is picked, this tab
  * becomes it. Tasks are reached from the thread that started them.
@@ -59,7 +57,6 @@ type RecentFile = RPCOutput["workspace"]["computer"]["recents"][number];
  * page stays a page: every section can grow, and only the head's button does.
  */
 const PINS_SHOWN = 6;
-const APPS_SHOWN = 6;
 const PLACES_SHOWN = 6;
 const RECENTS_SHOWN = 5;
 
@@ -94,7 +91,6 @@ function HomeRoute() {
   const pins = useAtomValue(pinsAtom);
   useOnScreen({ screen: "home" });
 
-  const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const appsBySlug = useAppsBySlug();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const recents = useQuery(
@@ -159,47 +155,6 @@ function HomeRoute() {
                       ? { kind: "page", url: pin.target }
                       : { href: pin.target, kind: "screen" }
                   }
-                />
-              ))}
-            </Tiles>
-          )}
-        </PageSection>
-
-        {/* The services the workspace reaches, each a tile; the rest, and
-            connecting a new one, are behind the head's button. */}
-        <PageSection
-          action={{
-            icon: <AppWindowIcon className="size-4" />,
-            label: "All apps",
-            onOpen: () => {
-              void navigate({ to: "/orchestrator/apps" });
-            },
-          }}
-          title="Apps"
-        >
-          {appList.data === undefined ? (
-            <TileSkeletons count={APPS_SHOWN} />
-          ) : appList.data.apps.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Connect a service and it becomes a place here.
-            </p>
-          ) : (
-            <Tiles>
-              {appList.data.apps.slice(0, APPS_SHOWN).map((app) => (
-                <Tile
-                  icon={<AppIcon name={app.name} site={app.site} size="lg" />}
-                  key={app.slug}
-                  name={app.name}
-                  onOpen={() => {
-                    void navigate({
-                      params: { slug: app.slug },
-                      to: "/orchestrator/apps/$slug",
-                    });
-                  }}
-                  target={{
-                    href: `/orchestrator/apps/${app.slug}`,
-                    kind: "screen",
-                  }}
                 />
               ))}
             </Tiles>

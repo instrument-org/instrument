@@ -41,9 +41,17 @@ interface McpCallResult {
 }
 
 interface McpToolSummary {
+  /** The server's own hints: whether the tool only reads, or can destroy. */
+  annotations?: {
+    destructiveHint?: boolean;
+    openWorldHint?: boolean;
+    readOnlyHint?: boolean;
+    title?: string;
+  };
   description: string;
   inputSchema: unknown;
   name: string;
+  outputSchema?: unknown;
 }
 
 /** Call one MCP tool and flatten its content to text for the agent. */
@@ -67,9 +75,11 @@ export async function callMcpTool(
 export async function listMcpTools(client: Client): Promise<McpToolSummary[]> {
   const result = await client.listTools();
   return result.tools.map((tool) => ({
+    annotations: tool.annotations,
     description: tool.description ?? "",
     inputSchema: tool.inputSchema,
     name: tool.name,
+    outputSchema: tool.outputSchema,
   }));
 }
 

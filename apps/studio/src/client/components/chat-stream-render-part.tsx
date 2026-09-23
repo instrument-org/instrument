@@ -129,6 +129,16 @@ export function renderChatPart({
     ) {
       return null;
     }
+    // A connect the tool refused never put a card up: what it said is the
+    // agent's to fix before asking again, not the user's to read.
+    if (
+      ctx.presentation === "orchestrator" &&
+      part.type === "tool-connect_app" &&
+      part.state === "output-available" &&
+      part.output.state === "failure"
+    ) {
+      return null;
+    }
     const streaming = ctx.isToolStreaming(part, message);
     if (
       !isToolCallVisible({

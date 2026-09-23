@@ -6,7 +6,12 @@ import { z } from "zod";
 import { recordConnection } from "../lib/apps/connection";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { appSiteFor } from "../lib/apps/site";
-import { loadApp } from "../lib/apps/store";
+import { APP_GUIDE_FILE_NAME } from "../lib/apps/manifest";
+import {
+  guidePlaceholdersLeft,
+  loadApp,
+  readAppGuide,
+} from "../lib/apps/store";
 import { recordAppThread } from "../lib/orchestrator/attribution";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -67,7 +72,22 @@ export const ConnectApp = setupTool({
         state: "failure" as const,
       });
     }
-    const { manifest, slug } = loaded.value;
+    const { dir, manifest, slug } = loaded.value;
+    // The test that runs once the user has acted fails on an unwritten
+    // guide, so a card asked for before it is written puts that failure in
+    // front of the user, after their click, as something they cannot fix.
+    const guide = await readAppGuide(dir);
+    const unanswered = guide === null ? [] : guidePlaceholdersLeft(guide);
+    if (guide === null || unanswered.length > 0) {
+      return ok({
+        message:
+          guide === null
+            ? `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} is missing. Write it yourself before asking: what ${manifest.name} is for, and what a call has to get right.`
+            : `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} is still the skeleton \`${APP_COMMAND.name} new\` wrote. Answer its prompts yourself, in a few lines from what you know about ${manifest.name}, then ask again. Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+        slug,
+        state: "failure" as const,
+      });
+    }
     const kind =
       manifest.type === "mcp-local"
         ? "run"

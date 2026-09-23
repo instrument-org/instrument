@@ -340,7 +340,12 @@
         }
       ],
       "docsUrl": "https://developer.box.com/reference/",
-      "home": "https://app.box.com"
+      "home": "https://app.box.com",
+      "apiGuide": {
+        "conventions": "- IDs are numeric strings; the root folder is always `\"0\"`. Keep IDs as strings in JSON bodies.\n- Folder listings return mini objects; fetch `GET /files/{id}` or pass `fields=` for anything beyond id, type, name.\n- Names are unique per folder, case-insensitively: a clash returns 409 `item_name_in_use`.\n- Dates in filters are RFC 3339 (`2026-09-01T00:00:00Z`); a range is `start,end` with either side omissible (`2026-09-01T00:00:00Z,`).\n- File uploads live on `upload.box.com`, outside this base URL, so they are not reachable here.\n- A developer token expires 60 minutes after it is made and cannot be refreshed: a 401 after that means asking the user for a new one, not a different placement.",
+        "endpoints": "- `GET /users/me`: the account the token belongs to (name, login, space used).\n- `GET /folders/{id}/items`: a folder's files, folders, and web links. `limit` (max 1000), `offset`, `fields`, `sort` (`name`, `date`, `size`), `direction`. The root folder is `0`.\n- `GET /folders/{id}`, `GET /files/{id}`: metadata (name, size, parent, path_collection, modified_at, shared_link). Add `fields=` to request extras such as `shared_link` or `description`.\n- `GET /search`: `query` (supports `\"exact\"`, `AND`, `OR`, `NOT`), `type` (`file`|`folder`|`web_link`), `file_extensions=pdf,docx`, `ancestor_folder_ids`, `content_types`, `created_at_range`/`updated_at_range`, `limit` (default 30, max 200), `offset`.\n- `GET /recent_items`: files the user recently opened or edited.\n- `GET /files/{id}/content`: downloads the file; Box answers 302 to a `dl.boxcloud.com` URL (202 with `retry-after` if not ready yet).\n- `GET /files/{id}/comments`: comments on a file.\n- `POST /folders`: body `{\"name\": \"...\", \"parent\": {\"id\": \"0\"}}`.\n- `PUT /files/{id}` (or `/folders/{id}`): rename or move with `{\"name\": \"...\"}` or `{\"parent\": {\"id\": \"...\"}}`. Create a shared link with `--param fields=shared_link` and body `{\"shared_link\": {\"access\": \"open\"}}` (`company`, `collaborators` also valid).\n- `POST /comments`: body `{\"item\": {\"type\": \"file\", \"id\": \"...\"}, \"message\": \"...\"}`.\n\nPagination: most lists use `offset`/`limit` and return `total_count`; folder items also accept `usemarker=true` and then return `next_marker`. Search rejects `offset` above 10000.\n\nRate limits: 1000 requests per minute per user, 240 uploads per minute, search 6 per second and 60 per minute. A 429 carries `retry-after` in seconds.\n\nHeaders: none required. `box-version` is optional and defaults to `2024.0`.",
+        "test": "/users/me"
+      }
     },
     {
       "slug": "brex",
@@ -977,7 +982,12 @@
         }
       ],
       "docsUrl": "https://dev.frontapp.com/reference/introduction",
-      "home": "https://app.frontapp.com"
+      "home": "https://app.frontapp.com",
+      "apiGuide": {
+        "conventions": "- IDs carry prefixes: `cnv_` conversation, `msg_` message, `tea_` teammate, `inb_` inbox, `cha_` channel, `tag_` tag. Search filters (`inbox:`, `tag:`, `assignee:`) take these IDs, never display names; look them up first.\n- Teammates can also be referenced by alias, e.g. `alt:email:jane@acme.com` for `author_id`.\n- Search dates (`before:`, `after:`, `during:`) are Unix timestamps in seconds. Max 15 filters per query.\n- `tag_ids` in `PATCH` replaces the whole tag set. Updating `custom_fields` erases any field you leave out.\n- A merged conversation answers 301; follow to the new ID.",
+        "endpoints": "- `GET /me`: the company the token belongs to.\n- `GET /inboxes`, `GET /teammates`, `GET /tags`, `GET /channels`: look up the IDs every other call needs.\n- `GET /conversations/search/{query}`: search with Front's syntax, URL-encoded into the path (`is:open tag:tag_123` becomes `is%3Aopen%20tag%3Atag_123`). Returns `_total` and `_results`, newest activity first.\n- `GET /conversations`: `q[statuses][]=assigned|unassigned|archived|trashed`, `limit`, `page_token`.\n- `GET /inboxes/{inbox_id}/conversations`: one inbox's conversations.\n- `GET /conversations/{id}`: subject, status, assignee, tags, recipient.\n- `GET /conversations/{id}/messages`: messages with `body` (HTML) and `text`. `sort_order=asc|desc`.\n- `GET /conversations/{id}/comments`: internal comments, newest first.\n- `POST /conversations/{id}/comments`: `{\"body\": \"...\"}`; optional `author_id` (else posts as the token).\n- `POST /conversations/{id}/drafts`: draft reply, `{\"body\": \"...\", \"channel_id\": \"cha_...\"}` required. Prefer this over sending unless the user asked to send.\n- `POST /conversations/{id}/messages`: send a reply, `{\"body\": \"...\", \"author_id\": \"tea_...\"}`; `channel_id`, `to`, `cc` optional.\n- `PATCH /conversations/{id}`: `status` (`archived`, `open`, `deleted`, `spam`), `assignee_id` (`null` unassigns), `inbox_id`, `tag_ids`. Returns 204.\n\nPagination: `limit` (default 50, max 100) and `page_token`, taken from `_pagination.next`; stop when `next` is null, not when a page is short.\n\nRate limits: per company, 50/100/200 requests per minute on Starter/Professional/Enterprise plus a burst allowance. Search counts at 40% of the company limit. A 429 carries `retry-after` in seconds.",
+        "test": "/me"
+      }
     },
     {
       "slug": "gamma",
@@ -1041,7 +1051,12 @@
         }
       ],
       "docsUrl": "https://docs.github.com",
-      "home": "https://github.com"
+      "home": "https://github.com",
+      "apiGuide": {
+        "conventions": "- A fine-grained token sees only the repos and permissions the user granted; a repo outside that set returns 404, not 403. Say so rather than concluding the repo does not exist.\n- `/notifications` does not work with fine-grained tokens (classic only).\n- Issues and PRs share one number space; comment on a PR through the issues comments endpoint. Review comments on diff lines are a separate API.\n- Timestamps are ISO 8601 UTC (`2026-09-01T00:00:00Z`); search qualifiers take dates like `created:>=2026-09-01`.\n- In `q`, `author:@me` is the token's user.",
+        "endpoints": "- `GET /user`: the token's user.\n- `GET /user/repos`: repos the token can reach. `sort=updated`, `affiliation`, `per_page`.\n- `GET /repos/{owner}/{repo}`: repo metadata, default branch.\n- `GET /repos/{owner}/{repo}/issues`: `state=open|closed|all`, `labels`, `assignee`, `since` (ISO 8601). Includes pull requests; they carry a `pull_request` key.\n- `GET /repos/{owner}/{repo}/pulls`: `state`, `head`, `base`. `GET .../pulls/{number}/files` lists changed files.\n- `GET /repos/{owner}/{repo}/issues/{number}/comments`: the conversation on an issue or PR.\n- `GET /search/issues`: `q` such as `repo:o/r is:issue is:open author:me label:bug`. Include `is:issue` or `is:pr`. Up to 1000 results.\n- `GET /repos/{owner}/{repo}/contents/{path}`: file content, base64 in `content`; `ref` picks a branch or sha. A directory returns a list.\n- `GET /repos/{owner}/{repo}/commits`: `sha`, `path`, `since`, `until`, `author`.\n- `POST /repos/{owner}/{repo}/issues`: `{\"title\": \"...\", \"body\": \"...\", \"labels\": [], \"assignees\": []}`.\n- `POST /repos/{owner}/{repo}/issues/{number}/comments`: `{\"body\": \"...\"}`; also comments on a PR.\n- `PATCH /repos/{owner}/{repo}/issues/{number}`: `state` (`closed`, `open`), `title`, `body`, `labels`.\n\nPagination: `per_page` (max 100, default 30) and `page`; the `Link` response header names the next page. Search caps at 1000 results.\n\nRate limits: 5000 requests per hour; search 30 per minute; at most 80 content-creating requests per minute and 500 per hour. A 403 or 429 with `x-ratelimit-remaining: 0` means wait for `x-ratelimit-reset` (epoch seconds).\n\nHeaders: `X-GitHub-Api-Version` is optional; without it GitHub uses `2022-11-28`, which everything above targets. `Accept: application/vnd.github+json` is recommended but not required.",
+        "test": "/user"
+      }
     },
     {
       "slug": "gitlab",
@@ -2915,7 +2930,12 @@
         }
       ],
       "docsUrl": "https://wakatime.com/developers",
-      "home": "https://wakatime.com/dashboard"
+      "home": "https://wakatime.com/dashboard",
+      "apiGuide": {
+        "conventions": "- `range` on summaries uses display phrases (`Today`, `Yesterday`, `Last 7 Days`, `This Week`, `Last Month`), while `stats/{range}` uses snake case (`last_7_days`). Mixing them fails.\n- `summaries` requires both `start` and `end` unless `range` is given.\n- Stats and insights may answer 202 with `is_up_to_date: false` while computing; wait and retry rather than reporting zeros.\n- Durations are in seconds; `text` fields carry a human-readable form.\n- `project` matches the project name exactly as WakaTime recorded it; list projects first if unsure.",
+        "endpoints": "- `GET /users/current`: profile, timezone, `has_premium_features`.\n- `GET /users/current/status_bar/today`: today's total and breakdown.\n- `GET /users/current/summaries`: per-day totals by project, language, editor, and more. `start` and `end` (`YYYY-MM-DD`) or `range`; `project`, `timezone`. Includes `cumulative_total` and `daily_average`.\n- `GET /users/current/stats/{range}`: aggregate stats for `last_7_days`, `last_30_days`, `last_6_months`, `last_year`, `all_time`, `YYYY`, or `YYYY-MM`.\n- `GET /users/current/durations`: coding sessions for one day. `date` (required), `project`, `slice_by` (`project`, `language`, `editor`, `entity`, and more), `timezone`.\n- `GET /users/current/all_time_since_today`: total time since the account started; `project` optional.\n- `GET /users/current/projects`: project names.\n- `GET /users/current/goals`: goals and progress.\n- `GET /users/current/insights/{insight_type}/{range}`: `insight_type` one of `weekdays`, `days`, `best_day`, `daily_average`, `projects`, `languages`, `editors`, and more.\n\nPagination: paged lists take `page` and return `page`, `total_pages`, `next_page`.\n\nRate limits: under 10 requests per second averaged over 5 minutes; a 429 means back off.",
+        "test": "/users/current"
+      }
     },
     {
       "slug": "webflow",

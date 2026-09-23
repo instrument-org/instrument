@@ -220,6 +220,26 @@ describe("app test and the guide skeleton", () => {
       "WakaTime records time spent coding",
     );
   });
+
+  it("writes a directory API app's guide whole, with nothing left to answer", async () => {
+    const made = await newApiApp("wakatime", "--auth", "basic");
+    expect(made.stdout).not.toContain("prompts to answer");
+    expect(await guideOf("wakatime")).toContain(
+      "`GET /users/current/summaries`",
+    );
+
+    const result = await app("test", "wakatime");
+
+    expect(result.stderr).toContain("PASS guide:");
+  });
+
+  it("puts the directory's key test in the set-up line", async () => {
+    const result = await app("catalog", "github");
+
+    expect(result.stdout).toContain(
+      "app new github --name 'GitHub' --api https://api.github.com --auth bearer --test /user",
+    );
+  });
 });
 
 describe("app new with a key already stored", () => {

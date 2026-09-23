@@ -24,7 +24,8 @@ describe("createBashDescription", () => {
       Prefer specialized tools over shell equivalents:
         - Use the \`read_file\` tool instead of \`cat\`/\`head\`/\`tail\`.
         - Use the \`edit_file\`/\`write_file\` tools instead of \`sed\`/\`awk\`/redirects for editing.
-        - Use \`rg\` for all searching -- there is no separate search tool. File contents: \`rg -n 'pattern'\`, \`-C 3\` for surrounding lines, \`-l\` for filenames only. Files by name: \`rg --files -g '*.ts'\`. It composes, so \`rg -l TODO | head\` works.
+        - Use \`rg\` for all searching -- there is no separate search tool. File contents: \`rg -n 'pattern'\`, \`-C 3\` for surrounding lines, \`-l\` for filenames only. Files by name: \`rg --files -g '*.ts'\`, or \`--iglob '*report*'\` to ignore case. It composes, so \`rg -l TODO | head\` works.
+        - Filter file names inside \`rg\` with \`-g\`/\`--iglob\`, never by piping \`rg --files\` into another command: a pipe stage only starts once the whole listing has been collected, so over a large folder that is seconds of the app frozen, where the same filter inside \`rg\` takes milliseconds.
         - Prefer \`rg\` over \`grep\`/\`egrep\`/\`fgrep\`: \`rg\` is the real ripgrep binary and far faster.
         - For audio, video, or image inspection, prefer \`ffprobe -v error -show_format -show_streams -of json <path>\` over \`file\`.
 

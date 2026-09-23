@@ -5,7 +5,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { getComputerFileUrl } from "@/client/lib/computer-file-url";
+import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { type ReactNode, useRef, useState } from "react";
@@ -37,6 +37,8 @@ export function useQuickLook({
   };
 } {
   const [file, setFile] = useState<FileTab | null>(null);
+  // Watched while the panel is up, so a write shows in it.
+  const fileUrl = useWatchedFileUrl(file?.hostPath);
   // Where the keyboard was when the panel opened, so closing it puts the
   // keyboard back on the row rather than at the top of the screen.
   const origin = useRef<HTMLElement | null>(null);
@@ -81,13 +83,13 @@ export function useQuickLook({
           <DialogTitle className="sr-only">
             {file?.name ?? "Quick Look"}
           </DialogTitle>
-          {file ? (
+          {file && fileUrl !== undefined ? (
             <FileViewer
               className="h-full"
               file={{
                 filename: file.name,
                 hostPath: file.hostPath,
-                url: getComputerFileUrl({ hostPath: file.hostPath }),
+                url: fileUrl,
               }}
               key={file.hostPath}
               onClose={() => {

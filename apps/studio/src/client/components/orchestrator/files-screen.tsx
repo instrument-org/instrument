@@ -9,6 +9,7 @@ import { FileViewer } from "@/client/components/file-viewer";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
+import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
@@ -245,17 +246,23 @@ export function FilesScreen({
     // Once per file the tab shows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
-  const viewerFile = (tab: FileTab) => ({
-    filename: tab.name,
-    hostPath: tab.hostPath,
-    url: getComputerFileUrl({ hostPath: tab.hostPath }),
-  });
+  // Watched, so the viewer shows the file as it is rather than as it was
+  // opened: a write lands in the open tab.
+  const activeFileUrl = useWatchedFileUrl(activeFile?.hostPath);
+  const viewerFile =
+    activeFile && activeFileUrl !== undefined
+      ? {
+          filename: activeFile.name,
+          hostPath: activeFile.hostPath,
+          url: activeFileUrl,
+        }
+      : undefined;
 
   if (opensAsPage) {
     return null;
   }
 
-  if (activeFile && tree !== undefined) {
+  if (activeFile && viewerFile && tree !== undefined) {
     return (
       // What the document links to opens where the tree's rows do: in this
       // tab, unless a tab of its own is asked for; a folder opens as the
@@ -284,7 +291,7 @@ export function FilesScreen({
           <div className="min-h-0 min-w-0 flex-1 p-3">
             <FileViewer
               className="h-full"
-              file={viewerFile(activeFile)}
+              file={viewerFile}
               key={activeFile.hostPath}
               lead={
                 <span className="flex min-w-0 items-center gap-1">
@@ -313,13 +320,13 @@ export function FilesScreen({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="relative min-h-0 flex-1">
-        {activeFile ? (
+        {activeFile && viewerFile ? (
           // Where the file sits on the Mac is the row above, which every tab
           // wears, so the viewer is the whole of the tab.
           <div className="h-full p-3">
             <FileViewer
               className="h-full"
-              file={viewerFile(activeFile)}
+              file={viewerFile}
               key={activeFile.hostPath}
               onClose={leaveFile}
             />

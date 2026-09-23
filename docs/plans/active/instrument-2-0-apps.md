@@ -100,11 +100,10 @@ Some services have no server on the internet at all: an app on this Mac, or a to
 ## Open
 
 - Slack, Google, and Cloudflare's whole-API server refuse dynamic registration; connecting them needs a client we hold. The prototype says so honestly. The ladder in the plugins plan is the answer.
-- An app's `guide.md` is a skeleton until the agent fills it in; nothing yet nudges it to.
+- `app new` writes an app's `guide.md` from its directory entry. Only an API app's guide is read, so only an API app is held back by one: the directory ships endpoints and conventions for its API-only services, and for any other API the orchestrator answers the skeleton's prompts with `app guide <slug>` on stdin before `connect_app` will ask. MongoDB Atlas has no guide, since neither of its credentials fits an auth kind an app can carry.
 - A sign-in finished in the window's browser leaves that tab on the service's home and the window on the Browser screen; returning to the app's page, or closing the tab, when the connected event lands is a small addition.
 - Connected web apps as themselves under a badge, and the account address as the sidebar row's name, are drawn in the wireframes and not built here.
 - An app's activity (its tool calls, by task) is the idea the wireframes liked most for apps without a site; nothing indexes it yet.
-- Whether `request`'s guide gate should apply to `call` too; MCP tools are self-describing, so the prototype gates only HTTP apps.
 - The catalog is the branch's seed; a live layer over a public index is the same shape later. It carries no local servers, so connecting one means the agent researching the package first. The directory that lists them is its own piece of work.
 - A local app has no site, so it draws without an icon until the directory can say which service a package belongs to.
 - A local server starts and stops around each operation. That is cheap once the package is installed, but a server with slow startup would want a pooled process with an idle timeout.

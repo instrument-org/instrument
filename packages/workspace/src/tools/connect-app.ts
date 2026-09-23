@@ -4,9 +4,9 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { recordConnection } from "../lib/apps/connection";
+import { APP_GUIDE_FILE_NAME } from "../lib/apps/manifest";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { appSiteFor } from "../lib/apps/site";
-import { APP_GUIDE_FILE_NAME } from "../lib/apps/manifest";
 import {
   guidePlaceholdersLeft,
   loadApp,

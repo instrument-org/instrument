@@ -1,13 +1,19 @@
 import {
+  type ChosenItem,
   type ComposePlacement,
   type Draft,
   draftGroupOf,
   draftSnapshotsAtom,
   NEW_TAB_HREF,
   type ScreenView,
+  screenViewAtom,
   type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import {
+  FileSystemFolderGlyph,
+  FileTypeIcon,
+} from "@/client/components/extend/file-system";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
@@ -251,6 +257,26 @@ export function ComposeWindow({
           tab.group === draft.included.group,
       )
     : undefined;
+
+  // What is selected in the thing the draft was opened over, while that is
+  // the Finder standing on screen: what the thread is told, and so what the
+  // chip names. The screen's own answer is only for the tab that is up.
+  const screenView = useAtomValue(screenViewAtom);
+  const includedSelection =
+    included &&
+    windowTabs.active?.id === included.id &&
+    screenView?.screen === "computer"
+      ? (screenView.folder?.selected ?? [])
+      : [];
+  const chosen = draft.chosen ?? [];
+  const chosenNames = new Set(chosen.map((item) => nameOfPath(item.path)));
+  // A selection that is one of the things already picked is said once.
+  const showsIncluded =
+    included !== undefined &&
+    !(
+      includedSelection.length === 1 &&
+      chosenNames.has(nameOfPath(includedSelection[0] ?? ""))
+    );
 
   // The words the box opens with: what was kept of it when it was put away,
   // or, after a relaunch, the record's own words. Seeded once, since the
@@ -577,6 +603,9 @@ export function ComposeWindow({
       <OrchestratorContext
         value={{
           ...orchestrator,
+          // A draft is already open here; a new one from inside it would
+          // come up behind the one being written.
+          askAbout: undefined,
           focusComposer: () => {
             inputRef.current?.focus();
           },
@@ -687,18 +716,40 @@ export function ComposeWindow({
                   draftKey={key}
                   isLoading={isStarting}
                   lead={
-                    included && (
-                      <IncludedChip
-                        appsBySlug={appsBySlug}
-                        onLeaveOut={() => {
-                          onChange((current) => {
-                            const { included: _left, ...rest } = current;
-                            return rest;
-                          });
-                        }}
-                        tab={included}
-                      />
-                    )
+                    chosen.length > 0 || showsIncluded ? (
+                      <>
+                        {chosen.map((item) => (
+                          <ChosenChip
+                            item={item}
+                            key={item.path}
+                            onLeaveOut={() => {
+                              onChange((current) => {
+                                const { chosen: kept = [], ...rest } = current;
+                                const left = kept.filter(
+                                  (entry) => entry.path !== item.path,
+                                );
+                                return left.length > 0
+                                  ? { ...rest, chosen: left }
+                                  : rest;
+                              });
+                            }}
+                          />
+                        ))}
+                        {showsIncluded && (
+                          <IncludedChip
+                            appsBySlug={appsBySlug}
+                            onLeaveOut={() => {
+                              onChange((current) => {
+                                const { included: _left, ...rest } = current;
+                                return rest;
+                              });
+                            }}
+                            selected={includedSelection}
+                            tab={included}
+                          />
+                        )}
+                      </>
+                    ) : undefined
                   }
                   modelURI={modelURI}
                   onModelChange={onModelChange}
@@ -788,12 +839,84 @@ function Card({ children }: { children: ReactNode }) {
   );
 }
 
+/** A file or folder the draft was opened on by name, held for the thread until it is left out. */
+function ChosenChip({
+  item,
+  onLeaveOut,
+}: {
+  item: ChosenItem;
+  onLeaveOut: () => void;
+}) {
+  const name = nameOfPath(item.path);
+  return (
+    <ContextChip
+      label={item.path}
+      mark={
+        item.kind === "folder" ? (
+          <FileSystemFolderGlyph className="h-3 w-auto" />
+        ) : (
+          <FileTypeIcon fileName={name} />
+        )
+      }
+      name={name}
+      onLeaveOut={onLeaveOut}
+      slot="chosen-chip"
+    />
+  );
+}
+
 /**
  * The address of the computer screen standing in a folder, as the computer
  * route reads it, for a tab whose folder browser has walked somewhere.
  */
 function computerHref({ path, root }: { path: string; root: string }) {
   return `/orchestrator/computer?path=${encodeURIComponent(path)}&root=${encodeURIComponent(root)}`;
+}
+
+/**
+ * One quiet line at the head of the words: a mark and a name in grey with an
+ * x that leaves the thing out, so it takes no room from the words and does
+ * not ask to be read; what it is is in its tooltip.
+ */
+function ContextChip({
+  label,
+  mark,
+  name,
+  onLeaveOut,
+  slot,
+}: {
+  label: string;
+  mark: ReactNode;
+  name: string;
+  onLeaveOut: () => void;
+  slot: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pr-0.5 pl-2 text-xs text-muted-foreground ring-1 ring-border/70"
+          data-slot={slot}
+        >
+          <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
+            {mark}
+          </span>
+          <span className="truncate">{name}</span>
+          <button
+            aria-label={`Leave out ${name}`}
+            className="grid size-5 shrink-0 place-items-center rounded-sm hover:bg-foreground/8 hover:text-foreground"
+            onClick={onLeaveOut}
+            type="button"
+          >
+            <XIcon className="size-3" />
+          </button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent collisionPadding={10} maxWidth="20rem">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 /** One thing the draft holds, as its mark: a page's icon, or a screen's. */
@@ -821,42 +944,48 @@ function HeldMark({
 function IncludedChip({
   appsBySlug,
   onLeaveOut,
+  selected,
   tab,
 }: {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
   onLeaveOut: () => void;
+  /** What is selected in the Finder the draft was opened over, which the chip names in place of the folder. */
+  selected: string[];
   tab: WindowTab;
 }) {
+  const [one] = selected;
   const name =
-    tab.kind === "page"
-      ? pageTabTitle(tab) || "Page"
-      : screenPresentation(tab.href, { appsBySlug }).title;
+    selected.length > 1
+      ? `${selected.length} items`
+      : one === undefined
+        ? tab.kind === "page"
+          ? pageTabTitle(tab) || "Page"
+          : screenPresentation(tab.href, { appsBySlug }).title
+        : nameOfPath(one);
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className="inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pr-0.5 pl-2 text-xs text-muted-foreground ring-1 ring-border/70"
-          data-slot="included-chip"
-        >
-          <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
-            <HeldMark appsBySlug={appsBySlug} tab={tab} />
-          </span>
-          <span className="truncate">{name}</span>
-          <button
-            aria-label={`Leave out ${name}`}
-            className="grid size-5 shrink-0 place-items-center rounded-sm hover:bg-foreground/8 hover:text-foreground"
-            onClick={onLeaveOut}
-            type="button"
-          >
-            <XIcon className="size-3" />
-          </button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent collisionPadding={10} maxWidth="20rem">
-        Sent to Instrument with your message
-      </TooltipContent>
-    </Tooltip>
+    <ContextChip
+      label={
+        selected.length > 0
+          ? "Selected on screen, sent to Instrument with your message"
+          : "Sent to Instrument with your message"
+      }
+      mark={
+        selected.length === 1 && one !== undefined ? (
+          <FileTypeIcon fileName={nameOfPath(one)} />
+        ) : (
+          <HeldMark appsBySlug={appsBySlug} tab={tab} />
+        )
+      }
+      name={name}
+      onLeaveOut={onLeaveOut}
+      slot="included-chip"
+    />
   );
+}
+
+/** The last name in a path, which is what a chip calls the thing. */
+function nameOfPath(path: string) {
+  return segmentsOf(path).at(-1) ?? path;
 }
 
 /**

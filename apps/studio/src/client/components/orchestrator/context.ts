@@ -1,3 +1,4 @@
+import { type ChosenItem } from "@/client/atoms/orchestrator";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { createContext, useContext } from "react";
 
@@ -19,6 +20,11 @@ export interface OpenOptions {
 export interface OrchestratorWindow {
   /** Opens a draft of a new thread with the line already in it, to be read and sent by the person; inside a thread, sends the line there. */
   ask: (prompt: string) => void;
+  /**
+   * Opens a draft of a new thread with these files or folders picked to go
+   * with it; absent where there is no new draft to open, as inside one.
+   */
+  askAbout?: (items: ChosenItem[]) => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
   /** Puts the caret in the conversation's composer, for a screen handing something over to be asked about. */

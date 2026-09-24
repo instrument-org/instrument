@@ -194,15 +194,8 @@ export function contextReaders({
     }
     return;
   };
-  /**
-   * What a draft's window has up as its thread starts: the band's page, read
-   * at that moment, or the folder or file its screen reported, and the
-   * draft's tabs for the thread to name, with the thing the draft was opened
-   * over described among them. A draft that gathered nothing of its own is
-   * told about that thing in place of its band; one with neither has nothing
-   * the conversation can be told about.
-   */
-  const draftContext = async (
+  /** What a draft's window and the thing it was opened over show, as its thread starts, before what was picked for it. */
+  const draftShown = async (
     draftId: string,
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
     const draft = drafts.find((entry) => entry.id === draftId);
@@ -256,6 +249,31 @@ export function contextReaders({
       tabs: described,
       url: up.kind === "page" ? (up.url ?? "about:blank") : up.href,
     };
+  };
+  /**
+   * What a draft's window has up as its thread starts: the band's page, read
+   * at that moment, or the folder or file its screen reported, and the
+   * draft's tabs for the thread to name, with the thing the draft was opened
+   * over described among them. A draft that gathered nothing of its own is
+   * told about that thing in place of its band; one with neither has nothing
+   * the conversation can be told about. What the draft was opened on by name
+   * goes with it whatever the window shows.
+   */
+  const draftContext = async (
+    draftId: string,
+  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
+    const draft = drafts.find((entry) => entry.id === draftId);
+    const shown = await draftShown(draftId);
+    const chosen = (draft?.chosen ?? []).map((item) => ({
+      ...fileOf(item.path),
+      kind: item.kind,
+    }));
+    if (chosen.length === 0 || !state) {
+      return shown;
+    }
+    // What was picked goes whatever the window shows, with nothing on screen
+    // to say beside it as well.
+    return { ...(shown ?? { screen: "home", tabs: [] }), chosen };
   };
   /**
    * What the face has on it, in the terms a screen reports: one task and

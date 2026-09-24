@@ -574,6 +574,7 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 });
 
 export function FileViewer({
+  actionsLead,
   className,
   file,
   lead,
@@ -581,6 +582,8 @@ export function FileViewer({
   onExpand,
   page,
 }: {
+  /** Buttons of the caller's own, ahead of the viewer's in its head. */
+  actionsLead?: ReactNode;
   // Set by a caller that already draws the surface this sits in, so the viewer
   // can drop its own card and fill the frame instead of nesting inside it.
   className?: string;
@@ -703,6 +706,7 @@ export function FileViewer({
       <FileViewerHeader
         actions={
           <>
+            {actionsLead}
             <OpenTaskFileButton
               className={fileViewerHeaderActionClassName}
               control={openControl}

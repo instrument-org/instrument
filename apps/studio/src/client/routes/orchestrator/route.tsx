@@ -847,6 +847,9 @@ function OrchestratorLayout() {
         ask: (prompt) => {
           newDraft(prompt);
         },
+        askAbout: (items) => {
+          newDraft(undefined, items);
+        },
         browser,
         // The composer is a draft in a window of its own, which takes the
         // caret as it opens.

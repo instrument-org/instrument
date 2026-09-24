@@ -1,6 +1,7 @@
 import { featuresAtom } from "@/client/atoms/features";
 import {
   type AppPlace,
+  type ChosenItem,
   type Draft,
   draftGroupOf,
   draftsAtom,
@@ -108,7 +109,11 @@ export function useDrafts({
    * find a site, a folder, a file, or an app to gather. Every ask is a new
    * draft, beside the ones already open.
    */
-  const startDraft = (topicId: string | undefined, words = "") => {
+  const startDraft = (
+    topicId: string | undefined,
+    words = "",
+    chosen: ChosenItem[] = [],
+  ) => {
     const now = Date.now();
     // What the draft is opened over: the tab the place has up, when the
     // window stands in a place and that tab is something the conversation
@@ -122,6 +127,7 @@ export function useDrafts({
         ? { group: overGroup, tabId: over.id }
         : undefined;
     const draft: Draft = {
+      ...(chosen.length > 0 ? { chosen } : {}),
       createdAt: now,
       id: ulid(),
       ...(included ? { included } : {}),
@@ -141,12 +147,13 @@ export function useDrafts({
    * draft filed under the topic the inbox stands in while it stands in one,
    * with the window put on the chat, which is where a draft is written.
    */
-  const newDraft = (words?: string) => {
+  const newDraft = (words?: string, chosen?: ChosenItem[]) => {
     startDraft(
       isChat && threadFilters.topics.length === 1
         ? topics.find((topic) => topic.id === threadFilters.topics[0])?.id
         : undefined,
       typeof words === "string" ? words : "",
+      chosen,
     );
   };
   // What a draft's composer held is kept only as long as the draft: a

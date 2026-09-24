@@ -231,6 +231,8 @@ export type FileSystemProps = {
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
   renderHeaderLead?: () => React.ReactNode;
+  /** Controls drawn at the toolbar's trailing end, before the sort. */
+  renderHeaderTrail?: () => React.ReactNode;
   /**
    * What the columns view shows past the last column while no file is
    * selected, given the folder that column lists.
@@ -1472,6 +1474,7 @@ export function FileSystem({
   renderFilePreview,
   renderFileStage,
   renderHeaderLead,
+  renderHeaderTrail,
   renderTrailing,
   selectedPath: selectedPathProp,
   showHiddenFiles: showHiddenFilesProp,
@@ -2336,6 +2339,7 @@ export function FileSystem({
           </Tabs>
         )}
         <div className="flex min-w-0 items-center justify-end gap-1">
+          {renderHeaderTrail ? renderHeaderTrail() : null}
           <FileSystemSortSelect
             layout={headerLayout}
             onKeyChange={applySortKey}

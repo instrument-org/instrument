@@ -495,4 +495,39 @@ describe("draftContext", () => {
       }
     `);
   });
+
+  it("sends what the draft was opened on by name, reached through its grant", async () => {
+    const { draftContext } = contextReaders(
+      windowOf({
+        drafts: [
+          {
+            ...DRAFT,
+            chosen: [
+              { kind: "file", path: "/Users/casey/Notes/plan.md" },
+              { kind: "folder", path: "/Volumes/Backup" },
+            ],
+          },
+        ],
+      }),
+    );
+    await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(`
+      {
+        "chosen": [
+          {
+            "kind": "file",
+            "mount": "/mnt/Home/Notes/plan.md",
+            "name": "plan.md",
+            "path": "/Users/casey/Notes/plan.md",
+          },
+          {
+            "kind": "folder",
+            "name": "Backup",
+            "path": "/Volumes/Backup",
+          },
+        ],
+        "screen": "home",
+        "tabs": [],
+      }
+    `);
+  });
 });

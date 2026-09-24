@@ -60,6 +60,12 @@ export type ScreenView = Omit<
 
 export const screenViewAtom = atom<null | ScreenView>(null);
 
+/** A file or folder on this computer picked to go with a draft, by its path. */
+export interface ChosenItem {
+  kind: "file" | "folder";
+  path: string;
+}
+
 /**
  * A thread not yet started: its words and the topic it will be filed under.
  * What it has gathered (sites, files, folders) is its tab group, kept with
@@ -67,6 +73,12 @@ export const screenViewAtom = atom<null | ScreenView>(null);
  * besides the words is kept in memory beside it.
  */
 export interface Draft {
+  /**
+   * Files and folders the person opened the draft on by name, from a menu or
+   * a button over them: held for the thread whatever the window moves on to,
+   * until the person leaves one out.
+   */
+  chosen?: ChosenItem[];
   createdAt: number;
   id: string;
   /**

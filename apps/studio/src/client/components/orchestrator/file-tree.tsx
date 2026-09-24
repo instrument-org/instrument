@@ -67,7 +67,7 @@ export function FileTree({
   /** The file the tab shows, which the tree is opened down to. */
   selected: string;
 }) {
-  const { openScreen } = useOrchestrator();
+  const { askAbout, openScreen } = useOrchestrator();
   const queryClient = useQueryClient();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const home = places.data?.favorites.find((place) => place.name === "Home");
@@ -137,6 +137,13 @@ export function FileTree({
         onDuplicate={() => {
           run(() => rpcClient.files.duplicate.call({ path: menuHostPath }));
         }}
+        onNewDraft={
+          askAbout && menuItem
+            ? () => {
+                askAbout([{ kind: menuItem.kind, path: menuHostPath }]);
+              }
+            : undefined
+        }
         onNewFolder={undefined}
         onOpen={() => {
           onOpen(menuHostPath);

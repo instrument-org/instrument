@@ -19,6 +19,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
@@ -90,7 +91,7 @@ export function FilesScreen({
   /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
   tree: string | undefined;
 }) {
-  const { browser, openPage, openScreen, taskId } = useOrchestrator();
+  const { askAbout, browser, openPage, openScreen, taskId } = useOrchestrator();
   const { active, allTabs, close, closeActive, step, stepVisit } =
     useWindowTabs();
   const [isTreeOpen, setTreeOpen] = useAtom(fileTreeOpenAtom);
@@ -319,6 +320,15 @@ export function FilesScreen({
           </TreePane>
           <div className="min-h-0 min-w-0 flex-1 p-3">
             <FileViewer
+              actionsLead={
+                askAbout && (
+                  <DraftButton
+                    onPress={() => {
+                      askAbout([{ kind: "file", path: activeFile.hostPath }]);
+                    }}
+                  />
+                )
+              }
               className="h-full"
               file={viewerFile}
               key={activeFile.hostPath}
@@ -354,6 +364,15 @@ export function FilesScreen({
           // wears, so the viewer is the whole of the tab.
           <div className="h-full p-3">
             <FileViewer
+              actionsLead={
+                askAbout && (
+                  <DraftButton
+                    onPress={() => {
+                      askAbout([{ kind: "file", path: activeFile.hostPath }]);
+                    }}
+                  />
+                )
+              }
               className="h-full"
               file={viewerFile}
               key={activeFile.hostPath}
@@ -378,6 +397,28 @@ export function FilesScreen({
       </div>
       {quickLook.dialog}
     </div>
+  );
+}
+
+/** A draft with the file on screen picked to go with it, first among the viewer's buttons. */
+function DraftButton({ onPress }: { onPress: () => void }) {
+  return (
+    <ToolbarTooltip label="New Draft with this file">
+      <Button
+        className={toolbarClassName({
+          className: "h-7 gap-1.5 px-2 text-xs has-[>svg]:px-2",
+          pressed: false,
+        })}
+        onClick={onPress}
+        size="sm"
+        variant="ghost"
+      >
+        <NotePencilIcon className="size-4" />
+        <span className="hidden min-w-0 truncate @min-[380px]:inline">
+          New Draft
+        </span>
+      </Button>
+    </ToolbarTooltip>
   );
 }
 

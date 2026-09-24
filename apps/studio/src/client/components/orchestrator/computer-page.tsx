@@ -20,6 +20,7 @@ import {
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenWithMenu } from "@/client/components/open-with-menu";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
   ContextMenu,
@@ -58,6 +59,7 @@ import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -188,7 +190,7 @@ export function ComputerPage({
   refreshInterval?: false | number;
   root: string;
 }) {
-  const { openScreen, taskId } = useOrchestrator();
+  const { askAbout, openScreen, taskId } = useOrchestrator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   // Held above the browser, which is rebuilt on every opening, so the column
@@ -579,6 +581,22 @@ export function ComputerPage({
         ? selectedPath
         : selectedPath.slice(0, selectedPath.lastIndexOf("/") + 1);
   const currentListing = listingOf(onScreen);
+  // The folder standing on screen, by its path: the listing's own once it has
+  // arrived, the root the sidebar resolved until then. The recents are a list
+  // rather than a folder, and have none.
+  const folderOnScreenPath = isRecents
+    ? undefined
+    : (currentListing?.path ?? hostPathOf(onScreen, rootHostPath ?? root));
+  /** A draft with a row picked to go with it, or with the folder on screen when there is no row. */
+  const draftAbout = (item: FileSystemItem | undefined) => {
+    const itemPath = hostPathOfItem(item);
+    if (item && itemPath) {
+      askAbout?.([{ kind: item.kind, path: itemPath }]);
+    } else if (folderOnScreenPath !== undefined) {
+      askAbout?.([{ kind: "folder", path: folderOnScreenPath }]);
+    }
+  };
+
   // The folder on screen is one the operating system would not let this app
   // read. On a Mac the first read of a protected folder is the system's own
   // ask, so this is what a declined ask looks like, and where it is undone.
@@ -1024,7 +1042,11 @@ export function ComputerPage({
                   const tab = fileTabOf(file);
                   // A picture at its own size: the thumbnail the rows and
                   // tiles use is too small for a pane this wide.
-                  if (tab && file.url && file.contentType?.startsWith("image/")) {
+                  if (
+                    tab &&
+                    file.url &&
+                    file.contentType?.startsWith("image/")
+                  ) {
                     return (
                       <img
                         alt=""
@@ -1092,6 +1114,30 @@ export function ComputerPage({
                     </button>
                   </span>
                 )}
+                renderHeaderTrail={
+                  askAbout && (selectedItem || folderOnScreenPath !== undefined)
+                    ? () => {
+                        const about =
+                          segmentsOf(
+                            hostPathOfItem(selectedItem) ||
+                              (folderOnScreenPath ?? ""),
+                          ).at(-1) ?? "this folder";
+                        return (
+                          <ToolbarTooltip label={`New Draft with “${about}”`}>
+                            <button
+                              className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                              onClick={() => {
+                                draftAbout(selectedItem);
+                              }}
+                              type="button"
+                            >
+                              <NotePencilIcon className="size-4" />
+                            </button>
+                          </ToolbarTooltip>
+                        );
+                      }
+                    : undefined
+                }
                 selectedPath={selectedPath}
                 showHiddenFiles={showHiddenFiles}
                 sort={shown.sort}
@@ -1111,16 +1157,19 @@ export function ComputerPage({
             onDuplicate={() => void duplicate(menuItem)}
             // The recents are a list rather than a folder, so there is nowhere
             // there to make one.
+            onNewDraft={
+              askAbout && (menuItem || folderOnScreenPath !== undefined)
+                ? () => {
+                    draftAbout(menuItem);
+                  }
+                : undefined
+            }
             onNewFolder={
-              isRecents
+              folderOnScreenPath === undefined
                 ? undefined
                 : () => {
                     void newFolderIn({
-                      // The listing knows the folder's own path; until it has
-                      // arrived, the root the sidebar resolved stands in for it.
-                      hostPath:
-                        currentListing?.path ??
-                        hostPathOf(onScreen, rootHostPath ?? root),
+                      hostPath: folderOnScreenPath,
                       prefix: onScreen,
                     });
                   }
@@ -1193,6 +1242,7 @@ export function FolderMenu({
   onClosed,
   onCopyPath,
   onDuplicate,
+  onNewDraft,
   onNewFolder,
   onOpen,
   onOpenInNewTab,
@@ -1209,6 +1259,8 @@ export function FolderMenu({
   onClosed?: () => void;
   onCopyPath: () => void;
   onDuplicate: () => void;
+  /** A draft with the row, or the folder its empty space is, picked to go with it; left out where no draft can be opened. */
+  onNewDraft?: () => void;
   /** Left out where there is no folder to make one in. */
   onNewFolder: (() => void) | undefined;
   /** What a double-click does: a folder is gone into, a file opened here. */
@@ -1241,6 +1293,15 @@ export function FolderMenu({
         onClosed?.();
       }}
     >
+      {onNewDraft ? (
+        <>
+          <ContextMenuItem onClick={onNewDraft}>
+            <NotePencilIcon className="size-4" />
+            <span>New Draft</span>
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+        </>
+      ) : null}
       {item ? (
         <>
           {item.kind === "folder" ? (
@@ -1315,31 +1376,31 @@ export function FolderMenu({
             </>
           ) : null}
           {onSortKey && sort ? (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <SortAscendingIcon className="size-4" />
-              <span>Sort By</span>
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="min-w-44">
-              <ContextMenuRadioGroup
-                onValueChange={(key) => {
-                  const option = SORT_BY.find((entry) => entry.key === key);
-                  if (option) {
-                    onSortKey(option.key);
-                  }
-                }}
-                value={sort.key}
-              >
-                {SORT_BY.filter(
-                  (option) => isRecents || !option.recentsOnly,
-                ).map((option) => (
-                  <ContextMenuRadioItem key={option.key} value={option.key}>
-                    {option.label}
-                  </ContextMenuRadioItem>
-                ))}
-              </ContextMenuRadioGroup>
-            </ContextMenuSubContent>
-          </ContextMenuSub>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <SortAscendingIcon className="size-4" />
+                <span>Sort By</span>
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="min-w-44">
+                <ContextMenuRadioGroup
+                  onValueChange={(key) => {
+                    const option = SORT_BY.find((entry) => entry.key === key);
+                    if (option) {
+                      onSortKey(option.key);
+                    }
+                  }}
+                  value={sort.key}
+                >
+                  {SORT_BY.filter(
+                    (option) => isRecents || !option.recentsOnly,
+                  ).map((option) => (
+                    <ContextMenuRadioItem key={option.key} value={option.key}>
+                      {option.label}
+                    </ContextMenuRadioItem>
+                  ))}
+                </ContextMenuRadioGroup>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
           ) : null}
         </>
       )}
@@ -1636,7 +1697,10 @@ function previewOf(entry: {
   const version = entry.modifiedAt;
   const url = getComputerFileUrl({ hostPath: entry.path, version });
   const extension = entry.name.split(".").at(-1)?.toLowerCase() ?? "";
-  if (!entry.mimeType?.startsWith("image/") && !THUMBNAIL_EXTENSIONS.has(extension)) {
+  if (
+    !entry.mimeType?.startsWith("image/") &&
+    !THUMBNAIL_EXTENSIONS.has(extension)
+  ) {
     return { url };
   }
   return {

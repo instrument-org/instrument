@@ -1,22 +1,24 @@
 import { FileViewer } from "@/client/components/file-viewer";
-import { getComputerFileUrl } from "@/client/lib/computer-file-url";
-import { getFileType } from "@/client/lib/get-file-type";
+import {
+  getComputerFileUrl,
+  getComputerThumbnailUrl,
+} from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
-import { type ReactNode } from "react";
-
-import { usePagePicture } from "./page-picture";
+import { type ReactNode, useState } from "react";
 
 /** How much smaller than life a document is drawn in its thumbnail. */
 const THUMBNAIL_SCALE = 0.4;
 
-/** The shape a document's thumbnail is drawn in, and a page's picture with it. */
+/** The shape a document's thumbnail is drawn in, and its picture with it. */
 const THUMBNAIL_BOX_CLASS =
   "aspect-[0.78] w-full overflow-hidden rounded-sm bg-card shadow-sm ring-1 ring-border";
 
 /**
- * A file drawn small: a page's file as a browser draws it, and any other
- * file that reads as text as its viewer scaled down into a page-shaped box.
- * What the Finder's gallery and Home both draw a file as.
+ * A file drawn small, as the Finder's tiles draw it: the picture the app
+ * keeps of it (a page as a browser draws it, Markdown and code typeset, the
+ * rest as the system draws them), and the file's viewer scaled down into a
+ * page-shaped box where there is no picture of it. What Home and the
+ * columns' preview draw a document as.
  */
 export function FileThumbnail({
   hostPath,
@@ -31,7 +33,24 @@ export function FileThumbnail({
   /** When the file was last written, as listed; a new value is a new picture. */
   version?: string;
 }) {
-  const document = (
+  const picture = getComputerThumbnailUrl({ hostPath, size: 512, version });
+  const [failed, setFailed] = useState<string>();
+  if (picture && failed !== picture) {
+    return (
+      <div className={cn("pointer-events-none", THUMBNAIL_BOX_CLASS)}>
+        <img
+          alt=""
+          className="size-full object-cover object-top"
+          draggable={false}
+          onError={() => {
+            setFailed(picture);
+          }}
+          src={picture}
+        />
+      </div>
+    );
+  }
+  return (
     <DocumentThumbnail key={hostPath}>
       <FileViewer
         className="h-full"
@@ -43,19 +62,6 @@ export function FileThumbnail({
       />
     </DocumentThumbnail>
   );
-  // A page's file is the page, as the tab opening it shows it; its text is
-  // what the viewer would draw.
-  if (getFileType({ filename: name }) === "html") {
-    return (
-      <PageThumbnail
-        fallback={document}
-        hostPath={hostPath}
-        key={hostPath}
-        version={version}
-      />
-    );
-  }
-  return document;
 }
 
 /**
@@ -95,40 +101,6 @@ function DocumentThumbnail({ children }: { children: ReactNode }) {
       >
         {children}
       </div>
-    </div>
-  );
-}
-
-/**
- * A page's file at thumbnail size: the page as a browser draws it, in the box
- * a document's text is drawn in, asked for again when the listing notices the
- * file written.
- */
-function PageThumbnail({
-  fallback,
-  hostPath,
-  version,
-}: {
-  /** What stands in when the page cannot be drawn: the file's text. */
-  fallback: ReactNode;
-  hostPath: string;
-  /** When the file was last written, as listed; a new value is a new picture. */
-  version: string | undefined;
-}) {
-  const thumbnail = usePagePicture({ hostPath, version });
-  if (thumbnail.isError) {
-    return fallback;
-  }
-  return (
-    <div className={cn("pointer-events-none", THUMBNAIL_BOX_CLASS)}>
-      {thumbnail.data && (
-        <img
-          alt=""
-          className="size-full object-cover object-top"
-          draggable={false}
-          src={thumbnail.data.dataUrl}
-        />
-      )}
     </div>
   );
 }

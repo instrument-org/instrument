@@ -5,6 +5,12 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import {
+  fileThumbnail,
+  fileThumbnailDeps,
+  THUMBNAIL_SIZES,
+} from "./file-thumbnails";
+
 /**
  * The channel the person's own viewers read a file on this computer through:
  * `instrument://computer-<token>/<host path>`, served as the app's user, so
@@ -112,8 +118,6 @@ app.all("/*", async (c) => {
   // picture of it, which the renderer answers with the file's type icon.
   const thumbnail = c.req.query("thumbnail");
   if (thumbnail !== undefined) {
-    const { fileThumbnail, fileThumbnailDeps, THUMBNAIL_SIZES } =
-      await import("./file-thumbnails");
     const size = THUMBNAIL_SIZES.find((entry) => String(entry) === thumbnail);
     if (size === undefined) {
       return c.notFound();

@@ -1572,41 +1572,74 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 /**
- * What the system can draw a picture of rather than an icon, the way the
- * Finder's icons show one: pictures, documents with pages, pages, text and
- * video. Anything else would come back as the system's blank page, which says
- * less than the file's own type icon.
+ * What has a picture rather than an icon, the way the Finder's icons show
+ * one: pictures, documents with pages and video, which the system draws, and
+ * pages, Markdown and code, which the app draws itself. Anything else would
+ * come back as a blank page, which says less than the file's own type icon.
  */
 const THUMBNAIL_EXTENSIONS = new Set([
   "bmp",
+  "c",
+  "cc",
+  "cpp",
+  "cs",
+  "css",
   "csv",
   "docx",
   "gif",
+  "go",
+  "h",
   "heic",
   "heif",
+  "hpp",
   "htm",
   "html",
+  "ini",
+  "java",
   "jpeg",
   "jpg",
+  "js",
   "json",
+  "jsx",
   "key",
+  "kt",
+  "log",
+  "lua",
   "m4v",
   "markdown",
   "md",
+  "mdx",
+  "mjs",
   "mov",
   "mp4",
   "numbers",
   "pages",
   "pdf",
+  "php",
   "png",
   "pptx",
+  "py",
+  "rb",
+  "rs",
   "rtf",
+  "scss",
+  "sh",
+  "sql",
   "svg",
+  "swift",
   "tif",
   "tiff",
+  "toml",
+  "ts",
+  "tsv",
+  "tsx",
   "txt",
   "webp",
   "xlsx",
+  "xml",
+  "yaml",
+  "yml",
+  "zsh",
 ]);
 
 /** The tab a file opens in: the file by where it is on the computer. */

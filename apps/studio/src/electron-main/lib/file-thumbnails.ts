@@ -4,6 +4,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { createScopedLogger } from "./electron-logger";
+import { renderedKindOf } from "./rendered-kinds";
+import { renderPicture } from "./rendered-pictures";
 
 const log = createScopedLogger("FileThumbnails");
 
@@ -18,6 +20,11 @@ const log = createScopedLogger("FileThumbnails");
  * every launch after it; a file written since is a new name and drawn again.
  * A file the system has no picture of is remembered as such the same way, so
  * a folder of them is not asked about on every visit.
+ *
+ * Pages, Markdown and code are the exception: the app draws those itself
+ * (`rendered-pictures.ts`), since the system runs no page's scripts and has
+ * no picture of Markdown or code off a Mac. One drawing at the largest size
+ * is kept, and the smaller sizes are scaled from it.
  *
  * Where the system draws nothing (Linux, or a picture it would not read), a
  * PNG or JPEG is scaled down here instead, which still spares the renderer
@@ -39,7 +46,7 @@ const PAGE_SHAPED = /\.(?:csv|htm|html|json|markdown|md|rtf|txt)$/i;
 /** A page's width over its height, as the renderer draws a page. */
 const PAGE_ASPECT = 0.78;
 /** Part of the key, so pictures drawn before a change to how they are drawn are drawn again. */
-const DRAWING = "4";
+const DRAWING = "5";
 
 /** How many are kept on disk; past it the least recently written go. */
 const KEPT = 4000;
@@ -92,17 +99,23 @@ export async function fileThumbnail(
     ) {
       return null;
     }
-    const image = pageShaped(
-      hostPath,
-      await withTurn(() =>
-        draw(
-          hostPath,
-          PAGE_SHAPED.test(hostPath)
-            ? { height: size, width: Math.round(size * PAGE_ASPECT) }
-            : { height: size, width: size },
+    const rendered =
+      renderedKindOf(hostPath) === undefined
+        ? null
+        : await renderedAt(hostPath, stats.mtimeMs, size, deps);
+    const image =
+      rendered ??
+      pageShaped(
+        hostPath,
+        await withTurn(() =>
+          draw(
+            hostPath,
+            PAGE_SHAPED.test(hostPath)
+              ? { height: size, width: Math.round(size * PAGE_ASPECT) }
+              : { height: size, width: size },
+          ),
         ),
-      ),
-    );
+      );
     await fs.mkdir(deps.dir, { recursive: true });
     if (!image || image.isEmpty()) {
       await fs.writeFile(none, "");
@@ -121,6 +134,8 @@ export async function fileThumbnail(
   inFlight.set(key, request);
   return request;
 }
+
+const renderedInFlight = new Map<string, Promise<NativeImage | null>>();
 
 async function draw(
   hostPath: string,
@@ -203,6 +218,59 @@ async function prune(dir: string) {
   } catch (error) {
     log.warn(`Could not prune ${dir}: ${String(error)}`);
   }
+}
+
+/**
+ * The file as the app draws it, scaled to `size` tall from the one drawing
+ * kept at the largest size; null when it could not be drawn, which leaves it
+ * to the system. A page photographed before it finished loading is shown but
+ * not kept, so the next ask draws it again.
+ */
+async function renderedAt(
+  hostPath: string,
+  modifiedAt: number,
+  size: ThumbnailSize,
+  deps: Deps,
+): Promise<NativeImage | null> {
+  const key = createHash("sha256")
+    .update(`${hostPath}\0${modifiedAt}\0rendered\0${DRAWING}`)
+    .digest("hex");
+  let pending = renderedInFlight.get(key);
+  if (!pending) {
+    pending = (async () => {
+      const stored = path.join(deps.dir, `${key}.png`);
+      const kept = await fs.readFile(stored).catch(() => null);
+      if (kept) {
+        return nativeImage.createFromBuffer(kept);
+      }
+      try {
+        const { complete, image } = await renderPicture(hostPath);
+        if (complete) {
+          await fs.mkdir(deps.dir, { recursive: true });
+          await fs.writeFile(stored, image.toPNG());
+        }
+        return image;
+      } catch {
+        return null;
+      }
+    })().finally(() => {
+      renderedInFlight.delete(key);
+    });
+    renderedInFlight.set(key, pending);
+  }
+  const full = await pending;
+  if (!full || full.isEmpty()) {
+    return null;
+  }
+  const { height, width } = full.getSize();
+  if (height <= size) {
+    return full;
+  }
+  return full.resize({
+    height: size,
+    quality: "good",
+    width: Math.max(1, Math.round((width * size) / height)),
+  });
 }
 
 async function withTurn<T>(work: () => Promise<T>): Promise<T> {

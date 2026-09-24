@@ -1,4 +1,3 @@
-import { capturePageThumbnail } from "@/electron-main/lib/page-thumbnail";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import { eventIterator } from "@orpc/server";
@@ -143,27 +142,6 @@ const trash = base
     }
   });
 
-/**
- * A page's file drawn as its page, for the file browser to show beside the
- * selection. `version` is the file's mtime as the caller last listed it: the
- * file is read as it is either way, and a listing that noticed a write asks
- * afresh rather than getting the picture it was already shown.
- */
-const pageThumbnail = base
-  .errors({ CANNOT_DRAW: { message: "The page could not be drawn" } })
-  .input(z.object({ path: HostPathSchema, version: z.string().optional() }))
-  .output(z.object({ dataUrl: z.string() }))
-  .handler(async ({ errors, input, signal }) => {
-    try {
-      const { dataUrl } = await capturePageThumbnail(input.path, { signal });
-      return { dataUrl };
-    } catch (error) {
-      throw errors.CANNOT_DRAW({
-        message: error instanceof Error ? error.message : undefined,
-      });
-    }
-  });
-
 const live = {
   /** One file on this computer, watched while something is looking at it: when it was last written, or null while it is not there. */
   info: base
@@ -178,7 +156,6 @@ export const files = {
   duplicate,
   live,
   newFolder,
-  pageThumbnail,
   rename,
   trash,
 };

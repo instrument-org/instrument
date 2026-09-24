@@ -4,6 +4,7 @@ import {
   computerFolderViewsAtom,
   computerHiddenFilesAtom,
   computerListColumnsAtom,
+  computerListColumnWidthsAtom,
   computerSortAtom,
   computerViewAtom,
   type FileTab,
@@ -12,7 +13,6 @@ import {
   FileSystem,
   type FileSystemFileItem,
   FileSystemFolderGlyph,
-  type FileSystemHandle,
   type FileSystemItem,
   type FileSystemSortKey,
   type FileSystemSortState,
@@ -45,8 +45,10 @@ import {
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { folderHref } from "@/shared/computer-href";
 import { type ComputerListing } from "@instrument-org/workspace/client";
 import { ORPCError } from "@orpc/client";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
@@ -186,7 +188,7 @@ export function ComputerPage({
   refreshInterval?: false | number;
   root: string;
 }) {
-  const { taskId } = useOrchestrator();
+  const { openScreen, taskId } = useOrchestrator();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   // Held above the browser, which is rebuilt on every opening, so the column
@@ -198,6 +200,9 @@ export function ComputerPage({
   const [folderViews, setFolderViews] = useAtom(computerFolderViewsAtom);
   const [columnWidth, setColumnWidth] = useAtom(computerColumnWidthAtom);
   const [listColumns, setListColumns] = useAtom(computerListColumnsAtom);
+  const [listColumnWidths, setListColumnWidths] = useAtom(
+    computerListColumnWidthsAtom,
+  );
   const [showHiddenFiles, setShowHiddenFiles] = useAtom(
     computerHiddenFilesAtom,
   );
@@ -280,7 +285,6 @@ export function ComputerPage({
   // out, so a name field opened any sooner lost it at once, and a field that
   // loses the keyboard with its name unchanged closes.
   const afterMenu = useRef<(() => void) | null>(null);
-  const browser = useRef<FileSystemHandle>(null);
   // The item whose name is being typed over, by the path the browser knows it
   // by; the row itself holds the field.
   const [renamingPath, setRenamingPath] = useState<null | string>(null);
@@ -875,7 +879,7 @@ export function ComputerPage({
   return (
     <div className="flex h-full min-h-0">
       <nav
-        className="flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm"
+        className="flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm select-none"
         onKeyDown={(event) => {
           if (event.key !== "ArrowRight") {
             return;
@@ -958,6 +962,7 @@ export function ComputerPage({
                 items={items}
                 key={`${root}#${openings}`}
                 listColumns={listColumns}
+                listColumnWidths={listColumnWidths}
                 loadChildren={async ({ path: prefix }) => {
                   // The recents are one flat list of files; nothing on it opens.
                   if (isRecents) {
@@ -993,6 +998,7 @@ export function ComputerPage({
                   setMenuItem(item ?? undefined);
                 }}
                 onListColumnsChange={setListColumns}
+                onListColumnWidthsChange={setListColumnWidths}
                 onPathChange={setCurrent}
                 onRenameCancel={() => {
                   setRenamingPath(null);
@@ -1013,7 +1019,6 @@ export function ComputerPage({
                   setDefaultView(view);
                   keepLook({ sort: shown.sort, view });
                 }}
-                ref={browser}
                 renamingPath={renamingPath}
                 renderFileStage={(file) => {
                   // Text reads as a thumbnail of the document, the way an image
@@ -1106,8 +1111,14 @@ export function ComputerPage({
                   }
             }
             onOpen={() => {
-              if (menuItem) {
-                browser.current?.open(menuItem);
+              if (menuItem?.kind === "file") {
+                openFile(menuItem);
+              }
+            }}
+            onOpenInNewTab={() => {
+              const folder = hostPathOfItem(menuItem);
+              if (folder) {
+                openScreen(folderHref(folder), { newTab: true });
               }
             }}
             onQuickLook={
@@ -1194,6 +1205,7 @@ function FolderMenu({
   onDuplicate,
   onNewFolder,
   onOpen,
+  onOpenInNewTab,
   onQuickLook,
   onRename,
   onReveal,
@@ -1211,6 +1223,8 @@ function FolderMenu({
   onNewFolder: (() => void) | undefined;
   /** What a double-click does: a folder is gone into, a file opened here. */
   onOpen: () => void;
+  /** A folder in a tab of its own, which is the Finder's first answer for one. */
+  onOpenInNewTab: () => void;
   /** Left out where nothing shows a file over the page. */
   onQuickLook: (() => void) | undefined;
   onRename: () => void;
@@ -1237,10 +1251,17 @@ function FolderMenu({
     >
       {item ? (
         <>
-          <ContextMenuItem onClick={onOpen}>
-            <FolderOpenIcon className="size-4" />
-            <span>Open</span>
-          </ContextMenuItem>
+          {item.kind === "folder" ? (
+            <ContextMenuItem onClick={onOpenInNewTab}>
+              <ArrowSquareOutIcon className="size-4" />
+              <span>Open in New Tab</span>
+            </ContextMenuItem>
+          ) : (
+            <ContextMenuItem onClick={onOpen}>
+              <FolderOpenIcon className="size-4" />
+              <span>Open</span>
+            </ContextMenuItem>
+          )}
           {/* The apps are listed where the Mac can be asked for them, and the
               submenu asks only once it is opened, so the row is there from
               the first frame rather than arriving under the pointer once a

@@ -15,7 +15,17 @@ vi.mock("electron", () => ({
 
 const { fileThumbnail } = await import("./file-thumbnails");
 
-const picture = (bytes: string) => ({
+const picture = (
+  bytes: string,
+  size = { height: 100, width: 100 },
+): {
+  crop: (rect: { height: number; width: number }) => unknown;
+  getSize: () => { height: number; width: number };
+  isEmpty: () => boolean;
+  toPNG: () => Buffer;
+} => ({
+  crop: (rect) => picture(`${bytes} cropped to ${rect.width}x${rect.height}`, rect),
+  getSize: () => size,
   isEmpty: () => false,
   toPNG: () => Buffer.from(bytes),
 });
@@ -43,7 +53,10 @@ describe("fileThumbnail", () => {
     createThumbnailFromPath.mockResolvedValue(picture("first"));
     const first = await fileThumbnail(file, 512, { dir });
     const second = await fileThumbnail(file, 512, { dir });
-    expect([first?.toString(), second?.toString()]).toEqual(["first", "first"]);
+    expect([first?.toString(), second?.toString()]).toEqual([
+      "first cropped to 78x100",
+      "first cropped to 78x100",
+    ]);
     expect(createThumbnailFromPath).toHaveBeenCalledTimes(1);
   });
 
@@ -53,7 +66,15 @@ describe("fileThumbnail", () => {
     await fs.utimes(file, new Date(), new Date(Date.now() + 5000));
     createThumbnailFromPath.mockResolvedValueOnce(picture("after"));
     const redrawn = await fileThumbnail(file, 512, { dir });
-    expect(redrawn?.toString()).toBe("after");
+    expect(redrawn?.toString()).toBe("after cropped to 78x100");
+  });
+
+  it("keeps a picture in its own shape", async () => {
+    const photo = path.join(root, "photo.jpg");
+    await fs.writeFile(photo, "");
+    createThumbnailFromPath.mockResolvedValue(picture("photo"));
+    const drawn = await fileThumbnail(photo, 512, { dir });
+    expect(drawn?.toString()).toBe("photo");
   });
 
   it("remembers a file the system has no picture of", async () => {

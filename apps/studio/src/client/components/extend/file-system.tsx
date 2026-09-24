@@ -40,6 +40,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { Delayed } from "@/client/components/ui/delayed";
 import { Input } from "@/client/components/ui/input";
 import {
   Popover,
@@ -128,11 +129,6 @@ export type FileSystemFileItem = {
   /** Optional if already public/presigned. Otherwise resolved via `getFileUrl`. */
   url?: string;
 };
-/** What a caller can ask of the browser outside its own gestures. */
-export type FileSystemHandle = {
-  /** Opens an item the way a double-click does: a folder is gone into, a file opened. */
-  open: (item: FileSystemItem) => void;
-};
 export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
 /** The list view's columns beside Name, each optional. */
 export type FileSystemListColumn = "createdAt" | "kind" | "size" | "updatedAt";
@@ -169,6 +165,12 @@ export type FileSystemProps = {
    * the browser keeps its own: Date Modified, Size and Kind.
    */
   listColumns?: FileSystemListColumn[];
+  /**
+   * The widths of the list view's columns beside Name, in px, as dragged at
+   * their headers, when the caller holds them. A column left out is at its
+   * own default.
+   */
+  listColumnWidths?: Partial<Record<FileSystemListColumn, number>>;
   /** Lazily fetch children for folders with `hasChildren` and no loaded entries. */
   loadChildren?: (
     args: FileSystemLoadChildrenArgs,
@@ -204,6 +206,9 @@ export type FileSystemProps = {
     event: React.MouseEvent,
   ) => void;
   onListColumnsChange?: (columns: FileSystemListColumn[]) => void;
+  onListColumnWidthsChange?: (
+    widths: Partial<Record<FileSystemListColumn, number>>,
+  ) => void;
   /** Called with the folder prefix on screen whenever it changes. */
   onPathChange?: (path: string) => void;
   /** The row's name field, left without a new name. */
@@ -216,7 +221,6 @@ export type FileSystemProps = {
   onShowHiddenFilesChange?: (showHiddenFiles: boolean) => void;
   onSortChange?: (sort: FileSystemSortState) => void;
   onViewChange?: (view: FileSystemView) => void;
-  ref?: React.Ref<FileSystemHandle>;
   /** The item whose name is being typed over in its own row, by path. */
   renamingPath?: null | string;
   /** Controls drawn under a selected file's name in the columns view's preview pane. */
@@ -1040,15 +1044,11 @@ function fileIconColorVariables(mode: 0 | 1) {
 // filter menus and dialogs portal outside it; the --fs-file-icon-*
 // namespace keeps them collision-free. Thumbnail tiles keep a light
 // (paper) surface in dark mode, so icons inside them revert to the light
-// palette ([data-file-system-on-light]); selected rows sit on the primary
-// surface — the opposite of the mode's background — so icons there swap to
-// the opposite palette ([data-file-system-on-primary]).
+// palette ([data-file-system-on-light]).
 const FILE_ICON_COLOR_CSS = `
 :root { ${fileIconColorVariables(0)} }
 .dark { ${fileIconColorVariables(1)} }
 .dark [data-file-system-on-light] { ${fileIconColorVariables(0)} }
-[data-file-system-on-primary] { ${fileIconColorVariables(1)} }
-.dark [data-file-system-on-primary] { ${fileIconColorVariables(0)} }
 `;
 function FileGenericPreview({ file }: { file: FileEntry }) {
   const extension = fileExtension(file.name);
@@ -1446,6 +1446,7 @@ export function FileSystem({
   getHostPath,
   items,
   listColumns: listColumnsProp,
+  listColumnWidths: listColumnWidthsProp,
   loadChildren,
   loadPreviewImageUrl,
   moveFocusWithSelection = true,
@@ -1453,6 +1454,7 @@ export function FileSystem({
   onFileOpen,
   onItemContextMenu,
   onListColumnsChange,
+  onListColumnWidthsChange,
   onPathChange,
   onRenameCancel,
   onRenameCommit,
@@ -1461,7 +1463,6 @@ export function FileSystem({
   onShowHiddenFilesChange,
   onSortChange,
   onViewChange,
-  ref,
   renamingPath,
   renderFileActions,
   renderFilePreview,
@@ -1546,6 +1547,15 @@ export function FileSystem({
   const setListColumns = (next: FileSystemListColumn[]) => {
     setInternalListColumns(next);
     onListColumnsChange?.(next);
+  };
+  const [internalListColumnWidths, setInternalListColumnWidths] =
+    React.useState<Partial<Record<FileSystemListColumn, number>>>({});
+  const listColumnWidths = listColumnWidthsProp ?? internalListColumnWidths;
+  const setListColumnWidths = (
+    next: Partial<Record<FileSystemListColumn, number>>,
+  ) => {
+    setInternalListColumnWidths(next);
+    onListColumnWidthsChange?.(next);
   };
   const [filters, setFilters] = React.useState<FileSystemFilter[]>([]);
   const hasActiveFilters = filters.length > 0;
@@ -2113,15 +2123,6 @@ export function FileSystem({
     },
     [navigateTo, openFile],
   );
-  React.useImperativeHandle(ref, () => ({
-    open: (item) => {
-      const entry =
-        item.kind === "folder"
-          ? index.folders.get(normalizeFolderPath(item.path))
-          : index.files.get(item.path);
-      if (entry) openEntry(entry);
-    },
-  }));
   // Selecting a lazy folder (columns view, keyboard nav) prefetches children.
   const selectAndPrefetchEntry = React.useCallback(
     (entry: FileSystemEntry | null) => {
@@ -2148,6 +2149,7 @@ export function FileSystem({
     fileFilter,
     getFileUrl,
     index: sortedIndex,
+    listColumnWidths,
     loadingFolders,
     loadPreviewImageUrl,
     menuTargetPath: contextMenuPath,
@@ -2156,6 +2158,7 @@ export function FileSystem({
     onExpandFolder: ensureChildren,
     onItemContextMenu: onItemContextMenu ? claimContextMenu : undefined,
     onListColumnsChange: setListColumns,
+    onListColumnWidthsChange: setListColumnWidths,
     onOpen: openEntry,
     onRenameCancel,
     onRenameCommit,
@@ -2195,7 +2198,10 @@ export function FileSystem({
   return (
     <div
       className={cn(
-        "flex h-[480px] min-h-0 flex-col overflow-hidden rounded-xl border bg-background text-foreground outline-none",
+        // Pressed and double-clicked all over, which as text would select
+        // whatever words a quick second click landed on. Fields still take a
+        // selection of their own.
+        "flex h-[480px] min-h-0 flex-col overflow-hidden rounded-xl border bg-background text-foreground outline-none select-none",
         className,
       )}
       data-slot="file-system"
@@ -3057,6 +3063,7 @@ type FileSystemViewProps = {
   fileFilter: ((file: FileEntry) => boolean) | null;
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
   index: FileSystemIndex;
+  listColumnWidths: Partial<Record<FileSystemListColumn, number>>;
   loadingFolders: Set<string>;
   loadPreviewImageUrl?: (
     file: FileSystemFileItem,
@@ -3070,6 +3077,9 @@ type FileSystemViewProps = {
   onExpandFolder: (folderPath: string) => void;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onListColumnsChange: (columns: FileSystemListColumn[]) => void;
+  onListColumnWidthsChange: (
+    widths: Partial<Record<FileSystemListColumn, number>>,
+  ) => void;
   onOpen: (entry: FileSystemEntry) => void;
   onRenameCancel?: () => void;
   onRenameCommit?: (item: FileSystemItem, name: string) => void;
@@ -3224,7 +3234,7 @@ function FileSystemEmptyState({
         isLoading && "animate-pulse motion-reduce:animate-none",
       )}
     >
-      {label}
+      {isLoading ? <Delayed>{label}</Delayed> : label}
     </div>
   );
 }
@@ -3835,7 +3845,7 @@ function FileSystemIconsView({
                 className={cn(
                   "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring",
                   isSelected && "bg-accent",
-                  entry.path === menuTargetPath && "ring-2 ring-primary",
+                  entry.path === menuTargetPath && "ring-2 ring-brand-500",
                 )}
               >
                 {entry.kind === "folder" ? (
@@ -3908,9 +3918,8 @@ function FileSystemIconsView({
                 <span
                   className={cn(
                     "max-w-full rounded-sm px-1.5 py-px text-center text-xs leading-tight break-words",
-                    isSelected
-                      ? "bg-primary text-primary-foreground"
-                      : "text-foreground",
+                    "text-foreground",
+                    isSelected && SELECTED_ROW_CLASSNAME,
                   )}
                 >
                   <span className="line-clamp-2">{entry.name}</span>
@@ -3932,6 +3941,14 @@ const LIST_INDENT = 16;
 const LIST_NAME_MIN_WIDTH = 200;
 // Room kept clear on the right for the overlaid scrollbar.
 const LIST_EDGE_PADDING = 24;
+// How narrow and how wide a column beside Name can be dragged.
+const LIST_COLUMN_WIDTH_MIN = 64;
+const LIST_COLUMN_WIDTH_MAX = 480;
+// The selection: a tint of the app's accent under the row, the way the
+// Finder marks one in the system's, calm enough to read the row through.
+const SELECTED_ROW_CLASSNAME = "bg-brand-500/20 dark:bg-brand-500/30";
+// What a context menu is open on: outlined, not selected.
+const MENU_TARGET_CLASSNAME = "ring-2 ring-brand-500 ring-inset";
 const LIST_COLUMNS: Array<{
   align: "end" | "start";
   key: FileSystemListColumn;
@@ -4048,12 +4065,14 @@ function FileSystemListHeader({
   columns,
   enabledColumns,
   onColumnsChange,
+  onColumnWidthChange,
   onSortColumnClick,
   sort,
 }: {
   columns: typeof LIST_COLUMNS;
   enabledColumns: readonly FileSystemListColumn[];
   onColumnsChange: (columns: FileSystemListColumn[]) => void;
+  onColumnWidthChange: (column: FileSystemListColumn, width: number) => void;
   onSortColumnClick: (key: FileSystemSortKey) => void;
   sort: FileSystemSortState;
 }) {
@@ -4069,16 +4088,58 @@ function FileSystemListHeader({
             sortKey="name"
           />
           {columns.map((column) => (
-            <FileSystemListColumnHeader
-              align={column.align}
-              className="shrink-0 border-l border-border/60 px-2"
+            <div
+              className="relative shrink-0 border-l border-border/60"
               key={column.key}
-              label={column.label}
-              onClick={onSortColumnClick}
-              sort={sort}
-              sortKey={column.key}
-              width={column.width}
-            />
+              style={{ width: column.width }}
+            >
+              <FileSystemListColumnHeader
+                align={column.align}
+                className="w-full px-2"
+                label={column.label}
+                onClick={onSortColumnClick}
+                sort={sort}
+                sortKey={column.key}
+              />
+              {/* The column's left edge drags. The columns are laid out
+                  from the right, Name taking what is left, so the edge
+                  follows the pointer: left widens the column, right narrows
+                  it. */}
+              <div
+                aria-hidden
+                className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize hover:bg-ring/30"
+                onPointerDown={(event) => {
+                  if (event.button !== 0) return;
+                  event.preventDefault();
+                  const handle = event.currentTarget;
+                  const startX = event.clientX;
+                  const startWidth = column.width;
+                  handle.setPointerCapture(event.pointerId);
+                  const move = (moveEvent: PointerEvent) => {
+                    onColumnWidthChange(
+                      column.key,
+                      Math.round(
+                        Math.min(
+                          LIST_COLUMN_WIDTH_MAX,
+                          Math.max(
+                            LIST_COLUMN_WIDTH_MIN,
+                            startWidth - (moveEvent.clientX - startX),
+                          ),
+                        ),
+                      ),
+                    );
+                  };
+                  const stop = () => {
+                    handle.removeEventListener("pointermove", move);
+                    handle.removeEventListener("pointerup", stop);
+                    handle.removeEventListener("pointercancel", stop);
+                  };
+                  handle.addEventListener("pointermove", move);
+                  handle.addEventListener("pointerup", stop);
+                  handle.addEventListener("pointercancel", stop);
+                }}
+              />
+            </div>
           ))}
         </div>
       </ContextMenuTrigger>
@@ -4116,12 +4177,14 @@ function FileSystemListView({
   enabledListColumns,
   fileFilter,
   index,
+  listColumnWidths,
   loadingFolders,
   menuTargetPath,
   moveFocusWithSelection,
   onExpandFolder,
   onItemContextMenu,
   onListColumnsChange,
+  onListColumnWidthsChange,
   onOpen,
   onRenameCancel,
   onRenameCommit,
@@ -4150,8 +4213,14 @@ function FileSystemListView({
   // A search or a filter shows every match wherever it is, so every folder
   // with one in it stands open while they are on.
   const isRevealing = searchQuery !== "" || fileFilter !== null;
+  // The rows on screen, in order. A folder opened whose contents are still
+  // being read holds a place for them: an empty row, which only turns into a
+  // placeholder if the read takes long enough to be seen waiting.
   const rows = React.useMemo(() => {
-    const visibleRows: Array<{ depth: number; entry: FileSystemEntry }> = [];
+    const visibleRows: Array<
+      | { depth: number; entry: FileSystemEntry }
+      | { depth: number; entry: null; loadingPath: string }
+    > = [];
     const walk = (folderPath: string, depth: number) => {
       for (const entry of index.children.get(folderPath) ?? []) {
         visibleRows.push({ depth, entry });
@@ -4159,13 +4228,29 @@ function FileSystemListView({
           entry.kind === "folder" &&
           (isRevealing || expanded.has(entry.path))
         ) {
-          walk(entry.path, depth + 1);
+          if (
+            loadingFolders.has(entry.path) &&
+            !index.children.get(entry.path)?.length
+          ) {
+            visibleRows.push({
+              depth: depth + 1,
+              entry: null,
+              loadingPath: entry.path,
+            });
+          } else {
+            walk(entry.path, depth + 1);
+          }
         }
       }
     };
     walk(currentPath, 0);
     return visibleRows;
-  }, [currentPath, expanded, index, isRevealing]);
+  }, [currentPath, expanded, index, isRevealing, loadingFolders]);
+  // The rows that are items, which is what the keyboard walks.
+  const entryRows = rows.filter(
+    (row): row is { depth: number; entry: FileSystemEntry } =>
+      row.entry !== null,
+  );
   const toggleFolder = (folder: FolderEntry, open: boolean) => {
     if (open === expanded.has(folder.path)) return;
     const next = new Set(expanded);
@@ -4199,7 +4284,10 @@ function FileSystemListView({
   const columns = (() => {
     const shown = LIST_COLUMNS.filter((column) =>
       enabledListColumns.includes(column.key),
-    );
+    ).map((column) => ({
+      ...column,
+      width: listColumnWidths[column.key] ?? column.width,
+    }));
     if (width === null) return shown;
     let room = width - LIST_EDGE_PADDING - LIST_NAME_MIN_WIDTH;
     return shown.filter((column) => {
@@ -4214,11 +4302,20 @@ function FileSystemListView({
     viewportRef,
   });
   const selectedRowIndex = rows.findIndex(
+    (row) => row.entry?.path === selectedPath,
+  );
+  const selectedEntryIndex = entryRows.findIndex(
     (row) => row.entry.path === selectedPath,
   );
   // Keyboard moves can land on a row outside the drawn window; bring it into
-  // view so it mounts and can take the keyboard.
+  // view so it mounts and can take the keyboard. Only when the selection
+  // moves: a folder opened or closed above a selection scrolled out of view
+  // shifts its row, and following it would pull the list out from under the
+  // pointer that opened the folder.
+  const scrolledToRef = React.useRef<null | string>(null);
   React.useLayoutEffect(() => {
+    if (scrolledToRef.current === selectedPath) return;
+    scrolledToRef.current = selectedPath;
     if (selectedRowIndex === -1) return;
     scrollIndexIntoView({
       index: selectedRowIndex,
@@ -4226,7 +4323,7 @@ function FileSystemListView({
       itemStride: LIST_ROW_HEIGHT,
       viewport: viewportRef.current,
     });
-  }, [selectedRowIndex]);
+  }, [selectedPath, selectedRowIndex]);
   React.useEffect(() => {
     const path = pendingFocusPathRef.current;
     if (!path) return;
@@ -4257,19 +4354,21 @@ function FileSystemListView({
     if (!ARROW_KEYS.has(event.key)) {
       const match = typeAhead(
         event,
-        rows.map((row) => row.entry),
-        selectedRowIndex,
+        entryRows.map((row) => row.entry),
+        selectedEntryIndex,
       );
       if (match) selectAndFocus(match);
       return;
     }
     if (event.metaKey || event.ctrlKey) return;
-    const selectedRow = rows[selectedRowIndex];
+    const selectedRow = entryRows[selectedEntryIndex];
     let next: FileSystemEntry | undefined;
     if (!selectedRow) {
-      next = rows[0]?.entry;
+      next = entryRows[0]?.entry;
     } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      next = rows[selectedRowIndex + (event.key === "ArrowUp" ? -1 : 1)]?.entry;
+      next =
+        entryRows[selectedEntryIndex + (event.key === "ArrowUp" ? -1 : 1)]
+          ?.entry;
     } else if (event.key === "ArrowRight") {
       if (selectedRow.entry.kind === "folder") {
         toggleFolder(selectedRow.entry, true);
@@ -4291,13 +4390,20 @@ function FileSystemListView({
   const tabStopPath =
     selectedRowIndex >= start && selectedRowIndex < end
       ? selectedPath
-      : (rows[start]?.entry.path ?? null);
+      : (rows.slice(start, end).find((row) => row.entry)?.entry?.path ??
+        null);
   return (
     <div className="flex size-full flex-col" ref={rootRef}>
       <FileSystemListHeader
         columns={columns}
         enabledColumns={enabledListColumns}
         onColumnsChange={onListColumnsChange}
+        onColumnWidthChange={(column, columnWidth) => {
+          onListColumnWidthsChange({
+            ...listColumnWidths,
+            [column]: columnWidth,
+          });
+        }}
         onSortColumnClick={onSortColumnClick}
         sort={sort}
       />
@@ -4337,7 +4443,22 @@ function FileSystemListView({
               onKeyDown={handleKeyDown}
               style={{ top: start * LIST_ROW_HEIGHT }}
             >
-              {rows.slice(start, end).map(({ depth, entry }) => {
+              {rows.slice(start, end).map((row) => {
+                const { depth, entry } = row;
+                if (entry === null) {
+                  return (
+                    <div
+                      aria-hidden
+                      className="mx-1.5 flex h-6 shrink-0 items-center px-1.5"
+                      key={`loading:${"loadingPath" in row ? row.loadingPath : ""}`}
+                      style={{ paddingLeft: depth * LIST_INDENT + 6 }}
+                    >
+                      <Delayed>
+                        <span className="ml-5.5 h-2.5 w-32 animate-pulse rounded-full bg-foreground/10 motion-reduce:animate-none" />
+                      </Delayed>
+                    </div>
+                  );
+                }
                 const isSelected = entry.path === selectedPath;
                 const isExpanded =
                   entry.kind === "folder" &&
@@ -4349,15 +4470,11 @@ function FileSystemListView({
                     aria-selected={isSelected}
                     className={cn(
                       "mx-1.5 flex h-6 shrink-0 items-center rounded-md px-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                      isSelected && "bg-primary text-primary-foreground",
+                      isSelected && SELECTED_ROW_CLASSNAME,
                       entry.path === menuTargetPath &&
-                        "ring-2 ring-primary ring-inset",
+                        MENU_TARGET_CLASSNAME,
                     )}
                     data-file-system-item={entry.path}
-                    // Selected rows sit on the primary surface — the
-                    // opposite of the mode's background — so the file-type
-                    // icon swaps to the opposite palette.
-                    data-file-system-on-primary={isSelected ? "" : undefined}
                     draggable={draggable && !isRenaming}
                     key={entry.path}
                     onClick={(event) => {
@@ -4421,22 +4538,15 @@ function FileSystemListView({
                           event.preventDefault();
                         }}
                       >
-                        {entry.kind !== "folder" ? null : loadingFolders.has(
-                            entry.path,
-                          ) && isExpanded ? (
-                          <InlineSpinner className="size-3" />
-                        ) : (
+                        {entry.kind === "folder" ? (
                           <ChevronRight
                             className={cn(
-                              "size-3.5 transition-transform duration-100 motion-reduce:transition-none",
+                              "size-3.5 text-muted-foreground transition-transform duration-100 motion-reduce:transition-none",
                               isExpanded && "rotate-90",
-                              isSelected
-                                ? "text-primary-foreground"
-                                : "text-muted-foreground",
                             )}
                             strokeWidth={2.5}
                           />
-                        )}
+                        ) : null}
                       </span>
                       <span className="ml-1.5 flex size-4 shrink-0 items-center justify-center">
                         <FileSystemRowGlyph entry={entry} />
@@ -4457,9 +4567,8 @@ function FileSystemListView({
                     {columns.map((column) => (
                       <span
                         className={cn(
-                          "shrink-0 truncate px-2 text-xs tabular-nums",
+                          "shrink-0 truncate px-2 text-xs text-muted-foreground tabular-nums",
                           column.align === "end" && "text-right",
-                          !isSelected && "text-muted-foreground",
                         )}
                         key={column.key}
                         style={{ width: column.width }}
@@ -4868,9 +4977,11 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
         viewportRef={viewportRef}
       >
         {isLoading && entries.length === 0 ? (
-          <div className="animate-pulse px-2 py-1.5 text-xs text-muted-foreground motion-reduce:animate-none">
-            Loading…
-          </div>
+          <Delayed>
+            <div className="animate-pulse px-2 py-1.5 text-xs text-muted-foreground motion-reduce:animate-none">
+              Loading…
+            </div>
+          </Delayed>
         ) : (
           <div
             className="relative"
@@ -4920,18 +5031,14 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                       rowClassName,
                       "focus-visible:ring-2 focus-visible:ring-ring",
                       isSelected
-                        ? "bg-primary text-primary-foreground"
+                        ? SELECTED_ROW_CLASSNAME
                         : isOnTrail
                           ? "bg-accent"
                           : "hover:bg-accent/50",
                       entry.path === menuTargetChildPath &&
-                        "ring-2 ring-primary ring-inset",
+                        MENU_TARGET_CLASSNAME,
                     )}
                     data-file-system-item={entry.path}
-                    // Selected rows sit on the primary surface — the opposite
-                    // of the mode's background — so the file-type icon swaps
-                    // to the opposite palette.
-                    data-file-system-on-primary={isSelected ? "" : undefined}
                     draggable={draggable}
                     key={entry.path}
                     onClick={(event) => {
@@ -4982,10 +5089,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     {entry.kind === "folder" &&
                     folderHasChildren(index, entry) ? (
                       <ChevronRight
-                        className={cn(
-                          "size-3.5 shrink-0",
-                          !isSelected && "text-muted-foreground/60",
-                        )}
+                        className="size-3.5 shrink-0 text-muted-foreground/60"
                       />
                     ) : null}
                   </button>

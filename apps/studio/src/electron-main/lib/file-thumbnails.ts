@@ -28,6 +28,17 @@ const log = createScopedLogger("FileThumbnails");
 export const THUMBNAIL_SIZES = [64, 512] as const;
 export type ThumbnailSize = (typeof THUMBNAIL_SIZES)[number];
 
+/**
+ * Kinds the system draws as a square of text or of page, whatever the
+ * document is: trimmed to a page's shape from the left, where the text
+ * starts, so they sit in a grid as the pages they are.
+ */
+const PAGE_SHAPED = /\.(?:csv|htm|html|json|markdown|md|rtf|txt)$/i;
+/** A page's width over its height, as the renderer draws a page. */
+const PAGE_ASPECT = 0.78;
+/** Part of the key, so pictures drawn before a change to how they are drawn are drawn again. */
+const DRAWING = "2";
+
 /** How many are kept on disk; past it the least recently written go. */
 const KEPT = 4000;
 /** How many are drawn at once: the system's generator runs out of process. */
@@ -58,7 +69,7 @@ export async function fileThumbnail(
     return null;
   }
   const key = createHash("sha256")
-    .update(`${hostPath}\0${stats.mtimeMs}\0${size}`)
+    .update(`${hostPath}\0${stats.mtimeMs}\0${size}\0${DRAWING}`)
     .digest("hex");
   const pending = inFlight.get(key);
   if (pending) {
@@ -79,7 +90,10 @@ export async function fileThumbnail(
     ) {
       return null;
     }
-    const image = await withTurn(() => draw(hostPath, size));
+    const image = pageShaped(
+      hostPath,
+      await withTurn(() => draw(hostPath, size)),
+    );
     await fs.mkdir(deps.dir, { recursive: true });
     if (!image || image.isEmpty()) {
       await fs.writeFile(none, "");
@@ -127,6 +141,18 @@ async function draw(
     quality: "good",
     width: Math.max(1, Math.round(width * scale)),
   });
+}
+
+function pageShaped(hostPath: string, image: NativeImage | null) {
+  if (!image || image.isEmpty() || !PAGE_SHAPED.test(hostPath)) {
+    return image;
+  }
+  const { height, width } = image.getSize();
+  const pageWidth = Math.round(height * PAGE_ASPECT);
+  if (pageWidth >= width) {
+    return image;
+  }
+  return image.crop({ height, width: pageWidth, x: 0, y: 0 });
 }
 
 /** Lets the oldest go once more than {@link KEPT} are on disk. */

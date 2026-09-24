@@ -482,6 +482,13 @@ export const computerListColumnsAtom = atomWithStorage<FileSystemListColumn[]>(
   { getOnInit: true },
 );
 
+/** How wide the list view's columns beside Name are, in CSS px, dragged at their headers; a column left out is at its default. */
+export const computerListColumnWidthsAtom = atomWithStorage<
+  Partial<Record<FileSystemListColumn, number>>
+>("orchestrator.computer-list-column-widths.v1", {}, undefined, {
+  getOnInit: true,
+});
+
 /** How wide the columns view's columns are, in CSS px, dragged at any column's right edge. */
 export const computerColumnWidthAtom = atomWithStorage<number>(
   "orchestrator.computer-column-width.v1",

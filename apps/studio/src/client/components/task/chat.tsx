@@ -504,7 +504,7 @@ export function TaskChat({
               {selectedSessionId ? (
                 isLoadingMessages ? (
                   <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
-                    <Spinner className="size-4 text-muted-foreground" />
+                    <Spinner className="size-4 text-muted-foreground" delay={0} />
                   </div>
                 ) : messageError ? (
                   <Alert className="mt-4" variant="warning">

@@ -45,7 +45,7 @@ function SessionStatusIcon({
       );
     }
     case tags.includes("agent.running") || isReplayRunning: {
-      return <Spinner className={className} />;
+      return <Spinner className={className} delay={0} />;
     }
     default: {
       return null;

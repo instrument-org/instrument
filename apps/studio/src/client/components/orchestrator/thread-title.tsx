@@ -73,7 +73,7 @@ export function ThreadTitle({
               variant="ghost"
             >
               {rename.isSuggesting ? (
-                <Spinner className="size-3.5" />
+                <Spinner className="size-3.5" delay={0} />
               ) : (
                 <SparkleIcon className="size-3.5" />
               )}

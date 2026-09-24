@@ -71,6 +71,7 @@ function MessageScrollerButton({
             // elevation ring sits at rest.
             <Spinner
               className="pointer-events-none absolute -inset-px size-auto text-muted-foreground"
+              delay={0}
               thickness={1.5}
             />
           ) : null}

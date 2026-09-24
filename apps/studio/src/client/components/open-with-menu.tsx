@@ -92,7 +92,7 @@ function OpenWithCandidates({
   if (isPending) {
     return (
       <Item disabled>
-        <Spinner className="size-4" />
+        <Spinner className="size-4" delay={0} />
         <span>Loading apps…</span>
       </Item>
     );

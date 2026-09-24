@@ -32,7 +32,7 @@ function RouteComponent() {
           {sizes.map((s) => (
             <section className="flex flex-col gap-3" key={s.label}>
               <p className="text-sm font-medium">{s.label}</p>
-              <Spinner className={s.className} />
+              <Spinner className={s.className} delay={0} />
             </section>
           ))}
         </div>

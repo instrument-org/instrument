@@ -1046,7 +1046,7 @@ export const PromptInput = ({
                 {isStoppable ? (
                   <StopIcon className="size-5" weight="fill" />
                 ) : isLoading ? (
-                  <Spinner className="size-5" />
+                  <Spinner className="size-5" delay={0} />
                 ) : (
                   <ArrowUpIcon className="size-5" />
                 )}
@@ -1256,7 +1256,7 @@ export const PromptInput = ({
                 {isStoppable ? (
                   <StopIcon className="size-4" weight="fill" />
                 ) : isLoading ? (
-                  <Spinner className="size-4" />
+                  <Spinner className="size-4" delay={0} />
                 ) : (
                   <ArrowUpIcon className="size-4" />
                 )}

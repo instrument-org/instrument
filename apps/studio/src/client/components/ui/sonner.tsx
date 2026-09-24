@@ -16,7 +16,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       icons={{
         error: <XCircleIcon className="size-4 text-muted-foreground/50" />,
         info: <InfoIcon className="size-4 text-muted-foreground/50" />,
-        loading: <Spinner />,
+        loading: <Spinner delay={0} />,
         success: (
           <CheckCircleIcon className="size-4 text-muted-foreground/50" />
         ),

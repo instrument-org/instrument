@@ -31,7 +31,9 @@ export function NewChatButton({
       variant="brand"
     >
       <PencilSimpleIcon className="size-3.5" weight="bold" />
-      <span className={cn("min-w-0 truncate", labelClassName)}>New Chat</span>
+      <span className={cn("leading-none whitespace-nowrap", labelClassName)}>
+        New Chat
+      </span>
     </Button>
   );
 }

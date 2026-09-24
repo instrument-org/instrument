@@ -17,7 +17,24 @@ const TABS_NAMED_MAX = 8;
  * screen is named; a folder the user left a screen ago is not.
  */
 export function viewContextModelNote(data: ViewContext) {
-  return `${screenNote(data)}${tabsNote(data)}`;
+  return `${screenNote(data)}${chosenNote(data)}${tabsNote(data)}`;
+}
+
+/** What the person picked to send with the message, which "this" and "these" take in alongside the screen. */
+function chosenNote(data: ViewContext) {
+  const chosen = data.chosen ?? [];
+  if (chosen.length === 0) {
+    return "";
+  }
+  const named = chosen
+    .map(
+      (entry) =>
+        `the ${entry.kind} \`${entry.path}\` (${entry.mount ? `you reach it at \`${entry.mount}\`` : "no folder you can reach covers it: ask for it with request_folder"})`,
+    )
+    .join("; ");
+  return systemNote`
+    They chose to send ${chosen.length === 1 ? "this" : "these"} with the message: ${named}. "This", "these" and "it" refer to ${chosen.length === 1 ? "it" : "them"} first, then to what was on screen.
+  `;
 }
 
 /** An app's standing, in the Apps screen's words, as a clause. */

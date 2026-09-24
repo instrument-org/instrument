@@ -555,6 +555,22 @@ export namespace SessionMessageDataPart {
         standing: z.string(),
       })
       .optional(),
+    /**
+     * Files and folders the person picked to go with the message by name,
+     * from a menu or a button over them, rather than by having them on
+     * screen: each by its path, and the virtual path the agent reaches it by
+     * when a granted folder covers it.
+     */
+    chosen: z
+      .array(
+        z.object({
+          kind: z.enum(["file", "folder"]),
+          mount: z.string().optional(),
+          name: z.string(),
+          path: z.string(),
+        }),
+      )
+      .optional(),
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({

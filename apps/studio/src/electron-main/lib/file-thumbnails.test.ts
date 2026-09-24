@@ -32,7 +32,9 @@ interface Picture {
   toPNG: () => Buffer;
 }
 
-function picture(bytes: string, size = { height: 100, width: 100 }): Picture {
+const SQUARE = { height: 100, width: 100 };
+
+function picture(bytes: string, size = SQUARE): Picture {
   return {
     getSize: () => size,
     isEmpty: () => false,

@@ -3952,7 +3952,7 @@ const LIST_COLUMN_WIDTH_MAX = 480;
 export const SELECTED_ROW_CLASSNAME = "bg-brand-500 text-white";
 // What reads as secondary on a row (dates, sizes, the chevron), over the
 // selection or off it.
-export const SELECTED_ROW_SECONDARY_CLASSNAME = "text-white/80";
+const SELECTED_ROW_SECONDARY_CLASSNAME = "text-white/80";
 // What a context menu is open on: outlined, not selected.
 export const MENU_TARGET_CLASSNAME = "ring-2 ring-brand-500 ring-inset";
 const LIST_COLUMNS: Array<{

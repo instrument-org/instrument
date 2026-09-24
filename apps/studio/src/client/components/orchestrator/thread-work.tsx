@@ -95,7 +95,7 @@ export function ThreadWork({
  * or the step it is on in the shimmer that says something is happening, so
  * the line needs no mark beside it.
  */
-export function WorkLine({
+function WorkLine({
   task,
 }: {
   task: Thread["runningTasks"][number] | undefined;

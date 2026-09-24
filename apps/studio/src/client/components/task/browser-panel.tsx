@@ -84,6 +84,7 @@ export function TaskBrowserPanel({
   chrome = true,
   className,
   focusAddress = true,
+  insideOverlay = false,
   layer,
   onViewSource,
   relayoutKey,
@@ -107,6 +108,8 @@ export function TaskBrowserPanel({
    * which holds the address the page arrives at out of it.
    */
   focusAddress?: boolean;
+  /** Drawn inside an overlay (Quick Look), which parks every other guest but not this one. */
+  insideOverlay?: boolean;
   /**
    * The window layer the guest is shown on; see showOverSlot. A panel drawn
    * inside a floating surface names a layer above that surface, and while
@@ -174,7 +177,7 @@ export function TaskBrowserPanel({
   // under an overlay must also stop being the Cmd+F target, or the overlay's
   // own host claims the single find-opener slot, clears it on unmount, and this
   // panel never re-registers.
-  const covered = useIsGuestCovered();
+  const covered = useIsGuestCovered({ insideOverlay });
   const find = useBrowserFind({ active, covered, isVisible, targetId });
   const slotRef = useBrowserSlot({
     active,

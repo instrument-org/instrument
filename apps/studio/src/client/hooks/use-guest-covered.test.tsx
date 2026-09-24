@@ -19,13 +19,17 @@ import { useIsGuestCovered } from "./use-guest-covered";
 function Host({
   alertOpen = false,
   dialogOpen = false,
+  insideOverlay = false,
 }: {
   alertOpen?: boolean;
   dialogOpen?: boolean;
+  insideOverlay?: boolean;
 }) {
   return (
     <>
-      <span data-testid="covered">{String(useIsGuestCovered())}</span>
+      <span data-testid="covered">
+        {String(useIsGuestCovered({ insideOverlay }))}
+      </span>
       <Dialog open={dialogOpen}>
         <DialogContent>
           <DialogTitle>Dialog</DialogTitle>
@@ -75,5 +79,15 @@ describe("useIsGuestCovered", () => {
     rerender(<Host />);
 
     expect(isCovered()).toBe(false);
+  });
+
+  it("does not count the overlay a host is drawn inside, only one over it", () => {
+    const { rerender } = renderWithProviders(<Host dialogOpen insideOverlay />);
+
+    expect(isCovered()).toBe(false);
+
+    rerender(<Host alertOpen dialogOpen insideOverlay />);
+
+    expect(isCovered()).toBe(true);
   });
 });

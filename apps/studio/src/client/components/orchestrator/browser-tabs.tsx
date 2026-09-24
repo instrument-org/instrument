@@ -96,6 +96,8 @@ export interface ComposeHost {
   /** Whether the page's own bar is drawn over it; a surface with a head of its own says no. */
   chrome?: boolean;
   group: string;
+  /** Drawn inside an overlay, whose own cover does not park the page; see TaskBrowserPanel. */
+  insideOverlay?: boolean;
   into: HTMLElement | null;
   isActive: boolean;
   /** The window layer the guest is shown on, for a host inside a floating surface; the panel's own otherwise. */
@@ -1066,6 +1068,7 @@ function ComposePagePanel({
         // The draft's words keep the caret; the bar is read, not typed into,
         // when a site arrives from the band.
         focusAddress={false}
+        insideOverlay={host.insideOverlay ?? false}
         key={tab.id}
         {...(host.layer === undefined ? {} : { layer: host.layer })}
         relayoutKey={host.place}

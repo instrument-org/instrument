@@ -475,14 +475,20 @@ function OrchestratorLayout() {
   // under the tasks' face, like it.
   const pageSlots = useAtomValue(pageSlotsAtom);
   const slotHosts: ComposeHost[] = Object.entries(pageSlots).flatMap(
-    ([group, into]) =>
+    ([group, { insideOverlay, into, layer }]) =>
       into
         ? [
             {
               chrome: false,
               group,
               into,
-              isActive: showsRightArea && !isHome && !isTasksViewUp,
+              // A slot on a floating surface is over whatever the window
+              // shows, the tasks' face and Home included.
+              isActive:
+                layer !== undefined ||
+                (showsRightArea && !isHome && !isTasksViewUp),
+              ...(layer === undefined ? {} : { layer }),
+              ...(insideOverlay ? { insideOverlay } : {}),
               place: `${group}:${rowWidth}`,
             },
           ]

@@ -1,4 +1,4 @@
-import { type FileTab } from "@/client/atoms/orchestrator";
+import { type FileTab, pageSlotsAtom } from "@/client/atoms/orchestrator";
 import { FileViewer } from "@/client/components/file-viewer";
 import {
   Dialog,
@@ -6,11 +6,18 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
+import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { type ReactNode, useRef, useState } from "react";
+import { useSetAtom } from "jotai";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { PageLook } from "./page-look";
+import { COMPOSE_GUEST_LAYER } from "./compose-layout";
+import { useOrchestrator } from "./context";
+import { useWindowTabs } from "./window-tabs";
+
+/** The group a page looked at is kept under while the panel is up, off every strip. */
+const QUICK_LOOK_GROUP = "page:quick-look";
 
 /**
  * Space on a selected file, showing it over the whole window the way the
@@ -39,6 +46,11 @@ export function useQuickLook({
   const [file, setFile] = useState<FileTab | null>(null);
   // Watched while the panel is up, so a write shows in it.
   const fileUrl = useWatchedFileUrl(file?.hostPath);
+  const page = useLookedAtPage(
+    file && getFileType({ filename: file.name }) === "html"
+      ? file.hostPath
+      : undefined,
+  );
   // Where the keyboard was when the panel opened, so closing it puts the
   // keyboard back on the row rather than at the top of the screen.
   const origin = useRef<HTMLElement | null>(null);
@@ -54,7 +66,9 @@ export function useQuickLook({
         open={file !== null}
       >
         <DialogContent
-          className="h-full gap-0 p-0 outline-none"
+          // Under the menus (`z-50`), with the page's guest a layer over the
+          // panel, the way a draft window holds its page.
+          className="z-40 h-full gap-0 p-0 outline-none"
           // Most of the window, the way Quick Look fills it, whatever the zoom.
           maxHeight="calc(85vh / var(--content-zoom))"
           maxWidth="calc(88vw / var(--content-zoom))"
@@ -79,6 +93,7 @@ export function useQuickLook({
               event.currentTarget.focus();
             }
           }}
+          overlayClassName="z-40"
         >
           <DialogTitle className="sr-only">
             {file?.name ?? "Quick Look"}
@@ -99,11 +114,9 @@ export function useQuickLook({
                 setFile(null);
                 openFile(file);
               }}
-              // A page's file is looked at as the page, the way the system's
-              // Quick Look shows one; opening it is the tab, which is live.
-              {...(getFileType({ filename: file.name }) === "html"
-                ? { page: <PageLook hostPath={file.hostPath} /> }
-                : {})}
+              // A page's file is looked at as the page itself, live, the way
+              // the tab opening it shows it.
+              {...(page ? { page } : {})}
             />
           ) : null}
         </DialogContent>
@@ -121,4 +134,64 @@ export function useQuickLook({
       quickLookOpen: file !== null,
     },
   };
+}
+
+/**
+ * The page's file under the panel drawn live: a page tab in a group of its
+ * own, drawn into the slot the viewer gives it on the layer over the panel,
+ * and closed as the panel moves off it or goes.
+ */
+function useLookedAtPage(hostPath: string | undefined): ReactNode {
+  const { browser } = useOrchestrator();
+  const { allTabs, close } = useWindowTabs();
+  const setPageSlots = useSetAtom(pageSlotsAtom);
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  const hasBrowser = browser !== null;
+  const tabIds = allTabs
+    .filter((tab) => tab.group === QUICK_LOOK_GROUP)
+    .map((tab) => tab.id)
+    .join("\n");
+  // One tab at a time: the page walked to replaces the one before it.
+  useEffect(() => {
+    const kept =
+      hostPath === undefined || !browser
+        ? undefined
+        : browser.openOrFocus(fileUrlOf(hostPath), { group: QUICK_LOOK_GROUP });
+    for (const id of tabIds.split("\n").filter(Boolean)) {
+      if (id !== kept) {
+        close(id);
+      }
+    }
+    // Once per page looked at; the list is read as it stands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostPath, hasBrowser]);
+  useEffect(
+    () => () => {
+      for (const id of tabIds.split("\n").filter(Boolean)) {
+        close(id);
+      }
+    },
+    // On the way out alone, with the tabs as they stood.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useEffect(() => {
+    setPageSlots((current) => ({
+      ...current,
+      [QUICK_LOOK_GROUP]: {
+        insideOverlay: true,
+        into: slot,
+        layer: COMPOSE_GUEST_LAYER,
+      },
+    }));
+    return () => {
+      setPageSlots((current) => {
+        const { [QUICK_LOOK_GROUP]: _gone, ...rest } = current;
+        return rest;
+      });
+    };
+  }, [slot, setPageSlots]);
+  return hostPath === undefined ? undefined : (
+    <div className="h-full" ref={setSlot} />
+  );
 }

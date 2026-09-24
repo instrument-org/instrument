@@ -16,6 +16,11 @@ import { useAtomValue } from "jotai";
  * live on local state, the file viewer's expand modal, and the chat's
  * image/diagram preview alike, without knowing that any of them exist.
  */
-export function useIsGuestCovered(): boolean {
-  return useAtomValue(coveringOverlayCountAtom) > 0;
+export function useIsGuestCovered({
+  insideOverlay = false,
+}: {
+  /** Whether the host is itself drawn inside an overlay, whose own cover does not count against it. */
+  insideOverlay?: boolean;
+} = {}): boolean {
+  return useAtomValue(coveringOverlayCountAtom) > (insideOverlay ? 1 : 0);
 }

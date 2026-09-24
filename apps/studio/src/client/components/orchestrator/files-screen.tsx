@@ -202,7 +202,9 @@ export function FilesScreen({
       return;
     }
     setPageSlots((current) =>
-      current[hostGroup] === slot ? current : { ...current, [hostGroup]: slot },
+      current[hostGroup]?.into === slot
+        ? current
+        : { ...current, [hostGroup]: { into: slot } },
     );
     return () => {
       setPageSlots((current) => {

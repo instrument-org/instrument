@@ -83,7 +83,10 @@ const RESTRICTED_BUNDLE_IDS = new Map([
 // editing either list above takes effect on the next read instead of requiring
 // a cache version bump.
 export function curateCandidates(apps: CandidateApp[], ext: string) {
-  const useful = apps.filter((candidate) => isUsefulCandidate(candidate, ext));
+  const useful = promoteOverSelf(
+    apps,
+    apps.filter((candidate) => isUsefulCandidate(candidate, ext)),
+  );
   if (useful.length <= MAX_CANDIDATES) {
     return useful;
   }
@@ -119,4 +122,18 @@ function isUsefulCandidate(candidate: CandidateApp, ext: string) {
   }
   const allowedExtensions = RESTRICTED_BUNDLE_IDS.get(candidate.bundleId);
   return allowedExtensions ? allowedExtensions.has(ext) : true;
+}
+
+// When Instrument is the system's choice, the first app left standing takes the
+// default's place, so "Open in {app}" never hands a file back to the app
+// already showing it.
+function promoteOverSelf(apps: CandidateApp[], useful: CandidateApp[]) {
+  const isSelfDefault = apps.some(
+    (candidate) => candidate.isDefault && candidate.bundleId === APP_BUNDLE_ID,
+  );
+  const [first, ...rest] = useful;
+  if (!isSelfDefault || !first) {
+    return useful;
+  }
+  return [{ ...first, isDefault: true }, ...rest];
 }

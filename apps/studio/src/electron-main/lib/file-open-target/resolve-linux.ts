@@ -29,7 +29,7 @@ export async function resolveLinuxTarget(
     return null;
   }
   // No portable icon-theme lookup; callers get the file-type icon instead.
-  return { appName, iconUrl: null };
+  return { appName, bundleId: null, iconUrl: null };
 }
 
 async function readDesktopEntryName(desktopId: string) {

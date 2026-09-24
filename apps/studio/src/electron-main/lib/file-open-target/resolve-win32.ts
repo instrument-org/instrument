@@ -51,6 +51,7 @@ if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
     .catch(() => null);
   return {
     appName: result.appName,
+    bundleId: null,
     iconUrl: icon ? await storeFileOpenNativeImage(icon) : null,
   };
 }

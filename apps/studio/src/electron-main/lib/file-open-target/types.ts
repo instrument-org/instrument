@@ -20,12 +20,17 @@ export interface FileOpenCandidate {
 export interface FileOpenTarget {
   appName: null | string;
   iconUrl: null | string;
+  // The app to launch in place of the system's choice, set only when that
+  // choice is Instrument itself. Null means the system default is launched.
+  launchAppPath: null | string;
 }
 
 // What a platform resolver reports about the app the system would use. Distinct
 // from FileOpenTarget, whose null appName means "nothing resolved".
 export interface ResolvedApp {
   appName: string;
+  // Only macOS reports one; it is how the system choosing Instrument is caught.
+  bundleId: null | string;
   iconUrl: null | string;
 }
 

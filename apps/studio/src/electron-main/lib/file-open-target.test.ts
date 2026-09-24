@@ -1,3 +1,4 @@
+import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -10,7 +11,7 @@ const SAVE_DEBOUNCE_MS = 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = new Date("2026-01-01T00:00:00Z").getTime();
 // Matches CACHE_VERSION in the cache store.
-const CACHE_VERSION = 8;
+const CACHE_VERSION = 9;
 
 interface ExecCall {
   args: string[];
@@ -134,7 +135,11 @@ function defaultExecImpl(call: ExecCall) {
     }
     case "target": {
       return Promise.resolve(
-        JSON.stringify({ appName: "Editor.app", iconBase64: "png-target" }),
+        JSON.stringify({
+          appName: "Editor.app",
+          bundleId: "",
+          iconBase64: "png-target",
+        }),
       );
     }
   }
@@ -486,6 +491,29 @@ describe("getFileOpenTarget", () => {
       {
         "appName": "Editor",
         "iconUrl": "icon://png-target",
+        "launchAppPath": null,
+      }
+    `);
+  });
+
+  it("names the next app when the system would open the file in Instrument", async () => {
+    const { getFileOpenTarget } = await importModule();
+    execImpl = (call) =>
+      classify(call) === "target"
+        ? Promise.resolve(
+            JSON.stringify({
+              appName: "Instrument.app",
+              bundleId: APP_BUNDLE_ID,
+              iconBase64: "png-self",
+            }),
+          )
+        : defaultExecImpl(call);
+
+    expect(await getFileOpenTarget("/tasks/a/notes.md")).toMatchInlineSnapshot(`
+      {
+        "appName": "Editor md",
+        "iconUrl": "icon://png-for-Editor-md.app",
+        "launchAppPath": "/Applications/Editor-md.app",
       }
     `);
   });
@@ -514,7 +542,9 @@ describe("getFileOpenTarget", () => {
   it("falls back to the file-type icon when no app is associated", async () => {
     const { getFileOpenTarget } = await importModule();
     execImpl = () =>
-      Promise.resolve(JSON.stringify({ appName: "", iconBase64: "" }));
+      Promise.resolve(
+        JSON.stringify({ appName: "", bundleId: "", iconBase64: "" }),
+      );
     fileIconImpl = () => Promise.resolve({ name: "file-type" });
 
     expect(await getFileOpenTarget("/tasks/a/notes.xyz"))
@@ -522,6 +552,7 @@ describe("getFileOpenTarget", () => {
         {
           "appName": null,
           "iconUrl": "native://file-type",
+          "launchAppPath": null,
         }
       `);
   });
@@ -532,11 +563,12 @@ describe("getFileOpenTarget", () => {
     fileIconImpl = () => Promise.resolve({ name: "file-type" });
 
     expect(await getFileOpenTarget("/tasks/a/notes.md")).toMatchInlineSnapshot(`
-        {
-          "appName": null,
-          "iconUrl": "native://file-type",
-        }
-      `);
+      {
+        "appName": null,
+        "iconUrl": "native://file-type",
+        "launchAppPath": null,
+      }
+    `);
   });
 
   it("retries a failed target lookup on the next request", async () => {
@@ -549,6 +581,7 @@ describe("getFileOpenTarget", () => {
     expect(await getFileOpenTarget("/tasks/a/notes.md")).toEqual({
       appName: "Editor",
       iconUrl: "icon://png-target",
+      launchAppPath: null,
     });
   });
 });
@@ -566,6 +599,7 @@ describe("persisted cache", () => {
     expect(await second.getFileOpenTarget("/tasks/b/other.md")).toEqual({
       appName: "Editor",
       iconUrl: "icon://png-target",
+      launchAppPath: null,
     });
     expect(
       await second.getFileOpenCandidates("/tasks/b/other.md"),
@@ -606,7 +640,11 @@ describe("persisted cache", () => {
     const second = await importModule();
     execImpl = () =>
       Promise.resolve(
-        JSON.stringify({ appName: "Newer.app", iconBase64: "png-newer" }),
+        JSON.stringify({
+          appName: "Newer.app",
+          bundleId: "",
+          iconBase64: "png-newer",
+        }),
       );
 
     // The stale value comes back immediately, without waiting on the refresh.
@@ -626,7 +664,7 @@ describe("persisted cache", () => {
       targets[`.ext${i}`] = {
         // Older entries first, so trimming has a clear newest-wins ordering.
         resolvedAt: NOW - (300 - i) * 1000,
-        value: { appName: `App ${i}`, iconUrl: null },
+        value: { appName: `App ${i}`, iconUrl: null, launchAppPath: null },
       };
     }
     await writeCache({ targets, version: CACHE_VERSION });
@@ -851,11 +889,12 @@ describe("linux", () => {
     const { getFileOpenTarget } = await importModule();
 
     expect(await getFileOpenTarget("/tasks/a/notes.md")).toMatchInlineSnapshot(`
-        {
-          "appName": "Example Viewer",
-          "iconUrl": null,
-        }
-      `);
+      {
+        "appName": "Example Viewer",
+        "iconUrl": null,
+        "launchAppPath": null,
+      }
+    `);
   });
 
   it("falls back when the desktop entry is missing", async () => {
@@ -885,11 +924,12 @@ describe("win32", () => {
     const { getFileOpenTarget } = await importModule();
 
     expect(await getFileOpenTarget("/tasks/a/notes.md")).toMatchInlineSnapshot(`
-        {
-          "appName": "Example Editor",
-          "iconUrl": "native://exe-icon",
-        }
-      `);
+      {
+        "appName": "Example Editor",
+        "iconUrl": "native://exe-icon",
+        "launchAppPath": null,
+      }
+    `);
   });
 
   it("refuses to interpolate an extension that isn't a simple one", async () => {

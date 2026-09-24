@@ -38,6 +38,33 @@ describe("curateCandidates", () => {
     expect(names(curateCandidates(apps, ".md"))).toEqual(["com.example.one"]);
   });
 
+  it("promotes the first remaining app when Instrument is the default", () => {
+    const apps = [
+      app(APP_BUNDLE_ID, { isDefault: true }),
+      app("com.apple.ColorSyncUtility"),
+      app("com.example.one"),
+      app("com.example.two"),
+    ];
+
+    expect(
+      curateCandidates(apps, ".md").map(({ appName, isDefault }) => ({
+        appName,
+        isDefault,
+      })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "appName": "com.example.one",
+          "isDefault": true,
+        },
+        {
+          "appName": "com.example.two",
+          "isDefault": false,
+        },
+      ]
+    `);
+  });
+
   it.each([
     "com.apple.ColorSyncUtility",
     "com.apple.ScriptEditor2",

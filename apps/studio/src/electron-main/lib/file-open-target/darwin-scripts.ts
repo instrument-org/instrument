@@ -38,7 +38,7 @@ ${DARWIN_RENDER_ICON_FN}
 function run(argv) {
   const ws = $.NSWorkspace.sharedWorkspace;
   const size = parseInt(argv[1], 10) || 128;
-  const result = { appName: "", iconBase64: "" };
+  const result = { appName: "", bundleId: "", iconBase64: "" };
   try {
     const url = ws.URLForApplicationToOpenURL($.NSURL.fileURLWithPath(argv[0]));
     const appPath = url.path.js;
@@ -47,6 +47,8 @@ function run(argv) {
     }
     result.appName =
       $.NSFileManager.defaultManager.displayNameAtPath(appPath).js ?? "";
+    result.bundleId =
+      $.NSBundle.bundleWithPath(appPath).bundleIdentifier.js ?? "";
     result.iconBase64 = renderIcon(ws.iconForFile(appPath), size);
   } catch {
     // fall through with whatever resolved so far

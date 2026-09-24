@@ -279,7 +279,10 @@ const sendTargets = base
 async function appForProtocol(url: string) {
   try {
     const info = await app.getApplicationInfoForProtocol(url);
-    return { iconUrl: await storeFileOpenNativeImage(info.icon), name: info.name };
+    return {
+      iconUrl: await storeFileOpenNativeImage(info.icon),
+      name: info.name,
+    };
   } catch {
     return null;
   }
@@ -495,10 +498,25 @@ const openPath = base
   })
   .input(z.object({ filepath: z.string() }))
   .handler(async ({ errors, input }) => {
-    try {
-      await fs.access(input.filepath);
-    } catch {
+    const stats = await fs.stat(input.filepath).catch(() => null);
+    if (!stats) {
       throw errors.FILE_NOT_FOUND();
+    }
+    // Where the system would hand the file back to Instrument, launch the app
+    // its "Open in {app}" label names instead. Only macOS can name one.
+    const { launchAppPath } =
+      stats.isFile() && os.platform() === "darwin"
+        ? await getFileOpenTarget(input.filepath)
+        : { launchAppPath: null };
+    if (launchAppPath) {
+      try {
+        await execFileAsync("open", ["-a", launchAppPath, input.filepath]);
+      } catch (error) {
+        throw errors.ERROR_OPENING_FILE({
+          message: error instanceof Error ? error.message : undefined,
+        });
+      }
+      return;
     }
     const errorMessage = await shell.openPath(input.filepath);
     if (errorMessage) {

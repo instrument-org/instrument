@@ -1,3 +1,4 @@
+import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import { app } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -163,7 +164,11 @@ export async function warmCommonFileOpenTargets() {
 }
 
 async function fallbackTarget(fullPath: string): Promise<FileOpenTarget> {
-  return { appName: null, iconUrl: await getFileTypeIconUrl(fullPath) };
+  return {
+    appName: null,
+    iconUrl: await getFileTypeIconUrl(fullPath),
+    launchAppPath: null,
+  };
 }
 
 // The raw enumeration for a file type, before curation. Persisted in this form
@@ -377,8 +382,28 @@ async function resolveIcons(appPaths: string[]) {
   return resolved;
 }
 
+// The system would open the file in Instrument, so the button offers whichever
+// app curation promoted in its place.
+async function resolvePromotedTarget(
+  fullPath: string,
+): Promise<FileOpenTarget> {
+  const candidates = await getFileOpenCandidates(fullPath);
+  const promoted = candidates.find((candidate) => candidate.isDefault);
+  if (!promoted) {
+    return fallbackTarget(fullPath);
+  }
+  return {
+    appName: promoted.appName,
+    iconUrl: promoted.iconUrl ?? (await getFileTypeIconUrl(fullPath)),
+    launchAppPath: promoted.appPath,
+  };
+}
+
 async function resolveTarget(fullPath: string): Promise<FileOpenTarget> {
   const resolved = await resolveAssociatedApp(fullPath);
+  if (resolved?.bundleId === APP_BUNDLE_ID) {
+    return resolvePromotedTarget(fullPath);
+  }
   const iconUrl = resolved?.iconUrl ?? (await getFileTypeIconUrl(fullPath));
-  return { appName: resolved?.appName ?? null, iconUrl };
+  return { appName: resolved?.appName ?? null, iconUrl, launchAppPath: null };
 }

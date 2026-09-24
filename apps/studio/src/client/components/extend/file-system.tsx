@@ -1216,6 +1216,9 @@ function FileVisual({
           : (customPreview ?? <FileGenericPreview file={file} />)
       }
       previewImageUrl={previewUrl ?? undefined}
+      previewUnavailableContent={
+        customPreview ?? <FileGenericPreview file={file} />
+      }
       style={showPager ? undefined : style}
     />
   );
@@ -4474,16 +4477,24 @@ function FileSystemListView({
     </div>
   );
 }
+// Row thumbnails that did not load, so a row drawn again goes straight to the
+// file's type icon rather than trying the picture once per mount.
+const failedRowThumbnails = new Set<string>();
 /**
  * The small picture a row leads with: the folder glyph, a picture's own
  * thumbnail in its own shape with a hairline around it, or the file's type.
+ * Only a picture is drawn as itself at this size; a page or a document's
+ * thumbnail would be a smudge, and its type says more.
  */
 function FileSystemRowGlyph({ entry }: { entry: FileSystemEntry }) {
+  const [, setFailed] = React.useState(false);
   if (entry.kind === "folder") {
     return <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />;
   }
-  const coverUrl = filePreviewUrls(entry)[0];
-  if (!coverUrl) {
+  const coverUrl = mimeTypeForFile(entry).startsWith("image/")
+    ? filePreviewUrls(entry)[0]
+    : undefined;
+  if (!coverUrl || failedRowThumbnails.has(coverUrl)) {
     return <FileTypeIcon className="size-4" fileName={entry.name} />;
   }
   return (
@@ -4492,6 +4503,10 @@ function FileSystemRowGlyph({ entry }: { entry: FileSystemEntry }) {
       alt=""
       className="max-h-4 max-w-4 rounded-[1.5px] bg-white object-contain shadow-[0_0_0_0.5px_color-mix(in_oklab,var(--color-foreground)_35%,transparent)]"
       draggable={false}
+      onError={() => {
+        failedRowThumbnails.add(coverUrl);
+        setFailed(true);
+      }}
       src={coverUrl}
     />
   );

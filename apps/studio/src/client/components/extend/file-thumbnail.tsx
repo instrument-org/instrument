@@ -11,6 +11,8 @@ export type FileThumbnailProps = {
   previewClassName?: string;
   previewContent?: React.ReactNode;
   previewImageUrl?: string | null;
+  /** Drawn in the image's place when it fails to load, instead of an empty box. */
+  previewUnavailableContent?: React.ReactNode;
   isLoading?: boolean;
   hasError?: boolean;
   style?: React.CSSProperties;
@@ -68,6 +70,7 @@ export function FileThumbnail({
   previewClassName,
   previewContent,
   previewImageUrl,
+  previewUnavailableContent,
   isLoading = false,
   hasError = false,
   style,
@@ -194,7 +197,13 @@ export function FileThumbnail({
         ) : null}
         {showLoading ? <FileThumbnailLoadingOverlay /> : null}
         {showFallback ? (
-          <div className="absolute inset-0 bg-muted" aria-hidden="true" />
+          previewUnavailableContent ? (
+            <div className="absolute inset-0 size-full">
+              {previewUnavailableContent}
+            </div>
+          ) : (
+            <div className="absolute inset-0 bg-muted" aria-hidden="true" />
+          )
         ) : null}
       </div>
     </div>

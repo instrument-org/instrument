@@ -49,6 +49,27 @@ export function getComputerFileUrl({
 }
 
 /**
+ * The file drawn small by the system, on the same channel: a picture, a PDF's
+ * first page, a page's file as a page, a text file as its text. `size` is the
+ * longer side in px; a 404 means there is no picture of it.
+ */
+export function getComputerThumbnailUrl({
+  hostPath,
+  size,
+  version,
+}: {
+  hostPath: string;
+  size: 64 | 512;
+  version?: number | string;
+}): string {
+  const url = getComputerFileUrl({ hostPath, version });
+  if (!url) {
+    return "";
+  }
+  return `${url}${url.includes("?") ? "&" : "?"}thumbnail=${size}`;
+}
+
+/**
  * The host path a channel URL names, or nothing for a URL of any other
  * origin: the inverse of {@link getComputerFileUrl}, for a link a document
  * wrote relative to itself and resolved against the document's own URL. The

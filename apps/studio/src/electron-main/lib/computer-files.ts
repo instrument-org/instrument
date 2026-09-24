@@ -2,6 +2,7 @@ import { APP_PROTOCOL, TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import { serveStaticFile } from "@instrument-org/workspace/electron";
 import { Hono } from "hono";
 import { randomBytes } from "node:crypto";
+import fs from "node:fs/promises";
 import path from "node:path";
 
 /**
@@ -105,6 +106,36 @@ app.all("/*", async (c) => {
   // needs to see to know slices are answered and how long the whole is.
   c.header("Access-Control-Allow-Origin", "*");
   c.header("Access-Control-Expose-Headers", "Accept-Ranges, Content-Range");
+  // `?thumbnail=<px>`: the file drawn small rather than the file itself (see
+  // `file-thumbnails.ts`), for a grid or a row that would otherwise decode
+  // the whole file to show an inch of it. A 404 is the system having no
+  // picture of it, which the renderer answers with the file's type icon.
+  const thumbnail = c.req.query("thumbnail");
+  if (thumbnail !== undefined) {
+    const { fileThumbnail, fileThumbnailDeps, THUMBNAIL_SIZES } =
+      await import("./file-thumbnails");
+    const size = THUMBNAIL_SIZES.find((entry) => String(entry) === thumbnail);
+    if (size === undefined) {
+      return c.notFound();
+    }
+    const png = await fileThumbnail(hostPath, size, fileThumbnailDeps()).catch(
+      () => null,
+    );
+    if (!png) {
+      return c.notFound();
+    }
+    // Drawn from the file as it is now, so only a caller naming the mtime it
+    // listed is told to keep it.
+    const stats = await fs.stat(hostPath).catch(() => null);
+    c.header(
+      "Cache-Control",
+      stats && c.req.query("version") === String(stats.mtimeMs)
+        ? `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`
+        : "no-cache",
+    );
+    c.header("Content-Type", "image/png");
+    return c.body(new Uint8Array(png));
+  }
   const result = await serveStaticFile(c, {
     filePath: hostPath,
     // Exactly the file asked for: a folder is not resolved to an index page

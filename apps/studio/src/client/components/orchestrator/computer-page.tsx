@@ -38,7 +38,10 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
-import { getComputerFileUrl } from "@/client/lib/computer-file-url";
+import {
+  getComputerFileUrl,
+  getComputerThumbnailUrl,
+} from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -323,10 +326,6 @@ export function ComputerPage({
   const recentEntries = recents.data ?? [];
   const recentKeys = recentPaths(recentEntries);
   const recentItems = recentEntries.map((entry, index): FileSystemItem => {
-    const url = getComputerFileUrl({
-      hostPath: entry.path,
-      version: entry.modifiedAt,
-    });
     return {
       contentType: entry.mimeType,
       ...(entry.createdAt === undefined
@@ -336,9 +335,7 @@ export function ComputerPage({
       metadata: { hostPath: entry.path },
       name: entry.name,
       path: recentKeys[index] ?? entry.name,
-      ...(entry.mimeType?.startsWith("image/")
-        ? { previewImageUrl: url, url }
-        : { url }),
+      ...previewOf(entry),
       shownAt: new Date(entry.shownAt).toISOString(),
       size: entry.size,
       ...(entry.modifiedAt === undefined
@@ -378,19 +375,13 @@ export function ComputerPage({
           }
           // Read by where it is, as the listing was: whatever the column can
           // list, the viewer can show, whether or not the agent can reach it.
-          const url = getComputerFileUrl({
-            hostPath: entry.path,
-            version: entry.modifiedAt,
-          });
           return {
             ...stamps,
             contentType: entry.mimeType,
             kind: "file",
             metadata: { hostPath: entry.path },
             path: `${prefix}${entry.name}`,
-            ...(entry.mimeType?.startsWith("image/")
-              ? { previewImageUrl: url, url }
-              : { url }),
+            ...previewOf(entry),
             size: entry.size,
           };
         })
@@ -1028,6 +1019,18 @@ export function ComputerPage({
                   // Text reads as a thumbnail of the document, the way an image
                   // does; the viewers the browser has of its own cover the rest.
                   const tab = fileTabOf(file);
+                  // A picture at its own size: the thumbnail the rows and
+                  // tiles use is too small for a pane this wide.
+                  if (tab && file.url && file.contentType?.startsWith("image/")) {
+                    return (
+                      <img
+                        alt=""
+                        className="w-full rounded-sm shadow-sm ring-1 ring-border"
+                        draggable={false}
+                        src={file.url}
+                      />
+                    );
+                  }
                   if (!tab || !isTextLike(file)) {
                     return null;
                   }
@@ -1470,6 +1473,44 @@ const TEXT_EXTENSIONS = new Set([
   "yml",
 ]);
 
+/**
+ * What the system can draw a picture of rather than an icon, the way the
+ * Finder's icons show one: pictures, documents with pages, pages, text and
+ * video. Anything else would come back as the system's blank page, which says
+ * less than the file's own type icon.
+ */
+const THUMBNAIL_EXTENSIONS = new Set([
+  "bmp",
+  "csv",
+  "docx",
+  "gif",
+  "heic",
+  "heif",
+  "htm",
+  "html",
+  "jpeg",
+  "jpg",
+  "json",
+  "key",
+  "m4v",
+  "markdown",
+  "md",
+  "mov",
+  "mp4",
+  "numbers",
+  "pages",
+  "pdf",
+  "png",
+  "pptx",
+  "rtf",
+  "svg",
+  "tif",
+  "tiff",
+  "txt",
+  "webp",
+  "xlsx",
+]);
+
 /** The tab a file opens in: the file by where it is on the computer. */
 function fileTabOf(file: FileSystemFileItem): FileTab | undefined {
   const hostPath = file.metadata?.hostPath;
@@ -1538,4 +1579,30 @@ function PlaceList({
       </ul>
     </div>
   );
+}
+
+/**
+ * A listed file's own URL, and the system's picture of it where there is one,
+ * named by when the file was written so a new write is a new picture.
+ */
+function previewOf(entry: {
+  mimeType?: string;
+  modifiedAt?: number;
+  name: string;
+  path: string;
+}): Pick<FileSystemFileItem, "previewImageUrl" | "url"> {
+  const version = entry.modifiedAt;
+  const url = getComputerFileUrl({ hostPath: entry.path, version });
+  const extension = entry.name.split(".").at(-1)?.toLowerCase() ?? "";
+  if (!entry.mimeType?.startsWith("image/") && !THUMBNAIL_EXTENSIONS.has(extension)) {
+    return { url };
+  }
+  return {
+    previewImageUrl: getComputerThumbnailUrl({
+      hostPath: entry.path,
+      size: 512,
+      version,
+    }),
+    url,
+  };
 }

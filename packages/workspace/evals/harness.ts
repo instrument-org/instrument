@@ -46,6 +46,7 @@ import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import {
   buildProviderConfigs,
   c,
+  costOfUsage,
   fetchOpenRouterCatalog,
   formatCost,
   formatNumber,
@@ -669,8 +670,10 @@ export async function runEvals(
       }
       const price = catalog.priceFor(uri.split("?")[0] ?? uri);
       const costUSD = price
-        ? treeUsage.inputTokens * price.prompt +
-          treeUsage.outputTokens * price.completion
+        ? [usage, ...childUsages].reduce(
+            (sum, one) => sum + costOfUsage(one, price),
+            0,
+          )
         : undefined;
 
       finishedRuns += 1;

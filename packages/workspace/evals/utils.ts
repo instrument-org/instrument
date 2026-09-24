@@ -15,6 +15,7 @@ import { z } from "zod";
 import { env } from "../scripts/lib/env";
 import { PROJECTS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { type UsageSummary } from "../src/lib/usage-summary-compute";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
@@ -90,9 +91,9 @@ export function buildReportWorkspaceConfig(
 }
 
 /**
- * Approximate, and marked as such wherever it is printed: the token counts it
- * multiplies do not separate a cached read from a fresh one, and only
- * OpenRouter models have a price here at all. It is the difference between
+ * Approximate, and marked as such wherever it is printed: only OpenRouter
+ * models have a price here at all, and a provider that reports no cache detail
+ * is billed as if every input token were fresh. It is the difference between
  * knowing a suite cost roughly ten dollars and knowing only that it produced
  * four million tokens.
  */
@@ -229,8 +230,39 @@ export interface OpenRouterCatalog {
 
 /** Per-token USD, as OpenRouter states it. */
 interface ModelPrice {
+  cacheRead?: number;
+  cacheWrite?: number;
   completion: number;
   prompt: number;
+}
+
+/**
+ * What one run's tokens cost, each billed at its own rate. Cached reads are
+ * the bulk of an agent's input and bill at a tenth of a fresh token or less,
+ * so pricing them all at the prompt rate overstates a long run several times
+ * over and hides whether a change moved cost or only moved tokens.
+ *
+ * Providers disagree on whether `noCacheTokens` includes the cache write, so
+ * fresh input is what remains of the total after reads and writes.
+ */
+export function costOfUsage(
+  usage: Pick<
+    UsageSummary,
+    "inputTokenDetails" | "inputTokens" | "outputTokens"
+  >,
+  price: ModelPrice,
+): number {
+  const { cacheReadTokens, cacheWriteTokens } = usage.inputTokenDetails;
+  const fresh = Math.max(
+    0,
+    usage.inputTokens - cacheReadTokens - cacheWriteTokens,
+  );
+  return (
+    fresh * price.prompt +
+    cacheReadTokens * (price.cacheRead ?? price.prompt) +
+    cacheWriteTokens * (price.cacheWrite ?? price.prompt) +
+    usage.outputTokens * price.completion
+  );
 }
 
 /**
@@ -258,6 +290,8 @@ const OpenRouterModelListSchema = z.object({
       pricing: z
         .object({
           completion: NumericStringSchema,
+          input_cache_read: NumericStringSchema.optional(),
+          input_cache_write: NumericStringSchema.optional(),
           prompt: NumericStringSchema,
         })
         .nullish(),
@@ -346,8 +380,20 @@ export async function fetchOpenRouterCatalog(
       ),
     );
     const prices = new Map(
-      parsed.data.flatMap((model) =>
-        model.pricing ? [[model.id, model.pricing]] : [],
+      parsed.data.flatMap(({ id, pricing }) =>
+        pricing
+          ? [
+              [
+                id,
+                {
+                  cacheRead: pricing.input_cache_read,
+                  cacheWrite: pricing.input_cache_write,
+                  completion: pricing.completion,
+                  prompt: pricing.prompt,
+                } satisfies ModelPrice,
+              ] as const,
+            ]
+          : [],
       ),
     );
 

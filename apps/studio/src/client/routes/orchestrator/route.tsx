@@ -43,7 +43,6 @@ import {
 import { InboxToggle } from "@/client/components/orchestrator/inbox-toggle";
 import { NewTopicDialog } from "@/client/components/orchestrator/new-topic-dialog";
 import { PaneToggle } from "@/client/components/orchestrator/pane-toggle";
-import { PoppedOut } from "@/client/components/orchestrator/popped-out";
 import { RightPane } from "@/client/components/orchestrator/right-pane";
 import { screenLocation } from "@/client/components/orchestrator/screen-presentation";
 import { contextReaders } from "@/client/components/orchestrator/send-context";
@@ -449,8 +448,18 @@ function OrchestratorLayout() {
   const isPaneWanted =
     windowTabs.group === undefined ||
     (paneOpenByGroup[windowTabs.group] ?? true);
+  // The threads in their small views, floating over the row.
+  const floating = compose.entries.flatMap((entry) =>
+    entry.kind === "thread" ? [entry.sessionId] : [],
+  );
+  // The thread on screen has its conversation in the corner, so its column
+  // goes and the pane takes the row, the way it does in a place.
+  const isThreadOut =
+    isChat && threadUp !== undefined && floating.includes(threadUp);
   const showsPane =
-    !isChat || ((tabs.length > 0 || isTasksViewUp) && isPaneWanted);
+    !isChat ||
+    isThreadOut ||
+    ((tabs.length > 0 || isTasksViewUp) && isPaneWanted);
   // Whether the page in the pane is what is on screen: the tab a page, the
   // pane open, and no screen over it. Off, the guest is parked. A window in
   // the corner does not park it: the guest stands on the window's lowest
@@ -535,10 +544,6 @@ function OrchestratorLayout() {
     }));
   };
 
-  // The threads in their small views, floating over the row.
-  const floating = compose.entries.flatMap((entry) =>
-    entry.kind === "thread" ? [entry.sessionId] : [],
-  );
   /**
    * Takes a thread out of the corner: the window goes and the thread lands
    * in Chat, whole, its row in the list and its pane as it was.
@@ -1073,27 +1078,11 @@ function OrchestratorLayout() {
                             sendContext={() => sendContextRef.current()}
                             sessionId={threadUp}
                           />
-                          {/* A thread in its small view has its conversation
-                          there: the column keeps the head and says where
-                          the words went. */}
-                          {threadUp !== undefined &&
-                            floating.includes(threadUp) && (
-                              <div className="absolute inset-0 bg-background">
-                                <PoppedOut
-                                  onBringBack={() => {
-                                    compose.remove(threadUp);
-                                  }}
-                                  thread={threads.data?.find(
-                                    (thread) => thread.id === threadUp,
-                                  )}
-                                />
-                              </div>
-                            )}
                         </div>
                       </div>
                     </div>
                   }
-                  fills={!isChat}
+                  fills={!isChat || isThreadOut}
                   isOpen={showsPane}
                   onCollapse={() => {
                     if (windowTabs.group !== undefined) {
@@ -1123,9 +1112,9 @@ function OrchestratorLayout() {
                           threadTitles={threadTitles}
                           trailing={
                             <>
-                              {/* A place has no conversation to fold the
-                              pane away for. */}
-                              {isChat && paneToggle}
+                              {/* A place, or a thread in the corner, has no
+                              conversation to fold the pane away for. */}
+                              {isChat && !isThreadOut && paneToggle}
                               {/* The thread's own task list, one press from
                               wherever the pane is; a draft has no tasks
                               yet. */}

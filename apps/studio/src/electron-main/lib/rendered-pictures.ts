@@ -2,11 +2,7 @@ import { BrowserWindow, type NativeImage, session } from "electron";
 import fs from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { sleep } from "radashi";
-import {
-  type BundledLanguage,
-  bundledLanguages,
-  bundledLanguagesAlias,
-} from "shiki";
+import { type BundledLanguage, bundledLanguages } from "shiki";
 
 import { isAllowedLocalRequest } from "../browser-view/local-file-policy";
 import { createScopedLogger } from "./electron-logger";
@@ -163,9 +159,7 @@ async function documentOf(hostPath: string, kind: "code" | "markdown") {
   }
   const highlighter = await getHighlighter();
   if (!highlighter.getLoadedLanguages().includes(language)) {
-    await highlighter.loadLanguage(
-      bundledLanguages[language] ?? bundledLanguagesAlias[language],
-    );
+    await highlighter.loadLanguage(bundledLanguages[language]);
   }
   return sheet(
     "code",
@@ -184,13 +178,10 @@ function escapeHtml(text: string) {
 }
 
 function languageOf(extension: string): BundledLanguage | undefined {
-  if (extension in bundledLanguages) {
-    return extension as BundledLanguage;
-  }
-  if (extension in bundledLanguagesAlias) {
-    return extension as BundledLanguage;
-  }
-  return;
+  // Aliases (`ts`, `yml`, `py`) are keys of their own here.
+  return extension in bundledLanguages
+    ? (extension as BundledLanguage)
+    : undefined;
 }
 
 /** A JSON file as it reads laid out, when it came on one line and is small enough to parse. */
@@ -221,17 +212,6 @@ async function readHead(hostPath: string) {
   }
 }
 
-/**
- * The sheet a document is set on: white, in the system's own type, with a
- * policy that lets no script run and nothing but inline styles and inline
- * pictures load, since a Markdown file can carry any HTML at all.
- */
-function sheet(kind: "code" | "markdown", body: string) {
-  return `<!doctype html><html><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
-<style>${SHEET_STYLE}</style></head><body class="${kind}">${body}</body></html>`;
-}
-
 const SHEET_STYLE = `
 :root { color-scheme: light; }
 html, body { margin: 0; background: #fff; color: #1c1917; }
@@ -254,6 +234,17 @@ body.markdown img { max-width: 100%; }
 body.code { padding: 36px 40px; }
 body.code pre { margin: 0; background: none !important; font: 15px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
 `;
+
+/**
+ * The sheet a document is set on: white, in the system's own type, with a
+ * policy that lets no script run and nothing but inline styles and inline
+ * pictures load, since a Markdown file can carry any HTML at all.
+ */
+function sheet(kind: "code" | "markdown", body: string) {
+  return `<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<style>${SHEET_STYLE}</style></head><body class="${kind}">${body}</body></html>`;
+}
 
 let sessionReady = false;
 

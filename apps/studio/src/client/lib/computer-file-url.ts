@@ -59,7 +59,7 @@ export function getComputerThumbnailUrl({
   version,
 }: {
   hostPath: string;
-  size: 64 | 512;
+  size: 64 | 512 | 1024;
   version?: number | string;
 }): string {
   const url = getComputerFileUrl({ hostPath, version });

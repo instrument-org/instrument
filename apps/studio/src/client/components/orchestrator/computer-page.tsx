@@ -1021,8 +1021,6 @@ export function ComputerPage({
                 }}
                 renamingPath={renamingPath}
                 renderFileStage={(file) => {
-                  // Text reads as a thumbnail of the document, the way an image
-                  // does; the viewers the browser has of its own cover the rest.
                   const tab = fileTabOf(file);
                   // A picture at its own size: the thumbnail the rows and
                   // tiles use is too small for a pane this wide.
@@ -1036,6 +1034,23 @@ export function ComputerPage({
                       />
                     );
                   }
+                  // Anything else the system draws is drawn here as the grid
+                  // draws it, by the system, larger: the one picture of a
+                  // file wherever it is shown.
+                  if (tab && file.previewImageUrl) {
+                    const larger = new URL(file.previewImageUrl);
+                    larger.searchParams.set("thumbnail", "1024");
+                    return (
+                      <img
+                        alt=""
+                        className="w-full rounded-sm shadow-sm ring-1 ring-border"
+                        draggable={false}
+                        src={larger.href}
+                      />
+                    );
+                  }
+                  // Text the system has no picture of (code, mostly) reads as
+                  // a thumbnail of the document in its viewer.
                   if (!tab || !isTextLike(file)) {
                     return null;
                   }

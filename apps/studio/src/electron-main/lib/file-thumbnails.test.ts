@@ -8,6 +8,16 @@ const createThumbnailFromPath = vi.fn();
 vi.mock("electron", () => ({
   app: { getPath: () => "" },
   nativeImage: {
+    createFromBitmap: (
+      bitmap: Buffer,
+      size: { height: number; width: number },
+    ) =>
+      picture(
+        // The picture at the top, white carried on beneath it.
+        `${bitmap[0] === 0 && bitmap.at(-1) === 0xff ? "page" : "?"} ${size.width}x${size.height}`,
+        size,
+      ),
+    createFromBuffer: (png: Buffer) => picture(png.toString()),
     createFromPath: () => ({ isEmpty: () => true }),
     createThumbnailFromPath,
   },
@@ -15,20 +25,22 @@ vi.mock("electron", () => ({
 
 const { fileThumbnail } = await import("./file-thumbnails");
 
-const picture = (
-  bytes: string,
-  size = { height: 100, width: 100 },
-): {
-  crop: (rect: { height: number; width: number }) => unknown;
+interface Picture {
   getSize: () => { height: number; width: number };
   isEmpty: () => boolean;
+  toBitmap: () => Buffer;
   toPNG: () => Buffer;
-} => ({
-  crop: (rect) => picture(`${bytes} cropped to ${rect.width}x${rect.height}`, rect),
-  getSize: () => size,
-  isEmpty: () => false,
-  toPNG: () => Buffer.from(bytes),
-});
+}
+
+function picture(bytes: string, size = { height: 100, width: 100 }): Picture {
+  return {
+    getSize: () => size,
+    isEmpty: () => false,
+    // Dark, so the white a page is carried on in tells apart from it.
+    toBitmap: () => Buffer.alloc(size.width * size.height * 4, 0),
+    toPNG: () => Buffer.from(bytes),
+  };
+}
 
 let root: string;
 let file: string;
@@ -54,8 +66,8 @@ describe("fileThumbnail", () => {
     const first = await fileThumbnail(file, 512, { dir });
     const second = await fileThumbnail(file, 512, { dir });
     expect([first?.toString(), second?.toString()]).toEqual([
-      "first cropped to 78x100",
-      "first cropped to 78x100",
+      "page 100x128",
+      "page 100x128",
     ]);
     expect(createThumbnailFromPath).toHaveBeenCalledTimes(1);
   });
@@ -66,7 +78,7 @@ describe("fileThumbnail", () => {
     await fs.utimes(file, new Date(), new Date(Date.now() + 5000));
     createThumbnailFromPath.mockResolvedValueOnce(picture("after"));
     const redrawn = await fileThumbnail(file, 512, { dir });
-    expect(redrawn?.toString()).toBe("after cropped to 78x100");
+    expect(redrawn?.toString()).toBe("page 100x128");
   });
 
   it("keeps a picture in its own shape", async () => {

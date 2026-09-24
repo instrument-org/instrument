@@ -24,20 +24,22 @@ const log = createScopedLogger("FileThumbnails");
  * decoding a camera's full-size photo for a tile an inch across.
  */
 
-/** The sizes asked for, in px along the longer side: a row's and a tile's. */
-export const THUMBNAIL_SIZES = [64, 512] as const;
+/** The sizes asked for, in px along the longer side: a row's, a tile's and a preview pane's. */
+export const THUMBNAIL_SIZES = [64, 512, 1024] as const;
 export type ThumbnailSize = (typeof THUMBNAIL_SIZES)[number];
 
 /**
- * Kinds the system draws as a square of text or of page, whatever the
- * document is: trimmed to a page's shape from the left, where the text
- * starts, so they sit in a grid as the pages they are.
+ * Kinds that are pages, drawn in a page's shape so they sit in a grid as the
+ * pages they are. A page's file is laid out by the system at the shape it is
+ * asked for; text always comes back square, a white sheet with the text at
+ * its top, and is carried on down in white to a page's length rather than
+ * cut, which would lose the ends of its lines.
  */
 const PAGE_SHAPED = /\.(?:csv|htm|html|json|markdown|md|rtf|txt)$/i;
 /** A page's width over its height, as the renderer draws a page. */
 const PAGE_ASPECT = 0.78;
 /** Part of the key, so pictures drawn before a change to how they are drawn are drawn again. */
-const DRAWING = "2";
+const DRAWING = "4";
 
 /** How many are kept on disk; past it the least recently written go. */
 const KEPT = 4000;
@@ -92,7 +94,14 @@ export async function fileThumbnail(
     }
     const image = pageShaped(
       hostPath,
-      await withTurn(() => draw(hostPath, size)),
+      await withTurn(() =>
+        draw(
+          hostPath,
+          PAGE_SHAPED.test(hostPath)
+            ? { height: size, width: Math.round(size * PAGE_ASPECT) }
+            : { height: size, width: size },
+        ),
+      ),
     );
     await fs.mkdir(deps.dir, { recursive: true });
     if (!image || image.isEmpty()) {
@@ -115,14 +124,12 @@ export async function fileThumbnail(
 
 async function draw(
   hostPath: string,
-  size: ThumbnailSize,
+  box: { height: number; width: number },
 ): Promise<NativeImage | null> {
+  const size = Math.max(box.height, box.width);
   if (process.platform === "darwin" || process.platform === "win32") {
     try {
-      return await nativeImage.createThumbnailFromPath(hostPath, {
-        height: size,
-        width: size,
-      });
+      return await nativeImage.createThumbnailFromPath(hostPath, box);
     } catch {
       // No system picture of it; a PNG or JPEG can still be scaled here.
     }
@@ -143,16 +150,35 @@ async function draw(
   });
 }
 
+/**
+ * A page's picture that came back in some other shape, brought to a page's.
+ * The size an image reports is the box it was asked for, not what the system
+ * drew in it, so the picture is read back from its own pixels first. Text is
+ * carried on down in white; a page's file drawn wider than a page (one with
+ * too little in it to fill one) is cut to a page from the left.
+ */
 function pageShaped(hostPath: string, image: NativeImage | null) {
   if (!image || image.isEmpty() || !PAGE_SHAPED.test(hostPath)) {
     return image;
   }
-  const { height, width } = image.getSize();
-  const pageWidth = Math.round(height * PAGE_ASPECT);
-  if (pageWidth >= width) {
-    return image;
+  const drawn = nativeImage.createFromBuffer(image.toPNG());
+  const { height, width } = drawn.getSize();
+  const pageHeight = Math.round(width / PAGE_ASPECT);
+  if (height >= pageHeight - 1) {
+    return drawn;
   }
-  return image.crop({ height, width: pageWidth, x: 0, y: 0 });
+  if (/\.html?$/i.test(hostPath)) {
+    return drawn.crop({
+      height,
+      width: Math.round(height * PAGE_ASPECT),
+      x: 0,
+      y: 0,
+    });
+  }
+  // BGRA rows, so white is every byte full; the picture is laid over the top.
+  const page = Buffer.alloc(width * pageHeight * 4, 0xff);
+  drawn.toBitmap().copy(page);
+  return nativeImage.createFromBitmap(page, { height: pageHeight, width });
 }
 
 /** Lets the oldest go once more than {@link KEPT} are on disk. */

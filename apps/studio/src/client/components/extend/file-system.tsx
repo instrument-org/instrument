@@ -586,20 +586,22 @@ function formatByteSize(size: number | undefined) {
   }
   return null;
 }
+// Made once: `toLocaleDateString` with options builds a formatter per call,
+// which a list of dates redrawn on every arrow press cannot afford.
+const DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+const TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+});
 function formatTimestamp(value: string | undefined) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  const day = date.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  const time = date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return `${day} at ${time}`;
+  return `${DAY_FORMAT.format(date)} at ${TIME_FORMAT.format(date)}`;
 }
 const SORT_OPTIONS: Array<{
   defaultDirection: "asc" | "desc";
@@ -3920,8 +3922,7 @@ function FileSystemIconsView({
                 <span
                   className={cn(
                     "max-w-full rounded-sm px-1.5 py-px text-center text-xs leading-tight break-words",
-                    "text-foreground",
-                    isSelected && SELECTED_ROW_CLASSNAME,
+                    isSelected ? SELECTED_ROW_CLASSNAME : "text-foreground",
                   )}
                 >
                   <span className="line-clamp-2">{entry.name}</span>
@@ -3946,9 +3947,12 @@ const LIST_EDGE_PADDING = 24;
 // How narrow and how wide a column beside Name can be dragged.
 const LIST_COLUMN_WIDTH_MIN = 64;
 const LIST_COLUMN_WIDTH_MAX = 480;
-// The selection: a tint of the app's accent under the row, the way the
-// Finder marks one in the system's, calm enough to read the row through.
-export const SELECTED_ROW_CLASSNAME = "bg-brand-500/20 dark:bg-brand-500/30";
+// The selection: the app's accent, solid, with the row's text in white over
+// it, the way the Finder fills one with the system's.
+export const SELECTED_ROW_CLASSNAME = "bg-brand-500 text-white";
+// What reads as secondary on a row (dates, sizes, the chevron), over the
+// selection or off it.
+export const SELECTED_ROW_SECONDARY_CLASSNAME = "text-white/80";
 // What a context menu is open on: outlined, not selected.
 export const MENU_TARGET_CLASSNAME = "ring-2 ring-brand-500 ring-inset";
 const LIST_COLUMNS: Array<{
@@ -3990,11 +3994,7 @@ function formatListDate(value: string | undefined) {
         ? "Yesterday"
         : null;
   if (!day) return formatTimestamp(value) ?? "--";
-  const time = date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return `${day} at ${time}`;
+  return `${day} at ${TIME_FORMAT.format(date)}`;
 }
 function listCellText(entry: FileSystemEntry, column: FileSystemListColumn) {
   switch (column) {
@@ -4543,8 +4543,11 @@ function FileSystemListView({
                         {entry.kind === "folder" ? (
                           <ChevronRight
                             className={cn(
-                              "size-3.5 text-muted-foreground transition-transform duration-100 motion-reduce:transition-none",
+                              "size-3.5 transition-transform duration-100 motion-reduce:transition-none",
                               isExpanded && "rotate-90",
+                              isSelected
+                                ? SELECTED_ROW_SECONDARY_CLASSNAME
+                                : "text-muted-foreground",
                             )}
                             strokeWidth={2.5}
                           />
@@ -4569,8 +4572,11 @@ function FileSystemListView({
                     {columns.map((column) => (
                       <span
                         className={cn(
-                          "shrink-0 truncate px-2 text-xs text-muted-foreground tabular-nums",
+                          "shrink-0 truncate px-2 text-xs tabular-nums",
                           column.align === "end" && "text-right",
+                          isSelected
+                            ? SELECTED_ROW_SECONDARY_CLASSNAME
+                            : "text-muted-foreground",
                         )}
                         key={column.key}
                         style={{ width: column.width }}
@@ -5100,7 +5106,12 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     {entry.kind === "folder" &&
                     folderHasChildren(index, entry) ? (
                       <ChevronRight
-                        className="size-3.5 shrink-0 text-muted-foreground/60"
+                        className={cn(
+                          "size-3.5 shrink-0",
+                          isSelected
+                            ? SELECTED_ROW_SECONDARY_CLASSNAME
+                            : "text-muted-foreground/60",
+                        )}
                       />
                     ) : null}
                   </button>

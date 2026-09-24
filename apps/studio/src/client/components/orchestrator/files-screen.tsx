@@ -14,6 +14,7 @@ import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
+import { RAIL_SLIDE_TRANSITION } from "@/client/lib/rail-motion";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -22,7 +23,15 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
-import { Fragment, useEffect, useState } from "react";
+import { animate, motion, useMotionValue } from "motion/react";
+import {
+  Fragment,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
@@ -39,6 +48,14 @@ import { useWindowTabs } from "./window-tabs";
 /** How narrow and how wide the tree beside a file can be dragged, in CSS px. */
 const TREE_WIDTH_MIN = 180;
 const TREE_WIDTH_MAX = 480;
+/** The width the tree opens at until it is dragged, and goes back to on a double-click at its edge. */
+const TREE_WIDTH_DEFAULT = 240;
+/**
+ * Dragged narrower than this, the tree closes rather than stopping at its
+ * minimum: far enough under it that reaching it is a decision rather than an
+ * overshoot.
+ */
+const TREE_COLLAPSE_THRESHOLD = 110;
 
 /**
  * This Mac shows a folder or file in the current tab. Back returns to the
@@ -286,56 +303,20 @@ export function FilesScreen({
         }}
       >
         <div className="flex h-full min-h-0">
-          {isTreeOpen && (
-            // The Finder's own ground rather than a tinted panel, so the tree
-            // reads as the list it was opened from.
-            <aside
-              className="relative shrink-0 border-r border-border bg-background"
-              style={{ width: treeWidth }}
-            >
-              <FileTree
-                onOpen={showFile}
-                root={tree}
-                selected={activeFile.hostPath}
-              />
-              {/* The edge that drags, as a column's does in the Finder. */}
-              <div
-                aria-hidden
-                className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize hover:bg-ring/30"
-                onPointerDown={(event) => {
-                  if (event.button !== 0) {
-                    return;
-                  }
-                  event.preventDefault();
-                  const handle = event.currentTarget;
-                  const startX = event.clientX;
-                  const startWidth = treeWidth;
-                  handle.setPointerCapture(event.pointerId);
-                  const move = (moveEvent: PointerEvent) => {
-                    setTreeWidth(
-                      Math.round(
-                        Math.min(
-                          TREE_WIDTH_MAX,
-                          Math.max(
-                            TREE_WIDTH_MIN,
-                            startWidth + moveEvent.clientX - startX,
-                          ),
-                        ),
-                      ),
-                    );
-                  };
-                  const stop = () => {
-                    handle.removeEventListener("pointermove", move);
-                    handle.removeEventListener("pointerup", stop);
-                    handle.removeEventListener("pointercancel", stop);
-                  };
-                  handle.addEventListener("pointermove", move);
-                  handle.addEventListener("pointerup", stop);
-                  handle.addEventListener("pointercancel", stop);
-                }}
-              />
-            </aside>
-          )}
+          <TreePane
+            isOpen={isTreeOpen}
+            onClose={() => {
+              setTreeOpen(false);
+            }}
+            onWidthChange={setTreeWidth}
+            width={treeWidth}
+          >
+            <FileTree
+              onOpen={showFile}
+              root={tree}
+              selected={activeFile.hostPath}
+            />
+          </TreePane>
           <div className="min-h-0 min-w-0 flex-1 p-3">
             <FileViewer
               className="h-full"
@@ -451,6 +432,138 @@ function FileCrumbs({ file }: { file: FileTab }) {
         );
       })}
     </span>
+  );
+}
+
+/**
+ * The tree's column beside the document, the way the window's own pane
+ * behaves: its edge drags between the tree's bounds, a drag past the minimum
+ * by enough closes it, and opening or closing slides it in or out at its
+ * width rather than squeezing the rows. The tree stays mounted while it is
+ * closed, clipped away, so what it had open is still open when it returns.
+ */
+function TreePane({
+  children,
+  isOpen,
+  onClose,
+  onWidthChange,
+  width,
+}: {
+  children: ReactNode;
+  isOpen: boolean;
+  onClose: () => void;
+  onWidthChange: (width: number) => void;
+  width: number;
+}) {
+  // The room the column takes in the row, and the tree's own width inside
+  // it: the tree is held at its width and clipped as the room slides.
+  const reserved = useMotionValue(isOpen ? width : 0);
+  const treeWidth = useMotionValue(width);
+  const isFirstRun = useRef(true);
+  const isDragging = useRef(false);
+  useLayoutEffect(() => {
+    if (isDragging.current) {
+      return;
+    }
+    const target = isOpen ? width : 0;
+    if (isOpen) {
+      treeWidth.set(width);
+    }
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      reserved.set(target);
+      return;
+    }
+    const control = animate(reserved, target, RAIL_SLIDE_TRANSITION);
+    return () => {
+      control.stop();
+    };
+  }, [isOpen, reserved, treeWidth, width]);
+  return (
+    <motion.aside
+      aria-hidden={!isOpen}
+      className={cn(
+        "relative shrink-0 overflow-visible border-border bg-background",
+        isOpen && "border-r",
+      )}
+      inert={!isOpen}
+      // The Finder's own ground rather than a tinted panel, so the tree
+      // reads as the list it was opened from.
+      style={{ width: reserved }}
+    >
+      <div className="h-full w-full overflow-hidden">
+        <motion.div className="h-full" style={{ width: treeWidth }}>
+          {children}
+        </motion.div>
+      </div>
+      {isOpen && (
+        <div
+          aria-label="Resize the tree"
+          aria-orientation="vertical"
+          className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize select-none hover:bg-ring/30"
+          onDoubleClick={() => {
+            onWidthChange(TREE_WIDTH_DEFAULT);
+          }}
+          onPointerDown={(event) => {
+            if (event.button !== 0) {
+              return;
+            }
+            event.preventDefault();
+            const handle = event.currentTarget;
+            const aside = handle.parentElement;
+            if (!aside) {
+              return;
+            }
+            // On-screen px over layout px: the window's zoom.
+            const zoom =
+              aside.getBoundingClientRect().width / (aside.offsetWidth || 1);
+            const startX = event.clientX;
+            const startWidth = width;
+            handle.setPointerCapture(event.pointerId);
+            isDragging.current = true;
+            const listeners = new AbortController();
+            let closed = false;
+            const end = () => {
+              isDragging.current = false;
+              listeners.abort();
+            };
+            handle.addEventListener(
+              "pointermove",
+              (move: PointerEvent) => {
+                const next = startWidth + (move.clientX - startX) / zoom;
+                // Dragged past the point of keeping it: the tree closes, and
+                // the slide carries it the rest of the way.
+                if (next < TREE_COLLAPSE_THRESHOLD) {
+                  closed = true;
+                  end();
+                  onClose();
+                  return;
+                }
+                const clamped = Math.round(
+                  Math.min(TREE_WIDTH_MAX, Math.max(TREE_WIDTH_MIN, next)),
+                );
+                reserved.set(clamped);
+                treeWidth.set(clamped);
+              },
+              { signal: listeners.signal },
+            );
+            const finish = () => {
+              end();
+              if (!closed) {
+                onWidthChange(treeWidth.get());
+              }
+            };
+            handle.addEventListener("pointerup", finish, {
+              signal: listeners.signal,
+            });
+            handle.addEventListener("pointercancel", finish, {
+              signal: listeners.signal,
+            });
+          }}
+          role="separator"
+        />
+      )}
+    </motion.aside>
   );
 }
 

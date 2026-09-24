@@ -7,6 +7,15 @@ import { type TaskId } from "../schemas/task-id";
 
 export const publisher = new EventPublisher<{
   /**
+   * A background process in this task appeared, ended, or was removed. Carries
+   * no detail because every listener re-reads the list, and deliberately not
+   * published per chunk of output: what a viewer needs is whether the process
+   * is still there, not what it just printed.
+   */
+  "backgroundProcesses.changed": {
+    id: TaskId;
+  };
+  /**
    * The agent sent a command to this task's browser. One per command rather
    * than a start/stop pair: the agent's browser work arrives as separate tool
    * calls seconds apart, so where one stretch of it ends is a question for

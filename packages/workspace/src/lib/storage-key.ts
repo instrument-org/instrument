@@ -12,6 +12,14 @@ export namespace StorageKey {
     return ["attached-folders-baseline", sessionId].join(SEPARATOR);
   }
 
+  // Per-session record of the background processes the agent was last told
+  // about. The registry itself is in memory, so this is the only thing that
+  // survives a restart to say what the session believes is running -- which is
+  // what makes "the server you started is gone" sayable at all.
+  export function backgroundProcessesReported(sessionId: StoreId.Session) {
+    return ["background-processes-reported", sessionId].join(SEPARATOR);
+  }
+
   // Per-session latch for whether reaching a page has already taken the pane
   // during the turn now running. Lowered as each user message is composed, so a
   // turn takes the pane at most once however many pages it visits.

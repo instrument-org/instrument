@@ -472,7 +472,7 @@ describe("agentMachine", () => {
       runSessionId,
     );
     const completedPart: SessionMessagePart.Type = {
-      input: { command: "echo done", explanation: "echoing", timeoutMs: 1000 },
+      input: { command: "echo done", explanation: "echoing", yieldMs: 1000 },
       metadata: {
         createdAt,
         endedAt: createdAt,
@@ -485,6 +485,7 @@ describe("agentMachine", () => {
         commands: ["echo"],
         durationMs: 0,
         exitCode: 0,
+        omittedBytes: 0,
         output: "done",
       },
       state: "output-available",

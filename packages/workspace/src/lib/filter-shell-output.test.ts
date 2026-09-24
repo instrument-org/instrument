@@ -162,6 +162,20 @@ ${dir}\output\rainbow.pdf`;
       expected: "protocol=https\nusername=***\npassword=***",
       output: "protocol=https\nusername=victim\npassword=ghp_secretToken",
     },
+    {
+      // Glued to the text before it, which is how a wrapped or concatenated
+      // line arrives. The scheme has to be matchable from inside a token.
+      expected: "remote:https://***@github.com/o/r.git",
+      output: "remote:https://user:ghp_secretToken@github.com/o/r.git",
+    },
+    {
+      expected: "-https://***@github.com/o/r.git",
+      output: "-https://user:ghp_secretToken@github.com/o/r.git",
+    },
+    {
+      expected: `${"a".repeat(50)}https://***@github.com/o/r.git`,
+      output: `${"a".repeat(50)}https://user:ghp_secretToken@github.com/o/r.git`,
+    },
   ])("redacts credentials in $output", ({ expected, output }) => {
     expect(filterShellOutput(output, dir)).toBe(expected);
   });

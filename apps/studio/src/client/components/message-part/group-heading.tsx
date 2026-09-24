@@ -1,6 +1,7 @@
 import { cn } from "../../lib/utils";
 import { PlanningDotSlot } from "../planning-dot-slot";
 import { RunRowChevron } from "../run-row-chevron";
+import { RunningBadge } from "../task/running-badge";
 import { TRANSCRIPT_ROW, useTranscriptGroup } from "./transcript-group";
 
 /**
@@ -32,6 +33,10 @@ export function GroupHeading({
   // has nothing to disclose and stays a plain row.
   const canExpand = group?.canExpand ?? false;
   const isExpanded = group?.isExpanded ?? false;
+  // A folded group hides the call that started something, so the heading
+  // carries the badge on its behalf. Not the agent's working indicator: the
+  // phase is finished, and only what it left behind is not.
+  const runningCount = group?.runningProcessCount ?? 0;
 
   return (
     <button
@@ -61,6 +66,7 @@ export function GroupHeading({
       >
         {title}
       </span>
+      {runningCount > 0 && <RunningBadge count={runningCount} />}
       {canExpand && <RunRowChevron isOpen={isExpanded} />}
     </button>
   );

@@ -8,8 +8,21 @@ import { normalizePath } from "./normalize-path";
  * user nor the password segment may contain `/`, so a path segment ending in
  * `@` (`https://host/a@b`) cannot match. The user segment may be empty:
  * `https://:token@host` is the usual spelling for a token with no username.
+ *
+ * The scheme run is length-bounded, which is what keeps this linear. Unbounded,
+ * the engine starts a greedy run at every character of every line and backtracks
+ * the whole way looking for `://`, so cost grows with the square of the line
+ * length: a 16 KB line of minified JS or base64 took ~400 ms, and a 64 KB one
+ * several seconds.
+ *
+ * The bound does not narrow what is redacted. A match may still begin mid-token,
+ * which is what covers a URL glued to the text before it (`-https://u:p@h`), and
+ * `https` sits directly against `://`, so some start position inside the bound
+ * always exists. Anchoring to a token boundary instead would be faster still and
+ * would let exactly those glued spellings through.
  */
-const URL_USERINFO_PATTERN = /([a-z][\w+.-]*:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi;
+const URL_USERINFO_PATTERN =
+  /([a-z][\w+.-]{0,31}:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi;
 
 /**
  * git's credential protocol writes `password=<secret>` on its own line, which

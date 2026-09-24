@@ -101,6 +101,22 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join("\n");
       return `<data-attachments>\n${indent(filesList)}\n</data-attachments>`;
     }
+    case "data-backgroundProcesses": {
+      const describe = (
+        processes: { command: string; id: string }[],
+        tag: string,
+      ) =>
+        processes
+          .map(({ command, id }) => `<${tag} id="${id}">${command}</${tag}>`)
+          .join("\n");
+      const entries = [
+        describe(part.data.running, "running"),
+        describe(part.data.ended, "ended"),
+      ]
+        .filter(Boolean)
+        .join("\n");
+      return `<data-backgroundProcesses>\n${indent(entries)}\n</data-backgroundProcesses>`;
+    }
     case "data-browserStatus": {
       const target =
         part.data.status === "open"

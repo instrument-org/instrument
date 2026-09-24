@@ -72,6 +72,26 @@ describe("providerOptionsForModel", () => {
     });
   });
 
+  it.each(["gpt-5-mini", "gpt-5.6-luna", "gpt-6-luna", "o3", "o4-mini"])(
+    "asks %s for its encrypted reasoning",
+    (modelId) => {
+      expect(
+        providerOptionsForModel(model("openai.responses", modelId)),
+      ).toEqual({
+        openai: { include: ["reasoning.encrypted_content"], store: false },
+      });
+    },
+  );
+
+  it.each(["gpt-4.1", "gpt-4o-mini", "omni-moderation-latest"])(
+    "asks %s for no reasoning it cannot produce",
+    (modelId) => {
+      expect(
+        providerOptionsForModel(model("openai.responses", modelId)),
+      ).toEqual({});
+    },
+  );
+
   it("names the model's own provider rather than the one asking", () => {
     expect(
       providerOptionsForModel(

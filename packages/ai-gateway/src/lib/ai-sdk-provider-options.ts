@@ -8,6 +8,14 @@ import {
   reasoningProviderOptions,
 } from "./reasoning-effort";
 
+/**
+ * The reasoning models that accept `reasoning.encrypted_content`: gpt-5 and
+ * every later generation, and the o-series (`o3`, `o4-mini`). With `store:
+ * false`, the encrypted item is the only way a turn's reasoning reaches the
+ * next one; a model left out of this list re-derives its plan every step.
+ */
+const ENCRYPTED_REASONING_MODEL_ID = /^(?:gpt-(?:[5-9]|\d{2,})|o\d)/;
+
 export function providerOptionsForModel(
   model: LanguageModel,
   {
@@ -29,8 +37,7 @@ export function providerOptionsForModel(
   if (
     typeof model !== "string" &&
     model.provider === "openai.responses" &&
-    // Only gpt-5 and o-series models support reasoning.encrypted_content
-    (model.modelId.startsWith("gpt-5") || model.modelId.startsWith("o-"))
+    ENCRYPTED_REASONING_MODEL_ID.test(model.modelId)
   ) {
     result.openai = {
       include: ["reasoning.encrypted_content"],

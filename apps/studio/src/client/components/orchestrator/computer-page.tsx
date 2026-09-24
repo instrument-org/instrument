@@ -3,6 +3,7 @@ import {
   type ComputerFolderView,
   computerFolderViewsAtom,
   computerHiddenFilesAtom,
+  computerListColumnsAtom,
   computerSortAtom,
   computerViewAtom,
   type FileTab,
@@ -11,7 +12,9 @@ import {
   FileSystem,
   type FileSystemFileItem,
   FileSystemFolderGlyph,
+  type FileSystemHandle,
   type FileSystemItem,
+  type FileSystemSortKey,
   type FileSystemSortState,
 } from "@/client/components/extend/file-system";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -22,7 +25,12 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
@@ -41,9 +49,12 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
   useMutation,
@@ -84,6 +95,31 @@ const RECENTS_REFRESH_MS = ms("15 seconds");
  * opens on it the way it opens on Home.
  */
 export const RECENTS_ROOT = "recents:";
+
+/**
+ * The order the recents open in: the order they were handed over, most
+ * recently shown first, which is the order the user met them in.
+ */
+const RECENTS_SORT: FileSystemSortState = { direction: "desc", key: "shownAt" };
+
+/**
+ * The orders the folder's menu offers, in the Finder's words, each opening in
+ * the direction the toolbar's sort opens it in. The recents add the order
+ * they were shown in, which is theirs alone.
+ */
+const SORT_BY: {
+  direction: "asc" | "desc";
+  key: FileSystemSortKey;
+  label: string;
+  recentsOnly?: boolean;
+}[] = [
+  { direction: "desc", key: "shownAt", label: "Date Shown", recentsOnly: true },
+  { direction: "asc", key: "name", label: "Name" },
+  { direction: "asc", key: "kind", label: "Kind" },
+  { direction: "desc", key: "updatedAt", label: "Date Modified" },
+  { direction: "desc", key: "createdAt", label: "Date Created" },
+  { direction: "desc", key: "size", label: "Size" },
+];
 
 /** The folder the user is looking at, for the conversation. */
 export interface FolderOnScreen {
@@ -158,6 +194,7 @@ export function ComputerPage({
   const [defaultSort, setDefaultSort] = useAtom(computerSortAtom);
   const [folderViews, setFolderViews] = useAtom(computerFolderViewsAtom);
   const [columnWidth, setColumnWidth] = useAtom(computerColumnWidthAtom);
+  const [listColumns, setListColumns] = useAtom(computerListColumnsAtom);
   const [showHiddenFiles, setShowHiddenFiles] = useAtom(
     computerHiddenFilesAtom,
   );
@@ -232,8 +269,15 @@ export function ComputerPage({
     joinHostPath(base, prefix);
 
   // What the folder's own menu is open on. Nothing means the menu came up on
-  // the folder's empty space, where the only thing to do is make something.
+  // the folder's empty space, where the things to do are to the folder.
   const [menuItem, setMenuItem] = useState<FileSystemItem>();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // What a menu item asked for that needs the keyboard, done once the menu
+  // has let go of it. A closing menu keeps it for as long as it takes to fade
+  // out, so a name field opened any sooner lost it at once, and a field that
+  // loses the keyboard with its name unchanged closes.
+  const afterMenu = useRef<(() => void) | null>(null);
+  const browser = useRef<FileSystemHandle>(null);
   // The item whose name is being typed over, by the path the browser knows it
   // by; the row itself holds the field.
   const [renamingPath, setRenamingPath] = useState<null | string>(null);
@@ -488,22 +532,6 @@ export function ComputerPage({
 
   const listingOf = (prefix: string) =>
     listings[prefixes.indexOf(prefix)]?.data;
-  // The folder on screen: in columns, a selected folder shows its contents in
-  // the next column, so it is the one the user is looking at; a selected file
-  // is in the folder that lists it; nothing selected leaves the browser's own.
-  const onScreen =
-    selectedPath === null
-      ? current
-      : selectedPath.endsWith("/")
-        ? selectedPath
-        : selectedPath.slice(0, selectedPath.lastIndexOf("/") + 1);
-  const currentListing = listingOf(onScreen);
-  // The folder on screen is one the operating system would not let this app
-  // read. On a Mac the first read of a protected folder is the system's own
-  // ask, so this is what a declined ask looks like, and where it is undone.
-  const isCurrentNotPermitted = isNotPermitted(
-    listings[prefixes.indexOf(onScreen)]?.error,
-  );
   // Whether the folder the page is holding belongs to the root it was handed.
   // A new root arrives a render ahead of the reset that clears the folder
   // under it, and writing the address in between paired the root being opened
@@ -526,21 +554,42 @@ export function ComputerPage({
     const own = folderViews[currentKey];
     return {
       at: currentKey,
-      sort: own?.sort ?? defaultSort,
+      sort: own?.sort ?? (isRecents ? RECENTS_SORT : defaultSort),
       view: own?.view ?? defaultView,
     };
   });
   // Set during render rather than in an effect, so the folder is drawn in its
   // own look from its first frame. A new root arrives a render ahead of the
-  // folder under it, so nothing is taken until the two agree.
+  // folder under it, so nothing is taken until the two agree. The recents are
+  // a list of their own rather than a folder, and open in their own order.
   if (settled && shown.at !== currentKey) {
     const own = folderViews[currentKey];
     setShown({
       at: currentKey,
-      sort: own?.sort ?? shown.sort,
+      sort: own?.sort ?? (isRecents ? RECENTS_SORT : shown.sort),
       view: own?.view ?? shown.view,
     });
   }
+
+  // The folder on screen. In the columns a selected folder shows its contents
+  // in the next column, so it is the one the user is looking at, and a
+  // selected file is in the folder that lists it. Every other layout shows
+  // the browser's own folder whatever is selected in it: selecting a folder
+  // there, or a file in a folder opened in place in the list, is not going
+  // anywhere, and neither the address nor back and forward move for it.
+  const onScreen =
+    selectedPath === null || shown.view !== "columns"
+      ? current
+      : selectedPath.endsWith("/")
+        ? selectedPath
+        : selectedPath.slice(0, selectedPath.lastIndexOf("/") + 1);
+  const currentListing = listingOf(onScreen);
+  // The folder on screen is one the operating system would not let this app
+  // read. On a Mac the first read of a protected folder is the system's own
+  // ask, so this is what a declined ask looks like, and where it is undone.
+  const isCurrentNotPermitted = isNotPermitted(
+    listings[prefixes.indexOf(onScreen)]?.error,
+  );
   // A change is kept for the folder the window is showing. In the columns that
   // is the last column's folder, which is where leaving the columns goes.
   const keepLook = (look: ComputerFolderView) => {
@@ -554,6 +603,13 @@ export function ComputerPage({
       ];
       return Object.fromEntries(kept.slice(-FOLDER_VIEWS_KEPT));
     });
+  };
+  const sortBy = (sort: FileSystemSortState) => {
+    // The recents' order is their own and says nothing about a folder's.
+    if (!isRecents) {
+      setDefaultSort(sort);
+    }
+    keepLook({ sort, view: shown.view });
   };
   useEffect(() => {
     if (!settled || onScreen === path) {
@@ -676,9 +732,15 @@ export function ComputerPage({
   const access = isRecents
     ? selectedRecent?.access?.access
     : currentListing?.access?.access;
-  const selectedName =
-    selectedPath !== null && !selectedPath.endsWith("/")
-      ? (selectedItem?.name ?? selectedPath.split("/").at(-1))
+  // Named from the folder on screen: a file in a folder opened in place in
+  // the list is that folder's name and its own. The folder the columns are
+  // showing is the folder itself rather than something selected in it.
+  const selectedName = isRecents
+    ? selectedItem?.name
+    : selectedPath !== null &&
+        selectedPath !== onScreen &&
+        selectedPath.startsWith(onScreen)
+      ? selectedPath.slice(onScreen.length).replace(/\/$/, "")
       : undefined;
   useEffect(() => {
     // The recents with nothing selected, or a folder not yet read: no folder
@@ -879,7 +941,7 @@ export function ComputerPage({
         />
       </nav>
       <div className="flex min-w-0 flex-1 flex-col">
-        <ContextMenu>
+        <ContextMenu onOpenChange={setIsMenuOpen}>
           <ContextMenuTrigger asChild>
             <div className="relative min-h-0 flex-1" ref={browserRef}>
               {isCurrentNotPermitted && folderHostPath !== undefined && (
@@ -896,30 +958,15 @@ export function ComputerPage({
               <FileSystem
                 className="h-full rounded-none border-0"
                 columnWidth={columnWidth}
+                contextMenuPath={isMenuOpen ? (menuItem?.path ?? null) : null}
                 defaultPath={path}
-                // The recents open in the order they were handed over, most
-                // recently shown first, which is the order the user met them
-                // in; a folder is in the order the last folder was left in.
-                {...(isRecents
-                  ? {
-                      defaultSort: {
-                        direction: "desc" as const,
-                        key: "shownAt" as const,
-                      },
-                    }
-                  : {
-                      onSortChange: (sort: FileSystemSortState) => {
-                        setDefaultSort(sort);
-                        keepLook({ sort, view: shown.view });
-                      },
-                      sort: shown.sort,
-                    })}
                 // Every row here is a thing on this computer, and drags out of
                 // the window as one: to the desktop, a Finder window, another
                 // app. What lands there is the OS's copy; nothing here moves.
                 getHostPath={(item) => hostPathOfItem(item) || undefined}
                 items={items}
                 key={`${root}#${openings}`}
+                listColumns={listColumns}
                 loadChildren={async ({ path: prefix }) => {
                   // The recents are one flat list of files; nothing on it opens.
                   if (isRecents) {
@@ -954,6 +1001,7 @@ export function ComputerPage({
                 onItemContextMenu={(item) => {
                   setMenuItem(item ?? undefined);
                 }}
+                onListColumnsChange={setListColumns}
                 onPathChange={setCurrent}
                 onRenameCancel={() => {
                   setRenamingPath(null);
@@ -969,10 +1017,12 @@ export function ComputerPage({
                   setSelectedPath(item?.path ?? null);
                 }}
                 onShowHiddenFilesChange={setShowHiddenFiles}
+                onSortChange={sortBy}
                 onViewChange={(view) => {
                   setDefaultView(view);
                   keepLook({ sort: shown.sort, view });
                 }}
+                ref={browser}
                 renamingPath={renamingPath}
                 renderFileStage={(file) => {
                   // Text reads as a thumbnail of the document, the way an image
@@ -1021,13 +1071,19 @@ export function ComputerPage({
                 )}
                 selectedPath={selectedPath}
                 showHiddenFiles={showHiddenFiles}
+                sort={shown.sort}
                 title={rootName}
                 view={shown.view}
               />
             </div>
           </ContextMenuTrigger>
           <FolderMenu
+            isRecents={isRecents}
             item={menuItem}
+            onClosed={() => {
+              afterMenu.current?.();
+              afterMenu.current = null;
+            }}
             onCopyPath={() => void copyPath(menuItem)}
             onDuplicate={() => void duplicate(menuItem)}
             // The recents are a list rather than a folder, so there is nowhere
@@ -1046,15 +1102,46 @@ export function ComputerPage({
                     });
                   }
             }
+            onOpen={() => {
+              if (menuItem) {
+                browser.current?.open(menuItem);
+              }
+            }}
+            onQuickLook={
+              onQuickLook &&
+              (() => {
+                const tab =
+                  menuItem?.kind === "file" ? fileTabOf(menuItem) : undefined;
+                if (tab) {
+                  onQuickLook(tab);
+                }
+              })
+            }
             onRename={() => {
-              setRenamingPath(menuItem?.path ?? null);
+              const renaming = menuItem?.path ?? null;
+              afterMenu.current = () => {
+                setRenamingPath(renaming);
+              };
             }}
             onReveal={() =>
               void rpcClient.utils.showFileInFolder
                 .call({ filepath: hostPathOfItem(menuItem) })
                 .catch(failed)
             }
+            onSortKey={(key) => {
+              sortBy(
+                key === shown.sort.key
+                  ? shown.sort
+                  : {
+                      direction:
+                        SORT_BY.find((option) => option.key === key)
+                          ?.direction ?? "asc",
+                      key,
+                    },
+              );
+            }}
             onTrash={() => void trash(menuItem)}
+            sort={shown.sort}
           />
         </ContextMenu>
       </div>
@@ -1089,34 +1176,50 @@ function failed(error: unknown) {
 
 /**
  * What can be done to the thing under the pointer, or to the folder itself
- * where there is nothing under it. Handing a file to another program is one
- * row, and a submenu wherever the Mac can name the apps that read it: naming
- * an app on the row itself makes the menu as wide as whatever app that file
- * happens to belong to, and puts leaving the app at the top of the list of
- * things to do with a file.
+ * where there is nothing under it, in the order the Finder's own menu puts
+ * them: opening first, the Trash apart, then what changes the thing, then
+ * where it is. Handing a file to another program is one row, and a submenu
+ * wherever the Mac can name the apps that read it: naming an app on the row
+ * itself makes the menu as wide as whatever app that file happens to belong
+ * to.
  */
 function FolderMenu({
+  isRecents,
   item,
+  onClosed,
   onCopyPath,
   onDuplicate,
   onNewFolder,
+  onOpen,
+  onQuickLook,
   onRename,
   onReveal,
+  onSortKey,
   onTrash,
+  sort,
 }: {
+  isRecents: boolean;
   item: FileSystemItem | undefined;
+  /** The menu gone, and the keyboard with it. */
+  onClosed: () => void;
   onCopyPath: () => void;
   onDuplicate: () => void;
   /** Left out where there is no folder to make one in. */
   onNewFolder: (() => void) | undefined;
+  /** What a double-click does: a folder is gone into, a file opened here. */
+  onOpen: () => void;
+  /** Left out where nothing shows a file over the page. */
+  onQuickLook: (() => void) | undefined;
   onRename: () => void;
   onReveal: () => void;
+  onSortKey: (key: FileSystemSortKey) => void;
   onTrash: () => void;
+  sort: FileSystemSortState;
 }) {
   const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
   const file = tab ? { hostPath: tab.hostPath } : undefined;
   const openFile = useOpenFile();
-  const { showOpen } = useFileOpenTarget(file);
+  const { openLabel, showOpen } = useFileOpenTarget(file);
   return (
     <ContextMenuContent
       className="min-w-48"
@@ -1126,51 +1229,38 @@ function FolderMenu({
       // here says where the keyboard goes, so the menu says nothing.
       onCloseAutoFocus={(event) => {
         event.preventDefault();
+        onClosed();
       }}
     >
-      {/* The apps are listed where the Mac can be asked for them, and the
-          submenu asks only once it is opened, so the row is there from the
-          first frame rather than arriving under the pointer once a lookup has
-          answered. Elsewhere the one row hands the file to whichever program
-          the system has chosen for it. */}
-      {file && isMacOS() ? (
+      {item ? (
         <>
-          <OpenWithMenu file={file} menuComponents={contextMenuComponents} />
-          <ContextMenuSeparator />
-        </>
-      ) : file && showOpen ? (
-        <>
-          <ContextMenuItem
-            onClick={() => {
-              openFile(file);
-            }}
-          >
-            <OpenTargetIcon className="size-4" file={file} />
+          <ContextMenuItem onClick={onOpen}>
+            <FolderOpenIcon className="size-4" />
             <span>Open</span>
           </ContextMenuItem>
+          {/* The apps are listed where the Mac can be asked for them, and the
+              submenu asks only once it is opened, so the row is there from
+              the first frame rather than arriving under the pointer once a
+              lookup has answered. Elsewhere the one row hands the file to
+              whichever program the system has chosen for it. */}
+          {file && isMacOS() ? (
+            <OpenWithMenu file={file} menuComponents={contextMenuComponents} />
+          ) : file && showOpen ? (
+            <ContextMenuItem
+              onClick={() => {
+                openFile(file);
+              }}
+            >
+              <OpenTargetIcon className="size-4" file={file} />
+              <span>{openLabel}</span>
+            </ContextMenuItem>
+          ) : null}
           <ContextMenuSeparator />
-        </>
-      ) : null}
-      {item ? (
-        <>
-          <ContextMenuItem onClick={onReveal}>
-            <RevealInFolderIcon className="size-4" />
-            <span>{getRevealInFolderLabel()}</span>
+          <ContextMenuItem onClick={onTrash} variant="destructive">
+            <TrashIcon className="size-4" />
+            <span>Move to Trash</span>
           </ContextMenuItem>
-          <ContextMenuItem onClick={onCopyPath}>
-            <ClipboardTextIcon className="size-4" />
-            <span>Copy Path</span>
-          </ContextMenuItem>
-        </>
-      ) : null}
-      {onNewFolder ? (
-        <ContextMenuItem onClick={onNewFolder}>
-          <FolderPlusIcon className="size-4" />
-          <span>New folder</span>
-        </ContextMenuItem>
-      ) : null}
-      {item ? (
-        <>
+          <ContextMenuSeparator />
           <ContextMenuItem onClick={onRename}>
             <PencilSimpleIcon className="size-4" />
             <span>Rename</span>
@@ -1179,13 +1269,60 @@ function FolderMenu({
             <CopyIcon className="size-4" />
             <span>Duplicate</span>
           </ContextMenuItem>
+          {file && onQuickLook ? (
+            <ContextMenuItem onClick={onQuickLook}>
+              <EyeIcon className="size-4" />
+              <span>Quick Look</span>
+            </ContextMenuItem>
+          ) : null}
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={onTrash} variant="destructive">
-            <TrashIcon className="size-4" />
-            <span>Move to Trash</span>
+          <ContextMenuItem onClick={onCopyPath}>
+            <ClipboardTextIcon className="size-4" />
+            <span>Copy Path</span>
+          </ContextMenuItem>
+          <ContextMenuItem onClick={onReveal}>
+            <RevealInFolderIcon className="size-4" />
+            <span>{getRevealInFolderLabel()}</span>
           </ContextMenuItem>
         </>
-      ) : null}
+      ) : (
+        <>
+          {onNewFolder ? (
+            <>
+              <ContextMenuItem onClick={onNewFolder}>
+                <FolderPlusIcon className="size-4" />
+                <span>New Folder</span>
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          ) : null}
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <SortAscendingIcon className="size-4" />
+              <span>Sort By</span>
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="min-w-44">
+              <ContextMenuRadioGroup
+                onValueChange={(key) => {
+                  const option = SORT_BY.find((entry) => entry.key === key);
+                  if (option) {
+                    onSortKey(option.key);
+                  }
+                }}
+                value={sort.key}
+              >
+                {SORT_BY.filter(
+                  (option) => isRecents || !option.recentsOnly,
+                ).map((option) => (
+                  <ContextMenuRadioItem key={option.key} value={option.key}>
+                    {option.label}
+                  </ContextMenuRadioItem>
+                ))}
+              </ContextMenuRadioGroup>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        </>
+      )}
     </ContextMenuContent>
   );
 }

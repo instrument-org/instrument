@@ -16,6 +16,12 @@ import {
   CommandList,
 } from "@/client/components/ui/command";
 import {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import {
   Dialog,
   DialogClose,
   DialogContent,
@@ -56,12 +62,8 @@ import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
 import {
   createFileTreeIconResolver,
-  type FileTreeSortComparator,
-  type FileTreeSortEntry,
   getBuiltInSpriteSheet,
-  prepareFileTreeInput,
 } from "@pierre/trees";
-import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import {
   ArrowRight,
@@ -126,7 +128,14 @@ export type FileSystemFileItem = {
   /** Optional if already public/presigned. Otherwise resolved via `getFileUrl`. */
   url?: string;
 };
+/** What a caller can ask of the browser outside its own gestures. */
+export type FileSystemHandle = {
+  /** Opens an item the way a double-click does: a folder is gone into, a file opened. */
+  open: (item: FileSystemItem) => void;
+};
 export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
+/** The list view's columns beside Name, each optional. */
+export type FileSystemListColumn = "createdAt" | "kind" | "size" | "updatedAt";
 export type FileSystemProps = {
   className?: string;
   /**
@@ -135,6 +144,11 @@ export type FileSystemProps = {
    * instance of it does.
    */
   columnWidth?: number;
+  /**
+   * The item a context menu is open on, by path. It is outlined rather than
+   * selected, the way the Finder marks what its menu acts on.
+   */
+  contextMenuPath?: null | string;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
   defaultPath?: string;
   /** The order the browser opens in, when name ascending is the wrong one. */
@@ -150,6 +164,11 @@ export type FileSystemProps = {
   getHostPath?: (item: FileSystemItem) => string | undefined;
   /** Flat manifest. Folders are optional; missing prefixes are inferred from file paths. */
   items: FileSystemItem[];
+  /**
+   * The list view's columns beside Name, when the caller holds them. Left out,
+   * the browser keeps its own: Date Modified, Size and Kind.
+   */
+  listColumns?: FileSystemListColumn[];
   /** Lazily fetch children for folders with `hasChildren` and no loaded entries. */
   loadChildren?: (
     args: FileSystemLoadChildrenArgs,
@@ -184,6 +203,7 @@ export type FileSystemProps = {
     item: FileSystemItem | null,
     event: React.MouseEvent,
   ) => void;
+  onListColumnsChange?: (columns: FileSystemListColumn[]) => void;
   /** Called with the folder prefix on screen whenever it changes. */
   onPathChange?: (path: string) => void;
   /** The row's name field, left without a new name. */
@@ -196,6 +216,7 @@ export type FileSystemProps = {
   onShowHiddenFilesChange?: (showHiddenFiles: boolean) => void;
   onSortChange?: (sort: FileSystemSortState) => void;
   onViewChange?: (view: FileSystemView) => void;
+  ref?: React.Ref<FileSystemHandle>;
   /** The item whose name is being typed over in its own row, by path. */
   renamingPath?: null | string;
   /** Controls drawn under a selected file's name in the columns view's preview pane. */
@@ -548,18 +569,6 @@ function compareEntryNames(
     sensitivity: "base",
   });
 }
-// Every directory prefix appearing in the given relative file paths.
-function directoryPathsOf(paths: readonly string[]) {
-  const directoryPaths = new Set<string>();
-  for (const relativePath of paths) {
-    let slashIndex = relativePath.indexOf("/");
-    while (slashIndex !== -1) {
-      directoryPaths.add(relativePath.slice(0, slashIndex));
-      slashIndex = relativePath.indexOf("/", slashIndex + 1);
-    }
-  }
-  return directoryPaths;
-}
 function formatByteSize(size: number | undefined) {
   if (size === undefined) return null;
   if (size < 1000) return `${size} bytes`;
@@ -900,13 +909,13 @@ function isCustomDateRangeValue(value: string[]) {
     )
   );
 }
-// A single SVG source so the same glyph renders as a React element, inside the
-// @pierre/trees shadow DOM (via CSS url()), and stays pixel-identical in both.
+// The folder glyph as one SVG source, drawn from a data URL wherever a folder
+// is.
 const FOLDER_GLYPH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs><linearGradient id="fs-folder-back" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3dabf5"/><stop offset="1" stop-color="#1d84dd"/></linearGradient><linearGradient id="fs-folder-front" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7accfb"/><stop offset="1" stop-color="#37a0ef"/></linearGradient></defs><path d="M5 10c0-3.31 2.69-6 6-6h10.9c1.6 0 3.13.7 4.18 1.9l1.5 1.73a3.5 3.5 0 0 0 2.64 1.22H54c2.76 0 5 2.24 5 5V40c0 3.87-3.13 7-7 7H12c-3.87 0-7-3.13-7-7V10Z" fill="url(#fs-folder-back)"/><path d="M5 15.5h54V40c0 3.87-3.13 7-7 7H12c-3.87 0-7-3.13-7-7V15.5Z" fill="url(#fs-folder-front)"/></svg>`;
 const FOLDER_GLYPH_DATA_URL = `data:image/svg+xml,${encodeURIComponent(FOLDER_GLYPH_SVG)}`;
 export function FileSystemFolderGlyph({ className }: { className?: string }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- The folder glyph is an inline SVG data URL shared with the tree sprite.
+    // eslint-disable-next-line @next/next/no-img-element -- The folder glyph is an inline SVG data URL.
     <img
       alt=""
       aria-hidden="true"
@@ -916,16 +925,8 @@ export function FileSystemFolderGlyph({ className }: { className?: string }) {
     />
   );
 }
-function escapeXmlAttribute(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-// Per-token light/dark colors mirroring the palette the tree applies inside
-// its shadow DOM. Tokens without an entry (font, nextjs, stylelint) stay
-// muted-foreground there too.
+// Per-token light/dark colors for the file-type icons. Tokens without an
+// entry (font, nextjs, stylelint) stay muted-foreground.
 const FILE_ICON_COLORS: Record<string, [light: string, dark: string]> = {
   astro: ["#a631be", "#d568ea"],
   babel: ["#d5a910", "#ffd452"],
@@ -986,9 +987,8 @@ const FILE_ICON_COLORS: Record<string, [light: string, dark: string]> = {
 };
 // The set's gaps (file-type-glyphs.ts) ride in as extension remaps onto our
 // own symbols. A remapped icon carries no data-icon-token, so each symbol
-// colors itself: from the --fs-file-icon-* variable in the light DOM, and
-// from the light-dark() fallback inside the tree, which resets those
-// variables so its selected rows flip palettes the way built-ins do.
+// colors itself from its --fs-file-icon-* variable, with a light-dark()
+// fallback where that is unset.
 const FILE_TYPE_ICON_TOKENS: [
   token: string,
   markup: string,
@@ -1021,12 +1021,10 @@ const FILE_TYPE_ICONS_BY_EXTENSION = Object.fromEntries(
     ]),
   ),
 );
-const FILE_TYPE_ICON_TREE_CSS = `:host { ${FILE_TYPE_ICON_TOKENS.map(([token]) => `--fs-file-icon-${token}: initial;`).join(" ")} }`;
 // The @pierre/trees "complete" set — the full, colored suite with brand and
-// framework glyphs — ships as an SVG sprite. The list view tree consumes it
-// natively inside its shadow DOM; the icon, column, and gallery views render
-// the same sprite from the light DOM so every view falls back to the same
-// file-type icon when a file has no thumbnail.
+// framework glyphs — ships as an SVG sprite, rendered once per browser so
+// every view falls back to the same file-type icon when a file has no
+// thumbnail.
 const FILE_ICON_SPRITE_SHEET = `${getBuiltInSpriteSheet("complete")}<svg data-icon-sprite aria-hidden="true" width="0" height="0">${FILE_TYPE_ICON_SYMBOLS}</svg>`;
 const { resolveIcon: resolveFileIcon } = createFileTreeIconResolver({
   byFileExtension: FILE_TYPE_ICONS_BY_EXTENSION,
@@ -1044,12 +1042,10 @@ function fileIconColorVariables(mode: 0 | 1) {
 // (paper) surface in dark mode, so icons inside them revert to the light
 // palette ([data-file-system-on-light]); selected rows sit on the primary
 // surface — the opposite of the mode's background — so icons there swap to
-// the opposite palette ([data-file-system-on-primary] in the light DOM,
-// --fs-selected-color-scheme for the tree's light-dark() colors inside its
-// shadow DOM).
+// the opposite palette ([data-file-system-on-primary]).
 const FILE_ICON_COLOR_CSS = `
-:root { ${fileIconColorVariables(0)} --fs-selected-color-scheme: dark; }
-.dark { ${fileIconColorVariables(1)} --fs-selected-color-scheme: light; }
+:root { ${fileIconColorVariables(0)} }
+.dark { ${fileIconColorVariables(1)} }
 .dark [data-file-system-on-light] { ${fileIconColorVariables(0)} }
 [data-file-system-on-primary] { ${fileIconColorVariables(1)} }
 .dark [data-file-system-on-primary] { ${fileIconColorVariables(0)} }
@@ -1318,9 +1314,8 @@ function FittedFileVisual({
     />
   );
 }
-// Mirrors @pierre/trees' query normalization so the toolbar search filters
-// the icon, column, and gallery views exactly like the list view tree:
-// trimmed, backslashes to slashes, lowercased, substring match on the path.
+// The toolbar search's query as every view matches it: trimmed, backslashes
+// to slashes, lowercased, substring match on the path.
 function normalizeSearchQuery(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return "";
@@ -1364,8 +1359,7 @@ function scrollIndexIntoView({
     viewport.scrollTop = nextScrollStart;
   }
 }
-// Windowed rendering, the approach @pierre/trees uses for the list view:
-// with a fixed item stride only the items intersecting the viewport — plus
+// Windowed rendering: with a fixed item stride only the items intersecting the viewport — plus
 // `overscan` on each side — are mounted, so views stay flat-cost at
 // thousands of entries. The window keeps a one-item margin before
 // recomputing (scrolling doesn't re-render per item) and that margin also
@@ -1441,18 +1435,21 @@ const VIEW_OPTIONS: Array<{
 export function FileSystem({
   className,
   columnWidth: columnWidthProp,
+  contextMenuPath = null,
   defaultPath = "",
   defaultSort,
   defaultView = "icons",
   getFileUrl,
   getHostPath,
   items,
+  listColumns: listColumnsProp,
   loadChildren,
   loadPreviewImageUrl,
   moveFocusWithSelection = true,
   onColumnWidthChange,
   onFileOpen,
   onItemContextMenu,
+  onListColumnsChange,
   onPathChange,
   onRenameCancel,
   onRenameCommit,
@@ -1461,6 +1458,7 @@ export function FileSystem({
   onShowHiddenFilesChange,
   onSortChange,
   onViewChange,
+  ref,
   renamingPath,
   renderFileActions,
   renderFilePreview,
@@ -1538,6 +1536,13 @@ export function FileSystem({
   const setSort = (next: FileSystemSortState) => {
     setInternalSort(next);
     onSortChange?.(next);
+  };
+  const [internalListColumns, setInternalListColumns] =
+    React.useState(DEFAULT_LIST_COLUMNS);
+  const listColumns = listColumnsProp ?? internalListColumns;
+  const setListColumns = (next: FileSystemListColumn[]) => {
+    setInternalListColumns(next);
+    onListColumnsChange?.(next);
   };
   const [filters, setFilters] = React.useState<FileSystemFilter[]>([]);
   const hasActiveFilters = filters.length > 0;
@@ -1618,8 +1623,7 @@ export function FileSystem({
   // no-op without widening the callback's dependencies.
   // Which right-click a row has already answered for. The component's own
   // handler runs after it, and reports the empty space only for a press no
-  // row claimed — the one test that works in every view, including the tree's,
-  // whose rows are in a shadow root and arrive here as the host element.
+  // row claimed.
   const claimedContextMenu = React.useRef<Event | null>(null);
   const claimContextMenu = React.useCallback(
     (item: FileSystemItem, event: React.MouseEvent) => {
@@ -1628,25 +1632,14 @@ export function FileSystem({
     },
     [onItemContextMenu],
   );
-  // The row a press or a hover landed on, whichever view drew it. The tree's
-  // rows are in a shadow root and name themselves by a path relative to the
-  // folder on screen; the other views' rows carry the whole path. Found along
-  // the event's composed path, which is the one walk that sees both.
+  // The row a press or a hover landed on, whichever view drew it: every row
+  // names itself by its whole path.
   const entryFromEventPath = (event: React.SyntheticEvent) => {
     for (const target of event.nativeEvent.composedPath()) {
       if (!(target instanceof HTMLElement)) continue;
       const path = target.dataset.fileSystemItem;
       if (path !== undefined) {
         return index.files.get(path) ?? index.folders.get(path) ?? null;
-      }
-      const relativePath = target.dataset.itemPath;
-      if (relativePath !== undefined) {
-        const absolutePath = `${currentPath}${relativePath}`;
-        return (
-          index.files.get(absolutePath) ??
-          index.folders.get(normalizeFolderPath(absolutePath)) ??
-          null
-        );
       }
     }
     return null;
@@ -2117,6 +2110,15 @@ export function FileSystem({
     },
     [navigateTo, openFile],
   );
+  React.useImperativeHandle(ref, () => ({
+    open: (item) => {
+      const entry =
+        item.kind === "folder"
+          ? index.folders.get(normalizeFolderPath(item.path))
+          : index.files.get(item.path);
+      if (entry) openEntry(entry);
+    },
+  }));
   // Selecting a lazy folder (columns view, keyboard nav) prefetches children.
   const selectAndPrefetchEntry = React.useCallback(
     (entry: FileSystemEntry | null) => {
@@ -2129,24 +2131,28 @@ export function FileSystem({
   const currentFolderName =
     currentPath === "" ? title : pathName(currentPath) || title;
   const isLoadingCurrentFolder = loadingFolders.has(currentPath);
-  // The list view tree saves its expanded folders here when it unmounts
-  // (view switches, navigation) so returning to the list view — or to a
-  // previously visited folder — restores the same disclosure state.
+  // The list view keeps its open folders here, per folder on screen, so
+  // returning to the list view — or to a previously visited folder — finds
+  // them open again.
   const treeExpansionRef = React.useRef(new Map<string, readonly string[]>());
   const viewProps: FileSystemViewProps = {
     attachedStagePaths,
     columnWidth: columnWidthProp,
     currentPath,
     draggable: dragArea.draggable,
+    enabledListColumns: listColumns,
     entries: currentEntries,
     fileFilter,
     getFileUrl,
     index: sortedIndex,
     loadingFolders,
     loadPreviewImageUrl,
+    menuTargetPath: contextMenuPath,
     moveFocusWithSelection,
     onColumnWidthChange,
+    onExpandFolder: ensureChildren,
     onItemContextMenu: onItemContextMenu ? claimContextMenu : undefined,
+    onListColumnsChange: setListColumns,
     onOpen: openEntry,
     onRenameCancel,
     onRenameCommit,
@@ -2192,7 +2198,12 @@ export function FileSystem({
       data-slot="file-system"
       onClickCapture={dragArea.onClickCapture}
       onContextMenu={(event) => {
-        if (claimedContextMenu.current === event.nativeEvent) {
+        // A row answered it, or a part of the browser with a menu of its own
+        // (the list's header) or none (the toolbar).
+        if (
+          claimedContextMenu.current === event.nativeEvent ||
+          event.defaultPrevented
+        ) {
           return;
         }
         onItemContextMenu?.(null, event);
@@ -2246,7 +2257,13 @@ export function FileSystem({
       tabIndex={-1}
     >
       <FileSystemIconSpriteSheet />
-      <div className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-muted/40 px-2">
+      <div
+        className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-muted/40 px-2"
+        // The toolbar is not the folder, and nothing is made or acted on here.
+        onContextMenu={(event) => {
+          event.preventDefault();
+        }}
+      >
         <div className="flex min-w-0 flex-1 items-center gap-0.5">
           {renderHeaderLead ? renderHeaderLead() : null}
           {headerLayout === "minimal" ? null : (
@@ -2332,7 +2349,12 @@ export function FileSystem({
         </div>
       </div>
       {hasActiveFilters ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-1 border-b bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground">
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-1 border-b bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground"
+          onContextMenu={(event) => {
+            event.preventDefault();
+          }}
+        >
           {filters.map((filter) => {
             const dateFilterType =
               filter.type === "fileType" ? null : filter.type;
@@ -2405,7 +2427,8 @@ export function FileSystem({
         ) : view === "icons" ? (
           <FileSystemIconsView {...viewProps} />
         ) : view === "list" ? (
-          <FileSystemListView {...viewProps} />
+          // Keyed by folder: the folders left open are the folder's own.
+          <FileSystemListView key={currentPath} {...viewProps} />
         ) : view === "columns" ? (
           <FileSystemColumnsView {...viewProps} />
         ) : (
@@ -3026,6 +3049,7 @@ type FileSystemViewProps = {
    * by its path so the gesture can find what was picked up.
    */
   draggable: boolean;
+  enabledListColumns: FileSystemListColumn[];
   entries: FileSystemEntry[];
   fileFilter: ((file: FileEntry) => boolean) | null;
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
@@ -3035,9 +3059,14 @@ type FileSystemViewProps = {
     file: FileSystemFileItem,
     pageIndex: number,
   ) => Promise<null | string>;
+  /** The row a context menu is open on, outlined rather than selected. */
+  menuTargetPath: null | string;
   moveFocusWithSelection: boolean;
   onColumnWidthChange?: (columnWidth: number) => void;
+  /** A folder opened in place in the list, whose contents are needed now. */
+  onExpandFolder: (folderPath: string) => void;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
+  onListColumnsChange: (columns: FileSystemListColumn[]) => void;
   onOpen: (entry: FileSystemEntry) => void;
   onRenameCancel?: () => void;
   onRenameCommit?: (item: FileSystemItem, name: string) => void;
@@ -3059,7 +3088,7 @@ type FileSystemViewProps = {
   selectedEntry: FileSystemEntry | null;
   selectedPath: null | string;
   sort: FileSystemSortState;
-  /** Expanded tree folders per folder path, surviving view switches. */
+  /** The list's open folders per folder on screen, surviving view switches. */
   treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
 };
 function calendarDayKey(date: Date) {
@@ -3516,7 +3545,7 @@ function handleEntryReturn({
     onOpen(entry);
   }
 }
-// Letters and digits only — the same key test the tree uses — so shortcuts
+// Letters and digits only, so shortcuts
 // and whitespace scrolling stay untouched.
 function isTypeAheadKey(event: React.KeyboardEvent) {
   return (
@@ -3646,6 +3675,7 @@ const ICON_ROW_STRIDE = ICON_TILE_HEIGHT + ICON_ROW_GAP;
 function FileSystemIconsView({
   draggable,
   entries,
+  menuTargetPath,
   moveFocusWithSelection,
   onItemContextMenu,
   onOpen,
@@ -3802,6 +3832,7 @@ function FileSystemIconsView({
                 className={cn(
                   "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring",
                   isSelected && "bg-accent",
+                  entry.path === menuTargetPath && "ring-2 ring-primary",
                 )}
               >
                 {entry.kind === "folder" ? (
@@ -3841,9 +3872,13 @@ function FileSystemIconsView({
                 data-file-system-item={entry.path}
                 draggable={draggable}
                 key={entry.path}
-                onClick={() => onSelect(entry)}
+                onClick={(event) => {
+                  // A Control-click is the Mac's right click.
+                  if (!event.ctrlKey) onSelect(entry);
+                }}
+                // Right-clicking marks what the menu acts on without moving
+                // the selection, the way the Finder does.
                 onContextMenu={(event) => {
-                  onSelect(entry);
                   onItemContextMenu?.(entry, event);
                 }}
                 onDoubleClick={() => onOpen(entry)}
@@ -3885,33 +3920,113 @@ function FileSystemIconsView({
     </InlineScrollArea2>
   );
 }
+// List geometry (px at the default 16px root font size).
+const LIST_ROW_HEIGHT = 24; // h-6
+// How far a folder's contents sit in from the folder, per level.
+const LIST_INDENT = 16;
+// The Name column's floor: past it the other columns leave, last first,
+// rather than squeezing the names out.
+const LIST_NAME_MIN_WIDTH = 200;
+// Room kept clear on the right for the overlaid scrollbar.
+const LIST_EDGE_PADDING = 24;
+const LIST_COLUMNS: Array<{
+  align: "end" | "start";
+  key: FileSystemListColumn;
+  label: string;
+  /** In px, as the Name column's floor is. */
+  width: number;
+}> = [
+  { align: "start", key: "updatedAt", label: "Date Modified", width: 176 },
+  { align: "start", key: "createdAt", label: "Date Created", width: 176 },
+  { align: "end", key: "size", label: "Size", width: 88 },
+  { align: "start", key: "kind", label: "Kind", width: 136 },
+];
+const DEFAULT_LIST_COLUMNS: FileSystemListColumn[] = [
+  "updatedAt",
+  "size",
+  "kind",
+];
+// Alternate rows tinted, the way the Finder's list is, drawn as the
+// background of the rows' whole height so the stripes run on past the last
+// row and never move while the rows above them are swapped in and out.
+const LIST_STRIPES: React.CSSProperties = {
+  backgroundImage: `linear-gradient(to bottom, transparent ${LIST_ROW_HEIGHT}px, color-mix(in oklab, var(--color-foreground) 3.5%, transparent) ${LIST_ROW_HEIGHT}px)`,
+  backgroundSize: `100% ${LIST_ROW_HEIGHT * 2}px`,
+};
+// A date the way the Finder's list writes one: today and yesterday by name.
+function formatListDate(value: string | undefined) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const day =
+    calendarDayKey(date) === calendarDayKey(today)
+      ? "Today"
+      : calendarDayKey(date) === calendarDayKey(yesterday)
+        ? "Yesterday"
+        : null;
+  if (!day) return formatTimestamp(value) ?? "--";
+  const time = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${day} at ${time}`;
+}
+function listCellText(entry: FileSystemEntry, column: FileSystemListColumn) {
+  switch (column) {
+    case "createdAt": {
+      return formatListDate(entry.createdAt);
+    }
+    case "kind": {
+      return entryKindLabel(entry);
+    }
+    case "size": {
+      // A folder's size is not known without walking it, so the Finder
+      // leaves the cell empty-handed rather than guessing.
+      return entry.kind === "file"
+        ? (formatByteSize(entry.size) ?? "--")
+        : "--";
+    }
+    case "updatedAt": {
+      return formatListDate(entry.updatedAt);
+    }
+  }
+}
 // One sortable column header for the list view; the active column shows the
 // direction chevron on its right.
 function FileSystemListColumnHeader({
+  align = "start",
   className,
   label,
   onClick,
   sort,
   sortKey,
+  width,
 }: {
+  align?: "end" | "start";
   className?: string;
   label: string;
   onClick: (key: FileSystemSortKey) => void;
   sort: FileSystemSortState;
   sortKey: FileSystemSortKey;
+  width?: number;
 }) {
   const isActive = sort.key === sortKey;
   return (
     <button
       className={cn(
-        "flex items-center gap-0.5 rounded-sm py-0.5 transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+        "flex h-full min-w-0 items-center gap-0.5 transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        align === "end" && "flex-row-reverse",
         isActive && "text-foreground",
         className,
       )}
       onClick={() => onClick(sortKey)}
+      style={width === undefined ? undefined : { width }}
       type="button"
     >
-      {label}
+      <span className="truncate">{label}</span>
       {isActive ? (
         sort.direction === "asc" ? (
           <ArrowUp01Glyph className="size-3 shrink-0" />
@@ -3922,13 +4037,90 @@ function FileSystemListColumnHeader({
     </button>
   );
 }
+/**
+ * The list's header: a label per column that sorts by it, and on a right
+ * click the columns to show, the way the Finder's header offers them.
+ */
+function FileSystemListHeader({
+  columns,
+  enabledColumns,
+  onColumnsChange,
+  onSortColumnClick,
+  sort,
+}: {
+  columns: typeof LIST_COLUMNS;
+  enabledColumns: readonly FileSystemListColumn[];
+  onColumnsChange: (columns: FileSystemListColumn[]) => void;
+  onSortColumnClick: (key: FileSystemSortKey) => void;
+  sort: FileSystemSortState;
+}) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div className="flex h-7 shrink-0 items-stretch border-b px-3 text-xs font-medium text-muted-foreground select-none">
+          <FileSystemListColumnHeader
+            className="flex-1 pl-5.5"
+            label="Name"
+            onClick={onSortColumnClick}
+            sort={sort}
+            sortKey="name"
+          />
+          {columns.map((column) => (
+            <FileSystemListColumnHeader
+              align={column.align}
+              className="shrink-0 border-l border-border/60 px-2"
+              key={column.key}
+              label={column.label}
+              onClick={onSortColumnClick}
+              sort={sort}
+              sortKey={column.key}
+              width={column.width}
+            />
+          ))}
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-44">
+        {LIST_COLUMNS.map((column) => (
+          <ContextMenuCheckboxItem
+            checked={enabledColumns.includes(column.key)}
+            key={column.key}
+            onCheckedChange={(checked) => {
+              onColumnsChange(
+                LIST_COLUMNS.map(({ key }) => key).filter((key) =>
+                  key === column.key ? checked : enabledColumns.includes(key),
+                ),
+              );
+            }}
+          >
+            {column.label}
+          </ContextMenuCheckboxItem>
+        ))}
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+/**
+ * The Finder's list: a row per item, folders opening in place under a
+ * disclosure chevron in the margin, so every icon at one depth lines up
+ * whether or not it is a folder. The chevron only opens and closes; the row
+ * is what selects, and a double-click is what goes into a folder. Rows are
+ * in the active sort with folders among the files, the way the Finder keeps
+ * them, and only those in view are drawn.
+ */
 function FileSystemListView({
   currentPath,
   draggable,
+  enabledListColumns,
   fileFilter,
   index,
+  loadingFolders,
+  menuTargetPath,
+  moveFocusWithSelection,
+  onExpandFolder,
   onItemContextMenu,
+  onListColumnsChange,
   onOpen,
+  onRenameCancel,
   onRenameCommit,
   onRenameStart,
   onSelect,
@@ -3939,105 +4131,371 @@ function FileSystemListView({
   sort,
   treeExpansionRef,
 }: FileSystemViewProps) {
-  // Filters narrow the path list handed to the tree; the search query stays
-  // out of it so the tree's own search session (with match highlighting)
-  // keeps handling it without remounts per keystroke.
-  const relativePaths = React.useMemo(() => {
-    const paths: string[] = [];
-    for (const [path, file] of index.files) {
-      if (currentPath === "" || path.startsWith(currentPath)) {
-        const relativePath = path.slice(currentPath.length);
-        if (!relativePath) continue;
-        if (fileFilter && !fileFilter(file)) continue;
-        paths.push(relativePath);
-      }
-    }
-    // Folders as rows of their own, trailing slash and all, which is how the
-    // tree tells a directory from a file: a folder whose children are not
-    // loaded yet has no file path to stand in for it, and a folder of
-    // folders would otherwise list nothing. Under a filter a folder is only
-    // as visible as the files inside it, so none is added there.
-    if (!fileFilter) {
-      for (const path of index.folders.keys()) {
-        if (currentPath === "" || path.startsWith(currentPath)) {
-          const relativePath = path.slice(currentPath.length);
-          if (relativePath) paths.push(relativePath);
+  const viewportRef = React.useRef<HTMLDivElement | null>(null);
+  const rowRefs = React.useRef(new Map<string, HTMLDivElement>());
+  const pendingFocusPathRef = React.useRef<null | string>(null);
+  const typeAhead = useEntryTypeAhead();
+  // The folders left open here, kept by the browser per folder so walking
+  // away and back, or to another layout and back, finds them open again.
+  const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(
+    () => new Set(treeExpansionRef.current.get(currentPath) ?? []),
+  );
+  const setExpandedFolders = (next: ReadonlySet<string>) => {
+    setExpanded(next);
+    treeExpansionRef.current.set(currentPath, [...next]);
+  };
+  // A search or a filter shows every match wherever it is, so every folder
+  // with one in it stands open while they are on.
+  const isRevealing = searchQuery !== "" || fileFilter !== null;
+  const rows = React.useMemo(() => {
+    const visibleRows: Array<{ depth: number; entry: FileSystemEntry }> = [];
+    const walk = (folderPath: string, depth: number) => {
+      for (const entry of index.children.get(folderPath) ?? []) {
+        visibleRows.push({ depth, entry });
+        if (
+          entry.kind === "folder" &&
+          (isRevealing || expanded.has(entry.path))
+        ) {
+          walk(entry.path, depth + 1);
         }
       }
+    };
+    walk(currentPath, 0);
+    return visibleRows;
+  }, [currentPath, expanded, index, isRevealing]);
+  const toggleFolder = (folder: FolderEntry, open: boolean) => {
+    if (open === expanded.has(folder.path)) return;
+    const next = new Set(expanded);
+    if (open) {
+      next.add(folder.path);
+      onExpandFolder(folder.path);
+    } else {
+      next.delete(folder.path);
+      // A selection closed out of sight is let go of rather than kept where
+      // nothing shows it.
+      if (selectedPath?.startsWith(folder.path) && selectedPath !== folder.path) {
+        onSelect(null);
+      }
     }
-    return paths.sort();
-  }, [currentPath, fileFilter, index]);
-  if (relativePaths.length === 0) {
-    return (
-      <FileSystemEmptyState
-        label={
-          fileFilter
-            ? "No items match the active filters"
-            : "This folder is empty"
-        }
-      />
+    setExpandedFolders(next);
+  };
+  // Measured so the columns that do not fit leave rather than crowding the
+  // names out.
+  const [width, setWidth] = React.useState<null | number>(null);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  React.useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) =>
+      setWidth(entries[0]?.contentRect.width ?? null),
     );
-  }
+    setWidth(root.clientWidth);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
+  const columns = (() => {
+    const shown = LIST_COLUMNS.filter((column) =>
+      enabledListColumns.includes(column.key),
+    );
+    if (width === null) return shown;
+    let room = width - LIST_EDGE_PADDING - LIST_NAME_MIN_WIDTH;
+    return shown.filter((column) => {
+      room -= column.width;
+      return room >= 0;
+    });
+  })();
+  const { end, start } = useVirtualWindow({
+    count: rows.length,
+    itemStride: LIST_ROW_HEIGHT,
+    overscan: 12,
+    viewportRef,
+  });
+  const selectedRowIndex = rows.findIndex(
+    (row) => row.entry.path === selectedPath,
+  );
+  // Keyboard moves can land on a row outside the drawn window; bring it into
+  // view so it mounts and can take the keyboard.
+  React.useLayoutEffect(() => {
+    if (selectedRowIndex === -1) return;
+    scrollIndexIntoView({
+      index: selectedRowIndex,
+      itemSize: LIST_ROW_HEIGHT,
+      itemStride: LIST_ROW_HEIGHT,
+      viewport: viewportRef.current,
+    });
+  }, [selectedRowIndex]);
+  React.useEffect(() => {
+    const path = pendingFocusPathRef.current;
+    if (!path) return;
+    const row = rowRefs.current.get(path);
+    if (row) {
+      pendingFocusPathRef.current = null;
+      row.focus({ preventScroll: true });
+    }
+  });
+  const selectAndFocus = (entry: FileSystemEntry) => {
+    onSelect(entry);
+    if (!moveFocusWithSelection) return;
+    const row = rowRefs.current.get(entry.path);
+    if (row) {
+      row.focus({ preventScroll: true });
+    } else {
+      pendingFocusPathRef.current = entry.path;
+    }
+  };
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    // Space is Quick Look's, which the page holding the browser answers; a
+    // row never takes it to open or close a folder, and the list does not
+    // scroll on it.
+    if (event.key === " ") {
+      event.preventDefault();
+      return;
+    }
+    if (!ARROW_KEYS.has(event.key)) {
+      const match = typeAhead(
+        event,
+        rows.map((row) => row.entry),
+        selectedRowIndex,
+      );
+      if (match) selectAndFocus(match);
+      return;
+    }
+    if (event.metaKey || event.ctrlKey) return;
+    const selectedRow = rows[selectedRowIndex];
+    let next: FileSystemEntry | undefined;
+    if (!selectedRow) {
+      next = rows[0]?.entry;
+    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      next = rows[selectedRowIndex + (event.key === "ArrowUp" ? -1 : 1)]?.entry;
+    } else if (event.key === "ArrowRight") {
+      if (selectedRow.entry.kind === "folder") {
+        toggleFolder(selectedRow.entry, true);
+      }
+    } else if (
+      selectedRow.entry.kind === "folder" &&
+      expanded.has(selectedRow.entry.path) &&
+      !isRevealing
+    ) {
+      toggleFolder(selectedRow.entry, false);
+    } else if (selectedRow.depth > 0) {
+      next = index.folders.get(selectedRow.entry.parentPath);
+    }
+    event.preventDefault();
+    if (next) selectAndFocus(next);
+  };
+  // The rows' single tab stop: the selected row when it is drawn, else the
+  // first drawn one.
+  const tabStopPath =
+    selectedRowIndex >= start && selectedRowIndex < end
+      ? selectedPath
+      : (rows[start]?.entry.path ?? null);
   return (
-    <div className="flex size-full flex-col">
-      {/* Paddings match the tree's row geometry: name text starts 46px in
-            (16px tree padding + 30px icon lane), metadata ends 24px from the
-            right (16px tree padding + 8px decoration inset). */}
-      <div className="flex shrink-0 items-center border-b py-1 pr-6 pl-[46px] text-xs font-medium text-muted-foreground">
-        <FileSystemListColumnHeader
-          className="flex-1 justify-start"
-          label="Name"
-          onClick={onSortColumnClick}
-          sort={sort}
-          sortKey="name"
-        />
-        <FileSystemListColumnHeader
-          className="w-44 justify-start"
-          label="Date Modified"
-          onClick={onSortColumnClick}
-          sort={sort}
-          sortKey="updatedAt"
-        />
-        <FileSystemListColumnHeader
-          className="w-20 justify-start"
-          label="Size"
-          onClick={onSortColumnClick}
-          sort={sort}
-          sortKey="size"
-        />
-      </div>
-      {/* Keyed by folder only: navigation remounts the tree, while filter,
-            sort, and manifest changes update the mounted model in place so
-            folder disclosure state survives them. */}
-      <FileSystemPierreTree
-        currentPath={currentPath}
-        draggable={draggable}
-        hasActiveFilters={fileFilter !== null}
-        index={index}
-        initialSelectedPath={
-          selectedPath?.startsWith(currentPath)
-            ? selectedPath.slice(currentPath.length).replace(/\/$/, "")
-            : null
-        }
-        key={currentPath}
-        onItemContextMenu={onItemContextMenu}
-        onOpen={onOpen}
-        onRenameCommit={onRenameCommit}
-        onRenameStart={onRenameStart}
-        onSelect={onSelect}
-        relativePaths={relativePaths}
-        renamingPath={renamingPath}
-        searchQuery={searchQuery}
+    <div className="flex size-full flex-col" ref={rootRef}>
+      <FileSystemListHeader
+        columns={columns}
+        enabledColumns={enabledListColumns}
+        onColumnsChange={onListColumnsChange}
+        onSortColumnClick={onSortColumnClick}
         sort={sort}
-        treeExpansionRef={treeExpansionRef}
       />
+      {rows.length === 0 ? (
+        <FileSystemEmptyState
+          label={
+            fileFilter ? "No items match the active filters" : "This folder is empty"
+          }
+        />
+      ) : (
+        <InlineScrollArea2
+          className="min-h-0 flex-1"
+          orientation="vertical"
+          viewportProps={{
+            "aria-label": "Files",
+            // A press past the last row lets go of the selection, as in the
+            // Finder.
+            onPointerDown: (event) => {
+              if (
+                event.button === 0 &&
+                event.target instanceof HTMLElement &&
+                !event.target.closest('[role="option"]')
+              ) {
+                onSelect(null);
+              }
+            },
+            role: "listbox",
+          }}
+          viewportRef={viewportRef}
+        >
+          <div
+            className="relative min-h-full"
+            style={{ ...LIST_STRIPES, height: rows.length * LIST_ROW_HEIGHT }}
+          >
+            <div
+              className="absolute inset-x-0 flex flex-col"
+              onKeyDown={handleKeyDown}
+              style={{ top: start * LIST_ROW_HEIGHT }}
+            >
+              {rows.slice(start, end).map(({ depth, entry }) => {
+                const isSelected = entry.path === selectedPath;
+                const isExpanded =
+                  entry.kind === "folder" &&
+                  (isRevealing || expanded.has(entry.path));
+                const isRenaming = entry.path === renamingPath;
+                return (
+                  <div
+                    aria-expanded={entry.kind === "folder" ? isExpanded : undefined}
+                    aria-selected={isSelected}
+                    className={cn(
+                      "mx-1.5 flex h-6 shrink-0 items-center rounded-md px-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                      isSelected && "bg-primary text-primary-foreground",
+                      entry.path === menuTargetPath &&
+                        "ring-2 ring-primary ring-inset",
+                    )}
+                    data-file-system-item={entry.path}
+                    // Selected rows sit on the primary surface — the
+                    // opposite of the mode's background — so the file-type
+                    // icon swaps to the opposite palette.
+                    data-file-system-on-primary={isSelected ? "" : undefined}
+                    draggable={draggable && !isRenaming}
+                    key={entry.path}
+                    onClick={(event) => {
+                      // Pointer presses select on the way down; this is the
+                      // click a touch or an assistive tool makes.
+                      if (event.detail === 0) onSelect(entry);
+                    }}
+                    onContextMenu={(event) => {
+                      onItemContextMenu?.(entry, event);
+                    }}
+                    onDoubleClick={() => onOpen(entry)}
+                    onKeyDown={(event) => {
+                      handleEntryReturn({
+                        entry,
+                        event,
+                        onOpen,
+                        ...(onRenameStart ? { onRenameStart } : {}),
+                      });
+                    }}
+                    onPointerDown={(event) => {
+                      // A Control-click is the Mac's right click, which
+                      // marks what its menu acts on without selecting it.
+                      if (event.button !== 0 || event.ctrlKey) return;
+                      if (event.metaKey) {
+                        onSelect(isSelected ? null : entry);
+                        return;
+                      }
+                      onSelect(entry);
+                    }}
+                    ref={(element) => {
+                      if (element) {
+                        rowRefs.current.set(entry.path, element);
+                      } else {
+                        rowRefs.current.delete(entry.path);
+                      }
+                    }}
+                    role="option"
+                    tabIndex={entry.path === tabStopPath ? 0 : -1}
+                  >
+                    <div
+                      className="flex min-w-0 flex-1 items-center"
+                      style={{ paddingLeft: depth * LIST_INDENT }}
+                    >
+                      <span
+                        aria-hidden
+                        className="flex h-6 w-4 shrink-0 items-center justify-center"
+                        // The chevron opens and closes the folder and does
+                        // nothing else: the press never reaches the row, so
+                        // the selection stays where it was.
+                        onClick={(event) => {
+                          if (entry.kind !== "folder") return;
+                          event.stopPropagation();
+                          toggleFolder(entry, !isExpanded);
+                        }}
+                        onDoubleClick={(event) => {
+                          if (entry.kind === "folder") event.stopPropagation();
+                        }}
+                        onPointerDown={(event) => {
+                          if (entry.kind !== "folder") return;
+                          event.stopPropagation();
+                          event.preventDefault();
+                        }}
+                      >
+                        {entry.kind !== "folder" ? null : loadingFolders.has(
+                            entry.path,
+                          ) && isExpanded ? (
+                          <InlineSpinner className="size-3" />
+                        ) : (
+                          <ChevronRight
+                            className={cn(
+                              "size-3.5 transition-transform duration-100 motion-reduce:transition-none",
+                              isExpanded && "rotate-90",
+                              isSelected
+                                ? "text-primary-foreground"
+                                : "text-muted-foreground",
+                            )}
+                            strokeWidth={2.5}
+                          />
+                        )}
+                      </span>
+                      <span className="ml-1.5 flex size-4 shrink-0 items-center justify-center">
+                        <FileSystemRowGlyph entry={entry} />
+                      </span>
+                      {isRenaming ? (
+                        <FileSystemNameField
+                          className="ml-1.5 h-5"
+                          name={entry.name}
+                          onCancel={() => onRenameCancel?.()}
+                          onCommit={(name) => onRenameCommit?.(entry, name)}
+                        />
+                      ) : (
+                        <span className="ml-1.5 min-w-0 flex-1 truncate">
+                          {entry.name}
+                        </span>
+                      )}
+                    </div>
+                    {columns.map((column) => (
+                      <span
+                        className={cn(
+                          "shrink-0 truncate px-2 text-xs tabular-nums",
+                          column.align === "end" && "text-right",
+                          !isSelected && "text-muted-foreground",
+                        )}
+                        key={column.key}
+                        style={{ width: column.width }}
+                      >
+                        {listCellText(entry, column.key)}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </InlineScrollArea2>
+      )}
     </div>
   );
 }
-// Embedded thumbnail symbols grow the sprite injected into the tree's shadow
-// DOM (data-URL covers can run hundreds of KB each); past this many the
-// remaining files fall back to the built-in file-type icons alone.
-const TREE_THUMBNAIL_SPRITE_LIMIT = 400;
+/**
+ * The small picture a row leads with: the folder glyph, a picture's own
+ * thumbnail in its own shape with a hairline around it, or the file's type.
+ */
+function FileSystemRowGlyph({ entry }: { entry: FileSystemEntry }) {
+  if (entry.kind === "folder") {
+    return <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />;
+  }
+  const coverUrl = filePreviewUrls(entry)[0];
+  if (!coverUrl) {
+    return <FileTypeIcon className="size-4" fileName={entry.name} />;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
+    <img
+      alt=""
+      className="max-h-4 max-w-4 rounded-[1.5px] bg-white object-contain shadow-[0_0_0_0.5px_color-mix(in_oklab,var(--color-foreground)_35%,transparent)]"
+      draggable={false}
+      src={coverUrl}
+    />
+  );
+}
 function FileSystemColumnsView(props: FileSystemViewProps) {
   const {
     columnWidth: columnWidthProp,
@@ -4046,6 +4504,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     index,
     loadingFolders,
     loadPreviewImageUrl,
+    menuTargetPath,
     moveFocusWithSelection,
     onColumnWidthChange,
     onItemContextMenu,
@@ -4227,6 +4686,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             index={index}
             isLoading={loadingFolders.has(columnPath)}
             key={columnPath || "(root)"}
+            menuTargetChildPath={
+              menuTargetPath && pathParent(menuTargetPath) === columnPath
+                ? menuTargetPath
+                : null
+            }
             onItemContextMenu={onItemContextMenu}
             onOpen={onOpen}
             onRenameCancel={onRenameCancel}
@@ -4310,523 +4774,6 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     </InlineScrollArea2>
   );
 }
-function FileSystemPierreTree({
-  currentPath,
-  draggable,
-  hasActiveFilters,
-  index,
-  initialSelectedPath,
-  onItemContextMenu,
-  onOpen,
-  onRenameCommit,
-  onRenameStart,
-  onSelect,
-  relativePaths,
-  renamingPath,
-  searchQuery,
-  sort,
-  treeExpansionRef,
-}: {
-  currentPath: string;
-  draggable: boolean;
-  hasActiveFilters: boolean;
-  index: FileSystemIndex;
-  initialSelectedPath: null | string;
-  onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
-  onOpen: (entry: FileSystemEntry) => void;
-  onRenameCommit?: (item: FileSystemItem, name: string) => void;
-  onRenameStart?: (item: FileSystemItem) => void;
-  onSelect: (entry: FileSystemEntry | null) => void;
-  relativePaths: string[];
-  renamingPath?: null | string;
-  searchQuery: string;
-  sort: FileSystemSortState;
-  treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
-}) {
-  // The tree's comparator receives whole paths, not siblings, so it walks
-  // the shared segments and applies the active sort at the first level the
-  // two paths diverge — keeping directories first per level, the tree's
-  // default convention. Lookups go through the index maps, which are stable
-  // across search keystrokes.
-  const indexFiles = index.files;
-  const indexFolders = index.folders;
-  const sortComparator = React.useMemo<
-    "default" | FileTreeSortComparator
-  >(() => {
-    if (
-      sort.key === DEFAULT_SORT.key &&
-      sort.direction === DEFAULT_SORT.direction
-    ) {
-      return "default";
-    }
-    const entryAtDepth = (sortEntry: FileTreeSortEntry, depth: number) => {
-      const isDirectory =
-        depth < sortEntry.segments.length - 1 || sortEntry.isDirectory;
-      const absolutePath = `${currentPath}${sortEntry.segments
-        .slice(0, depth + 1)
-        .join("/")}${isDirectory ? "/" : ""}`;
-      return isDirectory
-        ? indexFolders.get(absolutePath)
-        : indexFiles.get(absolutePath);
-    };
-    return (left, right) => {
-      const sharedDepth = Math.min(left.segments.length, right.segments.length);
-      for (let depth = 0; depth < sharedDepth; depth += 1) {
-        if (left.segments[depth] === right.segments[depth]) continue;
-        const leftIsDirectory =
-          depth < left.segments.length - 1 || left.isDirectory;
-        const rightIsDirectory =
-          depth < right.segments.length - 1 || right.isDirectory;
-        if (leftIsDirectory !== rightIsDirectory) {
-          return leftIsDirectory ? -1 : 1;
-        }
-        const leftEntry = entryAtDepth(left, depth);
-        const rightEntry = entryAtDepth(right, depth);
-        if (leftEntry && rightEntry) {
-          return compareEntriesBySort(leftEntry, rightEntry, sort);
-        }
-        return (left.segments[depth] ?? "") < (right.segments[depth] ?? "")
-          ? -1
-          : 1;
-      }
-      return left.segments.length - right.segments.length;
-    };
-  }, [currentPath, indexFiles, indexFolders, sort]);
-  const preparedInput = React.useMemo(
-    () => prepareFileTreeInput(relativePaths, { sort: sortComparator }),
-    [relativePaths, sortComparator],
-  );
-  // Inject per-file thumbnails into the tree's shadow DOM as sprite symbols
-  // wrapping an <image>, remapped onto rows by file basename. Files without
-  // a thumbnail resolve through the built-in complete icon set instead — the
-  // same colored file-type icons the other views use. The chevron is
-  // remapped to the Hugeicons arrow so it matches the rest of the component;
-  // the tree's rotation CSS keys off data-icon-name, which remapping keeps.
-  const icons = React.useMemo(() => {
-    const byFileName: Record<
-      string,
-      {
-        name: string;
-        viewBox: string;
-      }
-    > = {};
-    const symbols: string[] = [
-      FILE_TYPE_ICON_SYMBOLS,
-      `<symbol id="file-system-chevron" viewBox="0 0 24 24"><path d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></symbol>`,
-    ];
-    let thumbnailCount = 0;
-    for (const relativePath of relativePaths) {
-      if (thumbnailCount >= TREE_THUMBNAIL_SPRITE_LIMIT) break;
-      const file = index.files.get(`${currentPath}${relativePath}`);
-      const coverUrl = file ? filePreviewUrls(file)[0] : undefined;
-      if (!file || !coverUrl) continue;
-      const baseName = file.name.toLowerCase();
-      if (byFileName[baseName]) continue;
-      const symbolId = `file-system-thumbnail-${symbols.length}`;
-      symbols.push(
-        `<symbol id="${symbolId}" viewBox="0 0 16 16"><clipPath id="${symbolId}-clip"><rect width="16" height="16" rx="2.5"/></clipPath><image href="${escapeXmlAttribute(coverUrl)}" width="16" height="16" preserveAspectRatio="xMidYMid slice" clip-path="url(#${symbolId}-clip)"/></symbol>`,
-      );
-      byFileName[baseName] = { name: symbolId, viewBox: "0 0 16 16" };
-      thumbnailCount += 1;
-    }
-    return {
-      byFileExtension: FILE_TYPE_ICONS_BY_EXTENSION,
-      byFileName,
-      colored: true,
-      remap: {
-        "file-tree-icon-chevron": {
-          name: "file-system-chevron",
-          viewBox: "0 0 24 24",
-        },
-      },
-      set: "complete" as const,
-      spriteSheet: `<svg data-icon-sprite aria-hidden="true" width="0" height="0">${symbols.join("")}</svg>`,
-    };
-  }, [currentPath, index, relativePaths]);
-  const { model } = useFileTree({
-    // The rows are the tree's own to draw, and the only way to have it draw
-    // them draggable is its drag-and-drop, which moves rows within the tree.
-    // Nothing may be picked up for that: the tree then cancels the drag it
-    // would have started, and the dragstart still reaches the browser, which
-    // is where the drag out of the window begins.
-    ...(draggable ? { dragAndDrop: { canDrag: () => false } } : {}),
-    flattenEmptyDirectories: false,
-    icons,
-    initialExpansion: "closed",
-    // Remounts (folder changes, manifest updates) keep the active filter.
-    initialSearchQuery: searchQuery || null,
-    initialSelectedPaths: initialSelectedPath ? [initialSelectedPath] : [],
-    itemHeight: 28,
-    onSelectionChange: (selectedPaths) => {
-      const relativePath = selectedPaths[0];
-      if (!relativePath) {
-        onSelect(null);
-        return;
-      }
-      const absolutePath = `${currentPath}${relativePath}`;
-      const entry =
-        index.files.get(absolutePath) ??
-        index.folders.get(normalizeFolderPath(absolutePath)) ??
-        null;
-      onSelect(entry);
-    },
-    overscan: 12,
-    preparedInput,
-    renaming: {
-      // The tree moves its own row to the new name; what the name means on
-      // disk is the caller's to carry out, the same as in the other views.
-      onRename: ({ destinationPath, sourcePath }) => {
-        const absolutePath = `${currentPath}${sourcePath}`;
-        const entry =
-          index.files.get(absolutePath) ??
-          index.folders.get(normalizeFolderPath(absolutePath));
-        const name = pathName(destinationPath);
-        if (entry && name) {
-          onRenameCommit?.(entry, name);
-        }
-      },
-    },
-    renderRowDecoration: ({ row }) => {
-      const entry =
-        row.kind === "file"
-          ? index.files.get(`${currentPath}${row.path}`)
-          : index.folders.get(normalizeFolderPath(`${currentPath}${row.path}`));
-      if (!entry) return null;
-      // The decoration lane renders one <span title>; CSS splits it into
-      // aligned Date Modified (::before from title) and Size columns.
-      const dateColumn =
-        formatTimestamp(entry.updatedAt ?? entry.createdAt) ?? "—";
-      if (entry.kind === "folder") {
-        const childCount = index.children.get(entry.path)?.length;
-        return {
-          text:
-            childCount === undefined
-              ? "—"
-              : `${childCount} ${childCount === 1 ? "item" : "items"}`,
-          title: dateColumn,
-        };
-      }
-      return { text: formatByteSize(entry.size) ?? "—", title: dateColumn };
-    },
-    unsafeCSS: `
-      ${FILE_TYPE_ICON_TREE_CSS}
-      button[data-type='item']:not([data-item-selected]):hover {
-        background: color-mix(in oklab, var(--color-accent) 50%, transparent);
-      }
-      button[data-type='item'][data-item-selected] {
-        background: var(--color-primary);
-        color: var(--color-primary-foreground);
-        /* The primary surface is the opposite of the mode's background, so
-           the row's light-dark() icon colors resolve against the opposite
-           scheme — light-palette icons on the light pill in dark mode and
-           vice versa. */
-        color-scheme: var(--fs-selected-color-scheme, normal);
-      }
-      button[data-type='item'][data-item-selected] *:not([data-icon-token]):not([data-icon-token] *),
-      button[data-type='item'][data-item-selected] [data-item-section]::before {
-        color: var(--color-primary-foreground) !important;
-      }
-      [data-item-section='decoration'] > span {
-        display: grid;
-        grid-template-columns: 11rem 5rem;
-        white-space: nowrap;
-        /* The size cell is the span's anonymous text item, so alignment
-           rides on text-align: the span's right applies to it while the
-           date cell (::before) overrides back to left. */
-        text-align: right;
-      }
-      [data-item-section='decoration'] > span::before {
-        content: attr(title);
-        text-align: left;
-      }
-      button[data-type='item'][data-item-type='folder'] [data-item-section='content'] {
-        display: flex;
-        align-items: center;
-        min-width: 0;
-      }
-      button[data-type='item'][data-item-type='folder'] [data-item-section='content']::before {
-        content: "";
-        flex: none;
-        width: 18px;
-        height: 14px;
-        margin-right: 4px;
-        background: url("${FOLDER_GLYPH_DATA_URL}") center / contain no-repeat;
-      }
-    `,
-  });
-  // Thumbnails can resolve after mount (e.g. generated client-side); push
-  // sprite updates into the existing model instead of remounting the tree.
-  React.useEffect(() => {
-    model.setIcons(icons);
-  }, [icons, model]);
-  // Renaming here is the tree's own field, since its rows are its own to
-  // draw; the ask arrives as the same state the other views put a field in,
-  // and the name comes back the same way theirs do. Started once per ask, so
-  // a field the user abandoned is not reopened under them.
-  const startedRenameRef = React.useRef<null | string>(null);
-  React.useEffect(() => {
-    if (
-      renamingPath === null ||
-      renamingPath === undefined ||
-      !renamingPath.startsWith(currentPath) ||
-      startedRenameRef.current === renamingPath
-    ) {
-      return;
-    }
-    startedRenameRef.current = renamingPath;
-    model.startRenaming(renamingPath.slice(currentPath.length));
-  }, [currentPath, model, renamingPath]);
-  // The folders currently expanded in the mounted model, derived from the
-  // given path list (the model knows the rows; the paths name the
-  // directories to ask about).
-  const collectExpandedDirectories = React.useCallback(
-    (paths: readonly string[]) => {
-      const expandedPaths: string[] = [];
-      for (const directoryPath of directoryPathsOf(paths)) {
-        const item =
-          model.getItem(directoryPath) ?? model.getItem(`${directoryPath}/`);
-        if (item && "isExpanded" in item && item.isExpanded()) {
-          expandedPaths.push(directoryPath);
-        }
-      }
-      return expandedPaths;
-    },
-    [model],
-  );
-  // Opens every given folder on the mounted model (no-ops on the already
-  // open ones).
-  const expandDirectories = React.useCallback(
-    (directoryPaths: Iterable<string>) => {
-      for (const directoryPath of directoryPaths) {
-        const item =
-          model.getItem(directoryPath) ?? model.getItem(`${directoryPath}/`);
-        if (item && "isExpanded" in item && !item.isExpanded()) {
-          item.toggle();
-        }
-      }
-    },
-    [model],
-  );
-  // Sort and filter changes swap the prepared input in place — remounting
-  // would reset every folder's disclosure. The folders expanded in the
-  // outgoing path list, the selection, and the active search query are
-  // captured first and handed back to the reset.
-  const appliedPreparedInputRef = React.useRef(preparedInput);
-  // Filter bookkeeping: the latest prop (for unmount-time decisions), the
-  // state at the last applied reset (for transition detection), and the
-  // disclosure to restore once the filters clear.
-  const hasActiveFiltersRef = React.useRef(hasActiveFilters);
-  const filteredAtLastResetRef = React.useRef(hasActiveFilters);
-  const preFilterExpansionRef = React.useRef<null | readonly string[]>(null);
-  React.useEffect(() => {
-    hasActiveFiltersRef.current = hasActiveFilters;
-  });
-  React.useEffect(() => {
-    const previousPreparedInput = appliedPreparedInputRef.current;
-    if (previousPreparedInput === preparedInput) return;
-    appliedPreparedInputRef.current = preparedInput;
-    const wasFiltered = filteredAtLastResetRef.current;
-    filteredAtLastResetRef.current = hasActiveFilters;
-    // Filters reveal their matches the way the search session does: every
-    // folder on the way to a match opens. The disclosure from just before
-    // filtering is kept aside and comes back when the filters clear.
-    let expandedPaths: readonly string[];
-    if (hasActiveFilters) {
-      if (!wasFiltered) {
-        preFilterExpansionRef.current = collectExpandedDirectories(
-          previousPreparedInput.paths,
-        );
-      }
-      expandedPaths = [...directoryPathsOf(preparedInput.paths)];
-    } else if (wasFiltered) {
-      expandedPaths = preFilterExpansionRef.current ?? [];
-      preFilterExpansionRef.current = null;
-    } else {
-      expandedPaths = collectExpandedDirectories(previousPreparedInput.paths);
-    }
-    const searchValue = model.getSearchValue();
-    // The `paths` argument must stay unset: when both are given, resetPaths
-    // re-prepares the paths with the comparator the model was CREATED with
-    // and rejects the differently-ordered prepared input. Passing only the
-    // prepared input makes the reset adopt its path list as-is, and the
-    // reset itself carries the selection over.
-    model.resetPaths(undefined as unknown as readonly string[], {
-      initialExpandedPaths: expandedPaths,
-      preparedInput,
-    });
-    if (searchValue) model.setSearch(searchValue);
-  }, [collectExpandedDirectories, hasActiveFilters, model, preparedInput]);
-  // View switches and navigation unmount the tree; remember which folders
-  // were left expanded and reopen them on the next mount of this folder
-  // (before paint, so the restored disclosure never flashes closed). While
-  // filters are active their matches are revealed instead, and the
-  // remembered disclosure is the pre-filter one.
-  React.useLayoutEffect(() => {
-    const expansionStore = treeExpansionRef.current;
-    const savedExpansion = expansionStore.get(currentPath) ?? [];
-    if (hasActiveFiltersRef.current) {
-      preFilterExpansionRef.current = savedExpansion;
-      expandDirectories(
-        directoryPathsOf(appliedPreparedInputRef.current.paths),
-      );
-    } else {
-      expandDirectories(savedExpansion);
-    }
-    return () => {
-      expansionStore.set(
-        currentPath,
-        hasActiveFiltersRef.current
-          ? (preFilterExpansionRef.current ?? [])
-          : collectExpandedDirectories(appliedPreparedInputRef.current.paths),
-      );
-    };
-  }, [
-    collectExpandedDirectories,
-    currentPath,
-    expandDirectories,
-    treeExpansionRef,
-  ]);
-  // The toolbar search drives the tree's own search session, which filters
-  // rows with hide-non-matches semantics and highlights the matched text.
-  React.useEffect(() => {
-    model.setSearch(searchQuery || null);
-  }, [model, searchQuery]);
-  // The tree's arrow keys move focus and only select on click/Enter; mirror
-  // focus into the (single) selection so arrowing selects like Finder. Shift
-  // ranges keep the focused row selected, so they pass through untouched.
-  React.useEffect(() => {
-    let lastFocusedPath = model.getFocusedPath();
-    return model.subscribe(() => {
-      const focusedPath = model.getFocusedPath();
-      if (focusedPath === lastFocusedPath) return;
-      lastFocusedPath = focusedPath;
-      if (!focusedPath) return;
-      const item = model.getItem(focusedPath);
-      if (!item || item.isSelected()) return;
-      for (const path of model.getSelectedPaths()) {
-        model.getItem(path)?.deselect();
-      }
-      item.select();
-    });
-  }, [model]);
-  // Rows live in the tree's shadow DOM; composedPath surfaces the row
-  // element behind a pointer or keyboard event so it can resolve to a
-  // manifest entry.
-  const entryFromEvent = (event: React.SyntheticEvent) => {
-    for (const target of event.nativeEvent.composedPath()) {
-      if (!(target instanceof HTMLElement)) continue;
-      const relativePath = target.dataset?.itemPath;
-      if (!relativePath) continue;
-      const absolutePath = `${currentPath}${relativePath}`;
-      return (
-        index.files.get(absolutePath) ??
-        index.folders.get(normalizeFolderPath(absolutePath)) ??
-        null
-      );
-    }
-    return null;
-  };
-  // The tree exposes rows by relative path; directory ids may or may not
-  // carry the trailing slash depending on the call site.
-  const resolveTreeItem = (relativePath: string) =>
-    model.getItem(relativePath) ??
-    model.getItem(
-      relativePath.endsWith("/")
-        ? relativePath.slice(0, -1)
-        : `${relativePath}/`,
-    );
-  // The tree's rows in display order — folders first per level, recursing
-  // only into expanded folders — so type-ahead cycles exactly what's on
-  // screen. Virtualization keeps this off the DOM; the index and the item
-  // handles carry the same information.
-  const collectVisibleEntries = () => {
-    const visibleEntries: FileSystemEntry[] = [];
-    const walk = (folderPath: string) => {
-      const children = index.children.get(folderPath) ?? [];
-      for (const child of children) {
-        if (child.kind !== "folder") continue;
-        const item = resolveTreeItem(child.path.slice(currentPath.length));
-        if (!item) continue;
-        visibleEntries.push(child);
-        if ("isExpanded" in item && item.isExpanded()) walk(child.path);
-      }
-      for (const child of children) {
-        if (child.kind === "file") visibleEntries.push(child);
-      }
-    };
-    walk(currentPath);
-    return visibleEntries;
-  };
-  const typeAhead = useEntryTypeAhead();
-  return (
-    <PierreFileTree
-      className="block min-h-0 flex-1"
-      model={model}
-      // The same menu the other views raise, on the row the press landed on:
-      // the tree draws its rows in a shadow root, so the row is found along
-      // the event's composed path rather than as its target. Right-clicking
-      // selects what it acts on, the way the Finder does.
-      onContextMenu={(event) => {
-        const entry = entryFromEvent(event);
-        if (!entry) return;
-        resolveTreeItem(entry.path.slice(currentPath.length))?.select();
-        onItemContextMenu?.(entry, event);
-      }}
-      // Finder semantics: double-clicking a folder navigates into it and
-      // double-clicking a file opens it; a single click still only toggles
-      // the folder's disclosure.
-      onDoubleClick={(event) => {
-        const entry = entryFromEvent(event);
-        if (entry) onOpen(entry);
-      }}
-      // Enter mirrors the other views: rename the focused item where it
-      // stands, with ⌘O and ⌘↓ left to open it. Printable keys run the
-      // shared type-ahead over the visible rows.
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.metaKey || event.ctrlKey) {
-          const entry = entryFromEvent(event);
-          if (entry) {
-            handleEntryReturn({
-              entry,
-              event,
-              onOpen,
-              ...(onRenameStart ? { onRenameStart } : {}),
-            });
-          }
-          return;
-        }
-        if (!isTypeAheadKey(event)) return;
-        const visibleEntries = collectVisibleEntries();
-        const focusedPath = model.getFocusedPath()?.replace(/\/$/, "") ?? null;
-        const focusedIndex = visibleEntries.findIndex(
-          (entry) =>
-            entry.path.slice(currentPath.length).replace(/\/$/, "") ===
-            focusedPath,
-        );
-        const match = typeAhead(event, visibleEntries, focusedIndex);
-        if (!match) return;
-        const item = resolveTreeItem(match.path.slice(currentPath.length));
-        if (item) {
-          model.scrollToPath(item.getPath());
-          item.focus();
-        }
-      }}
-      style={
-        {
-          "--trees-bg-override": "transparent",
-          "--trees-border-color-override": "var(--color-border)",
-          "--trees-fg-override": "var(--color-foreground)",
-          // Match the focus-visible ring used by the tabs and the other
-          // views (`ring-2 ring-ring`) instead of the tree's accent blue.
-          "--trees-focus-ring-color-override": "var(--color-ring)",
-          "--trees-focus-ring-width-override": "2px",
-          "--trees-selected-bg-override": "var(--color-primary)",
-          "--trees-selected-focused-border-color-override": "var(--color-ring)",
-        } as React.CSSProperties
-      }
-    />
-  );
-}
 // Column row geometry (px at the default 16px root font size).
 const COLUMN_PADDING = 6; // p-1.5
 const COLUMN_ROW_HEIGHT = 28; // h-7
@@ -4842,6 +4789,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   entries,
   index,
   isLoading,
+  menuTargetChildPath,
   onItemContextMenu,
   onOpen,
   onRenameCancel,
@@ -4860,6 +4808,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   entries: FileSystemEntry[];
   index: FileSystemIndex;
   isLoading: boolean;
+  menuTargetChildPath: null | string;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onOpen: (entry: FileSystemEntry) => void;
   onRenameCancel?: () => void;
@@ -4925,25 +4874,11 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                 const isSelected = entry.path === selectedChildPath;
                 const isOnTrail =
                   entry.kind === "folder" && entry.path === trailChildPath;
-                const coverUrl =
-                  entry.kind === "file" ? filePreviewUrls(entry)[0] : undefined;
-                const glyph =
-                  entry.kind === "folder" ? (
-                    <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />
-                  ) : coverUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
-                    <img
-                      alt=""
-                      className="size-4 shrink-0 rounded-[3px] bg-white object-cover"
-                      draggable={false}
-                      src={coverUrl}
-                    />
-                  ) : (
-                    <FileTypeIcon
-                      className="size-4 shrink-0"
-                      fileName={entry.name}
-                    />
-                  );
+                const glyph = (
+                  <span className="flex size-4 shrink-0 items-center justify-center">
+                    <FileSystemRowGlyph entry={entry} />
+                  </span>
+                );
                 const rowClassName =
                   "flex h-7 shrink-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none";
                 if (entry.path === renamingChildPath) {
@@ -4974,6 +4909,8 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                         : isOnTrail
                           ? "bg-accent"
                           : "hover:bg-accent/50",
+                      entry.path === menuTargetChildPath &&
+                        "ring-2 ring-primary ring-inset",
                     )}
                     data-file-system-item={entry.path}
                     // Selected rows sit on the primary surface — the opposite
@@ -4982,9 +4919,12 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     data-file-system-on-primary={isSelected ? "" : undefined}
                     draggable={draggable}
                     key={entry.path}
-                    onClick={() => onSelect(entry)}
+                    onClick={(event) => {
+                      if (!event.ctrlKey) onSelect(entry);
+                    }}
+                    // Right-clicking marks what the menu acts on without
+                    // moving the selection, the way the Finder does.
                     onContextMenu={(event) => {
-                      onSelect(entry);
                       onItemContextMenu?.(entry, event);
                     }}
                     onDoubleClick={() => onOpen(entry)}
@@ -4997,11 +4937,15 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                       });
                     }}
                     // Selecting on press (mouse only) starts mounting the
-                    // child column a beat before mouseup — the immediacy
-                    // @pierre/trees rows have. Touch keeps selection on the
-                    // click so scroll gestures don't select.
+                    // child column a beat before mouseup. Touch keeps
+                    // selection on the click so scroll gestures don't select.
                     onPointerDown={(event) => {
-                      if (event.pointerType === "mouse" && event.button === 0) {
+                      // A Control-click is the Mac's right click.
+                      if (
+                        event.pointerType === "mouse" &&
+                        event.button === 0 &&
+                        !event.ctrlKey
+                      ) {
                         onSelect(entry);
                       }
                     }}

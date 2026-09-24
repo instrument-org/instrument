@@ -1,5 +1,8 @@
 import { TASK_PANE_DEFAULT_SHARE } from "@/client/atoms/task-pane";
-import { type FileSystemSortState } from "@/client/components/extend/file-system";
+import {
+  type FileSystemListColumn,
+  type FileSystemSortState,
+} from "@/client/components/extend/file-system";
 import {
   NO_FILTERS,
   type ThreadFilters,
@@ -467,6 +470,17 @@ export const fileTreeOpenAtom = atomWithStorage<boolean>(
  * where the browser is to draw it. In memory only, with the elements.
  */
 export const pageSlotsAtom = atom<Record<string, HTMLElement | null>>({});
+
+/**
+ * The list view's columns beside Name, picked from its header's menu. One set
+ * for every folder, the way the Finder's own defaults are one set.
+ */
+export const computerListColumnsAtom = atomWithStorage<FileSystemListColumn[]>(
+  "orchestrator.computer-list-columns.v1",
+  ["updatedAt", "size", "kind"],
+  undefined,
+  { getOnInit: true },
+);
 
 /** How wide the columns view's columns are, in CSS px, dragged at any column's right edge. */
 export const computerColumnWidthAtom = atomWithStorage<number>(

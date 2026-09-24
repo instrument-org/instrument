@@ -44,18 +44,60 @@ function ContextMenuCheckboxItem({
   );
 }
 
+/**
+ * How long after opening a release that was not pressed inside the menu is
+ * still the release of the press that opened it.
+ */
+const OPENING_RELEASE_MS = 400;
+
 function ContextMenuContent({
   className,
   collisionPadding,
+  onPointerDownCapture,
+  onPointerUpCapture,
   style,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
   const container = usePortalContainer();
   const chromeCollisionPadding = useChromeCollisionPadding();
+  // A menu item picks itself on a release it saw no press for, which is how a
+  // press dragged onto it and let go chooses it. The press that opened the
+  // menu is released over the menu as well, and where the menu opened under
+  // the pointer (flipped at a window edge) that release chose whatever item
+  // it landed on, Move to Trash included. Held back here, for a moment only,
+  // so pressing, dragging to an item and letting go still chooses it.
+  const openedAt = React.useRef(0);
+  const pressedInside = React.useRef(false);
+  // A right-click while the menu is up moves it rather than opening a new one.
+  React.useEffect(() => {
+    const opened = () => {
+      openedAt.current = performance.now();
+      pressedInside.current = false;
+    };
+    opened();
+    document.addEventListener("contextmenu", opened, true);
+    return () => {
+      document.removeEventListener("contextmenu", opened, true);
+    };
+  }, []);
 
   return (
     <ContextMenuPrimitive.Portal container={container}>
       <ContextMenuPrimitive.Content
+        onPointerDownCapture={(event) => {
+          pressedInside.current = true;
+          onPointerDownCapture?.(event);
+        }}
+        onPointerUpCapture={(event) => {
+          if (
+            !pressedInside.current &&
+            performance.now() - openedAt.current < OPENING_RELEASE_MS
+          ) {
+            event.stopPropagation();
+            return;
+          }
+          onPointerUpCapture?.(event);
+        }}
         className={cn(
           // `--content-zoom` divisor cancels Radix's zoomed-px available-height
           // against this content's self-applied CSS `zoom` (see select.tsx).

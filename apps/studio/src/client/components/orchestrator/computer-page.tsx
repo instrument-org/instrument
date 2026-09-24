@@ -20,7 +20,6 @@ import {
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenWithMenu } from "@/client/components/open-with-menu";
-import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
   ContextMenu,
@@ -59,7 +58,6 @@ import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
-import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -79,6 +77,7 @@ import { toast } from "sonner";
 import { useOrchestrator } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
 import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
+import { NewChatButton } from "./new-chat-button";
 
 /**
  * How many folders' layouts are kept. Past it the one left alone longest goes
@@ -1123,17 +1122,13 @@ export function ComputerPage({
                               (folderOnScreenPath ?? ""),
                           ).at(-1) ?? "this folder";
                         return (
-                          <ToolbarTooltip label={`New Draft with “${about}”`}>
-                            <button
-                              className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                              onClick={() => {
-                                draftAbout(selectedItem);
-                              }}
-                              type="button"
-                            >
-                              <NotePencilIcon className="size-4" />
-                            </button>
-                          </ToolbarTooltip>
+                          <NewChatButton
+                            className="ml-1"
+                            onPress={() => {
+                              draftAbout(selectedItem);
+                            }}
+                            title={`New chat with “${about}”`}
+                          />
                         );
                       }
                     : undefined
@@ -1296,8 +1291,8 @@ export function FolderMenu({
       {onNewDraft ? (
         <>
           <ContextMenuItem onClick={onNewDraft}>
-            <NotePencilIcon className="size-4" />
-            <span>New Draft</span>
+            <PencilSimpleIcon className="size-4 text-brand-600 dark:text-brand-400" />
+            <span>New Chat</span>
           </ContextMenuItem>
           <ContextMenuSeparator />
         </>

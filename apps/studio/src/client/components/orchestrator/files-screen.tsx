@@ -19,7 +19,6 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
@@ -40,11 +39,11 @@ import { useOrchestrator } from "./context";
 import { mountOfHostPath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { folderOf, segmentsOf } from "./host-path";
+import { NewChatButton } from "./new-chat-button";
 import { useOnScreen } from "./on-screen";
 import { useQuickLook } from "./quick-look";
 import { locationCrumbs } from "./tab-location";
 import { useWindowTabs } from "./window-tabs";
-
 
 /** How narrow and how wide the tree beside a file can be dragged, in CSS px. */
 const TREE_WIDTH_MIN = 180;
@@ -322,10 +321,13 @@ export function FilesScreen({
             <FileViewer
               actionsLead={
                 askAbout && (
-                  <DraftButton
+                  <NewChatButton
+                    className="mr-1"
+                    labelClassName="hidden @min-[380px]:inline"
                     onPress={() => {
                       askAbout([{ kind: "file", path: activeFile.hostPath }]);
                     }}
+                    title={`New chat with “${activeFile.name}”`}
                   />
                 )
               }
@@ -366,10 +368,13 @@ export function FilesScreen({
             <FileViewer
               actionsLead={
                 askAbout && (
-                  <DraftButton
+                  <NewChatButton
+                    className="mr-1"
+                    labelClassName="hidden @min-[380px]:inline"
                     onPress={() => {
                       askAbout([{ kind: "file", path: activeFile.hostPath }]);
                     }}
+                    title={`New chat with “${activeFile.name}”`}
                   />
                 )
               }
@@ -397,28 +402,6 @@ export function FilesScreen({
       </div>
       {quickLook.dialog}
     </div>
-  );
-}
-
-/** A draft with the file on screen picked to go with it, first among the viewer's buttons. */
-function DraftButton({ onPress }: { onPress: () => void }) {
-  return (
-    <ToolbarTooltip label="New Draft with this file">
-      <Button
-        className={toolbarClassName({
-          className: "h-7 gap-1.5 px-2 text-xs has-[>svg]:px-2",
-          pressed: false,
-        })}
-        onClick={onPress}
-        size="sm"
-        variant="ghost"
-      >
-        <NotePencilIcon className="size-4" />
-        <span className="hidden min-w-0 truncate @min-[380px]:inline">
-          New Draft
-        </span>
-      </Button>
-    </ToolbarTooltip>
   );
 }
 

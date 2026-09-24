@@ -231,7 +231,7 @@ export type FileSystemProps = {
   renderFileStage?: (file: FileSystemFileItem) => React.ReactNode;
   /** Controls drawn at the head of the toolbar, before the folder's name: back and forward. */
   renderHeaderLead?: () => React.ReactNode;
-  /** Controls drawn at the toolbar's trailing end, before the sort. */
+  /** Controls drawn at the toolbar's trailing end, after the search. */
   renderHeaderTrail?: () => React.ReactNode;
   /**
    * What the columns view shows past the last column while no file is
@@ -2339,7 +2339,6 @@ export function FileSystem({
           </Tabs>
         )}
         <div className="flex min-w-0 items-center justify-end gap-1">
-          {renderHeaderTrail ? renderHeaderTrail() : null}
           <FileSystemSortSelect
             layout={headerLayout}
             onKeyChange={applySortKey}
@@ -2363,6 +2362,7 @@ export function FileSystem({
             onValueChange={setSearchInput}
             value={searchInput}
           />
+          {renderHeaderTrail ? renderHeaderTrail() : null}
         </div>
       </div>
       {hasActiveFilters ? (
@@ -4267,7 +4267,10 @@ function FileSystemListView({
       next.delete(folder.path);
       // A selection closed out of sight is let go of rather than kept where
       // nothing shows it.
-      if (selectedPath?.startsWith(folder.path) && selectedPath !== folder.path) {
+      if (
+        selectedPath?.startsWith(folder.path) &&
+        selectedPath !== folder.path
+      ) {
         onSelect(null);
       }
     }
@@ -4396,8 +4399,7 @@ function FileSystemListView({
   const tabStopPath =
     selectedRowIndex >= start && selectedRowIndex < end
       ? selectedPath
-      : (rows.slice(start, end).find((row) => row.entry)?.entry?.path ??
-        null);
+      : (rows.slice(start, end).find((row) => row.entry)?.entry?.path ?? null);
   return (
     <div className="flex size-full flex-col" ref={rootRef}>
       <FileSystemListHeader
@@ -4416,7 +4418,9 @@ function FileSystemListView({
       {rows.length === 0 ? (
         <FileSystemEmptyState
           label={
-            fileFilter ? "No items match the active filters" : "This folder is empty"
+            fileFilter
+              ? "No items match the active filters"
+              : "This folder is empty"
           }
         />
       ) : (
@@ -4472,13 +4476,14 @@ function FileSystemListView({
                 const isRenaming = entry.path === renamingPath;
                 return (
                   <div
-                    aria-expanded={entry.kind === "folder" ? isExpanded : undefined}
+                    aria-expanded={
+                      entry.kind === "folder" ? isExpanded : undefined
+                    }
                     aria-selected={isSelected}
                     className={cn(
                       "mx-1.5 flex h-6 shrink-0 items-center rounded-md px-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                       isSelected && SELECTED_ROW_CLASSNAME,
-                      entry.path === menuTargetPath &&
-                        MENU_TARGET_CLASSNAME,
+                      entry.path === menuTargetPath && MENU_TARGET_CLASSNAME,
                     )}
                     data-file-system-item={entry.path}
                     draggable={draggable && !isRenaming}

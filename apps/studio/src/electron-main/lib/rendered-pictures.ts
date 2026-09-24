@@ -50,6 +50,12 @@ const CAPTURE_TIMEOUT_MS = 4000;
  * which is the path measured on a Mac and on Windows.
  */
 const OFFSCREEN = process.platform === "linux";
+/**
+ * How long an offscreen window is given to put a settled page into a frame:
+ * the frames trail the page, and one taken straight after it settles was
+ * measured blank or empty on the Linux test host, where 100ms was enough.
+ */
+const OFFSCREEN_SETTLE_MS = 150;
 /** The room a page's deferred scripts have to draw once it has loaded and its fonts are in. */
 const SETTLE_MS = 250;
 const SETTLE_TIMEOUT_MS = 1500;
@@ -121,7 +127,7 @@ export async function renderPicture(
       }
       const shot = await Promise.race([
         OFFSCREEN
-          ? nextFrame(window)
+          ? offscreenFrame(window)
           : contents.capturePage({
               height: viewport.height,
               width: viewport.width,
@@ -390,6 +396,16 @@ function nextFrame(window: BrowserWindow): Promise<NativeImage> {
     frameWaiters.set(window, [...(frameWaiters.get(window) ?? []), resolve]);
     window.webContents.invalidate();
   });
+}
+
+/** The page as the offscreen window paints it once its frames have caught up, skipping any empty one. */
+async function offscreenFrame(window: BrowserWindow): Promise<NativeImage> {
+  await sleep(OFFSCREEN_SETTLE_MS);
+  let frame = await nextFrame(window);
+  for (let tries = 0; frame.isEmpty() && tries < 3; tries++) {
+    frame = await nextFrame(window);
+  }
+  return frame;
 }
 
 /** One of the drawing windows, made as they are needed, for as long as `work` takes. */

@@ -1,3 +1,4 @@
+import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { curateCandidates } from "./candidate-policy";
@@ -26,6 +27,15 @@ describe("curateCandidates", () => {
       "com.example.one",
       "com.example.two",
     ]);
+  });
+
+  it("drops Instrument itself, even as the default", () => {
+    const apps = [
+      app(APP_BUNDLE_ID, { isDefault: true }),
+      app("com.example.one"),
+    ];
+
+    expect(names(curateCandidates(apps, ".md"))).toEqual(["com.example.one"]);
   });
 
   it.each([

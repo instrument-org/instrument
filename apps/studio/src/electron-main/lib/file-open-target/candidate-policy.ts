@@ -1,3 +1,5 @@
+import { APP_BUNDLE_ID } from "@instrument-org/shared";
+
 import { type CandidateApp } from "./types";
 
 // How many apps the menu will show. Applied on read, after curation, so raising
@@ -101,6 +103,12 @@ export function curateCandidates(apps: CandidateApp[], ext: string) {
 }
 
 function isUsefulCandidate(candidate: CandidateApp, ext: string) {
+  // Instrument claims document types of its own, so Launch Services lists it
+  // for files it is already showing, sometimes as the default. Offering to open
+  // a file in the app the person is looking at does nothing useful.
+  if (candidate.bundleId === APP_BUNDLE_ID) {
+    return false;
+  }
   // The system's own choice is never second-guessed; it is what the primary
   // "Open in {app}" button already launches.
   if (candidate.isDefault) {

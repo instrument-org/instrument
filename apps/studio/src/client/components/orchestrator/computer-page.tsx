@@ -1164,31 +1164,6 @@ export function ComputerPage({
 }
 
 /**
- * Stable while nothing changed: what each query holds, and only that, so a
- * re-render that fetched nothing new hands the browser the same items. A
- * folder that could not be read travels with them, since the one asking is
- * the only one that can stop asking.
- */
-function combineListings(
-  results: {
-    data: ComputerListing | undefined;
-    error: unknown;
-    isError: boolean;
-  }[],
-) {
-  return results.map((result) => ({
-    data: result.data,
-    error: result.error,
-    isError: result.isError,
-  }));
-}
-
-/** What went wrong with a file action, said where the folder is. */
-function failed(error: unknown) {
-  toast(error instanceof Error ? error.message : "That did not work");
-}
-
-/**
  * What can be done to the thing under the pointer, or to the folder itself
  * where there is nothing under it, in the order the Finder's own menu puts
  * them: opening first, the Trash apart, then what changes the thing, then
@@ -1197,8 +1172,8 @@ function failed(error: unknown) {
  * itself makes the menu as wide as whatever app that file happens to belong
  * to.
  */
-function FolderMenu({
-  isRecents,
+export function FolderMenu({
+  isRecents = false,
   item,
   onClosed,
   onCopyPath,
@@ -1213,10 +1188,10 @@ function FolderMenu({
   onTrash,
   sort,
 }: {
-  isRecents: boolean;
+  isRecents?: boolean;
   item: FileSystemItem | undefined;
   /** The menu gone, and the keyboard with it. */
-  onClosed: () => void;
+  onClosed?: () => void;
   onCopyPath: () => void;
   onDuplicate: () => void;
   /** Left out where there is no folder to make one in. */
@@ -1227,11 +1202,13 @@ function FolderMenu({
   onOpenInNewTab: () => void;
   /** Left out where nothing shows a file over the page. */
   onQuickLook: (() => void) | undefined;
-  onRename: () => void;
+  /** Left out where there is no field to type a name in. */
+  onRename?: () => void;
   onReveal: () => void;
-  onSortKey: (key: FileSystemSortKey) => void;
+  /** With `sort`, the folder's own orders, offered on its empty space. */
+  onSortKey?: (key: FileSystemSortKey) => void;
   onTrash: () => void;
-  sort: FileSystemSortState;
+  sort?: FileSystemSortState;
 }) {
   const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
   const file = tab ? { hostPath: tab.hostPath } : undefined;
@@ -1246,7 +1223,7 @@ function FolderMenu({
       // here says where the keyboard goes, so the menu says nothing.
       onCloseAutoFocus={(event) => {
         event.preventDefault();
-        onClosed();
+        onClosed?.();
       }}
     >
       {item ? (
@@ -1285,10 +1262,12 @@ function FolderMenu({
             <span>Move to Trash</span>
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={onRename}>
-            <PencilSimpleIcon className="size-4" />
-            <span>Rename</span>
-          </ContextMenuItem>
+          {onRename ? (
+            <ContextMenuItem onClick={onRename}>
+              <PencilSimpleIcon className="size-4" />
+              <span>Rename</span>
+            </ContextMenuItem>
+          ) : null}
           <ContextMenuItem onClick={onDuplicate}>
             <CopyIcon className="size-4" />
             <span>Duplicate</span>
@@ -1320,6 +1299,7 @@ function FolderMenu({
               <ContextMenuSeparator />
             </>
           ) : null}
+          {onSortKey && sort ? (
           <ContextMenuSub>
             <ContextMenuSubTrigger>
               <SortAscendingIcon className="size-4" />
@@ -1345,10 +1325,36 @@ function FolderMenu({
               </ContextMenuRadioGroup>
             </ContextMenuSubContent>
           </ContextMenuSub>
+          ) : null}
         </>
       )}
     </ContextMenuContent>
   );
+}
+
+/**
+ * Stable while nothing changed: what each query holds, and only that, so a
+ * re-render that fetched nothing new hands the browser the same items. A
+ * folder that could not be read travels with them, since the one asking is
+ * the only one that can stop asking.
+ */
+function combineListings(
+  results: {
+    data: ComputerListing | undefined;
+    error: unknown;
+    isError: boolean;
+  }[],
+) {
+  return results.map((result) => ({
+    data: result.data,
+    error: result.error,
+    isError: result.isError,
+  }));
+}
+
+/** What went wrong with a file action, said where the folder is. */
+function failed(error: unknown) {
+  toast(error instanceof Error ? error.message : "That did not work");
 }
 
 /** Where an item the browser is showing sits on the Mac. */

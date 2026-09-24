@@ -463,6 +463,14 @@ export const fileTreeOpenAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 );
 
+/** How wide the tree beside a file is, in CSS px, dragged at its right edge. One width for every file tab, as the tree is one way of working. */
+export const fileTreeWidthAtom = atomWithStorage<number>(
+  "orchestrator.file-tree-width.v1",
+  240,
+  undefined,
+  { getOnInit: true },
+);
+
 /**
  * The elements screens draw a page's guest into, by the group the page's
  * tab is kept under: a file tab drawing a page's file beside its tree keeps

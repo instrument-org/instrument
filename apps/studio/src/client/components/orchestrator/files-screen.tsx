@@ -1,6 +1,7 @@
 import {
   type FileTab,
   fileTreeOpenAtom,
+  fileTreeWidthAtom,
   pageSlotsAtom,
 } from "@/client/atoms/orchestrator";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
@@ -33,6 +34,11 @@ import { useOnScreen } from "./on-screen";
 import { useQuickLook } from "./quick-look";
 import { locationCrumbs } from "./tab-location";
 import { useWindowTabs } from "./window-tabs";
+
+
+/** How narrow and how wide the tree beside a file can be dragged, in CSS px. */
+const TREE_WIDTH_MIN = 180;
+const TREE_WIDTH_MAX = 480;
 
 /**
  * This Mac shows a folder or file in the current tab. Back returns to the
@@ -71,6 +77,7 @@ export function FilesScreen({
   const { active, allTabs, close, closeActive, step, stepVisit } =
     useWindowTabs();
   const [isTreeOpen, setTreeOpen] = useAtom(fileTreeOpenAtom);
+  const [treeWidth, setTreeWidth] = useAtom(fileTreeWidthAtom);
   const setPageSlots = useSetAtom(pageSlotsAtom);
   const router = useRouter();
   const navigate = useNavigate();
@@ -280,11 +287,52 @@ export function FilesScreen({
       >
         <div className="flex h-full min-h-0">
           {isTreeOpen && (
-            <aside className="w-60 shrink-0 border-r border-border bg-muted/40">
+            // The Finder's own ground rather than a tinted panel, so the tree
+            // reads as the list it was opened from.
+            <aside
+              className="relative shrink-0 border-r border-border bg-background"
+              style={{ width: treeWidth }}
+            >
               <FileTree
                 onOpen={showFile}
                 root={tree}
                 selected={activeFile.hostPath}
+              />
+              {/* The edge that drags, as a column's does in the Finder. */}
+              <div
+                aria-hidden
+                className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize hover:bg-ring/30"
+                onPointerDown={(event) => {
+                  if (event.button !== 0) {
+                    return;
+                  }
+                  event.preventDefault();
+                  const handle = event.currentTarget;
+                  const startX = event.clientX;
+                  const startWidth = treeWidth;
+                  handle.setPointerCapture(event.pointerId);
+                  const move = (moveEvent: PointerEvent) => {
+                    setTreeWidth(
+                      Math.round(
+                        Math.min(
+                          TREE_WIDTH_MAX,
+                          Math.max(
+                            TREE_WIDTH_MIN,
+                            startWidth + moveEvent.clientX - startX,
+                          ),
+                        ),
+                      ),
+                    );
+                  };
+                  const stop = () => {
+                    handle.removeEventListener("pointermove", move);
+                    handle.removeEventListener("pointerup", stop);
+                    handle.removeEventListener("pointercancel", stop);
+                  };
+                  handle.addEventListener("pointermove", move);
+                  handle.addEventListener("pointerup", stop);
+                  handle.addEventListener("pointercancel", stop);
+                }}
               />
             </aside>
           )}

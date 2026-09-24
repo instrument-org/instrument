@@ -512,7 +512,7 @@ function fileTypeFilterGroup(mime: string): FileTypeFilterGroup {
   }
   return "Archives & binary";
 }
-function mimeTypeForFile(file: FileEntry) {
+function mimeTypeForFile(file: { contentType?: string; name: string }) {
   return (
     file.contentType ??
     EXTENSION_MIME_TYPES[fileExtension(file.name)] ??
@@ -1066,7 +1066,9 @@ function FileGenericPreview({ file }: { file: FileEntry }) {
     </div>
   );
 }
-function filePreviewUrls(file: FileSystemFileItem) {
+function filePreviewUrls(
+  file: Pick<FileSystemFileItem, "previewImageUrl" | "previewImageUrls">,
+) {
   if (file.previewImageUrls?.length) return file.previewImageUrls;
   return file.previewImageUrl ? [file.previewImageUrl] : [];
 }
@@ -3946,9 +3948,9 @@ const LIST_COLUMN_WIDTH_MIN = 64;
 const LIST_COLUMN_WIDTH_MAX = 480;
 // The selection: a tint of the app's accent under the row, the way the
 // Finder marks one in the system's, calm enough to read the row through.
-const SELECTED_ROW_CLASSNAME = "bg-brand-500/20 dark:bg-brand-500/30";
+export const SELECTED_ROW_CLASSNAME = "bg-brand-500/20 dark:bg-brand-500/30";
 // What a context menu is open on: outlined, not selected.
-const MENU_TARGET_CLASSNAME = "ring-2 ring-brand-500 ring-inset";
+export const MENU_TARGET_CLASSNAME = "ring-2 ring-brand-500 ring-inset";
 const LIST_COLUMNS: Array<{
   align: "end" | "start";
   key: FileSystemListColumn;
@@ -4595,7 +4597,16 @@ const failedRowThumbnails = new Set<string>();
  * Only a picture is drawn as itself at this size; a page or a document's
  * thumbnail would be a smudge, and its type says more.
  */
-function FileSystemRowGlyph({ entry }: { entry: FileSystemEntry }) {
+export function FileSystemRowGlyph({
+  entry,
+}: {
+  entry:
+    | { kind: "folder" }
+    | (Pick<
+        FileSystemFileItem,
+        "contentType" | "previewImageUrl" | "previewImageUrls"
+      > & { kind: "file"; name: string });
+}) {
   const [, setFailed] = React.useState(false);
   if (entry.kind === "folder") {
     return <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />;

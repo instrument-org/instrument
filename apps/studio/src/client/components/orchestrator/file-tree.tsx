@@ -1,31 +1,58 @@
 import { computerHiddenFilesAtom } from "@/client/atoms/orchestrator";
 import {
   FileSystemFolderGlyph,
-  FileTypeIcon,
+  type FileSystemItem,
+  FileSystemRowGlyph,
+  MENU_TARGET_CLASSNAME,
+  SELECTED_ROW_CLASSNAME,
 } from "@/client/components/extend/file-system";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import { Delayed } from "@/client/components/ui/delayed";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { useQuery } from "@tanstack/react-query";
+import { folderHref } from "@/shared/computer-href";
+import { type ComputerListing } from "@instrument-org/workspace/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
+import { ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { FolderMenu } from "./computer-page";
 import { useOrchestrator } from "./context";
 import { isInside, segmentsOf } from "./host-path";
 
-/** How far each level of the tree stands in from the last, and the first from the edge, in layout px. */
-const INDENT = 14;
-const EDGE = 6;
+/** How far each level of the tree stands in from the last, in layout px: the Finder's list's indent. */
+const INDENT = 16;
+
+type ListedEntry = ComputerListing["entries"][number];
+
+/** What every row of the tree answers to, handed down from the tree. */
+interface Rows {
+  isOpen: (path: string) => boolean;
+  /** The row a menu is open on, by path, outlined rather than selected. */
+  menuTarget: string | undefined;
+  onMenu: (entry: FileSystemItem) => void;
+  onOpen: (hostPath: string) => void;
+  onToggle: (path: string) => void;
+  selected: string;
+}
 
 /**
- * The tree beside a file opened from the Finder, the way an editor keeps one
- * beside a document: rooted at the folder the Finder was standing in, that
- * folder open down to the file, the file selected, no search over it. A
- * folder opens and closes on a press; a file pressed takes the document's
- * place in the same tab, which is what lets a person leaf between the files
- * of a folder without going back to the Finder. Each folder is read the
+ * The tree beside a file opened from the Finder, drawn the way the Finder's
+ * list draws a folder: rooted at the folder the Finder was standing in, that
+ * folder open down to the file, the file selected. Its rows are the list's
+ * rows, at the list's size, with the chevron in a margin of its own and
+ * folders among the files by name. A folder opens and closes on a press; a
+ * file pressed takes the document's place in the same tab, which is what lets
+ * a person leaf between the files of a folder without going back to the
+ * Finder. A right-click offers what the Finder's menu does for the row, but
+ * for a rename, which has no field here to type in. Each folder is read the
  * first time it is opened, and re-read on the Finder's own clock.
  */
 export function FileTree({
@@ -40,6 +67,8 @@ export function FileTree({
   /** The file the tab shows, which the tree is opened down to. */
   selected: string;
 }) {
+  const { openScreen } = useOrchestrator();
+  const queryClient = useQueryClient();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const home = places.data?.favorites.find((place) => place.name === "Home");
   // The folders pressed open or shut, by path; the rest stand open down to
@@ -53,50 +82,149 @@ export function FileTree({
   };
   const rootName =
     root === home?.path ? "Home" : (segmentsOf(root).at(-1) ?? root);
+  const [menuItem, setMenuItem] = useState<FileSystemItem>();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const reread = () => {
+    void queryClient.invalidateQueries({
+      queryKey: rpcClient.workspace.computer.list.key(),
+    });
+  };
+  const run = (action: () => Promise<unknown>) => {
+    action().then(reread, (error: unknown) => {
+      toast(error instanceof Error ? error.message : "That did not work");
+    });
+  };
+  const menuHostPath =
+    typeof menuItem?.metadata?.hostPath === "string"
+      ? menuItem.metadata.hostPath
+      : "";
+  const rows = {
+    isOpen,
+    menuTarget: isMenuOpen ? menuHostPath : undefined,
+    onMenu: (entry: FileSystemItem) => {
+      setMenuItem(entry);
+    },
+    onOpen,
+    onToggle: toggle,
+    selected,
+  };
   return (
-    <div
-      aria-label="Files beside the document"
-      className="flex h-full min-h-0 flex-col overflow-y-auto py-1.5 pr-1.5 text-[12.5px] select-none"
-      role="tree"
-    >
-      <Folder
-        depth={0}
-        isOpen={isOpen}
-        name={rootName}
-        onOpen={onOpen}
-        onToggle={toggle}
-        path={root}
-        selected={selected}
+    <ContextMenu onOpenChange={setIsMenuOpen}>
+      <ContextMenuTrigger asChild>
+        <div
+          aria-label="Files beside the document"
+          className="flex h-full min-h-0 flex-col overflow-y-auto px-1.5 py-1.5 text-sm select-none"
+          // Only a row has a menu; the space around the rows has nothing to
+          // act on.
+          onContextMenu={(event) => {
+            if (
+              !(event.target instanceof Element) ||
+              !event.target.closest('[role="treeitem"]')
+            ) {
+              event.preventDefault();
+            }
+          }}
+          role="tree"
+        >
+          <Folder depth={0} name={rootName} path={root} rows={rows} />
+        </div>
+      </ContextMenuTrigger>
+      <FolderMenu
+        item={menuItem}
+        onCopyPath={() => {
+          void navigator.clipboard.writeText(menuHostPath);
+        }}
+        onDuplicate={() => {
+          run(() => rpcClient.files.duplicate.call({ path: menuHostPath }));
+        }}
+        onNewFolder={undefined}
+        onOpen={() => {
+          onOpen(menuHostPath);
+        }}
+        onOpenInNewTab={() => {
+          openScreen(folderHref(menuHostPath), { newTab: true });
+        }}
+        onQuickLook={undefined}
+        onReveal={() => {
+          run(() =>
+            rpcClient.utils.showFileInFolder.call({ filepath: menuHostPath }),
+          );
+        }}
+        onTrash={() => {
+          run(() => rpcClient.files.trash.call({ path: menuHostPath }));
+        }}
       />
-    </div>
+    </ContextMenu>
+  );
+}
+
+function FileRow({
+  depth,
+  entry,
+  rows,
+}: {
+  depth: number;
+  entry: ListedEntry;
+  rows: Rows;
+}) {
+  const isPicture = entry.mimeType?.startsWith("image/") === true;
+  return (
+    <Row
+      depth={depth}
+      glyph={
+        <FileSystemRowGlyph
+          entry={{
+            contentType: entry.mimeType,
+            kind: "file",
+            name: entry.name,
+            // The same picture the Finder's rows draw, so it is read once.
+            previewImageUrl: isPicture
+              ? getComputerThumbnailUrl({
+                  hostPath: entry.path,
+                  size: 512,
+                  version: entry.modifiedAt,
+                })
+              : undefined,
+          }}
+        />
+      }
+      isMenuTarget={rows.menuTarget === entry.path}
+      isSelected={entry.path === rows.selected}
+      name={entry.name}
+      onMenu={() => {
+        rows.onMenu({
+          kind: "file",
+          metadata: { hostPath: entry.path },
+          name: entry.name,
+          path: entry.path,
+        });
+      }}
+      onPress={() => {
+        rows.onOpen(entry.path);
+      }}
+    />
   );
 }
 
 /**
- * One folder of the tree: its row, and under it, while it is open, its
- * folders and then its files by name, the way an editor's tree lists them.
- * What the system hides stays hidden unless the Finder is showing it.
+ * One folder of the tree: its row, and under it, while it is open, what it
+ * holds by name, folders among the files. What the system hides stays hidden
+ * unless the Finder is showing it.
  */
 function Folder({
   depth,
-  isOpen,
   name,
-  onOpen,
-  onToggle,
   path,
-  selected,
+  rows,
 }: {
   depth: number;
-  isOpen: (path: string) => boolean;
   name: string;
-  onOpen: (hostPath: string) => void;
-  onToggle: (path: string) => void;
   path: string;
-  selected: string;
+  rows: Rows;
 }) {
   const { taskId } = useOrchestrator();
   const showsHidden = useAtomValue(computerHiddenFilesAtom);
-  const open = isOpen(path);
+  const open = rows.isOpen(path);
   const listing = useQuery(
     rpcClient.workspace.computer.list.queryOptions({
       enabled: open,
@@ -107,72 +235,64 @@ function Folder({
     .filter(
       (entry) => showsHidden || (!entry.hidden && !entry.name.startsWith(".")),
     )
-    .toSorted(
-      (a, b) =>
-        Number(a.kind === "file") - Number(b.kind === "file") ||
-        a.name.localeCompare(b.name, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        }),
+    .toSorted((a, b) =>
+      a.name.localeCompare(b.name, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
     );
   return (
     <>
       <Row
-        caret={
-          open ? (
-            <CaretDownIcon className="size-2.5" />
-          ) : (
-            <CaretRightIcon className="size-2.5" />
-          )
-        }
         depth={depth}
-        icon={<FileSystemFolderGlyph className="h-3 w-auto" />}
+        glyph={<FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />}
         isExpanded={open}
+        isMenuTarget={rows.menuTarget === path}
         name={name}
+        onMenu={() => {
+          rows.onMenu({
+            kind: "folder",
+            metadata: { hostPath: path },
+            name,
+            path,
+          });
+        }}
         onPress={() => {
-          onToggle(path);
+          rows.onToggle(path);
         }}
       />
       {open &&
         (listing.data === undefined ? (
           listing.isError ? (
             <p
-              className="truncate py-1 text-[11px] text-muted-foreground"
-              style={{ paddingLeft: EDGE + (depth + 1) * INDENT + 16 }}
+              className="truncate py-1 text-xs text-muted-foreground"
+              style={{ paddingLeft: (depth + 1) * INDENT + 44 }}
             >
               Could not read this folder
             </p>
           ) : (
-            <Skeleton
-              className="my-1.5 h-3 w-24"
-              style={{ marginLeft: EDGE + (depth + 1) * INDENT + 16 }}
-            />
+            <div className="h-6" style={{ paddingLeft: (depth + 1) * INDENT }}>
+              <Delayed>
+                <Skeleton className="mt-1.5 ml-11 h-3 w-24" />
+              </Delayed>
+            </div>
           )
         ) : (
           entries.map((entry) =>
             entry.kind === "folder" ? (
               <Folder
                 depth={depth + 1}
-                isOpen={isOpen}
                 key={entry.path}
                 name={entry.name}
-                onOpen={onOpen}
-                onToggle={onToggle}
                 path={entry.path}
-                selected={selected}
+                rows={rows}
               />
             ) : (
-              <Row
+              <FileRow
                 depth={depth + 1}
-                icon={
-                  <FileTypeIcon className="size-3.5" fileName={entry.name} />
-                }
-                isSelected={entry.path === selected}
+                entry={entry}
                 key={entry.path}
-                name={entry.name}
-                onPress={() => {
-                  onOpen(entry.path);
-                }}
+                rows={rows}
               />
             ),
           )
@@ -181,22 +301,28 @@ function Folder({
   );
 }
 
-/** One row of the tree: a folder with its caret and mark, or a file with its kind's mark; the selected file filled and brought into view. */
+/**
+ * One row of the tree, drawn as a row of the Finder's list: the chevron's
+ * margin, the glyph, the name; the selected file tinted and brought into view.
+ */
 function Row({
-  caret,
   depth,
-  icon,
+  glyph,
   isExpanded,
+  isMenuTarget,
   isSelected = false,
   name,
+  onMenu,
   onPress,
 }: {
-  caret?: ReactNode;
   depth: number;
-  icon: ReactNode;
+  glyph: ReactNode;
+  /** Set for a folder: whether it stands open. */
   isExpanded?: boolean;
+  isMenuTarget: boolean;
   isSelected?: boolean;
   name: string;
+  onMenu: () => void;
   onPress: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -214,25 +340,37 @@ function Row({
       aria-level={depth + 1}
       aria-selected={isSelected}
       className={cn(
-        "flex h-6.5 w-full min-w-0 items-center gap-1.5 rounded-md pr-2 text-left",
-        isSelected
-          ? "bg-accent font-medium text-foreground"
-          : "text-foreground/80 hover:bg-foreground/5 hover:text-foreground",
+        "flex h-6 w-full min-w-0 shrink-0 items-center rounded-md px-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        isSelected && SELECTED_ROW_CLASSNAME,
+        isMenuTarget && MENU_TARGET_CLASSNAME,
       )}
       onClick={onPress}
+      onContextMenu={onMenu}
       ref={ref}
       role="treeitem"
-      style={{ paddingLeft: EDGE + depth * INDENT }}
       title={name}
       type="button"
     >
-      <span className="grid w-3 shrink-0 place-items-center text-muted-foreground">
-        {caret}
+      <span
+        className="flex min-w-0 flex-1 items-center"
+        style={{ paddingLeft: depth * INDENT }}
+      >
+        <span className="flex h-6 w-4 shrink-0 items-center justify-center">
+          {isExpanded === undefined ? null : (
+            <ChevronRight
+              className={cn(
+                "size-3.5 text-muted-foreground transition-transform duration-100 motion-reduce:transition-none",
+                isExpanded && "rotate-90",
+              )}
+              strokeWidth={2.5}
+            />
+          )}
+        </span>
+        <span className="ml-1.5 flex size-4 shrink-0 items-center justify-center">
+          {glyph}
+        </span>
+        <span className="ml-1.5 min-w-0 truncate">{name}</span>
       </span>
-      <span className="grid size-4 shrink-0 place-items-center [&_svg]:max-h-3.5">
-        {icon}
-      </span>
-      <span className="min-w-0 truncate">{name}</span>
     </button>
   );
 }

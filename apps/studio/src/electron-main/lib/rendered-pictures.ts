@@ -40,6 +40,16 @@ const PICTURE_HEIGHT = 1024;
 /** Windows drawn in at once; each holds one file. */
 const WINDOWS = 2;
 const LOAD_TIMEOUT_MS = 6000;
+/** How long a photograph is waited for before the file is left to the system. */
+const CAPTURE_TIMEOUT_MS = 4000;
+/**
+ * Whether the windows draw offscreen and hand over their frames as they
+ * paint. On Linux a hidden window is an unmapped surface that the compositor
+ * never gives a frame, so photographing one never answers; an offscreen
+ * window paints without one. Elsewhere the hidden window is photographed,
+ * which is the path measured on a Mac and on Windows.
+ */
+const OFFSCREEN = process.platform === "linux";
 /** The room a page's deferred scripts have to draw once it has loaded and its fonts are in. */
 const SETTLE_MS = 250;
 const SETTLE_TIMEOUT_MS = 1500;
@@ -109,12 +119,19 @@ export async function renderPicture(
           await sleep(SETTLE_MS);
         }
       }
-      const shot = await contents.capturePage({
-        height: viewport.height,
-        width: viewport.width,
-        x: 0,
-        y: 0,
-      });
+      const shot = await Promise.race([
+        OFFSCREEN
+          ? nextFrame(window)
+          : contents.capturePage({
+              height: viewport.height,
+              width: viewport.width,
+              x: 0,
+              y: 0,
+            }),
+        sleep(CAPTURE_TIMEOUT_MS).then(() => {
+          throw new Error("The file was not photographed in time");
+        }),
+      ]);
       if (shot.isEmpty()) {
         throw new Error("The file drew nothing");
       }
@@ -297,6 +314,12 @@ function closeAll() {
   }
 }
 
+/** Who is waiting on each offscreen window's next frame. */
+const frameWaiters = new WeakMap<
+  BrowserWindow,
+  ((image: NativeImage) => void)[]
+>();
+
 function makeWindow() {
   const window = new BrowserWindow({
     focusable: false,
@@ -311,6 +334,7 @@ function makeWindow() {
       backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
+      offscreen: OFFSCREEN,
       sandbox: true,
       session: drawingSession(),
       webSecurity: true,
@@ -319,6 +343,14 @@ function makeWindow() {
   });
   const contents = window.webContents;
   contents.setAudioMuted(true);
+  if (OFFSCREEN) {
+    contents.on("paint", (_event, _dirty, image) => {
+      for (const resolve of frameWaiters.get(window) ?? []) {
+        resolve(image);
+      }
+      frameWaiters.delete(window);
+    });
+  }
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
   // The file is put where it is by the load and goes nowhere of its own: a
   // redirecting page has nothing to show, and a page sending itself to
@@ -347,6 +379,17 @@ function makeWindow() {
     }
   });
   return window;
+}
+
+/**
+ * A frame an offscreen window paints from now on, with the page as it stands:
+ * the view is marked for a repaint so one comes even when nothing on it moves.
+ */
+function nextFrame(window: BrowserWindow): Promise<NativeImage> {
+  return new Promise((resolve) => {
+    frameWaiters.set(window, [...(frameWaiters.get(window) ?? []), resolve]);
+    window.webContents.invalidate();
+  });
 }
 
 /** One of the drawing windows, made as they are needed, for as long as `work` takes. */

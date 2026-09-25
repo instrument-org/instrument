@@ -1,6 +1,7 @@
 import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
+import { Delayed } from "@/client/components/ui/delayed";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -742,10 +743,12 @@ export function TaskBrowserPanel({
               Reopen browser
             </Button>
           ) : (
-            <>
-              <Spinner className="size-5" />
+            // Most pages open well inside a beat, and a line flashed up and
+            // away for them reads as a flicker rather than as progress.
+            <Delayed ms={800}>
+              <Spinner className="size-5" delay={0} />
               <span>Opening browser…</span>
-            </>
+            </Delayed>
           )}
         </div>
       )}

@@ -364,6 +364,9 @@ export function showOverSlot(
   // floating layer; a host that itself floats (a draft window) names a layer
   // above its own, since a guest under an opaque host is a page nobody sees.
   layer = 0,
+  // The radius of the host's bottom corners, which the guest is clipped to so
+  // it does not stand square past a rounder frame or round inside a square one.
+  bottomRadius = VISIBLE_BOTTOM_RADIUS,
 ) {
   const pooled = pool.get(targetId);
   if (!pooled) {
@@ -378,7 +381,7 @@ export function showOverSlot(
   const { container, webview } = pooled;
 
   Object.assign(container.style, {
-    borderRadius: `0 0 ${VISIBLE_BOTTOM_RADIUS} ${VISIBLE_BOTTOM_RADIUS}`,
+    borderRadius: `0 0 ${bottomRadius} ${bottomRadius}`,
     contain: "layout paint size style",
     height: `${bounds.height}px`,
     left: `${bounds.x}px`,
@@ -407,7 +410,7 @@ export function showOverSlot(
     } satisfies Partial<CSSStyleDeclaration>);
   } else {
     Object.assign(webview.style, {
-      borderRadius: `0 0 ${VISIBLE_BOTTOM_RADIUS} ${VISIBLE_BOTTOM_RADIUS}`,
+      borderRadius: `0 0 ${bottomRadius} ${bottomRadius}`,
       height: `${bounds.height}px`,
       left: "",
       position: "",

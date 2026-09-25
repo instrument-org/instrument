@@ -123,6 +123,11 @@ export function useBrowserSlot({
               }
             : null,
           layer,
+          // A frame around the slot says how round its bottom corners are
+          // through `--guest-bottom-radius`; unsaid, the pool's own default.
+          getComputedStyle(slot)
+            .getPropertyValue("--guest-bottom-radius")
+            .trim() || undefined,
         );
         syncEmulation(device);
       } else {

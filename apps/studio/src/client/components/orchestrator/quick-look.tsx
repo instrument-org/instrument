@@ -68,7 +68,10 @@ export function useQuickLook({
         <DialogContent
           // Under the menus (`z-50`), with the page's guest a layer over the
           // panel, the way a draft window holds its page.
-          className="z-40 h-full gap-0 p-0 outline-none"
+          // Faded rather than zoomed in: a page is drawn over the panel's
+          // box where it is measured, and a box still growing would put the
+          // page where the panel is not yet.
+          className="z-40 h-full gap-0 p-0 outline-none [--guest-bottom-radius:var(--radius-3xl)] data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100"
           // Most of the window, the way Quick Look fills it, whatever the zoom.
           maxHeight="calc(85vh / var(--content-zoom))"
           // A document's shape rather than the window's: on a wide screen

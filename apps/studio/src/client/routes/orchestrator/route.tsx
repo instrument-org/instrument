@@ -1109,7 +1109,7 @@ function OrchestratorLayout() {
                     {/* The pane, edge to edge, with the strip as its first
                     row: the tabs of the thread or the draft on screen, and at
                     the row's end the toggle that puts the pane away. */}
-                    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border bg-card">
+                    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border bg-card [--guest-bottom-radius:0px]">
                       <div className="flex h-10 shrink-0 items-center border-b border-border pr-1 pl-1">
                         <WindowTabStrip
                           childTitles={childTitles}

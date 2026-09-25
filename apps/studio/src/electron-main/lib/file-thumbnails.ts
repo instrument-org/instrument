@@ -34,6 +34,8 @@ const log = createScopedLogger("FileThumbnails");
 /** The sizes asked for, in px along the longer side: a row's, a tile's and a preview pane's. */
 export const THUMBNAIL_SIZES = [64, 512, 1024] as const;
 export type ThumbnailSize = (typeof THUMBNAIL_SIZES)[number];
+/** The app's theme, which a page, Markdown or code file is drawn in; the system's pictures have none. */
+export type ThumbnailTheme = "dark" | "light";
 
 /**
  * Kinds that are pages, drawn in a page's shape so they sit in a grid as the
@@ -46,7 +48,7 @@ const PAGE_SHAPED = /\.(?:csv|htm|html|json|markdown|md|rtf|txt)$/i;
 /** A page's width over its height, as the renderer draws a page. */
 const PAGE_ASPECT = 0.78;
 /** Part of the key, so pictures drawn before a change to how they are drawn are drawn again. */
-const DRAWING = "5";
+const DRAWING = "6";
 
 /** How many are kept on disk; past it the least recently written go. */
 const KEPT = 4000;
@@ -72,13 +74,17 @@ export async function fileThumbnail(
   hostPath: string,
   size: ThumbnailSize,
   deps: Deps,
+  theme: ThumbnailTheme = "light",
 ): Promise<Buffer | null> {
   const stats = await fs.stat(hostPath);
   if (!stats.isFile()) {
     return null;
   }
+  const isRendered = renderedKindOf(hostPath) !== undefined;
   const key = createHash("sha256")
-    .update(`${hostPath}\0${stats.mtimeMs}\0${size}\0${DRAWING}`)
+    .update(
+      `${hostPath}\0${stats.mtimeMs}\0${size}\0${DRAWING}${isRendered ? `\0${theme}` : ""}`,
+    )
     .digest("hex");
   const pending = inFlight.get(key);
   if (pending) {
@@ -99,10 +105,9 @@ export async function fileThumbnail(
     ) {
       return null;
     }
-    const rendered =
-      renderedKindOf(hostPath) === undefined
-        ? null
-        : await renderedAt(hostPath, stats.mtimeMs, size, deps);
+    const rendered = isRendered
+      ? await renderedAt(hostPath, stats.mtimeMs, size, theme, deps)
+      : null;
     const image =
       rendered ??
       pageShaped(
@@ -230,10 +235,11 @@ async function renderedAt(
   hostPath: string,
   modifiedAt: number,
   size: ThumbnailSize,
+  theme: ThumbnailTheme,
   deps: Deps,
 ): Promise<NativeImage | null> {
   const key = createHash("sha256")
-    .update(`${hostPath}\0${modifiedAt}\0rendered\0${DRAWING}`)
+    .update(`${hostPath}\0${modifiedAt}\0rendered\0${theme}\0${DRAWING}`)
     .digest("hex");
   let pending = renderedInFlight.get(key);
   if (!pending) {
@@ -244,7 +250,7 @@ async function renderedAt(
         return nativeImage.createFromBuffer(kept);
       }
       try {
-        const { complete, image } = await renderPicture(hostPath);
+        const { complete, image } = await renderPicture(hostPath, theme);
         if (complete) {
           await fs.mkdir(deps.dir, { recursive: true });
           await fs.writeFile(stored, image.toPNG());

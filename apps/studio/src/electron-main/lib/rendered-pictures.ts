@@ -27,8 +27,9 @@ const log = createScopedLogger("RenderedPictures");
  * written out here as HTML whose policy lets nothing run and nothing load.
  * What comes out is a picture, which the page cannot use to reach anything.
  *
- * Always drawn light, the way paper is, so the picture does not depend on the
- * theme it happened to be drawn in and one kept picture serves both.
+ * Drawn in the app's theme: a page that follows the reader's draws dark in a
+ * dark app, as it will when opened there, and a document is set on a sheet of
+ * the theme's own colors. Each theme's picture is kept apart.
  */
 
 /** A page laid out at a laptop's width, in a page's shape. */
@@ -60,6 +61,8 @@ const OFFSCREEN_SETTLE_MS = 150;
 const SETTLE_MS = 250;
 const SETTLE_TIMEOUT_MS = 1500;
 const IDLE_CLOSE_MS = 15_000;
+/** How long a theme change is waited on before the load goes ahead without its answer. */
+const EMULATE_WAIT_MS = 300;
 /** How much of a file a document is set from; a thumbnail shows its first page. */
 const READ_BYTES = 48 * 1024;
 const CODE_LINES = 90;
@@ -89,6 +92,7 @@ const SETTLE_SCRIPT = `document.fonts.ready.then(() => new Promise((resolve) => 
  */
 export async function renderPicture(
   hostPath: string,
+  theme: "dark" | "light",
 ): Promise<{ complete: boolean; image: NativeImage }> {
   const kind = renderedKindOf(hostPath);
   if (!kind) {
@@ -99,7 +103,8 @@ export async function renderPicture(
   // file a folder asks for at once.
   return withWindow(async (window) => {
     const document =
-      kind === "page" ? undefined : await documentOf(hostPath, kind);
+      kind === "page" ? undefined : await documentOf(hostPath, kind, theme);
+    await emulateTheme(window, theme);
     const viewport = kind === "page" ? PAGE_VIEWPORT : DOCUMENT_VIEWPORT;
     window.setContentSize(viewport.width, viewport.height);
     const contents = window.webContents;
@@ -164,13 +169,17 @@ export async function renderPicture(
 }
 
 /** The file set as a sheet of HTML that runs nothing and loads nothing. */
-async function documentOf(hostPath: string, kind: "code" | "markdown") {
+async function documentOf(
+  hostPath: string,
+  kind: "code" | "markdown",
+  theme: "dark" | "light",
+) {
   const text = await readHead(hostPath);
   if (kind === "markdown") {
     // Loaded with the first document, not with the app.
     const { marked } = await import("marked");
     const body = await marked.parse(text, { async: true, gfm: true });
-    return sheet("markdown", body);
+    return sheet("markdown", body, theme);
   }
   const extension = extensionOf(hostPath);
   const code = extension === "json" ? await prettyJson(hostPath, text) : text;
@@ -181,7 +190,7 @@ async function documentOf(hostPath: string, kind: "code" | "markdown") {
     .join("\n");
   const language = languageOf(extension);
   if (!language) {
-    return sheet("code", `<pre><code>${escapeHtml(lines)}</code></pre>`);
+    return sheet("code", `<pre><code>${escapeHtml(lines)}</code></pre>`, theme);
   }
   const highlighter = await getHighlighter();
   if (!highlighter.getLoadedLanguages().includes(language)) {
@@ -191,8 +200,9 @@ async function documentOf(hostPath: string, kind: "code" | "markdown") {
     "code",
     highlighter.codeToHtml(lines, {
       lang: language,
-      theme: "github-light-default",
+      theme: theme === "dark" ? "github-dark-default" : "github-light-default",
     }),
+    theme,
   );
 }
 
@@ -238,9 +248,14 @@ async function readHead(hostPath: string) {
   }
 }
 
+/** A sheet's colors in each theme, the app's own card and ink. */
+const SHEET_COLORS = {
+  dark: `:root { color-scheme: dark; --paper: #1f1d1b; --ink: #e7e5e4; --muted: #a8a29e; --rule: #3a3734; --well: #2a2826; --link: #5ccfbf; }`,
+  light: `:root { color-scheme: light; --paper: #fff; --ink: #1c1917; --muted: #57534e; --rule: #e7e5e4; --well: #f5f5f4; --link: #0b6056; }`,
+};
+
 const SHEET_STYLE = `
-:root { color-scheme: light; }
-html, body { margin: 0; background: #fff; color: #1c1917; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); }
 body { overflow: hidden; -webkit-font-smoothing: antialiased; }
 body.markdown { padding: 56px 64px; font: 17px/1.55 -apple-system, "Segoe UI", system-ui, sans-serif; }
 body.markdown h1 { font-size: 2em; line-height: 1.2; margin: 0 0 0.5em; }
@@ -248,28 +263,32 @@ body.markdown h2 { font-size: 1.45em; line-height: 1.25; margin: 1.2em 0 0.4em; 
 body.markdown h3 { font-size: 1.15em; margin: 1.1em 0 0.3em; }
 body.markdown p, body.markdown ul, body.markdown ol, body.markdown blockquote, body.markdown table, body.markdown pre { margin: 0 0 0.9em; }
 body.markdown ul, body.markdown ol { padding-left: 1.4em; }
-body.markdown a { color: #0b6056; }
-body.markdown code { font: 0.88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #f5f5f4; border-radius: 4px; padding: 0.1em 0.3em; }
-body.markdown pre { background: #f5f5f4; border-radius: 8px; padding: 14px 16px; white-space: pre-wrap; }
+body.markdown a { color: var(--link); }
+body.markdown code { font: 0.88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--well); border-radius: 4px; padding: 0.1em 0.3em; }
+body.markdown pre { background: var(--well); border-radius: 8px; padding: 14px 16px; white-space: pre-wrap; }
 body.markdown pre code { background: none; padding: 0; }
-body.markdown blockquote { border-left: 3px solid #d7d3d0; color: #57534e; padding-left: 1em; margin-left: 0; }
+body.markdown blockquote { border-left: 3px solid var(--rule); color: var(--muted); padding-left: 1em; margin-left: 0; }
 body.markdown table { border-collapse: collapse; }
-body.markdown th, body.markdown td { border: 1px solid #e7e5e4; padding: 4px 10px; text-align: left; }
-body.markdown hr { border: 0; border-top: 1px solid #e7e5e4; margin: 1.5em 0; }
+body.markdown th, body.markdown td { border: 1px solid var(--rule); padding: 4px 10px; text-align: left; }
+body.markdown hr { border: 0; border-top: 1px solid var(--rule); margin: 1.5em 0; }
 body.markdown img { max-width: 100%; }
 body.code { padding: 36px 40px; }
 body.code pre { margin: 0; background: none !important; font: 15px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
 `;
 
 /**
- * The sheet a document is set on: white, in the system's own type, with a
- * policy that lets no script run and nothing but inline styles and inline
- * pictures load, since a Markdown file can carry any HTML at all.
+ * The sheet a document is set on: the theme's paper, in the system's own
+ * type, with a policy that lets no script run and nothing but inline styles
+ * and inline pictures load, since a Markdown file can carry any HTML at all.
  */
-function sheet(kind: "code" | "markdown", body: string) {
+function sheet(
+  kind: "code" | "markdown",
+  body: string,
+  theme: "dark" | "light",
+) {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
-<style>${SHEET_STYLE}</style></head><body class="${kind}">${body}</body></html>`;
+<style>${SHEET_COLORS[theme]}${SHEET_STYLE}</style></head><body class="${kind}">${body}</body></html>`;
 }
 
 let sessionReady = false;
@@ -367,19 +386,11 @@ function makeWindow() {
   contents.on("will-navigate", (event) => {
     event.preventDefault();
   });
-  // Light, whatever the app's theme, so a page that follows the reader's
-  // draws on paper like the documents beside it.
+  // How the theme a file is drawn in is told to its page.
   try {
     contents.debugger.attach("1.3");
-    void contents.debugger
-      .sendCommand("Emulation.setEmulatedMedia", {
-        features: [{ name: "prefers-color-scheme", value: "light" }],
-      })
-      .catch(() => {
-        // Drawn in the app's theme instead.
-      });
   } catch {
-    // Drawn in the app's theme instead.
+    // Drawn in the system's theme instead.
   }
   window.on("closed", () => {
     const at = drawers.findIndex((entry) => entry.window === window);
@@ -388,6 +399,26 @@ function makeWindow() {
     }
   });
   return window;
+}
+
+/** The window's pages told the reader prefers `theme`, for the file drawn next. */
+async function emulateTheme(window: BrowserWindow, theme: "dark" | "light") {
+  const { debugger: link } = window.webContents;
+  if (!link.isAttached()) {
+    return;
+  }
+  // A window that has drawn nothing yet has no page to answer until the
+  // load gives it one; the command is queued for that page all the same.
+  await Promise.race([
+    link
+      .sendCommand("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-color-scheme", value: theme }],
+      })
+      .catch(() => {
+        // Drawn in the system's theme instead.
+      }),
+    sleep(EMULATE_WAIT_MS),
+  ]);
 }
 
 /**

@@ -1018,7 +1018,9 @@ function includedItemsOf(
     items.filter((item) => !held.has(withoutSlash(item.path)));
   if (tab.kind === "page") {
     const file = hostPathOfFileUrl(tab.url);
-    return file === undefined ? undefined : unheld([{ kind: "file", path: file }]);
+    return file === undefined
+      ? undefined
+      : unheld([{ kind: "file", path: file }]);
   }
   const computer = computerTabOf(tab.href);
   if (!computer) {

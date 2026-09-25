@@ -1,4 +1,5 @@
 import { FileViewer } from "@/client/components/file-viewer";
+import { useTheme } from "@/client/components/theme-provider";
 import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
@@ -33,7 +34,13 @@ export function FileThumbnail({
   /** When the file was last written, as listed; a new value is a new picture. */
   version?: string;
 }) {
-  const picture = getComputerThumbnailUrl({ hostPath, size: 512, version });
+  const { resolvedTheme } = useTheme();
+  const picture = getComputerThumbnailUrl({
+    hostPath,
+    size: 512,
+    theme: resolvedTheme,
+    version,
+  });
   const [failed, setFailed] = useState<string>();
   if (picture && failed !== picture) {
     return (

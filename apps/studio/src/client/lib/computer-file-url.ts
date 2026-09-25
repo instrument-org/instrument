@@ -56,17 +56,20 @@ export function getComputerFileUrl({
 export function getComputerThumbnailUrl({
   hostPath,
   size,
+  theme,
   version,
 }: {
   hostPath: string;
   size: 64 | 512 | 1024;
+  /** The app's theme, which a page, Markdown or code file is drawn in. */
+  theme: "dark" | "light";
   version?: number | string;
 }): string {
   const url = getComputerFileUrl({ hostPath, version });
   if (!url) {
     return "";
   }
-  return `${url}${url.includes("?") ? "&" : "?"}thumbnail=${size}`;
+  return `${url}${url.includes("?") ? "&" : "?"}thumbnail=${size}&theme=${theme}`;
 }
 
 /**

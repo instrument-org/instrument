@@ -2432,7 +2432,10 @@ export function FileSystem({
       <div className="relative min-h-0 flex-1">
         {isLoadingCurrentFolder && currentEntries.length === 0 ? (
           // Blank while the folder is read, and a ring only once that is slow.
-          <div className="flex size-full items-center justify-center" role="status">
+          <div
+            className="flex size-full items-center justify-center"
+            role="status"
+          >
             <Spinner className="size-5 text-muted-foreground" delay={1000} />
           </div>
         ) : currentEntries.length === 0 &&
@@ -4858,9 +4861,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             onResize={setColumnWidth}
             onSelect={onSelect}
             ownFolder={
-              columnIndex === 0
-                ? null
-                : (index.folders.get(columnPath) ?? null)
+              columnIndex === 0 ? null : (index.folders.get(columnPath) ?? null)
             }
             // Scalar per-column props so the memoized column only
             // re-renders when its own rows change — a selection deeper in

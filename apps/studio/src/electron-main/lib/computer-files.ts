@@ -122,9 +122,14 @@ app.all("/*", async (c) => {
     if (size === undefined) {
       return c.notFound();
     }
-    const png = await fileThumbnail(hostPath, size, fileThumbnailDeps()).catch(
-      () => null,
-    );
+    // `&theme=dark`: the app's theme, which a page or a document is drawn in.
+    const theme = c.req.query("theme") === "dark" ? "dark" : "light";
+    const png = await fileThumbnail(
+      hostPath,
+      size,
+      fileThumbnailDeps(),
+      theme,
+    ).catch(() => null);
     if (!png) {
       return c.notFound();
     }

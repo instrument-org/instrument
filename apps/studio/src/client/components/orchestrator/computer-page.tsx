@@ -45,6 +45,7 @@ import {
 } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
+import { useTheme } from "@/client/components/theme-provider";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { type ComputerListing } from "@instrument-org/workspace/client";
@@ -193,6 +194,7 @@ export function ComputerPage({
   root: string;
 }) {
   const { askAbout, openScreen, taskId } = useOrchestrator();
+  const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   // Held above the browser, which is rebuilt on every opening, so the column
@@ -343,7 +345,7 @@ export function ComputerPage({
       metadata: { hostPath: entry.path },
       name: entry.name,
       path: recentKeys[index] ?? entry.name,
-      ...previewOf(entry),
+      ...previewOf(entry, resolvedTheme),
       shownAt: new Date(entry.shownAt).toISOString(),
       size: entry.size,
       ...(entry.modifiedAt === undefined
@@ -389,7 +391,7 @@ export function ComputerPage({
             kind: "file",
             metadata: { hostPath: entry.path },
             path: `${prefix}${entry.name}`,
-            ...previewOf(entry),
+            ...previewOf(entry, resolvedTheme),
             size: entry.size,
           };
         })
@@ -1734,12 +1736,15 @@ function PlaceList({
  * A listed file's own URL, and the system's picture of it where there is one,
  * named by when the file was written so a new write is a new picture.
  */
-function previewOf(entry: {
-  mimeType?: string;
-  modifiedAt?: number;
-  name: string;
-  path: string;
-}): Pick<FileSystemFileItem, "previewImageUrl" | "url"> {
+function previewOf(
+  entry: {
+    mimeType?: string;
+    modifiedAt?: number;
+    name: string;
+    path: string;
+  },
+  theme: "dark" | "light",
+): Pick<FileSystemFileItem, "previewImageUrl" | "url"> {
   const version = entry.modifiedAt;
   const url = getComputerFileUrl({ hostPath: entry.path, version });
   const extension = entry.name.split(".").at(-1)?.toLowerCase() ?? "";
@@ -1753,6 +1758,7 @@ function previewOf(entry: {
     previewImageUrl: getComputerThumbnailUrl({
       hostPath: entry.path,
       size: 512,
+      theme,
       version,
     }),
     url,

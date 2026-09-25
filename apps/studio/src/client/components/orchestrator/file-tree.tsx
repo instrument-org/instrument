@@ -12,6 +12,7 @@ import {
 } from "@/client/components/ui/context-menu";
 import { Delayed } from "@/client/components/ui/delayed";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { useTheme } from "@/client/components/theme-provider";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -174,6 +175,7 @@ function FileRow({
   entry: ListedEntry;
   rows: Rows;
 }) {
+  const { resolvedTheme } = useTheme();
   const isPicture = entry.mimeType?.startsWith("image/") === true;
   return (
     <Row
@@ -189,6 +191,7 @@ function FileRow({
               ? getComputerThumbnailUrl({
                   hostPath: entry.path,
                   size: 512,
+                  theme: resolvedTheme,
                   version: entry.modifiedAt,
                 })
               : undefined,

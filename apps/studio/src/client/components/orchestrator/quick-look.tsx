@@ -71,7 +71,9 @@ export function useQuickLook({
           className="z-40 h-full gap-0 p-0 outline-none"
           // Most of the window, the way Quick Look fills it, whatever the zoom.
           maxHeight="calc(85vh / var(--content-zoom))"
-          maxWidth="calc(88vw / var(--content-zoom))"
+          // A document's shape rather than the window's: on a wide screen
+          // the panel would otherwise stretch a page into a banner.
+          maxWidth="min(calc(88vw / var(--content-zoom)), calc(85vh * 1.25 / var(--content-zoom)), 64rem)"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             origin.current?.focus();
@@ -94,6 +96,8 @@ export function useQuickLook({
             }
           }}
           overlayClassName="z-40"
+          // The viewer's own head closes it, beside the file's actions.
+          showCloseButton={false}
         >
           <DialogTitle className="sr-only">
             {file?.name ?? "Quick Look"}

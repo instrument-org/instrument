@@ -302,6 +302,8 @@ function OrchestratorLayout() {
   // The element in the row a page's own bar is drawn into, once the row has
   // made one; null while a screen is up and the row is the field itself.
   const [chromeSlot, setChromeSlot] = useState<HTMLElement | null>(null);
+  // The same tail for a screen, where a file's viewer puts its actions.
+  const [screenRowSlot, setScreenRowSlot] = useState<HTMLElement | null>(null);
   const popClosed = usePopClosedTab();
   const { active, tabs } = windowTabs;
   // Nothing is on screen with no group up: the right area belongs to a
@@ -582,11 +584,10 @@ function OrchestratorLayout() {
 
   useRouterSync(windowTabs);
 
-  // A file opened from the Finder has its tree and its crumbs in the tab
-  // itself, and wears no row over it: the head is the file's, and the close
-  // at its right is the way back to the Finder.
-  const isTreeFileTab =
-    active?.kind === "screen" && computerTabOf(active.href)?.tree !== undefined;
+  // A file in its viewer wears the row like every tab, its path in the field,
+  // and its actions at the row's tail.
+  const isFileScreen =
+    active?.kind === "screen" && computerTabOf(active.href)?.file !== undefined;
   const { openNamedPath, openPage, openScreen } = useOpeners({
     browser,
     ids,
@@ -865,6 +866,7 @@ function OrchestratorLayout() {
         openPage,
         openPath: openNamedPath,
         openScreen,
+        rowTail: screenRowSlot,
         taskId: ids.taskId,
       }
     : null;
@@ -1150,34 +1152,41 @@ function OrchestratorLayout() {
                           }
                         />
                       </div>
-                      {!isTreeFileTab && (
-                        <TabLocationRow
-                          canGoBack={canGoBack}
-                          canGoForward={canGoForward}
-                          homeHref={newTabHrefOf(windowTabs.group)}
-                          ref={locationRef}
-                          // On a page the field sends the tab's own guest
-                          // somewhere, and the page's controls (reload, the way
-                          // out, the menu) are drawn into the row's tail by the
-                          // panel that has the page. A file shown as a page is
-                          // one too.
-                          {...(tabLocation.kind === "page" ||
-                          (tabLocation.kind === "file" && tabLocation.asPage)
+                      <TabLocationRow
+                        canGoBack={canGoBack}
+                        canGoForward={canGoForward}
+                        homeHref={newTabHrefOf(windowTabs.group)}
+                        ref={locationRef}
+                        // On a page the field sends the tab's own guest
+                        // somewhere, and the page's controls (reload, the way
+                        // out, the menu) are drawn into the row's tail by the
+                        // panel that has the page. A file shown as a page is
+                        // one too.
+                        {...(tabLocation.kind === "page" ||
+                        (tabLocation.kind === "file" && tabLocation.asPage)
+                          ? {
+                              onSite: (url: string) => openPage(url),
+                              trailing: (
+                                <div
+                                  className="flex shrink-0 items-center gap-0.5"
+                                  ref={setChromeSlot}
+                                />
+                              ),
+                            }
+                          : isFileScreen
                             ? {
-                                onSite: (url: string) => openPage(url),
                                 trailing: (
                                   <div
                                     className="flex shrink-0 items-center gap-0.5"
-                                    ref={setChromeSlot}
+                                    ref={setScreenRowSlot}
                                   />
                                 ),
                               }
                             : {})}
-                          location={tabLocation}
-                          onBack={goBack}
-                          onForward={goForward}
-                        />
-                      )}
+                        location={tabLocation}
+                        onBack={goBack}
+                        onForward={goForward}
+                      />
                       <div className="relative min-h-0 flex-1">
                         <Outlet />
                         {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}

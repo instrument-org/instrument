@@ -5,7 +5,6 @@ import {
   finderOnScreenAtom,
   pageSlotsAtom,
 } from "@/client/atoms/orchestrator";
-import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FileViewer } from "@/client/components/file-viewer";
 import {
@@ -19,15 +18,13 @@ import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
@@ -38,9 +35,10 @@ import { folderOf, segmentsOf } from "./host-path";
 import { NewChatButton } from "./new-chat-button";
 import { useOnScreen } from "./on-screen";
 import { useQuickLook } from "./quick-look";
-import { locationCrumbs } from "./tab-location";
 import { useWindowTabs } from "./window-tabs";
 
+/** A viewer that is the whole of its tab: no card of its own inside the pane's. */
+const FULL_BLEED = "h-full rounded-none shadow-none";
 /**
  * How narrow and how wide the tree beside a file can be dragged, in CSS px,
  * where it opens and goes back to on a double-click at its edge, and how far
@@ -86,7 +84,8 @@ export function FilesScreen({
   /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
   tree: string | undefined;
 }) {
-  const { askAbout, browser, openPage, openScreen, taskId } = useOrchestrator();
+  const { askAbout, browser, openPage, openScreen, rowTail, taskId } =
+    useOrchestrator();
   const { active, allTabs, close, closeActive, step, stepVisit } =
     useWindowTabs();
   const [isTreeOpen, setTreeOpen] = useAtom(fileTreeOpenAtom);
@@ -300,6 +299,16 @@ export function FilesScreen({
     return null;
   }
 
+  const newChat = askAbout && activeFile && (
+    <NewChatButton
+      className="mr-1"
+      onPress={() => {
+        askAbout([{ kind: "file", path: activeFile.hostPath }]);
+      }}
+      title={`New chat with “${activeFile.name}”`}
+    />
+  );
+
   if (activeFile && viewerFile && tree !== undefined) {
     return (
       // What the document links to opens where the tree's rows do: in this
@@ -338,37 +347,23 @@ export function FilesScreen({
               selected={activeFile.hostPath}
             />
           </StudioSidebarRail>
-          <div className="min-h-0 min-w-0 flex-1 p-3">
+          <div className="min-h-0 min-w-0 flex-1">
             <FileViewer
+              actionsInto={rowTail}
               actionsLead={
-                askAbout && (
-                  <NewChatButton
-                    className="mr-1"
-                    labelClassName="hidden @min-[380px]:inline"
-                    onPress={() => {
-                      askAbout([{ kind: "file", path: activeFile.hostPath }]);
-                    }}
-                    title={`New chat with “${activeFile.name}”`}
-                  />
-                )
-              }
-              className="h-full"
-              file={viewerFile}
-              key={activeFile.hostPath}
-              lead={
-                <span className="flex min-w-0 items-center gap-1">
+                <>
                   <TreeToggle
                     isOpen={isTreeOpen}
                     onToggle={() => {
                       setTreeOpen((open) => !open);
                     }}
                   />
-                  <FileCrumbs file={activeFile} />
-                </span>
+                  {newChat}
+                </>
               }
-              // The close is the way back to the Finder: the tab goes, and
-              // the Finder is the tab beside it.
-              onClose={closeActive}
+              className={FULL_BLEED}
+              file={viewerFile}
+              key={activeFile.hostPath}
               {...(hostedFile === undefined
                 ? {}
                 : { page: <div className="h-full" ref={setSlot} /> })}
@@ -385,26 +380,13 @@ export function FilesScreen({
         {activeFile && viewerFile ? (
           // Where the file sits on the Mac is the row above, which every tab
           // wears, so the viewer is the whole of the tab.
-          <div className="h-full p-3">
-            <FileViewer
-              actionsLead={
-                askAbout && (
-                  <NewChatButton
-                    className="mr-1"
-                    labelClassName="hidden @min-[380px]:inline"
-                    onPress={() => {
-                      askAbout([{ kind: "file", path: activeFile.hostPath }]);
-                    }}
-                    title={`New chat with “${activeFile.name}”`}
-                  />
-                )
-              }
-              className="h-full"
-              file={viewerFile}
-              key={activeFile.hostPath}
-              onClose={leaveFile}
-            />
-          </div>
+          <FileViewer
+            actionsInto={rowTail}
+            actionsLead={newChat}
+            className={FULL_BLEED}
+            file={viewerFile}
+            key={activeFile.hostPath}
+          />
         ) : (
           <ComputerPage
             onFolderChange={(next) => {
@@ -426,61 +408,7 @@ export function FilesScreen({
   );
 }
 
-/**
- * Where the file is, as the head of its viewer: the folders above it each a
- * way there, quiet, and the file itself last with its mark. The tab wears no
- * row of its own over a file with a tree, so this is the one place the path
- * is read.
- */
-function FileCrumbs({ file }: { file: FileTab }) {
-  const { openScreen } = useOrchestrator();
-  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
-  const home = places.data?.favorites.find(
-    (place) => place.name === "Home",
-  )?.path;
-  const crumbs = locationCrumbs(
-    { kind: "file", name: file.name, path: file.hostPath },
-    { home },
-  );
-  return (
-    <span className="flex min-w-0 items-center gap-0.5 text-xs">
-      {crumbs.map((crumb, index) => {
-        const isHere = index === crumbs.length - 1;
-        return (
-          <Fragment key={`${index}:${crumb.label}`}>
-            {index > 0 && (
-              <CaretRightIcon className="size-3 shrink-0 text-muted-foreground/50" />
-            )}
-            {isHere ? (
-              <span className="flex min-w-0 items-center gap-1.5 font-medium">
-                <FileTypeIcon className="size-3.5" fileName={file.name} />
-                <span className="truncate">{crumb.label}</span>
-              </span>
-            ) : (
-              <button
-                className={cn(
-                  "min-w-6 truncate rounded px-1 py-0.5 text-muted-foreground",
-                  crumb.to && "hover:bg-foreground/8 hover:text-foreground",
-                )}
-                disabled={crumb.to === undefined}
-                onClick={() => {
-                  if (crumb.to?.kind === "screen") {
-                    openScreen(crumb.to.href);
-                  }
-                }}
-                type="button"
-              >
-                {crumb.label}
-              </button>
-            )}
-          </Fragment>
-        );
-      })}
-    </span>
-  );
-}
-
-/** Puts the tree away and brings it back, at the head's left where the tree stands. */
+/** Puts the tree away and brings it back, first of the file's actions in the row. */
 function TreeToggle({
   isOpen,
   onToggle,

@@ -36,6 +36,7 @@ import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
@@ -574,6 +575,7 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 });
 
 export function FileViewer({
+  actionsInto,
   actionsLead,
   className,
   file,
@@ -582,6 +584,12 @@ export function FileViewer({
   onExpand,
   page,
 }: {
+  /**
+   * Where the file's actions go when the surface around the viewer has a row
+   * of its own for them: the viewer then wears no head, and draws its actions
+   * there once the element is up.
+   */
+  actionsInto?: HTMLElement | null;
   /** Buttons of the caller's own, ahead of the viewer's in its head. */
   actionsLead?: ReactNode;
   // Set by a caller that already draws the surface this sits in, so the viewer
@@ -701,128 +709,135 @@ export function FileViewer({
     wrapLines,
   };
 
+  const actions = (
+    <>
+      {actionsLead}
+      <OpenTaskFileButton
+        className={fileViewerHeaderActionClassName}
+        control={openControl}
+        dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
+        file={file}
+        iconClassName="size-4"
+        labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline"
+        size="sm"
+        variant="ghost"
+      />
+      {fileActions.showCopy && !imageLoadError && (
+        <Button
+          className={fileViewerHeaderActionClassName}
+          onClick={() => void handleCopy()}
+          size="sm"
+          variant="ghost"
+        >
+          {copied ? (
+            <CheckIcon className="size-4" />
+          ) : (
+            <CopyIcon className="size-4" />
+          )}
+          <span className="hidden min-w-0 truncate @min-[380px]:inline">
+            Copy
+          </span>
+        </Button>
+      )}
+      {showOverflowMenu && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              className={fileViewerHeaderMenuTriggerClassName}
+              size="icon-sm"
+              variant="ghost"
+            >
+              <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {onExpand && (
+              <DropdownMenuItem onClick={onExpand}>
+                <ArrowsOutSimpleIcon className="size-4" />
+                <span>Expand</span>
+              </DropdownMenuItem>
+            )}
+            {fileActions.showDownload && (
+              <DropdownMenuItem onClick={() => void handleDownload()}>
+                <ArrowLineDownIcon className="size-4" />
+                <span>Save as…</span>
+              </DropdownMenuItem>
+            )}
+            {fileActions.showReveal && (
+              <DropdownMenuItem onClick={handleRevealInFolder}>
+                <RevealInFolderIcon className="size-4" />
+                <span>{getRevealInFolderLabel()}</span>
+              </DropdownMenuItem>
+            )}
+            {hasHeaderMenuActions && (hasPreview || showsFileText) && (
+              <DropdownMenuSeparator />
+            )}
+            {hasPreview && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  {viewMode === "preview" ? (
+                    <EyeIcon className="size-4" />
+                  ) : (
+                    <CodeIcon className="size-4" />
+                  )}
+                  <span>View mode</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="min-w-36">
+                  <DropdownMenuRadioGroup
+                    onValueChange={handleViewModeChange}
+                    value={viewMode}
+                  >
+                    <DropdownMenuRadioItem value="preview">
+                      <EyeIcon className="size-4" />
+                      <span>Preview</span>
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="raw">
+                      <CodeIcon className="size-4" />
+                      <span>Code</span>
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+            {showsFileText && (
+              <DropdownMenuCheckboxItem
+                checked={wrapLines}
+                onCheckedChange={setWrapLines}
+                // The menu would otherwise close on the first toggle, and
+                // seeing the file rewrap is the whole point of the item.
+                onSelect={(event) => {
+                  event.preventDefault();
+                }}
+              >
+                <ArrowElbowDownLeftIcon className="size-4" />
+                <span>Wrap lines</span>
+              </DropdownMenuCheckboxItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </>
+  );
+
   return (
     <div className={cn(fileViewerClassName, className)}>
-      <FileViewerHeader
-        actions={
-          <>
-            {actionsLead}
-            <OpenTaskFileButton
-              className={fileViewerHeaderActionClassName}
-              control={openControl}
-              dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
-              file={file}
-              iconClassName="size-4"
-              labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline"
-              size="sm"
-              variant="ghost"
-            />
-            {fileActions.showCopy && !imageLoadError && (
-              <Button
-                className={fileViewerHeaderActionClassName}
-                onClick={() => void handleCopy()}
-                size="sm"
-                variant="ghost"
-              >
-                {copied ? (
-                  <CheckIcon className="size-4" />
-                ) : (
-                  <CopyIcon className="size-4" />
-                )}
-                <span className="hidden min-w-0 truncate @min-[380px]:inline">
-                  Copy
-                </span>
-              </Button>
-            )}
-            {showOverflowMenu && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    className={fileViewerHeaderMenuTriggerClassName}
-                    size="icon-sm"
-                    variant="ghost"
-                  >
-                    <DotsThreeOutlineVerticalIcon
-                      className="size-4"
-                      weight="fill"
-                    />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {onExpand && (
-                    <DropdownMenuItem onClick={onExpand}>
-                      <ArrowsOutSimpleIcon className="size-4" />
-                      <span>Expand</span>
-                    </DropdownMenuItem>
-                  )}
-                  {fileActions.showDownload && (
-                    <DropdownMenuItem onClick={() => void handleDownload()}>
-                      <ArrowLineDownIcon className="size-4" />
-                      <span>Save as…</span>
-                    </DropdownMenuItem>
-                  )}
-                  {fileActions.showReveal && (
-                    <DropdownMenuItem onClick={handleRevealInFolder}>
-                      <RevealInFolderIcon className="size-4" />
-                      <span>{getRevealInFolderLabel()}</span>
-                    </DropdownMenuItem>
-                  )}
-                  {hasHeaderMenuActions && (hasPreview || showsFileText) && (
-                    <DropdownMenuSeparator />
-                  )}
-                  {hasPreview && (
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        {viewMode === "preview" ? (
-                          <EyeIcon className="size-4" />
-                        ) : (
-                          <CodeIcon className="size-4" />
-                        )}
-                        <span>View mode</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="min-w-36">
-                        <DropdownMenuRadioGroup
-                          onValueChange={handleViewModeChange}
-                          value={viewMode}
-                        >
-                          <DropdownMenuRadioItem value="preview">
-                            <EyeIcon className="size-4" />
-                            <span>Preview</span>
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="raw">
-                            <CodeIcon className="size-4" />
-                            <span>Code</span>
-                          </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  )}
-                  {showsFileText && (
-                    <DropdownMenuCheckboxItem
-                      checked={wrapLines}
-                      onCheckedChange={setWrapLines}
-                      // The menu would otherwise close on the first toggle, and
-                      // seeing the file rewrap is the whole point of the item.
-                      onSelect={(event) => {
-                        event.preventDefault();
-                      }}
-                    >
-                      <ArrowElbowDownLeftIcon className="size-4" />
-                      <span>Wrap lines</span>
-                    </DropdownMenuCheckboxItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </>
-        }
-        filename={filename}
-        hostPath={hostPath}
-        lead={lead}
-        mimeType={mimeType}
-        onClose={onClose}
-        path={hostPath}
-      />
+      {actionsInto === undefined ? (
+        <FileViewerHeader
+          actions={actions}
+          filename={filename}
+          hostPath={hostPath}
+          lead={lead}
+          mimeType={mimeType}
+          onClose={onClose}
+          path={hostPath}
+        />
+      ) : (
+        actionsInto &&
+        createPortal(
+          <div className="flex shrink-0 items-center gap-1">{actions}</div>,
+          actionsInto,
+        )
+      )}
 
       {mediaLoadError ? (
         <div className="flex min-h-0 flex-1 items-center justify-center">

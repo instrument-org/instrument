@@ -1594,14 +1594,16 @@ function StagePicture({
   return (
     <div
       className={cn(
-        "w-full overflow-hidden rounded-xl shadow-sm ring-1 ring-border",
+        "relative w-full overflow-hidden rounded-xl shadow-sm ring-1 ring-border",
         !isLoaded && "bg-muted",
       )}
       style={isLoaded ? undefined : { aspectRatio: fallbackAspect }}
     >
       <img
         alt=""
-        className={cn("w-full", !isLoaded && "invisible absolute")}
+        // Held out of the flow until it has loaded, inside the box, so an
+        // image of unknown width never widens the pane it waits in.
+        className={cn("w-full", !isLoaded && "invisible absolute inset-0")}
         draggable={false}
         onError={() => {
           setBroken(src);

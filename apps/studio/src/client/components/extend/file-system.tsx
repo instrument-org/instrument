@@ -4892,7 +4892,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             orientation="vertical"
             viewportClassName="flex justify-center p-4"
           >
-            <div className="flex w-full max-w-xl flex-col items-stretch gap-3">
+            <div className="mx-auto flex w-full max-w-xl flex-col items-stretch gap-3">
               {/* Width derives from the aspect ratio so the thumbnail grows
                 with the pane up to a 24rem height cap; past that the whole
                 column stands centered, top-aligned, as the Finder's does. */}

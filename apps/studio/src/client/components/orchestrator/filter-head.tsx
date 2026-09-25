@@ -10,11 +10,11 @@ import {
 } from "@/client/components/ui/tooltip";
 import { cn } from "@/client/lib/utils";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
 import { PlusSquareIcon } from "@phosphor-icons/react/PlusSquare";
 import { StarIcon } from "@phosphor-icons/react/Star";
+import { ChevronDown } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 import {
@@ -160,7 +160,7 @@ function PickerRow({
         aria-checked={isOn}
         className={cn(
           "flex h-full min-w-0 flex-1 items-center gap-3 pl-2.5 text-left text-[15px]",
-          isOn ? "font-medium" : muted && "text-muted-foreground",
+          isOn ? "font-medium" : muted && "text-muted-foreground/70",
         )}
         onClick={onPick}
         role="menuitemradio"
@@ -369,12 +369,15 @@ function ViewPicker({
           {chosen ? (
             <TopicFace size="chip" topic={chosen} />
           ) : (
-            <ChatsCircleIcon className="size-7 shrink-0 text-brand-400 dark:text-brand-300" />
+            <ChatsCircleIcon className="size-7 shrink-0 text-brand-800/50 dark:text-brand-200/50" />
           )}
           <span className="truncate">{chosen ? chosen.name : "Chats"}</span>
-          <CaretDownIcon
-            className="size-4 shrink-0 text-brand-800 dark:text-brand-200"
-            weight="bold"
+          {/* Small and heavy: a 10px caret at a 3px stroke, in the chip's
+            green let halfway back. */}
+          <ChevronDown
+            absoluteStrokeWidth
+            className="size-2.5 shrink-0 text-brand-800/50 dark:text-brand-200/50"
+            strokeWidth={3}
           />
         </button>
       </PopoverTrigger>
@@ -398,7 +401,15 @@ function ViewPicker({
             )
           }
         >
-          <ChatsCircleIcon className="size-7 shrink-0 text-muted-foreground" />
+          <ChatsCircleIcon
+            className={cn(
+              "size-7 shrink-0",
+              // Green on the green of the chosen row, grey on none.
+              chats.isOn
+                ? "text-brand-800/50 dark:text-brand-200/50"
+                : "text-muted-foreground",
+            )}
+          />
           <span className="truncate">Chats</span>
         </PickerRow>
         {topics.length > 0 && <div className="mx-2 my-1 h-px bg-border" />}

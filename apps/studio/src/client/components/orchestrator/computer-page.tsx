@@ -1067,12 +1067,7 @@ export function ComputerPage({
                     file.contentType?.startsWith("image/")
                   ) {
                     return (
-                      <img
-                        alt=""
-                        className="w-full rounded-sm shadow-sm ring-1 ring-border"
-                        draggable={false}
-                        src={file.url}
-                      />
+                      <StagePicture fallbackAspect={4 / 3} src={file.url} />
                     );
                   }
                   // Anything else the system draws is drawn here as the grid
@@ -1082,10 +1077,12 @@ export function ComputerPage({
                     const larger = new URL(file.previewImageUrl);
                     larger.searchParams.set("thumbnail", "1024");
                     return (
-                      <img
-                        alt=""
-                        className="w-full rounded-sm shadow-sm ring-1 ring-border"
-                        draggable={false}
+                      <StagePicture
+                        fallbackAspect={
+                          file.contentType?.startsWith("image/")
+                            ? 4 / 3
+                            : PAGE_ASPECT
+                        }
                         src={larger.href}
                       />
                     );
@@ -1449,6 +1446,52 @@ function failed(error: unknown) {
 }
 
 /** Where an item the browser is showing sits on the Mac. */
+/** A page's width over its height, the shape a document's picture is drawn in. */
+const PAGE_ASPECT = 0.78;
+
+/**
+ * The picture in the columns' preview. Until it has arrived it holds the
+ * shape it is expected in, so the name and details under it stand where
+ * they will stay rather than jumping down once it loads.
+ */
+function StagePicture({
+  fallbackAspect,
+  src,
+}: {
+  /** Width over height while the picture is on its way. */
+  fallbackAspect: number;
+  src: string;
+}) {
+  const [loaded, setLoaded] = useState<string>();
+  const [failed, setFailed] = useState<string>();
+  const isLoaded = loaded === src;
+  if (failed === src) {
+    return null;
+  }
+  return (
+    <div
+      className={cn(
+        "w-full overflow-hidden rounded-xl shadow-sm ring-1 ring-border",
+        !isLoaded && "bg-muted",
+      )}
+      style={isLoaded ? undefined : { aspectRatio: fallbackAspect }}
+    >
+      <img
+        alt=""
+        className={cn("w-full", !isLoaded && "invisible absolute")}
+        draggable={false}
+        onError={() => {
+          setFailed(src);
+        }}
+        onLoad={() => {
+          setLoaded(src);
+        }}
+        src={src}
+      />
+    </div>
+  );
+}
+
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";

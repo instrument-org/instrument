@@ -12,7 +12,7 @@ const THUMBNAIL_SCALE = 0.4;
 
 /** The shape a document's thumbnail is drawn in, and its picture with it. */
 const THUMBNAIL_BOX_CLASS =
-  "aspect-[0.78] w-full overflow-hidden rounded-sm bg-card shadow-sm ring-1 ring-border";
+  "aspect-[0.78] w-full overflow-hidden rounded-xl bg-card shadow-sm ring-1 ring-border";
 
 /**
  * A file drawn small, as the Finder's tiles draw it: the picture the app

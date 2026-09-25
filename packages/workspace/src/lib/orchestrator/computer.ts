@@ -312,7 +312,13 @@ async function computerAccess(
   taskId: TaskId,
   hostPath: string,
 ): Promise<ComputerAccess | undefined> {
-  const { roots } = await orchestratorView(taskId);
+  // Only a folder among the tasks can be inside one the orchestrator made,
+  // and listing the tasks reads every one of them, which every folder
+  // listing, and every re-read of one on the clock, would otherwise pay.
+  const tasksRoot = path.dirname(taskDir(taskId));
+  const { roots } = await orchestratorView(taskId, {
+    withChildren: isInsideFolder(hostPath, tasksRoot),
+  });
   return accessIn(roots, hostPath);
 }
 
@@ -431,13 +437,16 @@ async function isDirectory(folder: string) {
  * made actually sits. Beside the layout, the same mounts as host roots with
  * the grant each carries, which is what a folder's access is judged from.
  */
-async function orchestratorView(taskId: TaskId) {
+async function orchestratorView(
+  taskId: TaskId,
+  { withChildren = true }: { withChildren?: boolean } = {},
+) {
   const taskHostRoot = taskDir(taskId);
   const state = await getTaskState(taskHostRoot);
   const attachedFolders = state.attachedFolders ?? {};
   const layout = buildWorkspaceFsLayout({
     attachedFolders,
-    extraMounts: await childTaskMounts(taskId),
+    extraMounts: withChildren ? await childTaskMounts(taskId) : [],
     projectFolderName: await resolveTaskProjectFolder(taskId),
     taskHostRoot,
   });
@@ -470,4 +479,13 @@ function reachableRoots(
       root,
     };
   });
+}
+
+/** Whether a host path is that folder or something inside it. */
+function isInsideFolder(hostPath: string, folder: string) {
+  const relative = path.relative(folder, hostPath);
+  return (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  );
 }

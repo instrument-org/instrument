@@ -77,7 +77,7 @@ export function ThreadBar({
           <ChatsCircleIcon className="size-3.5 shrink-0" />
         )}
         <span className="min-w-0 flex-1 truncate">
-          {thread?.title ?? "Thread"}
+          {thread?.title ?? "Chat"}
         </span>
       </button>
       <button
@@ -295,7 +295,7 @@ function TabPicture({
   const { taskId } = useOrchestrator();
   return (
     <div
-      aria-label="The thread's tabs"
+      aria-label="The chat's tabs"
       className="flex h-9 shrink-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b border-border px-2 select-none"
       role="list"
     >

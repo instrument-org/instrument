@@ -165,7 +165,7 @@ export function ThreadScreen({
                       tasks={thread?.runningTasks ?? []}
                     />
                   }
-                  composerPlaceholder="Reply in thread"
+                  composerPlaceholder="Talk to Instrument"
                   // A key of the thread's own: the task's stored draft is the
                   // top-level field's, and a reply typed here is not that.
                   // Kept past this screen's unmount, so the row in the inbox

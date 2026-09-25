@@ -62,10 +62,10 @@ export function TopicBanner({
           topic={topic}
         />
         <button
-          aria-label={`Show all threads, not only ${topic.name}`}
+          aria-label={`Show all chats, not only ${topic.name}`}
           className="grid size-5 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
           onClick={onClear}
-          title="Show all threads"
+          title="Show all chats"
           type="button"
         >
           <XIcon className="size-4" weight="bold" />
@@ -97,6 +97,6 @@ function sinceLine(threads: Thread[]): string {
     return "Nothing filed here yet";
   }
   const since = Math.min(...threads.map((thread) => thread.createdAt));
-  const count = `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`;
+  const count = `${threads.length} ${threads.length === 1 ? "chat" : "chats"}`;
   return `${count} since ${format(since, "MMM d")}`;
 }

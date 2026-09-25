@@ -21,7 +21,7 @@ export function useSetThreadTopics(taskId: TaskId | undefined) {
   const mutation = useMutation(
     rpcClient.workspace.orchestrator.threads.setTopics.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to tag the thread", {
+        toast.error("Failed to tag the chat", {
           description: error.message,
         });
         void queryClient.invalidateQueries({ queryKey: key });

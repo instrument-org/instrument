@@ -35,7 +35,7 @@ export function SearchField({
         <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
       )}
       <Input
-        aria-label="Search threads"
+        aria-label="Search chats"
         autoFocus={autoFocus}
         className={cn(
           "h-7 rounded-full pr-6 pl-8 text-xs",

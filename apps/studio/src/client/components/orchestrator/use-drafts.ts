@@ -231,7 +231,7 @@ export function useDrafts({
           viewing,
         }));
       } catch (error) {
-        toast.error("Failed to start the thread", {
+        toast.error("Failed to start the chat", {
           description: error instanceof Error ? error.message : String(error),
         });
         return;

@@ -48,7 +48,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
   const archive = useMutation(
     rpcClient.workspace.orchestrator.threads.archive.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to archive the thread", {
+        toast.error("Failed to archive the chat", {
           description: error.message,
         });
       },
@@ -67,7 +67,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
   const unarchive = useMutation(
     rpcClient.workspace.orchestrator.threads.unarchive.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to move the thread to the inbox", {
+        toast.error("Failed to move the chat to the inbox", {
           description: error.message,
         });
       },

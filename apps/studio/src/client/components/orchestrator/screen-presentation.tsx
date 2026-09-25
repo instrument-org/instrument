@@ -214,5 +214,5 @@ function threadTitleOf(
   const id = StoreId.SessionSchema.safeParse(
     pathname.slice(`${THREADS_HREF}/`.length),
   );
-  return (id.success ? threadTitles?.get(id.data) : undefined) ?? "Thread";
+  return (id.success ? threadTitles?.get(id.data) : undefined) ?? "Chat";
 }

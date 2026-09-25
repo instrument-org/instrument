@@ -14,7 +14,7 @@ describe("screenPresentation", () => {
     expect(
       screenPresentation(THREAD_HREF, { ...CONTEXT, threadTitles }).title,
     ).toBe("Caffeine mixes, plus Zevia");
-    expect(screenPresentation(THREAD_HREF, CONTEXT).title).toBe("Thread");
+    expect(screenPresentation(THREAD_HREF, CONTEXT).title).toBe("Chat");
   });
 
   it.each([

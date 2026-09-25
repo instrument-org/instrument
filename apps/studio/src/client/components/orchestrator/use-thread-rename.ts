@@ -24,7 +24,7 @@ export function useThreadRename(thread: Thread | undefined) {
   const { mutateAsync: renameThread } = useMutation(
     rpcClient.workspace.orchestrator.threads.rename.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to rename the thread", {
+        toast.error("Failed to rename the chat", {
           description: error.message,
         });
       },
@@ -33,7 +33,7 @@ export function useThreadRename(thread: Thread | undefined) {
   const retitle = useMutation(
     rpcClient.workspace.orchestrator.threads.retitle.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to rename the thread", {
+        toast.error("Failed to rename the chat", {
           description: error.message,
         });
       },

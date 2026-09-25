@@ -134,7 +134,7 @@ export function useOpeners({
     if (parseHref(href).pathname.startsWith(`${THREADS_HREF}/`)) {
       // A thread's address that names none of the threads here: a screen
       // at it would be a thread with nothing in it.
-      toast("No thread at that address", {
+      toast("No chat at that address", {
         description:
           "It may have been deleted, or the link is not for this chat.",
       });

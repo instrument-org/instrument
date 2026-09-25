@@ -1,4 +1,5 @@
 import {
+  type ChosenItem,
   computerColumnWidthAtom,
   type ComputerFolderView,
   computerFolderViewsAtom,
@@ -138,6 +139,8 @@ export interface FolderOnScreen {
   mount?: string;
   /** Names selected in it. */
   selected: string[];
+  /** What is selected in it, by host path and kind. */
+  selectedItems: ChosenItem[];
 }
 
 /**
@@ -754,6 +757,8 @@ export function ComputerPage({
         selectedPath.startsWith(onScreen)
       ? selectedPath.slice(onScreen.length).replace(/\/$/, "")
       : undefined;
+  const selectedHostPath = selectedName ? hostPathOfItem(selectedItem) : "";
+  const selectedKind = selectedItem?.kind;
   useEffect(() => {
     // The recents with nothing selected, or a folder not yet read: no folder
     // is on screen, and the one that was is not still the answer.
@@ -767,8 +772,21 @@ export function ComputerPage({
       hostPath,
       ...(mount === undefined ? {} : { mount }),
       selected: selectedName ? [selectedName] : [],
+      selectedItems:
+        selectedHostPath && selectedKind
+          ? [{ kind: selectedKind, path: selectedHostPath }]
+          : [],
     });
-  }, [access, display, hostPath, mount, onFolderChange, selectedName]);
+  }, [
+    access,
+    display,
+    hostPath,
+    mount,
+    onFolderChange,
+    selectedHostPath,
+    selectedKind,
+    selectedName,
+  ]);
 
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);

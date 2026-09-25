@@ -4,9 +4,9 @@ import {
   type Draft,
   draftGroupOf,
   draftSnapshotsAtom,
+  finderOnScreenAtom,
   NEW_TAB_HREF,
   type ScreenView,
-  screenViewAtom,
   type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
@@ -35,7 +35,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { appMentionToken } from "@/client/lib/app-mention";
-import { fileUrlOf } from "@/client/lib/file-url";
+import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -72,7 +72,7 @@ import {
 import { ComposeZeroState } from "./compose-zero-state";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
-import { segmentsOf } from "./host-path";
+import { joinHostPath, segmentsOf } from "./host-path";
 import { OutputPicker } from "./output-picker";
 import { screenPresentation } from "./screen-presentation";
 import { TopicPill } from "./thread-row";
@@ -258,25 +258,21 @@ export function ComposeWindow({
       )
     : undefined;
 
-  // What is selected in the thing the draft was opened over, while that is
-  // the Finder standing on screen: what the thread is told, and so what the
-  // chip names. The screen's own answer is only for the tab that is up.
-  const screenView = useAtomValue(screenViewAtom);
-  const includedSelection =
-    included &&
-    windowTabs.active?.id === included.id &&
-    screenView?.screen === "computer"
-      ? (screenView.folder?.selected ?? [])
-      : [];
+  // What the thing the draft was opened over points at on this computer,
+  // with what the draft already holds by name left out, so each is said
+  // once. The Finder's own answer is only for the tab that is up.
+  const finderOnScreen = useAtomValue(finderOnScreenAtom);
   const chosen = draft.chosen ?? [];
-  const chosenNames = new Set(chosen.map((item) => nameOfPath(item.path)));
-  // A selection that is one of the things already picked is said once.
+  const includedItems = included
+    ? includedItemsOf(
+        included,
+        windowTabs.active?.id === included.id ? finderOnScreen : null,
+        chosen,
+      )
+    : undefined;
   const showsIncluded =
     included !== undefined &&
-    !(
-      includedSelection.length === 1 &&
-      chosenNames.has(nameOfPath(includedSelection[0] ?? ""))
-    );
+    (includedItems === undefined || includedItems.length > 0);
 
   // The words the box opens with: what was kept of it when it was put away,
   // or, after a relaunch, the record's own words. Seeded once, since the
@@ -744,7 +740,7 @@ export function ComposeWindow({
                                 return rest;
                               });
                             }}
-                            selected={includedSelection}
+                            items={includedItems}
                             tab={included}
                           />
                         )}
@@ -847,21 +843,42 @@ function ChosenChip({
   item: ChosenItem;
   onLeaveOut: () => void;
 }) {
-  const name = nameOfPath(item.path);
   return (
     <ContextChip
-      label={item.path}
-      mark={
-        item.kind === "folder" ? (
-          <FileSystemFolderGlyph className="h-3 w-auto" />
-        ) : (
-          <FileTypeIcon fileName={name} />
-        )
+      label={
+        <ChipLabel
+          paths={[item.path]}
+          said="Stays with this draft wherever you go, and goes to Instrument with your message."
+        />
       }
-      name={name}
+      mark={<ItemMark item={item} />}
+      name={nameOfPath(item.path)}
       onLeaveOut={onLeaveOut}
       slot="chosen-chip"
     />
+  );
+}
+
+/** A file's type icon, or the folder glyph for a folder. */
+function ItemMark({ item }: { item: ChosenItem }) {
+  return item.kind === "folder" ? (
+    <FileSystemFolderGlyph className="h-3 w-auto" />
+  ) : (
+    <FileTypeIcon fileName={nameOfPath(item.path)} />
+  );
+}
+
+/** A chip's tooltip: what the chip means, then where the things it names are. */
+function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
+  return (
+    <span className="flex flex-col gap-1">
+      <span>{said}</span>
+      {paths.map((path) => (
+        <span className="break-all opacity-70" key={path}>
+          {path}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -885,7 +902,7 @@ function ContextChip({
   onLeaveOut,
   slot,
 }: {
-  label: string;
+  label: ReactNode;
   mark: ReactNode;
   name: string;
   onLeaveOut: () => void;
@@ -904,7 +921,7 @@ function ContextChip({
           <span className="truncate">{name}</span>
           <button
             aria-label={`Leave out ${name}`}
-            className="grid size-5 shrink-0 place-items-center rounded-sm hover:bg-foreground/8 hover:text-foreground"
+            className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
             onClick={onLeaveOut}
             type="button"
           >
@@ -943,35 +960,36 @@ function HeldMark({
  */
 function IncludedChip({
   appsBySlug,
+  items,
   onLeaveOut,
-  selected,
   tab,
 }: {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  /** What the thing points at on this computer, which the chip names in place of the tab. */
+  items: ChosenItem[] | undefined;
   onLeaveOut: () => void;
-  /** What is selected in the Finder the draft was opened over, which the chip names in place of the folder. */
-  selected: string[];
   tab: WindowTab;
 }) {
-  const [one] = selected;
+  const [one] = items ?? [];
   const name =
-    selected.length > 1
-      ? `${selected.length} items`
+    items !== undefined && items.length > 1
+      ? `${items.length} items`
       : one === undefined
         ? tab.kind === "page"
           ? pageTabTitle(tab) || "Page"
           : screenPresentation(tab.href, { appsBySlug }).title
-        : nameOfPath(one);
+        : nameOfPath(one.path);
   return (
     <ContextChip
       label={
-        selected.length > 0
-          ? "Selected on screen, sent to Instrument with your message"
-          : "Sent to Instrument with your message"
+        <ChipLabel
+          paths={(items ?? []).map((item) => item.path)}
+          said="On screen now, so it goes to Instrument with your message. It follows what you look at next."
+        />
       }
       mark={
-        selected.length === 1 && one !== undefined ? (
-          <FileTypeIcon fileName={nameOfPath(one)} />
+        items?.length === 1 && one !== undefined ? (
+          <ItemMark item={one} />
         ) : (
           <HeldMark appsBySlug={appsBySlug} tab={tab} />
         )
@@ -981,6 +999,50 @@ function IncludedChip({
       slot="included-chip"
     />
   );
+}
+
+/**
+ * What a tab a draft was opened over points at on this computer, less what
+ * the draft already holds by name: what is selected in the Finder on screen,
+ * or its folder when nothing else is; a file tab's file; a folder tab's
+ * folder. Nothing on this computer, for a web page or an app, which the chip
+ * names as itself; empty when everything it points at is already held.
+ */
+function includedItemsOf(
+  tab: WindowTab,
+  finder: null | { folder: string; selected: ChosenItem[] },
+  chosen: ChosenItem[],
+): ChosenItem[] | undefined {
+  const held = new Set(chosen.map((item) => withoutSlash(item.path)));
+  const unheld = (items: ChosenItem[]) =>
+    items.filter((item) => !held.has(withoutSlash(item.path)));
+  if (tab.kind === "page") {
+    const file = hostPathOfFileUrl(tab.url);
+    return file === undefined ? undefined : unheld([{ kind: "file", path: file }]);
+  }
+  const computer = computerTabOf(tab.href);
+  if (!computer) {
+    return;
+  }
+  if (computer.file !== undefined) {
+    return unheld([{ kind: "file", path: computer.file }]);
+  }
+  if (finder) {
+    const selected = unheld(finder.selected);
+    return selected.length > 0
+      ? selected
+      : unheld([{ kind: "folder", path: finder.folder }]);
+  }
+  // A root the address names by a word (home, the recents) is not a path.
+  return /^(?:\/|[A-Za-z]:)/.test(computer.root)
+    ? unheld([
+        { kind: "folder", path: joinHostPath(computer.root, computer.path) },
+      ])
+    : undefined;
+}
+
+function withoutSlash(path: string) {
+  return path.length > 1 ? path.replace(/[/\\]+$/, "") : path;
 }
 
 /** The last name in a path, which is what a chip calls the thing. */

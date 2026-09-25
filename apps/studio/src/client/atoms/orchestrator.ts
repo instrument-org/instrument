@@ -67,6 +67,16 @@ export interface ChosenItem {
 }
 
 /**
+ * The folder the Finder on screen stands in and what is selected in it, by
+ * host path, so a draft opened over it can name them as the thread will be
+ * told them and leave out what it already holds by name.
+ */
+export const finderOnScreenAtom = atom<null | {
+  folder: string;
+  selected: ChosenItem[];
+}>(null);
+
+/**
  * A thread not yet started: its words and the topic it will be filed under.
  * What it has gathered (sites, files, folders) is its tab group, kept with
  * the window's tabs under the draft's group key; what its composer holds

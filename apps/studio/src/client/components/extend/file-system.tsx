@@ -3779,8 +3779,14 @@ function FileSystemIconsView({
       orientation="vertical"
       viewportClassName="p-3"
       viewportProps={{
+        // A click past the tiles lets go of the selection, as in the Finder.
         onClick: (event) => {
-          if (event.target === event.currentTarget) onSelect(null);
+          if (
+            event.target instanceof HTMLElement &&
+            !event.target.closest("[data-file-system-item], input")
+          ) {
+            onSelect(null);
+          }
         },
       }}
       viewportRef={viewportRef}
@@ -4858,6 +4864,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             onRenameStart={onRenameStart}
             onResize={setColumnWidth}
             onSelect={onSelect}
+            ownFolder={
+              columnIndex === 0
+                ? null
+                : (index.folders.get(columnPath) ?? null)
+            }
             // Scalar per-column props so the memoized column only
             // re-renders when its own rows change — a selection deeper in
             // the trail leaves ancestor columns untouched.
@@ -4957,6 +4968,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   onRenameStart,
   onResize,
   onSelect,
+  ownFolder,
   renamingChildPath,
   rowRefs,
   selectedChildPath,
@@ -4976,6 +4988,8 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   onRenameStart?: (item: FileSystemItem) => void;
   onResize: (width: number) => void;
   onSelect: (entry: FileSystemEntry | null) => void;
+  /** The folder this column lists, selected by a press past its rows; null for the first column. */
+  ownFolder: FolderEntry | null;
   renamingChildPath: null | string;
   rowRefs: React.RefObject<Map<string, HTMLButtonElement>>;
   selectedChildPath: null | string;
@@ -5009,7 +5023,21 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
         className="h-full w-full"
         orientation="vertical"
         viewportClassName="p-1.5"
-        viewportProps={{ "aria-label": "Files", role: "listbox" }}
+        viewportProps={{
+          "aria-label": "Files",
+          // A press past the rows goes back to the folder the column lists,
+          // as in the Finder, and in the first column to nothing.
+          onPointerDown: (event) => {
+            if (
+              event.button === 0 &&
+              event.target instanceof HTMLElement &&
+              !event.target.closest("[data-file-system-item], input")
+            ) {
+              onSelect(ownFolder);
+            }
+          },
+          role: "listbox",
+        }}
         viewportRef={viewportRef}
       >
         {isLoading && entries.length === 0 ? (

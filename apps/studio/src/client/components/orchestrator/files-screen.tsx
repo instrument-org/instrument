@@ -2,6 +2,7 @@ import {
   type FileTab,
   fileTreeOpenAtom,
   fileTreeWidthAtom,
+  finderOnScreenAtom,
   pageSlotsAtom,
 } from "@/client/atoms/orchestrator";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
@@ -238,6 +239,23 @@ export function FilesScreen({
           // is never a screen or a folder the user has left.
           { screen: "computer" },
   );
+  // The same folder and selection by host path, for a draft's chip. The
+  // folder is only replaced when it changes, so it stands for its own value.
+  const setFinderOnScreen = useSetAtom(finderOnScreenAtom);
+  const finderFolder = activeFile ? null : folder;
+  useEffect(() => {
+    if (finderFolder === null) {
+      return;
+    }
+    const shown = {
+      folder: finderFolder.hostPath,
+      selected: finderFolder.selectedItems,
+    };
+    setFinderOnScreen(shown);
+    return () => {
+      setFinderOnScreen((current) => (current === shown ? null : current));
+    };
+  }, [finderFolder, setFinderOnScreen]);
 
   // A missing file returns to the preceding visit, or closes its dedicated tab.
   useEffect(() => {

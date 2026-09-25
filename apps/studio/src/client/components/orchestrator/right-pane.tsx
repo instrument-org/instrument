@@ -7,6 +7,7 @@ import {
   taskPaneWidth,
 } from "@/client/atoms/task-pane";
 import { zoomAtom } from "@/client/atoms/zoom";
+import { ResizeHandle } from "@/client/components/resize-handle";
 import { RAIL_SLIDE_TRANSITION } from "@/client/lib/rail-motion";
 import { cn } from "@/client/lib/utils";
 import { useAtom, useAtomValue } from "jotai";
@@ -16,9 +17,13 @@ import {
   motion,
   useMotionValue,
 } from "motion/react";
-import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
-
-const KEYBOARD_STEP = 16;
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 /**
  * The conversation and the pane of tabs beside it, the way a task's page
@@ -69,6 +74,8 @@ export function RightPane({
   // holds while the room closes so nothing inside reflows on the way out.
   const reservedWidth = useMotionValue(0);
   const paneWidth = useMotionValue(0);
+  // The row's width, for the separator to report its range.
+  const [rowWidth, setRowWidth] = useState(0);
   const animationsRef = useRef<AnimationPlaybackControls[]>([]);
   const stopAnimations = () => {
     for (const control of animationsRef.current) {
@@ -134,6 +141,7 @@ export function RightPane({
       return;
     }
     const measure = () => {
+      setRowWidth(row.offsetWidth);
       if (draggingRef.current || !isShown) {
         return;
       }
@@ -162,12 +170,6 @@ export function RightPane({
     };
   }, [fills, isShown, storedShare, zoom, paneWidth, reservedWidth]);
 
-  // The width the pointer asks for, in the row's own layout px: the rect is
-  // on-screen px and `offsetWidth` layout px, so their ratio is the zoom.
-  const widthAt = (row: HTMLDivElement, clientX: number) => {
-    const rect = row.getBoundingClientRect();
-    return (rect.right - clientX) / (rect.width / row.offsetWidth);
-  };
   const applyWidth = (width: number) => {
     reservedWidth.set(width);
     paneWidth.set(width);
@@ -176,98 +178,6 @@ export function RightPane({
     const share = taskPaneShare(width, row.offsetWidth);
     applyWidth(taskPaneWidth(share, row.offsetWidth));
     setStoredShare(share);
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const row = rowRef.current;
-    if (!row) {
-      return;
-    }
-    const next = (() => {
-      switch (event.key) {
-        // The pane is on the trailing edge, so left grows it.
-        case "ArrowLeft": {
-          return paneWidth.get() + KEYBOARD_STEP;
-        }
-        case "ArrowRight": {
-          return paneWidth.get() - KEYBOARD_STEP;
-        }
-        case "End": {
-          return row.offsetWidth;
-        }
-        case "Home": {
-          return TASK_PANE_WIDTH_MIN;
-        }
-        default: {
-          return;
-        }
-      }
-    })();
-    if (next === undefined) {
-      return;
-    }
-    event.preventDefault();
-    stopAnimations();
-    commit(next, row);
-  };
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    const row = rowRef.current;
-    if (event.button !== 0 || !row) {
-      return;
-    }
-    event.preventDefault();
-    const handle = event.currentTarget;
-    const { pointerId } = event;
-    stopAnimations();
-    handle.setPointerCapture(pointerId);
-    draggingRef.current = true;
-    let collapsed = false;
-    const listeners = new AbortController();
-    const endDrag = () => {
-      draggingRef.current = false;
-      listeners.abort();
-      if (handle.hasPointerCapture(pointerId)) {
-        handle.releasePointerCapture(pointerId);
-      }
-    };
-    const handleMove = (move: PointerEvent) => {
-      if (!draggingRef.current) {
-        return;
-      }
-      const width = widthAt(row, move.clientX);
-      // Dragged past the point of keeping it: the pane closes, and the slide
-      // carries it the rest of the way.
-      if (width < TASK_PANE_COLLAPSE_THRESHOLD) {
-        collapsed = true;
-        endDrag();
-        onCollapse();
-        return;
-      }
-      applyWidth(
-        taskPaneWidth(taskPaneShare(width, row.offsetWidth), row.offsetWidth),
-      );
-    };
-    const handleUp = () => {
-      endDrag();
-      if (!collapsed) {
-        // The last width the drag applied rather than one read off the event:
-        // a cancel carries zeroed coordinates.
-        commit(paneWidth.get(), row);
-      }
-    };
-    handle.addEventListener("pointermove", handleMove, {
-      signal: listeners.signal,
-    });
-    handle.addEventListener("pointerup", handleUp, {
-      signal: listeners.signal,
-    });
-    handle.addEventListener("pointercancel", handleUp, {
-      signal: listeners.signal,
-    });
-    handle.addEventListener("lostpointercapture", handleUp, {
-      signal: listeners.signal,
-    });
   };
 
   return (
@@ -294,16 +204,24 @@ export function RightPane({
           </motion.div>
         </div>
         {isOpen && !fills && (
-          <div
-            aria-label="Resize pane"
-            aria-orientation="vertical"
-            aria-valuemin={TASK_PANE_WIDTH_MIN}
-            className={cn(
-              "absolute inset-y-0 left-0 z-20 w-3 -translate-x-1/2 cursor-col-resize select-none",
-              "after:absolute after:top-1/2 after:left-1/2 after:h-10 after:w-1 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-transparent after:transition-colors after:duration-150",
-              "outline-hidden hover:after:bg-muted-foreground/40 focus-visible:after:bg-ring active:after:bg-primary/60",
-            )}
-            onDoubleClick={() => {
+          <ResizeHandle
+            anchor={() => rowRef.current?.getBoundingClientRect().right}
+            className="left-0 -translate-x-1/2"
+            collapse={{
+              below: TASK_PANE_COLLAPSE_THRESHOLD,
+              // Dragged past the point of keeping it: the pane closes, and
+              // the slide carries it the rest of the way.
+              onCollapse: () => {
+                draggingRef.current = false;
+                onCollapse();
+              },
+            }}
+            getWidth={() => paneWidth.get()}
+            grows="left"
+            label="Resize pane"
+            max={taskPaneWidth(1, rowWidth)}
+            min={TASK_PANE_WIDTH_MIN}
+            onReset={() => {
               const row = rowRef.current;
               if (!row) {
                 return;
@@ -319,10 +237,32 @@ export function RightPane({
                 animate(paneWidth, width, RAIL_SLIDE_TRANSITION),
               ];
             }}
-            onKeyDown={handleKeyDown}
-            onPointerDown={handlePointerDown}
-            role="separator"
-            tabIndex={0}
+            onResize={(width) => {
+              const row = rowRef.current;
+              if (row) {
+                applyWidth(
+                  taskPaneWidth(
+                    taskPaneShare(width, row.offsetWidth),
+                    row.offsetWidth,
+                  ),
+                );
+              }
+            }}
+            onResizeEnd={() => {
+              draggingRef.current = false;
+              const row = rowRef.current;
+              if (row) {
+                // The last width applied rather than one read off the event:
+                // a cancel carries zeroed coordinates.
+                commit(paneWidth.get(), row);
+              }
+            }}
+            onResizeStart={() => {
+              stopAnimations();
+              draggingRef.current = true;
+            }}
+            value={taskPaneWidth(storedShare, rowWidth)}
+            variant="grip"
           />
         )}
       </motion.div>

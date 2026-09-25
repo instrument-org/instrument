@@ -431,6 +431,15 @@ async function isDirectory(folder: string) {
   }
 }
 
+/** Whether a host path is that folder or something inside it. */
+function isInsideFolder(hostPath: string, folder: string) {
+  const relative = path.relative(folder, hostPath);
+  return (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  );
+}
+
 /**
  * The orchestrator's own view of the filesystem: the folders the user attached
  * and a read-only mount per task it created, which is where a file its work
@@ -479,13 +488,4 @@ function reachableRoots(
       root,
     };
   });
-}
-
-/** Whether a host path is that folder or something inside it. */
-function isInsideFolder(hostPath: string, folder: string) {
-  const relative = path.relative(folder, hostPath);
-  return (
-    relative === "" ||
-    (!relative.startsWith("..") && !path.isAbsolute(relative))
-  );
 }

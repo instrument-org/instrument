@@ -6,13 +6,13 @@ import {
   MENU_TARGET_CLASSNAME,
   SELECTED_ROW_CLASSNAME,
 } from "@/client/components/extend/file-system";
+import { useTheme } from "@/client/components/theme-provider";
 import {
   ContextMenu,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import { Delayed } from "@/client/components/ui/delayed";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { useTheme } from "@/client/components/theme-provider";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";

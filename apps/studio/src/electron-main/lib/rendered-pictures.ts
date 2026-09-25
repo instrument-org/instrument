@@ -348,6 +348,26 @@ const frameWaiters = new WeakMap<
   ((image: NativeImage) => void)[]
 >();
 
+/** The window's pages told the reader prefers `theme`, for the file drawn next. */
+async function emulateTheme(window: BrowserWindow, theme: "dark" | "light") {
+  const { debugger: link } = window.webContents;
+  if (!link.isAttached()) {
+    return;
+  }
+  // A window that has drawn nothing yet has no page to answer until the
+  // load gives it one; the command is queued for that page all the same.
+  await Promise.race([
+    link
+      .sendCommand("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-color-scheme", value: theme }],
+      })
+      .catch(() => {
+        // Drawn in the system's theme instead.
+      }),
+    sleep(EMULATE_WAIT_MS),
+  ]);
+}
+
 function makeWindow() {
   const window = new BrowserWindow({
     focusable: false,
@@ -399,26 +419,6 @@ function makeWindow() {
     }
   });
   return window;
-}
-
-/** The window's pages told the reader prefers `theme`, for the file drawn next. */
-async function emulateTheme(window: BrowserWindow, theme: "dark" | "light") {
-  const { debugger: link } = window.webContents;
-  if (!link.isAttached()) {
-    return;
-  }
-  // A window that has drawn nothing yet has no page to answer until the
-  // load gives it one; the command is queued for that page all the same.
-  await Promise.race([
-    link
-      .sendCommand("Emulation.setEmulatedMedia", {
-        features: [{ name: "prefers-color-scheme", value: theme }],
-      })
-      .catch(() => {
-        // Drawn in the system's theme instead.
-      }),
-    sleep(EMULATE_WAIT_MS),
-  ]);
 }
 
 /**

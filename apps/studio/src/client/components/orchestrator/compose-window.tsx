@@ -734,13 +734,13 @@ export function ComposeWindow({
                         {showsIncluded && (
                           <IncludedChip
                             appsBySlug={appsBySlug}
+                            items={includedItems}
                             onLeaveOut={() => {
                               onChange((current) => {
                                 const { included: _left, ...rest } = current;
                                 return rest;
                               });
                             }}
-                            items={includedItems}
                             tab={included}
                           />
                         )}
@@ -835,6 +835,20 @@ function Card({ children }: { children: ReactNode }) {
   );
 }
 
+/** A chip's tooltip: what the chip means, then where the things it names are. */
+function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
+  return (
+    <span className="flex flex-col gap-1">
+      <span>{said}</span>
+      {paths.map((path) => (
+        <span className="break-all opacity-70" key={path}>
+          {path}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** A file or folder the draft was opened on by name, held for the thread until it is left out. */
 function ChosenChip({
   item,
@@ -856,29 +870,6 @@ function ChosenChip({
       onLeaveOut={onLeaveOut}
       slot="chosen-chip"
     />
-  );
-}
-
-/** A file's type icon, or the folder glyph for a folder. */
-function ItemMark({ item }: { item: ChosenItem }) {
-  return item.kind === "folder" ? (
-    <FileSystemFolderGlyph className="h-3 w-auto" />
-  ) : (
-    <FileTypeIcon fileName={nameOfPath(item.path)} />
-  );
-}
-
-/** A chip's tooltip: what the chip means, then where the things it names are. */
-function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
-  return (
-    <span className="flex flex-col gap-1">
-      <span>{said}</span>
-      {paths.map((path) => (
-        <span className="break-all opacity-70" key={path}>
-          {path}
-        </span>
-      ))}
-    </span>
   );
 }
 
@@ -1036,15 +1027,20 @@ function includedItemsOf(
       : unheld([{ kind: "folder", path: finder.folder }]);
   }
   // A root the address names by a word (home, the recents) is not a path.
-  return /^(?:\/|[A-Za-z]:)/.test(computer.root)
+  return /^(?:\/|[A-Z]:)/i.test(computer.root)
     ? unheld([
         { kind: "folder", path: joinHostPath(computer.root, computer.path) },
       ])
     : undefined;
 }
 
-function withoutSlash(path: string) {
-  return path.length > 1 ? path.replace(/[/\\]+$/, "") : path;
+/** A file's type icon, or the folder glyph for a folder. */
+function ItemMark({ item }: { item: ChosenItem }) {
+  return item.kind === "folder" ? (
+    <FileSystemFolderGlyph className="h-3 w-auto" />
+  ) : (
+    <FileTypeIcon fileName={nameOfPath(item.path)} />
+  );
 }
 
 /** The last name in a path, which is what a chip calls the thing. */
@@ -1114,4 +1110,8 @@ function TopicSlot({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+function withoutSlash(path: string) {
+  return path.length > 1 ? path.replace(/[/\\]+$/, "") : path;
 }

@@ -21,6 +21,7 @@ import {
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenWithMenu } from "@/client/components/open-with-menu";
+import { useTheme } from "@/client/components/theme-provider";
 import { Button } from "@/client/components/ui/button";
 import {
   ContextMenu,
@@ -45,7 +46,6 @@ import {
 } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
-import { useTheme } from "@/client/components/theme-provider";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { type ComputerListing } from "@instrument-org/workspace/client";
@@ -86,6 +86,9 @@ import { NewChatButton } from "./new-chat-button";
  * back to opening the way a folder never set does.
  */
 const FOLDER_VIEWS_KEPT = 500;
+
+/** A page's width over its height, the shape a document's picture is drawn in. */
+const PAGE_ASPECT = 0.78;
 
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
@@ -1446,52 +1449,6 @@ function failed(error: unknown) {
 }
 
 /** Where an item the browser is showing sits on the Mac. */
-/** A page's width over its height, the shape a document's picture is drawn in. */
-const PAGE_ASPECT = 0.78;
-
-/**
- * The picture in the columns' preview. Until it has arrived it holds the
- * shape it is expected in, so the name and details under it stand where
- * they will stay rather than jumping down once it loads.
- */
-function StagePicture({
-  fallbackAspect,
-  src,
-}: {
-  /** Width over height while the picture is on its way. */
-  fallbackAspect: number;
-  src: string;
-}) {
-  const [loaded, setLoaded] = useState<string>();
-  const [failed, setFailed] = useState<string>();
-  const isLoaded = loaded === src;
-  if (failed === src) {
-    return null;
-  }
-  return (
-    <div
-      className={cn(
-        "w-full overflow-hidden rounded-xl shadow-sm ring-1 ring-border",
-        !isLoaded && "bg-muted",
-      )}
-      style={isLoaded ? undefined : { aspectRatio: fallbackAspect }}
-    >
-      <img
-        alt=""
-        className={cn("w-full", !isLoaded && "invisible absolute")}
-        draggable={false}
-        onError={() => {
-          setFailed(src);
-        }}
-        onLoad={() => {
-          setLoaded(src);
-        }}
-        src={src}
-      />
-    </div>
-  );
-}
-
 function hostPathOfItem(item: FileSystemItem | undefined) {
   const hostPath = item?.metadata?.hostPath;
   return typeof hostPath === "string" ? hostPath : "";
@@ -1613,6 +1570,49 @@ function siblingPath(path: string, name: string) {
   const trimmed = isFolder ? path.slice(0, -1) : path;
   const at = trimmed.lastIndexOf("/");
   return `${at === -1 ? "" : trimmed.slice(0, at + 1)}${name}${isFolder ? "/" : ""}`;
+}
+
+/**
+ * The picture in the columns' preview. Until it has arrived it holds the
+ * shape it is expected in, so the name and details under it stand where
+ * they will stay rather than jumping down once it loads.
+ */
+function StagePicture({
+  fallbackAspect,
+  src,
+}: {
+  /** Width over height while the picture is on its way. */
+  fallbackAspect: number;
+  src: string;
+}) {
+  const [loaded, setLoaded] = useState<string>();
+  const [broken, setBroken] = useState<string>();
+  const isLoaded = loaded === src;
+  if (broken === src) {
+    return null;
+  }
+  return (
+    <div
+      className={cn(
+        "w-full overflow-hidden rounded-xl shadow-sm ring-1 ring-border",
+        !isLoaded && "bg-muted",
+      )}
+      style={isLoaded ? undefined : { aspectRatio: fallbackAspect }}
+    >
+      <img
+        alt=""
+        className={cn("w-full", !isLoaded && "invisible absolute")}
+        draggable={false}
+        onError={() => {
+          setBroken(src);
+        }}
+        onLoad={() => {
+          setLoaded(src);
+        }}
+        src={src}
+      />
+    </div>
+  );
 }
 
 const TEXT_EXTENSIONS = new Set([

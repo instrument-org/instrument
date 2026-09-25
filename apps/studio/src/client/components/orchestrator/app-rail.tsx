@@ -10,33 +10,47 @@ import { useLiveUser } from "@/client/hooks/use-live-user";
 import { getInitials } from "@/client/lib/get-initials";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
-import { HouseIcon } from "@phosphor-icons/react/House";
-import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { MapTrifoldIcon } from "@phosphor-icons/react/MapTrifold";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 
-/** The places, in the order the rail draws them; Apps draws its own mark from the apps the workspace reaches. */
-const PLACES: { icon: ReactNode; id: AppPlace; label: string }[] = [
+/**
+ * The places, in the order the rail draws them, each drawn filled while it
+ * is the place stood in; Apps draws its own mark from the apps the
+ * workspace reaches.
+ */
+const PLACES: {
+  icon: (isOn: boolean) => ReactNode;
+  id: AppPlace;
+  label: string;
+}[] = [
   {
-    icon: <HouseIcon className="size-6" />,
-    id: "home",
-    label: "Home",
-  },
-  {
-    icon: <ChatsCircleIcon className="size-6" />,
+    icon: (isOn) => (
+      <ChatCircleIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+    ),
     id: "chat",
     label: "Chat",
   },
-  { icon: <AppFan />, id: "apps", label: "Apps" },
   {
-    icon: <FolderIcon className="size-6" />,
+    icon: (isOn) => (
+      <FolderIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+    ),
     id: "files",
     label: "Files",
+  },
+  { icon: () => <AppFan />, id: "apps", label: "Apps" },
+  {
+    icon: (isOn) => (
+      <MapTrifoldIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+    ),
+    id: "discover",
+    label: "Discover",
   },
 ];
 
@@ -77,7 +91,7 @@ export function AppRail({
   return (
     <nav
       aria-label="Places"
-      className="flex h-full w-19 shrink-0 flex-col items-center gap-3 border-r border-border bg-muted/40 pt-3 pb-2 select-none"
+      className="flex h-full w-19 shrink-0 flex-col items-center gap-3 pt-1 pb-2 select-none"
     >
       {/* The way to a new thread, in the brand's own green: round, since the
         word under it is the label and the tile needs none of its own. */}
@@ -88,7 +102,7 @@ export function AppRail({
           type="button"
         >
           <span className="grid size-11 place-items-center rounded-full bg-brand-600 button-sheen text-brand-foreground shadow-xs group-hover:bg-brand-700">
-            <PencilSimpleIcon className="size-5" />
+            <PlusIcon className="size-5" weight="bold" />
           </span>
           <span className="text-[11px] leading-4 font-medium">New</span>
         </button>
@@ -103,7 +117,7 @@ export function AppRail({
               onChoose(entry.id);
             }}
           >
-            {entry.icon}
+            {entry.icon(place === entry.id)}
           </RailEntry>
         ))}
       </div>
@@ -135,7 +149,7 @@ function RailEntry({
       className={cn(
         "flex w-16 flex-col items-center gap-0.5 rounded-xl py-1.5",
         isOn
-          ? "bg-foreground/8 text-foreground"
+          ? "bg-foreground/8 text-brand-600 dark:text-brand-400"
           : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
       )}
       onClick={onChoose}

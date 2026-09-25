@@ -35,7 +35,6 @@ import {
   type OrchestratorWindow,
 } from "@/client/components/orchestrator/context";
 import { computerTabOf } from "@/client/components/orchestrator/file-tabs";
-import { HomePlace } from "@/client/components/orchestrator/home-place";
 import {
   folderOf,
   segmentsOf,
@@ -258,10 +257,6 @@ function OrchestratorLayout() {
   // conversation put away, so a place's pages are guests like a thread's.
   const [place, setPlace] = useAtom(appPlaceAtom);
   const isChat = place === "chat";
-  // Home is a landing page over whatever group is up rather than a group of
-  // its own: the main area is put away under it, and nothing on screen
-  // changes when it is chosen or left.
-  const isHome = place === "home";
   // The group the chat had up, kept while the window stands elsewhere so
   // coming back lands on the same thread.
   const [chatGroup, setChatGroup] = useAtom(chatGroupAtom);
@@ -341,12 +336,12 @@ function OrchestratorLayout() {
     setPlace(next);
     if (next === "chat") {
       showChat();
-    } else if (next !== "home") {
+    } else {
       windowTabs.showPlace(next);
     }
   };
   /**
-   * Opens a file from Home in Files, as its own tab beside the Finder with
+   * Opens a file in Files, as its own tab beside the Finder with
    * the folder it sits in as its tree: the tab already at it if there is
    * one, else a new one, and the window lands there.
    */
@@ -409,13 +404,12 @@ function OrchestratorLayout() {
     }
     // The tabs come back as they were, and so does the place, and the two
     // have to agree: a place stands on its own group, with at least its own
-    // new tab in it, and the chat never shows a place's. Home stands over
-    // whatever group came back.
+    // new tab in it, and the chat never shows a place's.
     if (isChat) {
       if (placeOfGroup(windowTabs.group) !== undefined) {
         showChat();
       }
-    } else if (place !== "home") {
+    } else {
       windowTabs.showPlace(place);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -470,7 +464,7 @@ function OrchestratorLayout() {
   // layer, so a draft, a small view, and every menu draw over the page, and
   // the page stays in view around them.
   const isPageShown =
-    isPageOnScreen && showsRightArea && !isHome && showsPane && !isTasksViewUp;
+    isPageOnScreen && showsRightArea && showsPane && !isTasksViewUp;
   const setPaneOpen = (group: string, isOpen: boolean) => {
     setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
   };
@@ -489,8 +483,7 @@ function OrchestratorLayout() {
               // A slot on a floating surface is over whatever the window
               // shows, the tasks' face and Home included.
               isActive:
-                layer !== undefined ||
-                (showsRightArea && !isHome && !isTasksViewUp),
+                layer !== undefined || (showsRightArea && !isTasksViewUp),
               ...(layer === undefined ? {} : { layer }),
               ...(insideOverlay ? { insideOverlay } : {}),
               place: `${group}:${rowWidth}`,
@@ -1027,22 +1020,12 @@ function OrchestratorLayout() {
                   </div>
                 </ChatColumn>
               </div>
-              {/* Home stands over the main area: the tabs and their guests
-              stay mounted under it, put away. */}
-              {isHome && (
-                <HomePlace
-                  onOpenFile={openFileInFiles}
-                  onOpenThread={(sessionId) => {
-                    openScreen(`${THREADS_HREF}/${sessionId}`);
-                  }}
-                />
-              )}
               {/* Hidden rather than unmounted while nothing is on screen, so
               every tab keeps what it has for when something opens again. */}
               <main
                 className={cn(
                   "relative flex min-w-0 flex-1 flex-col",
-                  showsRightArea && !isHome ? undefined : "hidden",
+                  showsRightArea ? undefined : "hidden",
                 )}
               >
                 {/* The conversation, and the pane of the group's tabs beside
@@ -1109,7 +1092,14 @@ function OrchestratorLayout() {
                     {/* The pane, edge to edge, with the strip as its first
                     row: the tabs of the thread or the draft on screen, and at
                     the row's end the toggle that puts the pane away. */}
-                    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border bg-card [--guest-bottom-radius:0px]">
+                    <div
+                      className={cn(
+                        "flex h-full min-h-0 w-full flex-col overflow-hidden",
+                        // A hairline only where the conversation is beside it;
+                        // filling the card, the card's own edge is its edge.
+                        isChat && !isThreadOut && "border-l border-border",
+                      )}
+                    >
                       <div className="flex h-10 shrink-0 items-center border-b border-border pr-1 pl-1">
                         <WindowTabStrip
                           childTitles={childTitles}

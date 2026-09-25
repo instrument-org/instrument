@@ -33,7 +33,7 @@ export function WindowBar({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center gap-1.5 border-b border-border bg-background select-none [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
+        "flex shrink-0 items-center gap-1.5 select-none [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
         // The lights are drawn by the system over the window's top left; on
         // the platforms that put controls elsewhere the row starts at the edge
         // and ends at the buttons it draws itself, which reach the corner the

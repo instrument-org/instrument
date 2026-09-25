@@ -45,7 +45,7 @@ export function WindowFrame({
       {/* `h-full` rather than the viewport: this is drawn inside `ZoomRoot`,
         which is already the real window scaled to the zoom the UI is laid out
         at, so a viewport height would apply that zoom a second time. */}
-      <div className="relative flex h-full flex-col bg-background">
+      <div className="relative flex h-full flex-col bg-ground">
         {/* The file browser's own type icons, drawn by reference, so a file
           named anywhere in the window (a thread's marks, say) wears the same
           colored mark it has in the computer view. */}
@@ -54,7 +54,7 @@ export function WindowFrame({
           lights are drawn in, so no column below has to leave a gap for them. */}
         {bar ?? (
           <div
-            className="shrink-0 border-b border-border [-webkit-app-region:drag]"
+            className="shrink-0 [-webkit-app-region:drag]"
             style={{ height: `${TOOLBAR_HEIGHT}px` }}
           />
         )}
@@ -64,8 +64,11 @@ export function WindowFrame({
             the row is sized against the width the columns actually share.
             The overlay shares its width and its edges, so a draft window
             stands against the row's own corner. */}
+          {/* Two planes: the rail and the bar on the window's own ground,
+            and everything else on one card inset from it, rounded, with room
+            left at its right and foot. */}
           <div
-            className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+            className="relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-background shadow-xs [--guest-bottom-radius:var(--radius-2xl)]"
             ref={rowRef}
           >
             <div className="flex min-h-0 min-w-0 flex-1">{children}</div>

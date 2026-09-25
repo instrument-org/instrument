@@ -3,6 +3,7 @@ import {
   type FileSystemListColumn,
   type FileSystemSortState,
 } from "@/client/components/extend/file-system";
+import { IDEAS_HREF } from "@/client/components/orchestrator/ideas";
 import {
   NO_FILTERS,
   type ThreadFilters,
@@ -163,25 +164,23 @@ export function composeKeyOf(entry: ComposeEntry): string {
  */
 export const composeAtom = atom<ComposeEntry[]>([]);
 
-/** The places the rail at the window's edge switches between: Home, the chat, the apps, and the files. */
-export type AppPlace = "apps" | "chat" | "files" | "home";
+/** The places the rail at the window's edge switches between: the chat, the files, the apps, and Discover. */
+export type AppPlace = "apps" | "chat" | "discover" | "files";
 
 /**
- * A place that is a row of tabs: the apps and the files. Each keeps a tab
+ * A place that is a row of tabs: everything but the chat. Each keeps a tab
  * group of its own, the way a thread does, and opens on a tab of its own
- * kind: Apps on the apps, Files on the computer. Home is neither the chat
- * nor a row of tabs: a landing page drawn over whatever group is up.
+ * kind: Apps on the apps, Files on the computer, Discover on the ideas.
  */
-export type TabbedPlace = Exclude<AppPlace, "chat" | "home">;
+export type TabbedPlace = Exclude<AppPlace, "chat">;
 
 /**
  * The place the window stands in, chosen in the rail. The chat is the inbox
- * beside a thread and its tabs; the apps and the files are each a row of
- * tabs filling the area; Home is the landing page. The window opens on the
- * chat.
+ * beside a thread and its tabs; every other place is a row of tabs filling
+ * the area. The window opens on the chat.
  */
 export const appPlaceAtom = atomWithStorage<AppPlace>(
-  "orchestrator.place.v1",
+  "orchestrator.place.v2",
   "chat",
   undefined,
   { getOnInit: true },
@@ -218,7 +217,9 @@ export function placeOfGroup(
     return undefined;
   }
   const place = group.slice("place:".length);
-  return place === "apps" || place === "files" ? place : undefined;
+  return place === "apps" || place === "discover" || place === "files"
+    ? place
+    : undefined;
 }
 
 /**
@@ -375,6 +376,9 @@ export function placeHomeHref(place: TabbedPlace): string {
   switch (place) {
     case "apps": {
       return APPS_HREF;
+    }
+    case "discover": {
+      return IDEAS_HREF;
     }
     case "files": {
       return COMPUTER_HREF;

@@ -118,8 +118,7 @@ export function useDrafts({
     // What the draft is opened over: the tab the place has up, when the
     // window stands in a place and that tab is something the conversation
     // can be told about. A place's own fresh tab is the place, not a thing.
-    const overGroup =
-      place === "chat" || place === "home" ? undefined : placeGroupOf(place);
+    const overGroup = place === "chat" ? undefined : placeGroupOf(place);
     const over =
       overGroup === undefined ? undefined : windowTabs.tabUpIn(overGroup);
     const included =

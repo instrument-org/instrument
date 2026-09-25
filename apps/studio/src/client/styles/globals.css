@@ -100,6 +100,7 @@ body {
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
+  --color-ground: var(--ground);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -237,6 +238,8 @@ body {
   --input: var(--gray-200);
   --ring: var(--gray-400);
   --sidebar: var(--background);
+  /* The window's own plane, under the rail and the bar, which the app's card stands inset on. */
+  --ground: var(--gray-200);
   --sidebar-foreground: var(--gray-950);
   --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;
@@ -379,6 +382,7 @@ body {
   --ring: rgb(255 255 255 / 30%);
   --brand-text: var(--brand-400);
   --sidebar: var(--gray-900);
+  --ground: #0f0d0c;
   --sidebar-foreground: #ffffff;
   --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;

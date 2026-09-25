@@ -1,3 +1,4 @@
+import { type AppPlace } from "@/client/atoms/orchestrator";
 // The rail down the window's edge: New, one entry per place with the one
 // stood in in its well, the Apps mark fanned from the workspace's apps, and
 // the user at the foot as the way to Settings.
@@ -38,7 +39,7 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-function renderRail(place: "apps" | "chat" | "files" | "home" = "chat") {
+function renderRail(place: AppPlace = "chat") {
   const onChoose = vi.fn();
   const onNew = vi.fn();
   renderWithProviders(
@@ -63,10 +64,10 @@ describe("AppRail", () => {
         ]),
     ).toEqual([
       ["New", null],
-      ["Home", null],
       ["Chat", "page"],
-      ["Apps", null],
       ["Files", null],
+      ["Apps", null],
+      ["Discover", null],
       ["Settings", null],
     ]);
   });
@@ -79,6 +80,8 @@ describe("AppRail", () => {
     expect(onChoose).toHaveBeenLastCalledWith("files");
     fireEvent.click(rail.getByRole("button", { name: "Apps" }));
     expect(onChoose).toHaveBeenLastCalledWith("apps");
+    fireEvent.click(rail.getByRole("button", { name: "Discover" }));
+    expect(onChoose).toHaveBeenLastCalledWith("discover");
   });
 
   it("fans the workspace's apps out on the Apps mark, connected ones in front, three at most", async () => {

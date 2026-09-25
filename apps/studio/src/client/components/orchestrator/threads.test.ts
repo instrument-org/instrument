@@ -310,22 +310,19 @@ describe("matchesFilters", () => {
 describe("choosing a row of the column", () => {
   const searched = { ...NO_FILTERS, search: "fence" };
 
-  it("narrows the place stood in to a topic, keeping the place", () => {
+  it("shows one view at a time: a topic leaves the place, and a place the topic", () => {
     expect(
       choose(
         { ...searched, apps: ["gmail"], place: "starred" },
         { group: "topics", id: "house" },
       ),
-    ).toEqual({ ...searched, place: "starred", topics: ["house"] });
-  });
-
-  it("stands in a place, keeping the topic", () => {
+    ).toEqual({ ...searched, topics: ["house"] });
     expect(
       choose(
         { ...searched, topics: ["house"] },
         { group: "place", id: "drafts" },
       ),
-    ).toEqual({ ...searched, place: "drafts", topics: ["house"] });
+    ).toEqual({ ...searched, place: "drafts" });
   });
 
   it("moves between rows of one section", () => {
@@ -343,7 +340,7 @@ describe("choosing a row of the column", () => {
     ).toEqual({ ...searched, place: "drafts" });
   });
 
-  it("moves between a topic and an app, which are one group", () => {
+  it("moves between a topic and an app", () => {
     expect(
       choose(
         { ...searched, topics: ["house"] },
@@ -352,25 +349,22 @@ describe("choosing a row of the column", () => {
     ).toEqual({ ...searched, apps: ["gmail"] });
   });
 
-  it("turns the chosen row off again, keeping the search and the rest", () => {
+  it("steps back to the inbox from the row already on, keeping the search", () => {
     expect(
-      choose(
-        { ...searched, apps: ["gmail"], place: "starred" },
-        { group: "apps", id: "gmail" },
-      ),
-    ).toEqual({ ...searched, place: "starred" });
-    expect(
-      choose(
-        { ...searched, place: "starred", topics: ["house"] },
-        { group: "place", id: "starred" },
-      ),
-    ).toEqual({ ...searched, topics: ["house"] });
+      choose({ ...searched, apps: ["gmail"] }, { group: "apps", id: "gmail" }),
+    ).toEqual(searched);
     expect(
       choose(
         { ...searched, place: "starred" },
         { group: "place", id: "starred" },
-      ).place,
-    ).toBeUndefined();
+      ),
+    ).toEqual(searched);
+    expect(
+      choose(
+        { ...searched, topics: ["house"] },
+        { group: "topics", id: "house" },
+      ),
+    ).toEqual(searched);
   });
 });
 

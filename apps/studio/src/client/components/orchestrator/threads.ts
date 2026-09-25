@@ -56,29 +56,25 @@ export type FilterChoice =
   | { group: "place"; id: ThreadPlace };
 
 /**
- * The filters with a row turned: a place chosen stands in that place, or
- * steps back out to the inbox when it was the place already stood in, and
- * a topic or app chosen narrows whatever place the column stands in to
- * that one, or lifts the narrowing when it was the one already on. So a
- * place and a topic can be on together (the unread filed under House),
- * while topics and apps are one radio group between them, since a thread
- * under one topic and using one app is a narrower question than the column
- * asks. The search is its own thing and stays as it was. The predicate
- * still reads lists, so nothing downstream knows the column only ever fills
- * one per group.
+ * The filters with a row turned. The column shows one view at a time: the
+ * inbox, one topic, one app, or one place (what needs the user, the
+ * starred, the drafts, all of it), so choosing any of them leaves the others
+ * and choosing the one already on steps back to the inbox. The search is its
+ * own thing and stays as it was. The predicate still reads lists, so nothing
+ * downstream knows the column only ever fills one.
  */
 export function choose(
   filters: ThreadFilters,
   choice: FilterChoice,
 ): ThreadFilters {
+  const { place: _place, ...rest } = filters;
+  const inbox = { ...rest, apps: [], topics: [] };
   if (choice.group === "place") {
-    const { place: _place, ...rest } = filters;
-    return filters.place === choice.id ? rest : { ...rest, place: choice.id };
+    return filters.place === choice.id ? inbox : { ...inbox, place: choice.id };
   }
-  const cleared = { ...filters, apps: [], topics: [] };
   return filters[choice.group].includes(choice.id)
-    ? cleared
-    : { ...cleared, [choice.group]: [choice.id] };
+    ? inbox
+    : { ...inbox, [choice.group]: [choice.id] };
 }
 
 /** Whether every word searched for turns up in what a row shows, whatever its case. Nothing searched for matches everything. */

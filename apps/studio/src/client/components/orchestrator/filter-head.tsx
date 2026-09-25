@@ -47,21 +47,21 @@ const PLACES: Place[] = [
   },
   {
     icon: (isOn) => (
-      <StarIcon className="size-6" weight={isOn ? "fill" : "light"} />
+      <StarIcon className="size-7" weight={isOn ? "fill" : "regular"} />
     ),
     id: "starred",
     label: "Starred",
   },
   {
     icon: (isOn) => (
-      <FileDashedIcon className="size-6" weight={isOn ? "fill" : "light"} />
+      <FileDashedIcon className="size-7" weight={isOn ? "fill" : "regular"} />
     ),
     id: "drafts",
     label: "Drafts",
   },
   {
     icon: (isOn) => (
-      <CardsThreeIcon className="size-6" weight={isOn ? "fill" : "light"} />
+      <CardsThreeIcon className="size-7" weight={isOn ? "fill" : "regular"} />
     ),
     id: "all",
     label: "All",
@@ -173,7 +173,7 @@ function PickerRow({
   );
 }
 
-/** A place's mark: its glyph alone, named in its tooltip, tinted while it is the view on screen. */
+/** A place's mark: its glyph alone, named in its tooltip, and its glyph and name together, tinted, while it is the view on screen. */
 function PlaceMark({
   children,
   isOn,
@@ -195,15 +195,17 @@ function PlaceMark({
           aria-label={label}
           aria-pressed={isOn}
           className={cn(
-            "flex h-10 shrink-0 items-center justify-center gap-1 rounded-xl",
-            unread === undefined ? "w-10" : "px-2",
-            isOn ? CHOSEN : UNCHOSEN,
+            "flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl",
+            isOn
+              ? cn(CHOSEN, "pr-3 pl-2.5 text-[15px] font-semibold")
+              : cn(UNCHOSEN, unread === undefined ? "w-10" : "px-2"),
           )}
           data-chosen={isOn || undefined}
           onClick={onChoose}
           type="button"
         >
           {children}
+          {isOn && <span>{label}</span>}
           {unread !== undefined && (
             <span className="text-xs font-medium tabular-nums">{unread}</span>
           )}
@@ -326,6 +328,29 @@ function ViewPicker({
     setOpen(false);
     chooseView();
   };
+  // While a place is the view, the chats step back to their mark alone, as
+  // the places do when they are not the view, and a press on it is the way
+  // back to them rather than a list.
+  if (!isOn) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            aria-label="Chats"
+            className={cn(
+              "flex size-10 shrink-0 items-center justify-center rounded-xl",
+              UNCHOSEN,
+            )}
+            onClick={chats.choose}
+            type="button"
+          >
+            <ChatsCircleIcon className="size-7" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Chats</TooltipContent>
+      </Tooltip>
+    );
+  }
   return (
     <Popover onOpenChange={setOpen} open={isOpen}>
       <PopoverTrigger asChild>
@@ -335,27 +360,22 @@ function ViewPicker({
             "flex h-10 max-w-52 min-w-0 shrink items-center gap-2 rounded-xl pr-2 pl-2.5 text-[15px] font-semibold",
             chosen
               ? "bg-(--topic-tint-surface) text-foreground topic-tint hover:bg-(--topic-tint-edge)"
-              : isOn
-                ? CHOSEN
-                : UNCHOSEN,
+              : CHOSEN,
           )}
-          data-chosen={isOn || undefined}
+          data-chosen
           style={chosen ? topicTint(topicColor(chosen)) : undefined}
           type="button"
         >
           {chosen ? (
             <TopicFace size="chip" topic={chosen} />
           ) : (
-            <ChatsCircleIcon
-              className={cn(
-                "size-6 shrink-0",
-                isOn && "text-brand-400 dark:text-brand-300",
-              )}
-              weight="light"
-            />
+            <ChatsCircleIcon className="size-7 shrink-0 text-brand-400 dark:text-brand-300" />
           )}
           <span className="truncate">{chosen ? chosen.name : "Chats"}</span>
-          <CaretDownIcon className="size-3.5 shrink-0" weight="bold" />
+          <CaretDownIcon
+            className="size-4 shrink-0 text-brand-800 dark:text-brand-200"
+            weight="bold"
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -378,10 +398,7 @@ function ViewPicker({
             )
           }
         >
-          <ChatsCircleIcon
-            className="size-7 shrink-0 text-muted-foreground"
-            weight="light"
-          />
+          <ChatsCircleIcon className="size-7 shrink-0 text-muted-foreground" />
           <span className="truncate">Chats</span>
         </PickerRow>
         {topics.length > 0 && <div className="mx-2 my-1 h-px bg-border" />}

@@ -32,14 +32,14 @@ const PLACES: {
 }[] = [
   {
     icon: (isOn) => (
-      <ChatCircleIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+      <ChatCircleIcon className="size-7" weight={isOn ? "fill" : "regular"} />
     ),
     id: "chat",
     label: "Chat",
   },
   {
     icon: (isOn) => (
-      <FileTextIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+      <FileTextIcon className="size-7" weight={isOn ? "fill" : "regular"} />
     ),
     id: "files",
     label: "Files",
@@ -47,7 +47,7 @@ const PLACES: {
   { icon: () => <AppFan />, id: "apps", label: "Apps" },
   {
     icon: (isOn) => (
-      <MapTrifoldIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+      <MapTrifoldIcon className="size-7" weight={isOn ? "fill" : "regular"} />
     ),
     id: "discover",
     label: "Discover",
@@ -257,7 +257,7 @@ function RailUser() {
       type="button"
     >
       <span className="grid h-7 place-items-center">
-        <FadersHorizontalIcon className="size-6" />
+        <FadersHorizontalIcon className="size-7" />
       </span>
       <span className="text-[11px] leading-4">Settings</span>
     </button>

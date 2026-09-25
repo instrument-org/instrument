@@ -142,14 +142,26 @@ describe("FilterHead", () => {
     expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
   });
 
-  it("picks a topic from the picker, leaving the place, and names it on the picker", () => {
+  it("names the place that is the view, and steps the chats back to a mark that returns to them", () => {
+    const { head, onFiltersChange, places } = renderHead({
+      filters: { ...NO_FILTERS, place: "drafts" },
+    });
+    expect(places.getByRole("button", { name: "Drafts" }).textContent).toBe(
+      "Drafts",
+    );
+    fireEvent.click(head.getByRole("button", { name: "Chats" }));
+    expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
+  });
+
+  it("picks a topic from the picker, keeping the search", () => {
     const { head, onFiltersChange } = renderHead({
-      filters: { ...NO_FILTERS, place: "starred" },
+      filters: { ...NO_FILTERS, search: "fence" },
     });
     openPicker(head.getByRole("button", { name: "View: Chats" }));
     fireEvent.click(screen.getByRole("menuitemradio", { name: /Money/ }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
+      search: "fence",
       topics: ["money"],
     });
   });

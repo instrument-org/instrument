@@ -38,6 +38,7 @@ import { type ThreadRename, useThreadRename } from "./use-thread-rename";
  * under the head but air: the transcript starts below.
  */
 export function ThreadHeader({
+  leading,
   onNewTopic,
   onSetTopics,
   popOut,
@@ -45,6 +46,8 @@ export function ThreadHeader({
   topics,
   trailing,
 }: {
+  /** What sits ahead of the title: the toggle that puts the inbox away. */
+  leading?: ReactNode;
   onNewTopic: () => void;
   onSetTopics: (topics: string[]) => void;
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
@@ -63,6 +66,7 @@ export function ThreadHeader({
   return (
     <div className="flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
       <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2 select-none">
+        {leading}
         {thread ? (
           <h2 className="flex min-w-0">
             <ThreadTitle
@@ -72,7 +76,7 @@ export function ThreadHeader({
             />
           </h2>
         ) : (
-          <h2 className="min-w-0 truncate text-sm font-medium">Thread</h2>
+          <h2 className="min-w-0 truncate text-sm font-medium">Chat</h2>
         )}
         {/* After the title, the way mail puts a label after a subject. */}
         {filed.map((topic) => (
@@ -142,7 +146,7 @@ function ThreadMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          aria-label="Thread actions"
+          aria-label="Chat actions"
           className={toolbarClassName({
             // 4px around a 16px glyph: the button hugs the title it acts on
             // rather than reading as its own toolbar slot.

@@ -5,9 +5,9 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useAtom } from "jotai";
 
 /**
- * The one control the window bar keeps at its left: puts the inbox column
- * away so a thread and its tabs have the window, and brings it back. Told
- * when nothing would be left on screen without the column, it stays put.
+ * The control ahead of a thread's title: puts the inbox column away so the
+ * thread and its tabs have the window, and brings it back. Told when
+ * nothing would be left on screen without the column, it stays put.
  */
 export function InboxToggle({ isCollapsible }: { isCollapsible: boolean }) {
   const [isOpen, setOpen] = useAtom(inboxOpenAtom);

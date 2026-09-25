@@ -899,14 +899,6 @@ function OrchestratorLayout() {
           <WindowFrame
             bar={
               <WindowBar
-                leading={
-                  // The one control the bar keeps at its left: the inbox
-                  // column, put away or brought back, so a thread and its
-                  // tabs can have the window. Only while something is on
-                  // screen to have it, and only on the chat, which is
-                  // where the inbox is.
-                  isChat ? <InboxToggle isCollapsible={showsRightArea} /> : null
-                }
                 // Nothing in the bar's middle: the tabs are each thread's
                 // and sit beside the thread.
                 tabs={null}
@@ -1041,6 +1033,12 @@ function OrchestratorLayout() {
                       switching back is the transcript as it was. */}
                       <div className="absolute inset-0 flex flex-col">
                         <ThreadHeader
+                          // Ahead of the title, the inbox column put away
+                          // or brought back, so the thread and its tabs can
+                          // have the window.
+                          leading={
+                            <InboxToggle isCollapsible={showsRightArea} />
+                          }
                           onNewTopic={() => {
                             setNewTopicOpen(true);
                           }}

@@ -59,6 +59,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/client/components/ui/select";
+import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
@@ -2430,7 +2431,10 @@ export function FileSystem({
       ) : null}
       <div className="relative min-h-0 flex-1">
         {isLoadingCurrentFolder && currentEntries.length === 0 ? (
-          <FileSystemEmptyState isLoading label="Loading…" />
+          // Blank while the folder is read, and a ring only once that is slow.
+          <div className="flex size-full items-center justify-center" role="status">
+            <Spinner className="size-5 text-muted-foreground" delay={1000} />
+          </div>
         ) : currentEntries.length === 0 &&
           (view !== "columns" || isSearching || hasActiveFilters) ? (
           <FileSystemEmptyState
@@ -3229,21 +3233,10 @@ function FileSystemDateRangeDialog({
     </Dialog>
   );
 }
-function FileSystemEmptyState({
-  isLoading = false,
-  label,
-}: {
-  isLoading?: boolean;
-  label: string;
-}) {
+function FileSystemEmptyState({ label }: { label: string }) {
   return (
-    <div
-      className={cn(
-        "flex size-full items-center justify-center text-sm text-muted-foreground",
-        isLoading && "animate-pulse motion-reduce:animate-none",
-      )}
-    >
-      {isLoading ? <Delayed>{label}</Delayed> : label}
+    <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
+      {label}
     </div>
   );
 }
@@ -5041,11 +5034,11 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
         viewportRef={viewportRef}
       >
         {isLoading && entries.length === 0 ? (
-          <Delayed>
-            <div className="animate-pulse px-2 py-1.5 text-xs text-muted-foreground motion-reduce:animate-none">
-              Loading…
-            </div>
-          </Delayed>
+          // A column still being read is left blank, as the Finder leaves
+          // one, and only a slow read turns a ring in it.
+          <div className="flex justify-center py-3" role="status">
+            <Spinner className="size-4 text-muted-foreground" delay={1000} />
+          </div>
         ) : (
           <div
             className="relative"

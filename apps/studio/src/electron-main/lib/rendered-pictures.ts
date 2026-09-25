@@ -94,9 +94,12 @@ export async function renderPicture(
   if (!kind) {
     throw new Error(`${hostPath} is not a kind drawn here`);
   }
-  const document =
-    kind === "page" ? undefined : await documentOf(hostPath, kind);
+  // Set inside a window's turn, so the highlighting, which holds the main
+  // thread while it runs, happens two files at a time rather than for every
+  // file a folder asks for at once.
   return withWindow(async (window) => {
+    const document =
+      kind === "page" ? undefined : await documentOf(hostPath, kind);
     const viewport = kind === "page" ? PAGE_VIEWPORT : DOCUMENT_VIEWPORT;
     window.setContentSize(viewport.width, viewport.height);
     const contents = window.webContents;

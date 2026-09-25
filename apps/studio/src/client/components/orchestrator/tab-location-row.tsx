@@ -55,6 +55,7 @@ export function TabLocationRow({
   canGoForward,
   field,
   homeHref = NEW_TAB_HREF,
+  leading,
   location,
   onBack,
   onForward,
@@ -68,6 +69,8 @@ export function TabLocationRow({
   field?: ReactNode;
   /** Where the home button goes: the new tab of whatever the pane holds, a place's own kind included. */
   homeHref?: string;
+  /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
+  leading?: ReactNode;
   location: TabLocation;
   onBack: () => void;
   onForward: () => void;
@@ -87,6 +90,7 @@ export function TabLocationRow({
       className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
       ref={ref}
     >
+      {leading}
       <Control
         chord="back"
         disabled={!canGoBack}

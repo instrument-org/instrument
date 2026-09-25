@@ -25,6 +25,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
@@ -84,7 +85,7 @@ export function FilesScreen({
   /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
   tree: string | undefined;
 }) {
-  const { askAbout, browser, openPage, openScreen, rowTail, taskId } =
+  const { askAbout, browser, openPage, openScreen, rowLead, rowTail, taskId } =
     useOrchestrator();
   const { active, allTabs, close, closeActive, step, stepVisit } =
     useWindowTabs();
@@ -347,20 +348,21 @@ export function FilesScreen({
               selected={activeFile.hostPath}
             />
           </StudioSidebarRail>
+          {/* At the row's far left, over the tree it puts away. */}
+          {rowLead &&
+            createPortal(
+              <TreeToggle
+                isOpen={isTreeOpen}
+                onToggle={() => {
+                  setTreeOpen((open) => !open);
+                }}
+              />,
+              rowLead,
+            )}
           <div className="min-h-0 min-w-0 flex-1">
             <FileViewer
               actionsInto={rowTail}
-              actionsLead={
-                <>
-                  <TreeToggle
-                    isOpen={isTreeOpen}
-                    onToggle={() => {
-                      setTreeOpen((open) => !open);
-                    }}
-                  />
-                  {newChat}
-                </>
-              }
+              actionsLead={newChat}
               className={FULL_BLEED}
               file={viewerFile}
               key={activeFile.hostPath}
@@ -408,7 +410,7 @@ export function FilesScreen({
   );
 }
 
-/** Puts the tree away and brings it back, first of the file's actions in the row. */
+/** Puts the tree away and brings it back, at the far left of the tab's row, over the tree. */
 function TreeToggle({
   isOpen,
   onToggle,

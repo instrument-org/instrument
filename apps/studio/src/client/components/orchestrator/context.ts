@@ -43,6 +43,8 @@ export interface OrchestratorWindow {
    * link has no second destination left to offer.
    */
   opensNewTab?: boolean;
+  /** The head of the tab's row, ahead of back and forward, where a screen draws the toggle for a panel along its left edge; null until the row is up. */
+  rowLead?: HTMLElement | null;
   /** The tail of the tab's row, where a screen draws what it can do with what it shows; null until the row is up. */
   rowTail?: HTMLElement | null;
   /** The thread a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */

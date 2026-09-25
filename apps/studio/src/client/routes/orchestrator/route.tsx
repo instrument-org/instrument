@@ -304,6 +304,8 @@ function OrchestratorLayout() {
   const [chromeSlot, setChromeSlot] = useState<HTMLElement | null>(null);
   // The same tail for a screen, where a file's viewer puts its actions.
   const [screenRowSlot, setScreenRowSlot] = useState<HTMLElement | null>(null);
+  // And its head, for a control over a panel at the screen's left edge.
+  const [screenRowLead, setScreenRowLead] = useState<HTMLElement | null>(null);
   const popClosed = usePopClosedTab();
   const { active, tabs } = windowTabs;
   // Nothing is on screen with no group up: the right area belongs to a
@@ -866,6 +868,7 @@ function OrchestratorLayout() {
         openPage,
         openPath: openNamedPath,
         openScreen,
+        rowLead: screenRowLead,
         rowTail: screenRowSlot,
         taskId: ids.taskId,
       }
@@ -1175,6 +1178,12 @@ function OrchestratorLayout() {
                             }
                           : isFileScreen
                             ? {
+                                leading: (
+                                  <div
+                                    className="flex shrink-0 items-center empty:hidden"
+                                    ref={setScreenRowLead}
+                                  />
+                                ),
                                 trailing: (
                                   <div
                                     className="flex shrink-0 items-center gap-0.5"

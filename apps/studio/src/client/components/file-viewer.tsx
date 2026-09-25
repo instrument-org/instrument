@@ -26,7 +26,6 @@ import {
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
@@ -43,7 +42,6 @@ import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
 import { useFileDrag } from "../hooks/use-file-drag";
 import { useFileOpenControl } from "../hooks/use-file-open-control";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
-import { useTimedFlag } from "../hooks/use-timed-flag";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
@@ -612,7 +610,6 @@ export function FileViewer({
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
   const imageLoadError = imageErrorUrl === url;
   const contentRef = useRef<HTMLDivElement>(null);
-  const { active: copied, trigger: triggerCopied } = useTimedFlag();
   const openControl = useFileOpenControl(file);
   const revealFileMutation = useMutation(
     rpcClient.utils.showFileInFolder.mutationOptions({
@@ -643,9 +640,16 @@ export function FileViewer({
     (fileType === "html" && !hasPreview) ||
     (hasPreview && viewMode === "raw");
   const fileActions = useFileActionVisibility(file);
+  // Copying the whole file is rare enough to live in the menu rather than
+  // take a place in the head beside opening it.
+  const canCopy = fileActions.showCopy && !imageLoadError;
   const hasHeaderMenuActions =
-    onExpand != null || fileActions.showDownload || fileActions.showReveal;
+    onExpand != null ||
+    canCopy ||
+    fileActions.showDownload ||
+    fileActions.showReveal;
   const showOverflowMenu =
+    canCopy ||
     fileActions.showDownload ||
     fileActions.showReveal ||
     hasPreview ||
@@ -662,7 +666,7 @@ export function FileViewer({
         hostPath,
         isImage: fileType === "image",
       });
-      triggerCopied();
+      toast.success("Copied");
     } catch {
       // copyFileToClipboard already toasts on error
     }
@@ -719,23 +723,6 @@ export function FileViewer({
         size="sm"
         variant="ghost"
       />
-      {fileActions.showCopy && !imageLoadError && (
-        <Button
-          className={fileViewerHeaderActionClassName}
-          onClick={() => void handleCopy()}
-          size="sm"
-          variant="ghost"
-        >
-          {copied ? (
-            <CheckIcon className="size-4" />
-          ) : (
-            <CopyIcon className="size-4" />
-          )}
-          <span className="hidden min-w-0 truncate @min-[380px]:inline">
-            Copy
-          </span>
-        </Button>
-      )}
       {showOverflowMenu && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -758,6 +745,12 @@ export function FileViewer({
               <DropdownMenuItem onClick={() => void handleDownload()}>
                 <ArrowLineDownIcon className="size-4" />
                 <span>Save as…</span>
+              </DropdownMenuItem>
+            )}
+            {canCopy && (
+              <DropdownMenuItem onClick={() => void handleCopy()}>
+                <CopyIcon className="size-4" />
+                <span>Copy file</span>
               </DropdownMenuItem>
             )}
             {fileActions.showReveal && (

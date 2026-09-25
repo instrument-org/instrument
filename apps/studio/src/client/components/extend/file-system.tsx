@@ -41,7 +41,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { Delayed } from "@/client/components/ui/delayed";
+import { LOADER_DELAY_MS } from "@/client/components/ui/delayed";
 import { Input } from "@/client/components/ui/input";
 import {
   Popover,
@@ -177,6 +177,11 @@ export type FileSystemProps = {
   loadChildren?: (
     args: FileSystemLoadChildrenArgs,
   ) => Promise<FileSystemLoadChildrenResult>;
+  /**
+   * A folder the pointer is resting on, whose contents may be wanted next:
+   * read ahead so opening it in place finds them already here.
+   */
+  prefetchChildren?: (folderPath: string) => void;
   /**
    * Lazily render a page thumbnail beyond the eagerly provided
    * `previewImageUrls` (the pager calls this as pages come into view).
@@ -1471,6 +1476,7 @@ export function FileSystem({
   onShowHiddenFilesChange,
   onSortChange,
   onViewChange,
+  prefetchChildren,
   renamingPath,
   renderFileActions,
   renderFilePreview,
@@ -2165,6 +2171,7 @@ export function FileSystem({
     moveFocusWithSelection,
     onColumnWidthChange,
     onExpandFolder: ensureChildren,
+    onFolderHover: prefetchChildren,
     onItemContextMenu: onItemContextMenu ? claimContextMenu : undefined,
     onListColumnsChange: setListColumns,
     onListColumnWidthsChange: setListColumnWidths,
@@ -3091,6 +3098,8 @@ type FileSystemViewProps = {
   onColumnWidthChange?: (columnWidth: number) => void;
   /** A folder opened in place in the list, whose contents are needed now. */
   onExpandFolder: (folderPath: string) => void;
+  /** A folder the pointer rests on, whose contents may be wanted next. */
+  onFolderHover?: (folderPath: string) => void;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onListColumnsChange: (columns: FileSystemListColumn[]) => void;
   onListColumnWidthsChange: (
@@ -3234,6 +3243,26 @@ function FileSystemDateRangeDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+/**
+ * The folders among `loading` that have been loading for a moment: a read
+ * that ends sooner never shows as one.
+ */
+function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
+  const [slow, setSlow] = React.useState<ReadonlySet<string>>(new Set());
+  React.useEffect(() => {
+    if (loading.size === 0) return;
+    const timeout = window.setTimeout(() => {
+      setSlow(new Set(loading));
+    }, ms);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [loading, ms]);
+  return React.useMemo(
+    () => new Set([...slow].filter((path) => loading.has(path))),
+    [loading, slow],
   );
 }
 function FileSystemEmptyState({ label }: { label: string }) {
@@ -4203,6 +4232,7 @@ function FileSystemListView({
   menuTargetPath,
   moveFocusWithSelection,
   onExpandFolder,
+  onFolderHover,
   onItemContextMenu,
   onListColumnsChange,
   onListColumnWidthsChange,
@@ -4235,8 +4265,10 @@ function FileSystemListView({
   // with one in it stands open while they are on.
   const isRevealing = searchQuery !== "" || fileFilter !== null;
   // The rows on screen, in order. A folder opened whose contents are still
-  // being read holds a place for them: an empty row, which only turns into a
-  // placeholder if the read takes long enough to be seen waiting.
+  // being read shows nothing under it at first, as the Finder's does, so a
+  // quick read (or an empty folder) moves no row; only a read slow enough to
+  // be seen waiting holds a placeholder row for them.
+  const slowFolders = useSlowLoads(loadingFolders);
   const rows = React.useMemo(() => {
     const visibleRows: Array<
       | { depth: number; entry: FileSystemEntry }
@@ -4250,7 +4282,7 @@ function FileSystemListView({
           (isRevealing || expanded.has(entry.path))
         ) {
           if (
-            loadingFolders.has(entry.path) &&
+            slowFolders.has(entry.path) &&
             !index.children.get(entry.path)?.length
           ) {
             visibleRows.push({
@@ -4266,7 +4298,7 @@ function FileSystemListView({
     };
     walk(currentPath, 0);
     return visibleRows;
-  }, [currentPath, expanded, index, isRevealing, loadingFolders]);
+  }, [currentPath, expanded, index, isRevealing, slowFolders]);
   // The rows that are items, which is what the keyboard walks.
   const entryRows = rows.filter(
     (row): row is { depth: number; entry: FileSystemEntry } =>
@@ -4475,9 +4507,7 @@ function FileSystemListView({
                       key={`loading:${"loadingPath" in row ? row.loadingPath : ""}`}
                       style={{ paddingLeft: depth * LIST_INDENT + 6 }}
                     >
-                      <Delayed>
-                        <span className="ml-5.5 h-2.5 w-32 animate-pulse rounded-full bg-foreground/10 motion-reduce:animate-none" />
-                      </Delayed>
+                      <span className="ml-5.5 h-2.5 w-32 animate-pulse rounded-full bg-foreground/10 motion-reduce:animate-none" />
                     </div>
                   );
                 }
@@ -4509,6 +4539,9 @@ function FileSystemListView({
                       onItemContextMenu?.(entry, event);
                     }}
                     onDoubleClick={() => onOpen(entry)}
+                    onPointerEnter={() => {
+                      if (entry.kind === "folder") onFolderHover?.(entry.path);
+                    }}
                     onKeyDown={(event) => {
                       handleEntryReturn({
                         entry,
@@ -4669,6 +4702,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     menuTargetPath,
     moveFocusWithSelection,
     onColumnWidthChange,
+    onFolderHover,
     onItemContextMenu,
     onOpen,
     onRenameCancel,
@@ -4853,6 +4887,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                 ? menuTargetPath
                 : null
             }
+            onFolderHover={onFolderHover}
             onItemContextMenu={onItemContextMenu}
             onOpen={onOpen}
             onRenameCancel={onRenameCancel}
@@ -4956,6 +4991,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   index,
   isLoading,
   menuTargetChildPath,
+  onFolderHover,
   onItemContextMenu,
   onOpen,
   onRenameCancel,
@@ -4976,6 +5012,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   index: FileSystemIndex;
   isLoading: boolean;
   menuTargetChildPath: null | string;
+  onFolderHover?: (folderPath: string) => void;
   onItemContextMenu?: (item: FileSystemItem, event: React.MouseEvent) => void;
   onOpen: (entry: FileSystemEntry) => void;
   onRenameCancel?: () => void;
@@ -5109,6 +5146,9 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                       onItemContextMenu?.(entry, event);
                     }}
                     onDoubleClick={() => onOpen(entry)}
+                    onPointerEnter={() => {
+                      if (entry.kind === "folder") onFolderHover?.(entry.path);
+                    }}
                     onKeyDown={(event) => {
                       handleEntryReturn({
                         entry,

@@ -1019,11 +1019,14 @@ export function ComputerPage({
                           root,
                         },
                   );
-                  await queryClient.fetchQuery(
-                    rpcClient.workspace.computer.list.queryOptions({
+                  // A listing read ahead on hover, and still fresh, is the
+                  // answer as it stands rather than a second read.
+                  await queryClient.fetchQuery({
+                    ...rpcClient.workspace.computer.list.queryOptions({
                       input: { id: taskId, path: hostPathOf(prefix) },
                     }),
-                  );
+                    staleTime: REFRESH_MS,
+                  });
                   // The entries arrive through `items`, re-read on the clock
                   // above, so the browser is handed none of its own to hold.
                   return { items: [] };
@@ -1058,6 +1061,19 @@ export function ComputerPage({
                 onViewChange={(view) => {
                   setDefaultView(view);
                   keepLook({ sort: shown.sort, view });
+                }}
+                // Resting on a folder reads it ahead, so opening it in place
+                // is the listing already in hand.
+                prefetchChildren={(prefix) => {
+                  if (isRecents) {
+                    return;
+                  }
+                  void queryClient.prefetchQuery({
+                    ...rpcClient.workspace.computer.list.queryOptions({
+                      input: { id: taskId, path: hostPathOf(prefix) },
+                    }),
+                    staleTime: REFRESH_MS,
+                  });
                 }}
                 renamingPath={renamingPath}
                 renderFileStage={(file) => {

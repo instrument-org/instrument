@@ -12,7 +12,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { MapTrifoldIcon } from "@phosphor-icons/react/MapTrifold";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
@@ -39,7 +39,7 @@ const PLACES: {
   },
   {
     icon: (isOn) => (
-      <FolderIcon className="size-6" weight={isOn ? "fill" : "regular"} />
+      <FileTextIcon className="size-6" weight={isOn ? "fill" : "regular"} />
     ),
     id: "files",
     label: "Files",

@@ -6,6 +6,7 @@ import {
   FILE_TYPE_ALIASES,
   FILE_TYPE_GLYPHS,
 } from "@/client/components/extend/file-type-glyphs";
+import { ResizeHandle } from "@/client/components/resize-handle";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -4071,17 +4072,23 @@ function FileSystemListHeader({
   columns,
   enabledColumns,
   onColumnsChange,
-  onColumnWidthChange,
+  onColumnWidthsChange,
   onSortColumnClick,
   sort,
 }: {
   columns: typeof LIST_COLUMNS;
   enabledColumns: readonly FileSystemListColumn[];
   onColumnsChange: (columns: FileSystemListColumn[]) => void;
-  onColumnWidthChange: (column: FileSystemListColumn, width: number) => void;
+  onColumnWidthsChange: (
+    widths: Partial<Record<FileSystemListColumn, number>>,
+  ) => void;
   onSortColumnClick: (key: FileSystemSortKey) => void;
   sort: FileSystemSortState;
 }) {
+  const clampColumnWidth = (width: number) =>
+    Math.round(
+      Math.min(LIST_COLUMN_WIDTH_MAX, Math.max(LIST_COLUMN_WIDTH_MIN, width)),
+    );
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -4093,60 +4100,66 @@ function FileSystemListHeader({
             sort={sort}
             sortKey="name"
           />
-          {columns.map((column) => (
-            <div
-              className="relative shrink-0 border-l border-border/60"
-              key={column.key}
-              style={{ width: column.width }}
-            >
-              <FileSystemListColumnHeader
-                align={column.align}
-                className="w-full px-2"
-                label={column.label}
-                onClick={onSortColumnClick}
-                sort={sort}
-                sortKey={column.key}
-              />
-              {/* The column's left edge drags. The columns are laid out
-                  from the right, Name taking what is left, so the edge
-                  follows the pointer: left widens the column, right narrows
-                  it. */}
+          {columns.map((column, columnIndex) => {
+            const previous = columns[columnIndex - 1];
+            return (
               <div
-                aria-hidden
-                className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize hover:bg-ring/30"
-                onPointerDown={(event) => {
-                  if (event.button !== 0) return;
-                  event.preventDefault();
-                  const handle = event.currentTarget;
-                  const startX = event.clientX;
-                  const startWidth = column.width;
-                  handle.setPointerCapture(event.pointerId);
-                  const move = (moveEvent: PointerEvent) => {
-                    onColumnWidthChange(
-                      column.key,
-                      Math.round(
-                        Math.min(
-                          LIST_COLUMN_WIDTH_MAX,
-                          Math.max(
-                            LIST_COLUMN_WIDTH_MIN,
-                            startWidth - (moveEvent.clientX - startX),
-                          ),
-                        ),
+                className="relative shrink-0 border-l border-border/60"
+                key={column.key}
+                style={{ width: column.width }}
+              >
+                <FileSystemListColumnHeader
+                  align={column.align}
+                  className="w-full px-2"
+                  label={column.label}
+                  onClick={onSortColumnClick}
+                  sort={sort}
+                  sortKey={column.key}
+                />
+                {/* The divider at the column's left edge. The columns are
+                    laid out from the right, Name taking what is left, so
+                    the divider trades width between the two columns it
+                    separates and the rest stay put: dragged left, the
+                    column before it narrows and truncates, the way the
+                    Finder's does. Next to Name, only this column moves. */}
+                <ResizeHandle
+                  className="left-0 -translate-x-1/2"
+                  getWidth={() => column.width}
+                  grows="left"
+                  // Back to their defaults, which an unset width reads as.
+                  onReset={() => {
+                    onColumnWidthsChange({
+                      [column.key]: undefined,
+                      ...(previous && { [previous.key]: undefined }),
+                    });
+                  }}
+                  onResize={(width) => {
+                    if (!previous) {
+                      onColumnWidthsChange({
+                        [column.key]: clampColumnWidth(width),
+                      });
+                      return;
+                    }
+                    // Both held within the bounds, so the pair's total
+                    // never changes and the divider stops where either
+                    // one would.
+                    const total = column.width + previous.width;
+                    const own = Math.min(
+                      total - LIST_COLUMN_WIDTH_MIN,
+                      Math.max(
+                        total - LIST_COLUMN_WIDTH_MAX,
+                        clampColumnWidth(width),
                       ),
                     );
-                  };
-                  const stop = () => {
-                    handle.removeEventListener("pointermove", move);
-                    handle.removeEventListener("pointerup", stop);
-                    handle.removeEventListener("pointercancel", stop);
-                  };
-                  handle.addEventListener("pointermove", move);
-                  handle.addEventListener("pointerup", stop);
-                  handle.addEventListener("pointercancel", stop);
-                }}
-              />
-            </div>
-          ))}
+                    onColumnWidthsChange({
+                      [column.key]: own,
+                      [previous.key]: total - own,
+                    });
+                  }}
+                />
+              </div>
+            );
+          })}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-44">
@@ -4406,11 +4419,8 @@ function FileSystemListView({
         columns={columns}
         enabledColumns={enabledListColumns}
         onColumnsChange={onListColumnsChange}
-        onColumnWidthChange={(column, columnWidth) => {
-          onListColumnWidthsChange({
-            ...listColumnWidths,
-            [column]: columnWidth,
-          });
+        onColumnWidthsChange={(widths) => {
+          onListColumnWidthsChange({ ...listColumnWidths, ...widths });
         }}
         onSortColumnClick={onSortColumnClick}
         sort={sort}
@@ -5131,34 +5141,19 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
         )}
       </InlineScrollArea2>
       {/* The edge that drags: every column follows, since the width is one. */}
-      <div
-        aria-hidden
-        className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize hover:bg-ring/30"
-        onPointerDown={(event) => {
-          event.preventDefault();
-          const handle = event.currentTarget;
-          const startX = event.clientX;
-          const startWidth = width;
-          handle.setPointerCapture(event.pointerId);
-          const move = (moveEvent: PointerEvent) => {
-            onResize(
-              Math.min(
-                COLUMN_WIDTH_MAX,
-                Math.max(
-                  COLUMN_WIDTH_MIN,
-                  startWidth + moveEvent.clientX - startX,
-                ),
-              ),
-            );
-          };
-          const stop = () => {
-            handle.removeEventListener("pointermove", move);
-            handle.removeEventListener("pointerup", stop);
-            handle.removeEventListener("pointercancel", stop);
-          };
-          handle.addEventListener("pointermove", move);
-          handle.addEventListener("pointerup", stop);
-          handle.addEventListener("pointercancel", stop);
+      <ResizeHandle
+        className="right-0 translate-x-1/2"
+        getWidth={() => width}
+        grows="right"
+        onReset={() => {
+          onResize(COLUMN_WIDTH_DEFAULT);
+        }}
+        onResize={(next) => {
+          onResize(
+            Math.round(
+              Math.min(COLUMN_WIDTH_MAX, Math.max(COLUMN_WIDTH_MIN, next)),
+            ),
+          );
         }}
       />
     </div>

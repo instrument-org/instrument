@@ -270,6 +270,9 @@ importers:
       '@babel/core':
         specifier: ^7.29.0
         version: 7.29.0
+      '@codemirror/commands':
+        specifier: ^6.11.1
+        version: 6.11.1
       '@codemirror/lang-markdown':
         specifier: ^6.5.2
         version: 6.5.2
@@ -279,6 +282,15 @@ importers:
       '@codemirror/language-data':
         specifier: ^6.5.2
         version: 6.5.2
+      '@codemirror/search':
+        specifier: ^6.7.2
+        version: 6.7.2
+      '@codemirror/state':
+        specifier: ^6.7.5
+        version: 6.7.5
+      '@codemirror/view':
+        specifier: ^6.43.12
+        version: 6.43.12
       '@embedpdf/core':
         specifier: ^2.14.4
         version: 2.15.0(preact@11.0.0-beta.0)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)(svelte@5.56.7(@typescript-eslint/types@8.40.0))(vue@3.5.40(typescript@5.9.2))

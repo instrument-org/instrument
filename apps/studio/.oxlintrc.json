@@ -43,6 +43,7 @@
       "error",
       {
         "allowlist": [
+          "code-editor",
           "pptx-viewer",
           "rpv-root",
           "rpv-stage",

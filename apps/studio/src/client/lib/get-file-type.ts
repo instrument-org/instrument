@@ -511,7 +511,9 @@ function isReadableText({
   const lowerFilename = filename.toLowerCase();
   const hasNoExtension = !lowerFilename.includes(".");
   const isTextFile =
-    lowerFilename.endsWith(".txt") || lowerFilename.endsWith(".text");
+    lowerFilename.endsWith(".txt") ||
+    lowerFilename.endsWith(".text") ||
+    lowerFilename.endsWith(".log");
 
   return (
     isTextFile ||

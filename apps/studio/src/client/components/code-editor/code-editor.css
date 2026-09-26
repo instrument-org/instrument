@@ -1,0 +1,186 @@
+/* A code or text file open in CodeMirror, drawn as Studio's highlighted code
+   view draws it: the app's monospace at 14px on a 20px line, and the colors
+   of Shiki's GitHub Light and GitHub Dark themes, which that view uses. A
+   plain text file keeps the reading type its static view had. Scoped under
+   `.code-editor`; CodeMirror's panels and tooltips mount inside it. */
+
+.code-editor {
+  /* Tailwind's theme is inline, so its font stacks are not variables. */
+  --cm-font: "JetBrains Mono Variable", ui-monospace, monospace;
+  --cm-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --cm-line-height: 20px;
+  --cm-inset-block: 16px;
+  --cm-inset-inline: 12px;
+  --cm-foreground: #1f2328;
+  --cm-keyword: #cf222e;
+  --cm-string: #0a3069;
+  --cm-constant: #0550ae;
+  --cm-comment: #6e7781;
+  --cm-function: #8250df;
+  --cm-entity: #953800;
+  --cm-tag: #116329;
+  --cm-invalid: #82071e;
+  --cm-line-number: color-mix(
+    in srgb,
+    var(--muted-foreground) 55%,
+    transparent
+  );
+  --cm-selection: color-mix(in srgb, var(--brand-500) 22%, transparent);
+  --cm-bracket: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --cm-search-match: color-mix(in srgb, var(--yellow-300) 55%, transparent);
+  --cm-search-current: color-mix(in srgb, var(--yellow-400) 90%, transparent);
+  position: relative;
+}
+
+.dark .code-editor {
+  --cm-foreground: #e6edf3;
+  --cm-keyword: #ff7b72;
+  --cm-string: #a5d6ff;
+  --cm-constant: #79c0ff;
+  --cm-comment: #8b949e;
+  --cm-function: #d2a8ff;
+  --cm-entity: #ffa657;
+  --cm-tag: #7ee787;
+  --cm-invalid: #ffa198;
+  --cm-selection: color-mix(in srgb, var(--brand-400) 35%, transparent);
+  --cm-search-match: color-mix(in srgb, var(--yellow-300) 22%, transparent);
+  --cm-search-current: color-mix(in srgb, var(--yellow-300) 45%, transparent);
+}
+
+/* A text file reads rather than inspects: the reading face and measure its
+   static view had, with no line numbers. */
+.code-editor[data-variant="text"] {
+  --cm-font: var(--cm-sans);
+  --cm-line-height: 1.625;
+  --cm-inset-block: 32px;
+  --cm-inset-inline: 32px;
+  --cm-foreground: var(--foreground);
+}
+
+/* ------------------------------------------------ agent flash */
+
+@keyframes code-agent-flash {
+  from {
+    background: color-mix(in srgb, var(--brand-500) 18%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+.code-editor .cm-agent-flash {
+  animation: code-agent-flash 1.6s ease-out;
+}
+
+/* ------------------------------------------------ Ask Instrument */
+
+.code-ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--radius);
+  color: var(--foreground);
+  font: 500 13px/1 var(--cm-sans);
+  white-space: nowrap;
+}
+.code-ask:hover {
+  background: var(--muted);
+}
+.code-ask:active {
+  background: var(--accent);
+}
+.code-ask svg.md-mark {
+  width: 14px;
+  height: 14px;
+  color: var(--brand-600);
+  fill: currentColor;
+}
+.dark .code-ask svg.md-mark {
+  color: var(--brand-400);
+}
+
+/* ------------------------------------------------ search */
+
+.code-editor .cm-panels {
+  background: var(--card);
+  color: var(--foreground);
+  font-family: var(--cm-sans);
+}
+.code-editor .cm-panels-top {
+  border-bottom: 1px solid var(--border);
+}
+.code-editor .cm-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 6px 36px 6px 12px;
+  font-size: 12px;
+}
+.code-editor .cm-search br {
+  flex-basis: 100%;
+  height: 0;
+}
+.code-editor .cm-search .cm-textfield {
+  height: 26px;
+  width: 200px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: var(--background);
+  color: var(--foreground);
+  font: 12px var(--cm-sans);
+  outline: none;
+}
+.code-editor .cm-search .cm-textfield:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 35%, transparent);
+}
+.code-editor .cm-search .cm-button {
+  height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  background-image: none;
+  color: var(--foreground);
+  font: 500 12px var(--cm-sans);
+  text-transform: none;
+}
+.code-editor .cm-search .cm-button:hover {
+  background: var(--muted);
+}
+.code-editor .cm-search .cm-button:active {
+  background: var(--accent);
+}
+.code-editor .cm-search label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.code-editor .cm-search input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--brand-600);
+}
+.code-editor .cm-search button[name="close"] {
+  top: 6px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: var(--radius);
+  color: var(--muted-foreground);
+  font-size: 16px;
+}
+.code-editor .cm-search button[name="close"]:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}

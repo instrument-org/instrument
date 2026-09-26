@@ -503,11 +503,14 @@ export function ComposeWindow({
 
   // The strip is drawn once there is anything to switch between: a lone
   // new tab is the band's own face rather than a tab.
+  // Nothing open yet: the band is only its tiles and the strip under them,
+  // so it takes what those need and the words take the rest.
+  const isEmpty = up === undefined || upKind === "home";
   const showsStrip =
     tabs.length > 1 || (tabs[0] !== undefined && !isHomeTab(tabs[0]));
 
   const content = (() => {
-    if (up === undefined || upKind === "home") {
+    if (isEmpty) {
       return (
         <ComposeZeroState
           onAttachFiles={() => {
@@ -516,9 +519,7 @@ export function ComposeWindow({
           onAttachFolder={() => {
             inputRef.current?.pickFolder();
           }}
-          onOpenApp={nameApp}
           onOpenApps={onOpenApps}
-          onOpenFile={openFile}
           onOpenFolder={openFolder}
           onOpenPage={openPage}
         />
@@ -712,7 +713,10 @@ export function ComposeWindow({
                   its own whatever is attached over it, so a chip or a row of
                   pasted files takes its room from the band, not the words. */}
               <div
-                className="flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:min-h-18 [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6"
+                className={cn(
+                  "flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:min-h-18 [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6",
+                  isEmpty && !showsStrip && "flex-1",
+                )}
                 ref={wordsWrapRef}
               >
                 <PromptInput
@@ -797,7 +801,12 @@ export function ComposeWindow({
               </div>
               {/* The band: the draft's own pane, on a gray floor with nothing
                   between it and the words but the color. */}
-              <div className="mx-2 flex min-h-80 flex-1 flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900">
+              <div
+                className={cn(
+                  "mx-2 flex flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900",
+                  isEmpty && !showsStrip ? "shrink-0" : "min-h-80 flex-1",
+                )}
+              >
                 {showsStrip && (
                   <div className="flex h-9 shrink-0 items-center pr-1 pl-1">
                     <WindowTabStrip

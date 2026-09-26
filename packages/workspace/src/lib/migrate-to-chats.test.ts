@@ -172,7 +172,6 @@ describe("migrateToChats", () => {
     const channel = chatIdOf(CHANNEL);
     expect(tree(root)).toMatchInlineSnapshot(`
       [
-        ".instrument/.chats-migrated",
         "chats/chat-01m20y3v4h2fgy0e5fymwwfsx6/.instrument/settings.json",
         "chats/chat-01m20y3v4h2fgy0e5fymwwfsx6/.instrument/task.db",
         "chats/chat-01m20y3v4h2fgy0e5fymwwfsx6/tasks/2026-09-10-from-a-channel/.instrument/settings.json",
@@ -272,15 +271,23 @@ describe("migrateToChats", () => {
     expect(tree(root)).toEqual(before);
   });
 
-  it("finishes a run a crash cut short, without the marker", () => {
+  it("moves what an older build wrote in the old layout after an earlier run", () => {
     oneConversation();
     migrateToChats(root);
-    const before = tree(root);
-    fs.rmSync(path.join(root, ".instrument", ".chats-migrated"));
+    // An older beta run in between writes a new thread into the window again.
+    const db = new DatabaseSync(
+      path.join(root, "tasks", "instrument", ".instrument", "task.db"),
+    );
+    const later = StoreId.SessionSchema.parse("ses_01M3C0000000000000000000N1");
+    db.prepare("insert into sessions (key, value, blob) values (?, ?, ?)").run(
+      `sessions:${later}`,
+      null,
+      superjson({ createdAt: "2026-09-27T10:00:00.000Z", id: later }),
+    );
+    db.close();
 
-    migrateToChats(root);
-
-    expect(tree(root)).toEqual(before);
+    expect(migrateToChats(root).chatCount).toBe(1);
+    expect(fs.existsSync(path.join(root, "chats", chatIdOf(later)))).toBe(true);
   });
 
   it("leaves a workspace with no conversation alone", () => {

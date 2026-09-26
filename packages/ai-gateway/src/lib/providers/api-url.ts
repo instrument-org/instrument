@@ -36,7 +36,10 @@ export function apiURL({
     }
 
     case "vercel": {
-      return `${baseURL}/v1/ai${path}`;
+      // The gateway answers in the stream protocol its path names, so the
+      // version follows @ai-sdk/gateway's own default base URL. An older one
+      // streams usage and finish reasons in a shape the SDK cannot read.
+      return `${baseURL}/v4/ai${path}`;
     }
 
     default: {

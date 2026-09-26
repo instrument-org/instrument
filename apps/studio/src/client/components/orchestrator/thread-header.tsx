@@ -1,3 +1,4 @@
+import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -12,14 +13,17 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
-import { cn } from "@/client/lib/utils";
+import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { useThreadActions } from "./thread-actions";
@@ -158,6 +162,15 @@ function ThreadMenu({
   topics: Topic[];
 }) {
   const actions = useThreadActions(thread);
+  const reveal = useMutation(
+    rpcClient.utils.openTaskIn.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to open the chat's folder", {
+          description: error.message,
+        });
+      },
+    }),
+  );
   // The menu hands focus back to its trigger as it closes, which would land
   // after the field took it and blur the rename shut.
   const renaming = useRef(false);
@@ -203,6 +216,14 @@ function ThreadMenu({
         >
           <PencilSimpleIcon className="size-3.5" />
           Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            reveal.mutate({ id: thread.chatId, type: "show-in-folder" });
+          }}
+        >
+          <RevealInFolderIcon className="size-4" />
+          {getRevealInFolderLabel()}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuSub>

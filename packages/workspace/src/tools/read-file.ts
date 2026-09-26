@@ -1,11 +1,12 @@
 // Adapted from
 // https://github.com/sst/opencode/blob/dev/packages/opencode/src/tool/read.ts
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { isBinaryFile } from "isbinaryfile";
 import ms from "ms";
 import { err, ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { dedent } from "radashi";
+import { dedent, fork } from "radashi";
 import { z } from "zod";
 
 import { TASK_FOLDER_NAMES } from "../constants";
@@ -84,37 +85,81 @@ function aimsSomewhere(region: RegionInput) {
   );
 }
 
-const MEDIA_CONFIG: Record<MediaFileState, { label: string; maxSize: number }> =
+const MEDIA_CONFIG: Record<
+  MediaFileState,
   {
-    audio: {
-      label: "Audio",
-      maxSize: 10 * 1024 * 1024,
-    },
-    image: {
-      label: "Image",
-      // Providers cap a single image around 5 MB encoded, but an image over
-      // that no longer has to be refused: outgoing images are resized to the
-      // provider's budget on the way out (`normalize-model-images.ts`), which
-      // brings a large photo or scan under the cap on its own. So this bounds
-      // only how much is read off disk and base64'd. What a decode would cost
-      // is a separate question that bytes cannot answer -- see
-      // `MAX_DECODED_PIXELS`.
-      maxSize: 50 * 1024 * 1024,
-    },
-    pdf: {
-      label: "PDF",
-      maxSize: 10 * 1024 * 1024,
-    },
-    video: {
-      label: "Video",
-      maxSize: 10 * 1024 * 1024,
-    },
-  };
+    feature: AIGatewayModel.ModelFeatures;
+    label: string;
+    maxSize: number;
+    /** What to do instead, told to a model that cannot take this kind of file. */
+    unreadableHint: string;
+  }
+> = {
+  audio: {
+    feature: "inputAudio",
+    label: "Audio",
+    maxSize: 10 * 1024 * 1024,
+    unreadableHint:
+      "To get at what is said in it, transcribe it to text (the `local-ml` skill does speech-to-text) and read the transcript.",
+  },
+  image: {
+    feature: "inputImage",
+    label: "Image",
+    // Providers cap a single image around 5 MB encoded, but an image over
+    // that no longer has to be refused: outgoing images are resized to the
+    // provider's budget on the way out (`normalize-model-images.ts`), which
+    // brings a large photo or scan under the cap on its own. So this bounds
+    // only how much is read off disk and base64'd. What a decode would cost
+    // is a separate question that bytes cannot answer -- see
+    // `MAX_DECODED_PIXELS`.
+    maxSize: 50 * 1024 * 1024,
+    unreadableHint:
+      "Work from what command-line tools can tell about it, such as its dimensions and metadata.",
+  },
+  pdf: {
+    feature: "inputFile",
+    label: "PDF",
+    maxSize: 10 * 1024 * 1024,
+    unreadableHint:
+      "Extract its text with a command-line tool or a script and read that.",
+  },
+  video: {
+    feature: "inputVideo",
+    label: "Video",
+    maxSize: 10 * 1024 * 1024,
+    unreadableHint:
+      "Extract what you need from it with command-line tools: still frames as images, the audio as a transcript.",
+  },
+};
+
+const MEDIA_KINDS: { plural: string; state: MediaFileState }[] = [
+  { plural: "images", state: "image" },
+  { plural: "PDFs", state: "pdf" },
+  { plural: "audio files", state: "audio" },
+  { plural: "video files", state: "video" },
+];
+
+/** Which media the active model can be shown, since the rest reach it as nothing. */
+function describeReadableMedia(model: AIGatewayModel.Type) {
+  const [readable, unreadable] = fork(MEDIA_KINDS, ({ state }) =>
+    model.features.includes(MEDIA_CONFIG[state].feature),
+  );
+  const canRead =
+    readable.length > 0
+      ? `You can read ${new Intl.ListFormat("en").format(readable.map(({ plural }) => plural))} by using this tool.`
+      : "";
+  const cannotRead =
+    unreadable.length > 0
+      ? `This model cannot take ${new Intl.ListFormat("en", { type: "disjunction" }).format(unreadable.map(({ plural }) => plural))} as input, in any format: get at what they hold with other tools instead, such as a transcript of audio or the extracted text of a PDF.`
+      : "";
+  return [canRead, cannotRead].filter(Boolean).join(" ");
+}
 
 async function handleMediaFile({
   absolutePath,
   fixedPath,
   mimeType,
+  model,
   region,
   signal,
   state,
@@ -122,11 +167,26 @@ async function handleMediaFile({
   absolutePath: string;
   fixedPath: string;
   mimeType: string;
+  model: AIGatewayModel.Type;
   region?: RegionInput;
   signal: AbortSignal;
   state: MediaFileState;
 }) {
   const config = MEDIA_CONFIG[state];
+
+  // Checked before size or format, since no size or format of the file reaches
+  // a model without the input: read anyway, it would be dropped on the way out
+  // (`filter-unsupported-media.ts`), and every conversion tried in between is
+  // wasted.
+  if (!model.features.includes(config.feature)) {
+    return executeError(
+      [
+        `This model cannot take ${config.label.toLowerCase()} input, so reading ${fixedPath} would show it nothing, in this format or any other.`,
+        config.unreadableHint,
+      ].join(" "),
+    );
+  }
+
   const stats = await fs.stat(absolutePath);
 
   if (state === "image" && !SUPPORTED_IMAGE_FORMATS.includes(mimeType)) {
@@ -420,7 +480,7 @@ export const ReadFile = setupTool({
     }),
   ]),
 }).create({
-  description: dedent`
+  description: ({ model }) => dedent`
     Reads a file from the task, including folders the user attached (mounted under ${MOUNT.attachedFolders}/<name>/). You can access any file directly by using this tool.
 
     Usage:
@@ -431,11 +491,11 @@ export const ReadFile = setupTool({
     - Any lines longer than ${MAX_LINE_LENGTH} characters will be truncated.
     - Results are returned using cat -n format, with line numbers starting at the ${INPUT_PARAMS.offset} or 1.
     - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
-    - You can read images, PDFs, audio files, and video files by using this tool.
+    - ${describeReadableMedia(model)}
     - Reading an image tells you the size you are shown it at, and, when the file is too large to render whole, the larger dimensions it has on disk.
     - Seeing an image is not the same as reading it: small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. So when an answer turns on a detail that small -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are pixels in the space the image was shown to you at, which is the first size the read states and is smaller than the file's own dimensions whenever the file is large. Never the file's dimensions, and never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same shown-at coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
   `,
-  execute: async ({ agentName, input, signal, taskId, taskState }) => {
+  execute: async ({ agentName, input, model, signal, taskId, taskState }) => {
     const region = input.region;
     const layout = buildWorkspaceFsLayout({
       apps: agentName === "instrument",
@@ -576,6 +636,7 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
+        model,
         region,
         signal,
         state: "image",
@@ -587,6 +648,7 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
+        model,
         signal,
         state: "pdf",
       });
@@ -597,6 +659,7 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
+        model,
         signal,
         state: "audio",
       });
@@ -607,6 +670,7 @@ export const ReadFile = setupTool({
         absolutePath,
         fixedPath: displayPath,
         mimeType,
+        model,
         signal,
         state: "video",
       });

@@ -55,7 +55,7 @@ function createReplacementText(mediaCategory: MediaCategory): string {
   return dedent`
     <system_note>
     ${MEDIA_LABELS[mediaCategory]} file removed - your model lacks ${mediaCategory} input capability.
-    Convert it to a different format or request the user to provide it in a different format if you need to access it.
+    No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
     </system_note>
   `;
 }

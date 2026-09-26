@@ -1,3 +1,4 @@
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { type AIProviderType, APP_NAME_SLUG } from "@instrument-org/shared";
 import { execa } from "execa";
 import fs from "node:fs/promises";
@@ -17,7 +18,19 @@ import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 import { ReadFile } from "./read-file";
 
-const model = createMockAIGatewayModel();
+// Every media input, so a read reaches the file handling under test rather
+// than stopping at the model's capabilities.
+const MEDIA_FEATURES = [
+  "inputAudio",
+  "inputFile",
+  "inputImage",
+  "inputText",
+  "inputVideo",
+  "outputText",
+  "tools",
+] satisfies AIGatewayModel.ModelFeatures[];
+
+const model = createMockAIGatewayModel({ features: MEDIA_FEATURES });
 
 // Mirrors `MEDIA_CONFIG.image.maxSize`, to show the byte cap is not what catches
 // a decode bomb.
@@ -244,6 +257,61 @@ describe("ReadFile", () => {
       60_000,
     );
 
+    it("refuses audio to a model that cannot hear it, before size or format", async () => {
+      // Over the audio cap on purpose: the size refusal suggests compressing,
+      // which is wasted work when no size of the file reaches this model.
+      const audioPath = path.join(fixturesPath, "deaf-model-probe.mp3");
+      await fs.writeFile(audioPath, Buffer.alloc(11 * 1024 * 1024));
+
+      try {
+        const result = await runTool(TOOLS.ReadFile, {
+          ...baseInput,
+          input: { explanation: "listen", filePath: "./deaf-model-probe.mp3" },
+          model: createMockAIGatewayModel({
+            features: MEDIA_FEATURES.filter((f) => f !== "inputAudio"),
+          }),
+        });
+
+        expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
+          `"This model cannot take audio input, so reading ./deaf-model-probe.mp3 would show it nothing, in this format or any other. To get at what is said in it, transcribe it to text (the \`local-ml\` skill does speech-to-text) and read the transcript."`,
+        );
+      } finally {
+        await fs.rm(audioPath, { force: true });
+      }
+    });
+
+    it("tells the model which media it can read", async () => {
+      const mediaLine = async (features: AIGatewayModel.ModelFeatures[]) => {
+        const tool = await ReadFile.aiSDKTool({
+          agentName: "main",
+          model: createMockAIGatewayModel({ features }),
+          taskId,
+        });
+        return tool.description
+          ?.split("\n")
+          .find(
+            (line) =>
+              line.includes("cannot take") || line.includes("You can read"),
+          );
+      };
+
+      expect({
+        everyMedium: await mediaLine(MEDIA_FEATURES),
+        noAudioOrVideo: await mediaLine(
+          MEDIA_FEATURES.filter(
+            (f) => f !== "inputAudio" && f !== "inputVideo",
+          ),
+        ),
+        textOnly: await mediaLine(["inputText", "outputText", "tools"]),
+      }).toMatchInlineSnapshot(`
+        {
+          "everyMedium": "- You can read images, PDFs, audio files, and video files by using this tool.",
+          "noAudioOrVideo": "- You can read images and PDFs by using this tool. This model cannot take audio files or video files as input, in any format: get at what they hold with other tools instead, such as a transcript of audio or the extracted text of a PDF.",
+          "textOnly": "- This model cannot take images, PDFs, audio files, or video files as input, in any format: get at what they hold with other tools instead, such as a transcript of audio or the extracted text of a PDF.",
+        }
+      `);
+    });
+
     it("describes an image in the same pixel space whatever model is active", async () => {
       // A coordinate space derived from the active model would be redefined by a
       // model switch, silently invalidating every earlier message that referred
@@ -260,7 +328,10 @@ describe("ReadFile", () => {
                 explanation: "read",
                 filePath: "./model-switch-probe.png",
               },
-              model: createMockAIGatewayModel({ provider }),
+              model: createMockAIGatewayModel({
+                features: MEDIA_FEATURES,
+                provider,
+              }),
             })
           )._unsafeUnwrap();
 

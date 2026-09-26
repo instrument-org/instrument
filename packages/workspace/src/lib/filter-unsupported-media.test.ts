@@ -79,7 +79,7 @@ describe("filterUnsupportedMedia", () => {
             {
               "text": "<system_note>
       Audio file removed - your model lacks audio input capability.
-      Convert it to a different format or request the user to provide it in a different format if you need to access it.
+      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
       </system_note>",
               "type": "text",
             },
@@ -140,7 +140,7 @@ describe("filterUnsupportedMedia", () => {
             {
               "text": "<system_note>
       Image file removed - your model lacks image input capability.
-      Convert it to a different format or request the user to provide it in a different format if you need to access it.
+      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
       </system_note>",
               "type": "text",
             },
@@ -185,14 +185,14 @@ describe("filterUnsupportedMedia", () => {
             {
               "text": "<system_note>
       Image file removed - your model lacks image input capability.
-      Convert it to a different format or request the user to provide it in a different format if you need to access it.
+      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
       </system_note>",
               "type": "text",
             },
             {
               "text": "<system_note>
       Audio file removed - your model lacks audio input capability.
-      Convert it to a different format or request the user to provide it in a different format if you need to access it.
+      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
       </system_note>",
               "type": "text",
             },
@@ -237,7 +237,7 @@ describe("filterUnsupportedMedia", () => {
             {
               "text": "<system_note>
       Audio file removed - your model lacks audio input capability.
-      Convert it to a different format or request the user to provide it in a different format if you need to access it.
+      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
       </system_note>",
               "type": "text",
             },
@@ -289,7 +289,7 @@ describe("filterUnsupportedMedia", () => {
               {
                 "text": "<system_note>
         Audio file removed - your model lacks audio input capability.
-        Convert it to a different format or request the user to provide it in a different format if you need to access it.
+        No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
         </system_note>",
                 "type": "text",
               },
@@ -334,7 +334,7 @@ describe("filterUnsupportedMedia", () => {
               {
                 "text": "<system_note>
         Image file removed - your model lacks image input capability.
-        Convert it to a different format or request the user to provide it in a different format if you need to access it.
+        No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
         </system_note>",
                 "type": "text",
               },
@@ -416,7 +416,7 @@ describe("filterUnsupportedMedia", () => {
             {
               "text": "<system_note>
       Video file removed - your model lacks video input capability.
-      Convert it to a different format or request the user to provide it in a different format if you need to access it.
+      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
       </system_note>",
               "type": "text",
             },
@@ -477,7 +477,7 @@ describe("filterUnsupportedMedia", () => {
             {
               "text": "<system_note>
       File file removed - your model lacks file input capability.
-      Convert it to a different format or request the user to provide it in a different format if you need to access it.
+      No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
       </system_note>",
               "type": "text",
             },
@@ -515,7 +515,7 @@ describe("filterUnsupportedMedia", () => {
               {
                 "text": "<system_note>
         Video file removed - your model lacks video input capability.
-        Convert it to a different format or request the user to provide it in a different format if you need to access it.
+        No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
         </system_note>",
                 "type": "text",
               },
@@ -640,7 +640,7 @@ describe("filterUnsupportedMedia", () => {
           {
             "text": "<system_note>
         Image file removed - your model lacks image input capability.
-        Convert it to a different format or request the user to provide it in a different format if you need to access it.
+        No format of it will reach this model, so converting it will not help. If you need what it holds, get at that another way (a transcript of audio, the extracted text of a PDF), or ask the user for it as text.
         </system_note>",
             "type": "text",
           },

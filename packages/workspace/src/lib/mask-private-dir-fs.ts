@@ -7,13 +7,13 @@ import { normalizePath } from "./normalize-path";
 /**
  * True when a task-relative path (as returned by relativeWithin, e.g.
  * `/.instrument` or `/.instrument/state.json`) is the private dir or inside it.
+ * Compared without case: on a case-insensitive disk, the default on macOS and
+ * Windows, `.INSTRUMENT` opens the same directory.
  */
 export function isPrivateRelative(relativeWithinTask: string): boolean {
   const privateSegment = `/${TASK_FOLDER_NAMES.private}`;
-  return (
-    relativeWithinTask === privateSegment ||
-    relativeWithinTask.startsWith(`${privateSegment}/`)
-  );
+  const lower = relativeWithinTask.toLowerCase();
+  return lower === privateSegment || lower.startsWith(`${privateSegment}/`);
 }
 
 /**

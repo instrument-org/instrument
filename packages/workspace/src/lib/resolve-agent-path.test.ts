@@ -193,6 +193,8 @@ describe("private-dir (.instrument) restriction", () => {
   it.each([
     { input: "/task/.instrument", label: "the virtual private dir" },
     { input: "/task/.instrument/state.json", label: "a virtual private file" },
+    { input: "/task/.INSTRUMENT/state.json", label: "an uppercase spelling" },
+    { input: "/task/.Instrument", label: "a mixed-case spelling" },
   ])("rejects $label via resolveAgentPath", ({ input }) => {
     const result = resolveAgentPath({ inputPath: input, layout });
     expect(result.isErr()).toBe(true);

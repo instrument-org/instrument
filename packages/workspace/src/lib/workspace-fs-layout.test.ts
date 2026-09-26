@@ -178,6 +178,9 @@ describe("buildBashFs", () => {
     ["assembled at runtime", 'd=.instrument; f=state.json; cat "$d/$f"'],
     ["glob", "cat .instrument/*.json"],
     ["via find", "find . -name state.json -exec cat {} +"],
+    // A case-insensitive disk (macOS, Windows) opens the same directory.
+    ["uppercase", "cat .INSTRUMENT/state.json"],
+    ["mixed-case", `cat ${MOUNT.task}/.Instrument/state.json`],
   ])(
     "masks the private dir against a %s reference",
     async (_label, command) => {

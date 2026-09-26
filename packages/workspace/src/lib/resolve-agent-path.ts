@@ -266,8 +266,14 @@ function isTaskPrivatePath(
   taskHostRoot: AbsolutePath,
   hostPath: string,
 ): boolean {
-  const privateDir = absolutePathJoin(taskHostRoot, TASK_FOLDER_NAMES.private);
-  return hostPath === privateDir || pathIsWithin(hostPath, privateDir);
+  // Compared without case: on a case-insensitive disk `.INSTRUMENT` opens the
+  // same directory.
+  const privateDir = absolutePathJoin(
+    taskHostRoot,
+    TASK_FOLDER_NAMES.private,
+  ).toLowerCase();
+  const candidate = hostPath.toLowerCase();
+  return candidate === privateDir || pathIsWithin(candidate, privateDir);
 }
 
 function privateDirError(displayPath: string) {

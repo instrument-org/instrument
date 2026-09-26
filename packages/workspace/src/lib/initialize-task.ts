@@ -2,6 +2,7 @@ import { ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
 import { TASK_FOLDER_NAMES } from "../constants";
+import { isChatId } from "../schemas/chat-id";
 import { type TaskId } from "../schemas/task-id";
 import { type TaskSettingsUpdate } from "../schemas/task-settings";
 import { type WorkspaceConfig } from "../types";
@@ -9,6 +10,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
+import { chatsDir, chatTasksDir, placeChatTask } from "./record-folders";
 import { taskDir } from "./task-dir-utils";
 import { updateTaskSettings } from "./task-settings";
 
@@ -25,12 +27,25 @@ export async function initializeTask(
   _options: { signal?: AbortSignal },
 ) {
   return safeTry(async function* () {
-    // Ensure the parent tasks dir exists (idempotent), then create the task
+    // A chat's folder goes under `chats/`, a task a chat started goes inside
+    // that chat, and any other task goes flat under `tasks/`.
+    const isChat = isChatId(taskId);
+    const { parentTaskId } = initialSettings;
+    const parentDir = isChat
+      ? chatsDir()
+      : parentTaskId && isChatId(parentTaskId)
+        ? chatTasksDir(parentTaskId)
+        : workspaceConfig.tasksDir;
+    if (!isChat && parentTaskId && isChatId(parentTaskId)) {
+      placeChatTask(taskId, parentTaskId);
+    }
+
+    // Ensure the parent dir exists (idempotent), then create the task
     // dir non-recursively so it acts as an atomic existence guard. With
     // deterministic date+slug names, two concurrent creates can both pass a
     // separate access check, so we rely on mkdir failing with EEXIST instead.
     yield* ResultAsync.fromPromise(
-      fs.mkdir(workspaceConfig.tasksDir, { recursive: true }),
+      fs.mkdir(parentDir, { recursive: true }),
       (error) =>
         new TypedError.FileSystem(
           error instanceof Error ? error.message : "Unknown error",
@@ -50,11 +65,14 @@ export async function initializeTask(
             ),
     );
 
-    yield* copyTask({
-      includePrivateFolder: false,
-      sourceDir: workspaceConfig.defaultTaskTemplateDir,
-      targetDir: taskDir(taskId),
-    });
+    // A chat runs no code of its own, so it takes none of a task's scaffold.
+    if (!isChat) {
+      yield* copyTask({
+        includePrivateFolder: false,
+        sourceDir: workspaceConfig.defaultTaskTemplateDir,
+        targetDir: taskDir(taskId),
+      });
+    }
 
     const createdAt = getCurrentDate();
 

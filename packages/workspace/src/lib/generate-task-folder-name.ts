@@ -4,6 +4,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
+import { chatTaskIdTaken } from "./record-folders";
 import { taskFolderSlug } from "./task-folder-slug";
 
 // Derives a sibling folder name for a branch by reusing the source folder's
@@ -22,7 +23,9 @@ export async function generateBranchFolderName({
   const base = sourceFolderName.replace(/-\d+$/, "");
 
   const { name, renamed } = await findAvailableName({
-    isTaken: (candidate) => pathExists(absolutePathJoin(tasksDir, candidate)),
+    isTaken: async (candidate) =>
+      chatTaskIdTaken(candidate) ||
+      (await pathExists(absolutePathJoin(tasksDir, candidate))),
     name: base,
   });
   // Recover the appended counter for the display name; bare base = suffix 1.
@@ -46,7 +49,9 @@ export async function generateTaskFolderName({
   const base = `${formatDatePrefix(getCurrentDate())}-${slug}`;
 
   const { name } = await findAvailableName({
-    isTaken: (candidate) => pathExists(absolutePathJoin(tasksDir, candidate)),
+    isTaken: async (candidate) =>
+      chatTaskIdTaken(candidate) ||
+      (await pathExists(absolutePathJoin(tasksDir, candidate))),
     name: base,
   });
 

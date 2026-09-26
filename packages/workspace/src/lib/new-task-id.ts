@@ -4,6 +4,7 @@ import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { generateTaskFolderName } from "./generate-task-folder-name";
 import { pathExists } from "./path-exists";
+import { chatTaskIdTaken } from "./record-folders";
 
 export async function newTaskId({
   preferredFolderName,
@@ -16,6 +17,7 @@ export async function newTaskId({
 }): Promise<TaskId> {
   if (
     preferredFolderName &&
+    !chatTaskIdTaken(preferredFolderName) &&
     !(await pathExists(
       absolutePathJoin(workspaceConfig.tasksDir, preferredFolderName),
     ))

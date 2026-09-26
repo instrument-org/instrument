@@ -16,6 +16,7 @@ import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
+import { chatDirs, chatTaskDirs, recordDir } from "./record-folders";
 import { getTaskSettings } from "./task-settings";
 
 export interface TaskListOptions {
@@ -26,14 +27,12 @@ export interface TaskListOptions {
 
 export async function getTask(
   id: TaskId,
-  workspaceConfig: WorkspaceConfig,
 ): Promise<Result<Task, TypedError.NotFound | TypedError.Parse>> {
   if (!isTaskId(id)) {
     return err(new TypedError.Parse("Invalid folder name"));
   }
 
-  // For tasks the folder name is identical to the id.
-  const dir = TaskDirSchema.parse(path.resolve(workspaceConfig.tasksDir, id));
+  const dir = recordDir(id);
 
   // Check if the directory exists
   try {
@@ -49,7 +48,12 @@ export async function getTasks(
   workspaceConfig: WorkspaceConfig,
   options: TaskListOptions = {},
 ): Promise<{ tasks: Task[]; total: number }> {
-  const taskDirs = await taskDirsInRootDir(workspaceConfig.tasksDir);
+  // Chats and the tasks inside them, then every task no chat owns.
+  const taskDirs = [
+    ...chatDirs(),
+    ...chatTaskDirs(),
+    ...(await taskDirsInRootDir(workspaceConfig.tasksDir)),
+  ];
   // Read tasks concurrently; each readTask is several independent fs ops and a
   // workspace can hold many tasks, so a serial loop dominates list latency.
   const taskResults = await parallel({ limit: 12 }, taskDirs, (dir) =>

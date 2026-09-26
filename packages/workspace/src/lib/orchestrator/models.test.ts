@@ -32,6 +32,7 @@ vi.mock("../workspace-config", () => ({
       captureException: vi.fn(),
       getAIProviderConfigs: () => [OUR_CONFIG, THEIR_CONFIG],
       modelCache: {},
+      rootDir: "/tmp/workspace",
       tasksDir: "/tmp/workspace/tasks",
       // A partial config: only what the listing and the task directory read.
     }) as unknown as WorkspaceConfig,
@@ -85,9 +86,8 @@ describe("modelTable", () => {
   };
 
   it("names a model author/id, without the provider its URI carries", () => {
-    expect(
-      modelTable([flash, qwen], ["model", "name", "released"]),
-    ).toMatchInlineSnapshot(`
+    expect(modelTable([flash, qwen], ["model", "name", "released"]))
+      .toMatchInlineSnapshot(`
       "model                  name           released
       zai-org/glm-5.3-flash  GLM 5.3 Flash  2026-08-26
       qwen/qwen3.8-27b       Qwen3.8 27B    2026-08-17

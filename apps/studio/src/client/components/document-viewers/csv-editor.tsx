@@ -6,6 +6,7 @@ import {
   useFileAsks,
 } from "@/client/components/orchestrator/staged-asks";
 import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
+import { registerFileFlush } from "@/client/lib/file-flush";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
 import { type ReferenceElement } from "@floating-ui/dom";
@@ -96,7 +97,9 @@ export function CsvEditor({
     staleTime: Infinity,
   });
 
-  if (initial.isLoading) {
+  // Another view of the file may have just left its own read in the cache,
+  // from before it saved; the document starts from a read of this mount's.
+  if (initial.isLoading || !initial.isFetchedAfterMount) {
     return <FileLoading />;
   }
   if (initial.error || !initial.data) {
@@ -445,6 +448,7 @@ function LiveTable({
       },
     });
     setSession(next);
+    const unregister = registerFileFlush(hostPath, next.flush);
     if (import.meta.env.DEV) {
       const holder = window as unknown as {
         __csvEditors?: Record<string, CsvSession>;
@@ -453,6 +457,7 @@ function LiveTable({
       holder.__csvEditors[hostPath] = next;
     }
     return () => {
+      unregister();
       clearTimeout(flashTimer);
       void next.destroy();
     };

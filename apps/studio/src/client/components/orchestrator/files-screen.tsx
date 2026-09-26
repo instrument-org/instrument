@@ -420,7 +420,20 @@ export function FilesScreen({
               key={activeFile.hostPath}
               {...(hostedFile === undefined
                 ? {}
-                : { page: <div className="h-full" ref={setSlot} /> })}
+                : {
+                    page: (
+                      // Square at the bottom left while the tree stands
+                      // against it; the window's own corner when it is put away.
+                      <div
+                        className={
+                          isTreeOpen
+                            ? "h-full [--guest-bottom-radius:0_var(--radius-2xl)]"
+                            : "h-full"
+                        }
+                        ref={setSlot}
+                      />
+                    ),
+                  })}
             />
             {/* A page in Edit keeps its asks in its own dock instead. */}
             {!(hostedTabId !== undefined && editTabs[hostedTabId]) && (
@@ -445,6 +458,15 @@ export function FilesScreen({
             editable
             file={viewerFile}
             key={activeFile.hostPath}
+            {...(source
+              ? {
+                  // The tab turns back into the page, the way it arrives
+                  // at a page's file from anywhere.
+                  onLeaveSource: () => {
+                    router.history.push(fileHref(activeFile.hostPath));
+                  },
+                }
+              : {})}
           />
         ) : (
           <ComputerPage

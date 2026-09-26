@@ -15,6 +15,7 @@ import {
 } from "@/client/lib/document-viewers";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
+import { flushFileWrites } from "@/client/lib/file-flush";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { UNTRUSTED_TASK_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
@@ -26,11 +27,10 @@ import {
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { ArrowUUpLeftIcon } from "@phosphor-icons/react/ArrowUUpLeft";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
-import { EyeIcon } from "@phosphor-icons/react/Eye";
-import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
@@ -73,12 +73,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { contextMenuComponents } from "./ui/menu-components";
@@ -308,7 +303,6 @@ interface ViewerContext {
   onMediaError: (fallbackExtension: string) => void;
   /** A page's file drawn as its page, when the surface around the viewer can draw one. */
   page?: ReactNode;
-  viewMode: ViewMode;
   wrapLines: boolean;
 }
 
@@ -341,12 +335,6 @@ interface ViewerEntry {
   render: (context: ViewerContext) => ReactNode;
   scrolls: "container" | "self";
 }
-
-/**
- * How a document is shown: edited in place (a Markdown file where the surface
- * allows it), drawn as it reads, or as its source.
- */
-type ViewMode = "edit" | "preview" | "raw";
 
 const VIEWERS = {
   archive: {
@@ -409,15 +397,15 @@ const VIEWERS = {
     scrolls: "self",
   },
   // A page is what a browser is for, and a file tab shows one in a guest.
-  // Here the file is read as the text it is, unless the surface around the
-  // viewer hands over the page drawn, which is then the preview and the text
-  // the other view mode.
+  // Here the file is its text, edited where the surface allows it, unless the
+  // surface around the viewer hands over the page drawn.
   html: {
     hasToolbar: false,
     render: (context) =>
-      context.viewMode === "preview" && context.page !== undefined
-        ? context.page
-        : renderCode(context),
+      context.page ??
+      (context.editable
+        ? renderCodeEditor(context, "code")
+        : renderCode(context)),
     scrolls: "container",
   },
   image: {
@@ -470,11 +458,7 @@ const VIEWERS = {
     // save of the file being read would reset its scroll position, while a
     // different file should start at the top with an outline of its own.
     render: (context) =>
-      context.viewMode === "raw" ? (
-        <div className="min-h-0 flex-1 overflow-auto">
-          {renderCode(context)}
-        </div>
-      ) : context.viewMode === "edit" ? (
+      context.editable ? (
         <Suspense fallback={<FileLoading />}>
           <MarkdownEditor
             hostPath={context.file.hostPath}
@@ -590,6 +574,16 @@ const VIEWERS = {
   },
 } satisfies Record<FileType, ViewerEntry>;
 
+/**
+ * A file that is text under the covers shown as that text, in the code
+ * editor, in place of the view its type gets.
+ */
+const SOURCE_VIEWER: ViewerEntry = {
+  hasToolbar: false,
+  render: (context) => renderCodeEditor(context, "code"),
+  scrolls: "container",
+};
+
 function renderCode({ file, wrapLines }: ViewerContext) {
   return (
     <CodeView filename={file.filename} url={file.url} wrapLines={wrapLines} />
@@ -630,6 +624,39 @@ function renderPdf({ fallback, file }: ViewerContext) {
   );
 }
 
+/**
+ * What a file that is text under the covers is shown as when it is not shown
+ * as its text, for the menu's way back from the source; absent for a file
+ * whose only view is its text, or whose view is not text.
+ */
+function richViewName(
+  fileType: FileType,
+  filename: string,
+  hasPage: boolean,
+): string | undefined {
+  switch (fileType) {
+    case "csv":
+    case "jsonl": {
+      return "table";
+    }
+    case "html": {
+      return hasPage ? "page" : undefined;
+    }
+    case "image": {
+      return /\.svg$/i.test(filename) ? "image" : undefined;
+    }
+    case "markdown": {
+      return "document";
+    }
+    case "notebook": {
+      return "notebook";
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
 const fileViewerHeaderActionClassName = toolbarClassName({
   className: "h-7 gap-1.5 px-2 text-xs has-[>svg]:px-2",
   pressed: false,
@@ -667,6 +694,7 @@ export function FileViewer({
   file,
   onClose,
   onExpand,
+  onLeaveSource,
   page,
 }: {
   /**
@@ -681,27 +709,32 @@ export function FileViewer({
   // can drop its own card and fill the frame instead of nesting inside it.
   className?: string;
   /**
-   * Whether a Markdown file opens as a live editor, with the static preview
-   * and the source as the other view modes; a code or plain text file as a
-   * live code editor; and a CSV as an editable grid. For a surface that is the file's own place (its tab);
-   * a glance at a file (Quick Look) keeps the static views.
+   * Whether a Markdown file opens as a live editor; a code, plain text or
+   * HTML file as a live code editor; and a CSV as an editable grid. A file
+   * that is text under the covers but has a view of its own (Markdown, a
+   * page, a table, an SVG) also offers its source in the code editor, from
+   * the menu. For a surface that is the file's own place (its tab); a glance
+   * at a file (Quick Look) keeps the static views.
    */
   editable?: boolean;
   file: ViewerFile;
   onClose?: () => void;
   onExpand?: () => void;
   /**
+   * Set by a surface showing a page's file as its source because it was
+   * asked to, where the page is shown elsewhere: the menu's way back from
+   * the source calls it.
+   */
+  onLeaveSource?: () => void;
+  /**
    * A page's file drawn as its page, from a surface that can draw one; the
-   * viewer shows it as the preview and offers the text as the other view
-   * mode. Consulted for an HTML file alone.
+   * viewer shows it, and offers the source from the menu. Consulted for an
+   * HTML file alone.
    */
   page?: ReactNode;
 }) {
   const { filename, hostPath, mimeType, url } = file;
-  const canEdit = editable && getFileType(file) === "markdown";
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    canEdit ? "edit" : "preview",
-  );
+  const [sourceChosen, setSourceChosen] = useState(false);
   const [wrapLines, setWrapLines] = useAtom(fileViewerWrapLinesAtom);
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
@@ -721,22 +754,32 @@ export function FileViewer({
     }),
   );
 
+  const fileType = getFileType(file);
+  // The source is where a file with a view of its own goes to be edited as
+  // its text; it is out of the way, in the menu, because the view is how the
+  // file is meant to be read and edited.
+  const richView = editable
+    ? richViewName(
+        fileType,
+        filename,
+        page !== undefined || onLeaveSource !== undefined,
+      )
+    : undefined;
+  const showsSource =
+    richView !== undefined && (sourceChosen || onLeaveSource !== undefined);
+
   useEffect(() => {
     contentRef.current?.scrollTo({ behavior: "instant", top: 0 });
-  }, [viewMode]);
+  }, [showsSource]);
 
-  const fileType = getFileType(file);
-  const hasPreview =
-    fileType === "markdown" || (fileType === "html" && page !== undefined);
   // What is on screen is the file's own text, so the wrap preference governs
   // it: the code and plain text viewers always, an HTML file with no page
-  // drawn for it, and a markdown file or a drawn page only while its own view
-  // mode is showing the source.
+  // drawn for it, and any file while its source is showing.
   const showsFileText =
     fileType === "code" ||
     fileType === "text" ||
-    (fileType === "html" && !hasPreview) ||
-    (hasPreview && viewMode === "raw");
+    (fileType === "html" && page === undefined) ||
+    showsSource;
   const fileActions = useFileActionVisibility(file);
   // Copying the whole file is rare enough to live in the menu rather than
   // take a place in the head beside opening it.
@@ -750,7 +793,7 @@ export function FileViewer({
     canCopy ||
     fileActions.showDownload ||
     fileActions.showReveal ||
-    hasPreview ||
+    richView !== undefined ||
     showsFileText ||
     Boolean(onExpand);
 
@@ -770,13 +813,14 @@ export function FileViewer({
     }
   };
 
-  const handleViewModeChange = (value: string) => {
-    if (
-      value === "preview" ||
-      value === "raw" ||
-      (canEdit && value === "edit")
-    ) {
-      setViewMode(value);
+  // The view giving way writes what it holds first, so the one taking over
+  // reads the file as it was left.
+  const handleSourceChange = async (next: boolean) => {
+    await flushFileWrites(hostPath);
+    if (!next && onLeaveSource) {
+      onLeaveSource();
+    } else {
+      setSourceChosen(next);
     }
   };
 
@@ -784,7 +828,7 @@ export function FileViewer({
     revealFileMutation.mutate({ filepath: hostPath });
   };
 
-  const viewer: ViewerEntry = VIEWERS[fileType];
+  const viewer: ViewerEntry = showsSource ? SOURCE_VIEWER : VIEWERS[fileType];
   const viewerContext: ViewerContext = {
     editable,
     fallback: (
@@ -809,13 +853,18 @@ export function FileViewer({
       setMediaErrorType(fallbackExtension);
     },
     ...(page === undefined ? {} : { page }),
-    viewMode,
     wrapLines,
   };
 
   const actions = (
     <>
       {actionsLead}
+      {showsSource && (
+        <span className="flex items-center gap-1 px-1 text-xs text-muted-foreground">
+          <CodeIcon className="size-3.5" />
+          Source
+        </span>
+      )}
       <OpenTaskFileButton
         className={fileViewerHeaderActionClassName}
         control={openControl}
@@ -864,43 +913,21 @@ export function FileViewer({
                 <span>{getRevealInFolderLabel()}</span>
               </DropdownMenuItem>
             )}
-            {hasHeaderMenuActions && (hasPreview || showsFileText) && (
-              <DropdownMenuSeparator />
-            )}
-            {hasPreview && (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  {viewMode === "edit" ? (
-                    <PencilSimpleIcon className="size-4" />
-                  ) : viewMode === "preview" ? (
-                    <EyeIcon className="size-4" />
-                  ) : (
-                    <CodeIcon className="size-4" />
-                  )}
-                  <span>View mode</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="min-w-36">
-                  <DropdownMenuRadioGroup
-                    onValueChange={handleViewModeChange}
-                    value={viewMode}
-                  >
-                    {canEdit && (
-                      <DropdownMenuRadioItem value="edit">
-                        <PencilSimpleIcon className="size-4" />
-                        <span>Edit</span>
-                      </DropdownMenuRadioItem>
-                    )}
-                    <DropdownMenuRadioItem value="preview">
-                      <EyeIcon className="size-4" />
-                      <span>Preview</span>
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="raw">
-                      <CodeIcon className="size-4" />
-                      <span>Code</span>
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+            {hasHeaderMenuActions &&
+              (richView !== undefined || showsFileText) && (
+                <DropdownMenuSeparator />
+              )}
+            {richView !== undefined && (
+              <DropdownMenuItem
+                onClick={() => void handleSourceChange(!showsSource)}
+              >
+                {showsSource ? (
+                  <ArrowUUpLeftIcon className="size-4" />
+                ) : (
+                  <CodeIcon className="size-4" />
+                )}
+                <span>{showsSource ? `Show ${richView}` : "Edit source"}</span>
+              </DropdownMenuItem>
             )}
             {showsFileText && (
               <DropdownMenuCheckboxItem

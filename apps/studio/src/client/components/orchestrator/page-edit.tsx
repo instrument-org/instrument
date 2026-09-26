@@ -7,7 +7,11 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import {
+  getGuestGeneration,
+  getWebviewElement,
+} from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
@@ -16,6 +20,7 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import { pageEditPlacementAtom, usePageEdit } from "./page-edit-state";
@@ -42,6 +47,33 @@ import {
  */
 
 const CHANNEL = "page-editor";
+
+const TOO_LARGE = "This page is too large to edit here";
+
+/** How long to wait for a guest to attach before looking again, and how many looks. */
+const ATTACH_RETRY_MS = 250;
+const ATTACH_RETRIES = 40;
+
+/**
+ * Each tab's loads, writes and stops, in order across Edit sessions, so a
+ * stop left behind a slow write never lands after the next Edit's load.
+ */
+const tabChains = new Map<string, Promise<unknown>>();
+
+function serialFor(tabId: string, work: () => Promise<unknown>) {
+  const next = (tabChains.get(tabId) ?? Promise.resolve())
+    .then(work, work)
+    .catch(() => {
+      // A write or a load that failed leaves the editor holding its text;
+      // its next save retries against whatever is on disk.
+    });
+  tabChains.set(tabId, next);
+  void next.finally(() => {
+    if (tabChains.get(tabId) === next) {
+      tabChains.delete(tabId);
+    }
+  });
+}
 
 const GuestMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hello"), version: z.string() }),
@@ -190,28 +222,65 @@ export function PageEditSession({
   // Serves the editor for as long as the tab is in Edit. `check` is how the
   // file watch below reaches the session.
   const session = useRef<null | { check: () => void }>(null);
+  // The guest to serve: a tab switched to Edit before its guest attached is
+  // served once it does, and a guest recreated under the tab is served anew.
+  const attached = useBrowserTargets().has(target);
+  const guestGeneration = attached ? getGuestGeneration(target) : undefined;
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const webview = getWebviewElement(target);
-    let webContentsId: number;
+    let webContentsId = -1;
     try {
       webContentsId = webview?.getWebContentsId() ?? -1;
     } catch {
-      // Not attached: there is no page to edit yet.
-      return;
+      // Not attached yet; looked for again below.
     }
     if (!webview || webContentsId === -1) {
-      return;
+      if (attempt >= ATTACH_RETRIES) {
+        return;
+      }
+      const timer = setTimeout(() => {
+        setAttempt((current) => current + 1);
+      }, ATTACH_RETRY_MS);
+      return () => {
+        clearTimeout(timer);
+      };
     }
     // The file version the editor holds, as it last said or as a write
     // returned; a change on disk at any other version is someone else's.
     let known: string | undefined;
-    let chain: Promise<unknown> = Promise.resolve();
+    // The load this session last made, which its stop names.
+    let generation: number | undefined;
     const serial = (work: () => Promise<unknown>) => {
-      chain = chain.then(work, work).catch(() => {
-        // A write or a load that failed leaves the editor holding its text;
-        // its next save retries against whatever is on disk.
-      });
+      serialFor(tabId, work);
+    };
+    // Back to the page as it is, saying why.
+    const giveUp = (message: string, description?: string) => {
+      toast.error(message, description ? { description } : {});
+      latest.current.setEditing(false);
+    };
+    const load = async (input: { state: unknown; text?: string }) => {
+      let result;
+      try {
+        result = await rpcClient.pageEditor.load.call({
+          path,
+          webContentsId,
+          ...input,
+        });
+      } catch (error) {
+        giveUp(
+          "Could not open this page to edit",
+          error instanceof Error ? error.message : undefined,
+        );
+        return;
+      }
+      if (result.tooLarge) {
+        setCover(null);
+        giveUp(TOO_LARGE);
+        return;
+      }
+      generation = result.generation;
     };
     const send = (message: unknown) => {
       try {
@@ -290,12 +359,7 @@ export function PageEditSession({
             } catch {
               // Nothing to hold over it; the reload shows as it is.
             }
-            await rpcClient.pageEditor.load.call({
-              path,
-              state: message.state,
-              text: message.text,
-              webContentsId,
-            });
+            await load({ state: message.state, text: message.text });
           });
           break;
         }
@@ -312,7 +376,13 @@ export function PageEditSession({
           break;
         }
         case "status": {
-          // What the editor would put in a status line; nothing here shows one.
+          // An editor that could not start says so, and the page goes back
+          // to View; any other status line is the editor's own, and nothing
+          // here shows one.
+          if (message.kind === "error") {
+            setCover(null);
+            giveUp("The editor could not start", message.message);
+          }
           break;
         }
         case "unstage": {
@@ -321,23 +391,33 @@ export function PageEditSession({
         }
       }
     };
+    // The guest leaving the stamped copy (Back, a link, the page's own
+    // script) leaves Edit: what it shows then is not what is being edited.
+    const onNavigate = (event: Event) => {
+      const { url } = event as Event & { url?: string };
+      if (generation !== undefined && url && !url.startsWith("data:")) {
+        latest.current.setEditing(false);
+      }
+    };
     webview.addEventListener("ipc-message", onMessage);
-    serial(() =>
-      rpcClient.pageEditor.load.call({
-        path,
-        state: { placement: latest.current.placement },
-        webContentsId,
-      }),
-    );
+    webview.addEventListener("did-navigate", onNavigate);
+    serial(() => load({ state: { placement: latest.current.placement } }));
     return () => {
       webview.removeEventListener("ipc-message", onMessage);
+      webview.removeEventListener("did-navigate", onNavigate);
       session.current = null;
       // After every write in flight, so leaving never drops an edit.
       serial(async () => {
-        await rpcClient.pageEditor.stop.call({ path, webContentsId });
+        if (generation !== undefined) {
+          await rpcClient.pageEditor.stop.call({
+            generation,
+            path,
+            webContentsId,
+          });
+        }
       });
     };
-  }, [path, target]);
+  }, [attempt, guestGeneration, path, tabId, target]);
 
   useEffect(() => {
     try {
@@ -406,7 +486,7 @@ export function PageEditToggle({ tabId }: { tabId: string }) {
       aria-label={label}
       aria-pressed={isEditing === value}
       className={cn(
-        "h-5.5 rounded-md border border-transparent px-2.5 text-xs @max-xl/tabrow:px-1.5 font-medium outline-none focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
+        "h-5.5 rounded-md border border-transparent px-2.5 text-xs font-medium outline-none focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid] @max-xl/tabrow:px-1.5",
         isEditing === value
           ? "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30"
           : "text-muted-foreground hover:text-foreground",

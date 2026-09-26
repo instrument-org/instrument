@@ -2,7 +2,7 @@ import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import { eventIterator } from "@orpc/server";
 import { shell } from "electron";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -149,6 +149,34 @@ function versionOf(text: string) {
 }
 
 /**
+ * Writes a file whole or not at all: into a new file beside it, then renamed
+ * over it, so a crash or a full disk mid-write leaves the old text rather
+ * than half of the new. The file keeps its permissions, and a link is
+ * written through to the file it points at.
+ */
+async function writeWhole(filePath: string, content: string) {
+  const target = await fs.realpath(filePath).catch(() => filePath);
+  const mode = await fs.stat(target).then(
+    (stats) => stats.mode & 0o7777,
+    () => {},
+  );
+  const staging = path.join(
+    path.dirname(target),
+    `.${path.basename(target)}.${randomUUID().slice(0, 8)}.tmp`,
+  );
+  try {
+    await fs.writeFile(staging, content);
+    if (mode !== undefined) {
+      await fs.chmod(staging, mode);
+    }
+    await fs.rename(staging, target);
+  } catch (error) {
+    await fs.rm(staging, { force: true });
+    throw error;
+  }
+}
+
+/**
  * The person's own edit to a text file they have open, written only when the
  * file on disk is still the version the editor started from. When the agent
  * (or anything else) wrote in between, nothing is written and the current text
@@ -182,7 +210,7 @@ const write = base
           return { content: disk, ok: false as const, version: diskVersion };
         }
       }
-      await fs.writeFile(input.path, input.content);
+      await writeWhole(input.path, input.content);
       return { ok: true as const, version: versionOf(input.content) };
     } catch (error) {
       throw errors.CANNOT_WRITE({

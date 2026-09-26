@@ -2,6 +2,12 @@ import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import { type OnBeforeRequestListenerDetails, type Session } from "electron";
 import path from "node:path";
 
+/** The file a guest's frame at `frameUrl` is a stamped copy of, when it is the one being edited. */
+type EditedPageOf = (
+  webContentsId: number | undefined,
+  frameUrl: string | undefined,
+) => string | undefined;
+
 /**
  * What a page loaded from a file on this computer may read from the disk: its
  * own folder, and nothing above or beside it.
@@ -23,7 +29,7 @@ import path from "node:path";
  */
 export function confineLocalPagesToTheirFolder(
   guestSession: Session,
-  editedPageOf?: (webContentsId: number | undefined) => string | undefined,
+  editedPageOf?: EditedPageOf,
 ) {
   guestSession.webRequest.onBeforeRequest(
     { urls: ["file:///*"] },
@@ -46,9 +52,10 @@ export function isAllowedLocalRequest(
   /**
    * The file a guest editing a page shows. That page is loaded as data with
    * the file's address as its base, so its frame reports a `data:` address;
-   * the folder it may read is the file's, as it is in View.
+   * the folder it may read is the file's, as it is in View, and only while
+   * the frame is at the exact address the edit loaded.
    */
-  editedPage?: (webContentsId: number | undefined) => string | undefined,
+  editedPage?: EditedPageOf,
 ): boolean {
   const requested = hostPathOf(details.url);
   if (requested === undefined || PRIVATE_DIR_SEGMENT_REGEX.test(requested)) {
@@ -58,10 +65,8 @@ export function isAllowedLocalRequest(
     return true;
   }
   const frameUrl = details.frame?.url;
-  const edited = frameUrl?.startsWith("data:")
-    ? editedPage?.(details.webContentsId)
-    : undefined;
-  const page = edited ?? hostPathOf(frameUrl);
+  const page =
+    editedPage?.(details.webContentsId, frameUrl) ?? hostPathOf(frameUrl);
   if (page === undefined) {
     return false;
   }

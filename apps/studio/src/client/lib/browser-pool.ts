@@ -192,6 +192,13 @@ export function getAttachedTargetsSnapshot(): ReadonlySet<BrowserTargetId> {
   return attachedTargets;
 }
 
+/** Which mounting of a target's guest the pool holds; a recreated guest has a new one. */
+export function getGuestGeneration(
+  targetId: BrowserTargetId,
+): number | undefined {
+  return pool.get(targetId)?.generation;
+}
+
 /** The pooled guest element for a target, if it exists (for nav controls). */
 export function getWebviewElement(
   targetId: BrowserTargetId,
@@ -370,9 +377,14 @@ export function showOverSlot(
   // above its own, since a guest under an opaque host is a page nobody sees.
   layer = 0,
   // The radius of the host's bottom corners, which the guest is clipped to so
-  // it does not stand square past a rounder frame or round inside a square one.
+  // it does not stand square past a rounder frame or round inside a square one:
+  // one length for both, or two, the bottom left's and then the bottom right's.
   bottomRadius = VISIBLE_BOTTOM_RADIUS,
 ) {
+  const [bottomLeft = bottomRadius, bottomRight = bottomLeft] = bottomRadius
+    .trim()
+    .split(/\s+/);
+  const corners = `0 0 ${bottomRight} ${bottomLeft}`;
   const pooled = pool.get(targetId);
   if (!pooled) {
     return;
@@ -386,7 +398,7 @@ export function showOverSlot(
   const { container, webview } = pooled;
 
   Object.assign(container.style, {
-    borderRadius: `0 0 ${bottomRadius} ${bottomRadius}`,
+    borderRadius: corners,
     contain: "layout paint size style",
     height: `${bounds.height}px`,
     left: `${bounds.x}px`,
@@ -415,7 +427,7 @@ export function showOverSlot(
     } satisfies Partial<CSSStyleDeclaration>);
   } else {
     Object.assign(webview.style, {
-      borderRadius: `0 0 ${bottomRadius} ${bottomRadius}`,
+      borderRadius: corners,
       height: `${bounds.height}px`,
       left: "",
       position: "",

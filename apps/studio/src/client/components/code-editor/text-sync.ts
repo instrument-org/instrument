@@ -15,7 +15,7 @@ const BOM = "\uFEFF";
 /** Past this, a file opens read only: about 5 MB of text. */
 export const MAX_EDITABLE_CHARS = 5 * 1024 * 1024;
 /** A line longer than this (a minified bundle, a data blob) makes the file read only. */
-export const MAX_EDITABLE_LINE = 20_000;
+export const MAX_EDITABLE_LINE = 500_000;
 
 /** A file's text as the editor holds it, and what it takes to write it back unchanged. */
 export interface TextForm {

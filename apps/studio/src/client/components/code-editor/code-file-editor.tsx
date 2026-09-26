@@ -5,6 +5,7 @@ import { useAskMarks } from "@/client/components/orchestrator/ask-marks";
 import { linesLabel } from "@/client/components/orchestrator/staged-asks";
 import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { UpdatedPill } from "@/client/components/updated-pill";
+import { registerFileFlush } from "@/client/lib/file-flush";
 import { rpcClient } from "@/client/rpc/client";
 import { EditorView } from "@codemirror/view";
 import { useQuery } from "@tanstack/react-query";
@@ -54,7 +55,9 @@ export function CodeFileEditor({
     staleTime: Infinity,
   });
 
-  if (initial.isLoading) {
+  // Another view of the file may have just left its own read in the cache,
+  // from before it saved; the document starts from a read of this mount's.
+  if (initial.isLoading || !initial.isFetchedAfterMount) {
     return <FileLoading />;
   }
   if (initial.error || !initial.data) {
@@ -175,10 +178,12 @@ function LiveCodeDocument({
       wrapLines: wrapRef.current,
     });
     setSession(created);
+    const unregister = registerFileFlush(hostPath, created.flush);
     if (import.meta.env.DEV) {
       exposeForTests(hostPath, created);
     }
     return () => {
+      unregister();
       if (import.meta.env.DEV) {
         exposeForTests(hostPath, null);
       }

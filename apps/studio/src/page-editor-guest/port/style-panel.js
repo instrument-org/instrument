@@ -534,23 +534,36 @@ function openPalette(ctx, anchor, which, cs) {
     });
   place();
   pal.querySelector("details").addEventListener("toggle", place);
+  // A press inside the editor's closed root is judged there, where the
+  // element pressed is seen; one on the page always closes the palette.
+  const root = pal.getRootNode();
   const away = (e) => {
+    if (!e.isTrusted) return;
     const t = e.composedPath()[0];
     if (!pal.contains(t) && !anchor.contains(t)) {
       ctx.onPreview(null);
       closePalette();
     }
   };
+  const awayOnPage = (e) => {
+    if (!e.isTrusted || e.composedPath().includes(root.host)) return;
+    ctx.onPreview(null);
+    closePalette();
+  };
   const key = (e) => {
-    if (e.key === "Escape") {
+    if (e.isTrusted && e.key === "Escape") {
       ctx.onPreview(null);
       closePalette();
     }
   };
-  setTimeout(() => document.addEventListener("pointerdown", away, true), 0);
+  setTimeout(() => {
+    root.addEventListener("pointerdown", away, true);
+    document.addEventListener("pointerdown", awayOnPage, true);
+  }, 0);
   document.addEventListener("keydown", key, true);
   paletteCleanup = () => {
-    document.removeEventListener("pointerdown", away, true);
+    root.removeEventListener("pointerdown", away, true);
+    document.removeEventListener("pointerdown", awayOnPage, true);
     document.removeEventListener("keydown", key, true);
     pal.remove();
   };

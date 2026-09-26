@@ -19,7 +19,11 @@ const PageSchema = z.object({
  * edit in place; see `page-editor/sessions.ts`.
  */
 export const pageEditor = {
-  /** Shows the file ready to edit, from `text` when the editor holds text of its own, with its `state` handed back to it. */
+  /**
+   * Shows the file ready to edit, from `text` when the editor holds text of
+   * its own, with its `state` handed back to it. Answers the load's
+   * generation, which `stop` names, or that the page is too large to edit.
+   */
   load: base
     .input(
       PageSchema.extend({
@@ -27,11 +31,11 @@ export const pageEditor = {
         text: z.string().optional(),
       }),
     )
+    .handler(({ input }) => loadEditablePage(input)),
+  /** Shows the file at its own address again, when the load it names is still the guest's. */
+  stop: base
+    .input(PageSchema.extend({ generation: z.number().int() }))
     .handler(async ({ input }) => {
-      await loadEditablePage(input);
+      await stopEditingPage(input);
     }),
-  /** Shows the file at its own address again. */
-  stop: base.input(PageSchema).handler(async ({ input }) => {
-    await stopEditingPage(input);
-  }),
 };

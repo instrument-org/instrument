@@ -33,6 +33,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   type Ref,
@@ -239,7 +240,8 @@ export function BrowserTabs({
    */
   threadOfTask: ReadonlyMap<TaskId, string | undefined>;
 }) {
-  const { openScreen, taskId } = useOrchestrator();
+  const { taskId } = useOrchestrator();
+  const router = useRouter();
   const [{ activeByGroup, activeId, group, tabs: allTabs }, setAllTabs] =
     useAtom(windowTabsAtom);
   const everyTabId = useAtomValue(everyTabIdAtom);
@@ -921,13 +923,23 @@ export function BrowserTabs({
   const editTabs = useAtomValue(pageEditTabsAtom);
   const setEditTabs = useSetAtom(pageEditTabsAtom);
   const editPlacement = useAtomValue(pageEditPlacementAtom);
-  const editableId =
-    active &&
-    !active.taskId &&
-    activeFilePath !== undefined &&
-    getFileType({ filename: activeFilePath }) === "html"
-      ? active.id
-      : undefined;
+  const editableId = active && isEditablePage(active) ? active.id : undefined;
+  // Edit lasts while its tab is open on an HTML file: a tab that closes, or
+  // goes on to a picture, a PDF or a site, is out of it.
+  const editableKey = tabs
+    .filter((tab) => isEditablePage(tab))
+    .map((tab) => tab.id)
+    .join(",");
+  useEffect(() => {
+    const keep = new Set(editableKey.split(","));
+    setEditTabs((current) =>
+      Object.keys(current).every((id) => keep.has(id))
+        ? current
+        : Object.fromEntries(
+            Object.entries(current).filter(([id]) => keep.has(id)),
+          ),
+    );
+  }, [editableKey, setEditTabs]);
   usePageEditToggleOnScreen(
     editableId === undefined
       ? null
@@ -949,7 +961,7 @@ export function BrowserTabs({
         return filePath === undefined
           ? []
           : [
-              editTabs[tab.id] ? (
+              editTabs[tab.id] && isEditablePage(tab) ? (
                 <PageEditSession
                   isShown={tab.id === active?.id}
                   key={tab.id}
@@ -969,6 +981,9 @@ export function BrowserTabs({
       {active ? (
         <TaskBrowserPanel
           active={attached.has(targetOf(active))}
+          {...(editTabs[active.id] && active.url
+            ? { address: active.url }
+            : {})}
           chrome={{ into: chromeInto ?? null }}
           className="h-full"
           key={active.id}
@@ -997,10 +1012,12 @@ export function BrowserTabs({
           {...(activeFilePath === undefined
             ? {}
             : {
-                onViewSource: () => {
-                  openScreen(fileHref(activeFilePath, { source: true }), {
-                    newTab: true,
-                  });
+                // The tab itself turns to the file's text, the way it turns
+                // back to the page from there.
+                onEditSource: () => {
+                  router.history.push(
+                    fileHref(activeFilePath, { source: true }),
+                  );
                 },
               })}
           sessionId={StoreId.SessionSchema.parse(active.id)}
@@ -1211,6 +1228,16 @@ function isDrawableHere(src: string): boolean {
   }
   const { hostname, protocol } = new URL(src);
   return /^https?:$/.test(protocol) && hostname.endsWith(".localhost");
+}
+
+/** A page tab of the window's own on an HTML file, which Edit can change in place. */
+function isEditablePage(tab: BrowserTab) {
+  const filePath = hostPathOfFileUrl(tab.url);
+  return (
+    !tab.taskId &&
+    filePath !== undefined &&
+    getFileType({ filename: filePath }) === "html"
+  );
 }
 
 /** Two addresses are the same tab when they differ only by a trailing slash or a fragment. */

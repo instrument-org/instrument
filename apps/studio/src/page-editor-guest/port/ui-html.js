@@ -4,7 +4,6 @@ import { icon, mark } from "./icons.js";
 
 export const UI_HTML = `
 <div id="ui">
-  <div id="edit-frame"></div>
   <div id="overlay">
     <div id="hover" class="box" hidden><span class="tag"></span></div>
     <div id="selbox" class="box sel" hidden></div>

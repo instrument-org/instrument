@@ -124,7 +124,6 @@
 }
 #ui > #overlay,
 #ui > #float-layer,
-#ui > #edit-frame,
 #ui > #dock-hint {
   pointer-events: none;
 }
@@ -132,12 +131,6 @@
   position: fixed;
   inset: 0;
   overflow: hidden;
-}
-/* Edit mode reads at the page's edge without covering any of it. */
-#edit-frame {
-  position: fixed;
-  inset: 0;
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sel) 45%, transparent);
 }
 #float-layer {
   position: fixed;

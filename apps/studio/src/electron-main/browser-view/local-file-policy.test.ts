@@ -111,4 +111,42 @@ describe("isAllowedLocalRequest", () => {
       request("file:///Users/casey/tasks/a/.instrument/task.db", "mainFrame"),
     ).toBe(false);
   });
+  describe("a page being edited", () => {
+    const COPY = "data:text/html;charset=utf-8;base64,PHA+ZWRpdGVkPC9wPg==";
+    const editedPage = (
+      id: number | undefined,
+      frameUrl: string | undefined,
+    ) =>
+      id === 7 && frameUrl === COPY
+        ? "/Users/casey/Documents/Instrument/report/index.html"
+        : undefined;
+    const fromCopy = (url: string, frameUrl: string) =>
+      isAllowedLocalRequest(
+        {
+          frame: frameAt(frameUrl),
+          resourceType: "image",
+          url,
+          webContentsId: 7,
+        },
+        editedPage,
+      );
+
+    it("reads the file's folder from the copy the edit loaded", () => {
+      expect(
+        fromCopy(
+          "file:///Users/casey/Documents/Instrument/report/chart.png",
+          COPY,
+        ),
+      ).toBe(true);
+    });
+
+    it("reads nothing from any other copy in the same guest", () => {
+      expect(
+        fromCopy(
+          "file:///Users/casey/Documents/Instrument/report/chart.png",
+          "data:text/html;charset=utf-8;base64,PHA+b2xkZXI8L3A+",
+        ),
+      ).toBe(false);
+    });
+  });
 });

@@ -82,13 +82,14 @@ interface DidFailLoadEvent extends Event {
  */
 export function TaskBrowserPanel({
   active,
+  address,
   chrome = true,
   className,
   focusAddress = true,
   insideOverlay = false,
   layer,
   menuItems,
-  onViewSource,
+  onEditSource,
   pageControls,
   relayoutKey,
   sessionId,
@@ -96,6 +97,12 @@ export function TaskBrowserPanel({
   taskId,
 }: {
   active: boolean;
+  /**
+   * The address the page stands for while the guest shows a copy of it
+   * loaded as data (a page's file in Edit): the bar, Copy URL and the way
+   * out to the user's browser all give this instead of the copy's.
+   */
+  address?: string;
   /**
    * Where the bar goes: over the page as its own row, nowhere, or into an
    * element the window keeps for it. Drawn there it loses the arrows, which
@@ -122,8 +129,8 @@ export function TaskBrowserPanel({
   layer?: number;
   /** More of the page's menu, for a page that has more to offer than a site. */
   menuItems?: ReactNode;
-  /** Shows the page's text, when the page has some to show; the menu offers it. */
-  onViewSource?: () => void;
+  /** Opens the page's text for editing, when the page is a file; the menu offers it. */
+  onEditSource?: () => void;
   /** Drawn ahead of reload in the row the bar is drawn into, for a page with a mode of its own. */
   pageControls?: ReactNode;
   /** Changes whenever the panel moves without resizing, so the guest is placed again; see useBrowserSlot. */
@@ -136,6 +143,10 @@ export function TaskBrowserPanel({
 }) {
   const targetId = encodeBrowserTargetId(taskId, sessionId);
   const inputRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef(address);
+  useEffect(() => {
+    addressRef.current = address;
+  });
   const isVisible = useIsTaskPageVisible();
   const [draftUrl, setDraftUrl] = useState("");
   const [location, setLocation] = useState<null | {
@@ -243,7 +254,7 @@ export function TaskBrowserPanel({
       // getURL/canGoBack throw if the guest hasn't attached its WebContents yet;
       // the did-navigate events that also drive this only fire once it has.
       try {
-        const url = webview.getURL();
+        const url = standIn(webview.getURL(), addressRef.current);
         if (!editingUrlRef.current) {
           setDraftUrl(url === "about:blank" ? "" : url);
         }
@@ -380,7 +391,7 @@ export function TaskBrowserPanel({
       // getURL throws until the guest's WebContents is dom-ready; `active` can
       // lead that (it round-trips through main), so treat a throw as "no page".
       const url = webviewFor()?.getURL();
-      return url && url !== "about:blank" ? url : undefined;
+      return url && url !== "about:blank" ? standIn(url, address) : undefined;
     } catch {
       return;
     }
@@ -523,10 +534,10 @@ export function TaskBrowserPanel({
                 Hard reload
               </DropdownMenuItem>
               {menuItems}
-              {onViewSource && (
-                <DropdownMenuItem onSelect={onViewSource}>
+              {onEditSource && (
+                <DropdownMenuItem onSelect={onEditSource}>
                   <CodeIcon className="size-4" />
-                  View source
+                  Edit source
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -779,4 +790,9 @@ export function TaskBrowserPanel({
       )}
     </div>
   );
+}
+
+/** A copy loaded as data stands for the address it was loaded in place of. */
+function standIn(url: string, address: string | undefined) {
+  return url.startsWith("data:") && address !== undefined ? address : url;
 }

@@ -1,5 +1,5 @@
-// The editor bundle's entry. Evaluated by the guest preload in its isolated
-// world once the page's markup is in, and only when the load is an edit (the
+// The editor bundle's entry. Run by the guest preload in its isolated world
+// once the page's markup is in, and only when the load is an edit (the
 // bridge is there). The preload has had the observer on since document start.
 import { startEditor } from "./editor.js";
 
@@ -11,7 +11,7 @@ if (bridge) {
       bridge.send({
         type: "status",
         message: `The editor could not start: ${error.message}`,
-        kind: "warn",
+        kind: "error",
       });
     });
   if (document.readyState === "loading")

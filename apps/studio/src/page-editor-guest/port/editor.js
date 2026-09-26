@@ -7,8 +7,10 @@
 // kept on an undo stack; the agent's own edits reload the page in place.
 //
 // Runs in the guest's isolated world, over the page itself: its UI lives in a
-// shadow root on the page, and it talks to the window through the preload's
-// bridge (saves, asks, reloads), never to the disk or the page's scripts.
+// closed shadow root on the page, it acts only on the person's own input
+// (never on events a page script dispatches), and it talks to the window
+// through the preload's bridge (saves, asks, reloads), never to the disk or
+// the page's scripts.
 import { computePosition, flip, offset, shift } from "@floating-ui/dom";
 import { DIFF_DELETE, DIFF_INSERT, diffMain } from "diff-match-patch-es";
 import { twMerge } from "tailwind-merge";
@@ -62,14 +64,18 @@ import { UI_HTML } from "./ui-html.js";
 export async function startEditor(bridge) {
   const boot = bridge.boot;
   const path = boot.name;
-  // The editor's own UI: one element on the page, its contents in a shadow root
-  // the page's styles do not reach.
+  // The editor's own UI: one element on the page, its contents in a closed
+  // shadow root the page's styles and scripts do not reach.
   const uiHost = document.createElement("instrument-page-editor");
   uiHost.setAttribute("data-editor-guest", "");
   uiHost.style.cssText =
     "all: initial; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; display: block;";
   loadFonts();
-  const shadow = uiHost.attachShadow({ mode: "open" });
+  const shadow = uiHost.attachShadow({ mode: "closed" });
+  // SortableJS finds a drop target by descending through `shadowRoot` from
+  // the element under the pointer, which a closed root answers with null.
+  // Named on this world's own view of the host, so the page's never has it.
+  Object.defineProperty(uiHost, "shadowRoot", { value: shadow });
   shadow.innerHTML = `<style>${CSS}</style>${UI_HTML}`;
   const ui = shadow.getElementById("ui");
   const $ = (s, root = shadow) => root.querySelector(s);
@@ -242,9 +248,44 @@ export async function startEditor(bridge) {
 
     const inEditor = (t) =>
       editing && (editing.el === t || editing.el.contains(t));
+    // A page script can dispatch any event it likes at the editor's UI or at
+    // the text being edited; only the person's own reach them.
+    for (const type of [
+      "auxclick",
+      "beforeinput",
+      "click",
+      "compositionend",
+      "compositionstart",
+      "contextmenu",
+      "copy",
+      "cut",
+      "dblclick",
+      "dragstart",
+      "drop",
+      "input",
+      "keydown",
+      "keypress",
+      "keyup",
+      "mousedown",
+      "mouseup",
+      "paste",
+      "pointerdown",
+      "pointerup",
+      "submit",
+    ]) {
+      d.addEventListener(
+        type,
+        (e) => {
+          if (!e.isTrusted && (isOurs(e) || inEditor(e.target)))
+            e.stopImmediatePropagation();
+        },
+        true,
+      );
+    }
     d.addEventListener(
       "mousemove",
       (e) =>
+        e.isTrusted &&
         mode === "edit" &&
         !dragging &&
         (isOurs(e) ? setHover(null) : onHover(e.target)),
@@ -278,7 +319,7 @@ export async function startEditor(bridge) {
         if (isOurs(e) || inEditor(e.target)) return;
         e.stopImmediatePropagation();
         e.preventDefault();
-        onClick(e);
+        if (e.isTrusted) onClick(e);
       },
       true,
     );
@@ -289,13 +330,14 @@ export async function startEditor(bridge) {
         if (isOurs(e) || inEditor(e.target)) return;
         e.stopImmediatePropagation();
         e.preventDefault();
-        onDblClick(e);
+        if (e.isTrusted) onDblClick(e);
       },
       true,
     );
     d.addEventListener(
       "keydown",
       (e) => {
+        if (!e.isTrusted) return;
         if (editing && inEditor(e.target)) {
           if (!editing.rich) {
             e.stopImmediatePropagation();
@@ -306,8 +348,18 @@ export async function startEditor(bridge) {
           }
           return;
         }
-        if (mode === "edit" && !isOurs(e)) e.stopImmediatePropagation();
+        // Keys in the editor's own UI are read inside its root, below, where
+        // the field they were typed in is seen rather than the root's host.
+        if (isOurs(e)) return;
+        if (mode === "edit") e.stopImmediatePropagation();
         hostKeys(e);
+      },
+      true,
+    );
+    shadow.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.isTrusted) hostKeys(e);
       },
       true,
     );
@@ -2569,6 +2621,7 @@ export async function startEditor(bridge) {
 
   pop.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (!e.isTrusted) return;
     const text = $("textarea", pop).value.trim();
     if (!asking) return;
     const { el, verdict, edit, change } = asking;
@@ -2926,11 +2979,12 @@ export async function startEditor(bridge) {
   addEventListener("resize", layout);
 
   // Clicking the host chrome ends a text edit, except inside the bubble menu.
-  // Page clicks are the page listeners' to judge; this is for the editor's own UI.
-  document.addEventListener(
+  // Page clicks are the page listeners' to judge; this is for the editor's own
+  // UI, heard inside its root, where the element clicked is seen.
+  shadow.addEventListener(
     "pointerdown",
     (e) => {
-      if (!editing || !isOurs(e)) return;
+      if (!editing || !e.isTrusted) return;
       const t = e.composedPath()[0];
       if (editing.rich?.containsHost(t)) return;
       commitEdit();
@@ -2968,7 +3022,7 @@ export async function startEditor(bridge) {
 
   $("#undo-btn").onclick = () => undo();
   $("#redo-btn").onclick = () => redo();
-  $("#done-btn").onclick = () => leave();
+  $("#done-btn").onclick = (e) => e.isTrusted && leave();
 
   function applyPlacement(next) {
     placement = next === "pill" ? "pill" : "row";

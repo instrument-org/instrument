@@ -18,6 +18,7 @@ import { linesLabel } from "@/client/components/orchestrator/staged-asks";
 import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
+import { registerFileFlush } from "@/client/lib/file-flush";
 import { isMermaidLanguage } from "@/client/lib/mermaid";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -78,7 +79,9 @@ export function MarkdownEditor({ hostPath }: { hostPath: string }) {
     staleTime: Infinity,
   });
 
-  if (initial.isLoading) {
+  // Another view of the file may have just left its own read in the cache,
+  // from before it saved; the document starts from a read of this mount's.
+  if (initial.isLoading || !initial.isFetchedAfterMount) {
     return <FileLoading />;
   }
   if (initial.error || !initial.data) {
@@ -282,6 +285,7 @@ function LiveDocument({
       return;
     }
     let live = true;
+    let unregister: (() => void) | undefined;
     let fenceId = 0;
     const folder = hostPath.replace(/[^/\\]*$/, "");
     const created = createEditorSession({
@@ -335,6 +339,7 @@ function LiveDocument({
       (next) => {
         if (live) {
           setSession(next);
+          unregister = registerFileFlush(hostPath, next.flush);
           if (import.meta.env.DEV) {
             exposeForTests(hostPath, next);
           }
@@ -350,6 +355,7 @@ function LiveDocument({
     );
     return () => {
       live = false;
+      unregister?.();
       void created.then((next) => next.destroy());
     };
     // The session is the file's for the component's life; the caller keys the

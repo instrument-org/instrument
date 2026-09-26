@@ -1,4 +1,3 @@
-import { isChatId } from "../record-folders";
 import { err, ok, type Result, type ResultAsync, safeTry } from "neverthrow";
 
 import { SubdomainPartSchema } from "../../schemas/subdomain-part";
@@ -7,6 +6,9 @@ import { type TypedError } from "../errors";
 import { getTasks } from "../get-tasks";
 import { initializeTask } from "../initialize-task";
 import { newTaskId } from "../new-task-id";
+import { isChatId } from "../record-folders";
+import { taskDir } from "../task-dir-utils";
+import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /** What the orchestrator window opens on. */
@@ -31,12 +33,20 @@ export function ensureOrchestrator(): ResultAsync<
       direction: "asc",
       sortBy: "createdAt",
     });
-    const existing = tasks.find(
-      (task) => task.kind === "orchestrator" && !isChatId(task.id),
-    );
-    const taskId = existing
-      ? existing.id
-      : yield* await createOrchestratorTask();
+    // A chat's record that landed under `tasks/` (an imported chat, say) is
+    // a chat still, not the window, though it is not in `chats/`.
+    let existing: TaskId | undefined;
+    for (const task of tasks) {
+      if (task.kind !== "orchestrator" || isChatId(task.id)) {
+        continue;
+      }
+      const settings = await getTaskSettings(taskDir(task.id));
+      if (settings?.chatSessionId === undefined) {
+        existing = task.id;
+        break;
+      }
+    }
+    const taskId = existing ?? (yield* await createOrchestratorTask());
     return ok({ taskId });
   });
 }

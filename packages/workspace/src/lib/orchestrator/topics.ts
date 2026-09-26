@@ -107,6 +107,33 @@ export async function retireTopic(topicId: string): Promise<void> {
   await changeTopic(topicId, (topic) => ({ ...topic, retired: true }));
 }
 
+/**
+ * The file: front matter for what the window shows, then the instructions.
+ * String values are written as JSON, which YAML reads as a quoted scalar, so
+ * a name holding a colon or a quote round-trips.
+ */
+export function serializeTopic(topic: Topic): string {
+  const lines = ["---", `name: ${JSON.stringify(topic.name)}`];
+  if (topic.emoji) {
+    lines.push(`emoji: ${JSON.stringify(topic.emoji)}`);
+  }
+  if (topic.color) {
+    lines.push(`color: ${JSON.stringify(topic.color)}`);
+  }
+  if (topic.about) {
+    lines.push(`about: ${JSON.stringify(topic.about)}`);
+  }
+  if (topic.retired) {
+    lines.push("retired: true");
+  }
+  lines.push(`created: ${new Date(topic.createdAt).toISOString()}`, "---");
+  if (topic.instructions) {
+    lines.push(topic.instructions.trim());
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
 /** A topic in use by name, however the caller cased or hashed it. */
 export async function topicByName(name: string): Promise<Topic | undefined> {
   // Case-insensitive, since a name is written by the user and typed back by
@@ -160,7 +187,11 @@ export async function updateTopic(
 export async function writeTopic(topic: Topic): Promise<void> {
   const dir = topicDir(topic.id);
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, TOPIC_FILE_NAME), serialize(topic), "utf8");
+  await fs.writeFile(
+    path.join(dir, TOPIC_FILE_NAME),
+    serializeTopic(topic),
+    "utf8",
+  );
 }
 
 async function changeTopic(
@@ -226,31 +257,4 @@ async function readTopic(folder: string): Promise<Topic | undefined> {
     name: topicName(text("name") ?? folder),
     ...(record.retired === true ? { retired: true } : {}),
   };
-}
-
-/**
- * The file: front matter for what the window shows, then the instructions.
- * String values are written as JSON, which YAML reads as a quoted scalar, so
- * a name holding a colon or a quote round-trips.
- */
-function serialize(topic: Topic): string {
-  const lines = ["---", `name: ${JSON.stringify(topic.name)}`];
-  if (topic.emoji) {
-    lines.push(`emoji: ${JSON.stringify(topic.emoji)}`);
-  }
-  if (topic.color) {
-    lines.push(`color: ${JSON.stringify(topic.color)}`);
-  }
-  if (topic.about) {
-    lines.push(`about: ${JSON.stringify(topic.about)}`);
-  }
-  if (topic.retired) {
-    lines.push("retired: true");
-  }
-  lines.push(`created: ${new Date(topic.createdAt).toISOString()}`, "---");
-  if (topic.instructions) {
-    lines.push(topic.instructions.trim());
-  }
-  lines.push("");
-  return lines.join("\n");
 }

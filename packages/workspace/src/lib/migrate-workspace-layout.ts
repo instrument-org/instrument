@@ -14,6 +14,7 @@ import {
 import { ProjectIdSchema } from "../schemas/project-id";
 import { foldTaskStateFile } from "./fold-task-state-file";
 import { foldTaskWorkDir } from "./fold-task-work-dir";
+import { type ChatsMigration, migrateToChats } from "./migrate-to-chats";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
 // Legacy on-disk names this migration renames to their current equivalents.
@@ -55,6 +56,9 @@ const WORKSPACE_LAYOUT_VERSION_MARKER_NAME = ".layout-version";
 const BROWSER_PROFILE_CLONE_PREFIX = "agent-browser-profile-";
 
 export interface WorkspaceLayoutMigration {
+  // Chats given folders of their own, tasks moved into them, and topics
+  // written as files, by the move from one conversation to a record per chat.
+  chats: ChatsMigration;
   // Task folder ids left in place because a task with the same id already
   // existed under tasks/ (never clobbered).
   conflictedTaskIds: string[];
@@ -81,30 +85,10 @@ export function migrateWorkspaceLayout({
 }: {
   rootDir: string;
 }): WorkspaceLayoutMigration {
-  let migration: WorkspaceLayoutMigration = {
-    conflictedTaskIds: [],
-    movedTaskCount: 0,
-    removedBrowserProfileCloneCount: 0,
-  };
-  const legacyMigrationRan = !legacyProjectsMigrationDone(rootDir);
-  if (legacyMigrationRan) {
-    migration = migrateLegacyProjectsDir(rootDir);
-    markLegacyProjectsMigrationDone(rootDir);
-  }
-
-  if (!legacyMigrationRan && workspaceLayoutCurrent(rootDir)) {
-    return migration;
-  }
-
-  const removedBrowserProfileCloneCount = normalizeTasks(
-    path.join(rootDir, TASKS_DIR_NAME),
-  );
-  markWorkspaceLayoutCurrent(rootDir);
-
-  return {
-    ...migration,
-    removedBrowserProfileCloneCount,
-  };
+  // After the task sweep, so the window's record and the tasks it started are
+  // in their current shape when they are moved.
+  const tasks = migrateTaskLayout(rootDir);
+  return { ...tasks, chats: migrateToChats(rootDir) };
 }
 
 // Normalizes one task folder to the current layout. Each step is idempotent
@@ -190,9 +174,11 @@ function mergeDirInto(source: string, destination: string) {
   }
 }
 
-function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
+function migrateLegacyProjectsDir(
+  rootDir: string,
+): Omit<WorkspaceLayoutMigration, "chats"> {
   const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
-  const migration: WorkspaceLayoutMigration = {
+  const migration: Omit<WorkspaceLayoutMigration, "chats"> = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
@@ -236,6 +222,35 @@ function migrateLegacyProjectsDir(rootDir: string): WorkspaceLayoutMigration {
   }
 
   return migration;
+}
+
+function migrateTaskLayout(
+  rootDir: string,
+): Omit<WorkspaceLayoutMigration, "chats"> {
+  let migration: Omit<WorkspaceLayoutMigration, "chats"> = {
+    conflictedTaskIds: [],
+    movedTaskCount: 0,
+    removedBrowserProfileCloneCount: 0,
+  };
+  const legacyMigrationRan = !legacyProjectsMigrationDone(rootDir);
+  if (legacyMigrationRan) {
+    migration = migrateLegacyProjectsDir(rootDir);
+    markLegacyProjectsMigrationDone(rootDir);
+  }
+
+  if (!legacyMigrationRan && workspaceLayoutCurrent(rootDir)) {
+    return migration;
+  }
+
+  const removedBrowserProfileCloneCount = normalizeTasks(
+    path.join(rootDir, TASKS_DIR_NAME),
+  );
+  markWorkspaceLayoutCurrent(rootDir);
+
+  return {
+    ...migration,
+    removedBrowserProfileCloneCount,
+  };
 }
 
 function moveIfMissingTarget(source: string, destination: string) {

@@ -61,12 +61,15 @@ export function ColorRow({
  */
 export function TopicMarkPicker({
   children,
+  context,
   onEmoji,
   onOpenChange,
   open,
 }: {
   /** The trigger: the mark as it stands. */
   children: ReactNode;
+  /** The name being marked, which the picker suggests emoji for. */
+  context?: string;
   onEmoji: (emoji: string) => void;
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
@@ -81,6 +84,7 @@ export function TopicMarkPicker({
         sideOffset={6}
       >
         <EmojiGrid
+          context={context}
           onPick={(picked) => {
             onEmoji(picked);
             onOpenChange?.(false);

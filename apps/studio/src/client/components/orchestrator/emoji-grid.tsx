@@ -1,15 +1,9 @@
 import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
-/** One emoji as the grid needs it: what to draw, and the words that find it. */
-interface Emoji {
-  group?: number;
-  label: string;
-  order?: number;
-  tags?: string[];
-  unicode: string;
-}
+import { type Emoji, useEmojiSet } from "./emoji-set";
+import { useEmojiSuggestions } from "./emoji-suggestions";
 
 /**
  * The categories every emoji keyboard shows, in the order they show them,
@@ -37,44 +31,54 @@ const SHOWN = 240;
 const COLUMNS = 8;
 const ROW_HEIGHT = 34;
 
-/**
- * The set, loaded once and shared.
- *
- * Bundled rather than fetched: this is a desktop app, and an emoji picker that
- * needs the network is one that shows "Loading…" forever on a train. The
- * import is dynamic so the ~200KB rides in the chunk the picker opens with
- * rather than in the one the window starts with.
- */
-let loaded: Emoji[] | undefined;
-let loading: Promise<Emoji[]> | undefined;
+export function Cells({
+  emoji,
+  onPick,
+}: {
+  emoji: Emoji[];
+  onPick: (emoji: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-8 gap-0.5">
+      {emoji.map((one) => (
+        <button
+          aria-label={one.label}
+          className="grid size-8 place-items-center rounded-md text-lg hover:bg-accent"
+          key={one.unicode}
+          onClick={() => {
+            onPick(one.unicode);
+          }}
+          title={one.label}
+          type="button"
+        >
+          {one.unicode}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Every emoji, browsable by category and searchable by name and by the words
  * a person would guess. With no query the grid is one scroll of every
  * category under a sticky heading, and the tabs along the top jump to one and
  * follow the scroll; a query replaces it with a flat list of matches.
+ *
+ * Above both sit the decision model's picks: for the query while there is
+ * one, and otherwise for `context`, the name of the thing being marked.
  */
-export function EmojiGrid({ onPick }: { onPick: (emoji: string) => void }) {
-  const [all, setAll] = useState<Emoji[] | undefined>(loaded);
+export function EmojiGrid({
+  context,
+  onPick,
+}: {
+  context?: string;
+  onPick: (emoji: string) => void;
+}) {
+  const all = useEmojiSet();
   const [query, setQuery] = useState("");
   const [current, setCurrent] = useState<Category["group"]>(0);
   const scroller = useRef<HTMLDivElement>(null);
   const sections = useRef(new Map<number, HTMLElement>());
-
-  useEffect(() => {
-    if (all) {
-      return;
-    }
-    let live = true;
-    void loadEmoji().then((list) => {
-      if (live) {
-        setAll(list);
-      }
-    });
-    return () => {
-      live = false;
-    };
-  }, [all]);
 
   const byCategory = useMemo(
     () =>
@@ -86,6 +90,29 @@ export function EmojiGrid({ onPick }: { onPick: (emoji: string) => void }) {
   );
 
   const words = query.trim().toLowerCase();
+  const related = useEmojiSuggestions(words || context || "", all);
+  const relatedSection =
+    related.suggestions.length > 0 || related.isFetching || related.error ? (
+      <section aria-label="Related">
+        <h3 className="flex items-baseline justify-between gap-2 px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+          <span className="truncate">
+            {words || !context
+              ? "Related"
+              : `Suggested for “${context.trim()}”`}
+          </span>
+          <span className="shrink-0 font-normal tabular-nums opacity-70">
+            {related.isFetching ? "…" : related.timing}
+          </span>
+        </h3>
+        {related.error ? (
+          <p className="px-1 text-xs text-destructive">
+            {related.error.message}
+          </p>
+        ) : (
+          <Cells emoji={related.suggestions} onPick={onPick} />
+        )}
+      </section>
+    ) : undefined;
   const matches = useMemo(() => {
     if (!words) {
       return [];
@@ -182,80 +209,57 @@ export function EmojiGrid({ onPick }: { onPick: (emoji: string) => void }) {
         {all === undefined ? (
           <p className="p-2 text-xs text-muted-foreground">Loading…</p>
         ) : words ? (
-          matches.length === 0 ? (
-            <p className="p-2 text-xs text-muted-foreground">No emoji found.</p>
-          ) : (
-            <Cells emoji={matches} onPick={onPick} />
-          )
+          <>
+            {relatedSection}
+            <section aria-label="Matches">
+              {relatedSection && (
+                <h3 className="px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                  Matches
+                </h3>
+              )}
+              {matches.length === 0 ? (
+                <p className="p-2 text-xs text-muted-foreground">
+                  No emoji found.
+                </p>
+              ) : (
+                <Cells emoji={matches} onPick={onPick} />
+              )}
+            </section>
+          </>
         ) : (
-          byCategory.map((category) => (
-            <section
-              aria-label={category.label}
-              key={category.group}
-              ref={(node) => {
-                if (node) {
-                  sections.current.set(category.group, node);
-                } else {
-                  sections.current.delete(category.group);
-                }
-              }}
-            >
-              <h3 className="sticky top-0 z-10 bg-popover px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-                {category.label}
-              </h3>
-              <div
-                // Off-screen categories skip layout and paint until scrolled
-                // near, sized exactly so the scrollbar and the jump offsets
-                // are right before they are drawn.
-                style={{
-                  containIntrinsicSize: `auto ${Math.ceil(category.emoji.length / COLUMNS) * ROW_HEIGHT}px`,
-                  contentVisibility: "auto",
+          <>
+            {relatedSection}
+            {byCategory.map((category) => (
+              <section
+                aria-label={category.label}
+                key={category.group}
+                ref={(node) => {
+                  if (node) {
+                    sections.current.set(category.group, node);
+                  } else {
+                    sections.current.delete(category.group);
+                  }
                 }}
               >
-                <Cells emoji={category.emoji} onPick={onPick} />
-              </div>
-            </section>
-          ))
+                <h3 className="sticky top-0 z-10 bg-popover px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                  {category.label}
+                </h3>
+                <div
+                  // Off-screen categories skip layout and paint until scrolled
+                  // near, sized exactly so the scrollbar and the jump offsets
+                  // are right before they are drawn.
+                  style={{
+                    containIntrinsicSize: `auto ${Math.ceil(category.emoji.length / COLUMNS) * ROW_HEIGHT}px`,
+                    contentVisibility: "auto",
+                  }}
+                >
+                  <Cells emoji={category.emoji} onPick={onPick} />
+                </div>
+              </section>
+            ))}
+          </>
         )}
       </div>
     </div>
   );
-}
-
-function Cells({
-  emoji,
-  onPick,
-}: {
-  emoji: Emoji[];
-  onPick: (emoji: string) => void;
-}) {
-  return (
-    <div className="grid grid-cols-8 gap-0.5">
-      {emoji.map((one) => (
-        <button
-          aria-label={one.label}
-          className="grid size-8 place-items-center rounded-md text-lg hover:bg-accent"
-          key={one.unicode}
-          onClick={() => {
-            onPick(one.unicode);
-          }}
-          title={one.label}
-          type="button"
-        >
-          {one.unicode}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function loadEmoji(): Promise<Emoji[]> {
-  loading ??= import("emojibase-data/en/compact.json").then((module) => {
-    // Regional indicators carry no group and are noise in a picker this size.
-    loaded = (module.default as Emoji[])
-      .filter((emoji) => !emoji.label.startsWith("regional indicator"))
-      .toSorted((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    return loaded;
-  });
-  return loading;
 }

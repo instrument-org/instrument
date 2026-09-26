@@ -30,6 +30,10 @@ import {
 import { Input } from "@/client/components/ui/input";
 import { useRef, useState } from "react";
 
+import { Cells } from "./emoji-grid";
+import { useEmojiSet } from "./emoji-set";
+import { useEmojiSuggestions } from "./emoji-suggestions";
+
 /** What the user chooses about a topic: its name, its mark, its tint. */
 export interface TopicChoice {
   color: string;
@@ -195,6 +199,9 @@ function TopicForm({
   const [emoji, setEmoji] = useState(initial.emoji);
   const [color, setColor] = useState(initial.color);
   const [isPicking, setPicking] = useState(false);
+  // A new topic's mark follows the best fit for its name until one is chosen
+  // by hand; an existing topic's mark stays what its owner picked.
+  const [follows, setFollows] = useState(!initial.name);
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -203,8 +210,19 @@ function TopicForm({
       setEmoji(initial.emoji);
       setColor(initial.color);
       setPicking(false);
+      setFollows(!initial.name);
     }
   }
+  const all = useEmojiSet();
+  const { suggestions } = useEmojiSuggestions(open ? name : "", all);
+  const best = suggestions[0]?.unicode;
+  if (follows && best && best !== emoji) {
+    setEmoji(best);
+  }
+  const choose = (picked: string) => {
+    setFollows(false);
+    setEmoji(picked);
+  };
   const nameField = useRef<HTMLInputElement>(null);
 
   const commit = () => {
@@ -234,7 +252,8 @@ function TopicForm({
       </DialogHeader>
       <div className="flex items-center gap-3">
         <TopicMarkPicker
-          onEmoji={setEmoji}
+          context={name}
+          onEmoji={choose}
           onOpenChange={setPicking}
           open={isPicking}
         >
@@ -261,6 +280,14 @@ function TopicForm({
           value={name}
         />
       </div>
+      {suggestions.length > 1 && (
+        <div>
+          <p className="pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+            Suggested
+          </p>
+          <Cells emoji={suggestions.slice(0, 16)} onPick={choose} />
+        </div>
+      )}
       <div>
         <p className="pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
           Color

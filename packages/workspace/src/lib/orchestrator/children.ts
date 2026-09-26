@@ -4,6 +4,7 @@ import { type Task } from "../../schemas/task";
 import { type TaskId } from "../../schemas/task-id";
 import { getTasks } from "../get-tasks";
 import { taskDir } from "../task-dir-utils";
+import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsMount } from "../workspace-fs-layout";
 
@@ -27,9 +28,9 @@ export async function childTaskMounts(
 }
 
 /**
- * The tasks a chat started, newest activity first. Asked of the window's own
- * record, every chat's tasks: the window shows all of them, and a path into
- * any of them opens from it.
+ * The tasks a record started, newest activity first. Asked of the window's
+ * own record, every chat's tasks: the window shows all of them, and a path
+ * into any of them opens from it.
  */
 export async function listChildTasks(
   orchestratorTaskId: TaskId,
@@ -38,7 +39,9 @@ export async function listChildTasks(
     direction: "desc",
     sortBy: "updatedAt",
   });
-  const everyChat = !isChatId(orchestratorTaskId);
+  const settings = await getTaskSettings(taskDir(orchestratorTaskId));
+  const everyChat =
+    !isChatId(orchestratorTaskId) && settings?.kind === "orchestrator";
   return tasks.filter(
     (task) =>
       task.parentTaskId === orchestratorTaskId ||

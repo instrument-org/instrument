@@ -6,7 +6,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 
 import { RowActionBar } from "./row-action-bar";
@@ -16,7 +16,7 @@ import { activityLabel, draftTitle, type Topic } from "./threads";
 
 /**
  * One draft in the Drafts place, laid out the way a thread's row is so the
- * list reads the same whichever it holds: a pencil in the gutter where a
+ * list reads the same whichever it holds: a feather in the gutter where a
  * thread wears its state, the topic it will be filed under as a pill, the
  * first line of its words as the title, "Draft" in muted where a thread's
  * latest line goes, and when it was last touched at the far right. A plain
@@ -82,7 +82,7 @@ export function DraftRow({
         >
           <span className="flex h-5 w-4 shrink-0 items-center justify-center">
             <span aria-label="Draft" className="flex text-muted-foreground">
-              <PencilSimpleIcon className="size-3.5" />
+              <FeatherIcon className="size-3.5" />
             </span>
           </span>
           {density === "slim" ? (

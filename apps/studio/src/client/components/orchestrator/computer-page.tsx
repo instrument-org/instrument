@@ -57,6 +57,7 @@ import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
@@ -1326,7 +1327,7 @@ export function FolderMenu({
       {onNewDraft ? (
         <>
           <ContextMenuItem onClick={onNewDraft}>
-            <PencilSimpleIcon className="size-4 text-brand-600 dark:text-brand-400" />
+            <FeatherIcon className="size-4 text-brand-600 dark:text-brand-400" />
             <span>New Chat</span>
           </ContextMenuItem>
           <ContextMenuSeparator />

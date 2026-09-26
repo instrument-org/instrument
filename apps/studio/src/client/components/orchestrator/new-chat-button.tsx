@@ -1,6 +1,6 @@
 import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
-import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { FeatherIcon } from "@phosphor-icons/react/Feather";
 
 /**
  * A new chat about the thing beside it, in the rail's New button's green and
@@ -30,7 +30,7 @@ export function NewChatButton({
       title={title}
       variant="brand"
     >
-      <PencilSimpleIcon className="size-3.5" weight="bold" />
+      <FeatherIcon className="size-3.5" weight="bold" />
       <span className={cn("leading-none whitespace-nowrap", labelClassName)}>
         New Chat
       </span>

@@ -112,7 +112,7 @@ function timeOf(row: HTMLElement) {
 
 describe("DraftRow", () => {
   it.each<RowDensity>(["tall", "slim"])(
-    "wears a pencil, the topic, the first line of the words, Draft, and the time, %s",
+    "wears a feather, the topic, the first line of the words, Draft, and the time, %s",
     async (density) => {
       const { row } = await renderRow(draft({ topicId: "house" }), {
         density,

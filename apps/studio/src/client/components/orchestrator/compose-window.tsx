@@ -46,8 +46,8 @@ import {
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
-import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -147,7 +147,7 @@ export function ComposeBar({
         onClick={onOpen}
         type="button"
       >
-        <PencilSimpleIcon className="size-3.5 shrink-0" />
+        <FeatherIcon className="size-3.5 shrink-0" />
         <span className="min-w-0 flex-1 truncate">
           {draftTitle(draft.words)}
         </span>
@@ -626,7 +626,7 @@ export function ComposeWindow({
           <PageOpenContext value={openPage}>
             <FileDropRegion className="flex h-full min-h-0 flex-col">
               <div className="flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
-                <PencilSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
+                <FeatherIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="shrink-0 text-[13px] font-medium">
                   New thread
                 </span>

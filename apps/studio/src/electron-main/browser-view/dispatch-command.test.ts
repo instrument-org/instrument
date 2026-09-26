@@ -36,7 +36,10 @@ interface FakeWebContents {
   capturePage?: ReturnType<typeof vi.fn>;
   debugger: FakeDebugger;
   executeJavaScript: ReturnType<typeof vi.fn>;
-  hostWebContents?: { capturePage: ReturnType<typeof vi.fn>; isDestroyed: () => boolean };
+  hostWebContents?: {
+    capturePage: ReturnType<typeof vi.fn>;
+    isDestroyed: () => boolean;
+  };
   isDestroyed: () => boolean;
   printToPDF?: ReturnType<typeof vi.fn>;
 }
@@ -833,6 +836,48 @@ describe("sendCommand", () => {
       ).rejects.toThrow(/hidden, minimized, or covered by other windows/);
 
       expect(wcSendCommand).not.toHaveBeenCalled();
+    });
+
+    // A covered or minimized Studio window renders the guest again once it is
+    // made to draw; the input goes through rather than being refused.
+    it("delivers input once making the window draw gets the page rendering", async () => {
+      const hostCapturePage = vi.fn().mockResolvedValue({});
+      const wcSendCommand = vi.fn().mockResolvedValue({});
+      const entry = makeEntry({ hostCapturePage, sendCommand: wcSendCommand });
+      const wc = entry.webContents as unknown as {
+        executeJavaScript: ReturnType<typeof vi.fn>;
+      };
+      wc.executeJavaScript = vi.fn().mockImplementation(
+        (code: string) =>
+          // A frame arrives a moment after the probe asks for one.
+          new Promise((resolve) => {
+            setTimeout(() => {
+              resolve(
+                isRenderingProbe(code)
+                  ? hostCapturePage.mock.calls.length > 0
+                  : true,
+              );
+            }, 0);
+          }),
+      );
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Input.dispatchKeyEvent",
+        params: { type: "keyDown" },
+        requestGuestFocus: vi.fn(),
+        targetId: TARGET_ID,
+      });
+
+      expect(hostCapturePage).toHaveBeenCalledWith(
+        { height: 1, width: 1, x: 0, y: 0 },
+        { stayHidden: true },
+      );
+      expect(wcSendCommand).toHaveBeenCalledWith("Input.dispatchKeyEvent", {
+        type: "keyDown",
+      });
     });
 
     it("still answers reads while the page is not rendering", async () => {

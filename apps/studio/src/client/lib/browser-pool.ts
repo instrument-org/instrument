@@ -38,8 +38,9 @@ const GUEST_RASTER_BUDGET = 1.3;
  *  - paint-host: laid out at the guest's logical size but visually hidden
  *    (`opacity: 0.001`), used whenever nothing is showing the guest. Chromium
  *    still paints it on-screen, so `wc.capturePage()` capture and CDP input keep
- *    working headlessly (capture needs the guest on-screen and unoccluded, which
- *    is why we can't truly hide it).
+ *    working headlessly (capture needs the guest composited into the window,
+ *    which is why we can't truly hide it; a covered or minimized window is made
+ *    to draw by the main process's `whileEmbedderComposites`).
  *  - visible: positioned over a host slot (e.g. the task page's browser panel,
  *    measured by that component) and scaled to fit, with input enabled.
  *

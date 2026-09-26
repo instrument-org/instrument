@@ -268,9 +268,9 @@ export function createBrowserViewManager(): BrowserViewManager {
     // Keep the guest's timers and animations running while the Studio window
     // is minimized or occluded (e.g. the agent works while the user is in
     // another app). It does not guarantee frames: a guest in a window covered
-    // by another app's can render nothing while still reporting itself
-    // visible, and input then goes unacknowledged. dispatch-command.ts probes
-    // for a frame before sending input rather than trusting this flag.
+    // by another app's, or minimized, can render nothing while still reporting
+    // itself visible. Captures and input make the window draw instead
+    // (embedder-draw.ts).
     guest.setBackgroundThrottling(false);
 
     // Mouse thumb-button navigation + right-click menu so the user can drive it.

@@ -15,6 +15,7 @@ import {
   DEFAULT_VIEWPORT_WIDTH,
 } from "./device-metrics";
 import { applyDownloadBehavior } from "./downloads";
+import { whileEmbedderComposites } from "./embedder-draw";
 import {
   clearGuestSurface,
   getEffectiveGuestSurface,
@@ -214,15 +215,21 @@ export async function sendCommand({
     return {};
   }
 
-  // A guest that is not rendering (Studio hidden, minimized, or covered by
-  // other windows) never acknowledges a press, so the command would hang until
-  // the timeout below and read as a slow page. Refuse up front and say why.
-  if (method.startsWith("Input.") && !(await guestIsRendering(entry, method))) {
+  // A guest that is not rendering never acknowledges a press, so the command
+  // would hang until the timeout below and read as a slow page. When the
+  // Studio window is covered or minimized, making it draw gets the guest
+  // rendering again (whileEmbedderComposites); refuse, and say why, only when
+  // even that does not.
+  if (
+    method.startsWith("Input.") &&
+    !(await guestIsRendering(entry, method)) &&
+    !(await guestRendersOnceEmbedderDraws(entry, method))
+  ) {
     log.warn(
       `refused ${method} targetId=${targetId}: page is not rendering ${(await describeHost?.(targetId)) ?? ""}`,
     );
     throw new Error(
-      "Input was not delivered: the Instrument window is hidden, minimized, or covered by other windows, so this page is not rendering and cannot receive clicks, taps, or key presses. Reading it (snapshot, get text, eval, screenshot) still works. Ask the user to bring the Instrument window into view, then retry.",
+      "Input was not delivered: this page is not rendering, so it cannot receive clicks, taps, or key presses. The Instrument window is most likely hidden, minimized, or covered by other windows and could not be made to draw. Reading it (snapshot, get text, eval) still works. Ask the user to bring the Instrument window into view, then retry.",
     );
   }
 
@@ -305,7 +312,7 @@ export async function sendCommand({
     );
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
-      method === "Page.captureScreenshot"
+      method === "Page.captureScreenshot" || method.startsWith("Input.")
         ? whileEmbedderComposites(wc, sent)
         : sent,
       new Promise<never>((_, reject) => {
@@ -489,7 +496,7 @@ function measuresAfterScrolling(method: string, params: unknown): boolean {
   );
 }
 
-// The point a measurement says to click: the centre of a box model's content
+// The point a measurement says to click: the center of a box model's content
 // quad, or the point agent-browser's scroll-and-measure script returned.
 function pointOf(result: unknown): null | { x: number; y: number } {
   const r = result as null | {
@@ -549,44 +556,6 @@ async function refusePressThatWouldMiss(entry: BrowserEntry, params: unknown) {
     throw new Error(
       "The click was not sent: the page's layout shifted after the element was measured, so the press would have landed on whatever moved into its place. Run the same click again.",
     );
-  }
-}
-
-// A page the guest navigates to while the Studio window is covered by another
-// app's window, or minimized, gets a new render widget that never presents a
-// frame, since the embedder's compositor is not drawing, so any capture of it
-// waits forever (a capturePage timeout, UnknownVizError, or a CDP screenshot
-// that never answers). A page painted before the window was covered is unaffected. Asking
-// the embedder for a capture of its own makes it draw once, which presents the
-// guest's pending frame; after that the guest captures normally until its next
-// navigation. The embedder capture is one pixel with stayHidden, so the
-// window's own renderer is never marked visible and nothing in it reacts. It
-// is repeated until the guest's capture settles, because a single one can
-// finish before the guest's frame arrives.
-async function whileEmbedderComposites<T>(
-  wc: WebContents,
-  capture: Promise<T>,
-): Promise<T> {
-  const embedder = wc.hostWebContents;
-  if (!embedder) {
-    return await capture;
-  }
-  const MAX_EMBEDDER_CAPTURES = 50;
-  const capturing = { settled: false };
-  void (async () => {
-    for (let i = 0; !capturing.settled && i < MAX_EMBEDDER_CAPTURES; i++) {
-      if (embedder.isDestroyed()) {
-        return;
-      }
-      await embedder
-        .capturePage({ height: 1, width: 1, x: 0, y: 0 }, { stayHidden: true })
-        .catch(noop);
-    }
-  })();
-  try {
-    return await capture;
-  } finally {
-    capturing.settled = true;
   }
 }
 
@@ -745,6 +714,19 @@ async function guestIsRendering(
   }
   renderingSeenAt.set(entry, Date.now());
   return true;
+}
+
+// Asks again while the Studio window is made to draw, which is what a guest in
+// a covered or minimized window needs to produce a frame.
+async function guestRendersOnceEmbedderDraws(
+  entry: BrowserEntry,
+  method: string,
+): Promise<boolean> {
+  const wc = entry.webContents;
+  if (!wc || wc.isDestroyed()) {
+    return false;
+  }
+  return await whileEmbedderComposites(wc, guestIsRendering(entry, method));
 }
 
 // Ask the renderer to focus the guest, then wait for the guest to agree that

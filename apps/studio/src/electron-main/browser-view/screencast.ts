@@ -2,6 +2,7 @@ import type { Protocol } from "devtools-protocol";
 
 import type { BrowserEntry } from "./entry";
 
+import { whileEmbedderComposites } from "./embedder-draw";
 import { log } from "./log";
 
 const SCREENCAST_INTERVAL_MS = 100;
@@ -38,7 +39,13 @@ export function startScreencast({
       return;
     }
     inFlight = true;
-    wc.capturePage({ height: maxHeight, width: maxWidth, x: 0, y: 0 })
+    // A covered or minimized Studio window draws no frames for the guest, so
+    // a recording made while the user is in another app would otherwise stall
+    // on the first navigation.
+    whileEmbedderComposites(
+      wc,
+      wc.capturePage({ height: maxHeight, width: maxWidth, x: 0, y: 0 }),
+    )
       .then((image) => {
         // Stale: a new screencast session started, or the WebContents was
         // destroyed while the capture was pending.

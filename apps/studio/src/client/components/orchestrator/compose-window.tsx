@@ -1061,7 +1061,7 @@ function nameOfPath(path: string) {
  * The topic the thread will be filed under, after the draft's name: the pill
  * the thread will wear with a way to take it off, or a dashed slot that
  * offers the topics when none is picked yet. A topic Instrument filed on its
- * own says so on hover.
+ * own explains itself on hover.
  */
 function TopicSlot({
   onClear,
@@ -1078,15 +1078,26 @@ function TopicSlot({
 }) {
   if (topic) {
     return (
-      <span
-        className="flex min-w-0 animate-in items-center gap-0.5 duration-300 fade-in-0"
-        title={
-          suggested
-            ? `Instrument filed this under ${topic.name} from what you wrote`
-            : undefined
-        }
-      >
-        <TopicPill topic={topic} />
+      <span className="flex min-w-0 animate-in items-center gap-0.5 duration-300 fade-in-0">
+        {suggested ? (
+          // A topic that arrived on its own says where it came from, and that
+          // taking it off is final: it is picked once per draft.
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex min-w-0">
+                <TopicPill topic={topic} />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-64" side="bottom">
+              <p className="font-medium">Instrument picked this topic</p>
+              <p className="opacity-80">
+                {`What you wrote fits “${topic.name}”. Remove it to choose one yourself; it won't pick again for this draft.`}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <TopicPill topic={topic} />
+        )}
         <button
           aria-label={`Don't file under ${topic.name}`}
           className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"

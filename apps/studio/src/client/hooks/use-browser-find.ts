@@ -70,7 +70,11 @@ export function useBrowserFind({
   // closed. Clear the guest's highlight on unmount so a reopen starts clean.
   useEffect(() => {
     return () => {
-      getWebviewElement(targetId)?.stopFindInPage("clearSelection");
+      // A guest that has not reached dom-ready throws here, and has nothing
+      // highlighted to clear.
+      try {
+        getWebviewElement(targetId)?.stopFindInPage("clearSelection");
+      } catch {}
     };
   }, [targetId]);
 

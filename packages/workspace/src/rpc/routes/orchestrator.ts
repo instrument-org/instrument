@@ -543,7 +543,7 @@ const trashChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ context, errors, input }) => {
     const id = chatIdOf(input.sessionId);
-    const children = chatTaskIds(id);
+    const chatTasks = chatTaskIds(id);
     const result = await trashChat({
       id,
       workspaceConfig: context.workspaceConfig,
@@ -553,7 +553,7 @@ const trashChatRoute = base
       context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
     }
-    for (const child of children) {
+    for (const child of chatTasks) {
       publisher.publish("task.removed", { id: child });
     }
     publisher.publish("task.removed", { id });

@@ -12,9 +12,9 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
+import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { MapTrifoldIcon } from "@phosphor-icons/react/MapTrifold";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
@@ -102,7 +102,7 @@ export function AppRail({
           type="button"
         >
           <span className="grid size-11 place-items-center rounded-full bg-brand-600 button-sheen text-brand-foreground shadow-xs group-hover:bg-brand-700">
-            <PlusIcon className="size-5" weight="bold" />
+            <FeatherIcon className="size-5" weight="bold" />
           </span>
           <span className="text-[11px] leading-4 font-medium">New</span>
         </button>

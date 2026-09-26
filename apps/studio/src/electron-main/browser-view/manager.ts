@@ -30,6 +30,7 @@ import {
   applyStandardUserAgent,
 } from "../lib/user-agent";
 import { selectWebAuthnAccountOnRequest } from "../lib/web-authn";
+import { editedPageOf, pageEditorPreloadPath } from "../page-editor/sessions";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
@@ -413,6 +414,9 @@ export function createBrowserViewManager(): BrowserViewManager {
       // behavior, which also covers the gap before a page paints its own
       // background (runtime-compiled CSS, slow loads, about:blank).
       webPreferences.transparent = false;
+      // Inert on every page but a file being edited in place, where it hands
+      // the editor to the guest's isolated world; see page-editor/sessions.ts.
+      webPreferences.preload = pageEditorPreloadPath();
 
       pendingAttachQueue.push(entry.targetId);
     });
@@ -776,7 +780,7 @@ function sessionForEntry(entry: BrowserEntry) {
   // Required, not optional: a passkey sign-in that finds more than one
   // credential is cancelled outright when nothing answers this.
   selectWebAuthnAccountOnRequest(guestSession);
-  confineLocalPagesToTheirFolder(guestSession);
+  confineLocalPagesToTheirFolder(guestSession, editedPageOf);
   return guestSession;
 }
 

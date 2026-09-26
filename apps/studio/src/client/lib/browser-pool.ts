@@ -83,6 +83,8 @@ interface PooledWebview {
 interface WebviewElement extends HTMLElement {
   canGoBack(): boolean;
   canGoForward(): boolean;
+  /** The page as it looks now, for a surface that holds a picture of it over a reload. */
+  capturePage(): Promise<{ toDataURL: () => string }>;
   executeJavaScript(code: string): Promise<unknown>;
   findInPage(
     text: string,
@@ -90,12 +92,15 @@ interface WebviewElement extends HTMLElement {
   ): number;
   getTitle(): string;
   getURL(): string;
+  getWebContentsId(): number;
   getZoomFactor(): number;
   goBack(): void;
   goForward(): void;
   loadURL(url: string): Promise<void>;
   reload(): void;
   reloadIgnoringCache(): void;
+  /** A message to the guest's preload, on a channel it listens on. */
+  send(channel: string, ...args: unknown[]): void;
   setZoomFactor(factor: number): void;
   stopFindInPage(
     action: "activateSelection" | "clearSelection" | "keepSelection",

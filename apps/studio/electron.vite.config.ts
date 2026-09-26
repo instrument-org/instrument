@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readPackage } from "read-pkg";
+import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
@@ -74,6 +75,64 @@ const resolve = {
 };
 
 let stagingCounter = 0;
+
+/**
+ * The page editor's two guest files, built beside main: the preload every
+ * browser guest gets (sandboxed, so one CommonJS file with nothing but
+ * `electron` left to require) and the editor bundle it evaluates in the
+ * guest's isolated world when a page's file is being edited (one IIFE, since
+ * it arrives as text over IPC). Registered on the main build, which every
+ * dev and build invocation runs; main reads both from `out/page-editor`.
+ */
+function buildPageEditorGuest({ minify }: { minify: boolean }): Plugin {
+  const root = path.dirname(fileURLToPath(import.meta.url));
+  const outDir = path.join(root, "out/page-editor");
+  const guestDir = path.join(root, "src/page-editor-guest");
+  const common = {
+    configFile: false as const,
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(
+        minify ? "production" : "development",
+      ),
+    },
+    logLevel: "warn" as const,
+    resolve,
+    root,
+  };
+  return {
+    async buildStart() {
+      await viteBuild({
+        ...common,
+        build: {
+          emptyOutDir: false,
+          lib: {
+            entry: path.join(guestDir, "preload.ts"),
+            fileName: () => "preload.cjs",
+            formats: ["cjs"],
+          },
+          minify,
+          outDir,
+          rollupOptions: { external: ["electron"] },
+        },
+      });
+      await viteBuild({
+        ...common,
+        build: {
+          emptyOutDir: false,
+          lib: {
+            entry: path.join(guestDir, "port/index.js"),
+            fileName: () => "guest.js",
+            formats: ["iife"],
+            name: "instrumentPageEditor",
+          },
+          minify,
+          outDir,
+        },
+      });
+    },
+    name: "page-editor-guest",
+  };
+}
 
 // `buildStart` fires on every watch rebuild, so re-copying ~11MB of WASM each
 // time is skipped when the destination already holds the current bytes. The
@@ -295,6 +354,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
       },
       plugins: [
         copyVendorAssets(),
+        buildPageEditorGuest({ minify: isProduction }),
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("main"),
         ValidateEnv({ configFile: "./validate-env" }),

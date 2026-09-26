@@ -21,6 +21,7 @@ import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import {
@@ -45,6 +46,17 @@ import { z } from "zod";
 
 import { useOrchestrator } from "./context";
 import { segmentsOf } from "./host-path";
+import {
+  PageEditMenuItems,
+  PageEditPill,
+  PageEditSession,
+  PageEditToggle,
+} from "./page-edit";
+import {
+  pageEditPlacementAtom,
+  pageEditTabsAtom,
+  usePageEditToggleOnScreen,
+} from "./page-edit-state";
 import { stepTabVisit, visitInTab } from "./tab-history";
 import { isHomeTab, selectTab } from "./window-tabs";
 
@@ -492,6 +504,11 @@ export function BrowserTabs({
             });
           }
           const url = webview.getURL();
+          // A page's file in Edit is loaded as data at the file's address;
+          // the tab is still at the file.
+          if (url.startsWith("data:")) {
+            return;
+          }
           const isHistoryStep = historySteps.current.delete(id);
           // The pool creates guests at about:blank, which stays at the start
           // of the guest's history. Back arriving there, by whatever stepped
@@ -898,6 +915,27 @@ export function BrowserTabs({
   // A file shown as a page has its text a step away, which the page's menu
   // offers; a site's page has nothing here to show that way.
   const activeFilePath = hostPathOfFileUrl(active?.url);
+  // A page's file can be edited in place, from its tab.
+  const editTabs = useAtomValue(pageEditTabsAtom);
+  const setEditTabs = useSetAtom(pageEditTabsAtom);
+  const editPlacement = useAtomValue(pageEditPlacementAtom);
+  const editableId =
+    active &&
+    !active.taskId &&
+    activeFilePath !== undefined &&
+    getFileType({ filename: activeFilePath }) === "html"
+      ? active.id
+      : undefined;
+  usePageEditToggleOnScreen(
+    editableId === undefined
+      ? null
+      : () => {
+          setEditTabs((current) => {
+            const { [editableId]: was, ...rest } = current;
+            return was ? rest : { ...rest, [editableId]: true };
+          });
+        },
+  );
 
   return (
     <div className="relative h-full min-h-0">
@@ -909,11 +947,21 @@ export function BrowserTabs({
         return filePath === undefined
           ? []
           : [
-              <FilePageReload
-                key={tab.id}
-                path={filePath}
-                target={targetOf(tab)}
-              />,
+              editTabs[tab.id] ? (
+                <PageEditSession
+                  isShown={tab.id === active?.id}
+                  key={tab.id}
+                  path={filePath}
+                  tabId={tab.id}
+                  target={targetOf(tab)}
+                />
+              ) : (
+                <FilePageReload
+                  key={tab.id}
+                  path={filePath}
+                  target={targetOf(tab)}
+                />
+              ),
             ];
       })}
       {active ? (
@@ -922,6 +970,14 @@ export function BrowserTabs({
           chrome={{ into: chromeInto ?? null }}
           className="h-full"
           key={active.id}
+          {...(editableId === undefined
+            ? {}
+            : {
+                menuItems: <PageEditMenuItems />,
+                ...(editPlacement === "row"
+                  ? { pageControls: <PageEditToggle tabId={editableId} /> }
+                  : {}),
+              })}
           {...(activeFilePath === undefined
             ? {}
             : {
@@ -935,6 +991,7 @@ export function BrowserTabs({
           taskId={active.taskId ?? taskId}
         />
       ) : null}
+      {editableId !== undefined && <PageEditPill tabId={editableId} />}
       {compose?.map((host) => {
         // The page the draft window has up, when what it has up is a page:
         // the tab its group remembers, or its first.

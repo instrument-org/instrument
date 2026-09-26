@@ -15,6 +15,7 @@ export interface OrchestratorShortcut {
 export const ORCHESTRATOR_SHORTCUTS = {
   back: { accelerator: "CmdOrCtrl+[", label: "Back" },
   closeTab: { accelerator: "CmdOrCtrl+W", label: "Close Tab" },
+  editPage: { accelerator: "CmdOrCtrl+E", label: "Edit Page" },
   findInPage: { accelerator: "CmdOrCtrl+F", label: "Find in Page" },
   forward: { accelerator: "CmdOrCtrl+]", label: "Forward" },
   newTab: { accelerator: "CmdOrCtrl+T", label: "New Tab" },

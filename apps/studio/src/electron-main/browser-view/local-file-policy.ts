@@ -21,11 +21,16 @@ import path from "node:path";
  * reaches the guest at all. The task's private directory is refused as a
  * segment anywhere, the way every other road to a file refuses it.
  */
-export function confineLocalPagesToTheirFolder(guestSession: Session) {
+export function confineLocalPagesToTheirFolder(
+  guestSession: Session,
+  editedPageOf?: (webContentsId: number | undefined) => string | undefined,
+) {
   guestSession.webRequest.onBeforeRequest(
     { urls: ["file:///*"] },
     (details, callback) => {
-      callback({ cancel: !isAllowedLocalRequest(details) });
+      callback({
+        cancel: !isAllowedLocalRequest(details, editedPageOf),
+      });
     },
   );
 }
@@ -36,10 +41,14 @@ const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
 );
 
 export function isAllowedLocalRequest(
-  details: Pick<
-    OnBeforeRequestListenerDetails,
-    "frame" | "resourceType" | "url"
-  >,
+  details: Partial<Pick<OnBeforeRequestListenerDetails, "webContentsId">> &
+    Pick<OnBeforeRequestListenerDetails, "frame" | "resourceType" | "url">,
+  /**
+   * The file a guest editing a page shows. That page is loaded as data with
+   * the file's address as its base, so its frame reports a `data:` address;
+   * the folder it may read is the file's, as it is in View.
+   */
+  editedPage?: (webContentsId: number | undefined) => string | undefined,
 ): boolean {
   const requested = hostPathOf(details.url);
   if (requested === undefined || PRIVATE_DIR_SEGMENT_REGEX.test(requested)) {
@@ -48,7 +57,11 @@ export function isAllowedLocalRequest(
   if (details.resourceType === "mainFrame") {
     return true;
   }
-  const page = hostPathOf(details.frame?.url);
+  const frameUrl = details.frame?.url;
+  const edited = frameUrl?.startsWith("data:")
+    ? editedPage?.(details.webContentsId)
+    : undefined;
+  const page = edited ?? hostPathOf(frameUrl);
   if (page === undefined) {
     return false;
   }

@@ -11,7 +11,8 @@
     "**/dist",
     "**/bin",
     "**/coverage",
-    "**/components/extend"
+    "**/components/extend",
+    "**/page-editor-guest/port"
   ],
   "jsPlugins": ["oxlint-tailwindcss"],
   "settings": {

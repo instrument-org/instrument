@@ -1,0 +1,2001 @@
+/* Studio's own tokens, copied from the app's `globals.css`, because this
+   shadow root cannot reach the app's stylesheet. The guest follows the app's
+   theme through `prefers-color-scheme`: the main process sets
+   `nativeTheme.themeSource` from the Appearance preference, and every web
+   contents, this guest included, answers the media query from it. */
+:host {
+  --bar-h: 0px;
+  --font: "Instrument UI", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* popover, muted, accent and the field fill, as the app names them */
+  --panel: #ffffff;
+  --panel-2: #fafaf9;
+  --panel-3: #f5f5f4;
+  --accent: #e7e5e4;
+  --field: linear-gradient(to bottom, #ffffff, #fafaf9);
+  --field-edge: var(--elev-xs);
+  --field-edge-hover: 0 0 0 1px #d7d3d0, 0 1px 2px 0 rgb(10 13 18 / 0.05);
+  --ink: #171412;
+  --ink-2: #79716b;
+  --ink-3: #a9a29d;
+  --icon: rgb(23 20 18 / 0.6);
+  --line: #e7e5e4;
+  --line-2: #d7d3d0;
+  --hover: #f5f5f4;
+  --ring-focus: rgb(169 162 157 / 0.5);
+
+  /* Brand: the teal ramp the app acts in (selection, the mark, primary). */
+  --brand: #0b6056;
+  --brand-hover: #0a4a42;
+  --brand-ink: #ffffff;
+  --sel: #0e7869;
+  --sel-ink: #0b6056;
+  --sel-soft: rgb(14 120 105 / 0.1);
+  --agent: #0b6056;
+  --agent-soft: rgb(14 120 105 / 0.1);
+  --edit-pin: #44403c;
+  --destructive: #b4324f;
+
+  --warn: #b54708;
+  --warn-soft: #fffaeb;
+  --warn-tag: #b54708;
+
+  --elev-xs:
+    0 1px 2px 0 rgb(10 13 18 / 0.04), 0 1px 1px 0 rgb(10 13 18 / 0.05),
+    0 0 0 1px rgb(10 13 18 / 0.05);
+  --elev-sm:
+    0 2px 4px 0 rgb(10 13 18 / 0.04), 0 1px 2px -1px rgb(10 13 18 / 0.06),
+    0 0 0 1px rgb(10 13 18 / 0.06);
+  --elev-md:
+    0 4px 8px -1px rgb(10 13 18 / 0.05), 0 2px 4px -2px rgb(10 13 18 / 0.06),
+    0 0 0 1px rgb(10 13 18 / 0.06);
+  --elev-lg:
+    0 8px 16px -3px rgb(10 13 18 / 0.06), 0 4px 6px -4px rgb(10 13 18 / 0.06),
+    0 0 0 1px rgb(10 13 18 / 0.06);
+  --elev-xl:
+    0 12px 24px -4px rgb(10 13 18 / 0.07),
+    0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --shadow-pop: var(--elev-md);
+  --shadow-panel: var(--elev-lg);
+  --shadow-knob: var(--elev-sm);
+  --knob: #ffffff;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :host {
+    --panel: #292524;
+    --panel-2: rgb(255 255 255 / 0.03);
+    --panel-3: rgb(255 255 255 / 0.08);
+    --accent: rgb(255 255 255 / 0.1);
+    --field: rgb(255 255 255 / 0.03);
+    --field-edge: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+    --field-edge-hover: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+    --ink: #ffffff;
+    --ink-2: rgb(255 255 255 / 0.6);
+    --ink-3: rgb(255 255 255 / 0.4);
+    --icon: rgb(255 255 255 / 0.6);
+    --line: rgb(255 255 255 / 0.1);
+    --line-2: rgb(255 255 255 / 0.16);
+    --hover: rgb(255 255 255 / 0.08);
+    --ring-focus: rgb(255 255 255 / 0.15);
+
+    --brand: #0b6056;
+    --brand-hover: #0e7869;
+    --sel: #338c81;
+    --sel-ink: #6ca89c;
+    --sel-soft: rgb(51 140 129 / 0.18);
+    --agent: #338c81;
+    --agent-soft: rgb(51 140 129 / 0.18);
+    --edit-pin: #57534e;
+
+    --warn: #fec84b;
+    --warn-soft: rgb(247 144 9 / 0.12);
+    --warn-tag: #b54708;
+
+    --elev-xs: 0 0 0 1px rgb(255 255 255 / 0.06), 0 0 0 2px rgb(0 0 0 / 0.04);
+    --elev-sm: 0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 4px 0 rgb(0 0 0 / 0.08);
+    --elev-md:
+      0 0 0 1px rgb(255 255 255 / 0.1), 0 8px 16px -2px rgb(0 0 0 / 0.12);
+    --elev-lg:
+      0 0 0 1px rgb(255 255 255 / 0.11), 0 14px 28px -5px rgb(0 0 0 / 0.17);
+    --elev-xl:
+      0 0 0 1px rgb(255 255 255 / 0.13), 0 20px 40px -7px rgb(0 0 0 / 0.21);
+    --knob: rgb(255 255 255 / 0.1);
+    color-scheme: dark;
+  }
+}
+
+[hidden] {
+  display: none !important;
+}
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font: 13px/1.4 var(--font);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-align: left;
+  letter-spacing: normal;
+}
+#ui > * {
+  pointer-events: auto;
+}
+#ui > #overlay,
+#ui > #float-layer,
+#ui > #edit-frame,
+#ui > #dock-hint {
+  pointer-events: none;
+}
+#overlay {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+/* Edit mode reads at the page's edge without covering any of it. */
+#edit-frame {
+  position: fixed;
+  inset: 0;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sel) 45%, transparent);
+}
+#float-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+#float-layer > *,
+#float-layer .bubble,
+#float-layer .palette {
+  pointer-events: auto;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+/* The app's `Kbd`. */
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--panel-3);
+  color: var(--ink-2);
+  font: 500 12px/1 var(--font);
+}
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-2);
+}
+.mark {
+  flex: none;
+  color: var(--agent);
+}
+
+/* ------------------------------------------------------------ outlines on the page */
+
+.box {
+  position: absolute;
+  border-radius: 4px;
+}
+.box.edit {
+  box-shadow: 0 0 0 1px var(--sel);
+}
+.box.refuse {
+  outline: 1px dashed color-mix(in srgb, var(--warn-tag) 80%, transparent);
+  outline-offset: 0;
+  background: color-mix(in srgb, var(--warn-tag) 6%, transparent);
+}
+/* The label rides the box's top-left corner, outside it, so it never covers what it names. */
+.box .tag {
+  position: absolute;
+  left: -1px;
+  bottom: calc(100% + 3px);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  font: 500 12px/1 var(--font);
+  padding: 0 6px;
+  border-radius: 4px;
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+.box .tag:empty {
+  display: none;
+}
+.box .tag svg {
+  flex: none;
+  margin-left: -1px;
+}
+.box .tag em {
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0.8;
+  padding-left: 5px;
+  margin-left: 1px;
+  border-left: 1px solid rgb(255 255 255 / 0.35);
+}
+.box.edit .tag {
+  background: var(--sel);
+}
+.box.refuse .tag {
+  background: var(--warn-tag);
+  color: #fff;
+}
+.box.below .tag {
+  bottom: auto;
+  top: calc(100% + 3px);
+}
+.box.sel {
+  box-shadow: 0 0 0 1.5px var(--sel);
+  border-radius: 4px;
+}
+.box.sel.editing {
+  box-shadow:
+    0 0 0 2px var(--sel),
+    0 0 0 5px var(--sel-soft);
+  border-radius: 6px;
+}
+.box.sel.blocked {
+  box-shadow: none;
+  outline: 1.5px dashed var(--warn-tag);
+  background: color-mix(in srgb, var(--warn-tag) 8%, transparent);
+}
+
+.flash {
+  position: absolute;
+  border-radius: 6px;
+  background: var(--agent-soft);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--agent) 60%, transparent);
+  animation: flash 2.2s ease-out forwards;
+}
+.flash.self {
+  background: var(--sel-soft);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--sel) 45%, transparent);
+}
+@keyframes flash {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.pin {
+  position: absolute;
+  pointer-events: auto;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 11px 11px 11px 3px;
+  background: var(--agent);
+  color: #fff;
+  border: 2px solid var(--panel);
+  box-shadow: var(--elev-md);
+  font: 600 11px/18px var(--font);
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+}
+.pin.edit {
+  background: var(--edit-pin);
+}
+.pin.stale {
+  background: var(--ink-3);
+}
+.pin-ring {
+  position: absolute;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--agent) 35%, transparent);
+}
+.pin-ring.edit {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--edit-pin) 35%, transparent);
+}
+
+/* ------------------------------------------------------------ reorder */
+
+#proxies {
+  position: absolute;
+  inset: 0;
+}
+.proxy {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 6px;
+}
+.proxy .grip {
+  pointer-events: auto;
+  position: absolute;
+  left: -26px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--icon);
+  box-shadow: var(--elev-sm);
+  cursor: grab;
+}
+.proxy .grip:hover {
+  color: var(--ink);
+  background: var(--panel);
+}
+#ui.dragging #overlay,
+#ui.dragging #proxies,
+#ui.dragging .proxy {
+  pointer-events: auto;
+}
+#ui.dragging,
+#ui.dragging * {
+  cursor: grabbing !important;
+}
+#ui.dragging .proxy:not(.proxy-placeholder) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sel) 30%, transparent);
+}
+.proxy.proxy-placeholder {
+  box-shadow: 0 0 0 1.5px var(--sel);
+  background: var(--sel-soft);
+}
+.proxy.proxy-placeholder .grip {
+  opacity: 0;
+}
+.proxy-ghost {
+  z-index: 60 !important;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--sel) 12%, transparent) !important;
+  box-shadow:
+    0 0 0 1.5px var(--sel),
+    0 16px 36px -10px rgb(0 0 0 / 0.35) !important;
+  opacity: 0.95 !important;
+}
+.proxy-ghost .grip {
+  color: var(--sel);
+}
+
+/* ------------------------------------------------------------ floating toolbar */
+
+/* The app's floating toolbar: a popover-colored row, `rounded-xl p-1`, of
+   ghost buttons in its `ghost-toolbar` voice, pressed as `bg-accent`. */
+.toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  white-space: nowrap;
+  animation: pop-in 0.12s ease-out;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+.toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.toolbar button svg {
+  color: var(--icon);
+  flex: none;
+}
+.toolbar button:hover {
+  background: var(--hover);
+}
+.toolbar button:hover svg {
+  color: var(--ink);
+}
+.toolbar button.on {
+  background: var(--accent);
+  color: var(--ink);
+}
+.toolbar button.on svg {
+  color: var(--ink);
+}
+.toolbar .tb-icon {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+  position: relative;
+}
+.toolbar .tb-icon.to-agent::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--agent);
+  box-shadow: 0 0 0 1.5px var(--panel);
+}
+.toolbar .tb-name {
+  gap: 4px;
+  padding: 0 8px 0 10px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.toolbar .tb-name svg {
+  color: var(--ink-3);
+}
+.toolbar button[aria-disabled="true"] {
+  cursor: default;
+}
+.toolbar button[aria-disabled="true"] svg {
+  opacity: 0.4;
+}
+.toolbar button[aria-disabled="true"]:hover {
+  background: transparent;
+}
+.tb-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--line);
+  margin: 0 2px;
+}
+/* Ask: the app's way of asking Instrument, the mark in the brand's green
+   beside a plain label. */
+.toolbar .tb-ask .mark,
+.toolbar .tb-ask:hover .mark {
+  color: var(--agent);
+}
+/* Alone, when nothing else can be done, it stands as the app's
+   `GlyphButton`: a card-colored button with an edge. */
+.toolbar .tb-ask.solo {
+  margin-left: 4px;
+  padding: 0 10px;
+  background: var(--panel);
+  box-shadow: var(--elev-xs);
+}
+.toolbar .tb-ask.solo:hover {
+  background: var(--hover);
+}
+.tb-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  height: 24px;
+  margin: 0 2px 0 4px;
+  border-radius: 6px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+/* Ancestor breadcrumb, opened from the element's name */
+#crumbs {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 4px 10px;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  white-space: nowrap;
+  font-size: 13px;
+  animation: pop-in 0.1s ease-out;
+}
+#crumbs .c-head {
+  color: var(--ink-2);
+  font-size: 12px;
+  margin-right: 4px;
+}
+#crumbs button {
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+#crumbs button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+#crumbs .c-sep {
+  color: var(--ink-3);
+  padding: 0 1px;
+}
+#crumbs .c-here {
+  padding: 0 8px 0 6px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Toolbar tooltips: the app's `TooltipContent`, popover-colored rather than
+   inverted, `rounded-md px-3 py-1.5 text-xs shadow-md`. */
+#tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: var(--elev-md);
+  pointer-events: none !important;
+}
+#tip kbd {
+  height: 18px;
+  min-width: 18px;
+  font-size: 11px;
+}
+#tip.why {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+}
+#tip.why b {
+  font-weight: 600;
+}
+#tip.why span {
+  color: var(--ink-2);
+}
+
+#edit-hint {
+  position: fixed;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--elev-sm);
+  color: var(--ink-2);
+  font-size: 12px;
+  pointer-events: none !important;
+}
+#edit-hint .keys {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+/* ------------------------------------------------------------ bubble menu (rich text) */
+
+.bubble {
+  z-index: 50;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  padding: 4px;
+  font: 13px/1 var(--font);
+  color: var(--ink);
+}
+.bubble-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.bubble button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+}
+.bubble button:hover {
+  background: var(--hover);
+}
+.bubble button.on {
+  background: var(--accent);
+  color: var(--ink);
+}
+.bubble button svg {
+  color: var(--icon);
+}
+.bubble button.on svg,
+.bubble button:hover svg {
+  color: var(--ink);
+}
+.bubble button span {
+  font-weight: 500;
+}
+.bubble .sep {
+  width: 1px;
+  height: 16px;
+  background: var(--line);
+  margin: 0 2px;
+}
+.bubble .link-row {
+  padding-left: 8px;
+}
+.bubble .link-ico {
+  color: var(--ink-3);
+  display: inline-flex;
+}
+.bubble .link-row input {
+  width: 240px;
+  height: 28px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 0 6px;
+  font-size: 13px;
+}
+.bubble .link-row button[data-cmd="apply"] svg {
+  color: var(--sel-ink);
+}
+
+/* ------------------------------------------------------------ popovers */
+
+/* The app's `PopoverContent`: `rounded-xl bg-popover shadow` over the page. */
+.pop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 45;
+  width: 320px;
+  box-sizing: border-box;
+  padding: 12px;
+  margin: 0;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+  animation: pop-in 0.12s ease-out;
+}
+.pop-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+.pop-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.pop-head .kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pop-head .kind.refuse {
+  color: var(--warn);
+}
+.pop-head .where {
+  margin-left: auto;
+  color: var(--ink-2);
+}
+.pop .note {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+/* The app's `Textarea` and `Input`. */
+.pop textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  resize: none;
+  font: 13px/1.45 var(--font);
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  outline: none;
+  background: var(--field);
+  box-shadow: var(--field-edge);
+}
+.pop textarea:focus {
+  box-shadow: var(--field-edge-hover);
+}
+.pop-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.pop-foot .hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.pop .block {
+  width: 100%;
+  justify-content: center;
+}
+.pop .or {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 10px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.pop .or::before,
+.pop .or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.inline-form {
+  display: flex;
+  gap: 6px;
+}
+.inline-form input,
+.field input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 10px;
+  background: var(--field);
+  box-shadow: var(--field-edge);
+  outline: none;
+}
+.inline-form input:focus,
+.field input:focus {
+  outline: 3px solid var(--ring-focus);
+  outline-offset: 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Buttons, in the app's `Button` variants: `.primary` is `default` (a card
+   with a sheen), `.primary.agent` is `brand`, `.secondary` is `secondary`,
+   and `.ghost` is `ghost`. Heights follow `size="sm"`. */
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  border: 0;
+  background:
+    linear-gradient(to bottom, rgb(255 255 255 / 0.03), rgb(0 0 0 / 0)),
+    var(--panel);
+  color: var(--ink);
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--elev-sm);
+}
+.primary:hover:not(:disabled) {
+  background-color: var(--hover);
+  background-image: none;
+}
+@media (prefers-color-scheme: dark) {
+  .primary {
+    background:
+      linear-gradient(to bottom, rgb(255 255 255 / 0.03), rgb(0 0 0 / 0)),
+      #44403c;
+  }
+  .primary:hover:not(:disabled) {
+    background: #57534e;
+  }
+}
+.primary.agent {
+  background:
+    linear-gradient(to bottom, rgb(255 255 255 / 0.03), rgb(0 0 0 / 0)),
+    var(--brand);
+  color: var(--brand-ink);
+  box-shadow: var(--elev-xs);
+}
+.primary.agent:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+.primary.agent .mark {
+  color: currentColor;
+}
+.primary.small {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.primary:disabled {
+  opacity: 0.5;
+}
+.secondary {
+  height: 32px;
+  border: 0;
+  background: var(--panel-3);
+  color: var(--ink);
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.ghost {
+  height: 32px;
+  border: 0;
+  background: transparent;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.ghost:hover,
+.secondary:hover {
+  background: var(--hover);
+}
+@media (prefers-color-scheme: dark) {
+  .secondary:hover {
+    background: rgb(255 255 255 / 0.12);
+  }
+}
+.icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--icon);
+  padding: 0;
+  border-radius: 6px;
+}
+.icon:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--sel-ink);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.linkish:hover {
+  text-decoration: underline;
+}
+.linkish .mark {
+  color: currentColor;
+}
+
+/* ------------------------------------------------------------ side panels */
+
+.dock-panel {
+  position: fixed;
+  z-index: 30;
+  top: 12px;
+  right: 12px;
+  bottom: 70px;
+  width: 288px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+  animation: slide-in 0.16s ease-out;
+}
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+#inspector {
+  bottom: auto;
+  max-height: calc(100% - var(--bar-h) - 80px);
+}
+.ins-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 10px 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.ins-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.ins-sub {
+  color: var(--ink-2);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.ins-body {
+  overflow: auto;
+  padding: 0 0 8px;
+}
+.ins-empty {
+  margin: 16px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.ins-blocked {
+  margin: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+.ins-blocked p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.ins-blocked b {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.sp-sec {
+  padding: 12px 16px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.sp-sec:last-child {
+  border-bottom: 0;
+}
+/* Section headings as the app's pickers set them: small, medium, muted. */
+.sp-sec h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.sp-row {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.sp-row + .sp-row {
+  margin-top: 4px;
+}
+.sp-row > label {
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sp-row.is-blocked > :not(label),
+.num.is-blocked {
+  opacity: 0.42;
+}
+.sp-row.is-blocked,
+.num.is-blocked {
+  cursor: pointer;
+}
+.sp-lock {
+  color: var(--warn);
+  display: inline-flex;
+}
+.sp-blocked {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -2px 0 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12px;
+}
+.sp-blocked span {
+  flex: 1;
+  min-width: 120px;
+}
+.sp-sec.blocked > :not(h4):not(.sp-blocked) {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Fields: the app's `Input`, a raised card in light and a hairline in dark. */
+.stepper {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--field);
+  box-shadow: var(--field-edge);
+}
+.stepper button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--icon);
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  padding: 0;
+}
+.stepper button:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+.stepper .val {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.stepper .val b {
+  font-weight: 500;
+  font-size: 13px;
+}
+.stepper .val small {
+  color: var(--ink-2);
+  font-size: 11px;
+}
+
+/* The app's segmented control (`TabsList`): `bg-muted p-[3px] rounded-lg`,
+   the chosen one raised as `bg-background shadow-sm`. */
+.seg {
+  display: flex;
+  background: var(--panel-3);
+  border-radius: 8px;
+  padding: 3px;
+}
+.seg button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 0 6px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+.seg button:hover {
+  color: var(--ink);
+}
+.seg button.on {
+  background: var(--knob);
+  color: var(--ink);
+  box-shadow: var(--shadow-knob);
+}
+
+.swatch-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--field);
+  box-shadow: var(--field-edge);
+  color: var(--ink);
+  text-align: left;
+}
+.swatch-btn:hover {
+  box-shadow: var(--field-edge-hover);
+}
+.swatch-btn .nm {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.swatch-btn svg {
+  color: var(--ink-3);
+}
+.sw {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+  flex: none;
+}
+@media (prefers-color-scheme: dark) {
+  .sw {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  }
+}
+.sw.none,
+.psw.none {
+  background:
+    linear-gradient(
+      135deg,
+      transparent 46%,
+      var(--destructive) 46%,
+      var(--destructive) 54%,
+      transparent 54%
+    ),
+    var(--panel) !important;
+}
+
+/* Box model */
+.boxmodel {
+  position: relative;
+  font-variant-numeric: tabular-nums;
+}
+.bm-m {
+  border: 1px dashed var(--line-2);
+  border-radius: 10px;
+  padding: 4px;
+}
+.bm-p {
+  position: relative;
+  flex: 1;
+  border-radius: 8px;
+  background: var(--panel-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 3px;
+}
+.bm-top {
+  display: flex;
+  justify-content: center;
+}
+.bm-mid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+}
+.bm-core {
+  flex: 1;
+  height: 18px;
+  margin: 0 4px;
+  border-radius: 4px;
+  background: var(--panel-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.bm-label {
+  position: absolute;
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.bm-label.m {
+  left: 8px;
+  top: 5px;
+}
+.bm-label.p {
+  left: 6px;
+  top: 4px;
+}
+.boxmodel .num {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  border-radius: 6px;
+}
+.boxmodel .num b {
+  min-width: 22px;
+  text-align: center;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--ink);
+}
+.boxmodel .num.implicit b {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+.boxmodel .num button {
+  width: 16px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--icon);
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.boxmodel .num:hover {
+  background: var(--hover);
+}
+.boxmodel .num:hover button {
+  opacity: 1;
+}
+.boxmodel .num button:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+/* Corner and shadow tiles: picked shows the brand's edge, as the app's
+   picker tiles do. */
+.tiles {
+  display: flex;
+  gap: 4px;
+}
+.tiles button {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--field);
+  box-shadow: var(--field-edge);
+  display: grid;
+  place-items: center;
+  color: var(--icon);
+}
+.tiles button:hover {
+  box-shadow: var(--field-edge-hover);
+}
+.tiles button.on {
+  box-shadow: inset 0 0 0 1.5px var(--sel);
+  background: var(--sel-soft);
+  color: var(--sel-ink);
+}
+.corner {
+  width: 11px;
+  height: 11px;
+  border-top: 1.5px solid currentColor;
+  border-left: 1.5px solid currentColor;
+  transform: translate(2px, 2px);
+}
+.r-none {
+  border-top-left-radius: 0;
+}
+.r-sm {
+  border-top-left-radius: 2px;
+}
+.r-md {
+  border-top-left-radius: 3.5px;
+}
+.r-lg {
+  border-top-left-radius: 5px;
+}
+.r-xl {
+  border-top-left-radius: 7px;
+}
+.r-2xl {
+  border-top-left-radius: 9px;
+}
+.r-full {
+  border-top-left-radius: 11px;
+}
+[data-ctl="shadow"] .tiles button {
+  height: 42px;
+  grid-template-rows: 1fr auto;
+  padding: 6px 0 4px;
+  gap: 2px;
+}
+[data-ctl="shadow"] .tiles em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--ink-2);
+}
+[data-ctl="shadow"] .tiles button.on em {
+  color: var(--sel-ink);
+}
+.card {
+  width: 18px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--panel);
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+.card.s-sm {
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 1px 2px rgb(0 0 0 / 0.18);
+}
+.card.s-md {
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 2px 4px rgb(0 0 0 / 0.2);
+}
+.card.s-lg {
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 3px 7px rgb(0 0 0 / 0.24);
+}
+.card.s-xl {
+  box-shadow:
+    0 0 0 0.5px var(--line-2),
+    0 5px 10px rgb(0 0 0 / 0.3);
+}
+
+/* Palette */
+.palette {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 55;
+  width: 236px;
+  padding: 12px 12px 8px;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+  animation: pop-in 0.12s ease-out;
+}
+.p-head {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+.p-group + .p-group {
+  margin-top: 8px;
+}
+.p-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+  margin: 0 0 4px;
+}
+.p-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.psw {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--c);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.1);
+}
+@media (prefers-color-scheme: dark) {
+  .psw {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  }
+}
+.psw:hover {
+  transform: scale(1.08);
+}
+.psw.on {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 3.5px var(--sel);
+}
+.p-custom {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.p-custom summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.p-custom summary:hover {
+  color: var(--ink);
+}
+.p-custom summary::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-right: 1.75px solid currentColor;
+  border-bottom: 1.75px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.12s;
+}
+.p-custom[open] summary::before {
+  transform: rotate(45deg);
+}
+.p-custom .hex-picker {
+  width: 100%;
+  height: 36px;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+}
+.p-hex {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--field);
+  box-shadow: var(--field-edge);
+  padding: 0 4px 0 10px;
+}
+.p-hex .hash {
+  color: var(--ink-3);
+}
+.p-hex input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.p-foot {
+  height: 14px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+/* Requests */
+#panel ol {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow: auto;
+  flex: 1;
+}
+#panel li {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#panel li > div {
+  min-width: 0;
+}
+#panel li:hover,
+#panel li.focus {
+  background: var(--hover);
+}
+#panel li .num {
+  position: static;
+  margin: 0;
+  display: block;
+}
+#panel li .instr {
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+#panel li .what {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#panel li .x {
+  border: 0;
+  background: none;
+  color: var(--icon);
+  padding: 2px;
+  visibility: hidden;
+  border-radius: 6px;
+  height: 22px;
+  width: 22px;
+  display: grid;
+  place-items: center;
+}
+#panel li .x:hover {
+  background: var(--accent);
+  color: var(--ink);
+}
+#panel li:hover .x {
+  visibility: visible;
+}
+/* The app's `Badge`, in its muted voice. */
+#panel .badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--panel-3);
+  color: var(--ink-2);
+  margin-right: 6px;
+  font-weight: 500;
+}
+#panel .badge.stale {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+#panel .empty {
+  margin: 16px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+#panel footer {
+  padding: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Send sheet */
+#sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgb(0 0 0 / 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sheet-card {
+  width: min(760px, 92vw);
+  max-height: 80%;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: var(--elev-xl);
+}
+.sheet-card header {
+  padding: 16px 16px 10px;
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.sheet-card header .sub {
+  font-weight: 400;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.sheet-card pre {
+  margin: 0 16px;
+  padding: 12px;
+  overflow: auto;
+  flex: 1;
+  background: var(--panel-3);
+  border-radius: 8px;
+  font: 12px/1.5 var(--mono);
+  white-space: pre-wrap;
+}
+.sheet-card footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 12px 16px;
+}
+
+/* ------------------------------------------------------------ dock, toast, pill */
+
+/* The dock stands like the app's floating Edit pill: a popover-colored
+   `rounded-xl` row, raised `shadow-lg`. */
+#dock {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+}
+#dock .seg button {
+  white-space: nowrap;
+  height: 26px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+#dock .seg.small button {
+  font-size: 12px;
+  padding: 0 9px;
+}
+.dock-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--line);
+  margin: 0 3px;
+}
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--icon);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--ink);
+}
+.icon-btn:disabled {
+  opacity: 0.4;
+}
+.plain {
+  height: 32px;
+  border: 0;
+  background: transparent;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.plain:hover {
+  background: var(--hover);
+}
+.plain.on {
+  background: var(--accent);
+}
+.count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--panel-3);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.count.has {
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+#dock-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 34;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(8px);
+  color: var(--ink-2);
+  font-size: 12px;
+  box-shadow: var(--elev-xs);
+  pointer-events: none;
+}
+
+/* The app's toasts: a popover-colored card with a hairline, its actions in
+   the `secondary` button voice. */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 66px;
+  transform: translateX(-50%);
+  z-index: 36;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  min-height: 40px;
+  box-sizing: border-box;
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 10px;
+  box-shadow: var(--elev-lg);
+  max-width: min(560px, 90vw);
+}
+#toast.in {
+  animation: toast-in 0.18s ease-out;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+#toast:has(button:not([hidden])) {
+  padding-right: 6px;
+}
+#toast .msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#toast button {
+  border: 0;
+  background: var(--panel-3);
+  color: var(--ink);
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--elev-xs);
+}
+#toast button:hover {
+  background: var(--accent);
+}
+#ui:has(#toast:not([hidden])) #dock-hint {
+  display: none;
+}
+
+#agent-pill {
+  position: fixed;
+  top: calc(var(--bar-h) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 36;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 14px 0 12px;
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 999px;
+  box-shadow: var(--elev-lg);
+  font-size: 13px;
+  font-weight: 500;
+}
+#agent-pill .mark {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.proxy-ghost,
+.proxy-ghost * {
+  pointer-events: none !important;
+}
+/* The app's focus ring: a 3px outline in the ring color at half strength. */
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+button:focus-visible {
+  outline: 3px solid var(--ring-focus);
+  outline-offset: 0;
+}
+.field input {
+  flex: none;
+}
+
+/* Page panel */
+.pg-accents {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px;
+}
+.pg-accents .psw {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+.pg-accents .psw.custom {
+  background: conic-gradient(
+    from 90deg,
+    #e5484d,
+    #f5a524,
+    #46a758,
+    #0ea5e9,
+    #6e56cf,
+    #e5484d
+  );
+  position: relative;
+}
+.pg-accents .psw.custom::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 0 1.5px var(--panel);
+}
+.pg-ramp {
+  display: flex;
+  height: 10px;
+  margin-top: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.pg-ramp span {
+  flex: 1;
+}
+.pg-custom {
+  margin-top: 10px;
+}
+.pg-custom .hex-picker {
+  width: 100%;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+}
+.pg-corners button {
+  height: 44px;
+  grid-template-rows: 1fr auto;
+  padding: 6px 0 4px;
+  gap: 3px;
+}
+.pg-corners em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--ink-2);
+}
+.pg-corners button.on em {
+  color: var(--sel-ink);
+}
+.pg-corner {
+  width: 14px;
+  height: 14px;
+  border-top: 1.5px solid currentColor;
+  border-left: 1.5px solid currentColor;
+  transform: translate(3px, 3px);
+}
+.pg-fonts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pg-fonts button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px 0 6px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--field);
+  box-shadow: var(--field-edge);
+  text-align: left;
+  color: var(--ink);
+}
+.pg-fonts button:hover {
+  box-shadow: var(--field-edge-hover);
+}
+.pg-fonts button.on {
+  box-shadow: inset 0 0 0 1.5px var(--sel);
+  background: var(--sel-soft);
+}
+.pg-fonts .ag {
+  width: 26px;
+  text-align: center;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--ink);
+}
+.pg-density button {
+  height: 26px;
+}
+#page-btn svg {
+  color: var(--icon);
+}
+#page-btn.on svg {
+  color: var(--ink);
+}
+
+/* The dock's Done, for the placement where Edit is entered from a pill on the page. */
+#dock .done {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 4px 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+#dock .done .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sel);
+}
+#dock .done .done-label {
+  margin-left: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--brand);
+  color: var(--brand-ink);
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--elev-xs);
+}
+#dock .done:hover .done-label {
+  background: var(--brand-hover);
+}
+#dock .pill-only {
+  display: none;
+}
+#ui[data-placement="pill"] #dock .done {
+  display: inline-flex;
+}
+#ui[data-placement="pill"] #dock .pill-only {
+  display: block;
+}
+#dock {
+  animation: dock-in 0.16s ease-out;
+}
+@keyframes dock-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px) scale(0.96);
+  }
+}

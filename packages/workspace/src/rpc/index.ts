@@ -9,6 +9,7 @@ import { replay } from "./routes/replay";
 import { session } from "./routes/session";
 import { skill } from "./routes/skill";
 import { storage } from "./routes/storage";
+import { systemOne } from "./routes/system-one";
 import { task } from "./routes/task";
 
 export const router = {
@@ -23,5 +24,6 @@ export const router = {
   session,
   skill,
   storage,
+  systemOne,
   task,
 };

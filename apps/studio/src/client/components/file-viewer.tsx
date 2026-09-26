@@ -1,5 +1,6 @@
 import { fileViewerWrapLinesAtom } from "@/client/atoms/file-viewer-wrap-lines";
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
   LazyArchiveViewer,
   LazyCsvViewer,
@@ -868,10 +869,23 @@ export function FileViewer({
     <>
       {actionsLead}
       {showsSource && (
-        <span className="flex items-center gap-1 px-1 text-xs text-muted-foreground">
-          <CodeIcon className="size-3.5" />
-          Source
-        </span>
+        // Where the source was left from: the menu took the person here, and
+        // this takes them back without a trip through it.
+        <ToolbarTooltip label={`Show ${richView}`}>
+          <Button
+            aria-label={`Leave the source and show the ${richView}`}
+            className="gap-1 px-1.5 text-xs text-muted-foreground"
+            onClick={() => {
+              void handleSourceChange(false);
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            <CodeIcon className="size-3.5" />
+            Source
+            <XIcon className="size-3" />
+          </Button>
+        </ToolbarTooltip>
       )}
       {!isInRow && (
         <OpenTaskFileButton

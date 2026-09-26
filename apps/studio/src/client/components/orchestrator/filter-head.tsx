@@ -372,12 +372,12 @@ function ViewPicker({
             <ChatsCircleIcon className="size-7 shrink-0 text-brand-800/50 dark:text-brand-200/50" />
           )}
           <span className="truncate">{chosen ? chosen.name : "Chats"}</span>
-          {/* Small and heavy: a 10px caret at a 3px stroke, in the chip's
-            green let halfway back. */}
+          {/* Sized to the 15px label beside it, in the chip's green let
+            halfway back. */}
           <ChevronDown
             absoluteStrokeWidth
-            className="size-2.5 shrink-0 text-brand-800/50 dark:text-brand-200/50"
-            strokeWidth={3}
+            className="size-4 shrink-0 text-brand-800/50 dark:text-brand-200/50"
+            strokeWidth={2.5}
           />
         </button>
       </PopoverTrigger>

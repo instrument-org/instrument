@@ -222,7 +222,6 @@ export function ComputerPage({
   const recents = useQuery(
     rpcClient.workspace.computer.recents.queryOptions({
       enabled: isRecents,
-      input: { id: taskId },
       refetchInterval:
         refreshInterval === false
           ? false

@@ -18,7 +18,6 @@ import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
 import uFuzzy from "@leeoniya/ufuzzy";
 import { type Icon } from "@phosphor-icons/react";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
@@ -84,7 +83,6 @@ export function ComposeZeroState({
   onOpenFile,
   onOpenFolder,
   onOpenPage,
-  taskId,
 }: {
   /** The file chooser, for the Attach door's button. */
   onAttachFiles: () => void;
@@ -97,16 +95,13 @@ export function ComposeZeroState({
   onOpenFile: (hostPath: string) => void;
   onOpenFolder: (hostPath: string) => void;
   onOpenPage: (url: string) => void;
-  taskId: TaskId;
 }) {
   const pins = useAtomValue(pinsAtom);
   const visited = useAtomValue(visitedPagesAtom);
   const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const recents = useQuery(
-    rpcClient.workspace.computer.recents.queryOptions({
-      input: { id: taskId },
-    }),
+    rpcClient.workspace.computer.recents.queryOptions(),
   );
 
   // The sites kept first, then the pages lately seen that are not among

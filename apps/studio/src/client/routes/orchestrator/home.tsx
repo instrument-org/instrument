@@ -84,7 +84,7 @@ function focusRow(list: HTMLElement, index: number) {
 }
 
 function HomeRoute() {
-  const { openPage, openScreen, taskId } = useOrchestrator();
+  const { openPage, openScreen } = useOrchestrator();
   const navigate = useNavigate();
   const openFileTab = useOpenFileTab();
   const quickLook = useQuickLook({ openFile: openFileTab });
@@ -95,7 +95,6 @@ function HomeRoute() {
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const recents = useQuery(
     rpcClient.workspace.computer.recents.queryOptions({
-      input: { id: taskId },
       refetchInterval: RECENTS_REFRESH_MS,
     }),
   );

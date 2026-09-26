@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { unique } from "radashi";
 import { z } from "zod";
 
 import { type FolderAttachment } from "../../schemas/folder-attachment";
@@ -261,17 +262,23 @@ export async function listComputerFolder({
  * A file that has since been moved or thrown away drops off, since a row that
  * opens nothing is worse than a shorter list.
  */
-export async function recentComputerFiles({
-  taskId,
-}: {
-  taskId: TaskId;
-}): Promise<ComputerRecent[]> {
-  const [shown, { layout, roots }] = await Promise.all([
-    linkedFiles(),
-    orchestratorView(taskId),
-  ]);
+export async function recentComputerFiles(): Promise<ComputerRecent[]> {
+  // Each path is read the way the chat that named it reads it: `/task` is
+  // that chat's own folder, and its tasks are the ones mounted for it.
+  const views = new Map<TaskId, ReturnType<typeof orchestratorView>>();
+  const viewOf = (chatId: TaskId) => {
+    const known = views.get(chatId);
+    if (known) {
+      return known;
+    }
+    const view = orchestratorView(chatId);
+    views.set(chatId, view);
+    return view;
+  };
+  const shown = await linkedFiles();
   const described = await Promise.all(
     shown.map(async (file) => {
+      const { layout, roots } = await viewOf(file.chatId);
       const resolved = resolveExistingFilePath({
         inputPath: file.path,
         layout,
@@ -279,18 +286,24 @@ export async function recentComputerFiles({
       const entry = resolved.isErr()
         ? undefined
         : await describeShownFile(resolved.value.absolutePath);
-      return entry && { ...entry, shownAt: file.at };
+      if (!entry) {
+        return;
+      }
+      const access = accessIn(roots, entry.path);
+      return {
+        ...entry,
+        shownAt: file.at,
+        ...(access === undefined ? {} : { access }),
+      };
     }),
   );
-  // Cut to length after the missing ones have gone, so a run of files that
-  // have since been thrown away does not empty the list.
-  return described
-    .filter((entry) => entry !== undefined)
-    .slice(0, RECENTS_MAX)
-    .map((file) => {
-      const access = accessIn(roots, file.path);
-      return { ...file, ...(access === undefined ? {} : { access }) };
-    });
+  // One row per file, however many chats showed it, cut to length after the
+  // missing ones have gone, so a run of files that have since been thrown
+  // away does not empty the list.
+  return unique(
+    described.filter((entry) => entry !== undefined),
+    (entry) => entry.path,
+  ).slice(0, RECENTS_MAX);
 }
 
 /** Folders first, then by name as a person reads one: `file 2` before `file 10`. */

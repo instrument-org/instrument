@@ -241,7 +241,6 @@ export function ComposeWindow({
   width?: number;
 }) {
   const orchestrator = useOrchestrator();
-  const { taskId } = orchestrator;
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   const group = draftGroupOf(draft.id);
@@ -517,7 +516,6 @@ export function ComposeWindow({
           onOpenFile={openFile}
           onOpenFolder={openFolder}
           onOpenPage={openPage}
-          taskId={taskId}
         />
       );
     }

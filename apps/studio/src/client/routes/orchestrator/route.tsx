@@ -653,7 +653,7 @@ function OrchestratorLayout() {
       rpcClient.workspace.orchestrator.children.queryOptions({ input }),
     );
     void queryClient.prefetchQuery(
-      rpcClient.workspace.computer.recents.queryOptions({ input }),
+      rpcClient.workspace.computer.recents.queryOptions(),
     );
     void queryClient.prefetchQuery(
       rpcClient.workspace.computer.places.queryOptions(),

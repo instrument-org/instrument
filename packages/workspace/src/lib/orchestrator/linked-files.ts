@@ -1,9 +1,9 @@
-import { sessionOfChat } from "../record-folders";
 import { sort, unique } from "radashi";
 
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { pathsNamedInMessage } from "../paths-named-in-message";
+import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { listChatIds } from "./chats";
 
@@ -17,6 +17,8 @@ const MESSAGES_READ = 100;
 /** A file the conversation showed the user, and when it showed it. */
 export interface LinkedFile {
   at: number;
+  /** The chat whose reply named it, which is what a path under `/task` is relative to. */
+  chatId: TaskId;
   /** The path as the reply named it, which is the path the agent can reach it by. */
   path: string;
 }
@@ -40,11 +42,13 @@ export async function linkedFiles(): Promise<LinkedFile[]> {
       return sessionId ? [shownIn(chatId, sessionId)] : [];
     }),
   );
-  // Newest first, then one entry per file: a file handed over again is the
-  // same file, and the time that matters is the last time it was shown.
+  // Newest first, then one entry per file a chat named: a file handed over
+  // again is the same file, and the time that matters is the last time it was
+  // shown. The same path named in two chats can be two files, so which chat
+  // named it is part of what makes it one.
   return unique(
     sort(shown.flat(), (file) => file.at, true),
-    (file) => file.path,
+    (file) => `${file.chatId}\0${file.path}`,
   );
 }
 
@@ -69,6 +73,7 @@ async function shownIn(
     message.role === "assistant"
       ? [...pathsNamedInMessage(message)].map((path) => ({
           at: message.metadata.createdAt.getTime(),
+          chatId: taskId,
           path,
         }))
       : [],

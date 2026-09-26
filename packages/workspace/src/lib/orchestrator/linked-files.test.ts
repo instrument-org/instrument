@@ -3,11 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { chatFor } from "../../test/helpers/chat-record";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -143,9 +143,25 @@ describe("linkedFiles", () => {
 
     const shown = await linkedFiles();
 
+    const chatId = chatFor(sessionId);
     expect(shown).toEqual([
-      { at: at(3).getTime(), path: "output/report.md" },
-      { at: at(2).getTime(), path: "output/chart.png" },
+      { at: at(3).getTime(), chatId, path: "output/report.md" },
+      { at: at(2).getTime(), chatId, path: "output/chart.png" },
+    ]);
+  });
+
+  it("names the same path once for each chat that showed it", async () => {
+    const taskId = freshTask();
+    const first = await thread(taskId, "First");
+    const second = await thread(taskId, "Second");
+    await said(taskId, first, "```files\n/task/work/notes.md\n```", at(1));
+    await said(taskId, second, "```files\n/task/work/notes.md\n```", at(2));
+
+    const shown = await linkedFiles();
+
+    expect(shown.map((file) => file.chatId)).toEqual([
+      chatFor(second),
+      chatFor(first),
     ]);
   });
 

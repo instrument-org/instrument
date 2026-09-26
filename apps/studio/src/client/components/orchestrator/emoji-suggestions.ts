@@ -13,11 +13,9 @@ const CHUNK = 250;
 const NONE = "none";
 
 /** Below this an emoji is the model shrugging, not suggesting. */
-const FLOOR = 0.02;
-const MOST = 24;
-
-/** Long enough that a word typed at speed asks once, not once a letter. */
-const DEBOUNCE_MS = 150;
+const FLOOR = 0.05;
+/** One row of the picker's grid. */
+const MOST = 8;
 
 /**
  * Emoji that fit what `text` is about, ranked by the decision model: every
@@ -25,17 +23,29 @@ const DEBOUNCE_MS = 150;
  * request, and the probabilities across all of them are merged into one list.
  * A keyword search finds 🍕 for "pizza"; this also finds 🦖 🧬 🎬 🌴 for
  * "jurassic park", which no emoji's name or tags contain.
+ *
+ * The last answer stays up while the next is on its way, so what is shown
+ * changes once per answer rather than blanking between them.
  */
-export function useEmojiSuggestions(text: string, all: Emoji[] | undefined) {
+export function useEmojiSuggestions(
+  text: string,
+  all: Emoji[] | undefined,
+  {
+    debounceMs = 150,
+  }: {
+    /** How long typing has to pause before the text is asked about. */
+    debounceMs?: number;
+  } = {},
+) {
   const [settled, setSettled] = useState(text.trim());
   useEffect(() => {
     const timer = setTimeout(() => {
       setSettled(text.trim());
-    }, DEBOUNCE_MS);
+    }, debounceMs);
     return () => {
       clearTimeout(timer);
     };
-  }, [text]);
+  }, [debounceMs, text]);
 
   const questions = useMemo(() => (all ? questionsFor(all) : undefined), [all]);
   const byUnicode = useMemo(
@@ -43,8 +53,9 @@ export function useEmojiSuggestions(text: string, all: Emoji[] | undefined) {
     [all],
   );
 
+  const asking = questions !== undefined && settled.length > 1;
   const query = useQuery({
-    enabled: questions !== undefined && settled.length > 1,
+    enabled: asking,
     placeholderData: keepPreviousData,
     // The question set is the same for every call, so the text alone keys it.
     queryFn: async ({ signal }) => {
@@ -75,18 +86,14 @@ export function useEmojiSuggestions(text: string, all: Emoji[] | undefined) {
     }
     return ranked
       .toSorted((a, b) => b.probability - a.probability)
-      .slice(0, MOST)
-      .map(({ emoji }) => emoji);
+      .slice(0, MOST);
   }, [byUnicode, query.data]);
 
   return {
-    error: query.error,
-    /** What the last answer cost to get, for judging the spike by feel. */
-    isFetching: query.isFetching,
-    suggestions: settled.length > 1 ? suggestions : [],
-    timing: query.data
-      ? `${query.data.ms}ms via ${query.data.provider}`
-      : undefined,
+    error: asking ? query.error : null,
+    /** Whether an answer for this text, or one before it, has arrived. */
+    hasAnswer: asking && query.data !== undefined,
+    suggestions: asking ? suggestions : [],
   };
 }
 

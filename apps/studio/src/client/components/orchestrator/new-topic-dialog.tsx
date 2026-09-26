@@ -30,9 +30,14 @@ import {
 import { Input } from "@/client/components/ui/input";
 import { useRef, useState } from "react";
 
-import { Cells } from "./emoji-grid";
 import { useEmojiSet } from "./emoji-set";
 import { useEmojiSuggestions } from "./emoji-suggestions";
+
+/**
+ * How sure the decision model has to be before its pick replaces the mark: a
+ * half-typed name gets a guess, and a guess should not repaint the mark.
+ */
+const CONFIDENT = 0.3;
 
 /** What the user chooses about a topic: its name, its mark, its tint. */
 export interface TopicChoice {
@@ -214,10 +219,23 @@ function TopicForm({
     }
   }
   const all = useEmojiSet();
-  const { suggestions } = useEmojiSuggestions(open ? name : "", all);
-  const best = suggestions[0]?.unicode;
-  if (follows && best && best !== emoji) {
-    setEmoji(best);
+  // Asked after a pause rather than per word, so the mark changes once the
+  // name has settled instead of flickering through every prefix of it.
+  const { suggestions } = useEmojiSuggestions(
+    open && follows ? name : "",
+    all,
+    {
+      debounceMs: 400,
+    },
+  );
+  const [best] = suggestions;
+  if (
+    follows &&
+    best &&
+    best.probability >= CONFIDENT &&
+    best.emoji.unicode !== emoji
+  ) {
+    setEmoji(best.emoji.unicode);
   }
   const choose = (picked: string) => {
     setFollows(false);
@@ -262,7 +280,14 @@ function TopicForm({
             className="shrink-0 rounded-xl hover:opacity-80"
             type="button"
           >
-            <TopicMark size="lg" topic={{ color, emoji, name }} />
+            <TopicMark
+              // A changed mark fades in where it stands, so one that follows
+              // the name reads as an answer arriving rather than a flicker.
+              className="animate-in duration-300 fade-in-0 zoom-in-90"
+              key={emoji}
+              size="lg"
+              topic={{ color, emoji, name }}
+            />
           </button>
         </TopicMarkPicker>
         <Input
@@ -280,14 +305,6 @@ function TopicForm({
           value={name}
         />
       </div>
-      {suggestions.length > 1 && (
-        <div>
-          <p className="pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            Suggested
-          </p>
-          <Cells emoji={suggestions.slice(0, 16)} onPick={choose} />
-        </div>
-      )}
       <div>
         <p className="pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
           Color

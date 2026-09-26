@@ -90,29 +90,16 @@ export function EmojiGrid({
   );
 
   const words = query.trim().toLowerCase();
-  const related = useEmojiSuggestions(words || context || "", all);
-  const relatedSection =
-    related.suggestions.length > 0 || related.isFetching || related.error ? (
-      <section aria-label="Related">
-        <h3 className="flex items-baseline justify-between gap-2 px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-          <span className="truncate">
-            {words || !context
-              ? "Related"
-              : `Suggested for “${context.trim()}”`}
-          </span>
-          <span className="shrink-0 font-normal tabular-nums opacity-70">
-            {related.isFetching ? "…" : related.timing}
-          </span>
-        </h3>
-        {related.error ? (
-          <p className="px-1 text-xs text-destructive">
-            {related.error.message}
-          </p>
-        ) : (
-          <Cells emoji={related.suggestions} onPick={onPick} />
-        )}
-      </section>
-    ) : undefined;
+  const about = words || context?.trim() || "";
+  const related = useEmojiSuggestions(about, all);
+  const relatedSection = about ? (
+    <section aria-label="Related">
+      <h3 className="truncate px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+        {words ? "Related" : `Suggested for “${about}”`}
+      </h3>
+      <RelatedRow onPick={onPick} related={related} />
+    </section>
+  ) : undefined;
   const matches = useMemo(() => {
     if (!words) {
       return [];
@@ -212,11 +199,9 @@ export function EmojiGrid({
           <>
             {relatedSection}
             <section aria-label="Matches">
-              {relatedSection && (
-                <h3 className="px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-                  Matches
-                </h3>
-              )}
+              <h3 className="px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                Matches
+              </h3>
               {matches.length === 0 ? (
                 <p className="p-2 text-xs text-muted-foreground">
                   No emoji found.
@@ -260,6 +245,54 @@ export function EmojiGrid({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The decision model's row, one grid row tall from the first keystroke
+ * whatever it holds, so the matches under it never move when an answer lands.
+ * Until the first answer it is empty cells; after that each answer replaces
+ * the last in one fade rather than the row blanking in between.
+ */
+function RelatedRow({
+  onPick,
+  related,
+}: {
+  onPick: (emoji: string) => void;
+  related: ReturnType<typeof useEmojiSuggestions>;
+}) {
+  const note = related.error
+    ? "Suggestions are unavailable."
+    : related.hasAnswer && related.suggestions.length === 0
+      ? "Nothing close."
+      : undefined;
+  return (
+    <div className="h-8">
+      {note ? (
+        <p
+          className="flex h-full items-center px-1 text-xs text-muted-foreground"
+          title={related.error?.message}
+        >
+          {note}
+        </p>
+      ) : related.hasAnswer ? (
+        <div
+          className="animate-in duration-200 fade-in-0"
+          key={related.suggestions.map(({ emoji }) => emoji.unicode).join("")}
+        >
+          <Cells
+            emoji={related.suggestions.map(({ emoji }) => emoji)}
+            onPick={onPick}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-8 gap-0.5">
+          {Array.from({ length: COLUMNS }, (_, index) => (
+            <span className="m-1.5 size-5 rounded-md bg-muted/60" key={index} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -293,6 +293,25 @@ export namespace SessionMessage {
       agentName?: AgentName;
     } = {},
   ): Promise<ModelMessage[]> {
+    return convertToModelMessages(toUIMessages(messages, { agentName }), {
+      tools,
+    });
+  }
+
+  /**
+   * One UI message per stored message, in order, with the harness notes each
+   * user turn carries. The notes depend on the turns before them, so a caller
+   * converting messages one at a time maps the whole list here first.
+   */
+  export function toUIMessages(
+    messages: WithParts[],
+    {
+      agentName = "main",
+    }: {
+      /** Who reads the notes; see `toModelMessages`. */
+      agentName?: AgentName;
+    } = {},
+  ): UIMessage[] {
     let previousBackgroundProcessesNote: string | undefined;
     let previousBrowserStatusNote: string | undefined;
     let previousPaneTabsNote: string | undefined;
@@ -327,7 +346,7 @@ export namespace SessionMessage {
       (message) => message.role === "user",
     )?.id;
 
-    const uiMessages: UIMessage[] = messages.map((message) => {
+    return messages.map((message) => {
       const maxStepsPart = message.parts.find(
         (
           part,
@@ -737,6 +756,5 @@ export namespace SessionMessage {
             : message.role,
       };
     });
-    return convertToModelMessages(uiMessages, { tools });
   }
 }

@@ -1,6 +1,6 @@
 import { namesSameModel } from "@instrument-org/ai-gateway";
 import {
-  type AssistantModelMessage,
+  convertToModelMessages,
   type ModelMessage,
   type SystemModelMessage,
   type ToolModelMessage,
@@ -13,7 +13,7 @@ import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
-import { StoreId } from "../schemas/store-id";
+import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { attachedFolderMountPoint } from "./attached-folder-mounts";
@@ -38,9 +38,6 @@ interface MessageRenderInfo {
   sourceMessage: SessionMessage.WithParts;
   startedAt: Date;
 }
-
-const EMPTY_ASSISTANT_TRANSCRIPT_MARKER =
-  "__INSTRUMENT_TRANSCRIPT_EMPTY_ASSISTANT_STEP__";
 
 export function buildSessionFrontMatter(
   session: Session.WithMessagesAndParts,
@@ -308,14 +305,13 @@ export async function sessionToMarkdown(
   const agentName = rootSession.messages.find(
     (m): m is SessionMessage.ContextWithParts => m.role === "session-context",
   )?.metadata.agentName;
-  const modelMessages = await SessionMessage.toModelMessages(
-    makeEmptyAssistantStepsVisible(orderedMessages),
-    TOOLS_FOR_MODEL_OUTPUT,
-    { agentName },
-  );
+  // Mapped as one list, because the notes a user turn carries depend on the
+  // turns before it, then converted one message at a time below.
+  const uiMessages = SessionMessage.toUIMessages(orderedMessages, {
+    agentName,
+  });
 
   const toolTimestamps = buildToolCallTimestampMap(rootSession);
-  const messageTimestamps = buildMessageTimestampQueues(orderedMessages);
 
   const heading =
     isUntitledChatSessionTitle(rootSession.title) && taskName
@@ -343,82 +339,63 @@ export async function sessionToMarkdown(
   let userTurn = 0;
   const toolCounter = { count: 0 };
   const renderedToolCallIds = new Set<string>();
-  let i = 0;
-  while (i < modelMessages.length) {
-    const message = modelMessages[i];
-    if (!message) {
-      i++;
-      continue;
-    }
+  for (const [index, sourceMessage] of orderedMessages.entries()) {
+    const uiMessage = uiMessages[index];
+    // Every stored message gets its own block, including a step the model is
+    // sent nothing from: one holding only sources, data parts, or a tool call
+    // that never finished still explains how the turn went.
+    const modelMessages = uiMessage
+      ? await convertToModelMessages([uiMessage], {
+          tools: TOOLS_FOR_MODEL_OUTPUT,
+        })
+      : [];
+    const renderInfo = toRenderInfo(sourceMessage);
 
-    const renderInfo =
-      message.role === "tool"
-        ? undefined
-        : takeMessageTimestamp(messageTimestamps, message.role);
-
-    if (renderInfo?.contextMetadata) {
-      const rendered = renderContextMessage(
-        message,
-        renderInfo,
-        toolTimestamps,
-        toolCounter,
+    if (sourceMessage.role === "session-context") {
+      parts.push(
+        ...renderContextMessage(
+          modelMessages,
+          renderInfo,
+          toolTimestamps,
+          toolCounter,
+        ),
+        "",
       );
-      parts.push(...rendered, "");
-      i++;
       continue;
     }
 
-    if (message.role === "user") {
+    if (sourceMessage.role === "assistant") {
+      parts.push(
+        ...renderAssistantMessage(
+          modelMessages,
+          toolTimestamps,
+          userTurn,
+          toolCounter,
+          renderedToolCallIds,
+          renderInfo,
+        ),
+        "",
+      );
+      continue;
+    }
+
+    if (sourceMessage.role === "user") {
       userTurn++;
     }
 
-    if (message.role === "assistant") {
-      const nextMessage = modelMessages[i + 1];
-      const toolMessage =
-        nextMessage?.role === "tool" ? nextMessage : undefined;
-
-      const rendered = renderAssistantMessage(
-        message,
-        toolMessage,
-        toolTimestamps,
-        userTurn,
-        toolCounter,
-        renderedToolCallIds,
-        renderInfo,
+    for (const message of modelMessages) {
+      parts.push(
+        ...renderMessage(
+          message,
+          toolTimestamps,
+          userTurn,
+          toolCounter,
+          renderedToolCallIds,
+          renderInfo,
+        ),
+        "",
       );
-      for (const line of rendered) {
-        parts.push(line);
-      }
-      parts.push("");
-
-      i += toolMessage ? 2 : 1;
-      continue;
     }
-
-    if (message.role === "tool") {
-      // Orphaned tool message (not consumed by an assistant message above)
-      const rendered = renderOrphanedToolMessage(message, toolCounter);
-      for (const line of rendered) {
-        parts.push(line);
-      }
-      parts.push("");
-      i++;
-      continue;
-    }
-
-    const rendered = renderMessage(
-      message,
-      toolTimestamps,
-      userTurn,
-      toolCounter,
-      renderedToolCallIds,
-      renderInfo,
-    );
-    for (const line of rendered) {
-      parts.push(line);
-    }
-    parts.push("");
-    i++;
   }
 
   const body = parts.join("\n");
@@ -439,33 +416,6 @@ export async function sessionToMarkdown(
   );
 
   return `---\n${yamlLines.join("\n")}\n---\n\n${body}`;
-}
-
-function buildMessageTimestampQueues(
-  messages: SessionMessage.WithParts[],
-): Map<ModelMessage["role"], MessageRenderInfo[]> {
-  const queues = new Map<ModelMessage["role"], MessageRenderInfo[]>();
-
-  for (const message of messages) {
-    const role =
-      message.role === "session-context"
-        ? message.metadata.realRole
-        : message.role;
-    const endedAt = getEndedAt(message.metadata);
-    const queue = queues.get(role) ?? [];
-    queue.push({
-      assistantMetadata:
-        message.role === "assistant" ? message.metadata : undefined,
-      contextMetadata:
-        message.role === "session-context" ? message.metadata : undefined,
-      endedAt,
-      sourceMessage: message,
-      startedAt: message.metadata.createdAt,
-    });
-    queues.set(role, queue);
-  }
-
-  return queues;
 }
 
 function buildToolCallTimestampMap(
@@ -675,64 +625,15 @@ function isDataPart(
   return part.type.startsWith("data-");
 }
 
-function isModelVisibleAssistantPart(part: SessionMessagePart.Type) {
-  if (
-    part.type === "file" ||
-    part.type === "reasoning" ||
-    part.type === "source-document" ||
-    part.type === "source-url"
-  ) {
-    return true;
-  }
-  if (part.type === "text") {
-    return part.text.trim().length > 0;
-  }
-  return (
-    isToolPart(part) &&
-    (part.state === "output-available" || part.state === "output-error")
-  );
-}
-
-function makeEmptyAssistantStepsVisible(
-  messages: SessionMessage.WithParts[],
-): SessionMessage.WithParts[] {
-  return messages.map((message) => {
-    if (
-      message.role !== "assistant" ||
-      message.parts.some(isModelVisibleAssistantPart)
-    ) {
-      return message;
-    }
-
-    return {
-      ...message,
-      parts: [
-        ...message.parts,
-        {
-          metadata: {
-            createdAt: message.metadata.createdAt,
-            id: StoreId.newPartId(),
-            messageId: message.id,
-            sessionId: message.metadata.sessionId,
-          },
-          text: EMPTY_ASSISTANT_TRANSCRIPT_MARKER,
-          type: "text",
-        },
-      ],
-    };
-  });
-}
-
 function renderAssistantMessage(
-  message: AssistantModelMessage,
-  toolMessage: ToolModelMessage | undefined,
+  modelMessages: ModelMessage[],
   toolTimestamps: Map<string, MessageRenderInfo>,
   userTurn: number,
   toolCounter: { count: number },
   renderedToolCallIds: Set<string>,
-  renderInfo?: MessageRenderInfo,
+  renderInfo: MessageRenderInfo,
 ): string[] {
-  const stepCount = renderInfo?.sourceMessage.parts.find(
+  const stepCount = renderInfo.sourceMessage.parts.find(
     (part) => part.type === "step-start",
   )?.metadata.stepCount;
   const turnAndStep = [
@@ -742,10 +643,10 @@ function renderAssistantMessage(
   const lines: string[] = [
     `## Assistant (${turnAndStep})${formatTimestamp(renderInfo)}`,
     "",
-    ...renderAssistantMetadata(renderInfo?.assistantMetadata),
+    ...renderAssistantMetadata(renderInfo.assistantMetadata),
   ];
 
-  // Build a map of toolCallId -> tool result from the tool message
+  // Build a map of toolCallId -> tool result from the tool messages
   const toolResultMap = new Map<
     string,
     {
@@ -753,8 +654,11 @@ function renderAssistantMessage(
       toolName: string;
     }
   >();
-  if (toolMessage) {
-    for (const part of toolMessage.content) {
+  for (const message of modelMessages) {
+    if (message.role !== "tool") {
+      continue;
+    }
+    for (const part of message.content) {
       if (part.type !== "tool-approval-response") {
         toolResultMap.set(part.toolCallId, {
           output: part.output,
@@ -764,11 +668,25 @@ function renderAssistantMessage(
     }
   }
 
-  const content = message.content;
-  if (typeof content === "string") {
-    lines.push(renderAssistantText(content));
-  } else {
+  const findPersistedToolPart = (toolCallId: string) =>
+    renderInfo.sourceMessage.parts.find(
+      (candidate): candidate is SessionMessagePart.ToolPart =>
+        isToolPart(candidate) && candidate.toolCallId === toolCallId,
+    );
+
+  let hasModelVisibleContent = false;
+  for (const message of modelMessages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+    const content =
+      typeof message.content === "string"
+        ? [{ text: message.content, type: "text" as const }]
+        : message.content;
     for (const part of content) {
+      if (part.type !== "text" || part.text.trim().length > 0) {
+        hasModelVisibleContent = true;
+      }
       switch (part.type) {
         case "file": {
           lines.push(
@@ -781,16 +699,15 @@ function renderAssistantMessage(
           break;
         }
         case "text": {
-          lines.push(renderAssistantText(part.text));
+          lines.push(part.text);
+          break;
+        }
+        case "tool-approval-request": {
           break;
         }
         case "tool-call": {
           renderedToolCallIds.add(part.toolCallId);
           toolCounter.count++;
-          const persistedPart = renderInfo?.sourceMessage.parts.find(
-            (candidate) =>
-              isToolPart(candidate) && candidate.toolCallId === part.toolCallId,
-          );
           lines.push(
             "",
             [
@@ -803,6 +720,7 @@ function renderAssistantMessage(
 
           const result = toolResultMap.get(part.toolCallId);
           if (result) {
+            toolResultMap.delete(part.toolCallId);
             lines.push(
               ...renderToolResult(
                 result.toolName,
@@ -811,7 +729,8 @@ function renderAssistantMessage(
               ),
             );
           }
-          if (persistedPart && isToolPart(persistedPart)) {
+          const persistedPart = findPersistedToolPart(part.toolCallId);
+          if (persistedPart) {
             lines.push(...renderToolDiagnostics(persistedPart));
           }
           break;
@@ -820,17 +739,11 @@ function renderAssistantMessage(
           // tool-result parts embedded in assistant messages (some providers)
           renderedToolCallIds.add(part.toolCallId);
           toolCounter.count++;
-          const resultLines = renderToolResult(
-            part.toolName,
-            part.output,
-            toolCounter.count,
+          lines.push(
+            ...renderToolResult(part.toolName, part.output, toolCounter.count),
           );
-          lines.push(...resultLines);
-          const persistedPart = renderInfo?.sourceMessage.parts.find(
-            (candidate) =>
-              isToolPart(candidate) && candidate.toolCallId === part.toolCallId,
-          );
-          if (persistedPart && isToolPart(persistedPart)) {
+          const persistedPart = findPersistedToolPart(part.toolCallId);
+          if (persistedPart) {
             lines.push(...renderToolDiagnostics(persistedPart));
           }
           break;
@@ -839,36 +752,39 @@ function renderAssistantMessage(
     }
   }
 
-  if (renderInfo) {
+  // Results whose call is not in this message's content.
+  for (const result of toolResultMap.values()) {
+    toolCounter.count++;
     lines.push(
-      ...renderPersistedAssistantParts(
-        renderInfo.sourceMessage,
-        renderedToolCallIds,
-        toolCounter,
-      ),
+      ...renderToolResult(result.toolName, result.output, toolCounter.count),
     );
   }
+
+  if (!hasModelVisibleContent) {
+    lines.push(
+      "> No model-visible assistant content was persisted for this step.",
+    );
+  }
+
+  lines.push(
+    ...renderPersistedAssistantParts(
+      renderInfo.sourceMessage,
+      renderedToolCallIds,
+      toolCounter,
+    ),
+  );
 
   return lines;
 }
 
-function renderAssistantText(text: string) {
-  return text === EMPTY_ASSISTANT_TRANSCRIPT_MARKER
-    ? "> No model-visible assistant content was persisted for this step."
-    : text;
-}
-
 function renderContextMessage(
-  message: ModelMessage,
+  modelMessages: ModelMessage[],
   renderInfo: MessageRenderInfo,
   toolTimestamps: Map<string, MessageRenderInfo>,
   toolCounter: { count: number },
 ): string[] {
   const metadata = renderInfo.contextMetadata;
   if (!metadata) {
-    return [];
-  }
-  if (message.role === "tool") {
     return [];
   }
 
@@ -879,20 +795,22 @@ function renderContextMessage(
         ? "Agent Context"
         : "Assistant Context";
   const heading = `### ${roleLabel} (${metadata.agentName})${formatTimestamp(renderInfo)}`;
+  const message = modelMessages[0];
   const rendered =
-    message.role === "assistant"
+    metadata.realRole === "assistant"
       ? renderAssistantMessage(
-          message,
-          undefined,
+          modelMessages,
           toolTimestamps,
           0,
           toolCounter,
           new Set(),
           renderInfo,
         )
-      : message.role === "system"
+      : message?.role === "system"
         ? renderSystemMessage(message, renderInfo)
-        : renderUserMessage(message, 0, renderInfo);
+        : message?.role === "user"
+          ? renderUserMessage(message, 0, renderInfo)
+          : [];
 
   return [heading, "", ...rendered.slice(2)];
 }
@@ -903,13 +821,12 @@ function renderMessage(
   userTurn: number,
   toolCounter: { count: number },
   renderedToolCallIds: Set<string>,
-  renderInfo?: MessageRenderInfo,
+  renderInfo: MessageRenderInfo,
 ): string[] {
   switch (message.role) {
     case "assistant": {
       return renderAssistantMessage(
-        message,
-        undefined,
+        [message],
         toolTimestamps,
         userTurn,
         toolCounter,
@@ -1273,9 +1190,14 @@ function renderUserMessage(
   return lines;
 }
 
-function takeMessageTimestamp(
-  queues: Map<ModelMessage["role"], MessageRenderInfo[]>,
-  role: ModelMessage["role"],
-) {
-  return queues.get(role)?.shift();
+function toRenderInfo(message: SessionMessage.WithParts): MessageRenderInfo {
+  return {
+    assistantMetadata:
+      message.role === "assistant" ? message.metadata : undefined,
+    contextMetadata:
+      message.role === "session-context" ? message.metadata : undefined,
+    endedAt: getEndedAt(message.metadata),
+    sourceMessage: message,
+    startedAt: message.metadata.createdAt,
+  };
 }

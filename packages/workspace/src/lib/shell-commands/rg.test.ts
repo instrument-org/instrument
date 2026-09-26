@@ -4,14 +4,16 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AbsolutePath } from "../../schemas/paths";
-import type { TaskIdSchema } from "../../schemas/task-id";
 
 import { FolderAttachment } from "../../schemas/folder-attachment";
-import { TaskDirSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, TaskDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
+import { TaskIdSchema } from "../../schemas/task-id";
+import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { createBashEnv } from "../create-bash-env";
+import { taskDir } from "../task-dir-utils";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { virtualizeOutput } from "./rg";
 
@@ -175,6 +177,67 @@ describe("rg command", () => {
     expect(result.stdout).not.toContain("state.json");
   });
 
+  // ripgrep anchors a glob at its working directory and matches it against
+  // each path as printed, so a search root named any other way than the
+  // working directory walks straight past an exclusion anchored there.
+  it.each([
+    "rg --hidden NEEDLE /task",
+    "rg --hidden NEEDLE /task/",
+    "cd work && rg --hidden NEEDLE /task",
+    "cd work && rg -uu NEEDLE ..",
+    "cd work && rg -uu NEEDLE ../",
+    "cd work && rg --hidden --no-ignore NEEDLE ./..",
+    "cd work && rg -uu NEEDLE ../work/..",
+    "cd work && rg -uu NEEDLE ././..",
+    "cd work && rg -uu NEEDLE .//..",
+    "cd work && rg -uu NEEDLE ../../test",
+    "cd work && rg -uu NEEDLE -- ..",
+    "cd work && rg -uu -g '**' NEEDLE ..",
+    "cd work && rg -uu --iglob '*.JSON' --iglob '*.ts' NEEDLE /task",
+    "cd work && rg -uu --files ..",
+    "cd work && rg -uu --files /task",
+    "cd work && rg -uu --files /task work ..",
+  ])("keeps the private dir out of `%s`", async (command) => {
+    const result = await run(command);
+
+    expect(result.stdout).not.toContain("state.json");
+    expect(result.stdout).toContain("a.ts");
+  });
+
+  it("keeps an empty pattern, which matches every line", async () => {
+    const result = await run(
+      "printf 'x\\n\\n' > work/b.txt; rg -c '' work/b.txt",
+    );
+
+    expect(result.stdout.trim()).toBe("2");
+  });
+
+  // A search root spelled with glob metacharacters is named literally by the
+  // glob that anchors the exclusion there.
+  it("keeps the private dir out of a root spelled with glob metacharacters", async () => {
+    await fs.mkdir(path.join(taskRoot, "work", "[x]*{y}?"));
+
+    const result = await run("cd work && rg -uu NEEDLE '[x]*{y}?/../..'");
+
+    expect(result.stdout).not.toContain("state.json");
+    expect(result.stdout).toContain("a.ts");
+  });
+
+  it.each([
+    { as: "in another case", command: "rg NEEDLE .INSTRUMENT/state.json" },
+    {
+      as: "after `--` with a leading dash",
+      command:
+        "cd work && mkdir ./-x && rg NEEDLE -- -x/../../.instrument/state.json",
+    },
+  ])("refuses a file in the private dir named $as", async ({ command }) => {
+    const result = await run(command);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).not.toContain("host");
+    expect(result.stderr).toContain("private");
+  });
+
   // The deny glob is a flag, so it has to land ahead of the operand separator
   // rather than after the arguments it is appended to.
   it("still searches when the pattern is given after `--`", async () => {
@@ -252,6 +315,75 @@ describe("rg command", () => {
 
     expect(result.stdout).toContain(String.raw`/a\d+/`);
     expect(result.stdout).toContain(String.raw`"x\n"`);
+  });
+});
+
+// A chat's folder mounts at /task with its `tasks/` dir masked, since the
+// chat reaches each of its tasks only through the read-only `/tasks/<id>`.
+describe("rg command in a chat", () => {
+  const childId = TaskIdSchema.parse(`01k${"rgchild".padEnd(23, "0")}`);
+  let chatDir: string;
+  let childDir: string;
+
+  async function runInChat(command: string) {
+    const chatId = chatFor();
+    chatDir = taskDir(chatId);
+    childDir = path.join(chatDir, "tasks", childId);
+    await fs.mkdir(path.join(chatDir, "work"), { recursive: true });
+    await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
+    await fs.mkdir(path.join(childDir, "output"), { recursive: true });
+    await fs.writeFile(path.join(chatDir, "work", "a.ts"), "NEEDLE chat\n");
+    await fs.writeFile(
+      path.join(childDir, ".instrument", "settings.json"),
+      "NEEDLE sentinel\n",
+    );
+    await fs.writeFile(
+      path.join(childDir, "output", "report.md"),
+      "NEEDLE report\n",
+    );
+    const bash = await createBashEnv({
+      orchestrator: {
+        childMounts: [
+          {
+            hostRoot: AbsolutePathSchema.parse(childDir),
+            maskedEntries: [".instrument"],
+            mountPoint: `/tasks/${childId}`,
+            readOnly: true,
+          },
+        ],
+      },
+      sessionId: StoreId.newSessionId(),
+      taskId: chatId,
+    });
+    return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
+  }
+
+  afterEach(async () => {
+    await fs.rm(chatDir, { force: true, recursive: true });
+  });
+
+  it.each([
+    "rg -uu NEEDLE",
+    "rg -uu NEEDLE /task",
+    "cd work && rg -uu NEEDLE ..",
+    "cd work && rg -uu NEEDLE /task",
+    "cd work && rg -uu NEEDLE ../work/..",
+    "cd work && rg -uu --files ..",
+    "cd work && rg -uu -g '**' --files /task",
+  ])("keeps the tasks dir out of `%s`", async (command) => {
+    const result = await runInChat(command);
+
+    expect(result.stdout).toContain("a.ts");
+    expect(result.stdout).not.toMatch(/sentinel|report|settings\.json/);
+  });
+
+  it("keeps a task's private dir out of a search over its mount", async () => {
+    const result = await runInChat(
+      `cd work && rg -uu NEEDLE /tasks/${childId}`,
+    );
+
+    expect(result.stdout).toContain("report");
+    expect(result.stdout).not.toMatch(/sentinel|settings\.json/);
   });
 });
 

@@ -1,6 +1,8 @@
 import { defineCommand } from "just-bash";
+import { realpathSync } from "node:fs";
+import nodePath from "node:path";
 
-import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
+import { TASKS_DIR_NAME } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
@@ -80,52 +82,8 @@ const DENIED_SHORT_FLAG = "z";
  */
 const VALUE_SHORT_FLAGS = new Set("ABCEMTdefgjmrt");
 
-/**
- * Keeps ripgrep out of the task's private dir during a walk.
- *
- * Anchored to each search root, which is where the task's own private dir sits.
- * ripgrep walks the real directory, so the virtual-filesystem mask over that
- * dir does not apply, and no glob applies to a file named on the command line
- * either -- that half is `bridgePathArgs`'s.
- *
- * Spelled twice because ripgrep builds one matcher from every `--glob` and then
- * adds every `--iglob` to it, so a case-insensitive include outranks a
- * case-sensitive exclude no matter which order they were typed in: without the
- * second line, `--iglob '.INSTRUMENT/**'` searches the dir. The pair of them
- * also means the exclusion holds for a filesystem that would tell those two
- * directory names apart.
- */
-const PRIVATE_DIR_DENY_GLOBS = [
-  "--glob",
-  `!/${TASK_FOLDER_NAMES.private}/**`,
-  "--iglob",
-  `!/${TASK_FOLDER_NAMES.private}/**`,
-] as const;
-
-/**
- * Keeps ripgrep out of a chat's `tasks/` dir, which the chat reaches only
- * through the read-only `/tasks/<id>` mounts.
- *
- * The first pair holds wherever the walk starts: it excludes every task's
- * private dir under a `tasks/` dir, which also covers a walk over one of
- * those `/tasks/<id>` mounts. The second excludes the dir outright, and is
- * added only while the working directory is the chat's root, because a glob
- * is anchored there rather than at the search root: from anywhere else it
- * would hide an ordinary `tasks` folder of the chat's own.
- */
-const CHAT_TASKS_DENY_GLOBS = [
-  "--glob",
-  `!**/${TASKS_DIR_NAME}/*/${TASK_FOLDER_NAMES.private}/**`,
-  "--iglob",
-  `!**/${TASKS_DIR_NAME}/*/${TASK_FOLDER_NAMES.private}/**`,
-] as const;
-
-const CHAT_TASKS_ROOT_DENY_GLOBS = [
-  "--glob",
-  `!/${TASKS_DIR_NAME}/**`,
-  "--iglob",
-  `!/${TASKS_DIR_NAME}/**`,
-] as const;
+/** Glob metacharacters, each matched literally inside a one-member class. */
+const GLOB_METACHARACTERS = /[*?[{}\\]/g;
 
 export function createRgCommand({
   attachedFolders,
@@ -163,6 +121,10 @@ export function createRgCommand({
     }
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const masked = maskSearchRoots(bridged.args, layout, taskCwd);
+    if ("error" in masked) {
+      return { exitCode: 2, stderr: `${masked.error}\n`, stdout: "" };
+    }
     const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
@@ -170,7 +132,7 @@ export function createRgCommand({
       [
         "--no-config",
         "--path-separator=/",
-        ...withPrivateDirDenied(bridged.args, denyGlobs(layout, taskCwd)),
+        ...withPrivateDirDenied(masked.args, masked.globs),
       ],
       {
         cancelSignal: ctx.signal,
@@ -270,7 +232,7 @@ export function virtualizeOutput(
  * the pattern and which is a path would take parsing every flag this wrapper
  * deliberately hands through, so it asks the cheaper question. A *pattern* that
  * resolves into the private dir is refused too, which is a search worth
- * refusing.
+ * refusing. Everything after `--` is an operand, a leading dash included.
  */
 function bridgePathArgs(
   args: string[],
@@ -282,23 +244,28 @@ function bridgePathArgs(
   );
 
   const bridged: string[] = [];
+  let operandsOnly = false;
   for (const arg of args) {
     const owner = mountPoints.find((mountPoint) =>
       isAtOrUnder(mountPoint, arg),
     );
     if (!owner) {
+      const isOperand = operandsOnly || !arg.startsWith("-");
+      operandsOnly ||= arg === "--";
+      // Lowercased for a case-insensitive disk, where `.INSTRUMENT` is the
+      // same dir.
       if (
-        !arg.startsWith("-") &&
-        isAtOrUnder(privateMountPoint(MOUNT.task), resolveVirtual(arg))
+        isOperand &&
+        isAtOrUnder(
+          privateMountPoint(MOUNT.task),
+          resolveVirtual(arg).toLowerCase(),
+        )
       ) {
         return {
           error: privateDirLiteralError(`${RG_COMMAND.name}: "${arg}"`),
         };
       }
-      if (
-        !arg.startsWith("-") &&
-        namesInsideChatTasks(layout, resolveVirtual(arg))
-      ) {
+      if (isOperand && namesInsideChatTasks(layout, resolveVirtual(arg))) {
         return {
           error: `${RG_COMMAND.name}: ${arg}: path is not accessible; each task's folder is at ${MOUNT.tasks}/<id>`,
         };
@@ -315,6 +282,15 @@ function bridgePathArgs(
     bridged.push(hostPath);
   }
   return { args: bridged };
+}
+
+/** A path's real location, or null for one that does not exist. */
+function canonicalPath(hostPath: string): null | string {
+  try {
+    return realpathSync(hostPath);
+  } catch {
+    return null;
+  }
 }
 
 function deniedFlag(arg: string): null | string {
@@ -339,16 +315,134 @@ function deniedFlag(arg: string): null | string {
   return null;
 }
 
-/** Every deny glob this search takes, given where it runs from. */
-function denyGlobs(layout: WorkspaceFsLayout, taskCwd: string): string[] {
-  if (!layout.task.maskedEntries.includes(TASKS_DIR_NAME)) {
-    return [...PRIVATE_DIR_DENY_GLOBS];
+function escapeGlob(literal: string): string {
+  return literal.replaceAll(GLOB_METACHARACTERS, (character) =>
+    character === "\\" && nodePath.sep === "\\" ? "/" : `[${character}]`,
+  );
+}
+
+/**
+ * Where ripgrep finds an operand: joined to its working directory as typed
+ * rather than normalized, so `..` after a symlink resolves the way the
+ * operating system resolves it.
+ */
+function hostOperand(taskCwd: string, arg: string): string {
+  return nodePath.isAbsolute(arg) ? arg : `${taskCwd}${nodePath.sep}${arg}`;
+}
+
+/** Two parts of a printed path, joined the way ripgrep joins them. */
+function joinPrinted(parent: string, child: string): string {
+  if (parent === "" || child === "") {
+    return parent || child;
   }
-  return [
-    ...PRIVATE_DIR_DENY_GLOBS,
-    ...CHAT_TASKS_DENY_GLOBS,
-    ...(taskCwd === layout.task.hostRoot ? CHAT_TASKS_ROOT_DENY_GLOBS : []),
-  ];
+  return parent.endsWith("/") ? `${parent}${child}` : `${parent}/${child}`;
+}
+
+/**
+ * The deny globs that keep ripgrep's walk out of every masked entry (the
+ * private dir, and a chat's `tasks/` dir) of every mount the search reaches,
+ * with the arguments respelled where a glob could not otherwise name them.
+ *
+ * ripgrep walks the real directories, so the virtual-filesystem mask does not
+ * apply, and no glob applies to a file named on the command line either --
+ * that half is `bridgePathArgs`'s.
+ *
+ * A glob cannot simply be anchored at the mount root. ripgrep anchors every
+ * glob at its working directory and matches it against each path as printed,
+ * after dropping one leading `./` and, from an absolute path, the working
+ * directory's own canonical spelling. So a root reached as `..`, `../work/..`
+ * or `/Users/.../task` prints as that spelling followed by what is under it,
+ * and each of those needs a glob of its own: one per masked entry, per
+ * operand whose real location holds a masked mount root, plus one for the
+ * walk from the working directory itself. Any argument could be the operand
+ * (which one is the pattern would take parsing every flag), so each is asked;
+ * a pattern that happens to name a directory above a mount root only adds a
+ * glob that excludes the same entries. Where the operand is spelled with a
+ * `.` or empty segment that the printed path does not match literally
+ * (`././..`, `..//`), it is normalized, which only shortens the spelling the
+ * matches are printed with.
+ *
+ * Each glob is passed twice because ripgrep builds one matcher from every
+ * `--glob` and then adds every `--iglob` to it, so a case-insensitive include
+ * outranks a case-sensitive exclude no matter which order they were typed in:
+ * without the second, `--iglob '.INSTRUMENT/**'` searches the dir. The pair of
+ * them also means the exclusion holds for a filesystem that would tell those
+ * two directory names apart.
+ */
+function maskSearchRoots(
+  args: string[],
+  layout: WorkspaceFsLayout,
+  taskCwd: string,
+): { args: string[]; globs: string[] } | { error: string } {
+  const maskedRoots = [layout.task, ...nonTaskMounts(layout)]
+    .filter((mount) => mount.maskedEntries.length > 0)
+    .map((mount) => ({
+      entries: mount.maskedEntries,
+      root: canonicalPath(mount.hostRoot) ?? nodePath.resolve(mount.hostRoot),
+    }));
+  const cwd = canonicalPath(taskCwd) ?? taskCwd;
+
+  const denied = new Set<string>();
+  const denyBelow = (spelling: string, reached: string) => {
+    for (const { entries, root } of maskedRoots) {
+      const rest = remainderWithin(reached, root);
+      if (rest === null) {
+        continue;
+      }
+      for (const entry of entries) {
+        denied.add(
+          `/${escapeGlob(joinPrinted(joinPrinted(spelling, rest), entry))}/**`,
+        );
+      }
+    }
+  };
+  const reachesMaskedRoot = (reached: string) =>
+    maskedRoots.some(({ root }) => remainderWithin(reached, root) !== null);
+
+  denyBelow("", cwd);
+
+  const respelled: string[] = [];
+  let operandsOnly = false;
+  for (const arg of args) {
+    const isOperand = operandsOnly || !arg.startsWith("-");
+    operandsOnly ||= arg === "--";
+    // An empty argument names no path: it is the pattern that matches
+    // every line.
+    const reached =
+      isOperand && arg !== "" ? canonicalPath(hostOperand(taskCwd, arg)) : null;
+    if (reached === null || !reachesMaskedRoot(reached)) {
+      respelled.push(arg);
+      continue;
+    }
+    const spelling = printedSpelling(arg);
+    if (spelling !== null) {
+      denyBelow(spelling, reached);
+      respelled.push(arg);
+      continue;
+    }
+    const normalized = nodePath.normalize(arg);
+    const normalizedSpelling = printedSpelling(normalized);
+    if (
+      normalizedSpelling === null ||
+      canonicalPath(hostOperand(taskCwd, normalized)) !== reached
+    ) {
+      return {
+        error: `${RG_COMMAND.name}: ${arg}: path is not accessible; spell it without \`.\` or empty segments`,
+      };
+    }
+    denyBelow(normalizedSpelling, reached);
+    respelled.push(normalized);
+  }
+
+  return {
+    args: respelled,
+    globs: [...denied].flatMap((glob) => [
+      "--glob",
+      `!${glob}`,
+      "--iglob",
+      `!${glob}`,
+    ]),
+  };
 }
 
 /**
@@ -369,6 +463,50 @@ function namesInsideChatTasks(
     virtualPath.toLowerCase(),
   );
   return relative !== null && relative !== "/";
+}
+
+/**
+ * What of an operand ripgrep's glob matcher sees in front of each path under
+ * it, or null for a spelling it would not match literally. `.` contributes
+ * nothing, since ripgrep drops the leading `./` it prints under it.
+ */
+function printedSpelling(arg: string): null | string {
+  const posix = nodePath.sep === "\\" ? arg.replaceAll("\\", "/") : arg;
+  if (posix === "." || posix === "./") {
+    return "";
+  }
+  if (posix === "/") {
+    return posix;
+  }
+  const unprefixed = posix.startsWith("./") ? posix.slice(2) : posix;
+  const spelling =
+    unprefixed.length > 1 && unprefixed.endsWith("/")
+      ? unprefixed.slice(0, -1)
+      : unprefixed;
+  const segments = spelling.split("/");
+  const plain = segments.every(
+    (segment, index) =>
+      segment !== "." &&
+      (segment !== "" || (index === 0 && segments.length > 1)),
+  );
+  return plain ? spelling : null;
+}
+
+/**
+ * The part of `hostPath` under `parent`, "" for the parent itself, or null for
+ * a path outside it. Compared case-insensitively for a case-insensitive disk;
+ * on a case-sensitive one that only adds globs for a lookalike directory.
+ */
+function remainderWithin(parent: string, hostPath: string): null | string {
+  if (hostPath.toLowerCase() === parent.toLowerCase()) {
+    return "";
+  }
+  const prefix = parent.endsWith(nodePath.sep)
+    ? parent
+    : `${parent}${nodePath.sep}`;
+  return hostPath.toLowerCase().startsWith(prefix.toLowerCase())
+    ? hostPath.slice(prefix.length).replaceAll(nodePath.sep, "/")
+    : null;
 }
 
 /**

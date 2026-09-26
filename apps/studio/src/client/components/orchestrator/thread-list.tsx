@@ -1,4 +1,6 @@
 import { type Draft } from "@/client/atoms/orchestrator";
+import { Skeleton } from "@/client/components/ui/skeleton";
+import { cn } from "@/client/lib/utils";
 import { memo, type RefObject, useLayoutEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
@@ -54,6 +56,19 @@ const ListedThread = memo(function ListedThread({
     />
   );
 });
+
+/**
+ * The title's and the latest line's widths of each placeholder row, varied so
+ * the list reads as rows of text on their way rather than as a grid of bars.
+ */
+const SKELETON_WIDTHS = [
+  ["45%", "80%"],
+  ["60%", "65%"],
+  ["35%", "90%"],
+  ["55%", "70%"],
+  ["40%", "85%"],
+  ["50%", "60%"],
+] as const;
 
 /**
  * The inbox: every thread by when something last happened in it, newest at
@@ -159,7 +174,18 @@ export function ThreadList({
       ref={ref}
     >
       {rows.length === 0 ? (
-        !isLoading && (
+        isLoading ? (
+          <div aria-busy className="mx-2" role="status">
+            {SKELETON_WIDTHS.map(([title, peek]) => (
+              <RowSkeleton
+                density={density}
+                key={`${title} ${peek}`}
+                peek={peek}
+                title={title}
+              />
+            ))}
+          </div>
+        ) : (
           <p className="px-4 py-6 text-center text-sm text-muted-foreground">
             {emptyLine}
           </p>
@@ -183,6 +209,42 @@ export function ThreadList({
             {outside} more outside this filter
           </button>
         </p>
+      )}
+    </div>
+  );
+}
+
+/** A row's shape at the list's density, standing in while the threads load. */
+function RowSkeleton({
+  density,
+  peek,
+  title,
+}: {
+  density: RowDensity;
+  peek: string;
+  title: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex gap-2 border-t border-border px-2 first:border-t-0",
+        density === "slim" ? "h-9 items-center" : "flex-col py-2.5",
+      )}
+    >
+      {density === "slim" ? (
+        <>
+          <span className="flex basis-[38%] items-center">
+            <Skeleton className="h-3" style={{ width: title }} />
+          </span>
+          <Skeleton className="h-3 flex-1" style={{ maxWidth: peek }} />
+        </>
+      ) : (
+        <>
+          <div className="flex h-5 items-center">
+            <Skeleton className="h-3" style={{ width: title }} />
+          </div>
+          <Skeleton className="h-3" style={{ width: peek }} />
+        </>
       )}
     </div>
   );

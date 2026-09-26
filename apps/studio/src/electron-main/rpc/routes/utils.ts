@@ -11,6 +11,7 @@ import { computerFileBase as computerFileBaseUrl } from "@/electron-main/lib/com
 import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
 import { prepareFileDrag } from "@/electron-main/lib/file-drag";
 import {
+  getBrowserOpenTarget,
   getFileOpenCandidates,
   getFileOpenTarget,
 } from "@/electron-main/lib/file-open-target";
@@ -465,6 +466,18 @@ const fileOpenTarget = base
   )
   .handler(({ input }) => getFileOpenTarget(input.filePath));
 
+// The default browser's name and icon, for "Open in {browser}" on a web page.
+// Null fields where the platform cannot name one; callers offer a generic way
+// out to the browser instead.
+const browserOpenTarget = base
+  .output(
+    z.object({
+      appName: z.string().nullable(),
+      iconUrl: z.string().nullable(),
+    }),
+  )
+  .handler(() => getBrowserOpenTarget());
+
 // Every app that can open the file, for an "Open with" picker. The system's own
 // choice carries `isDefault`; its position in the list is not meaningful.
 // Empty on non-macOS platforms, which lack a portable enumeration.
@@ -910,6 +923,7 @@ const showFolderPicker = base
   });
 
 export const utils = {
+  browserOpenTarget,
   clearExceptions,
   closeWindow,
   computerFileBase,

@@ -84,7 +84,7 @@ describe("readOnlyReason", () => {
     ["plain", "hello\n", false],
     ["nul", "a\0b", true],
     ["replacement", "a\uFFFDb", true],
-    ["long line", "x".repeat(30_000), true],
+    ["long line", "x".repeat(600_000), true],
   ])("%s", (_name, text, readOnly) => {
     expect(readOnlyReason(text) !== null).toBe(readOnly);
   });

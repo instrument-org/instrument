@@ -19,6 +19,42 @@ import { Spinner } from "./ui/spinner";
 
 type FileRef = Pick<ViewerFile, "hostPath">;
 
+/**
+ * The "Open in" submenu: every app that can open the file, the one the system
+ * would use first. Where a menu also offers the default on its own row, it
+ * asks for the others alone, under "Open with". Candidates are fetched
+ * lazily: the query only runs once the submenu content mounts (opens).
+ */
+export function OpenInMenu({
+  file,
+  menuComponents,
+  onlyAlternatives = false,
+}: {
+  file: FileRef;
+  menuComponents: MenuComponents;
+  onlyAlternatives?: boolean;
+}) {
+  const { Sub, SubContent, SubTrigger } = menuComponents;
+
+  return (
+    <Sub>
+      <SubTrigger>
+        <AppWindowIcon className="size-4" />
+        <span>{onlyAlternatives ? "Open with" : "Open in"}</span>
+      </SubTrigger>
+      <SubContent className="flex min-w-52 flex-col p-0">
+        <MenuScrollArea className="max-h-80">
+          <OpenWithCandidates
+            file={file}
+            menuComponents={menuComponents}
+            omitDefault={onlyAlternatives}
+          />
+        </MenuScrollArea>
+      </SubContent>
+    </Sub>
+  );
+}
+
 export function OpenWithDropdown({
   children,
   file,
@@ -42,32 +78,6 @@ export function OpenWithDropdown({
   );
 }
 
-// "Open with" submenu listing every app that can open the file. Candidates are
-// fetched lazily: the query only runs once the submenu content mounts (opens).
-export function OpenWithMenu({
-  file,
-  menuComponents,
-}: {
-  file: FileRef;
-  menuComponents: MenuComponents;
-}) {
-  const { Sub, SubContent, SubTrigger } = menuComponents;
-
-  return (
-    <Sub>
-      <SubTrigger>
-        <AppWindowIcon className="size-4" />
-        <span>Open with</span>
-      </SubTrigger>
-      <SubContent className="flex min-w-52 flex-col p-0">
-        <MenuScrollArea className="max-h-80">
-          <OpenWithCandidates file={file} menuComponents={menuComponents} />
-        </MenuScrollArea>
-      </SubContent>
-    </Sub>
-  );
-}
-
 function OpenWithCandidates({
   file,
   menuComponents,
@@ -82,12 +92,16 @@ function OpenWithCandidates({
     enabled: true,
   });
   const openWith = useOpenFileWith();
-  // The split button already launches the default app, so its menu lists only
-  // the alternatives. Match on the flag rather than on position: the resolver
-  // orders by Launch Services preference, which is not a guarantee.
+  // Beside a control that already launches the default app, only the
+  // alternatives are listed; otherwise the default leads. Match on the flag
+  // rather than on position: the resolver orders by Launch Services
+  // preference, which is not a guarantee.
   const candidates = omitDefault
     ? apps.filter((candidate) => !candidate.isDefault)
-    : apps;
+    : [
+        ...apps.filter((candidate) => candidate.isDefault),
+        ...apps.filter((candidate) => !candidate.isDefault),
+      ];
 
   if (isPending) {
     return (

@@ -3075,6 +3075,13 @@ export async function startEditor(bridge) {
       }
     } else if (message.type === "leave") {
       leave();
+    } else if (message.type === "flush") {
+      // The window is about to read the file another way: the text being
+      // typed is committed, and the answer waits behind every write queued.
+      if (editing) commitEdit();
+      serial(async () => {
+        bridge.send({ type: "flushed", id: message.id });
+      });
     }
   });
 

@@ -12,6 +12,7 @@ import {
   getGuestGeneration,
   getWebviewElement,
 } from "@/client/lib/browser-pool";
+import { registerFileFlush } from "@/client/lib/file-flush";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
@@ -49,6 +50,9 @@ import {
 const CHANNEL = "page-editor";
 
 const TOO_LARGE = "This page is too large to edit here";
+
+/** How long a flush waits for the guest to answer, for a guest that is gone or stuck. */
+const FLUSH_TIMEOUT_MS = 3000;
 
 /** How long to wait for a guest to attach before looking again, and how many looks. */
 const ATTACH_RETRY_MS = 250;
@@ -98,6 +102,7 @@ const GuestMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("move") }),
   z.object({ id: z.string(), type: z.literal("unstage") }),
   z.object({ type: z.literal("leave") }),
+  z.object({ id: z.number(), type: z.literal("flushed") }),
   z.object({
     kind: z.string().nullable(),
     message: z.string(),
@@ -306,6 +311,21 @@ export function PageEditSession({
       });
     };
     session.current = { check };
+    // Asked of the file by another view of it (its source) before that view
+    // reads it: the editor commits what is being typed, and the flush settles
+    // once every write it queued is on disk.
+    const flushes = new Map<number, () => void>();
+    let nextFlush = 0;
+    const unregisterFlush = registerFileFlush(path, async () => {
+      const id = ++nextFlush;
+      await new Promise<void>((resolve) => {
+        flushes.set(id, resolve);
+        send({ id, type: "flush" });
+        setTimeout(resolve, FLUSH_TIMEOUT_MS);
+      });
+      flushes.delete(id);
+      await tabChains.get(tabId);
+    });
     const onMessage = (event: Event) => {
       const { args, channel } = event as Event & {
         args?: unknown[];
@@ -332,6 +352,10 @@ export function PageEditSession({
             path,
             target: `${message.label} · ${where}`,
           });
+          break;
+        }
+        case "flushed": {
+          flushes.get(message.id)?.();
           break;
         }
         case "hello": {
@@ -406,6 +430,10 @@ export function PageEditSession({
       webview.removeEventListener("ipc-message", onMessage);
       webview.removeEventListener("did-navigate", onNavigate);
       session.current = null;
+      unregisterFlush();
+      for (const done of flushes.values()) {
+        done();
+      }
       // After every write in flight, so leaving never drops an edit.
       serial(async () => {
         if (generation !== undefined) {

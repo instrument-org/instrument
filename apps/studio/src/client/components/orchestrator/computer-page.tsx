@@ -20,7 +20,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
-import { OpenWithMenu } from "@/client/components/open-with-menu";
+import { OpenInMenu } from "@/client/components/open-with-menu";
 import { useTheme } from "@/client/components/theme-provider";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -1355,7 +1355,7 @@ export function FolderMenu({
               lookup has answered. Elsewhere the one row hands the file to
               whichever program the system has chosen for it. */}
           {file && isMacOS() ? (
-            <OpenWithMenu file={file} menuComponents={contextMenuComponents} />
+            <OpenInMenu file={file} menuComponents={contextMenuComponents} />
           ) : file && showOpen ? (
             <ContextMenuItem
               onClick={() => {

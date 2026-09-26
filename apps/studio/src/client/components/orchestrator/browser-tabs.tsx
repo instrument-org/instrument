@@ -20,6 +20,7 @@ import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
+import { flushFileWrites } from "@/client/lib/file-flush";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
@@ -1013,11 +1014,14 @@ export function BrowserTabs({
             ? {}
             : {
                 // The tab itself turns to the file's text, the way it turns
-                // back to the page from there.
+                // back to the page from there, once the page's editor has
+                // written what it holds.
                 onEditSource: () => {
-                  router.history.push(
-                    fileHref(activeFilePath, { source: true }),
-                  );
+                  void flushFileWrites(activeFilePath).then(() => {
+                    router.history.push(
+                      fileHref(activeFilePath, { source: true }),
+                    );
+                  });
                 },
               })}
           sessionId={StoreId.SessionSchema.parse(active.id)}

@@ -1,5 +1,5 @@
-import { rpcClient } from "@/client/rpc/client";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import { type Emoji } from "./emoji-set";
@@ -10,6 +10,8 @@ import { type Emoji } from "./emoji-set";
  * probability that would outrank a real match from another chunk.
  */
 const CHUNK = 250;
+
+type Answer = RPCOutput["workspace"]["systemOne"]["ask"];
 const NONE = "none";
 
 /** Below this an emoji is the model shrugging, not suggesting. */
@@ -24,8 +26,9 @@ const MOST = 8;
  * A keyword search finds 🍕 for "pizza"; this also finds 🦖 🧬 🎬 🌴 for
  * "jurassic park", which no emoji's name or tags contain.
  *
- * The last answer stays up while the next is on its way, so what is shown
- * changes once per answer rather than blanking between them.
+ * While the text is still being typed, the last answer stays up until the
+ * next arrives, so what is shown changes once per answer rather than
+ * blanking between them.
  */
 export function useEmojiSuggestions(
   text: string,
@@ -54,19 +57,26 @@ export function useEmojiSuggestions(
   );
 
   const asking = questions !== undefined && settled.length > 1;
-  const query = useQuery({
-    enabled: asking,
-    placeholderData: keepPreviousData,
-    // The question set is the same for every call, so the text alone keys it.
-    queryFn: async ({ signal }) => {
-      if (!questions) {
-        return;
-      }
-      return rpcClient.workspace.systemOne.ask.call(
-        { questions, state: settled },
-        { signal },
-      );
+  // Typed up front: the placeholder callback reads the answer type back, so it
+  // cannot also be inferred from the query function.
+  const query = useQuery<Answer, Error, Answer, string[]>({
+    // Only an answer about the same words, a letter more or less, stands in:
+    // a different query's picks would read as answers to this one.
+    placeholderData: (previous, previousQuery) => {
+      const previousText = previousQuery?.queryKey[1] ?? "";
+      return previousText &&
+        (settled.startsWith(previousText) || previousText.startsWith(settled))
+        ? previous
+        : undefined;
     },
+    // The question set is the same for every call, so the text alone keys it.
+    queryFn: asking
+      ? ({ signal }) =>
+          rpcClient.workspace.systemOne.ask.call(
+            { questions, state: settled },
+            { signal },
+          )
+      : skipToken,
     queryKey: ["emoji-suggestions", settled],
     retry: false,
     staleTime: Infinity,

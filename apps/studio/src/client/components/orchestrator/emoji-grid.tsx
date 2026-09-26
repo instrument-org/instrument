@@ -64,8 +64,9 @@ export function Cells({
  * category under a sticky heading, and the tabs along the top jump to one and
  * follow the scroll; a query replaces it with a flat list of matches.
  *
- * Above both sit the decision model's picks: for the query while there is
- * one, and otherwise for `context`, the name of the thing being marked.
+ * The decision model fills in where words fail: a query that names no emoji
+ * gets its AI results instead of nothing, and with no query the categories
+ * sit under its picks for `context`, the name of the thing being marked.
  */
 export function EmojiGrid({
   context,
@@ -90,16 +91,6 @@ export function EmojiGrid({
   );
 
   const words = query.trim().toLowerCase();
-  const about = words || context?.trim() || "";
-  const related = useEmojiSuggestions(about, all);
-  const relatedSection = about ? (
-    <section aria-label="Related">
-      <h3 className="truncate px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-        {words ? "Related" : `Suggested for “${about}”`}
-      </h3>
-      <RelatedRow onPick={onPick} related={related} />
-    </section>
-  ) : undefined;
   const matches = useMemo(() => {
     if (!words) {
       return [];
@@ -118,6 +109,23 @@ export function EmojiGrid({
     }
     return found;
   }, [all, words]);
+
+  // The model is asked only where names and tags come up empty: for a query
+  // no emoji is called, and, before any query, for the name being marked.
+  const about = words
+    ? matches.length === 0
+      ? words
+      : ""
+    : (context?.trim() ?? "");
+  const related = useEmojiSuggestions(about, all);
+  const relatedSection = about ? (
+    <section aria-label={words ? "AI results" : "Suggested"}>
+      <h3 className="truncate px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+        {words ? "AI results" : `Suggested for “${about}”`}
+      </h3>
+      <RelatedRow onPick={onPick} related={related} />
+    </section>
+  ) : undefined;
 
   // The tab that is lit is the last category whose heading has reached the
   // top of the scroll, so it changes at the moment the sticky heading does.
@@ -196,21 +204,13 @@ export function EmojiGrid({
         {all === undefined ? (
           <p className="p-2 text-xs text-muted-foreground">Loading…</p>
         ) : words ? (
-          <>
-            {relatedSection}
-            <section aria-label="Matches">
-              <h3 className="px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-                Matches
-              </h3>
-              {matches.length === 0 ? (
-                <p className="p-2 text-xs text-muted-foreground">
-                  No emoji found.
-                </p>
-              ) : (
-                <Cells emoji={matches} onPick={onPick} />
-              )}
-            </section>
-          </>
+          matches.length === 0 ? (
+            relatedSection
+          ) : (
+            <div className="pt-2">
+              <Cells emoji={matches} onPick={onPick} />
+            </div>
+          )
         ) : (
           <>
             {relatedSection}
@@ -250,8 +250,8 @@ export function EmojiGrid({
 }
 
 /**
- * The decision model's row, one grid row tall from the first keystroke
- * whatever it holds, so the matches under it never move when an answer lands.
+ * The decision model's row, one grid row tall from the moment it shows
+ * whatever it holds, so what sits under it never moves when an answer lands.
  * Until the first answer it is empty cells; after that each answer replaces
  * the last in one fade rather than the row blanking in between.
  */

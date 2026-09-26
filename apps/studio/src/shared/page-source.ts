@@ -5,13 +5,16 @@ import { type DefaultTreeAdapterTypes, parse } from "parse5";
 export interface PageSourceEntry {
   /** Its ordinal in document order, which is the id stamped on the element the page draws. */
   id: number;
-  loc: ElementLocation;
+  loc: PageSourceLocation;
   node: Element;
   tag: string;
 }
-type Element = DefaultTreeAdapterTypes.Element;
+/** An element's location in the file, which always has a start tag of its own. */
+export type PageSourceLocation = NonNullable<Element["sourceCodeLocation"]> & {
+  startTag: NonNullable<NonNullable<Element["sourceCodeLocation"]>["startTag"]>;
+};
 
-type ElementLocation = NonNullable<Element["sourceCodeLocation"]>;
+type Element = DefaultTreeAdapterTypes.Element;
 
 /**
  * The elements of an HTML file that come from its own markup, in document
@@ -32,17 +35,18 @@ export function indexPageSource(src: string) {
         continue;
       }
       const loc = child.sourceCodeLocation;
-      const start = loc?.startTag?.startOffset;
+      const startTag = loc?.startTag;
+      const start = startTag?.startOffset ?? -1;
       if (
         loc &&
-        start !== undefined &&
+        startTag &&
         src[start] === "<" &&
         src.slice(start + 1, start + 1 + child.tagName.length).toLowerCase() ===
           child.tagName.toLowerCase()
       ) {
         entries.push({
           id: entries.length,
-          loc,
+          loc: Object.assign(loc, { startTag }),
           node: child,
           tag: child.tagName,
         });
@@ -64,13 +68,10 @@ export function indexPageSource(src: string) {
 export function stampPageSource(src: string) {
   const stamped = new MagicString(src);
   for (const entry of indexPageSource(src).entries) {
-    const { startTag } = entry.loc;
-    if (startTag) {
-      stamped.appendLeft(
-        startTag.startOffset + 1 + entry.tag.length,
-        ` data-src-id="${entry.id}"`,
-      );
-    }
+    stamped.appendLeft(
+      entry.loc.startTag.startOffset + 1 + entry.tag.length,
+      ` data-src-id="${entry.id}"`,
+    );
   }
   return stamped.toString();
 }

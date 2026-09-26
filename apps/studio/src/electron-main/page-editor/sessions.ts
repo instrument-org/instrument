@@ -1,3 +1,4 @@
+import { PAGE_EDITOR_BOOT_CHANNEL } from "@/shared/page-editor-channels";
 import { stampPageSource } from "@/shared/page-source";
 import { is } from "@electron-toolkit/utils";
 import { ipcMain, type WebContents, webContents } from "electron";
@@ -48,8 +49,6 @@ const sessions = new Map<number, EditSession>();
 const watched = new Set<number>();
 
 let generations = 0;
-
-export const PAGE_EDITOR_BOOT_CHANNEL = "page-editor:boot";
 
 /** How a stamped copy's address starts, which tells one apart in a guest's history. */
 const STAMPED_PREFIX = "data:text/html;charset=utf-8;base64,";

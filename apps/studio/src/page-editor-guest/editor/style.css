@@ -1,3 +1,7 @@
+/* The editor's own UI, drawn in its closed shadow root over the page: the
+   outlines, toolbar, popovers, panels, dock and toast. None of it reaches the
+   page, and none of the page's styles reach it. */
+
 /* Studio's own tokens, copied from the app's `globals.css`, because this
    shadow root cannot reach the app's stylesheet. The guest follows the app's
    theme through `prefers-color-scheme`: the main process sets
@@ -54,8 +58,8 @@
     0 8px 16px -3px rgb(10 13 18 / 0.06), 0 4px 6px -4px rgb(10 13 18 / 0.06),
     0 0 0 1px rgb(10 13 18 / 0.06);
   --elev-xl:
-    0 12px 24px -4px rgb(10 13 18 / 0.07),
-    0 6px 10px -6px rgb(10 13 18 / 0.07), 0 0 0 1px rgb(10 13 18 / 0.06);
+    0 12px 24px -4px rgb(10 13 18 / 0.07), 0 6px 10px -6px rgb(10 13 18 / 0.07),
+    0 0 0 1px rgb(10 13 18 / 0.06);
   --shadow-pop: var(--elev-md);
   --shadow-panel: var(--elev-lg);
   --shadow-knob: var(--elev-sm);
@@ -429,17 +433,6 @@ textarea::placeholder {
   padding: 0;
   justify-content: center;
   position: relative;
-}
-.toolbar .tb-icon.to-agent::after {
-  content: "";
-  position: absolute;
-  right: 4px;
-  top: 4px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--agent);
-  box-shadow: 0 0 0 1.5px var(--panel);
 }
 .toolbar .tb-name {
   gap: 4px;
@@ -1569,54 +1562,6 @@ textarea::placeholder {
   justify-content: flex-end;
 }
 
-/* Send sheet */
-#sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  background: rgb(0 0 0 / 0.32);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.sheet-card {
-  width: min(760px, 92vw);
-  max-height: 80%;
-  display: flex;
-  flex-direction: column;
-  background: var(--panel);
-  border-radius: 12px;
-  box-shadow: var(--elev-xl);
-}
-.sheet-card header {
-  padding: 16px 16px 10px;
-  font-weight: 600;
-  font-size: 14px;
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-}
-.sheet-card header .sub {
-  font-weight: 400;
-  color: var(--ink-2);
-  font-size: 12px;
-}
-.sheet-card pre {
-  margin: 0 16px;
-  padding: 12px;
-  overflow: auto;
-  flex: 1;
-  background: var(--panel-3);
-  border-radius: 8px;
-  font: 12px/1.5 var(--mono);
-  white-space: pre-wrap;
-}
-.sheet-card footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 12px 16px;
-}
 
 /* ------------------------------------------------------------ dock, toast, pill */
 

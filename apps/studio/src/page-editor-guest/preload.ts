@@ -1,9 +1,14 @@
+import {
+  PAGE_EDITOR_BOOT_CHANNEL,
+  PAGE_EDITOR_CHANNEL,
+} from "@/shared/page-editor-channels";
+import { type PageEditorGuestMessage } from "@/shared/page-editor-messages";
 /**
  * The preload of every browser guest. It does nothing unless the guest is
  * showing a page's file being edited in place, and on a site it does not even
  * ask: the question is one synchronous message to the main process, made
  * before the page's first script so the editor can watch the page build
- * itself (see `observer.js`).
+ * itself (see `editor/observer.ts`).
  *
  * The editor runs here, in the preload's isolated world: it reads and
  * changes the page's DOM, and the page's scripts cannot see it, call it, or
@@ -11,23 +16,13 @@
  */
 import { ipcRenderer, webFrame } from "electron";
 
-import { installObserver } from "./port/observer.js";
-
-const BOOT_CHANNEL = "page-editor:boot";
-const CHANNEL = "page-editor";
+import { type PageEditorBoot, type PageEditorBridge } from "./bridge";
+import { installObserver } from "./editor/observer";
 
 /** The world this preload runs in, which Electron's context isolation keeps apart from the page's. */
 const ISOLATED_WORLD = 999;
 
-type Boot =
-  | {
-      bundle: string;
-      name: string;
-      src: string;
-      state: unknown;
-      version: string;
-    }
-  | { error: string };
+type Boot = PageEditorBoot | { error: string };
 
 function boot() {
   if (/^(?:https?|about|chrome|devtools):$/.test(location.protocol)) {
@@ -35,7 +30,7 @@ function boot() {
   }
   let answer: Boot | null = null;
   try {
-    answer = ipcRenderer.sendSync(BOOT_CHANNEL) as Boot | null;
+    answer = ipcRenderer.sendSync(PAGE_EDITOR_BOOT_CHANNEL) as Boot | null;
   } catch {
     return;
   }
@@ -46,16 +41,20 @@ function boot() {
     send({ kind: "error", message: answer.error, type: "status" });
     return;
   }
-  const bridge = {
+  const bridge: PageEditorBridge = {
     boot: answer,
-    listen: (handler: (message: unknown) => void) => {
-      ipcRenderer.on(CHANNEL, (_event, message: unknown) => {
-        handler(message);
-      });
+    listen: (handler) => {
+      // The window is the only sender on this channel: a guest's embedder.
+      ipcRenderer.on(
+        PAGE_EDITOR_CHANNEL,
+        (_event, message: Parameters<typeof handler>[0]) => {
+          handler(message);
+        },
+      );
     },
     send,
   };
-  Object.assign(globalThis, { __instrumentPageEditor: bridge });
+  window.__instrumentPageEditor = bridge;
   // Now, before the page's first script, so every node the page's scripts
   // add or change is seen being added or changed.
   installObserver();
@@ -82,8 +81,8 @@ function boot() {
 }
 
 /** A message to the window, on the channel the page's scripts cannot reach. */
-function send(message: unknown) {
-  ipcRenderer.sendToHost(CHANNEL, message);
+function send(message: PageEditorGuestMessage) {
+  ipcRenderer.sendToHost(PAGE_EDITOR_CHANNEL, message);
 }
 
 boot();

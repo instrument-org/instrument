@@ -7,9 +7,6 @@ export default [
   globalIgnores([
     // Vendored from a component registry; kept as it arrived.
     "src/client/components/extend/**",
-    // The page editor's guest code, ported from the editor prototype and kept
-    // close to it while the feature is being tried.
-    "src/page-editor-guest/port/**",
     "**/*.snap",
     "*.local",
     "src/client/routeTree.gen.ts",
@@ -61,6 +58,15 @@ export default [
           selector: "Literal[value=/(?:^|\\s)transition-colors(?:\\s|$)/]",
         },
       ],
+    },
+  },
+  {
+    // The page editor reads and writes the page's own data-* attributes by
+    // name (`data-src-id` is null when absent, not undefined), on elements
+    // the DOM types only as Element.
+    files: ["src/page-editor-guest/**/*.ts"],
+    rules: {
+      "unicorn/prefer-dom-node-dataset": "off",
     },
   },
   {

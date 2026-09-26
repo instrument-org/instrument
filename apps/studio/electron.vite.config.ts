@@ -120,7 +120,7 @@ function buildPageEditorGuest({ minify }: { minify: boolean }): Plugin {
         build: {
           emptyOutDir: false,
           lib: {
-            entry: path.join(guestDir, "port/index.js"),
+            entry: path.join(guestDir, "editor/index.ts"),
             fileName: () => "guest.js",
             formats: ["iife"],
             name: "instrumentPageEditor",

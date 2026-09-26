@@ -1,6 +1,8 @@
-// The editor's UI, drawn into its shadow root over the page. The overlay and
-// the dock are placed in viewport coordinates, which are the page's own.
-import { icon, mark } from "./icons.js";
+/**
+ * The editor's UI, drawn into its shadow root over the page. The overlay and
+ * the dock are placed in viewport coordinates, which are the page's own.
+ */
+import { icon, mark } from "./icons";
 
 export const UI_HTML = `
 <div id="ui">

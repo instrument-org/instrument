@@ -15,6 +15,11 @@ import {
 import { registerFileFlush } from "@/client/lib/file-flush";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { PAGE_EDITOR_CHANNEL } from "@/shared/page-editor-channels";
+import {
+  PageEditorGuestMessageSchema,
+  type PageEditorHostMessage,
+} from "@/shared/page-editor-messages";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -22,7 +27,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
 
 import { pageEditPlacementAtom, usePageEdit } from "./page-edit-state";
 import {
@@ -47,8 +51,6 @@ import {
  * a tab edits is the one it shows.
  */
 
-const CHANNEL = "page-editor";
-
 const TOO_LARGE = "This page is too large to edit here";
 
 /** How long a flush waits for the guest to answer, for a guest that is gone or stuck. */
@@ -63,52 +65,6 @@ const ATTACH_RETRIES = 40;
  * stop left behind a slow write never lands after the next Edit's load.
  */
 const tabChains = new Map<string, Promise<unknown>>();
-
-function serialFor(tabId: string, work: () => Promise<unknown>) {
-  const next = (tabChains.get(tabId) ?? Promise.resolve())
-    .then(work, work)
-    .catch(() => {
-      // A write or a load that failed leaves the editor holding its text;
-      // its next save retries against whatever is on disk.
-    });
-  tabChains.set(tabId, next);
-  void next.finally(() => {
-    if (tabChains.get(tabId) === next) {
-      tabChains.delete(tabId);
-    }
-  });
-}
-
-const GuestMessageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("hello"), version: z.string() }),
-  z.object({
-    baseVersion: z.string(),
-    content: z.string(),
-    id: z.number(),
-    type: z.literal("save"),
-  }),
-  z.object({ state: z.unknown(), text: z.string(), type: z.literal("reload") }),
-  z.object({
-    /** What the element's text alone does not say: a script makes or feeds it, and where. */
-    context: z.string(),
-    id: z.string(),
-    instruction: z.string(),
-    /** What the element is, as the editor names it: "Heading", "Button". */
-    label: z.string(),
-    lines: z.tuple([z.number(), z.number()]).nullable(),
-    quote: z.string(),
-    type: z.literal("ask"),
-  }),
-  z.object({ type: z.literal("move") }),
-  z.object({ id: z.string(), type: z.literal("unstage") }),
-  z.object({ type: z.literal("leave") }),
-  z.object({ id: z.number(), type: z.literal("flushed") }),
-  z.object({
-    kind: z.string().nullable(),
-    message: z.string(),
-    type: z.literal("status"),
-  }),
-]);
 
 /** The page menu's switch between the two placements of the Edit control, while both are tried. */
 export function PageEditMenuItems() {
@@ -202,7 +158,7 @@ export function PageEditSession({
     })),
     moveLabel,
     type: "staged",
-  };
+  } satisfies PageEditorHostMessage;
   const moveWaiting = () => {
     move(asks.flatMap((ask) => (ask.destination ? [] : [ask.id])));
   };
@@ -287,9 +243,9 @@ export function PageEditSession({
       }
       generation = result.generation;
     };
-    const send = (message: unknown) => {
+    const send = (message: PageEditorHostMessage) => {
       try {
-        webview.send(CHANNEL, message);
+        webview.send(PAGE_EDITOR_CHANNEL, message);
       } catch {
         // The guest is gone; the tab closing ends this session too.
       }
@@ -331,10 +287,10 @@ export function PageEditSession({
         args?: unknown[];
         channel?: string;
       };
-      if (channel !== CHANNEL) {
+      if (channel !== PAGE_EDITOR_CHANNEL) {
         return;
       }
-      const parsed = GuestMessageSchema.safeParse(args?.[0]);
+      const parsed = PageEditorGuestMessageSchema.safeParse(args?.[0]);
       if (!parsed.success) {
         return;
       }
@@ -449,10 +405,10 @@ export function PageEditSession({
 
   useEffect(() => {
     try {
-      getWebviewElement(target)?.send(CHANNEL, {
+      getWebviewElement(target)?.send(PAGE_EDITOR_CHANNEL, {
         placement,
         type: "placement",
-      });
+      } satisfies PageEditorHostMessage);
     } catch {
       // Not attached; the next load carries it.
     }
@@ -463,14 +419,20 @@ export function PageEditSession({
   const stagedKey = JSON.stringify(staged);
   useEffect(() => {
     try {
-      getWebviewElement(target)?.send(CHANNEL, latest.current.staged);
+      getWebviewElement(target)?.send(
+        PAGE_EDITOR_CHANNEL,
+        latest.current.staged,
+      );
     } catch {
       // Not attached; the next hello carries them.
     }
   }, [stagedKey, target]);
   useAskRevealer(path, (id) => {
     try {
-      getWebviewElement(target)?.send(CHANNEL, { id, type: "reveal" });
+      getWebviewElement(target)?.send(PAGE_EDITOR_CHANNEL, {
+        id,
+        type: "reveal",
+      } satisfies PageEditorHostMessage);
     } catch {
       // Not attached: nothing to scroll.
     }
@@ -542,4 +504,19 @@ export function PageEditToggle({ tabId }: { tabId: string }) {
       </div>
     </ToolbarTooltip>
   );
+}
+
+function serialFor(tabId: string, work: () => Promise<unknown>) {
+  const next = (tabChains.get(tabId) ?? Promise.resolve())
+    .then(work, work)
+    .catch(() => {
+      // A write or a load that failed leaves the editor holding its text;
+      // its next save retries against whatever is on disk.
+    });
+  tabChains.set(tabId, next);
+  void next.finally(() => {
+    if (tabChains.get(tabId) === next) {
+      tabChains.delete(tabId);
+    }
+  });
 }

@@ -51,6 +51,7 @@ import {
 } from "@/client/components/orchestrator/tab-location";
 import { TabLocationRow } from "@/client/components/orchestrator/tab-location-row";
 import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
+import { threadListOptions } from "@/client/components/orchestrator/thread-list-query";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
 import { ThreadTasksButton } from "@/client/components/orchestrator/thread-tasks-button";
@@ -240,9 +241,7 @@ function OrchestratorLayout() {
   // The threads' titles, for the tabs standing on one; the pane reads the
   // same live list, so this is one subscription shared through the cache.
   const threads = useQuery(
-    rpcClient.workspace.orchestrator.threads.live.list.experimental_liveOptions(
-      { input: ids ? { id: ids.taskId } : skipToken },
-    ),
+    threadListOptions(ids?.taskId),
   );
   const threadTitles = new Map<StoreId.Session, string>(
     threads.data?.map((thread) => [thread.id, thread.title]) ?? [],

@@ -10,6 +10,7 @@ import { FilterHead } from "./filter-head";
 import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
 import { SearchField } from "./search-field";
 import { ThreadList } from "./thread-list";
+import { threadListOptions } from "./thread-list-query";
 import {
   byActivity,
   draftTitle,
@@ -59,9 +60,7 @@ export function ThreadPane({
 }) {
   const appsBySlug = useAppsBySlug();
   const threadsQuery = useQuery(
-    rpcClient.workspace.orchestrator.threads.live.list.experimental_liveOptions(
-      { input: { id: taskId } },
-    ),
+    threadListOptions(taskId),
   );
   const topicsQuery = useQuery(
     rpcClient.workspace.orchestrator.topics.list.queryOptions({

@@ -33,11 +33,14 @@ export function useTranscriptActions({
   label?: string;
   sessionId: StoreId.Session | undefined;
 }) {
-  const showFileInFolder = useMutation(
+  const { mutate: showFileInFolder } = useMutation(
     rpcClient.utils.showFileInFolder.mutationOptions(),
   );
 
-  const copy = useMutation(
+  // The stable `mutate` and the flag rather than the mutation objects, which
+  // are new on every render: a list that saves through this hook memoizes on
+  // what it returns.
+  const { isPending: isCopying, mutate: copy } = useMutation(
     rpcClient.transcript.copy.mutationOptions({
       onError: (error) => {
         toast.error("Failed to copy transcript", {
@@ -50,7 +53,7 @@ export function useTranscriptActions({
     }),
   );
 
-  const save = useMutation(
+  const { isPending: isSaving, mutate: save } = useMutation(
     rpcClient.transcript.save.mutationOptions({
       onError: (error) => {
         toast.error("Failed to save transcript", {
@@ -67,7 +70,7 @@ export function useTranscriptActions({
           action: {
             label: getRevealInFolderLabel(),
             onClick: () => {
-              showFileInFolder.mutate({ filepath: result.filepath });
+              showFileInFolder({ filepath: result.filepath });
             },
           },
           description: "Path copied to clipboard",
@@ -95,15 +98,15 @@ export function useTranscriptActions({
     copy: (format: TranscriptFormat, target?: Target) => {
       const input = targetOf(target);
       if (input) {
-        copy.mutate({ format, ...input });
+        copy({ format, ...input });
       }
     },
-    isCopying: copy.isPending,
-    isSaving: save.isPending,
+    isCopying,
+    isSaving,
     save: (format: TranscriptFormat, target?: Target) => {
       const input = targetOf(target);
       if (input) {
-        save.mutate({ format, ...input });
+        save({ format, ...input });
       }
     },
   };

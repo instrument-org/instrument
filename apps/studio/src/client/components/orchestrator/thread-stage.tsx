@@ -17,6 +17,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useContext, useEffect, useState } from "react";
 
 import { OrchestratorContext, useOrchestrator } from "./context";
+import { threadListOptions } from "./thread-list-query";
 import { ThreadWork } from "./thread-work";
 import { WorkingRow } from "./working-row";
 
@@ -57,9 +58,7 @@ export function ThreadScreen({
   // The thread as the list beside the tabs knows it, for the newest reply
   // that has landed, which is what marks it read below.
   const threads = useQuery(
-    rpcClient.workspace.orchestrator.threads.live.list.experimental_liveOptions(
-      { input: { id: taskId } },
-    ),
+    threadListOptions(taskId),
   );
   const thread = threads.data?.find((entry) => entry.id === sessionId);
   // While the thread's own agent composes, the transcript shows the typing

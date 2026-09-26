@@ -1,8 +1,9 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
-import { skipToken, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { threadListOptions } from "./thread-list-query";
 import { type Thread } from "./threads";
 
 /**
@@ -15,9 +16,7 @@ import { type Thread } from "./threads";
 export function useSetThreadTopics(taskId: TaskId | undefined) {
   const queryClient = useQueryClient();
   const key =
-    rpcClient.workspace.orchestrator.threads.live.list.experimental_liveOptions(
-      { input: taskId ? { id: taskId } : skipToken },
-    ).queryKey;
+    threadListOptions(taskId).queryKey;
   const mutation = useMutation(
     rpcClient.workspace.orchestrator.threads.setTopics.mutationOptions({
       onError: (error) => {

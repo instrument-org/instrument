@@ -35,6 +35,10 @@ const calls = vi.hoisted(() => ({
 // not they are used.
 vi.mock("@/client/rpc/client", () => {
   const routeOf = (call: Mock) => ({
+    call: (input: unknown) => {
+      call(input);
+      return Promise.resolve();
+    },
     mutationOptions: (options: object) => ({
       ...options,
       mutationFn: (input: unknown) => {
@@ -57,6 +61,12 @@ vi.mock("@/client/rpc/client", () => {
         orchestrator: {
           threads: {
             archive: routeOf(calls.archive),
+            // Only for its key, which the actions paint their marks onto.
+            live: {
+              list: {
+                experimental_liveOptions: () => ({ queryKey: ["threads"] }),
+              },
+            },
             seen: routeOf(calls.seen),
             star: routeOf(calls.star),
             unarchive: routeOf(calls.unarchive),

@@ -7,11 +7,16 @@ import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { EnvelopeSimpleOpenIcon } from "@phosphor-icons/react/EnvelopeSimpleOpen";
 import { StarIcon } from "@phosphor-icons/react/Star";
-import { useMutation } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
 import { type RowAction } from "./row-shell";
+import { threadListOptions } from "./thread-list-query";
 import { type Thread } from "./threads";
 
 /** Which thread a call is about, as every thread mutation takes it. */
@@ -41,64 +46,48 @@ export function useThreadActions(thread: Thread): RowAction[] {
 export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
   const { taskId } = useOrchestrator();
   const transcript = useTranscriptActions({ id: taskId, sessionId: undefined });
-  // Each way's toast offers the other way back, so an undo can be undone.
-  // The toasts hang off the mutations rather than off the calls, since the
-  // row is gone from the list by the time either lands, and read the thread
-  // off what was sent.
-  const archive = useMutation(
-    rpcClient.workspace.orchestrator.threads.archive.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to archive the chat", {
-          description: error.message,
-        });
-      },
-      onSuccess: (_result, input) => {
-        toast("Archived", {
-          action: {
-            label: "Undo",
-            onClick: () => {
-              bringBack(input);
-            },
-          },
-        });
+  const queryClient = useQueryClient();
+  const paint = (sessionId: string, change: (thread: Thread) => Thread) => {
+    paintThread(queryClient, { id: taskId, sessionId }, change);
+  };
+  const repaint = () => {
+    repaintThreads(queryClient, taskId);
+  };
+  // The rest are each held as their stable `mutate` rather than as the
+  // mutation object, which is new on every render and would make the
+  // function returned below new with it, and every row the list memoizes on
+  // it render again.
+  const { mutate: seen } = useMutation(
+    rpcClient.workspace.orchestrator.threads.seen.mutationOptions({
+      onError: repaint,
+      onMutate: (input) => {
+        paint(input.sessionId, (thread) => ({ ...thread, unread: 0 }));
       },
     }),
   );
-  const unarchive = useMutation(
-    rpcClient.workspace.orchestrator.threads.unarchive.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to move the chat to the inbox", {
-          description: error.message,
-        });
-      },
-      onSuccess: (_result, input) => {
-        toast("Moved to Inbox", {
-          action: {
-            label: "Undo",
-            onClick: () => {
-              putAway(input);
-            },
-          },
-        });
+  // Unseen again is the newest reply only, which is one to the count.
+  const { mutate: unseen } = useMutation(
+    rpcClient.workspace.orchestrator.threads.unseen.mutationOptions({
+      onError: repaint,
+      onMutate: (input) => {
+        paint(input.sessionId, (thread) => ({
+          ...thread,
+          unread: Math.max(thread.unread, 1),
+        }));
       },
     }),
   );
-  const seen = useMutation(
-    rpcClient.workspace.orchestrator.threads.seen.mutationOptions(),
+  const { mutate: star } = useMutation(
+    rpcClient.workspace.orchestrator.threads.star.mutationOptions({
+      onError: repaint,
+      onMutate: (input) => {
+        paint(input.sessionId, (thread) => ({
+          ...thread,
+          starred: input.starred,
+        }));
+      },
+    }),
   );
-  const unseen = useMutation(
-    rpcClient.workspace.orchestrator.threads.unseen.mutationOptions(),
-  );
-  const star = useMutation(
-    rpcClient.workspace.orchestrator.threads.star.mutationOptions(),
-  );
-  // Hoisted, so each way's toast can name the other way back.
-  function putAway(input: ThreadInput) {
-    archive.mutate(input);
-  }
-  function bringBack(input: ThreadInput) {
-    unarchive.mutate(input);
-  }
   return (thread) => {
     const input = { id: taskId, sessionId: thread.id };
     const put: RowAction = thread.archived
@@ -107,7 +96,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           id: "unarchive",
           label: "Unarchive",
           run: () => {
-            bringBack(input);
+            setArchived(queryClient, input, false);
           },
         }
       : {
@@ -115,7 +104,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           id: "archive",
           label: "Archive",
           run: () => {
-            putAway(input);
+            setArchived(queryClient, input, true);
           },
         };
     const mark: RowAction[] =
@@ -126,7 +115,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
               id: "read",
               label: "Mark as read",
               run: () => {
-                seen.mutate(input);
+                seen(input);
               },
             },
           ]
@@ -137,7 +126,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
                 id: "unread",
                 label: "Mark as unread",
                 run: () => {
-                  unseen.mutate(input);
+                  unseen(input);
                 },
               },
             ]
@@ -148,7 +137,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           id: "unstar",
           label: "Unstar",
           run: () => {
-            star.mutate({ ...input, starred: false });
+            star({ ...input, starred: false });
           },
         }
       : {
@@ -156,7 +145,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           id: "star",
           label: "Star",
           run: () => {
-            star.mutate({ ...input, starred: true });
+            star({ ...input, starred: true });
           },
         };
     // Saves without opening anything: the transcript lands in Downloads,
@@ -175,4 +164,69 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
     };
     return [put, ...mark, { ...starred, menuOnly: true }, save];
   };
+}
+
+/**
+ * Paints a mark onto one thread in the list from the click rather than from
+ * the round trip: the row moves, or its mark changes, the moment it is asked
+ * for. The live list's next answer is the truth either way.
+ */
+function paintThread(
+  queryClient: QueryClient,
+  { id, sessionId }: ThreadInput,
+  change: (thread: Thread) => Thread,
+) {
+  queryClient.setQueryData<Thread[]>(
+    threadListOptions(id).queryKey,
+    (threads) =>
+      threads?.map((thread) =>
+        thread.id === sessionId ? change(thread) : thread,
+      ),
+  );
+}
+
+/** Asks for the list's truth again at once, after a paint the workspace refused. */
+function repaintThreads(queryClient: QueryClient, taskId: TaskId) {
+  void queryClient.invalidateQueries({
+    queryKey: threadListOptions(taskId).queryKey,
+  });
+}
+
+/**
+ * Puts a thread away or brings it back. Each way's toast offers the other
+ * way back, so an undo can be undone; the toast hangs off the call's answer
+ * rather than off a row, since the row is gone from the list by the time it
+ * lands. Outside the hook so that it is one function for the window's life,
+ * which the actions handed to every row are memoized on.
+ */
+function setArchived(
+  queryClient: QueryClient,
+  input: ThreadInput,
+  archived: boolean,
+) {
+  paintThread(queryClient, input, (thread) => ({ ...thread, archived }));
+  const call = archived
+    ? rpcClient.workspace.orchestrator.threads.archive.call(input)
+    : rpcClient.workspace.orchestrator.threads.unarchive.call(input);
+  call.then(
+    () => {
+      toast(archived ? "Archived" : "Moved to Inbox", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            setArchived(queryClient, input, !archived);
+          },
+        },
+      });
+    },
+    (error: unknown) => {
+      repaintThreads(queryClient, input.id);
+      toast.error(
+        archived
+          ? "Failed to archive the chat"
+          : "Failed to move the chat to the inbox",
+        { description: error instanceof Error ? error.message : String(error) },
+      );
+    },
+  );
 }

@@ -1,5 +1,5 @@
 import { type Draft } from "@/client/atoms/orchestrator";
-import { useLayoutEffect, useRef, useState } from "react";
+import { memo, type RefObject, useLayoutEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { DraftRow } from "./draft-row";
@@ -11,6 +11,49 @@ import { useNow } from "./use-now";
 
 /** The width the list has to have, in px, before its rows lie down to one line each. */
 const SLIM_FROM = 600;
+
+/**
+ * One thread's row, rendered again only when something it shows changes:
+ * the list itself renders again on every thread opened and every change the
+ * list's query brings, and a row that followed it would redraw the whole
+ * inbox each time for the two rows whose mark moved.
+ */
+const ListedThread = memo(function ListedThread({
+  actionsFor,
+  handlers,
+  thread,
+  ...row
+}: {
+  actionsFor: ReturnType<typeof useThreadActionsFor>;
+  appsBySlug: AppsBySlug;
+  density: RowDensity;
+  handlers: RefObject<{
+    onNewTopic: (thread: Thread) => void;
+    onOpen: (thread: Thread) => void;
+    onSetTopics: (thread: Thread, topics: string[]) => void;
+  }>;
+  isArriving: boolean;
+  isOpen: boolean;
+  thread: Thread;
+  topics: Topic[];
+}) {
+  return (
+    <ThreadRow
+      {...row}
+      actions={actionsFor(thread)}
+      onNewTopic={() => {
+        handlers.current.onNewTopic(thread);
+      }}
+      onOpen={() => {
+        handlers.current.onOpen(thread);
+      }}
+      onSetTopics={(next) => {
+        handlers.current.onSetTopics(thread, next);
+      }}
+      thread={thread}
+    />
+  );
+});
 
 /**
  * The inbox: every thread by when something last happened in it, newest at
@@ -69,6 +112,14 @@ export function ThreadList({
   const ref = useRef<HTMLDivElement>(null);
   const density = useDensity(ref);
   const actionsFor = useThreadActionsFor();
+  // The handlers as the list last had them, for the rows to call: the ones
+  // the list is handed are new whenever the window re-renders, and a row
+  // handed a new one would render again with every other row each time a
+  // thread is opened.
+  const handlers = useRef({ onNewTopic, onOpen, onSetTopics });
+  useLayoutEffect(() => {
+    handlers.current = { onNewTopic, onOpen, onSetTopics };
+  });
   useLayoutEffect(() => {
     ref.current?.scrollTo({ top: 0 });
   }, [scrollSignal]);
@@ -89,22 +140,14 @@ export function ThreadList({
         />
       ))
     : byActivity(threads).map((thread) => (
-        <ThreadRow
-          actions={actionsFor(thread)}
+        <ListedThread
+          actionsFor={actionsFor}
           appsBySlug={appsBySlug}
           density={density}
+          handlers={handlers}
           isArriving={thread.id === arrivedId}
           isOpen={thread.id === openId}
           key={thread.id}
-          onNewTopic={() => {
-            onNewTopic(thread);
-          }}
-          onOpen={() => {
-            onOpen(thread);
-          }}
-          onSetTopics={(next) => {
-            onSetTopics(thread, next);
-          }}
           thread={thread}
           topics={topics}
         />

@@ -1,3 +1,5 @@
+import type * as FaviconUrl from "@/client/lib/favicon-url";
+
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, type TaskId } from "@instrument-org/workspace/client";
@@ -6,6 +8,14 @@ import { page, userEvent } from "vitest/browser";
 
 import { Markdown } from "./markdown";
 import { UserMessage } from "./user-message";
+
+// A site's icon comes over the app protocol, which only the main process
+// answers, so here every site has a one-pixel icon.
+vi.mock("@/client/lib/favicon-url", async (importOriginal) => ({
+  ...(await importOriginal<typeof FaviconUrl>()),
+  getFaviconUrl: () =>
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+}));
 
 // Both of these are questions about a stylesheet meeting a component, which is
 // the one thing jsdom cannot answer: it applies no CSS, so a chip that doubles

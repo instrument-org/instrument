@@ -28,6 +28,13 @@ import {
  * never overflows, and a test passes whether or not the turn moved.
  */
 
+// A reply's file is drawn once the main process says where it is on the
+// computer, which it cannot here, so every path is answered with one.
+vi.mock("@/client/hooks/use-host-paths", () => ({
+  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+    Object.fromEntries(filePaths.map((path) => [path, `/computer/${path}`])),
+}));
+
 const VIEWPORT_HEIGHT = 320;
 
 const sessionId = StoreId.newSessionId();

@@ -1,3 +1,5 @@
+import type * as FaviconUrl from "@/client/lib/favicon-url";
+
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
@@ -29,6 +31,20 @@ const calls = vi.hoisted(() => ({
   unarchive: vi.fn(),
   unseen: vi.fn(),
 }));
+
+// A site's icon comes over the app protocol, which only the main process
+// answers, so here every site has a one-pixel icon except a `.invalid` one,
+// which is left to the real address and fails the way a site with none does.
+vi.mock("@/client/lib/favicon-url", async (importOriginal) => {
+  const actual = await importOriginal<typeof FaviconUrl>();
+  return {
+    ...actual,
+    getFaviconUrl: (url: string) =>
+      url.includes(".invalid")
+        ? actual.getFaviconUrl(url)
+        : "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  };
+});
 
 // The routes the row's actions reach, each answering at once so what hangs
 // off a success can be seen, and the one the open gestures bind whether or
@@ -81,7 +97,7 @@ vi.mock("@/client/rpc/client", () => {
 const sessionId = StoreId.newSessionId();
 
 /** The input every route of the row's is asked with. */
-const INPUT = { id: "orchestrator", sessionId };
+const INPUT = { sessionId };
 
 /** The moment every row is read at: a Wednesday afternoon. */
 

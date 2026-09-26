@@ -121,7 +121,6 @@ describe("ThreadTitle", () => {
     await userEvent.keyboard("{Enter}");
     await vi.waitFor(() => {
       expect(calls.rename).toHaveBeenCalledWith({
-        id: taskId,
         sessionId,
         title: "Weekly shop",
       });

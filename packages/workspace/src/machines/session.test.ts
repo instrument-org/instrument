@@ -4,7 +4,10 @@ import {
   type LanguageModelV4CallOptions,
   type LanguageModelV4StreamPart,
 } from "@ai-sdk/provider";
-import { type AISDKWebSearchModelResult } from "@instrument-org/ai-gateway";
+import {
+  type AIGatewayModel,
+  type AISDKWebSearchModelResult,
+} from "@instrument-org/ai-gateway";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import mockFs from "mock-fs";
@@ -228,6 +231,7 @@ describe("sessionMachine", () => {
     initialChunkDelaysMs = [],
     llmRequestChunkTimeoutMs = 120_000,
     maxStepCount,
+    modelFeatures,
     providerConfigId = "mock-provider-config-id",
     queuedMessages = [defaultQueuedMessage],
     runRequested,
@@ -249,6 +253,8 @@ describe("sessionMachine", () => {
     initialChunkDelaysMs?: number[];
     llmRequestChunkTimeoutMs?: number;
     maxStepCount?: number;
+    /** What the model takes and gives; the mock's text-and-tools default otherwise. */
+    modelFeatures?: AIGatewayModel.ModelFeatures[];
     providerConfigId?: string;
     queuedMessages?: SessionMessage.UserWithParts[];
     runRequested?: boolean;
@@ -282,7 +288,10 @@ describe("sessionMachine", () => {
     // Provider config id defaults to the shared mock; the parallel-sessions
     // test passes distinct ids so each session resolves its own model override
     // via the workspace singleton.
-    const model = createMockAIGatewayModel({ providerConfigId });
+    const model = createMockAIGatewayModel({
+      features: modelFeatures,
+      providerConfigId,
+    });
 
     const testTaskConfig = createMockTaskConfig(
       TaskIdSchema.parse(taskFolder),
@@ -545,6 +554,7 @@ describe("sessionMachine", () => {
         ],
         finishChunks,
       ],
+      modelFeatures: ["inputText", "inputImage", "outputText", "tools"],
     });
 
     expect(sessionToShorthand(session)).toMatchInlineSnapshot(`

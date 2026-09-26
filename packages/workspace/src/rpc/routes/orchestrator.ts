@@ -51,10 +51,12 @@ import {
   TopicSchema,
   updateTopic,
 } from "../../lib/orchestrator/topics";
+import { chatTaskIds } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";
 import { getTaskSettings } from "../../lib/task-settings";
+import { trashChat } from "../../lib/trash-task";
 import { chatIdOf, isChatId, sessionOfChat } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
@@ -533,9 +535,34 @@ const ensureChatRoute = base
     taskId: await ensureChat(chatIdOf(input.sessionId)),
   }));
 
+/**
+ * Deletes a chat with every task it started: their work stops, and the chat's
+ * folder, which holds theirs, goes to the trash.
+ */
+const trashChatRoute = base
+  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .handler(async ({ context, errors, input }) => {
+    const id = chatIdOf(input.sessionId);
+    const children = chatTaskIds(id);
+    const result = await trashChat({
+      id,
+      workspaceConfig: context.workspaceConfig,
+      workspaceRef: context.workspaceRef,
+    });
+    if (result.isErr()) {
+      context.workspaceConfig.captureException(result.error);
+      throw toORPCError(result.error, errors);
+    }
+    for (const child of children) {
+      publisher.publish("task.removed", { id: child });
+    }
+    publisher.publish("task.removed", { id });
+    publisher.publish("session.removed", { id, sessionId: input.sessionId });
+  });
+
 export const orchestrator = {
   activity,
-  chats: { ensure: ensureChatRoute },
+  chats: { ensure: ensureChatRoute, trash: trashChatRoute },
   children,
   childStatus,
   ensure,

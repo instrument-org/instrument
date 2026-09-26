@@ -10,7 +10,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { killTaskBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
-import { forgetChatTask } from "./record-folders";
+import { chatTaskIds, forgetChat, forgetChatTask } from "./record-folders";
 import {
   disposeSessionsStoreStorage,
   markStorageAsDisposing,
@@ -20,12 +20,48 @@ import { taskDir } from "./task-dir-utils";
 
 interface RemoveTaskOptions {
   id: TaskId;
+  /**
+   * Stop everything the task runs and let go of its store, but leave its
+   * folder where it is: for a task inside a chat that is going to the trash
+   * whole, which takes the folder with it.
+   */
+  keepFolder?: boolean;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }
 
+/**
+ * Puts a chat in the trash with every task it started: each task is stopped
+ * the way trashing it alone stops it (its browser reaped, what it left running
+ * killed, its store let go), and then the chat's folder, which holds them all,
+ * goes to the trash in one piece.
+ */
+export async function trashChat({
+  id,
+  workspaceConfig,
+  workspaceRef,
+}: RemoveTaskOptions) {
+  for (const child of chatTaskIds(id)) {
+    const stopped = await trashTask({
+      id: child,
+      keepFolder: true,
+      workspaceConfig,
+      workspaceRef,
+    });
+    if (stopped.isErr()) {
+      return err(stopped.error);
+    }
+  }
+  const trashed = await trashTask({ id, workspaceConfig, workspaceRef });
+  if (trashed.isOk()) {
+    forgetChat(id);
+  }
+  return trashed;
+}
+
 export async function trashTask({
   id,
+  keepFolder = false,
   workspaceConfig,
   workspaceRef,
 }: RemoveTaskOptions) {
@@ -81,7 +117,9 @@ export async function trashTask({
           return err(disposeResult.error);
         }
 
-        await workspaceConfig.trashItem(taskDir(taskId));
+        if (!keepFolder) {
+          await workspaceConfig.trashItem(taskDir(taskId));
+        }
         forgetChatTask(taskId);
 
         // In the off chance that a future task with the same id is

@@ -72,3 +72,14 @@ setWorkspaceConfig({
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
   webSearch: unavailableWebSearchClient,
 });
+
+// Shells run on the test's own thread, where `vi.mock` reaches them, unless
+// INSTRUMENT_BASH_WORKER=1 asks for every one to run in the bash worker.
+// Imported only then: loading the worker client here would load modules a
+// test file mocks (`ulid` among them) before its mock is in place.
+if (process.env.INSTRUMENT_BASH_WORKER === "1") {
+  const [{ setBashWorkerFactory }, { createTsxBashWorker }] = await Promise.all(
+    [import("../lib/bash-worker/client"), import("./helpers/tsx-bash-worker")],
+  );
+  setBashWorkerFactory(createTsxBashWorker);
+}

@@ -43,6 +43,8 @@ declare namespace NodeJS {
       FORCE_DEV_AUTO_UPDATE: string | undefined;
       GDK_BACKEND: string | undefined;
       HOME: string | undefined; // Only used in workspace
+      /** `0` keeps the agent's bash interpreter on the main thread instead of its worker. */
+      INSTRUMENT_BASH_WORKER: string | undefined;
       /** Dev only: shrinks every model's context window to this many tokens. */
       INSTRUMENT_CONTEXT_LENGTH_OVERRIDE: string | undefined;
       /**

@@ -9,11 +9,56 @@ const GRACEFUL_EXIT_MS = ms("1 second");
 const FORCE_EXIT_MS = ms("4 seconds");
 const POLL_MS = 50;
 
+/**
+ * Told when a watched tree starts and when its leader settles. The bash worker
+ * reports both to the main thread, which ends the trees still running if the
+ * worker dies, since nothing on the worker's side is left to abort them.
+ */
+export interface SubprocessTreeObserver {
+  settled: (pid: number) => void;
+  started: (pid: number) => void;
+}
+
 export class SubprocessTreeTerminationError extends Error {
   constructor(pid: number) {
     super(`Could not confirm that subprocess tree ${pid} stopped.`);
     this.name = "SubprocessTreeTerminationError";
   }
+}
+
+let observer: SubprocessTreeObserver | undefined;
+
+export function setSubprocessTreeObserver(next: SubprocessTreeObserver): void {
+  observer = next;
+}
+
+/** Ends a process tree, resolving whether it was confirmed stopped. */
+export async function terminateSubprocessTree(pid: number): Promise<boolean> {
+  if (process.platform === "win32") {
+    const result = await execa("taskkill", ["/pid", String(pid), "/t", "/f"], {
+      reject: false,
+      windowsHide: true,
+    });
+    if (result.exitCode === 0) {
+      return true;
+    }
+    // taskkill exits non-zero when the pid is already gone, which is the outcome
+    // being asked for. Checked by probing rather than by reading the message,
+    // which is localized. Mirrors the POSIX branch treating ESRCH as success.
+    return !processExists(pid);
+  }
+
+  if (!signalProcessGroup(pid, "SIGTERM")) {
+    return true;
+  }
+  if (await waitForProcessGroupExit(pid, GRACEFUL_EXIT_MS)) {
+    return true;
+  }
+
+  if (!signalProcessGroup(pid, "SIGKILL")) {
+    return true;
+  }
+  return await waitForProcessGroupExit(pid, FORCE_EXIT_MS);
 }
 
 export function watchSubprocessTree({
@@ -23,6 +68,9 @@ export function watchSubprocessTree({
   pid: number | undefined;
   signal: AbortSignal | undefined;
 }) {
+  if (pid !== undefined) {
+    observer?.started(pid);
+  }
   let termination: Promise<void> | undefined;
   const terminate = () => {
     if (pid === undefined || termination) {
@@ -48,6 +96,9 @@ export function watchSubprocessTree({
 
   return async () => {
     signal?.removeEventListener("abort", terminate);
+    if (pid !== undefined) {
+      observer?.settled(pid);
+    }
     await termination;
   };
 }
@@ -84,34 +135,6 @@ function signalProcessGroup(pid: number, signal: NodeJS.Signals): boolean {
     }
     return true;
   }
-}
-
-async function terminateSubprocessTree(pid: number): Promise<boolean> {
-  if (process.platform === "win32") {
-    const result = await execa("taskkill", ["/pid", String(pid), "/t", "/f"], {
-      reject: false,
-      windowsHide: true,
-    });
-    if (result.exitCode === 0) {
-      return true;
-    }
-    // taskkill exits non-zero when the pid is already gone, which is the outcome
-    // being asked for. Checked by probing rather than by reading the message,
-    // which is localized. Mirrors the POSIX branch treating ESRCH as success.
-    return !processExists(pid);
-  }
-
-  if (!signalProcessGroup(pid, "SIGTERM")) {
-    return true;
-  }
-  if (await waitForProcessGroupExit(pid, GRACEFUL_EXIT_MS)) {
-    return true;
-  }
-
-  if (!signalProcessGroup(pid, "SIGKILL")) {
-    return true;
-  }
-  return await waitForProcessGroupExit(pid, FORCE_EXIT_MS);
 }
 
 async function waitForProcessGroupExit(pid: number, waitMs: number) {

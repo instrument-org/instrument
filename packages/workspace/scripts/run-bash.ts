@@ -32,6 +32,7 @@ import { ulid } from "ulid";
 import { TASK_FOLDER_NAMES } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { assignMountNames } from "../src/lib/assign-mount-names";
+import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { FolderAttachment } from "../src/schemas/folder-attachment";
@@ -40,6 +41,7 @@ import { StoreId } from "../src/schemas/store-id";
 import { TaskIdSchema } from "../src/schemas/task-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 
 function parseArgs(argv: string[]) {
   const attach: { access: FolderAttachment.Access; path: string }[] = [];
@@ -124,7 +126,8 @@ setWorkspaceConfig({
     path.join(rootDir, "default-task-template"),
   ),
   getAIProviderConfigs: () => [],
-  isActivityHeadingsEnabled: () => process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
+  isActivityHeadingsEnabled: () =>
+    process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
   isExternalBrowserEnabled: () => true,
   modelCache: noopModelCache,
   nodeExecEnv: {},
@@ -148,6 +151,11 @@ setWorkspaceConfig({
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
   webSearch: unavailableWebSearchClient,
 });
+
+// On this thread unless INSTRUMENT_BASH_WORKER=1 asks for the bash worker.
+if (process.env.INSTRUMENT_BASH_WORKER === "1") {
+  setBashWorkerFactory(createTsxBashWorker);
+}
 
 const taskId = TaskIdSchema.parse(args.taskId ?? ulid().toLowerCase());
 

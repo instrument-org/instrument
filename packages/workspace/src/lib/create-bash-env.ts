@@ -1,5 +1,6 @@
 import {
   Bash,
+  type Command,
   type CommandName,
   type CommandNode,
   defineCommand,
@@ -17,6 +18,7 @@ import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
+import { bashWorkerEnabled, createRemoteBash } from "./bash-worker/client";
 import {
   AGENT_BROWSER_COMMAND,
   agentBrowserCommandDescription,
@@ -453,6 +455,23 @@ const CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
 ];
 
+export interface BashEnvOptions {
+  attachedFolders?: Record<string, FolderAttachment.Type>;
+  /**
+   * Present when the task is an orchestrator: its children mount read-only and
+   * its command set shrinks to reading and `task`. See
+   * `createOrchestratorBashDescription`.
+   */
+  orchestrator?: { childMounts: WorkspaceFsMount[] };
+  projectFolderName?: string;
+  remainingYieldMs?: () => number;
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}
+
+/** What callers of `createBashEnv` get, wherever the interpreter runs. */
+export type BashRunner = Pick<Bash, "exec">;
+
 export function createBashDescription({
   orchestrator = false,
 }: { orchestrator?: boolean } = {}) {
@@ -522,7 +541,38 @@ export function createBashDescription({
   `.trim();
 }
 
-export async function createBashEnv({
+/**
+ * Commands that act on state only the main thread holds: the background
+ * process registry, the task store and its events, the browser, and app
+ * credentials. When the interpreter runs in the bash worker, these are
+ * stand-ins that send the call back to the main thread; every other command
+ * runs where the interpreter does.
+ */
+export const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
+  AGENT_BROWSER_COMMAND.name,
+  APP_COMMAND.name,
+  CHAT_COMMAND.name,
+  FG_COMMAND.name,
+  JOBS_COMMAND.name,
+  KILL_COMMAND.name,
+  MEMORY_COMMAND.name,
+  OPEN_COMMAND.name,
+  TASK_COMMAND.name,
+]);
+
+/**
+ * The agent's shell: in the bash worker when the host set one up (see
+ * `bashWorkerEnabled`), otherwise on this thread.
+ */
+export async function createBashEnv(
+  options: BashEnvOptions,
+): Promise<BashRunner> {
+  return bashWorkerEnabled()
+    ? createRemoteBash(options, () => createLocalBashEnv(options))
+    : await createLocalBashEnv(options);
+}
+
+export async function createLocalBashEnv({
   attachedFolders,
   orchestrator,
   projectFolderName,
@@ -530,19 +580,11 @@ export async function createBashEnv({
   // sandbox script -- do not have to describe a yield window they do not have.
   remainingYieldMs = () => Number.POSITIVE_INFINITY,
   sessionId,
+  standIn,
   taskId,
-}: {
-  attachedFolders?: Record<string, FolderAttachment.Type>;
-  /**
-   * Present when the task is an orchestrator: its children mount read-only and
-   * its command set shrinks to reading and `task`. See
-   * `createOrchestratorBashDescription`.
-   */
-  orchestrator?: { childMounts: WorkspaceFsMount[] };
-  projectFolderName?: string;
-  remainingYieldMs?: () => number;
-  sessionId: StoreId.Session;
-  taskId: TaskId;
+}: BashEnvOptions & {
+  /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
+  standIn?: (name: string) => Command;
 }) {
   // The layout is the single source of truth for what the agent can see: the
   // writable task directory mounted at /task (the working directory), the
@@ -639,7 +681,11 @@ export async function createBashEnv({
         ]),
       ),
       ...STATIC_STUB_COMMANDS,
-    ],
+    ].map((command) =>
+      standIn && MAIN_THREAD_COMMANDS.has(command.name)
+        ? standIn(command.name)
+        : command,
+    ),
     cwd: MOUNT.task,
     executionLimits: {
       maxJsTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,

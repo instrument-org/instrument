@@ -13,6 +13,7 @@
   },
   "type": "module",
   "exports": {
+    "./bash-worker": "./src/lib/bash-worker/entry.ts",
     "./client": "./src/client.ts",
     "./electron": "./src/electron.ts",
     "./package.json": "./package.json"

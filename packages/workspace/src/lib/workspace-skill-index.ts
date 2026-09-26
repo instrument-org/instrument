@@ -155,10 +155,21 @@ export async function readWorkspaceSkillIndex(): Promise<WorkspaceSkillIndex> {
 }
 
 /**
+ * Set in the bash worker, which has no turns of its own: it sends each
+ * mutation to the main thread, where the tracker for the turn that ran the
+ * command records it.
+ */
+let forwardSkillMutation: ((mountPath: string) => void) | undefined;
+
+/**
  * Records one successful mutation routed through this session's writable
  * skills mount. `mountPath` is relative to that mount, as just-bash sees it.
  */
 export function recordWorkspaceSkillMutation(mountPath: string): void {
+  if (forwardSkillMutation) {
+    forwardSkillMutation(mountPath);
+    return;
+  }
   const tracker = trackerForCurrentTurn();
   if (!tracker) {
     return;
@@ -186,6 +197,12 @@ export function recordWorkspaceSkillWrite(filePath: string): void {
   }
   const relative = path.relative(skillsDir, filePath);
   recordWorkspaceSkillMutation(relative || "/");
+}
+
+export function setSkillMutationForwarder(
+  next: (mountPath: string) => void,
+): void {
+  forwardSkillMutation = next;
 }
 
 function emptyChanges(): WorkspaceSkillChanges {

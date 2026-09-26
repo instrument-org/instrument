@@ -13,6 +13,7 @@ import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
+import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
   attachOrchestrator,
   BACKGROUND_PROCESS_TEARDOWN_MS,
@@ -21,7 +22,9 @@ import {
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   pruneExternalBrowserTmp,
+  setBashWorkerFactory,
   stopWorkspaceSkillWatcher,
+  warmBashWorker,
   workspaceMachine,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
@@ -120,6 +123,11 @@ export function createWorkspaceActor({
       { scopes: ["studio"] },
     );
   });
+
+  // The build emits the worker as its own chunk. Every agent shell runs there,
+  // off the thread that paints the window, unless INSTRUMENT_BASH_WORKER=0.
+  setBashWorkerFactory(createBashWorker);
+  warmBashWorker();
 
   const browserViewManager = createBrowserViewManager();
 

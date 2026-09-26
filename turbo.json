@@ -3,6 +3,7 @@
   "cacheMaxAge": "7d",
   "cacheMaxSize": "20gb",
   "concurrency": "4",
+  "globalEnv": ["INSTRUMENT_BASH_WORKER"],
   "globalPassThroughEnv": [
     "GOMAXPROCS",
     "INSTRUMENT_ACTIVITY_HEADINGS",

@@ -18,8 +18,10 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { TagIcon } from "@phosphor-icons/react/Tag";
-import { type ReactNode, useRef } from "react";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { type ReactNode, useRef, useState } from "react";
 
+import { DeleteChatDialog } from "./delete-chat-dialog";
 import { useThreadActions } from "./thread-actions";
 import { TopicPill } from "./thread-row";
 import { ThreadTitle } from "./thread-title";
@@ -39,6 +41,7 @@ import { type ThreadRename, useThreadRename } from "./use-thread-rename";
  */
 export function ThreadHeader({
   leading,
+  onDeleted,
   onNewTopic,
   onSetTopics,
   popOut,
@@ -48,6 +51,8 @@ export function ThreadHeader({
 }: {
   /** What sits ahead of the title: the toggle that puts the inbox away. */
   leading?: ReactNode;
+  /** Told once the thread has been deleted, so the window can put it away. */
+  onDeleted: () => void;
   onNewTopic: () => void;
   onSetTopics: (topics: string[]) => void;
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
@@ -63,8 +68,17 @@ export function ThreadHeader({
     return topic ? [topic] : [];
   });
   const rename = useThreadRename(thread);
+  const [isDeleting, setDeleting] = useState(false);
   return (
     <div className="flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
+      {thread && (
+        <DeleteChatDialog
+          onDeleted={onDeleted}
+          onOpenChange={setDeleting}
+          open={isDeleting}
+          thread={thread}
+        />
+      )}
       <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2 select-none">
         {leading}
         {thread ? (
@@ -84,6 +98,9 @@ export function ThreadHeader({
         ))}
         {thread && (
           <ThreadMenu
+            onDelete={() => {
+              setDeleting(true);
+            }}
             onNewTopic={onNewTopic}
             onSetTopics={onSetTopics}
             rename={rename}
@@ -126,12 +143,14 @@ export function ThreadHeader({
  * its topics.
  */
 function ThreadMenu({
+  onDelete,
   onNewTopic,
   onSetTopics,
   rename,
   thread,
   topics,
 }: {
+  onDelete: () => void;
   onNewTopic: () => void;
   onSetTopics: (topics: string[]) => void;
   rename: ThreadRename;
@@ -217,6 +236,13 @@ function ThreadMenu({
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        {/* Only here, where one chat is all there is: a row in the inbox is
+            one of many, and a press there should not be able to end one. */}
+        <DropdownMenuItem onSelect={onDelete} variant="destructive">
+          <TrashIcon className="size-3.5" />
+          Delete chat…
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

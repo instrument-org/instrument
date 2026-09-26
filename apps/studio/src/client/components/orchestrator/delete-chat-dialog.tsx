@@ -1,7 +1,7 @@
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
@@ -30,6 +30,7 @@ export function DeleteChatDialog({
   thread: Thread;
 }) {
   const { taskId } = useOrchestrator();
+  const queryClient = useQueryClient();
   const trashTerminology = getTrashTerminology();
   const children = useQuery(
     rpcClient.workspace.orchestrator.children.queryOptions({
@@ -91,6 +92,11 @@ export function DeleteChatDialog({
           });
           throw error;
         }
+        queryClient.removeQueries({
+          queryKey: rpcClient.workspace.orchestrator.chats.of.queryKey({
+            input: { sessionId: thread.id },
+          }),
+        });
         onDeleted();
       }}
       onOpenChange={onOpenChange}

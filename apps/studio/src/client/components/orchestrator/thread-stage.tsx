@@ -47,15 +47,17 @@ export function ThreadScreen(props: ThreadScreenProps) {
   const chat = useQuery(
     rpcClient.workspace.orchestrator.chats.of.queryOptions({
       input: { sessionId: props.sessionId },
-      // A chat keeps its record for as long as it exists.
-      staleTime: Number.POSITIVE_INFINITY,
+      // A chat keeps its record for as long as it exists; a thread with none
+      // yet is asked again, since its first send may still be making it.
+      staleTime: (query) =>
+        query.state.data?.taskId ? Number.POSITIVE_INFINITY : 0,
     }),
   );
   const taskId = chat.data?.taskId;
   if (!taskId) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner className="size-5" />
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        {chat.data === null ? "This chat is gone." : <Spinner className="size-5" />}
       </div>
     );
   }

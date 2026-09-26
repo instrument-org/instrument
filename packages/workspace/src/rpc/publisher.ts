@@ -44,6 +44,15 @@ export const publisher = new EventPublisher<{
     targetId: BrowserTargetId;
   };
   /**
+   * A chat was deleted with everything in it. Its own event rather than
+   * `session.removed`, because by the time anything hears that the index has
+   * already forgotten the chat, so a listener cannot tell it was one.
+   */
+  "chat.removed": {
+    id: TaskId;
+    sessionId: StoreId.Session;
+  };
+  /**
    * A memory was saved, corrected, or forgotten. Carries no payload because
    * every listener re-reads the folder.
    */

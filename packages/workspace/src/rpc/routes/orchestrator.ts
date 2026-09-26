@@ -191,7 +191,8 @@ const listThreadsRoute = base
  * one to land. A task filed from a thread is heard when it starts a tool
  * call, since that is when the step its row shows changes, and not on every
  * token it streams; the rest of what it does reaches the list with the
- * thread's own writes, its wake among them. Subscribed the moment it is called rather than when it is
+ * thread's own writes, its wake among them. A deleted chat is heard from
+ * `chat.removed`, since the index has forgotten it before anything is told. Subscribed the moment it is called rather than when it is
  * first pulled, so a read taken right after has nothing land unobserved
  * between the two; an event the read already covered only costs one re-read.
  * A burst of events collapses into one firing per pull, since the next batch
@@ -201,6 +202,7 @@ export function threadChanges(signal: AbortSignal | undefined) {
   const batches = changedMessageBatches({ id: isChatId }, signal);
   const sessionUpdates = publisher.subscribe("session.updated", { signal });
   const sessionRemoved = publisher.subscribe("session.removed", { signal });
+  const chatRemoved = publisher.subscribe("chat.removed", { signal });
   const sessionTags = publisher.subscribe("session.tagsChanged", { signal });
   const sessionDone = publisher.subscribe("session.done", { signal });
   const appUpdates = publisher.subscribe("app.updated", { signal });
@@ -257,6 +259,7 @@ export function threadChanges(signal: AbortSignal | undefined) {
         forThisTask(sessionTags),
         forThisTask(sessionDone),
         everyOne(appUpdates),
+        everyOne(chatRemoved),
         childSteps(),
       ]);
     } finally {
@@ -575,12 +578,30 @@ const trashChatRoute = base
       context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
     }
-    for (const child of chatTasks) {
-      publisher.publish("task.removed", { id: child });
-    }
-    publisher.publish("task.removed", { id });
-    publisher.publish("session.removed", { id, sessionId: input.sessionId });
+    announceChatRemoved({ chatTasks, id, sessionId: input.sessionId });
   });
+
+/**
+ * Tells every listener a chat is gone, once the index has already forgotten
+ * it: its tasks and itself as removed tasks, its session as removed, and
+ * `chat.removed`, the one a listener can still tell was a chat's.
+ */
+export function announceChatRemoved({
+  chatTasks,
+  id,
+  sessionId,
+}: {
+  chatTasks: TaskId[];
+  id: TaskId;
+  sessionId: StoreId.Session;
+}) {
+  for (const child of chatTasks) {
+    publisher.publish("task.removed", { id: child });
+  }
+  publisher.publish("task.removed", { id });
+  publisher.publish("session.removed", { id, sessionId });
+  publisher.publish("chat.removed", { id, sessionId });
+}
 
 export const orchestrator = {
   activity,

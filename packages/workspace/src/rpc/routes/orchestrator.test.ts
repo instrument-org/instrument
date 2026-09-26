@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
+import { forgetChat } from "../../lib/record-folders";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -13,7 +14,7 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { publisher } from "../publisher";
-import { threadChanges } from "./orchestrator";
+import { announceChatRemoved, threadChanges } from "./orchestrator";
 
 // A chat, a task that is not one, and a task the chat started. The chat is a
 // folder under a workspace root of this file's own.
@@ -107,6 +108,19 @@ describe("threadChanges", () => {
       await changes.return();
     },
   );
+
+  it("fires when a chat is deleted, though the index forgot it before anyone was told", async () => {
+    const sessionId = StoreId.newSessionId();
+    const deleted = chatFor(sessionId);
+    const controller = new AbortController();
+    const changes = threadChanges(controller.signal);
+    const next = changes.next();
+    forgetChat(deleted);
+    announceChatRemoved({ chatTasks: [], id: deleted, sessionId });
+    expect(await fired(next)).toBe(true);
+    controller.abort();
+    await changes.return();
+  });
 
   it.each([
     ["session.updated", { id: otherTaskId, sessionId: StoreId.newSessionId() }],

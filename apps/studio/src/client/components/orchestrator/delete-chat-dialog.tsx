@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
+import { threadListOptions } from "./thread-list-query";
 import { type Thread } from "./threads";
 
 /** How many of the chat's tasks the dialog names before it counts the rest. */
@@ -92,6 +93,10 @@ export function DeleteChatDialog({
           });
           throw error;
         }
+        queryClient.setQueryData<Thread[]>(
+          threadListOptions().queryKey,
+          (threads) => threads?.filter((each) => each.id !== thread.id),
+        );
         queryClient.removeQueries({
           queryKey: rpcClient.workspace.orchestrator.chats.of.queryKey({
             input: { sessionId: thread.id },

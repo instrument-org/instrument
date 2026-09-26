@@ -1081,7 +1081,7 @@ describe("win32", () => {
         "launchAppPath": null,
       }
     `);
-    expect(execCalls[0]?.script).toContain("$associations\\https\\UserChoice");
+    expect(execCalls[0]?.script).toContain("AssocQueryString(0, $what, 'https'");
   });
 
   it("refuses to interpolate an extension that isn't a simple one", async () => {

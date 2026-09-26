@@ -11,10 +11,12 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
+import { chatSeparators } from "../lib/chat-separators";
 import { cn } from "../lib/utils";
 import { ASSISTANT_BUBBLE } from "./assistant-message";
 import { AssistantMessagesFooter } from "./assistant-messages-footer";
 import { AttachmentsCard } from "./attachments-card";
+import { ChatSeparatorRow } from "./chat-separator";
 import {
   renderChatPart,
   type RenderPartContext,
@@ -246,6 +248,13 @@ export function ChatStream({
   const regularMessages = messages.filter(
     (message) => message.role !== "session-context",
   );
+
+  // The conversation reads as a text thread, so it marks when it started and on
+  // what, a return after a quiet spell, and a switch of model.
+  const separators =
+    presentation === "orchestrator"
+      ? chatSeparators(regularMessages)
+      : undefined;
 
   const lastMessageId = regularMessages.at(-1)?.id;
   const lastRegularMessage = regularMessages.at(-1);
@@ -677,6 +686,16 @@ export function ChatStream({
             />,
           );
         }
+
+        const separator = separators?.get(message.id);
+        if (separator && messageElements.length > 0) {
+          messageElements.unshift(
+            <ChatSeparatorRow
+              key={`separator-${message.id}`}
+              separator={separator}
+            />,
+          );
+        }
       }
 
       // A reply the conversation superseded is not an error to anyone; it
@@ -890,6 +909,30 @@ export function ChatStream({
         {continueNode}
       </div>
     </TranscriptExpansionContext>
+  );
+}
+
+/**
+ * The conversation is composing: three dots in a bubble of their own, the
+ * way a messaging app says someone is typing, in the place the reply will
+ * land. No words are shown until the reply is whole.
+ */
+export function TypingRow() {
+  return (
+    <div className="flex animate-in justify-start fill-mode-both fade-in">
+      <span
+        aria-label="Typing"
+        className={cn(ASSISTANT_BUBBLE, "flex h-9 items-center gap-1")}
+      >
+        {[0, 1, 2].map((index) => (
+          <span
+            className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60"
+            key={index}
+            style={{ animationDelay: `${index * 150}ms` }}
+          />
+        ))}
+      </span>
+    </div>
   );
 }
 
@@ -1126,30 +1169,6 @@ function TurnWordmark() {
     // depend on which kind of content happens to open the turn.
     <div className="flex justify-start pb-2.5">
       <Wordmark className="mt-5 mb-2 h-5.5 text-black/30 dark:text-white/30" />
-    </div>
-  );
-}
-
-/**
- * The conversation is composing: three dots in a bubble of their own, the
- * way a messaging app says someone is typing, in the place the reply will
- * land. No words are shown until the reply is whole.
- */
-export function TypingRow() {
-  return (
-    <div className="flex animate-in justify-start fill-mode-both fade-in">
-      <span
-        aria-label="Typing"
-        className={cn(ASSISTANT_BUBBLE, "flex h-9 items-center gap-1")}
-      >
-        {[0, 1, 2].map((index) => (
-          <span
-            className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60"
-            key={index}
-            style={{ animationDelay: `${index * 150}ms` }}
-          />
-        ))}
-      </span>
     </div>
   );
 }

@@ -3,7 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AbsolutePathSchema } from "../../schemas/paths";
+import { chatIdOf } from "../../schemas/chat-id";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { initializeTask } from "../initialize-task";
@@ -11,7 +13,10 @@ import { cancelAskedWake } from "../orchestrator/wake";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runWake, type TaskCommandContext } from "./task";
 
-const ORCHESTRATOR_ID = TaskIdSchema.parse("orchestrator");
+// The conversation the tasks were started in: a chat, by its record id.
+const ORCHESTRATOR_ID = chatIdOf(
+  StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
+);
 const CHILD_ID = TaskIdSchema.parse("audit-the-runtime");
 
 const working = vi.hoisted(() => ({ value: true }));
@@ -41,9 +46,12 @@ beforeEach(async () => {
   createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    // A chat's record goes under the root, kept apart from the folders
+    // the test attaches.
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
     ),
+    rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   const created = await initializeTask(
     {
@@ -99,12 +107,12 @@ describe("task wake", () => {
     await expect(runWake(args, context)).rejects.toThrow(message);
   });
 
-  it("refuses a task that is not the orchestrator's", async () => {
+  it("refuses a task another chat started", async () => {
     await expect(
       runWake([CHILD_ID, "--in", "5m"], {
         ...context,
         orchestratorTaskId: TaskIdSchema.parse("someone-else"),
       }),
-    ).rejects.toThrow(/no task "audit-the-runtime" of yours/);
+    ).rejects.toThrow(/"audit-the-runtime" was started in another thread/);
   });
 });

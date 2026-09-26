@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { chatIdOf } from "../../schemas/chat-id";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { publisher } from "../publisher";
 import { threadChanges } from "./orchestrator";
 
-const taskId = TaskIdSchema.parse("orchestrator-changes");
+// A chat, a task that is not one, and a task the chat started.
+const taskId = chatIdOf(StoreId.newSessionId());
 const otherTaskId = TaskIdSchema.parse("orchestrator-other");
 const childTaskId = TaskIdSchema.parse("orchestrator-child");
 
@@ -57,7 +59,7 @@ async function fired(
 describe("threadChanges", () => {
   it("fires when the workspace's apps change, since a thread's holds name only the apps the workspace has", async () => {
     const controller = new AbortController();
-    const changes = threadChanges(taskId, controller.signal);
+    const changes = threadChanges(controller.signal);
     const next = changes.next();
     publisher.publish("app.updated", null);
     expect(await fired(next)).toBe(true);
@@ -79,7 +81,7 @@ describe("threadChanges", () => {
     "fires on %s, since a thread's state is read off its agent's actor rather than the store",
     async (topic, payload) => {
       const controller = new AbortController();
-      const changes = threadChanges(taskId, controller.signal);
+      const changes = threadChanges(controller.signal);
       const next = changes.next();
       publisher.publish(topic, payload);
       expect(await fired(next)).toBe(true);
@@ -94,15 +96,18 @@ describe("threadChanges", () => {
       "session.tagsChanged",
       { id: otherTaskId, sessionId: StoreId.newSessionId() },
     ],
-  ] as const)("stays quiet on another task's %s", async (topic, payload) => {
-    const controller = new AbortController();
-    const changes = threadChanges(taskId, controller.signal);
-    const next = changes.next();
-    publisher.publish(topic, payload);
-    expect(await fired(next)).toBe(false);
-    controller.abort();
-    await changes.return();
-  });
+  ] as const)(
+    "stays quiet on %s from a task that is not a chat",
+    async (topic, payload) => {
+      const controller = new AbortController();
+      const changes = threadChanges(controller.signal);
+      const next = changes.next();
+      publisher.publish(topic, payload);
+      expect(await fired(next)).toBe(false);
+      controller.abort();
+      await changes.return();
+    },
+  );
 
   it.each([
     [
@@ -125,7 +130,7 @@ describe("threadChanges", () => {
     ],
   ] as const)("%s", async (_name, id, state, expected) => {
     const controller = new AbortController();
-    const changes = threadChanges(taskId, controller.signal);
+    const changes = threadChanges(controller.signal);
     const next = changes.next();
     publisher.publish("part.updated", { id, part: toolPart(state) });
     expect(await fired(next)).toBe(expected);

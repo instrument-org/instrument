@@ -8,6 +8,8 @@ export type TranscriptFormat = RPCInput["transcript"]["save"]["format"];
 
 /** Which session a call is about, when it is not the one the hook was given. */
 interface Target {
+  /** The record the session is in, where it is not the hook's: a chat's, say. */
+  id?: TaskId;
   label?: string;
   sessionId: StoreId.Session;
 }
@@ -87,7 +89,7 @@ export function useTranscriptActions({
     const session = target?.sessionId ?? sessionId;
     return session
       ? {
-          id,
+          id: target?.id ?? id,
           sessionId: session,
           ...(name === undefined ? {} : { label: name }),
         }

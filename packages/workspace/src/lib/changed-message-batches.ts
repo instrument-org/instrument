@@ -23,9 +23,15 @@ export interface ChangedMessageBatch {
 // Tears down on signal abort or on iterator return/throw; either path
 // unsubscribes and settles a pending pull with done.
 export function changedMessageBatches(
-  input: { id: TaskId; sessionId?: StoreId.Session },
+  input: {
+    /** One task, or a test every task's events are put to. */
+    id: ((id: TaskId) => boolean) | TaskId;
+    sessionId?: StoreId.Session;
+  },
   signal: AbortSignal | undefined,
 ) {
+  const matchesTask = (id: TaskId) =>
+    typeof input.id === "function" ? input.id(id) : id === input.id;
   const changes = new Map<StoreId.Message, "removed" | "updated">();
 
   let wake: (() => void) | undefined;
@@ -45,18 +51,18 @@ export function changedMessageBatches(
 
   const unsubscribes = [
     publisher.subscribe("message.updated", (payload) => {
-      if (payload.id === input.id && matchesSession(payload.sessionId)) {
+      if (matchesTask(payload.id) && matchesSession(payload.sessionId)) {
         mark(payload.messageId, "updated");
       }
     }),
     publisher.subscribe("message.removed", (payload) => {
-      if (payload.id === input.id && matchesSession(payload.sessionId)) {
+      if (matchesTask(payload.id) && matchesSession(payload.sessionId)) {
         mark(payload.messageId, "removed");
       }
     }),
     publisher.subscribe("part.updated", (payload) => {
       const { messageId, sessionId } = payload.part.metadata;
-      if (payload.id === input.id && matchesSession(sessionId)) {
+      if (matchesTask(payload.id) && matchesSession(sessionId)) {
         mark(messageId, "updated");
       }
     }),

@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
+import { isChatId, sessionOfChat } from "../../schemas/chat-id";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
@@ -38,9 +39,9 @@ import { initializeTask } from "../initialize-task";
 import { newMessage } from "../new-message";
 import { newTaskId } from "../new-task-id";
 import { isWorking, leftRunning } from "../orchestrator/activity";
-import { recordTaskThread, taskThreads } from "../orchestrator/attribution";
 import { childTaskMounts, listChildTasks } from "../orchestrator/children";
 import { describeHoldings } from "../orchestrator/describe-holdings";
+import { windowTaskId } from "../orchestrator/ensure";
 import { taskFolderHoldings } from "../orchestrator/folder-holdings";
 import {
   lastAssistantText,
@@ -554,10 +555,7 @@ export async function runNew(
   ]);
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const tab = values.get("tab")?.[0];
-  const browserTargetId =
-    tab === undefined
-      ? undefined
-      : await resolveTab(tab, context.orchestratorTaskId);
+  const browserTargetId = tab === undefined ? undefined : await resolveTab(tab);
   const apps = await resolveApps(values.get("app") ?? []);
   requireAppsNamedInBrief(prompt, apps);
 
@@ -593,13 +591,6 @@ export async function runNew(
   }
   if (browserTargetId) {
     await setTaskState(taskDir(taskId), { browserTargetId });
-  }
-  if (context.sessionId) {
-    await recordTaskThread({
-      orchestratorTaskId: context.orchestratorTaskId,
-      sessionId: context.sessionId,
-      taskId,
-    });
   }
   const session = await latestOrNewSessionId(taskId);
   if (session.isErr()) {
@@ -785,7 +776,7 @@ export async function runTab(args: string[], context: TaskCommandContext) {
       `Took the tab back from ${task.id}. It opens a browser of its own from here.\n`,
     );
   }
-  const browserTargetId = await resolveTab(wanted, context.orchestratorTaskId);
+  const browserTargetId = await resolveTab(wanted);
   await setTaskState(taskDir(task.id), { browserTargetId });
   publisher.publish("task.stateUpdated", { id: task.id });
   return ok(
@@ -1014,8 +1005,11 @@ async function requireChild(
   if (!parsed.success) {
     throw new Error(`"${rawId}" is not a task id. See \`task list\`.`);
   }
+  // Every chat's tasks can be read from any chat; steering one is its own
+  // chat's alone (requireOwnChild).
   const task = await getTask(parsed.data);
-  if (task.isErr() || task.value.parentTaskId !== orchestratorTaskId) {
+  const parent = task.isOk() ? task.value.parentTaskId : undefined;
+  if (task.isErr() || parent === undefined || !isChatId(parent)) {
     // An id is most often mistyped from the title it was given rather than
     // copied from what `new` printed, so the nearest of the orchestrator's own
     // tasks is offered in the same reply, where `task list` costs a turn.
@@ -1082,15 +1076,18 @@ async function requireOwnChild(
   context: TaskCommandContext,
 ): Promise<Task> {
   const task = await requireChild(rawId, context);
-  if (!context.sessionId) {
+  const filedIn =
+    task.parentTaskId === undefined
+      ? undefined
+      : sessionOfChat(task.parentTaskId);
+  if (
+    task.parentTaskId === context.orchestratorTaskId ||
+    task.parentTaskId === undefined ||
+    filedIn === undefined
+  ) {
     return task;
   }
-  const filed = await taskThreads(context.orchestratorTaskId);
-  const filedIn = filed[task.id];
-  if (filedIn === undefined || filedIn === context.sessionId) {
-    return task;
-  }
-  const thread = await Store.getSession(filedIn, context.orchestratorTaskId);
+  const thread = await Store.getSession(filedIn, task.parentTaskId);
   const named = thread.isOk() ? ` ("${thread.value.title}")` : "";
   throw new Error(
     `"${task.id}" was started in another thread${named}, and is that thread's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it. Tell the user which thread it is in, or start a task of your own here.`,
@@ -1189,22 +1186,21 @@ async function resolveModel(rawName: string, context: TaskCommandContext) {
  * opens, and a task reaches a file through its folders, never through a
  * browser standing on one.
  */
-async function resolveTab(
-  tab: string,
-  orchestratorTaskId: TaskId,
-): Promise<BrowserTargetId> {
+async function resolveTab(tab: string): Promise<BrowserTargetId> {
+  // The window's tabs are the window record's, whichever chat names one.
+  const windowId = await windowTaskId();
   const sessionId = StoreId.SessionSchema.safeParse(tab);
   if (!sessionId.success) {
     throw new Error(
       `"${tab}" is not a tab id; the note on the user's message lists them.`,
     );
   }
-  const targetId = encodeBrowserTargetId(orchestratorTaskId, sessionId.data);
+  const targetId = encodeBrowserTargetId(windowId, sessionId.data);
   const { browser } = getWorkspaceConfig();
   if (!browser.getTargetMeta(targetId)) {
     throw new Error(`Tab ${tab} is not open any more.`);
   }
-  const targets = await browser.listTargets(orchestratorTaskId);
+  const targets = await browser.listTargets(windowId);
   const target = targets.find((candidate) => candidate.id === targetId);
   if (target && /^file:/i.test(target.url)) {
     throw new Error(

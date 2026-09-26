@@ -241,7 +241,7 @@ function OrchestratorLayout() {
   );
   // The threads' titles, for the tabs standing on one; the pane reads the
   // same live list, so this is one subscription shared through the cache.
-  const threads = useQuery(threadListOptions(ids?.taskId));
+  const threads = useQuery(threadListOptions());
   const threadTitles = new Map<StoreId.Session, string>(
     threads.data?.map((thread) => [thread.id, thread.title]) ?? [],
   );
@@ -723,7 +723,7 @@ function OrchestratorLayout() {
       onSuccess: () => void topicsQuery.refetch(),
     }),
   );
-  const setThreadTopics = useSetThreadTopics(ids?.taskId);
+  const setThreadTopics = useSetThreadTopics();
   const [isNewTopicOpen, setNewTopicOpen] = useState(false);
 
   // What goes with a message, read at the moment of sending.
@@ -1004,7 +1004,6 @@ function OrchestratorLayout() {
                               openScreen(`${THREADS_HREF}/${thread.id}`);
                             }}
                             openThreadId={windowTabs.group}
-                            taskId={screens.taskId}
                           />
                         </PageOpenContext>
                       </FileOpenContext>
@@ -1271,22 +1270,19 @@ function OrchestratorLayout() {
                     const filedOn = threads.data?.find(
                       (thread) => thread.id === threadUp,
                     );
-                    createTopic.mutate(
-                      topic,
-                      {
-                        onSuccess: (created) => {
-                          for (const id of alsoFile) {
-                            setThreadTopics(id, [created.id]);
-                          }
-                          if (filedOn) {
-                            setThreadTopics(filedOn.id, [
-                              ...filedOn.topics,
-                              created.id,
-                            ]);
-                          }
-                        },
+                    createTopic.mutate(topic, {
+                      onSuccess: (created) => {
+                        for (const id of alsoFile) {
+                          setThreadTopics(id, [created.id]);
+                        }
+                        if (filedOn) {
+                          setThreadTopics(filedOn.id, [
+                            ...filedOn.topics,
+                            created.id,
+                          ]);
+                        }
                       },
-                    );
+                    });
                   }}
                   onOpenChange={setNewTopicOpen}
                   open={isNewTopicOpen}

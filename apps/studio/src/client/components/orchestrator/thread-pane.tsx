@@ -1,6 +1,6 @@
 import { type Draft, threadFiltersAtom } from "@/client/atoms/orchestrator";
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
@@ -43,7 +43,6 @@ export function ThreadPane({
   onOpenDraft,
   onOpenThread,
   openThreadId,
-  taskId,
 }: {
   /** The thread that just started from a draft, whose row arrives with a motion of its own. */
   arrivedId?: string;
@@ -58,10 +57,9 @@ export function ThreadPane({
   onOpenThread: (thread: Thread) => void;
   /** The thread open beside the list, if one is. */
   openThreadId: string | undefined;
-  taskId: TaskId;
 }) {
   const appsBySlug = useAppsBySlug();
-  const threadsQuery = useQuery(threadListOptions(taskId));
+  const threadsQuery = useQuery(threadListOptions());
   const topicsQuery = useQuery(
     rpcClient.workspace.orchestrator.topics.list.queryOptions(),
   );
@@ -83,7 +81,7 @@ export function ThreadPane({
       afterTopicChange,
     ),
   );
-  const setThreadTopics = useSetThreadTopics(taskId);
+  const setThreadTopics = useSetThreadTopics();
 
   const [filters, setFilters] = useAtom(threadFiltersAtom);
   const [scrollSignal, setScrollSignal] = useState(0);
@@ -232,33 +230,30 @@ export function ThreadPane({
         )}
         onCreate={(topic, alsoFile) => {
           const forThread = newTopic?.forThread;
-          createTopic.mutate(
-            topic,
-            {
-              onSuccess: (created) => {
-                // Chats offered were filed under nothing, so the new topic
-                // is all they carry.
-                for (const id of alsoFile) {
-                  setThreadTopics(id, [created.id]);
-                }
-                if (forThread) {
-                  setThreadTopics(forThread.id, [
-                    ...forThread.topics,
-                    created.id,
-                  ]);
-                  return;
-                }
-                // Read at the moment it lands rather than from the render
-                // that opened the dialog: the search may have moved since.
-                setFilters((current) => ({
-                  ...current,
-                  apps: [],
-                  topics: [created.id],
-                }));
-                setScrollSignal((signal) => signal + 1);
-              },
+          createTopic.mutate(topic, {
+            onSuccess: (created) => {
+              // Chats offered were filed under nothing, so the new topic
+              // is all they carry.
+              for (const id of alsoFile) {
+                setThreadTopics(id, [created.id]);
+              }
+              if (forThread) {
+                setThreadTopics(forThread.id, [
+                  ...forThread.topics,
+                  created.id,
+                ]);
+                return;
+              }
+              // Read at the moment it lands rather than from the render
+              // that opened the dialog: the search may have moved since.
+              setFilters((current) => ({
+                ...current,
+                apps: [],
+                topics: [created.id],
+              }));
+              setScrollSignal((signal) => signal + 1);
             },
-          );
+          });
         }}
         onOpenChange={(open) => {
           if (!open) {

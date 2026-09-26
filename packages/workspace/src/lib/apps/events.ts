@@ -1,7 +1,7 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import { threadOfApp } from "../orchestrator/attribution";
-import { wakeOrchestrators } from "../orchestrator/wake";
+import { wakeChatForApp } from "../orchestrator/wake";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /**
@@ -20,11 +20,10 @@ export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
   void (async () => {
     for await (const event of publisher.subscribe("app.event")) {
       try {
-        await wakeOrchestrators(
+        await wakeChatForApp(
           { data: { events: [event] }, type: "data-appEvent" },
           workspaceRef,
-          (orchestratorTaskId) =>
-            threadOfApp({ orchestratorTaskId, slug: event.slug }),
+          await threadOfApp({ slug: event.slug }),
         );
       } catch (error) {
         getWorkspaceConfig().captureException(error);

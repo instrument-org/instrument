@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../../schemas/paths";
+import { chatIdOf } from "../../schemas/chat-id";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
@@ -14,7 +15,10 @@ import { getTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runTab, type TaskCommandContext } from "./task";
 
-const ORCHESTRATOR_ID = TaskIdSchema.parse("orchestrator");
+// The conversation the tasks were started in: a chat, by its record id.
+const ORCHESTRATOR_ID = chatIdOf(
+  StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
+);
 const CHILD_ID = TaskIdSchema.parse("read-the-page");
 
 const context: TaskCommandContext = {
@@ -22,13 +26,16 @@ const context: TaskCommandContext = {
   remainingYieldMs: () => 0,
 };
 
+// The window's own record, whose tabs a chat hands to its tasks.
+const WINDOW_ID = TaskIdSchema.parse("instrument");
+
 let rootDir: string;
 let openTab: StoreId.Session;
 
 /** A tab of the conversation's, open in the window the way the note lists it. */
 function tabIsOpen(sessionId: StoreId.Session) {
   const config = getWorkspaceConfig();
-  const targetId = encodeBrowserTargetId(ORCHESTRATOR_ID, sessionId);
+  const targetId = encodeBrowserTargetId(WINDOW_ID, sessionId);
   setWorkspaceConfig({
     ...config,
     browser: {
@@ -36,7 +43,7 @@ function tabIsOpen(sessionId: StoreId.Session) {
       getTargetMeta: (asked) =>
         asked === targetId
           ? {
-              id: ORCHESTRATOR_ID,
+              id: WINDOW_ID,
               partitionDir: AbsolutePathSchema.parse(rootDir),
               sessionId,
             }
@@ -47,15 +54,29 @@ function tabIsOpen(sessionId: StoreId.Session) {
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-tab-"));
-  for (const id of [ORCHESTRATOR_ID, CHILD_ID]) {
+  for (const id of [WINDOW_ID, CHILD_ID]) {
     createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
   }
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    // A chat's record goes under the root, kept apart from the folders
+    // the test attaches.
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
     ),
+    rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
+  const window = await initializeTask(
+    {
+      initialSettings: { kind: "orchestrator", name: "Instrument" },
+      taskId: WINDOW_ID,
+      workspaceConfig: getWorkspaceConfig(),
+    },
+    {},
+  );
+  if (window.isErr()) {
+    throw window.error;
+  }
   const created = await initializeTask(
     {
       initialSettings: { name: "Read the page", parentTaskId: ORCHESTRATOR_ID },
@@ -82,7 +103,7 @@ describe("task tab", () => {
     expect(result.stdout).toContain(`${CHILD_ID} now drives tab ${openTab}`);
     const state = await getTaskState(taskDir(CHILD_ID));
     expect(state.browserTargetId).toBe(
-      encodeBrowserTargetId(ORCHESTRATOR_ID, openTab),
+      encodeBrowserTargetId(WINDOW_ID, openTab),
     );
   });
 
@@ -120,12 +141,12 @@ describe("task tab", () => {
     );
   });
 
-  it("refuses a task that is not the orchestrator's", async () => {
+  it("refuses a task another chat started", async () => {
     await expect(
       runTab([CHILD_ID, openTab], {
         ...context,
         orchestratorTaskId: TaskIdSchema.parse("someone-else"),
       }),
-    ).rejects.toThrow(/no task "read-the-page" of yours/);
+    ).rejects.toThrow(/"read-the-page" was started in another thread/);
   });
 });

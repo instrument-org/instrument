@@ -240,11 +240,11 @@ async function retitleOnSettle({
   if (session.isErr() || session.value.titleSettledAt) {
     return;
   }
-  if (await threadIsWorking(id, sessionId)) {
+  if (await threadIsWorking(sessionId)) {
     return;
   }
   const title = await retitleThread({ id, keep: true, sessionId });
   if (title !== undefined) {
-    await settleThreadTitle(id, sessionId);
+    await settleThreadTitle(sessionId);
   }
 }

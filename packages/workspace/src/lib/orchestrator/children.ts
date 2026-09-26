@@ -1,4 +1,5 @@
 import { MOUNT } from "../../mount-points";
+import { isChatId } from "../../schemas/chat-id";
 import { type Task } from "../../schemas/task";
 import { type TaskId } from "../../schemas/task-id";
 import { getTasks } from "../get-tasks";
@@ -25,7 +26,11 @@ export async function childTaskMounts(
   }));
 }
 
-/** The tasks an orchestrator created, newest activity first. */
+/**
+ * The tasks a chat started, newest activity first. Asked of the window's own
+ * record, every chat's tasks: the window shows all of them, and a path into
+ * any of them opens from it.
+ */
 export async function listChildTasks(
   orchestratorTaskId: TaskId,
 ): Promise<Task[]> {
@@ -33,5 +38,12 @@ export async function listChildTasks(
     direction: "desc",
     sortBy: "updatedAt",
   });
-  return tasks.filter((task) => task.parentTaskId === orchestratorTaskId);
+  const everyChat = !isChatId(orchestratorTaskId);
+  return tasks.filter(
+    (task) =>
+      task.parentTaskId === orchestratorTaskId ||
+      (everyChat &&
+        task.parentTaskId !== undefined &&
+        isChatId(task.parentTaskId)),
+  );
 }

@@ -4,7 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../../schemas/paths";
+import { chatIdOf } from "../../schemas/chat-id";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { createMemoryAppsConfig } from "../apps/memory-config";
@@ -16,7 +18,10 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 import { runApp, type TaskCommandContext } from "./task";
 
-const ORCHESTRATOR_ID = TaskIdSchema.parse("orchestrator");
+// The conversation the tasks were started in: a chat, by its record id.
+const ORCHESTRATOR_ID = chatIdOf(
+  StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
+);
 const CHILD_ID = TaskIdSchema.parse("file-the-issue");
 
 const context: TaskCommandContext = {
@@ -70,11 +75,14 @@ function useWorkspace(taskId: string) {
   createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    // A chat's record goes under the root, kept apart from the folders
+    // the test attaches.
     apps: appsConfig,
     appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
     ),
+    rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
 }
 
@@ -184,12 +192,12 @@ describe("task app", () => {
     ).rejects.toThrow(/already reaches every connected app/);
   });
 
-  it("refuses a task that is not the orchestrator's", async () => {
+  it("refuses a task another chat started", async () => {
     await expect(
       runApp([CHILD_ID, "--add", "linear"], {
         ...context,
         orchestratorTaskId: TaskIdSchema.parse("someone-else"),
       }),
-    ).rejects.toThrow(/no task "file-the-issue" of yours/);
+    ).rejects.toThrow(/"file-the-issue" was started in another thread/);
   });
 });

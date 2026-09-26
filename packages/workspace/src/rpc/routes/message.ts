@@ -9,6 +9,7 @@ import { createSession } from "../../lib/create-session";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
+import { ensureChat } from "../../lib/orchestrator/chats";
 import { threadContextFor } from "../../lib/orchestrator/thread-context";
 import { setThreadTopics } from "../../lib/orchestrator/threads";
 import { getTaskProjectName } from "../../lib/project";
@@ -16,6 +17,7 @@ import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
 import { getTaskSettings, recordTaskActivity } from "../../lib/task-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
+import { sessionOfChat } from "../../schemas/chat-id";
 import { FileUpload } from "../../schemas/file-upload";
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { SessionMessage } from "../../schemas/session/message";
@@ -112,6 +114,12 @@ const create = base
 
       const model = modelResult.value;
 
+      // A chat's record is made by the first thing sent in it, and its one
+      // session is the one its id names.
+      const chatSession = sessionOfChat(taskId);
+      if (chatSession) {
+        await ensureChat(taskId);
+      }
       const settings = await getTaskSettings(taskDir(taskId));
       const isOrchestrator = settings?.kind === "orchestrator";
 
@@ -125,10 +133,10 @@ const create = base
         finalSessionId = sessionId;
       } else {
         if (isOrchestrator) {
-          threadContext = await threadContextFor(taskId);
+          threadContext = await threadContextFor();
         }
         const sessionResult = await createSession({
-          sessionId: newSessionId ?? StoreId.newSessionId(),
+          sessionId: chatSession ?? newSessionId ?? StoreId.newSessionId(),
           taskId,
         });
         if (sessionResult.isErr()) {
@@ -137,7 +145,7 @@ const create = base
         }
         finalSessionId = sessionResult.value.id;
         if (isOrchestrator && topics && topics.length > 0) {
-          await setThreadTopics(taskId, finalSessionId, topics);
+          await setThreadTopics(finalSessionId, topics);
         }
       }
 

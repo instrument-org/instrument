@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -13,9 +13,9 @@ import { type Thread } from "./threads";
  * that read made filing feel slow. The live read's next answer is the truth,
  * and replaces the paint either way.
  */
-export function useSetThreadTopics(taskId: TaskId | undefined) {
+export function useSetThreadTopics() {
   const queryClient = useQueryClient();
-  const key = threadListOptions(taskId).queryKey;
+  const key = threadListOptions().queryKey;
   const mutation = useMutation(
     rpcClient.workspace.orchestrator.threads.setTopics.mutationOptions({
       onError: (error) => {
@@ -36,8 +36,6 @@ export function useSetThreadTopics(taskId: TaskId | undefined) {
     }),
   );
   return (sessionId: StoreId.Session, topics: string[]) => {
-    if (taskId) {
-      mutation.mutate({ id: taskId, sessionId, topics });
-    }
+    mutation.mutate({ sessionId, topics });
   };
 }

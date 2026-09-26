@@ -2,6 +2,7 @@ import { alphabetical, parallel, unique } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
+import { chatIdOf, sessionOfChat } from "../../schemas/chat-id";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -12,6 +13,7 @@ import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
+import { chatTaskIds } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, updateTaskState } from "../task-record";
@@ -24,6 +26,8 @@ import {
   type OrchestratorActivity,
   orchestratorActivity,
 } from "./activity";
+import { listChatIds } from "./chats";
+import { windowTaskId } from "./ensure";
 import { latestSessionId } from "./latest-session";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
@@ -157,7 +161,6 @@ interface Shared {
   /** The apps the workspace has, so a hold names only a real one. */
   knownApps: Set<string>;
   seen: Record<string, StoreId.Message>;
-  taskThreads: Record<string, StoreId.Session>;
 }
 
 /**
@@ -165,39 +168,40 @@ interface Shared {
  * where it was: putting a thread away is not something happening in it.
  */
 export async function archiveThread(
-  taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<boolean> {
-  return saveArchivedAt(taskId, sessionId, new Date());
+  return saveArchivedAt(sessionId, new Date());
 }
 
 /**
- * The conversation's threads, oldest first.
+ * Every chat, oldest first.
  *
- * Every top-level session of the orchestrator task is a thread once the user
- * has opened it with a message; a session with no such message (one a wake
- * made before anyone typed, say) is not one and is left out.
+ * Each chat is a record of its own holding one session, and it is a thread
+ * once the user has opened it with a message; one with no such message (made
+ * by a send that failed partway, say) is left out.
  */
-export async function listThreads(taskId: TaskId): Promise<Thread[]> {
-  const sessions = await Store.getSessions(taskId);
-  if (sessions.isErr()) {
-    return [];
-  }
-  const shared = await loadShared(taskId);
+export async function listThreads(): Promise<Thread[]> {
+  const shared = await loadShared();
   const threads = await parallel(
     { limit: READ_LIMIT },
-    alphabetical(sessions.value, (session) => session.id),
-    (session) => threadFor(taskId, session, shared),
+    listChatIds(),
+    async (chatId) => {
+      const sessionId = sessionOfChat(chatId);
+      if (!sessionId) {
+        return;
+      }
+      const session = await Store.getSession(sessionId, chatId);
+      return session.isOk() ? threadFor(session.value, shared) : undefined;
+    },
   );
   return threads.filter((thread) => thread !== undefined);
 }
 
 /** Records what the user has seen in a thread, so its count can clear. */
 export async function markThreadSeen(
-  taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<void> {
-  const messages = await threadMessages(taskId, sessionId);
+  const messages = await threadMessages(sessionId);
   if (!messages) {
     return;
   }
@@ -205,13 +209,13 @@ export async function markThreadSeen(
   if (!newest) {
     return;
   }
-  await updateTaskState(taskDir(taskId), (state) => ({
+  await updateTaskState(taskDir(await windowTaskId()), (state) => ({
     threadSeen: { ...state.threadSeen, [sessionId]: newest },
   }));
   // What was seen is a fact about the session as the window shows it, and the
   // live list re-reads on the session's events, so the count clears the
   // moment the thread is opened rather than the next time something is said.
-  publisher.publish("session.updated", { id: taskId, sessionId });
+  publisher.publish("session.updated", { id: chatIdOf(sessionId), sessionId });
 }
 
 /**
@@ -221,10 +225,9 @@ export async function markThreadSeen(
  * finished reply has nothing to put back.
  */
 export async function markThreadUnseen(
-  taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<void> {
-  const ordered = await threadMessages(taskId, sessionId);
+  const ordered = await threadMessages(sessionId);
   if (!ordered) {
     return;
   }
@@ -235,13 +238,13 @@ export async function markThreadUnseen(
   const before = ordered
     .slice(0, ordered.indexOf(newest))
     .findLast((message) => message.role !== "session-context");
-  await updateTaskState(taskDir(taskId), (state) => {
+  await updateTaskState(taskDir(await windowTaskId()), (state) => {
     const { [sessionId]: _seen, ...rest } = state.threadSeen ?? {};
     return {
       threadSeen: before ? { ...rest, [sessionId]: before.id } : rest,
     };
   });
-  publisher.publish("session.updated", { id: taskId, sessionId });
+  publisher.publish("session.updated", { id: chatIdOf(sessionId), sessionId });
 }
 
 /**
@@ -249,11 +252,10 @@ export async function markThreadUnseen(
  * app never renames a thread the user has named.
  */
 export async function renameThread(
-  taskId: TaskId,
   sessionId: StoreId.Session,
   title: string,
 ): Promise<boolean> {
-  return saveMark(taskId, sessionId, (session) => ({
+  return saveMark(sessionId, (session) => ({
     ...session,
     title,
     titleSettledAt: new Date(),
@@ -262,11 +264,10 @@ export async function renameThread(
 
 /** Stars a thread, or takes the star off. The stamp stays where it was, as with putting a thread away. */
 export async function setThreadStarred(
-  taskId: TaskId,
   sessionId: StoreId.Session,
   starred: boolean,
 ): Promise<boolean> {
-  return saveMark(taskId, sessionId, (session) => {
+  return saveMark(sessionId, (session) => {
     const { starredAt: _was, ...rest } = session;
     return { ...rest, ...(starred ? { starredAt: new Date() } : {}) };
   });
@@ -278,10 +279,10 @@ export async function setThreadStarred(
  * was never made.
  */
 export async function setThreadTopics(
-  taskId: TaskId,
   sessionId: StoreId.Session,
   topics: string[],
 ): Promise<boolean> {
+  const taskId = chatIdOf(sessionId);
   const session = await Store.getSession(sessionId, taskId);
   if (session.isErr()) {
     return false;
@@ -300,10 +301,9 @@ export async function setThreadTopics(
 
 /** Records that the app is done naming a thread, leaving any rename after it to the user. */
 export async function settleThreadTitle(
-  taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<boolean> {
-  return saveMark(taskId, sessionId, (session) => ({
+  return saveMark(sessionId, (session) => ({
     ...session,
     titleSettledAt: new Date(),
   }));
@@ -311,14 +311,13 @@ export async function settleThreadTitle(
 
 /** One thread by its session id, or none for a session that is not one. */
 export async function threadById(
-  taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<Thread | undefined> {
-  const session = await Store.getSession(sessionId, taskId);
+  const session = await Store.getSession(sessionId, chatIdOf(sessionId));
   if (session.isErr() || session.value.parentId) {
     return undefined;
   }
-  return threadFor(taskId, session.value, await loadShared(taskId));
+  return threadFor(session.value, await loadShared());
 }
 
 /**
@@ -327,22 +326,20 @@ export async function threadById(
  * settled, and the next move is the user's.
  */
 export async function threadIsWorking(
-  taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<boolean> {
-  if (threadIsAlive(taskId, sessionId)) {
+  if (threadIsAlive(sessionId)) {
     return true;
   }
-  const { running } = await orchestratorActivity(taskId);
-  return running.some((task) => task.thread === sessionId && !task.waiting);
+  const { running } = await orchestratorActivity(chatIdOf(sessionId));
+  return running.some((task) => !task.waiting);
 }
 
 /** Brings a thread back into the inbox. */
 export async function unarchiveThread(
-  taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<boolean> {
-  return saveArchivedAt(taskId, sessionId, undefined);
+  return saveArchivedAt(sessionId, undefined);
 }
 
 /** The app slugs a thread reached: its own calls and the grants of its tasks. */
@@ -535,13 +532,13 @@ function latestFor({
   };
 }
 
-async function loadShared(taskId: TaskId): Promise<Shared> {
-  const state = await getTaskState(taskDir(taskId));
+async function loadShared(): Promise<Shared> {
+  const windowId = await windowTaskId();
+  const state = await getTaskState(taskDir(windowId));
   return {
-    activity: await orchestratorActivity(taskId),
+    activity: await orchestratorActivity(windowId),
     knownApps: await knownAppSlugs(),
     seen: state.threadSeen ?? {},
-    taskThreads: state.taskThreads ?? {},
   };
 }
 
@@ -584,11 +581,10 @@ function openedHostsIn(command: string): string[] {
  * re-read.
  */
 async function saveArchivedAt(
-  taskId: TaskId,
   sessionId: StoreId.Session,
   archivedAt: Date | undefined,
 ): Promise<boolean> {
-  return saveMark(taskId, sessionId, (session) => {
+  return saveMark(sessionId, (session) => {
     const { archivedAt: _was, ...rest } = session;
     return { ...rest, ...(archivedAt ? { archivedAt } : {}) };
   });
@@ -596,10 +592,10 @@ async function saveArchivedAt(
 
 /** Writes a mark of the user's onto the session record, announcing the change so the live list re-reads. */
 async function saveMark(
-  taskId: TaskId,
   sessionId: StoreId.Session,
   mark: (session: Session.Type) => Session.Type,
 ): Promise<boolean> {
+  const taskId = chatIdOf(sessionId);
   const session = await Store.getSession(sessionId, taskId);
   if (session.isErr()) {
     return false;
@@ -639,11 +635,11 @@ function textOf(message: SessionMessage.WithParts): string {
 }
 
 async function threadFor(
-  taskId: TaskId,
   session: Session.Type,
   shared: Shared,
 ): Promise<Thread | undefined> {
-  const messages = await threadMessages(taskId, session.id);
+  const taskId = chatIdOf(session.id);
+  const messages = await threadMessages(session.id);
   if (!messages) {
     return undefined;
   }
@@ -652,10 +648,7 @@ async function threadFor(
     return undefined;
   }
 
-  const filedTasks = Object.entries(shared.taskThreads).flatMap(
-    ([filed, sessionId]) =>
-      sessionId === session.id ? [TaskIdSchema.parse(filed)] : [],
-  );
+  const filedTasks = chatTaskIds(taskId);
   const filed = shared.activity.running.filter(
     (task) => task.thread === session.id,
   );
@@ -673,7 +666,7 @@ async function threadFor(
   // user.
   const ownAsk = askIn(messages);
   const working =
-    (threadIsAlive(taskId, session.id) && ownAsk === undefined) ||
+    (threadIsAlive(session.id) && ownAsk === undefined) ||
     turnIsStarting(messages) ||
     filed.some((task) => !task.waiting) ||
     filedTasks.some((filedTask) => hasPendingWake(taskId, filedTask));
@@ -742,9 +735,9 @@ async function threadFor(
 
 /** A thread's messages, oldest first, or nothing when they cannot be read. */
 function threadMessages(
-  taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<SessionMessage.WithParts[] | undefined> {
+  const taskId = chatIdOf(sessionId);
   const key = sessionKey(taskId, sessionId);
   const cached = messagesBySession.get(key);
   if (cached) {
@@ -775,9 +768,9 @@ function threadMessages(
  */
 const TURN_START_GRACE_MS = 30_000;
 
-function threadIsAlive(taskId: TaskId, sessionId: StoreId.Session): boolean {
+function threadIsAlive(sessionId: StoreId.Session): boolean {
   const status = getTaskAgentStatus({
-    id: taskId,
+    id: chatIdOf(sessionId),
     workspaceRef: getWorkspaceActorRef(),
   });
   return (

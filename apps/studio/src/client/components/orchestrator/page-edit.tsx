@@ -11,22 +11,33 @@ import { getWebviewElement } from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
-import { useAskAboutSelection } from "./ask-about-selection";
 import { pageEditPlacementAtom, usePageEdit } from "./page-edit-state";
+import {
+  linesLabel,
+  numbered,
+  useAskRevealer,
+  useFileAsks,
+  useMoveAsks,
+  useStageAsk,
+  useStagedAskActions,
+} from "./staged-asks";
 
 /**
  * Editing a page's file in place, from the window's side.
  *
  * The page tab's guest runs the editor itself (see `page-editor-guest/`); the
  * window turns Edit on and off, writes what the editor saves, tells it when
- * the file changed under it, and passes what the person asks about the page
- * to the conversation. A page is only ever edited from its tab, and the file
+ * the file changed under it, and stages what the person asks about the page
+ * beside the file's other asks, keeping the page's pins and the dock's list
+ * of them to what is staged. The dock is the page's tray: its button moves
+ * what waits into a chat, as the tray under any other file does. A page is only ever edited from its tab, and the file
  * a tab edits is the one it shows.
  */
 
@@ -42,11 +53,18 @@ const GuestMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({ state: z.unknown(), text: z.string(), type: z.literal("reload") }),
   z.object({
+    /** What the element's text alone does not say: a script makes or feeds it, and where. */
+    context: z.string(),
+    id: z.string(),
+    instruction: z.string(),
+    /** What the element is, as the editor names it: "Heading", "Button". */
+    label: z.string(),
     lines: z.tuple([z.number(), z.number()]).nullable(),
-    note: z.string(),
     quote: z.string(),
     type: z.literal("ask"),
   }),
+  z.object({ type: z.literal("move") }),
+  z.object({ id: z.string(), type: z.literal("unstage") }),
   z.object({ type: z.literal("leave") }),
   z.object({
     kind: z.string().nullable(),
@@ -133,10 +151,41 @@ export function PageEditSession({
   const [cover, setCover] = useState<null | string>(null);
   const { setEditing } = usePageEdit(tabId);
   const placement = useAtomValue(pageEditPlacementAtom);
-  const askAboutSelection = useAskAboutSelection();
-  const latest = useRef({ askAboutSelection, placement, setEditing });
+  const stageAsk = useStageAsk();
+  const { remove: removeAsks } = useStagedAskActions();
+  const { label: moveLabel, move } = useMoveAsks();
+  const asks = useFileAsks(path);
+  // The page's pins, numbered as the pills are, and which of them wait in
+  // the page's dock rather than in a chat's composer.
+  const staged = {
+    asks: numbered(asks).map(({ ask, n }) => ({
+      id: ask.id,
+      moved: ask.destination !== undefined,
+      n,
+    })),
+    moveLabel,
+    type: "staged",
+  };
+  const moveWaiting = () => {
+    move(asks.flatMap((ask) => (ask.destination ? [] : [ask.id])));
+  };
+  const latest = useRef({
+    moveWaiting,
+    placement,
+    removeAsks,
+    setEditing,
+    stageAsk,
+    staged,
+  });
   useEffect(() => {
-    latest.current = { askAboutSelection, placement, setEditing };
+    latest.current = {
+      moveWaiting,
+      placement,
+      removeAsks,
+      setEditing,
+      stageAsk,
+      staged,
+    };
   });
   // Serves the editor for as long as the tab is in Edit. `check` is how the
   // file watch below reaches the session.
@@ -203,16 +252,22 @@ export function PageEditSession({
       const message = parsed.data;
       switch (message.type) {
         case "ask": {
-          latest.current.askAboutSelection({
-            note: message.note,
+          const where = message.lines
+            ? linesLabel(message.lines)
+            : "on the page";
+          latest.current.stageAsk({
+            ...(message.context ? { context: message.context } : {}),
+            excerpt: message.quote,
+            id: message.id,
+            instruction: message.instruction,
             path,
-            quote: message.quote,
-            ...(message.lines ? { lines: message.lines } : {}),
+            target: `${message.label} · ${where}`,
           });
           break;
         }
         case "hello": {
           known = message.version;
+          send(latest.current.staged);
           check();
           setTimeout(() => {
             setCover(null);
@@ -221,6 +276,10 @@ export function PageEditSession({
         }
         case "leave": {
           latest.current.setEditing(false);
+          break;
+        }
+        case "move": {
+          latest.current.moveWaiting();
           break;
         }
         case "reload": {
@@ -256,6 +315,10 @@ export function PageEditSession({
           // What the editor would put in a status line; nothing here shows one.
           break;
         }
+        case "unstage": {
+          latest.current.removeAsks([message.id]);
+          break;
+        }
       }
     };
     webview.addEventListener("ipc-message", onMessage);
@@ -286,6 +349,24 @@ export function PageEditSession({
       // Not attached; the next load carries it.
     }
   }, [placement, target]);
+
+  // The page's pins follow the file's staged asks: numbered as the pills
+  // are, and gone once sent or removed.
+  const stagedKey = JSON.stringify(staged);
+  useEffect(() => {
+    try {
+      getWebviewElement(target)?.send(CHANNEL, latest.current.staged);
+    } catch {
+      // Not attached; the next hello carries them.
+    }
+  }, [stagedKey, target]);
+  useAskRevealer(path, (id) => {
+    try {
+      getWebviewElement(target)?.send(CHANNEL, { id, type: "reveal" });
+    } catch {
+      // Not attached: nothing to scroll.
+    }
+  });
 
   const watched = useQuery(
     rpcClient.files.live.info.experimental_liveOptions({ input: { path } }),
@@ -320,11 +401,12 @@ export function PageEditSession({
 /** View and Edit, side by side, for the row above the page. */
 export function PageEditToggle({ tabId }: { tabId: string }) {
   const { isEditing, setEditing } = usePageEdit(tabId);
-  const option = (label: string, value: boolean) => (
+  const option = (label: string, value: boolean, icon: ReactNode) => (
     <button
+      aria-label={label}
       aria-pressed={isEditing === value}
       className={cn(
-        "h-5.5 rounded-md border border-transparent px-2.5 text-xs font-medium outline-none focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
+        "h-5.5 rounded-md border border-transparent px-2.5 text-xs @max-xl/tabrow:px-1.5 font-medium outline-none focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
         isEditing === value
           ? "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30"
           : "text-muted-foreground hover:text-foreground",
@@ -334,7 +416,11 @@ export function PageEditToggle({ tabId }: { tabId: string }) {
       }}
       type="button"
     >
-      {label}
+      {/* Its mark alone in a narrow row. */}
+      <span className="@max-xl/tabrow:hidden">{label}</span>
+      <span className="hidden @max-xl/tabrow:inline [&_svg]:size-3.5">
+        {icon}
+      </span>
     </button>
   );
   return (
@@ -343,8 +429,8 @@ export function PageEditToggle({ tabId }: { tabId: string }) {
       label={isEditing ? "Back to the page" : "Edit this page"}
     >
       <div className="mr-1 flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
-        {option("View", false)}
-        {option("Edit", true)}
+        {option("View", false, <EyeIcon />)}
+        {option("Edit", true, <PencilSimpleIcon />)}
       </div>
     </ToolbarTooltip>
   );

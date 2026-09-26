@@ -45,6 +45,7 @@ import { PaneToggle } from "@/client/components/orchestrator/pane-toggle";
 import { RightPane } from "@/client/components/orchestrator/right-pane";
 import { screenLocation } from "@/client/components/orchestrator/screen-presentation";
 import { contextReaders } from "@/client/components/orchestrator/send-context";
+import { useStagedAskActions } from "@/client/components/orchestrator/staged-asks";
 import {
   type TabLocation,
   tasksFaceOfHref,
@@ -751,6 +752,7 @@ function OrchestratorLayout() {
     startingIds,
     startThread,
   } = useDrafts({
+    attachedFolders: state.data?.attachedFolders ?? {},
     compose,
     draftContext,
     ids,
@@ -837,6 +839,7 @@ function OrchestratorLayout() {
     },
     { isReady: ids !== undefined },
   );
+  const { moveTo: moveAsks } = useStagedAskActions();
   const screens: null | OrchestratorWindow = ids
     ? {
         // No session: a line a button hands over at the top level opens a
@@ -845,10 +848,15 @@ function OrchestratorLayout() {
         ask: (prompt) => {
           newDraft(prompt);
         },
-        askAbout: (items, words) => {
-          newDraft(words, items);
+        askAbout: (items) => {
+          newDraft(undefined, items);
         },
+        // With no chat beside the file, a new draft takes what was marked,
+        // opened over the file now that the marking is done.
         browser,
+        moveAsksToDraft: (ids) => {
+          moveAsks(ids, { draftId: newDraft(), kind: "draft" });
+        },
         // The composer is a draft in a window of its own, which takes the
         // caret as it opens.
         focusComposer: () => {

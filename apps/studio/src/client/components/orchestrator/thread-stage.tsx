@@ -17,7 +17,9 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useContext, useEffect, useState } from "react";
 
+import { AskPills } from "./ask-pills";
 import { OrchestratorContext, useOrchestrator } from "./context";
+import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { threadListOptions } from "./thread-list-query";
 import { ThreadWork } from "./thread-work";
 import { WorkingRow } from "./working-row";
@@ -181,6 +183,10 @@ function ChatScreen({
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
   );
+  // What was marked in files and moved into this thread's composer goes
+  // with its next message, as pills there.
+  const groupAsks = useComposerAsks({ kind: "thread", sessionId });
+  const { remove: removeAsks } = useStagedAskActions();
 
   // Reading the thread is what clears its count, so it is marked read on
   // arrival and again as each reply finishes while it is on screen. The pane
@@ -206,6 +212,7 @@ function ChatScreen({
     );
   }
   const modelURI = state.data.selectedModelURI ?? defaultModelURI;
+  const attachedFolders = state.data.attachedFolders ?? {};
   // Into this thread's own group, shown: an open from a thread's chat is the
   // thread's whatever the window has up at that moment, and never a silent
   // nothing because the group on screen was another's.
@@ -255,6 +262,25 @@ function ChatScreen({
               <TaskSessionProvider sessionId={sessionId} taskId={taskId}>
                 <TaskChat
                   alwaysSubmittable
+                  asks={
+                    groupAsks.length === 0
+                      ? undefined
+                      : {
+                          pills: <AskPills asks={groupAsks} />,
+                          take: () => {
+                            const part = asksPart(groupAsks, attachedFolders);
+                            const ids = groupAsks.map((ask) => ask.id);
+                            return part
+                              ? {
+                                  done: () => {
+                                    removeAsks(ids);
+                                  },
+                                  part,
+                                }
+                              : undefined;
+                          },
+                        }
+                  }
                   // What the thread is working on, over the composer: a
                   // task pressed opens beside the thread, in the pane.
                   beforeComposer={

@@ -51,6 +51,8 @@ const listWithParts = base
 const create = base
   .input(
     z.object({
+      /** Places in files the user marked, with what to change at each. */
+      asks: SessionMessageDataPart.AsksDataPartSchema.optional(),
       files: z.array(FileUpload.Schema).optional(),
       folders: z
         .array(
@@ -84,6 +86,7 @@ const create = base
       context,
       errors,
       input: {
+        asks,
         files,
         folders,
         id,
@@ -155,6 +158,7 @@ const create = base
       const isFirstMessageInSession = messageIdsBeforeResult.value.length === 0;
 
       const messageResult = await newMessage({
+        asks,
         files,
         folders,
         model,

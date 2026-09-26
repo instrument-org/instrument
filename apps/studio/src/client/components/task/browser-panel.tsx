@@ -541,6 +541,18 @@ export function TaskBrowserPanel({
                 <CopyIcon className="size-4" />
                 Copy URL
               </DropdownMenuItem>
+              {/* Also here for a row too narrow to show its own button. */}
+              <DropdownMenuItem
+                disabled={!pageUrl}
+                onSelect={() => {
+                  if (pageUrl) {
+                    openExternalLink.mutate({ url: pageUrl });
+                  }
+                }}
+              >
+                <ArrowSquareOutIcon className="size-4" />
+                Open in external browser
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         );
@@ -550,8 +562,12 @@ export function TaskBrowserPanel({
         const controls = (
           <>
             {pageControls}
+            {/* Reload stays a chord away in a narrow row, and the way out to
+                the user's browser is in the menu, so both give up their room
+                first. */}
             <ToolbarTooltip shortcut="reloadPage">
               <Button
+                className="@max-lg/tabrow:hidden"
                 disabled={!active}
                 onClick={() => webviewFor()?.reload()}
                 size="icon-sm"
@@ -563,6 +579,7 @@ export function TaskBrowserPanel({
             {menu}
             <ToolbarTooltip label="Open in external browser">
               <Button
+                className="@max-lg/tabrow:hidden"
                 disabled={!pageUrl}
                 onClick={() => {
                   if (pageUrl) {

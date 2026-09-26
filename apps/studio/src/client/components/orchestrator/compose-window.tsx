@@ -62,6 +62,7 @@ import {
 } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
+import { AskPills } from "./ask-pills";
 import { type BrowserTabsHandle, TabIcon } from "./browser-tabs";
 import { ComposeFiles } from "./compose-files";
 import {
@@ -75,6 +76,7 @@ import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { OutputPicker } from "./output-picker";
 import { screenPresentation } from "./screen-presentation";
+import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { TopicPill } from "./thread-row";
 import { draftTitle, type Topic } from "./threads";
 import { TopicMark } from "./topic-mark";
@@ -245,6 +247,9 @@ export function ComposeWindow({
   const appsBySlug = useAppsBySlug();
   const group = draftGroupOf(draft.id);
   const tabs = windowTabs.allTabs.filter((tab) => tab.group === group);
+  // What was marked in files and moved here, as pills that go with the words.
+  const marked = useComposerAsks({ draftId: draft.id, kind: "draft" });
+  const { moveTo: moveAsks } = useStagedAskActions();
   const up = windowTabs.tabUpIn(group);
   const isExpanded = placement === "expanded";
   // The thing the draft was opened over, while it is still there to point at.
@@ -603,8 +608,12 @@ export function ComposeWindow({
           // A draft is already open here; a new one from inside it would
           // come up behind the one being written.
           askAbout: undefined,
+          // What a file in its band marked goes into this draft.
           focusComposer: () => {
             inputRef.current?.focus();
+          },
+          moveAsksToDraft: (ids) => {
+            moveAsks(ids, { draftId: draft.id, kind: "draft" });
           },
           openPage,
           openPath: (path, options) => {
@@ -698,6 +707,9 @@ export function ComposeWindow({
                   // The band's rows are the ways in; a plus beside them
                   // would be a second door to the same rooms.
                   addMenu={false}
+                  attachmentsLead={
+                    marked.length > 0 ? <AskPills asks={marked} /> : undefined
+                  }
                   autoFocus
                   autoResizeMaxHeight={WORDS_MAX_HEIGHT}
                   beforeModel={
@@ -715,6 +727,7 @@ export function ComposeWindow({
                   }
                   className="min-h-0 flex-1"
                   draftKey={key}
+                  hasAttachmentsLead={marked.length > 0}
                   // The window becomes the thread's at the press, so the
                   // box is never left waiting on a send.
                   isLoading={false}

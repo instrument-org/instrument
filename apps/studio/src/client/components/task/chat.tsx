@@ -74,6 +74,7 @@ const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
 
 export function TaskChat({
   alwaysSubmittable = false,
+  asks,
   beforeComposer,
   composerLead,
   composerPlaceholder,
@@ -98,6 +99,18 @@ export function TaskChat({
    * arrives mid-turn and runs it the moment the turn ends.
    */
   alwaysSubmittable?: boolean;
+  /**
+   * Places marked in files that go with the next message: drawn as pills in
+   * the composer's attachments row, enough to send with no words, and taken
+   * at the moment of sending. `take` hands over what goes and a way to let
+   * those asks go once the message is written.
+   */
+  asks?: {
+    pills: ReactNode;
+    take: () =>
+      | undefined
+      | { done: () => void; part: SessionMessageDataPart.AsksDataPart };
+  };
   /** Drawn between the transcript and the composer, outside the scroll: a standing row the transcript's end does not move for. */
   beforeComposer?: ReactNode;
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
@@ -367,10 +380,12 @@ export function TaskChat({
       // Beside the work, the row stays open: a tab switch moves the caret, and
       // a row that folded and unfolded with it would animate on every switch.
       alwaysOpen={presentation === "orchestrator"}
+      attachmentsLead={asks?.pills}
       autoFocus
       className="relative z-10"
       draftKey={draftKey}
       folderTrayPlacement="above"
+      hasAttachmentsLead={asks?.pills != null}
       id={id}
       isLoading={createMessage.isPending}
       // The conversation's composer never turns into a stop: a message sent
@@ -420,9 +435,11 @@ export function TaskChat({
           enqueue({ files, folders, modelURI, prompt });
           return;
         }
+        const taken = asks?.take();
         void Promise.resolve(sendContext?.()).then((viewing) => {
           createMessage.mutate(
             {
+              ...(taken ? { asks: taken.part } : {}),
               files,
               folders,
               id,
@@ -438,6 +455,7 @@ export function TaskChat({
                 }
               },
               onSuccess: ({ sessionId }) => {
+                taken?.done();
                 if (!navigateOnSend) {
                   return;
                 }

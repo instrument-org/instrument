@@ -152,7 +152,7 @@ export function renderStylePanel(root, ctx) {
     if (reasons.length && props.every(isBlocked)) {
       s.classList.add("blocked");
       const note = add(
-        `<div class="sp-blocked">${ICONS.lock}<span>${reasons[0] === "responsive" ? "Set per screen size here." : "The page’s stylesheet sets these."}</span><button type="button" class="linkish">${ICONS.ask}Ask Instrument</button></div>`,
+        `<div class="sp-blocked">${ICONS.lock}<span>${reasons[0] === "responsive" ? "Set per screen size here." : "The page’s stylesheet sets these."}</span><button type="button" class="linkish">${ICONS.ask}Ask</button></div>`,
       );
       note.querySelector("button").onclick = () =>
         ctx.onAsk({

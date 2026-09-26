@@ -46,6 +46,7 @@ import {
   lineNumbers,
   showTooltip,
   type Tooltip,
+  WidgetType,
 } from "@codemirror/view";
 
 import { mark } from "../markdown-editor/icons";
@@ -72,7 +73,14 @@ export interface CodeSessionOptions {
   filename: string;
   hostPath: string;
   initial: { content: string; version: string };
-  onAsk: (selection: { lines: [number, number]; quote: string }) => void;
+  /** Asks about the selection: its words, where they are, and a box to stand the ask card by. */
+  onAsk: (selection: {
+    from: number;
+    lines: [number, number];
+    quote: string;
+    rect: DOMRect;
+    to: number;
+  }) => void;
   onExternalChange: (change: CodeExternalChange) => void;
   onStatus: (status: SaveStatus, detail?: string) => void;
   parent: HTMLElement;
@@ -101,6 +109,86 @@ const FLASH_MAX_LINES = 400;
 
 /** Marks the transaction that brings a disk change in, so it is not taken for typing. */
 const external = Annotation.define<boolean>();
+
+/** A staged ask's place in the text, kept in step with edits, and the number it wears (0 until the window numbers it). */
+interface AskMark {
+  from: number;
+  id: string;
+  n: number;
+  to: number;
+}
+
+const addAskMark = StateEffect.define<AskMark>();
+const setAskNumbers = StateEffect.define<{ id: string; n: number }[]>();
+const askMarkLine = Decoration.mark({ class: "cm-ask-mark" });
+
+/** A staged ask's number, at the end of its place. */
+class AskBadge extends WidgetType {
+  constructor(readonly n: number) {
+    super();
+  }
+  eq(other: AskBadge) {
+    return other.n === this.n;
+  }
+  ignoreEvent() {
+    return true;
+  }
+  toDOM() {
+    const badge = document.createElement("span");
+    badge.className = "cm-ask-badge";
+    badge.textContent = String(this.n);
+    return badge;
+  }
+}
+
+/** The places staged asks point at, tinted, each with its number at its end, mapped through every edit. */
+const askMarksField = StateField.define<AskMark[]>({
+  create: () => [],
+  provide: (field) =>
+    EditorView.decorations.from(field, (marks) =>
+      Decoration.set(
+        marks.flatMap((mark) =>
+          mark.n === 0
+            ? []
+            : [
+                ...(mark.to > mark.from
+                  ? [askMarkLine.range(mark.from, mark.to)]
+                  : []),
+                Decoration.widget({
+                  side: 1,
+                  widget: new AskBadge(mark.n),
+                }).range(mark.to),
+              ],
+        ),
+        true,
+      ),
+    ),
+  update: (marks, tr) => {
+    let next = tr.docChanged
+      ? marks.map((mark) => {
+          const from = tr.changes.mapPos(mark.from, 1);
+          return {
+            ...mark,
+            from,
+            to: Math.max(from, tr.changes.mapPos(mark.to, -1)),
+          };
+        })
+      : marks;
+    for (const effect of tr.effects) {
+      if (effect.is(addAskMark)) {
+        const added = effect.value;
+        next = [...next.filter((mark) => mark.id !== added.id), added];
+      } else if (effect.is(setAskNumbers)) {
+        const byId = new Map(effect.value.map(({ id, n }) => [id, n]));
+        next = next.flatMap((mark) => {
+          const n = byId.get(mark.id);
+          return n === undefined ? [] : [{ ...mark, n }];
+        });
+      }
+    }
+    return next;
+  },
+});
 
 const setFlash = StateEffect.define<{ from: number; to: number }[]>();
 const clearFlash = StateEffect.define();
@@ -382,9 +470,21 @@ export function createCodeSession(options: CodeSessionOptions) {
     if (from === to) {
       return;
     }
+    const start = view.coordsAtPos(from);
+    const end = view.coordsAtPos(to);
+    const left = Math.min(start?.left ?? 0, end?.left ?? 0);
+    const top = start?.top ?? end?.top ?? 0;
     options.onAsk({
+      from,
       lines: linesOf(state, from, to),
       quote: state.doc.sliceString(from, to, "\n"),
+      rect: new DOMRect(
+        left,
+        top,
+        Math.max(start?.right ?? 0, end?.right ?? 0) - left,
+        (end?.bottom ?? top) - top,
+      ),
+      to,
     });
   };
 
@@ -449,6 +549,7 @@ export function createCodeSession(options: CodeSessionOptions) {
         wrap.of(options.wrapLines ? EditorView.lineWrapping : []),
         studioEditorTheme,
         flashField,
+        askMarksField,
         options.readOnly ? [] : askTooltip(ask),
         sessionListener,
         normalizeBreaks,
@@ -515,6 +616,27 @@ export function createCodeSession(options: CodeSessionOptions) {
   window.addEventListener("beforeunload", onUnload);
 
   return {
+    /**
+     * Marks a staged ask's place, numbered once `setAskNumbers` names it; a
+     * place whose text no longer reads as it did is not marked.
+     */
+    addAskMark: (id: string, from: number, to: number, quote?: string) => {
+      const { doc } = view.state;
+      if (
+        to > doc.length ||
+        (quote !== undefined && doc.sliceString(from, to, "\n") !== quote)
+      ) {
+        return;
+      }
+      view.dispatch({ effects: addAskMark.of({ from, id, n: 0, to }) });
+    },
+    /** Where each staged ask's mark stands now, for putting them back on a later mount. */
+    askMarks: () =>
+      view.state.field(askMarksField).map(({ from, id, to }) => ({
+        from,
+        id,
+        to,
+      })),
     currentText,
     /** Saves what is unsaved, then tears the editor down. */
     destroy: async () => {
@@ -540,6 +662,23 @@ export function createCodeSession(options: CodeSessionOptions) {
       );
     },
     pull,
+    /** Scrolls a staged ask's place into view and selects it. */
+    revealAskMark: (id: string) => {
+      const mark = view.state
+        .field(askMarksField)
+        .find((entry) => entry.id === id);
+      if (!mark) {
+        return;
+      }
+      view.dispatch({
+        effects: EditorView.scrollIntoView(mark.from, { y: "center" }),
+        selection: EditorSelection.range(mark.from, mark.to),
+      });
+    },
+    /** The staged asks this file holds, numbered; a mark whose ask is gone goes too. */
+    setAskNumbers: (numbers: { id: string; n: number }[]) => {
+      view.dispatch({ effects: setAskNumbers.of(numbers) });
+    },
     setWrapLines: (on: boolean) => {
       view.dispatch({
         effects: wrap.reconfigure(on ? EditorView.lineWrapping : []),
@@ -549,7 +688,7 @@ export function createCodeSession(options: CodeSessionOptions) {
   };
 }
 
-/** The Ask Instrument button over a selection, as a CodeMirror tooltip. */
+/** The Ask button over a selection, as a CodeMirror tooltip. */
 function askTooltip(onAsk: (state: EditorState) => void): Extension {
   const tooltipsFor = (state: EditorState): readonly Tooltip[] => {
     const range = state.selection.main;
@@ -566,7 +705,7 @@ function askTooltip(onAsk: (state: EditorState) => void): Extension {
           const button = document.createElement("button");
           button.type = "button";
           button.className = "code-ask";
-          button.innerHTML = `${mark(14)}<span>Ask Instrument</span>`;
+          button.innerHTML = `${mark(14)}<span>Ask</span>`;
           // Pressing it must not move the caret out of the selection it asks about.
           button.addEventListener("mousedown", (event) => {
             event.preventDefault();

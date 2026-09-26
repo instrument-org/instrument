@@ -85,6 +85,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-appEvent": {
       return `<data-appEvent events="${part.data.events.map((event) => `${event.slug}:${event.event}`).join(",")}" />`;
     }
+    case "data-asks": {
+      return `<data-asks count="${part.data.asks.length}" />`;
+    }
     case "data-attachedFolderChanges": {
       const foldersList = part.data.removed
         .map(

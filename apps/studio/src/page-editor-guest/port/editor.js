@@ -140,6 +140,8 @@ export async function startEditor(bridge) {
   const redoStack = [];
   const requests = [];
   let nextN = 1;
+  // What the dock's move button says: into the chat beside the file, or a new one.
+  let moveLabel = "Add to new chat";
   let flashes = []; // { el, until, self }
   const verdictCache = new WeakMap();
 
@@ -198,6 +200,7 @@ export async function startEditor(bridge) {
       undo: undoStack.map(plainOp),
       redo: redoStack.map(plainOp),
       requests: requests.map((r) => ({
+        id: r.id,
         n: r.n,
         kind: r.kind,
         instruction: r.instruction,
@@ -478,7 +481,7 @@ export async function startEditor(bridge) {
     if (el === hoverEl) return;
     if (!el || el === sel) return setHover(el === sel ? null : null);
     const q = quick(el);
-    if (q.blocked) setHover(el, "refuse", REASONS[q.blocked], "ask Instrument");
+    if (q.blocked) setHover(el, "refuse", REASONS[q.blocked], "ask");
     else setHover(el, "edit", q.name);
   }
 
@@ -610,7 +613,7 @@ export async function startEditor(bridge) {
     let html = `<button type="button" class="tb-name" data-act="crumbs" data-tip="Select a parent · Esc or ⌘↑">${esc(i.name)}${I.chevron}</button>`;
     if (i.blocked) {
       html += `<span class="tb-reason">${I.lock}${esc(REASONS[i.blocked.reason])}</span>`;
-      html += `<button type="button" class="tb-ask solo" data-act="ask" data-tip="${esc(noteFor(i.blocked))}">${I.ask}<span>Ask Instrument</span></button>`;
+      html += `<button type="button" class="tb-ask solo" data-act="ask" data-tip="${esc(noteFor(i.blocked))}">${I.ask}<span>Ask</span></button>`;
     } else {
       html += '<span class="tb-sep"></span>';
       if (i.kind === "text" && i.textOk)
@@ -626,7 +629,7 @@ export async function startEditor(bridge) {
       html += `<button type="button" class="tb-icon" data-act="duplicate" data-tip="Duplicate · ⌘D"${off("duplicate")}>${I.dup}</button>`;
       html += `<button type="button" class="tb-icon" data-act="delete" data-tip="Delete · ⌫"${off("delete")}>${I.trash}</button>`;
       html += '<span class="tb-sep"></span>';
-      html += `<button type="button" class="tb-ask" data-act="ask" data-tip="Ask Instrument about this">${I.ask}<span>Ask</span></button>`;
+      html += `<button type="button" class="tb-ask" data-act="ask" data-tip="Ask about this">${I.ask}<span>Ask</span></button>`;
     }
     tb.innerHTML = html;
     tb.hidden = false;
@@ -846,7 +849,7 @@ export async function startEditor(bridge) {
     $(".ins-sub", head).textContent = "Saves to the page as you go";
     if (!info.styleOk || info.blocked) {
       const r = info.blocked ?? info.style;
-      body.innerHTML = `<div class="ins-blocked"><p><b>${esc(REASONS[r.reason])}.</b> ${esc(noteFor(r))}</p><button type="button" class="primary agent">${I.ask}<span>Ask Instrument</span></button></div>`;
+      body.innerHTML = `<div class="ins-blocked"><p><b>${esc(REASONS[r.reason])}.</b> ${esc(noteFor(r))}</p><button type="button" class="primary agent">${I.ask}<span>Ask</span></button></div>`;
       $("button", body).onclick = () => openAskFor(sel);
       return;
     }
@@ -1837,7 +1840,7 @@ export async function startEditor(bridge) {
       `Could not save directly: ${why}. Turned it into request ${nextN - 1} for the agent.`,
       "warn",
     );
-    showToast(`Sent to requests · ${why}`, {});
+    showToast(`Added to your asks · ${why}`, {});
     serial(() => reloadKeeping(src));
     if (pendingExternal) serial(applyExternal);
   }
@@ -1859,7 +1862,7 @@ export async function startEditor(bridge) {
       `Could not save directly: ${why}. Turned it into request ${nextN - 1} for the agent.`,
       "warn",
     );
-    showToast(`Sent to requests · ${why}`, {});
+    showToast(`Added to your asks · ${why}`, {});
   }
 
   // ---------------------------------------------------------------- image
@@ -2513,7 +2516,7 @@ export async function startEditor(bridge) {
     asking = { el, verdict, edit, change };
     const kind = $(".kind", pop);
     kind.innerHTML = verdict.ok
-      ? `${I.ask}<span>Ask Instrument</span>`
+      ? `${I.ask}<span>Ask</span>`
       : esc(REASONS[verdict.reason]);
     kind.className = `kind ${verdict.ok ? "" : "refuse"}`;
     $(".where", pop).textContent = verdict.ok
@@ -2567,7 +2570,7 @@ export async function startEditor(bridge) {
   pop.addEventListener("submit", (e) => {
     e.preventDefault();
     const text = $("textarea", pop).value.trim();
-    if (!text || !asking) return;
+    if (!asking) return;
     const { el, verdict, edit, change } = asking;
     addRequest(el, verdict, text, edit, change);
     closeAsk();
@@ -2591,6 +2594,7 @@ export async function startEditor(bridge) {
       change,
     });
     const r = {
+      id: crypto.randomUUID(),
       n: nextN++,
       kind: edit ? "edit" : "ask",
       instruction,
@@ -2608,9 +2612,11 @@ export async function startEditor(bridge) {
   }
 
   /**
-   * Hands a request to the conversation: the element's source as written, by
-   * its exact lines, and what the person asked. The pin stays on the page for
-   * the rest of the session, so it can be found again.
+   * Hands a request to the window, which stages it beside the file's other
+   * asks until the person moves them into a chat: the element's source as
+   * written, by its exact lines, what it is, and what the person asked. The
+   * pin stays on the page for as long as the window holds the ask, so it can
+   * be found again.
    */
   function sendAsk(r) {
     const p = r.payload;
@@ -2626,12 +2632,19 @@ export async function startEditor(bridge) {
       .join("\n");
     bridge.send({
       type: "ask",
+      id: r.id,
       quote,
+      label: p.label || kindName(r.el ?? document.body),
       lines: p.line != null && p.endLine != null ? [p.line, p.endLine] : null,
-      note: context ? `${r.instruction}\n\n${context}` : r.instruction,
+      context,
       instruction: r.instruction,
     });
-    showToast(`Sent to Instrument · ${clip(r.instruction, 60)}`, {});
+    showToast(
+      r.instruction
+        ? `Added · ${clip(r.instruction, 60)}`
+        : "Added to your asks",
+      {},
+    );
   }
 
   /** After the file changes, find each request's element again from its source snippet. */
@@ -2685,10 +2698,15 @@ export async function startEditor(bridge) {
     layout();
   }
 
+  /**
+   * The dock's list of the asks still waiting on this page: those the window
+   * has not yet moved into a chat. Moved ones keep their pins until sent.
+   */
   function renderPanel() {
     const list = $("#req-list");
     list.innerHTML = "";
-    for (const r of requests) {
+    const waiting = requests.filter((r) => !r.moved);
+    for (const r of waiting) {
       const li = document.createElement("li");
       li.dataset.n = r.n;
       li.innerHTML = `<span class="pin num ${r.kind} ${r.stale ? "stale" : ""}">${r.n}</span><div><div class="instr"></div><div class="what"></div></div><button class="x" title="Remove">${I.close}</button>`;
@@ -2707,6 +2725,7 @@ export async function startEditor(bridge) {
       li.onclick = (e) => {
         if (e.target.closest(".x")) {
           requests.splice(requests.indexOf(r), 1);
+          bridge.send({ type: "unstage", id: r.id });
           renderPanel();
           layout();
           return;
@@ -2719,11 +2738,24 @@ export async function startEditor(bridge) {
       };
       list.append(li);
     }
-    $(".empty", panel).hidden = requests.length > 0;
+    $(".empty", panel).hidden = waiting.length > 0;
     const count = $("#req-btn .count");
-    count.textContent = requests.length;
-    count.classList.toggle("has", requests.length > 0);
+    count.textContent = waiting.length;
+    count.classList.toggle("has", waiting.length > 0);
+    for (const button of [$("#move-btn"), $("#panel-move-btn")]) {
+      button.hidden = waiting.length === 0;
+      $("span", button).textContent = moveLabel;
+    }
   }
+
+  // Moves the waiting asks into the chat beside the file, or a new draft;
+  // the window does it, and says so back with the next staged list.
+  const move = () => {
+    setPanel(null);
+    bridge.send({ type: "move" });
+  };
+  $("#move-btn").onclick = move;
+  $("#panel-move-btn").onclick = move;
 
   $("#req-btn").onclick = () =>
     setPanel(panelMode === "requests" ? null : "requests");
@@ -2964,6 +2996,29 @@ export async function startEditor(bridge) {
       onExternalChange();
     } else if (message.type === "placement") {
       applyPlacement(message.placement);
+    } else if (message.type === "staged") {
+      // The asks the window still holds for this file, numbered as its pills
+      // are: one sent or removed there takes its pin with it, and one moved
+      // into a chat leaves the dock's list but keeps its pin until sent.
+      const byId = new Map(message.asks.map((a) => [a.id, a]));
+      for (let i = requests.length - 1; i >= 0; i--) {
+        const staged = byId.get(requests[i].id);
+        if (!staged) requests.splice(i, 1);
+        else {
+          requests[i].n = staged.n;
+          requests[i].moved = staged.moved;
+        }
+      }
+      moveLabel = message.moveLabel;
+      renderPanel();
+      layout();
+    } else if (message.type === "reveal") {
+      const r = requests.find((entry) => entry.id === message.id);
+      if (r?.el?.isConnected) {
+        r.el.scrollIntoView({ block: "center", behavior: "smooth" });
+        flashes.push({ el: r.el, until: Date.now() + 2200 });
+        setTimeout(layout, 400);
+      }
     } else if (message.type === "leave") {
       leave();
     }

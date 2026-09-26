@@ -23,8 +23,8 @@ export const UI_HTML = `
     <form id="popover" class="pop ask" hidden>
       <div class="pop-head"><span class="kind"></span><span class="where"></span></div>
       <p class="note" hidden></p>
-      <textarea rows="3" placeholder="Tell Instrument what to change"></textarea>
-      <div class="pop-foot"><span class="hint"><kbd>↵</kbd> send</span><button type="button" class="ghost" data-cancel>Cancel</button><button type="submit" class="primary agent">Send</button></div>
+      <textarea rows="3" placeholder="What should change?"></textarea>
+      <div class="pop-foot"><span class="hint"><kbd>↵</kbd> add</span><button type="button" class="ghost" data-cancel>Cancel</button><button type="submit" class="primary agent">Add</button></div>
     </form>
 
     <div id="img-pop" class="pop" hidden>
@@ -43,10 +43,11 @@ export const UI_HTML = `
   </aside>
 
   <aside id="panel" class="dock-panel" hidden>
-    <header class="ins-head"><div><div class="ins-title">Asked</div><div class="ins-sub">Sent to Instrument from this page</div></div><button type="button" class="icon" data-close title="Close">
+    <header class="ins-head"><div><div class="ins-title">Asks</div><div class="ins-sub">Waiting to go to a chat</div></div><button type="button" class="icon" data-close title="Close">
       ${icon("x", 14)}</button></header>
     <ol id="req-list"></ol>
-    <p class="empty">Select anything and choose <b>Ask</b> to send it to Instrument. Anything a script makes asks too.</p>
+    <p class="empty">Select anything and choose <b>Ask</b>. What you add waits here until you add it to a chat.</p>
+    <footer><button type="button" id="panel-move-btn" class="primary agent" hidden>${mark(14)}<span>Add to new chat</span></button></footer>
   </aside>
 
   <div id="agent-pill" hidden>${mark(14)}<span class="text">Instrument changed this page</span></div>
@@ -60,7 +61,8 @@ export const UI_HTML = `
     <button id="redo-btn" class="icon-btn" title="Redo (⇧⌘Z)" disabled>${icon("redo", 16)}</button>
     <span class="dock-sep"></span>
     <button id="page-btn" class="plain" title="Page colors, corners and type" hidden>${icon("palette", 16)}Page</button>
-    <button id="req-btn" class="plain" title="What this page has asked Instrument">Asked <span class="count">0</span></button>
+    <button id="req-btn" class="plain" title="What you marked on this page">Asks <span class="count">0</span></button>
+    <button id="move-btn" class="primary agent small" title="Move the asks into a chat, to add words and send" hidden>${mark(14)}<span>Add to new chat</span></button>
   </div>
   <input type="file" id="img-file" accept="image/*" hidden>
 </div>`;

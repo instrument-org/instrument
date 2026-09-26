@@ -178,11 +178,22 @@ export function titleSourceText(message: SessionMessage.UserWithParts): string {
   // not the `[$name](skill:name)` wire form the mention is stored in.
   const text = renderSkillMentionsAsText(textForMessage(message));
 
+  // What the user marked in their files is the request when they typed
+  // nothing else, so the title is drawn from it too.
+  const asks = message.parts.find((part) => part.type === "data-asks");
+  const asked = asks
+    ? `Changes asked for: ${asks.data.asks
+        .map(
+          (ask) =>
+            `${ask.file.name}, ${ask.target}${ask.instruction.trim() ? `: ${ask.instruction.trim()}` : ""}`,
+        )
+        .join("; ")}`
+    : "";
   const attachments = message.parts.find(
     (part) => part.type === "data-attachments",
   );
   if (!attachments) {
-    return text;
+    return [text, asked].filter(Boolean).join("\n\n");
   }
 
   const fileNames = attachments.data.files
@@ -197,7 +208,7 @@ export function titleSourceText(message: SessionMessage.UserWithParts): string {
     .map((folder) => shortenHomePath(folder.path, os.homedir()))
     .join(", ");
 
-  const sections = [text];
+  const sections = [text, asked].filter(Boolean);
   if (fileNames) {
     sections.push(`Files attached by user: ${fileNames}`);
   }

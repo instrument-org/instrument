@@ -31,6 +31,7 @@ import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 export async function newMessage({
+  asks,
   files,
   folders,
   intent,
@@ -44,6 +45,8 @@ export async function newMessage({
   threadContext,
   viewing,
 }: {
+  /** Places in files the user marked, with what to change at each; see the asks part. */
+  asks?: SessionMessageDataPart.AsksDataPart;
   files?: FileUpload.Type[];
   folders?: {
     access?: FolderAttachment.Access;
@@ -117,6 +120,19 @@ export async function newMessage({
         sessionId,
       },
       type: "data-viewContext",
+    });
+  }
+
+  if (asks) {
+    parts.push({
+      data: asks,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-asks",
     });
   }
 

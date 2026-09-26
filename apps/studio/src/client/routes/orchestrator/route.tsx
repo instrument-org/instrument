@@ -715,9 +715,7 @@ function OrchestratorLayout() {
   // for a window whose default was never saved.
   const modelURI = defaultModelURI ?? state.data?.selectedModelURI;
   const topicsQuery = useQuery(
-    rpcClient.workspace.orchestrator.topics.list.queryOptions({
-      input: ids ? { id: ids.taskId } : skipToken,
-    }),
+    rpcClient.workspace.orchestrator.topics.list.queryOptions(),
   );
   const topics = topicsQuery.data ?? [];
   const createTopic = useMutation(
@@ -1274,7 +1272,7 @@ function OrchestratorLayout() {
                       (thread) => thread.id === threadUp,
                     );
                     createTopic.mutate(
-                      { ...topic, id: screens.taskId },
+                      topic,
                       {
                         onSuccess: (created) => {
                           for (const id of alsoFile) {

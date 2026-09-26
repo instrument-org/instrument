@@ -392,7 +392,7 @@ async function createThreadTopicsPart({
       return undefined;
     }
   }
-  const known = await listTopics(taskId);
+  const known = await listTopics();
   const topics = tagged.flatMap((id) => {
     const topic = known.find((entry) => entry.id === id);
     return topic

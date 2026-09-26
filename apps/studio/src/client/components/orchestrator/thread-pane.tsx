@@ -63,9 +63,7 @@ export function ThreadPane({
   const appsBySlug = useAppsBySlug();
   const threadsQuery = useQuery(threadListOptions(taskId));
   const topicsQuery = useQuery(
-    rpcClient.workspace.orchestrator.topics.list.queryOptions({
-      input: { id: taskId },
-    }),
+    rpcClient.workspace.orchestrator.topics.list.queryOptions(),
   );
   const threads: Thread[] = threadsQuery.data ?? [];
   const topics: Topic[] = topicsQuery.data ?? [];
@@ -235,7 +233,7 @@ export function ThreadPane({
         onCreate={(topic, alsoFile) => {
           const forThread = newTopic?.forThread;
           createTopic.mutate(
-            { ...topic, id: taskId },
+            topic,
             {
               onSuccess: (created) => {
                 // Chats offered were filed under nothing, so the new topic
@@ -276,16 +274,12 @@ export function ThreadPane({
             if (Object.keys(edits).length === 0) {
               return;
             }
-            updateTopic.mutate({
-              ...edits,
-              id: taskId,
-              topicId: editingTopic.id,
-            });
+            updateTopic.mutate({ ...edits, topicId: editingTopic.id });
           }}
           // Deleting retires the topic: the tag goes from the column and from
           // the filter if it was the one chosen; the threads keep everything.
           onDelete={() => {
-            retireTopic.mutate({ id: taskId, topicId: editingTopic.id });
+            retireTopic.mutate({ topicId: editingTopic.id });
             if (filters.topics.includes(editingTopic.id)) {
               changeFilters({ ...filters, topics: [] });
             }

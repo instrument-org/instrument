@@ -113,7 +113,7 @@ function listDirs(dir: string): string[] {
 
 function nestedTasks(): Map<TaskId, TaskDir> {
   const root = getWorkspaceConfig().rootDir;
-  if (index && index.root === root) {
+  if (index?.root === root) {
     return index.tasks;
   }
   const tasks = new Map<TaskId, TaskDir>();

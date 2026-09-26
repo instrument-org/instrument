@@ -1,12 +1,17 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
+import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { createTopic } from "../orchestrator/topics";
 import { Store } from "../store";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createChatCommand } from "./chat";
 
 vi.mock(import("../session-store-storage"));
@@ -30,10 +35,19 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 // Task state and sessions are real files under the mock workspace, so a task
 // id reused across runs would read the last run's threads.
 let counter = 0;
-const freshTask = () =>
-  createMockTaskConfig(
+const freshTask = () => {
+  const taskId = createMockTaskConfig(
     TaskIdSchema.parse(`chat-${Date.now()}-${(counter += 1)}`),
   );
+  // Topics are files at the workspace root, so each task gets a root of its own.
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    rootDir: WorkspaceDirSchema.parse(
+      fs.mkdtempSync(path.join(os.tmpdir(), "chat-root-")),
+    ),
+  });
+  return taskId;
+};
 
 function run(taskId: TaskId, ...args: string[]) {
   return createChatCommand({ orchestratorTaskId: taskId }).execute(
@@ -112,7 +126,7 @@ async function thread(
 describe("chat threads", () => {
   it("lists each thread with its state, title, topics and latest line", async () => {
     const taskId = freshTask();
-    await createTopic(taskId, { name: "Home" });
+    await createTopic({ name: "Home" });
     const groceries = await thread(
       taskId,
       "Groceries for the week",
@@ -185,7 +199,7 @@ describe("chat search", () => {
 describe("chat tag", () => {
   it("refuses a topic that does not exist and names the ones that do", async () => {
     const taskId = freshTask();
-    await createTopic(taskId, { name: "Home" });
+    await createTopic({ name: "Home" });
     await thread(taskId, "Groceries", "make me a grocery list");
 
     const result = await run(taskId, "tag", "groceries", "work");
@@ -198,7 +212,7 @@ describe("chat tag", () => {
 
   it("files the thread under the topic", async () => {
     const taskId = freshTask();
-    const home = await createTopic(taskId, { name: "Home" });
+    const home = await createTopic({ name: "Home" });
     const sessionId = await thread(
       taskId,
       "Groceries",
@@ -216,7 +230,7 @@ describe("chat tag", () => {
 describe("chat topics", () => {
   it("names the topics in use", async () => {
     const taskId = freshTask();
-    await createTopic(taskId, {
+    await createTopic({
       about: "the house",
       emoji: "🏠",
       name: "Home",

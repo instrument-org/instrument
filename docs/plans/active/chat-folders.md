@@ -37,7 +37,7 @@ workspace/
 ```
 
 - **A chat's folder is named the way a task's is**: the day it began and up to 24 characters of its first words, shorter than a task's 40 because a chat's tasks nest inside it and a deep path inside a task has to fit around both names. Its settings name the session it holds (`chatSessionId`), and the folder index maps a session to its chat and back; the window asks `orchestrator.chats.of` for a thread's record, and each listed thread carries its `chatId`.
-- **A chat's record is made before the window shows it.** `orchestrator.chats.ensure` runs at the draft's send, and `message.create` makes it too if it is missing. Drafts stay in window storage, so an empty chat folder never exists.
+- **A chat's record is made before the window shows it.** `orchestrator.chats.ensure` runs at the draft's send, and only there: `message.create` takes the chat's record id and never makes one. Drafts stay in window storage, so a chat folder exists only once something was sent, though a send that fails after `ensure` leaves a chat folder with no messages in it.
 - **The folder is the owner.** A task belongs to the chat whose `tasks/` holds it, and `parentTaskId` names the chat. `taskThreads` and `taskChannels` are gone.
 - **Task folders keep their names.** They stay dated and readable, and ids stay unique across the whole workspace: `generate-task-folder-name` and `new-task-id` check inside every chat too.
 - **A chat's record reuses the task record.** Same `.instrument/{task.db,settings.json}`, same Store, same session store, same per-session actor, `kind: "orchestrator"` in settings (renamed with the rest of the thread vocabulary), and one session per chat. A chat takes none of a task's scaffold.

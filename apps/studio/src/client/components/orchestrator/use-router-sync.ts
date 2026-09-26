@@ -2,7 +2,12 @@ import { newTabHrefOf } from "@/client/atoms/orchestrator";
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { isWindowHref, PAGE_ROUTE, type useWindowTabs } from "./window-tabs";
+import {
+  isWindowHref,
+  PAGE_ROUTE,
+  sameHref,
+  type useWindowTabs,
+} from "./window-tabs";
 
 /**
  * Keeps the router and the tab on screen agreeing: the address follows the
@@ -49,8 +54,10 @@ export function useRouterSync(windowTabs: ReturnType<typeof useWindowTabs>) {
     // An address the history has already moved past is not one to follow:
     // the tabs were set for where the history is now, and following the
     // stale one would move them back, and the effect above forward, without
-    // end.
-    if (router.history.location.href !== location.href) {
+    // end. Compared as screens rather than as strings: the router writes the
+    // search back out its own way (`~` as `%7E`), so an address pushed to the
+    // history as written reads back from the router spelled differently.
+    if (!sameHref(router.history.location.href, location.href)) {
       return;
     }
     if (location.pathname === PAGE_ROUTE) {

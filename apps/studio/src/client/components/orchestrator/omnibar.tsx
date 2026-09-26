@@ -186,6 +186,11 @@ export function Omnibar({
   const typedSite = siteFromWords(typed);
   const typedPath = pathFromWords(typed);
 
+  // Done with: the field goes back to showing the place, which is also what
+  // answers a path typed again for where the tab already is.
+  const arrived = () => {
+    input.current?.blur();
+  };
   /**
    * Opens a typed path where the field is: the folder in this tab, rooted
    * where the tab already is when the folder is under it, so the columns keep
@@ -212,6 +217,7 @@ export function Omnibar({
       // once the viewer found the file missing.
       if (await fileExists(host)) {
         router.history.push(fileHref(host));
+        arrived();
         return;
       }
       toast(`Nothing at “${written}”`, {
@@ -244,6 +250,7 @@ export function Omnibar({
         : { path: "", root: host === home ? "~" : host },
       to: "/orchestrator/computer",
     });
+    arrived();
   };
 
   const screens = SCREENS.filter((screen) => matches(screen.name)).slice(
@@ -551,7 +558,21 @@ export function Omnibar({
             }
             case "Enter": {
               event.preventDefault();
-              rows[current]?.run();
+              if (typed !== "") {
+                rows[current]?.run();
+                break;
+              }
+              // Nothing typed over the place, so no list is showing and no
+              // row is what was asked for. The place itself, entered as it
+              // stands, goes there again the way a browser's address does: a
+              // path is opened afresh, and anything else hands the field
+              // back to the place.
+              const again = pathFromWords(query.trim());
+              if (again) {
+                void openPath(again);
+              } else if (resting !== undefined) {
+                event.currentTarget.blur();
+              }
               break;
             }
             case "Escape": {

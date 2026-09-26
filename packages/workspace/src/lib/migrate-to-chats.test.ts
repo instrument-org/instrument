@@ -103,6 +103,16 @@ function oneConversation() {
     null,
     superjson({ files: ["attachments/a.png"], type: "data-attachments" }),
   );
+  insert.run(
+    `parts:${THREAD}:msg_1:prt_4`,
+    null,
+    superjson({ text: "Saved /task/work/shot.png and work/shared.md", type: "text" }),
+  );
+  insert.run(
+    `parts:${CHANNEL}:msg_1:prt_5`,
+    null,
+    superjson({ text: "See work/shared.md", type: "text" }),
+  );
   // A session the store would not take back: its rows stay where they are.
   insert.run("sessions:ses_legacy1", null, superjson({ id: "ses_legacy1" }));
   insert.run("messages:ses_legacy1:msg_9", null, superjson({ role: "user" }));
@@ -122,6 +132,10 @@ function oneConversation() {
   fs.writeFileSync(path.join(windowFolder, "attachments", "a.png"), "png");
   fs.mkdirSync(path.join(windowFolder, ".tool-output"));
   fs.writeFileSync(path.join(windowFolder, ".tool-output", "prt_2.log"), "out");
+  // A screenshot the thread's agent took, and a file both chats name.
+  fs.mkdirSync(path.join(windowFolder, "work"));
+  fs.writeFileSync(path.join(windowFolder, "work", "shot.png"), "png");
+  fs.writeFileSync(path.join(windowFolder, "work", "shared.md"), "md");
 
   for (const task of [
     "2026-09-24-from-a-thread",
@@ -193,9 +207,11 @@ describe("migrateToChats", () => {
         "chats/2026-09-24-transcribe-the-note/.tool-output/prt_2.log",
         "chats/2026-09-24-transcribe-the-note/attachments/data.png",
         "chats/2026-09-24-transcribe-the-note/tasks/2026-09-24-from-a-thread/.instrument/settings.json",
+        "chats/2026-09-24-transcribe-the-note/work/shot.png",
         "tasks/2026-08-07-a-1x-task/.instrument/settings.json",
         "tasks/instrument/.instrument/settings.json",
         "tasks/instrument/.instrument/task.db",
+        "tasks/instrument/work/shared.md",
         "topics/top_01/topic.md",
       ]
     `);
@@ -207,6 +223,7 @@ describe("migrateToChats", () => {
         "messages:ses_01M3AX9RF3C2E9RTATMB602W0B:msg_1",
         "parts:ses_01M3AX9RF3C2E9RTATMB602W0B:msg_1:prt_1",
         "parts:ses_01M3AX9RF3C2E9RTATMB602W0B:msg_1:prt_2",
+        "parts:ses_01M3AX9RF3C2E9RTATMB602W0B:msg_1:prt_4",
         "sessions:ses_01M3AX9RF3C2E9RTATMB602W0B",
       ]
     `);
@@ -375,6 +392,33 @@ describe("migrateToChats", () => {
       { recursive: true },
     );
     expect(migrateToChats(root).movedTaskCount).toBe(1);
+  });
+
+  it("keeps a chat's rows, tasks and maps in the window while its database cannot be written", () => {
+    oneConversation();
+    // An earlier run named the chat, and something stands where its database goes.
+    writeJson(
+      path.join(root, "chats", THREAD_CHAT, ".instrument", "settings.json"),
+      { chatSessionId: THREAD, kind: "orchestrator", name: "Instrument" },
+    );
+    fs.mkdirSync(path.join(root, "chats", THREAD_CHAT, ".instrument", "task.db"));
+
+    const migration = migrateToChats(root);
+    expect(migration.chatCount).toBe(1);
+    expect(migration.leftOver).toBe(2);
+    const windowDb = path.join(root, "tasks", "instrument", ".instrument", "task.db");
+    expect(keysIn(windowDb).filter((key) => key.includes(THREAD))).toHaveLength(5);
+    expect(fs.existsSync(path.join(root, "tasks", "2026-09-24-from-a-thread"))).toBe(true);
+    const state = readJson(
+      path.join(root, "tasks", "instrument", ".instrument", "settings.json"),
+    ).state as Record<string, unknown>;
+    expect(state.taskThreads).toBeDefined();
+
+    fs.rmSync(path.join(root, "chats", THREAD_CHAT, ".instrument", "task.db"), {
+      recursive: true,
+    });
+    expect(migrateToChats(root)).toMatchObject({ leftOver: 0, movedTaskCount: 1 });
+    expect(keysIn(windowDb).filter((key) => key.includes(THREAD))).toEqual([]);
   });
 
   it("moves what an older build wrote in the old layout after an earlier run", () => {

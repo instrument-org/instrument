@@ -46,20 +46,20 @@ export interface ChatsMigration {
   topicCount: number;
 }
 
-interface StoreRow {
-  blob: null | Uint8Array;
-  created_at: null | string;
-  key: string;
-  updated_at: null | string;
-  value: null | string;
-}
-
 interface StoredSession {
   createdAt?: string;
   id: StoreId.Session;
   parentId?: string;
   title?: string;
   updatedAt?: string;
+}
+
+interface StoreRow {
+  blob: null | Uint8Array;
+  created_at: null | string;
+  key: string;
+  updated_at: null | string;
+  value: null | string;
 }
 
 /**
@@ -189,11 +189,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Whether a chat's rows name a file of the window's by its own name, as a
- * whole path segment, so `a.png` is not found inside `data.png`.
+ * whole path segment, so `a.png` is found neither inside `data.png` nor in
+ * `a.png.bak`.
  */
 function mentions(rows: StoreRow[], fileName: string): boolean {
   const escaped = fileName.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
-  const pattern = new RegExp(String.raw`(^|[/"\\])${escaped}($|["\\])`);
+  const pattern = new RegExp(
+    String.raw`(^|[\s/"\\])${escaped}($|[^\w.-])`,
+  );
   return rows.some(
     (row) => row.key.startsWith("parts:") && pattern.test(textOf(row.blob)),
   );
@@ -220,11 +223,11 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
   // the tasks inside them, and the tasks no chat owns.
   const made = chatsBySession(chatsDir);
   const taken = new Set([
-    ...readDirs(tasksDir),
     ...readDirs(chatsDir),
     ...readDirs(chatsDir).flatMap((chat) =>
       readDirs(path.join(chatsDir, chat, TASKS_DIR_NAME)),
     ),
+    ...readDirs(tasksDir),
   ]);
 
   // The rows of every top-level session, and of each sub-agent session under
@@ -235,20 +238,25 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
   // Each session becomes a chat. A chat that fails to write keeps its rows
   // in the window, where the next boot finds them again.
   const chatOf = new Map<StoreId.Session, string>();
+  // The chats this run wrote whole: the only ones whose rows may leave the
+  // window. One an earlier boot began and this one could not finish keeps
+  // its rows where they are.
+  const written = new Set<StoreId.Session>();
+  const failed = new Set<StoreId.Session>();
   for (const [sessionId, chatRows] of groups) {
     const session = sessions.get(sessionId);
     if (!session) {
       continue;
     }
-    const name =
-      made.get(sessionId) ??
-      chatFolderName({
-        date: session.createdAt ? new Date(session.createdAt) : new Date(),
-        isTaken: (candidate) => taken.has(candidate),
-        title: session.title,
-      });
-    taken.add(name);
     try {
+      const name =
+        made.get(sessionId) ??
+        chatFolderName({
+          date: validDate(session.createdAt) ?? new Date(),
+          isTaken: (candidate) => taken.has(candidate),
+          title: session.title,
+        });
+      taken.add(name);
       writeChat({
         chatDir: path.join(chatsDir, name),
         rows: [...globals, ...chatRows],
@@ -257,21 +265,31 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
         windowState: state,
       });
       chatOf.set(sessionId, name);
+      written.add(sessionId);
       if (!made.has(sessionId)) {
         migration.chatCount += 1;
       }
     } catch {
+      failed.add(sessionId);
       migration.leftOver += 1;
     }
   }
+  // A chat an earlier boot made whole, whose rows are already gone from the
+  // window, still takes its tasks and files.
   for (const [sessionId, name] of made) {
     const parsed = StoreId.SessionSchema.safeParse(sessionId);
-    if (parsed.success && !chatOf.has(parsed.data)) {
+    if (parsed.success && !chatOf.has(parsed.data) && !failed.has(parsed.data)) {
       chatOf.set(parsed.data, name);
     }
   }
 
-  const tasksLeft = moveTasks({ chatOf, chatsDir, state, tasksDir });
+  const tasksLeft = moveTasks({
+    chatOf,
+    chatsDir,
+    sessions: new Set(groups.keys()),
+    state,
+    tasksDir,
+  });
   migration.movedTaskCount += tasksLeft.moved;
   migration.leftOver += moveFiles({ chatOf, chatsDir, groups, windowDir });
   const topics = writeTopics(rootDir, state);
@@ -282,13 +300,13 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
   // window's database only once its own database holds them, all in one
   // transaction. The window keeps the rest: its tabs' browser records, the
   // store's own version, and any session that could not become a chat.
-  if (chatOf.size > 0 && fs.existsSync(dbPath)) {
+  if (written.size > 0 && fs.existsSync(dbPath)) {
     const db = new DatabaseSync(dbPath);
     try {
       const remove = db.prepare("delete from sessions where key = ?");
       db.exec("BEGIN");
       for (const [sessionId, rows] of groups) {
-        if (!chatOf.has(sessionId)) {
+        if (!written.has(sessionId)) {
           continue;
         }
         for (const row of rows) {
@@ -297,7 +315,9 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
       }
       db.exec("COMMIT");
     } catch {
-      db.exec("ROLLBACK");
+      if (db.isTransaction) {
+        db.exec("ROLLBACK");
+      }
       migration.leftOver += 1;
     } finally {
       db.close();
@@ -319,10 +339,11 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
 }
 
 /**
- * A file sent in a chat, and a command's output spilled to a file, go with
- * the chat that names them: a sent file by its name as a whole path segment,
- * a spill by the id of the part it was written for. Returns how many could
- * not be moved.
+ * A file sent in a chat, a command's output spilled to a file, and a file the
+ * agent made or fetched go with the chat that names them: a spill by the id of
+ * the part it was written for, any other by its name as a whole path segment.
+ * A file more than one chat names stays in the window, since no one chat owns
+ * it, and so does anything in a subfolder. Returns how many could not be moved.
  */
 function moveFiles({
   chatOf,
@@ -337,21 +358,23 @@ function moveFiles({
 }): number {
   let left = 0;
   const files = [
-    ...readFiles(path.join(windowDir, TASK_FOLDER_NAMES.attachments)).map(
-      (name) => ({ dir: TASK_FOLDER_NAMES.attachments, name }),
-    ),
-    ...readFiles(path.join(windowDir, TASK_FOLDER_NAMES.toolOutput)).map(
-      (name) => ({ dir: TASK_FOLDER_NAMES.toolOutput, name }),
-    ),
-  ];
+    TASK_FOLDER_NAMES.attachments,
+    TASK_FOLDER_NAMES.downloads,
+    TASK_FOLDER_NAMES.screenshots,
+    TASK_FOLDER_NAMES.toolOutput,
+    TASK_FOLDER_NAMES.work,
+  ].flatMap((dir) =>
+    readFiles(path.join(windowDir, dir)).map((name) => ({ dir, name })),
+  );
   for (const { dir, name } of files) {
     const partId =
       dir === TASK_FOLDER_NAMES.toolOutput ? name.split(".")[0] : undefined;
-    const owner = [...groups].find(([, rows]) =>
+    const owners = [...groups].filter(([, rows]) =>
       partId
         ? rows.some((row) => row.key.endsWith(`:${partId}`))
         : mentions(rows, name),
-    )?.[0];
+    );
+    const owner = owners.length === 1 ? owners[0]?.[0] : undefined;
     const chat = owner ? chatOf.get(owner) : undefined;
     if (!chat) {
       continue;
@@ -378,11 +401,14 @@ function moveFiles({
 function moveTasks({
   chatOf,
   chatsDir,
+  sessions,
   state,
   tasksDir,
 }: {
   chatOf: Map<StoreId.Session, string>;
   chatsDir: string;
+  /** The sessions still in the window, which may yet become chats. */
+  sessions: Set<StoreId.Session>;
   state: Record<string, unknown>;
   tasksDir: string;
 }): { left: number; moved: number } {
@@ -396,7 +422,14 @@ function moveTasks({
     const parsed = StoreId.SessionSchema.safeParse(sessionId);
     const chat = parsed.success ? chatOf.get(parsed.data) : undefined;
     const from = path.join(tasksDir, taskName);
-    if (!chat || !fs.existsSync(from)) {
+    if (!fs.existsSync(from)) {
+      continue;
+    }
+    if (!chat) {
+      // Its chat is still to be made: the map has to stay for a later boot.
+      if (parsed.success && sessions.has(parsed.data)) {
+        left += 1;
+      }
       continue;
     }
     const to = path.join(chatsDir, chat, TASKS_DIR_NAME, taskName);
@@ -548,6 +581,11 @@ function textOf(blob: null | Uint8Array): string {
   return blob ? Buffer.from(blob).toString("utf8") : "";
 }
 
+function validDate(value: string | undefined): Date | undefined {
+  const date = value === undefined ? undefined : new Date(value);
+  return date && !Number.isNaN(date.getTime()) ? date : undefined;
+}
+
 /** The window records every chat is created beside: the conversation records that are not a chat's. */
 function windowRecordIds(tasksDir: string): string[] {
   return readDirs(tasksDir).filter((entry) => {
@@ -632,7 +670,9 @@ function writeChat({
       }
       db.exec("COMMIT");
     } catch (error) {
-      db.exec("ROLLBACK");
+      if (db.isTransaction) {
+        db.exec("ROLLBACK");
+      }
       throw error;
     }
   } finally {

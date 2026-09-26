@@ -49,6 +49,7 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useHydrateAtoms } from "jotai/utils";
@@ -78,6 +79,7 @@ import { screenPresentation } from "./screen-presentation";
 import { TopicPill } from "./thread-row";
 import { draftTitle, type Topic } from "./threads";
 import { TopicMark } from "./topic-mark";
+import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
 import { useIdeas } from "./use-ideas";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab, parseHref, useWindowTabs } from "./window-tabs";
@@ -346,6 +348,7 @@ export function ComposeWindow({
   const ideas = useIdeas();
   const output = ideas.data?.find((idea) => idea.name === draft.output);
   const topic = topics.find((entry) => entry.id === draft.topicId);
+  useDraftTopicSuggestion({ draft, onChange, topics, words });
 
   // The head's slot the composer's button row is drawn into. State rather
   // than a ref: the row is a portal, which needs the element to exist.
@@ -631,12 +634,17 @@ export function ComposeWindow({
                   onClear={() => {
                     onChange((current) => {
                       const { topicId: _dropped, ...rest } = current;
-                      return rest;
+                      return { ...rest, topicSource: "chosen" };
                     });
                   }}
                   onPick={(picked) => {
-                    onChange((current) => ({ ...current, topicId: picked.id }));
+                    onChange((current) => ({
+                      ...current,
+                      topicId: picked.id,
+                      topicSource: "chosen",
+                    }));
                   }}
+                  suggested={draft.topicSource === "suggested"}
                   topic={topic}
                   topics={topics}
                 />
@@ -1050,22 +1058,39 @@ function nameOfPath(path: string) {
 /**
  * The topic the thread will be filed under, after the draft's name: the pill
  * the thread will wear with a way to take it off, or a dashed slot that
- * offers the topics when none is picked yet.
+ * offers the topics when none is picked yet. A topic Instrument filed on its
+ * own carries a sparkle, the mark it puts on names it gave, so the person can
+ * tell it from one they picked.
  */
 function TopicSlot({
   onClear,
   onPick,
+  suggested,
   topic,
   topics,
 }: {
   onClear: () => void;
   onPick: (topic: Topic) => void;
+  suggested: boolean;
   topic: Topic | undefined;
   topics: Topic[];
 }) {
   if (topic) {
     return (
-      <span className="flex min-w-0 items-center gap-0.5">
+      <span
+        className="flex min-w-0 animate-in items-center gap-0.5 duration-300 fade-in-0"
+        title={
+          suggested
+            ? `Instrument filed this under ${topic.name} from what you wrote`
+            : undefined
+        }
+      >
+        {suggested && (
+          <SparkleIcon
+            aria-label="Filed by Instrument"
+            className="size-3 shrink-0 text-muted-foreground"
+          />
+        )}
         <TopicPill topic={topic} />
         <button
           aria-label={`Don't file under ${topic.name}`}

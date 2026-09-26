@@ -609,6 +609,30 @@ export function useWindowTabs() {
   };
 
   /** Puts the group on screen away: nothing is on screen until a group is asked for again. */
+  /**
+   * Drops a group and every tab in it, for a thread that no longer exists,
+   * and puts it away when it is the one on screen.
+   */
+  const forgetGroup = (key: string) => {
+    setTabs((current) => {
+      const { [key]: _remembered, ...activeByGroup } =
+        current.activeByGroup ?? {};
+      const tabs = current.tabs.filter((tab) => tab.group !== key);
+      const previousGroup =
+        current.previousGroup === key ? undefined : current.previousGroup;
+      return current.group === key
+        ? {
+            ...current,
+            activeByGroup,
+            activeId: null,
+            group: undefined,
+            previousGroup,
+            tabs,
+          }
+        : { ...current, activeByGroup, previousGroup, tabs };
+    });
+  };
+
   const leaveGroup = () => {
     setTabs((current) =>
       current.group === undefined
@@ -639,6 +663,7 @@ export function useWindowTabs() {
       active?.kind === "screen" && atOf(active) < trailOf(active).length - 1,
     dropGroup,
     /** The group on screen, by the thread's session id or the draft's key, or nothing while none is. */
+    forgetGroup,
     group,
     leaveGroup,
     navigateScreen,

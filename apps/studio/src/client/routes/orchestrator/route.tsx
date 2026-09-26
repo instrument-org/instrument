@@ -1038,6 +1038,14 @@ function OrchestratorLayout() {
                           leading={
                             <InboxToggle isCollapsible={showsRightArea} />
                           }
+                          onDeleted={() => {
+                            // The thread and the tabs it had are gone; the
+                            // inbox takes the window back.
+                            if (threadUp) {
+                              windowTabs.forgetGroup(threadUp);
+                            }
+                            setInboxOpen(true);
+                          }}
                           onNewTopic={() => {
                             setNewTopicOpen(true);
                           }}

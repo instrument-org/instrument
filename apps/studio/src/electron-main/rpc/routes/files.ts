@@ -2,6 +2,7 @@ import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import { eventIterator } from "@orpc/server";
 import { shell } from "electron";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -142,13 +143,82 @@ const trash = base
     }
   });
 
+/** A short fingerprint of a file's text, so a writer can say which version it edited. */
+function versionOf(text: string) {
+  return createHash("sha1").update(text).digest("hex").slice(0, 16);
+}
+
+/**
+ * The person's own edit to a text file they have open, written only when the
+ * file on disk is still the version the editor started from. When the agent
+ * (or anything else) wrote in between, nothing is written and the current text
+ * comes back, so the editor can merge it and try again.
+ */
+const write = base
+  .errors({ CANNOT_WRITE: { message: "That file cannot be written to" } })
+  .input(
+    z.object({
+      baseVersion: z.string().optional(),
+      content: z.string(),
+      path: HostPathSchema,
+    }),
+  )
+  .output(
+    z.discriminatedUnion("ok", [
+      z.object({ ok: z.literal(true), version: z.string() }),
+      z.object({
+        content: z.string(),
+        ok: z.literal(false),
+        version: z.string(),
+      }),
+    ]),
+  )
+  .handler(async ({ errors, input }) => {
+    try {
+      if (input.baseVersion !== undefined) {
+        const disk = await fs.readFile(input.path, "utf8");
+        const diskVersion = versionOf(disk);
+        if (diskVersion !== input.baseVersion) {
+          return { content: disk, ok: false as const, version: diskVersion };
+        }
+      }
+      await fs.writeFile(input.path, input.content);
+      return { ok: true as const, version: versionOf(input.content) };
+    } catch (error) {
+      throw errors.CANNOT_WRITE({
+        message: error instanceof Error ? error.message : undefined,
+      });
+    }
+  });
+
+/** A text file's contents and version, for an editor that will write it back. */
+const read = base
+  .input(z.object({ path: HostPathSchema }))
+  .output(z.object({ content: z.string(), version: z.string() }))
+  .handler(async ({ input }) => {
+    const content = await fs.readFile(input.path, "utf8");
+    return { content, version: versionOf(content) };
+  });
+
 const live = {
   /** One file on this computer, watched while something is looking at it: when it was last written, or null while it is not there. */
   info: base
-    .input(z.object({ path: HostPathSchema }))
+    .input(
+      z.object({
+        /** How often to look, for a viewer that wants changes sooner than the default second; floored at 200 ms. */
+        intervalMs: z.number().optional(),
+        path: HostPathSchema,
+      }),
+    )
     .output(eventIterator(z.object({ modifiedAt: z.number() }).nullable()))
     .handler(async function* ({ input, signal }) {
-      yield* watchHostFile({ path: input.path, signal });
+      yield* watchHostFile({
+        ...(input.intervalMs === undefined
+          ? {}
+          : { intervalMs: Math.max(200, input.intervalMs) }),
+        path: input.path,
+        signal,
+      });
     }),
 };
 
@@ -156,6 +226,8 @@ export const files = {
   duplicate,
   live,
   newFolder,
+  read,
   rename,
   trash,
+  write,
 };

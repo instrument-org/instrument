@@ -849,8 +849,8 @@ function OrchestratorLayout() {
         ask: (prompt) => {
           newDraft(prompt);
         },
-        askAbout: (items) => {
-          newDraft(undefined, items);
+        askAbout: (items, words) => {
+          newDraft(words, items);
         },
         browser,
         // The composer is a draft in a window of its own, which takes the

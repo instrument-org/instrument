@@ -120,8 +120,15 @@ export function useActiveHeading(
   return active;
 }
 
-/** The headings inside `scrollElement`, kept current as the document redraws. */
-export function useMarkdownHeadings(scrollElement: HTMLElement | null) {
+/**
+ * The headings inside `scrollElement`, kept current as the document redraws.
+ * `selector` narrows which count, for a document drawn among other markup
+ * (an editor's menus carry headings of their own).
+ */
+export function useMarkdownHeadings(
+  scrollElement: HTMLElement | null,
+  selector = HEADING_SELECTOR,
+) {
   const [headings, setHeadings] = useState<OutlineHeading[]>([]);
 
   useEffect(() => {
@@ -132,7 +139,20 @@ export function useMarkdownHeadings(scrollElement: HTMLElement | null) {
     let frame = 0;
     const read = () => {
       frame = 0;
-      setHeadings(readHeadings(scrollElement));
+      const next = readHeadings(scrollElement, selector);
+      // Typing redraws the document on every key; the same headings keep the
+      // same list, so the outline does not re-render (and re-measure) for it.
+      setHeadings((current) =>
+        current.length === next.length &&
+        current.every(
+          (heading, index) =>
+            heading.element === next[index]?.element &&
+            heading.text === next[index].text &&
+            heading.level === next[index].level,
+        )
+          ? current
+          : next,
+      );
     };
     const schedule = () => {
       frame ||= requestAnimationFrame(read);
@@ -153,7 +173,7 @@ export function useMarkdownHeadings(scrollElement: HTMLElement | null) {
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [scrollElement]);
+  }, [scrollElement, selector]);
 
   return headings;
 }
@@ -232,8 +252,8 @@ export function useOutlineLayout(
  * and the element itself is what a jump scrolls to. A second parse of the
  * source would have to reproduce every one of those decisions to agree.
  */
-function readHeadings(root: HTMLElement): OutlineHeading[] {
-  return [...root.querySelectorAll<HTMLElement>(HEADING_SELECTOR)]
+function readHeadings(root: HTMLElement, selector: string): OutlineHeading[] {
+  return [...root.querySelectorAll<HTMLElement>(selector)]
     .map((element) => ({
       element,
       level: Number(element.tagName.slice(1)),

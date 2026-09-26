@@ -62,6 +62,7 @@ export function ComposeFiles({
       <div className="h-full p-2">
         <FileViewer
           className="h-full"
+          editable
           file={{
             filename: fileName ?? file,
             hostPath: file,

@@ -47,6 +47,110 @@ const KIND: Record<MessageKind, { icon: ReactNode; label: string }> = {
 const ADDRESS = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 
 /**
+ * The ways out of a message: Copy takes the whole, and Send opens an email
+ * filled in, in the mail app or in Gmail, or shares anything else. The
+ * message is read when a button is pressed, so a surface whose message is
+ * being edited hands over what it says at that moment.
+ */
+export function MessageActions({
+  disabled = false,
+  getMessage,
+  kind,
+}: {
+  disabled?: boolean;
+  getMessage: () => MessageDraft;
+  kind: MessageKind;
+}) {
+  const openExternal = useOpenExternalLink();
+  const share = useMutation(rpcClient.utils.shareText.mutationOptions());
+  const { data: targets } = useQuery(
+    rpcClient.utils.sendTargets.queryOptions({
+      enabled: kind === "email",
+      staleTime: Infinity,
+    }),
+  );
+  const { active: copied, trigger: showCopied } = useTimedFlag();
+  const canShare = isMacOS();
+
+  const shareIt = () => {
+    share.mutate({ text: getMessage().body });
+  };
+
+  const copyWhole = async () => {
+    await navigator.clipboard.writeText(wholeOf(getMessage()));
+    showCopied();
+  };
+
+  return (
+    <>
+      <Button
+        disabled={disabled}
+        onClick={() => void copyWhole()}
+        size="xs"
+        variant="outline"
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
+        {copied ? "Copied" : "Copy"}
+      </Button>
+      {kind === "email" ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button disabled={disabled} size="xs" variant="brand">
+              Send
+              <CaretDownIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="bottom">
+            <DropdownMenuItem
+              onSelect={() => {
+                openExternal(mailtoOf(getMessage()), { addReferral: false });
+              }}
+            >
+              <AppIcon
+                fallback={<EnvelopeSimpleIcon />}
+                target={targets?.mail}
+              />
+              Open in {targets?.mail?.name ?? "Mail"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                openExternal(gmailOf(getMessage()), { addReferral: false });
+              }}
+            >
+              <AppIcon
+                fallback={<ArrowUpRightIcon />}
+                target={targets?.browser}
+              />
+              {targets?.browser
+                ? `Open Gmail in ${targets.browser.name}`
+                : "Open in Gmail"}
+            </DropdownMenuItem>
+            {canShare && (
+              <DropdownMenuItem onSelect={shareIt}>
+                <ExportIcon className="size-4" />
+                Share…
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        canShare && (
+          <Button
+            disabled={disabled}
+            onClick={shareIt}
+            size="xs"
+            variant="brand"
+          >
+            <ExportIcon />
+            Share
+          </Button>
+        )
+      )}
+    </>
+  );
+}
+
+/**
  * Words the user will send as their own, drawn as the thing they are rather
  * than as prose: what it is and who it is for, the subject and body in the
  * reply's own type, and the ways out. The subject and body each copy from the
@@ -67,27 +171,8 @@ export function MessageCard({
   isStreaming?: boolean;
   message: MessageDraft;
 }) {
-  const openExternal = useOpenExternalLink();
-  const share = useMutation(rpcClient.utils.shareText.mutationOptions());
-  const { data: targets } = useQuery(
-    rpcClient.utils.sendTargets.queryOptions({
-      enabled: message.kind === "email",
-      staleTime: Infinity,
-    }),
-  );
-  const { active: copied, trigger: showCopied } = useTimedFlag();
   const kind = KIND[message.kind];
-  const canShare = isMacOS();
   const settled = !isStreaming && message.body !== "";
-
-  const shareIt = () => {
-    share.mutate({ text: message.body });
-  };
-
-  const copyWhole = async () => {
-    await navigator.clipboard.writeText(wholeOf(message));
-    showCopied();
-  };
 
   return (
     <div className="not-prose my-2 w-full min-w-0 rounded-xl border border-border bg-card text-card-foreground shadow-xs">
@@ -133,63 +218,11 @@ export function MessageCard({
         </CopyablePart>
       </div>
       <div className="flex items-center justify-end gap-1.5 px-3.5 pb-3">
-        <Button
+        <MessageActions
           disabled={!settled}
-          onClick={() => void copyWhole()}
-          size="xs"
-          variant="outline"
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-          {copied ? "Copied" : "Copy"}
-        </Button>
-        {message.kind === "email" ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button disabled={!settled} size="xs" variant="brand">
-                Send
-                <CaretDownIcon />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="bottom">
-              <DropdownMenuItem
-                onSelect={() => {
-                  openExternal(mailtoOf(message), { addReferral: false });
-                }}
-              >
-                <AppIcon fallback={<EnvelopeSimpleIcon />} target={targets?.mail} />
-                Open in {targets?.mail?.name ?? "Mail"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  openExternal(gmailOf(message), { addReferral: false });
-                }}
-              >
-                <AppIcon fallback={<ArrowUpRightIcon />} target={targets?.browser} />
-                {targets?.browser
-                  ? `Open Gmail in ${targets.browser.name}`
-                  : "Open in Gmail"}
-              </DropdownMenuItem>
-              {canShare && (
-                <DropdownMenuItem onSelect={shareIt}>
-                  <ExportIcon className="size-4" />
-                  Share…
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          canShare && (
-            <Button
-              disabled={!settled}
-              onClick={shareIt}
-              size="xs"
-              variant="brand"
-            >
-              <ExportIcon />
-              Share
-            </Button>
-          )
-        )}
+          getMessage={() => message}
+          kind={message.kind}
+        />
       </div>
     </div>
   );
@@ -199,6 +232,14 @@ export function MessageCard({
 export function MessageFence({ code }: { code: string }) {
   const { isStreaming } = useContext(MarkdownTaskContext);
   return <MessageCard isStreaming={isStreaming} message={parseMessage(code)} />;
+}
+
+/** What a message is, as the card's head names it: its glyph and its word. */
+export function messageKindOf(kind: MessageKind): {
+  icon: ReactNode;
+  label: string;
+} {
+  return KIND[kind];
 }
 
 /** The icon of the app a Send row opens, or a glyph where there is none. */

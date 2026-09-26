@@ -1,0 +1,1453 @@
+/* The Markdown editor (Milkdown's Crepe) drawn in Studio's tokens and in the
+   type of Studio's static Markdown renderer (`prose prose-custom
+   prose-session text-sm/relaxed`), so switching between editing and the
+   static preview barely moves a line. Scoped under `.md-editor`; menus and
+   popovers the editor appends to the body carry their own `md-` classes. */
+
+.md-editor,
+.md-popover,
+.md-html-popover {
+  /* Tailwind's theme is inline, so its font stacks are not variables. */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --prose-body: var(--gray-700);
+  --prose-headings: var(--gray-900);
+  --prose-bold: var(--gray-900);
+  --prose-links: var(--gray-900);
+  --prose-code: var(--gray-900);
+  --prose-quotes: var(--gray-900);
+  --prose-captions: var(--gray-500);
+  --selection: color-mix(in srgb, var(--brand-500) 22%, transparent);
+  --focus: color-mix(in srgb, var(--brand-500) 55%, transparent);
+  --html-ink: var(--yellow-900);
+  --html-bg: color-mix(in srgb, var(--yellow-50) 70%, var(--card));
+  --html-line: var(--yellow-100);
+  --html-tag: var(--yellow-700);
+  --hl-keyword: #a626a4;
+  --hl-string: #50a14f;
+  --hl-number: #986801;
+  --hl-comment: #8e908c;
+  --hl-function: #4078f2;
+  --hl-type: #c18401;
+  --hl-tag: #e45649;
+  --hl-attr: #986801;
+  --hl-variable: #383a42;
+  --hl-punct: #5c5f66;
+}
+
+.dark .md-editor,
+.dark .md-popover,
+.dark .md-html-popover,
+.dark.md-popover,
+.dark.md-html-popover {
+  --prose-body: var(--gray-300);
+  --prose-headings: #ffffff;
+  --prose-bold: #ffffff;
+  --prose-links: #ffffff;
+  --prose-code: #ffffff;
+  --prose-quotes: var(--gray-100);
+  --prose-captions: var(--gray-400);
+  --selection: color-mix(in srgb, var(--brand-400) 35%, transparent);
+  --focus: color-mix(in srgb, var(--brand-400) 70%, transparent);
+  --html-ink: var(--yellow-300);
+  --html-bg: rgb(241 204 142 / 6%);
+  --html-line: rgb(241 204 142 / 16%);
+  --html-tag: var(--yellow-300);
+  --hl-keyword: #c678dd;
+  --hl-string: #98c379;
+  --hl-number: #d19a66;
+  --hl-comment: #7f848e;
+  --hl-function: #61afef;
+  --hl-type: #e5c07b;
+  --hl-tag: #e06c75;
+  --hl-attr: #d19a66;
+  --hl-variable: #d7dae0;
+  --hl-punct: #abb2bf;
+}
+
+.md-editor {
+  color: var(--prose-body);
+  font: 14px/1.625 var(--font-sans);
+}
+
+/* Images: the file's own pictures, the column's width at most. */
+.md-editor .md-image {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 6px;
+  vertical-align: bottom;
+}
+.md-editor .ProseMirror p:has(> .md-image:only-child) {
+  margin-block: 1.25em;
+}
+
+/* The selection toolbar's "Ask Instrument", a labeled button among the
+   icons: the app's way of asking Instrument, its mark in the brand's green
+   beside a plain label. */
+.md-editor .milkdown .milkdown-toolbar .toolbar-item:has(.md-ask) {
+  width: auto;
+  padding: 0 10px 0 8px;
+}
+.md-ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 13px/1 var(--font-sans);
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.md-editor .milkdown .milkdown-toolbar .toolbar-item .md-ask svg.md-mark {
+  width: 14px;
+  height: 14px;
+  color: var(--brand-600);
+  fill: currentColor;
+}
+.dark .md-editor .milkdown .milkdown-toolbar .toolbar-item .md-ask svg.md-mark {
+  color: var(--brand-400);
+}
+
+/* A fence Studio draws as something else (a message, files, a diagram) fills the block's preview. */
+.md-editor
+  .milkdown
+  .milkdown-code-block
+  .preview-panel
+  .preview:has(> .md-fence) {
+  display: block;
+  padding: 0;
+  text-align: initial;
+}
+.md-fence {
+  display: block;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* ------------------------------------------------ shared controls */
+
+.md-btn,
+.md-editor .md-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  font: 500 12px/1 var(--font-sans);
+  color: var(--foreground);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.md-btn:hover {
+  background: var(--muted);
+}
+.md-btn svg {
+  color: var(--muted-foreground);
+  flex: none;
+}
+.md-btn.is-primary,
+.md-editor .md-btn.is-primary {
+  background: var(--foreground);
+  color: var(--markdown-surface, var(--background));
+  border-color: transparent;
+}
+.md-btn.is-primary svg {
+  color: inherit;
+}
+.md-btn.is-primary:hover {
+  background: color-mix(
+    in srgb,
+    var(--foreground) 85%,
+    var(--markdown-surface, var(--background))
+  );
+}
+.md-input,
+.md-editor .md-input {
+  font: 13px/1.45 var(--font-sans);
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 6px 10px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.md-input.is-mono {
+  font: 12px/1.5 var(--font-mono);
+}
+.md-input:focus,
+.md-editor .md-input:focus {
+  outline: 3px solid color-mix(in srgb, var(--ring) 50%, transparent);
+  outline-offset: 0;
+}
+textarea.md-input {
+  resize: none;
+  display: block;
+  width: 100%;
+}
+.md-popover {
+  position: fixed;
+  z-index: 50;
+  background: var(--popover);
+  color: var(--foreground);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--elevation-lg);
+  font: 13px/1.4 var(--font-sans);
+}
+.md-spacer {
+  flex: 1;
+}
+
+/* ------------------------------------------------ editor: Crepe on Studio's tokens */
+
+.md-editor .milkdown {
+  --crepe-color-background: transparent;
+  --crepe-color-on-background: var(--prose-body);
+  --crepe-color-surface: var(--muted);
+  --crepe-color-surface-low: var(--muted);
+  --crepe-color-on-surface: var(--foreground);
+  --crepe-color-on-surface-variant: var(--muted-foreground);
+  --crepe-color-outline: var(--ring);
+  --crepe-color-primary: var(--foreground);
+  --crepe-color-secondary: var(--accent);
+  --crepe-color-on-secondary: var(--foreground);
+  --crepe-color-inverse: var(--foreground);
+  --crepe-color-on-inverse: var(--markdown-surface, var(--background));
+  --crepe-color-inline-code: var(--prose-code);
+  --crepe-color-error: var(--destructive);
+  --crepe-color-hover: var(--muted);
+  --crepe-color-selected: var(--accent);
+  --crepe-color-inline-area: var(--muted);
+  --crepe-font-default: var(--font-sans);
+  --crepe-font-title: var(--font-sans);
+  --crepe-font-code: var(--font-mono);
+  --crepe-shadow-1: var(--elevation-sm);
+  --crepe-shadow-2: var(--elevation-lg);
+  background: transparent;
+}
+/* Crepe's popups (slash menu, toolbar, link tooltip) on Studio's popover:
+   `rounded-xl bg-popover p-1`, raised, with ghost-toolbar buttons whose
+   icons sit at the app's `foreground/60`. */
+.md-editor .milkdown .milkdown-slash-menu,
+.md-editor .milkdown .milkdown-toolbar,
+.md-editor .milkdown .milkdown-link-preview > .link-preview,
+.md-editor .milkdown .milkdown-link-edit > .link-edit,
+.md-editor .milkdown .milkdown-latex-inline-edit {
+  background: var(--popover);
+  box-shadow: var(--elevation-md);
+  border-radius: calc(var(--radius) + 4px);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+.md-editor .milkdown .milkdown-toolbar {
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+}
+.md-editor .milkdown .milkdown-toolbar .divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--border);
+}
+.md-editor .milkdown .milkdown-toolbar .toolbar-item {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border-radius: calc(var(--radius));
+}
+.md-editor .milkdown .milkdown-toolbar .toolbar-item:hover {
+  background: var(--muted);
+}
+.md-editor .milkdown .milkdown-toolbar .toolbar-item:active,
+.md-editor .milkdown .milkdown-toolbar .toolbar-item.active {
+  background: var(--accent);
+}
+.md-editor .milkdown .milkdown-toolbar .toolbar-item svg,
+.md-editor .milkdown :is(.milkdown-link-preview, .milkdown-link-edit) svg,
+.md-editor .milkdown .milkdown-slash-menu .menu-groups .menu-group li svg,
+.md-editor .milkdown .milkdown-table-block svg {
+  width: 16px;
+  height: 16px;
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+  fill: currentColor;
+}
+.md-editor .milkdown .milkdown-toolbar .toolbar-item.active svg,
+.md-editor .milkdown .milkdown-toolbar .toolbar-item:hover svg {
+  color: var(--foreground);
+  fill: currentColor;
+}
+.md-editor .milkdown .milkdown-link-preview > .link-preview,
+.md-editor .milkdown .milkdown-link-edit > .link-edit {
+  height: auto;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 4px 10px;
+}
+.md-editor .milkdown .milkdown-link-preview > .link-preview > .link-display,
+.md-editor .milkdown .milkdown-link-edit > .link-edit > .input-area {
+  font-size: 13px;
+  line-height: 28px;
+  padding: 0 6px;
+}
+.md-editor .milkdown .milkdown-link-edit > .link-edit > .input-area {
+  color: var(--foreground);
+}
+.md-editor
+  .milkdown
+  .milkdown-link-preview
+  > .link-preview
+  > :is(.link-icon, .button),
+.md-editor .milkdown .milkdown-link-edit > .link-edit > .button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius);
+  line-height: 1;
+}
+.md-editor .milkdown .milkdown-link-preview > .link-preview > .link-icon {
+  width: 16px;
+}
+.md-editor .milkdown .milkdown-link-preview > .link-preview > .link-icon:hover {
+  background: none;
+}
+.md-editor .milkdown .milkdown-link-preview > .link-preview > .button:hover,
+.md-editor .milkdown .milkdown-link-edit > .link-edit > .button:hover {
+  background: var(--muted);
+}
+.md-editor .milkdown .milkdown-slash-menu {
+  padding: 4px;
+}
+.md-editor .milkdown .milkdown-slash-menu .menu-groups {
+  padding: 0;
+}
+/* The slash menu's tabs as the app's segmented control (`TabsList`). */
+.md-editor .milkdown .milkdown-slash-menu .tab-group {
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.md-editor .milkdown .milkdown-slash-menu .tab-group ul {
+  display: inline-flex;
+  gap: 0;
+  padding: 3px;
+  background: var(--muted);
+  border-radius: var(--radius);
+}
+.md-editor .milkdown .milkdown-slash-menu .tab-group ul li {
+  height: 26px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 24px;
+  color: var(--muted-foreground);
+}
+.md-editor .milkdown .milkdown-slash-menu .tab-group ul li:hover {
+  background: none;
+  color: var(--foreground);
+}
+.md-editor .milkdown .milkdown-slash-menu .tab-group ul li.selected {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--elevation-sm);
+}
+.dark .md-editor .milkdown .milkdown-slash-menu .tab-group ul li.selected {
+  border-color: var(--input);
+  background: color-mix(in srgb, var(--input) 30%, transparent);
+  box-shadow: none;
+}
+.md-editor .milkdown .milkdown-slash-menu .menu-groups .menu-group li {
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 400;
+}
+.md-editor
+  .milkdown
+  .milkdown-slash-menu
+  .menu-groups
+  .menu-group
+  li:is(.hover, .active) {
+  background: var(--accent);
+}
+.md-editor .milkdown .milkdown-slash-menu .menu-groups .menu-group li > span {
+  font-weight: 400;
+}
+.md-editor .milkdown .milkdown-slash-menu .menu-groups .menu-group h6 {
+  font: 500 12px/1.4 var(--font-sans);
+  color: var(--muted-foreground);
+  padding: 10px 10px 4px;
+  text-transform: none;
+}
+
+.md-editor .milkdown .ProseMirror {
+  padding: 0 0 80px;
+  font: 14px/1.625 var(--font-sans);
+  color: var(--prose-body);
+  caret-color: var(--foreground);
+}
+.md-editor .milkdown .ProseMirror ::selection {
+  background: var(--selection);
+}
+/* A block picked from its handle: one tint over the whole block, as in Notion. */
+.md-editor
+  .milkdown
+  .ProseMirror
+  > .ProseMirror-selectednode:not(.milkdown-code-block, hr) {
+  outline: none;
+  background: color-mix(in srgb, var(--selection) 60%, transparent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--selection) 60%, transparent);
+}
+.md-editor .milkdown .ProseMirror .ProseMirror-selectednode ::selection,
+.md-editor .milkdown .ProseMirror .ProseMirror-selectednode::selection {
+  background: transparent;
+}
+
+/* Vertical rhythm, Typography's `prose` at 14px: 1.25em between paragraphs,
+   more around figures, tables and code, and headings that sit on the block
+   they introduce. Every top-level block gets its own margins; Crepe's
+   defaults (a few px, or none) are what made tables and quotes collide. */
+.md-editor .milkdown .ProseMirror > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.md-editor .milkdown .ProseMirror > * + * {
+  margin-top: 1.1em;
+}
+.md-editor .milkdown .ProseMirror :where(p) {
+  padding: 0;
+  line-height: 1.625;
+}
+.md-editor .milkdown .ProseMirror :where(li, blockquote, td, th, dd) :where(p) {
+  margin-block: 0;
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  > :is(
+    .milkdown-table-block,
+    .milkdown-code-block,
+    blockquote,
+    hr,
+    .md-html-block-p
+  )
+  + *,
+.md-editor
+  .milkdown
+  .ProseMirror
+  > *
+  + :is(.milkdown-table-block, .milkdown-code-block, blockquote, hr) {
+  margin-top: 1.6em;
+}
+
+.md-editor .milkdown .ProseMirror :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--prose-headings);
+  line-height: 1.375;
+  letter-spacing: -0.005em;
+  margin: 0;
+  padding: 0;
+}
+.md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 2em;
+}
+.md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+.md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + * {
+  margin-top: 0.5em;
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  > :is(h1, h2, h3, h4, h5, h6)
+  + :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 1em;
+}
+/* The document's title-level heading carries a little more weight than
+   prose-session's 20px chat heading, which is too small as a page title. */
+.md-editor .milkdown .ProseMirror h1 {
+  font-size: 1.25rem;
+}
+.md-editor .milkdown .ProseMirror h2 {
+  font-size: 1.125rem;
+}
+.md-editor .milkdown .ProseMirror h3 {
+  font-size: 1rem;
+}
+.md-editor .milkdown .ProseMirror h4 {
+  font-size: 0.875rem;
+}
+.md-editor .milkdown .ProseMirror :is(h5, h6) {
+  font-size: 0.75rem;
+}
+.md-editor .milkdown .ProseMirror h6 {
+  color: var(--muted-foreground);
+}
+
+.md-editor .milkdown .ProseMirror :is(strong, b) {
+  color: var(--prose-bold);
+  font-weight: 600;
+}
+.md-editor .milkdown .ProseMirror a {
+  color: var(--prose-links);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 2px;
+  font-weight: 500;
+}
+/* Inline code as Typography draws it in Studio: weight and backticks. */
+.md-editor .milkdown .ProseMirror :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.857em;
+  font-weight: 600;
+  color: var(--prose-code);
+  background: none;
+  padding: 0;
+}
+.md-editor .milkdown .ProseMirror :not(pre) > code:not(.md-image code)::before,
+.md-editor .milkdown .ProseMirror :not(pre) > code:not(.md-image code)::after {
+  content: "`";
+}
+
+/* A single newline inside a paragraph is a line break, as with remark-breaks. */
+.md-editor
+  .milkdown
+  .ProseMirror
+  span[data-type="hardbreak"][data-is-inline="true"]::after {
+  content: "\A";
+  white-space: pre;
+}
+
+/* Lists */
+.md-editor .milkdown .ProseMirror :where(ul, ol) {
+  padding: 0;
+}
+.md-editor .milkdown .ProseMirror :where(li) :where(ul, ol) {
+  margin-block: 0;
+}
+.md-editor .milkdown .ProseMirror li {
+  gap: 6px;
+}
+.md-editor .milkdown .ProseMirror .milkdown-list-item-block > .list-item {
+  gap: 6px;
+}
+.md-editor .milkdown .ProseMirror .milkdown-list-item-block li + li,
+.md-editor .milkdown .ProseMirror li > :is(ul, ol) {
+  margin-top: 0.5em;
+}
+.md-editor .milkdown .milkdown-list-item-block .label-wrapper {
+  color: var(--muted-foreground);
+  height: 22.75px;
+}
+.md-editor .milkdown .milkdown-list-item-block .label-wrapper .label {
+  font-size: 14px;
+}
+
+/* Quotes: Typography's, less italic (a quoted table note reads better upright). */
+.md-editor .milkdown .ProseMirror blockquote {
+  border-left: 3px solid var(--border);
+  padding: 0 0 0 1em;
+  color: var(--prose-quotes);
+  font-weight: 450;
+  margin-left: 0;
+}
+.md-editor .milkdown .ProseMirror blockquote::before {
+  display: none;
+}
+.md-editor .milkdown .ProseMirror blockquote > * + * {
+  margin-top: 0.6em;
+}
+
+/* Divider */
+.md-editor .milkdown .ProseMirror > hr {
+  border: 0;
+  padding: 0;
+  height: 1px;
+  background: var(--border);
+  margin-block: 2em;
+}
+.md-editor .milkdown .ProseMirror > hr + * {
+  margin-top: 0;
+}
+
+/* Tables, bordered the way Studio's are: a rule under the head and between rows. */
+.md-editor .milkdown .milkdown-table-block {
+  margin: 0;
+}
+.md-editor .milkdown .milkdown-table-block table {
+  font-size: 13px;
+  line-height: 1.5;
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0;
+}
+.md-editor .milkdown .milkdown-table-block :is(th, td) {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: inherit;
+}
+.md-editor .milkdown .milkdown-table-block th {
+  color: var(--prose-headings);
+  font-weight: 600;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 18%, transparent);
+  background: none;
+}
+.md-editor .milkdown .milkdown-table-block tr:last-child td {
+  border-bottom: 0;
+}
+.md-editor .milkdown .milkdown-table-block :is(th, td) p {
+  margin: 0;
+}
+/* Crepe's table controls on the app's popover and ghost buttons. */
+.md-editor .milkdown .milkdown-table-block .cell-handle {
+  background: var(--popover);
+  box-shadow: var(--elevation-xs);
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+}
+.md-editor .milkdown .milkdown-table-block .cell-handle:hover {
+  background: var(--muted);
+}
+.md-editor .milkdown .milkdown-table-block .cell-handle .button-group {
+  gap: 2px;
+  padding: 4px;
+  background: var(--popover);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--elevation-md);
+}
+.md-editor .milkdown .milkdown-table-block .cell-handle .button-group button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius);
+}
+.md-editor
+  .milkdown
+  .milkdown-table-block
+  .cell-handle
+  .button-group
+  button:hover {
+  border-radius: var(--radius);
+  background: var(--muted);
+}
+.md-editor
+  .milkdown
+  .milkdown-table-block
+  .cell-handle
+  .button-group
+  button
+  svg {
+  width: 16px;
+  height: 16px;
+}
+.md-editor .milkdown .milkdown-table-block .line-handle {
+  background: var(--brand-500);
+}
+.md-editor .milkdown .milkdown-table-block .line-handle .add-button {
+  display: grid;
+  place-items: center;
+  background: var(--popover);
+  box-shadow: var(--elevation-sm);
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+}
+.md-editor .milkdown .milkdown-table-block .line-handle .add-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ------------------------------------------------ code blocks */
+
+.md-editor .milkdown .milkdown-code-block {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  background: var(--muted);
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 13px;
+}
+.md-editor .milkdown .milkdown-code-block .tools {
+  position: absolute;
+  inset: 4px 4px auto 4px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  height: 26px;
+}
+.md-editor .milkdown .milkdown-code-block .tools > * {
+  pointer-events: auto;
+}
+.md-editor .milkdown .milkdown-code-block .language-picker {
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.md-editor .milkdown .milkdown-code-block .language-button {
+  margin: 0;
+  height: 24px;
+  padding: 0 6px 0 8px;
+  gap: 2px;
+  font: 500 12px/1 var(--font-sans);
+  color: var(--muted-foreground);
+  background: transparent;
+  border-radius: calc(var(--radius) - 3px);
+  opacity: 1;
+  /* Crepe writes the raw fence tag; the named span before it replaces that text. */
+  font-size: 0;
+}
+.md-editor .milkdown .milkdown-code-block .language-button .md-lang-name {
+  font-size: 12px;
+}
+.md-editor .milkdown .milkdown-code-block .language-button .expand-icon {
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.md-editor .milkdown .milkdown-code-block:hover .language-button .expand-icon {
+  opacity: 1;
+}
+.md-editor .milkdown .milkdown-code-block .language-button:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.md-editor .milkdown .milkdown-code-block .md-code-label {
+  font: 12px/1 var(--font-sans);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.md-editor .milkdown .milkdown-code-block .md-code-label::before {
+  content: "·";
+  margin-right: 6px;
+  opacity: 0.6;
+}
+.md-editor .milkdown .milkdown-code-block .tools-button-group {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.md-editor
+  .milkdown
+  .milkdown-code-block:is(:hover, :focus-within)
+  .tools-button-group {
+  opacity: 1;
+}
+.md-editor .milkdown .milkdown-code-block .tools-button-group button {
+  height: 24px;
+  padding: 0 8px;
+  font: 500 12px/1 var(--font-sans);
+  color: var(--muted-foreground);
+  background: var(--markdown-surface, var(--background));
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: calc(var(--radius) - 3px);
+  gap: 4px;
+}
+.md-editor .milkdown .milkdown-code-block .tools-button-group button:hover {
+  color: var(--foreground);
+  background: var(--card);
+}
+.md-editor .milkdown .milkdown-code-block .tools-button-group button svg {
+  width: 13px;
+  height: 13px;
+}
+.md-editor .milkdown .milkdown-code-block .codemirror-host,
+.md-editor .milkdown .milkdown-code-block .milkdown-code-block-placeholder {
+  padding: 36px 16px 14px;
+}
+.md-editor .milkdown .milkdown-code-block .milkdown-code-block-placeholder {
+  margin: 0;
+  font: 13px/1.6 var(--font-mono);
+  color: var(--foreground);
+  white-space: pre;
+  overflow: hidden;
+}
+.md-editor
+  .milkdown
+  .milkdown-code-block
+  :is(.cm-editor, .milkdown-code-block-placeholder) {
+  font-variant-ligatures: none;
+}
+.md-editor .milkdown .milkdown-code-block .cm-editor {
+  background: transparent;
+  font: 13px/1.6 var(--font-mono);
+  color: var(--foreground);
+}
+.md-editor .milkdown .milkdown-code-block .cm-scroller {
+  font-family: var(--font-mono);
+  line-height: 1.6;
+}
+.md-editor .milkdown .milkdown-code-block .cm-gutters {
+  display: none;
+}
+.md-editor .milkdown .milkdown-code-block .cm-content {
+  padding: 0;
+}
+.md-editor .milkdown .milkdown-code-block .cm-line {
+  padding: 0;
+}
+.md-editor .milkdown .milkdown-code-block .cm-editor .cm-activeLine {
+  background: transparent;
+}
+.md-editor .milkdown .milkdown-code-block .cm-editor.cm-focused {
+  outline: none;
+}
+.md-editor .milkdown .milkdown-code-block .cm-editor .cm-selectionBackground,
+.md-editor
+  .milkdown
+  .milkdown-code-block
+  .cm-editor.cm-focused
+  .cm-selectionBackground {
+  background: var(--selection);
+}
+.md-editor .milkdown .milkdown-code-block.selected {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+/* Past 24 lines: cut at a fixed height with the background fading under the code. */
+.md-editor
+  .milkdown
+  .milkdown-code-block.is-collapsed
+  :is(.codemirror-host, .milkdown-code-block-placeholder) {
+  max-height: calc(24 * 13px * 1.6 + 36px);
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
+}
+.md-editor .milkdown .milkdown-code-block.is-long {
+  padding-bottom: 36px;
+}
+.md-code-more {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  height: 24px;
+  padding: 0 10px;
+  font: 500 12px/1 var(--font-sans);
+  color: var(--muted-foreground);
+  background: var(--markdown-surface, var(--background));
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+}
+.md-code-more:hover {
+  color: var(--foreground);
+  background: var(--card);
+}
+/* Previews (Mermaid, math): the drawing, centered, with no "Preview" caption. */
+.md-editor .milkdown .milkdown-code-block .preview-panel .preview-divider,
+.md-editor .milkdown .milkdown-code-block .preview-panel .preview-label {
+  display: none;
+}
+.md-editor .milkdown .milkdown-code-block .preview-panel .preview {
+  padding: 32px 16px 16px;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  color: var(--foreground);
+}
+.md-editor
+  .milkdown
+  .milkdown-code-block
+  .codemirror-host:not(.hidden)
+  + .preview-panel
+  .preview {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  margin: 0 16px;
+}
+.md-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Language picker */
+.md-lang-picker {
+  width: 240px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.md-lang-picker .md-input {
+  width: 100%;
+}
+.md-lang-list {
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.md-lang-item {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  cursor: default;
+  font-size: 14px;
+}
+.md-lang-item.is-active {
+  background: var(--accent);
+}
+.md-lang-item.is-current::after {
+  content: "";
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-text);
+}
+.md-lang-item.is-group-end {
+  margin-bottom: 4px;
+  box-shadow: 0 5px 0 -4px var(--border);
+}
+.md-lang-empty {
+  padding: 6px 8px;
+  color: var(--muted-foreground);
+}
+
+/* ------------------------------------------------ block handle and menu */
+
+.md-editor .milkdown .milkdown-block-handle {
+  gap: 2px;
+}
+.md-editor .milkdown .milkdown-block-handle .operation-item {
+  width: 22px;
+  height: 24px;
+  padding: 0;
+  border-radius: calc(var(--radius) - 3px);
+  color: var(--muted-foreground);
+  display: grid;
+  place-items: center;
+}
+.md-editor .milkdown .milkdown-block-handle .operation-item:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.md-editor .milkdown .milkdown-block-handle .operation-item:last-child {
+  cursor: grab;
+}
+.md-editor .milkdown .milkdown-block-handle .operation-item svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.md-menu {
+  min-width: 220px;
+  padding: 4px;
+  outline: none;
+}
+/* Rows as the app's `DropdownMenuItem`: `rounded-lg px-3 py-1.5 text-sm`,
+   highlighted `bg-accent`, icons at `foreground/60`. */
+.md-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  cursor: default;
+  user-select: none;
+}
+.md-menu-item.is-active {
+  background: var(--accent);
+}
+.md-menu-icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+}
+.md-menu-label {
+  flex: 1;
+  white-space: nowrap;
+}
+.md-menu-trail {
+  display: grid;
+  color: var(--muted-foreground);
+}
+.md-menu-trail.is-check {
+  color: var(--brand-text);
+}
+.md-menu-hint {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.md-menu-item.is-danger.is-active {
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+}
+.md-menu-item.is-danger.is-active .md-menu-icon {
+  color: inherit;
+}
+.md-menu-sep {
+  height: 1px;
+  margin: 4px -4px;
+  background: var(--border);
+}
+.md-menu-heading {
+  padding: 6px 10px 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+/* ------------------------------------------------ raw HTML */
+
+.md-html-inline {
+  font: 12px/1.5 var(--font-mono);
+  color: var(--html-ink);
+  background: var(--html-bg);
+  border: 1px solid var(--html-line);
+  border-radius: 4px;
+  padding: 0 4px;
+  white-space: pre-wrap;
+}
+.md-html-block {
+  display: block;
+  position: relative;
+  border: 1px solid var(--html-line);
+  background: var(--html-bg);
+  border-radius: calc(var(--radius) - 2px);
+}
+.md-html-label {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font: 500 11px/1.4 var(--font-sans);
+  color: var(--html-tag);
+  pointer-events: none;
+}
+.md-html-block textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--html-ink);
+  font: 12px/1.6 var(--font-mono);
+  padding: 8px 90px 8px 12px;
+  border-radius: calc(var(--radius) - 2px);
+}
+.md-html-block textarea:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: -1px;
+}
+/* Rendered HTML: the sanitized markup drawn as content, with an "HTML" tab
+   on hover that opens the source popover (so does a click on the content). */
+.md-html-block.md-html-rendered,
+.md-html-block:is(.md-html-open-tag, .md-html-close-tag, .md-html-details) {
+  border: 0;
+  background: none;
+  border-radius: 4px;
+}
+.md-html-rendered {
+  cursor: pointer;
+}
+.md-html-block.md-html-rendered {
+  outline: 1px dashed transparent;
+  outline-offset: 3px;
+}
+.md-html-block.md-html-rendered:hover,
+.md-html-span.md-html-rendered:hover {
+  outline: 1px dashed var(--html-line);
+  outline-offset: 3px;
+}
+.md-html-body {
+  display: block;
+}
+.md-html-body > :first-child {
+  margin-top: 0;
+}
+.md-html-body > :last-child {
+  margin-bottom: 0;
+}
+.md-html-edit {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  z-index: 2;
+  font: 500 10.5px/1 var(--font-sans);
+  letter-spacing: 0.02em;
+  color: var(--html-tag);
+  background: var(--card);
+  border: 1px solid var(--html-line);
+  border-radius: 4px;
+  padding: 3px 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.md-html-block:hover > .md-html-edit,
+.md-html-edit:focus-visible {
+  opacity: 1;
+}
+
+/* Markup inside rendered HTML, in the prose's own type. */
+:is(.md-html-rendered, .md-html-summary-text) :is(kbd),
+.md-html-el-kbd {
+  font: 500 0.85em/1 var(--font-mono);
+  color: var(--prose-code);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+.md-html-rendered code,
+.md-html-el-code {
+  font: 0.875em var(--font-mono);
+  color: var(--prose-code);
+}
+.md-html-rendered img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+.md-html-rendered table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+.md-html-rendered :is(td, th) {
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+}
+.md-html-rendered :is(p, ul, ol, pre, blockquote, table, details) {
+  margin: 0.6em 0;
+}
+.md-html-rendered summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--prose-headings);
+}
+.md-html-rendered a,
+.md-html-el-a {
+  color: var(--prose-links);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* An opening and a closing tag around text inside one paragraph: thin brackets
+   around the text they now format. */
+.md-html-mark {
+  display: inline-block;
+  width: 3px;
+  height: 0.95em;
+  vertical-align: -0.1em;
+  border: 1.5px solid color-mix(in srgb, var(--html-tag) 55%, transparent);
+  cursor: pointer;
+}
+.md-html-mark-open {
+  border-right: 0;
+  border-radius: 2px 0 0 2px;
+}
+.md-html-mark-close {
+  border-left: 0;
+  border-radius: 0 2px 2px 0;
+}
+.md-html-mark:hover {
+  border-color: var(--html-tag);
+}
+/* Only while the paragraph is hovered: the formatting reads on its own. */
+.md-editor .ProseMirror :not(:hover) > .md-html-mark {
+  border-color: transparent;
+}
+
+/* A container CommonMark splits apart: the Markdown blocks between an opening
+   HTML block and its close are its body, with a rule down the left per level
+   of nesting. A bare opening or closing tag is a small label. */
+.md-editor .ProseMirror > :is(.md-html-inner, .md-html-open, .md-html-close) {
+  --html-indent: calc(var(--html-depth, 0) * 16px);
+  margin-left: 0;
+  padding-left: var(--html-indent);
+  background: repeating-linear-gradient(
+      to right,
+      var(--html-line) 0 1px,
+      transparent 1px 16px
+    )
+    5px 0 / var(--html-indent) 100% no-repeat;
+}
+.md-editor .ProseMirror > .md-html-open + :is(.md-html-inner, .md-html-close),
+.md-editor .ProseMirror > .md-html-inner + :is(.md-html-inner, .md-html-close),
+.md-editor .ProseMirror > .md-html-inner + .md-html-inner {
+  margin-top: 0 !important;
+  padding-top: 0.55em;
+}
+.md-editor .ProseMirror > .md-html-inner:has(+ .md-html-inner) {
+  padding-bottom: 0.55em;
+}
+.md-editor .ProseMirror > .md-html-hidden {
+  display: none !important;
+}
+.md-html-block:is(.md-html-open-tag, .md-html-close-tag) {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+}
+.md-html-tagname {
+  font: 11px/1.4 var(--font-mono);
+  color: var(--html-tag);
+  opacity: 0.6;
+  cursor: pointer;
+}
+.md-html-close-tag .md-html-tagname {
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.md-html-close-tag:hover .md-html-tagname {
+  opacity: 0.6;
+}
+.md-html-block:is(.md-html-open-tag, .md-html-close-tag) .md-html-edit {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* <details> whose body is the Markdown after it: the summary is a toggle. */
+.md-html-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--prose-headings);
+  font-weight: 500;
+  user-select: none;
+}
+.md-html-summary:hover {
+  background: var(--muted);
+}
+.md-html-caret {
+  display: inline-flex;
+  color: var(--muted-foreground);
+  transition: transform 120ms;
+}
+.md-html-details.is-open .md-html-caret {
+  transform: rotate(90deg);
+}
+.md-html-details-body {
+  display: block;
+  padding: 4px 0 0 20px;
+}
+.md-editor
+  .ProseMirror
+  > .md-html-open:has(.md-html-details)
+  + :is(.md-html-inner, .md-html-close) {
+  padding-top: 0.35em;
+}
+
+/* The source popover. */
+.md-html-popover {
+  position: absolute;
+  z-index: 60;
+  width: min(560px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 8px;
+  background: var(--popover);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--elevation-lg);
+  color: var(--foreground);
+}
+.md-html-popover-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 2px 4px 6px;
+  font: 500 11px/1.4 var(--font-sans);
+}
+.md-html-popover-title {
+  color: var(--html-tag);
+  letter-spacing: 0.02em;
+}
+.md-html-popover-hint {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+.md-html-popover textarea {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--html-bg);
+  color: var(--html-ink);
+  font: 12px/1.6 var(--font-mono);
+}
+.md-html-popover textarea:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: -1px;
+}
+.md-html-popover-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 8px;
+}
+/* The app's `Button` at `size="sm"`: `default` for Cancel, `brand` for Save. */
+.md-html-btn {
+  height: 32px;
+  font: 500 13px/1 var(--font-sans);
+  padding: 0 12px;
+  border-radius: var(--radius);
+  border: 0;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--elevation-sm);
+  cursor: pointer;
+}
+.md-html-btn:hover {
+  background: var(--secondary);
+}
+.dark .md-html-btn {
+  background: var(--gray-700);
+}
+.dark .md-html-btn:hover {
+  background: var(--gray-600);
+}
+.md-html-btn.md-html-btn-primary {
+  background: var(--brand-600);
+  color: var(--brand-foreground);
+  box-shadow: var(--elevation-xs);
+}
+.md-html-btn.md-html-btn-primary:hover {
+  background: var(--brand-700);
+}
+
+/* ------------------------------------------------ agent flash */
+
+@keyframes agent-flash {
+  from {
+    background: color-mix(in srgb, var(--brand-500) 18%, transparent);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand-500) 18%, transparent);
+  }
+  to {
+    background: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+.md-editor .agent-flash {
+  animation: agent-flash 1.6s ease-out;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------ footnotes */
+
+.md-editor .milkdown sup[data-type="footnote_reference"] {
+  color: var(--brand-text);
+  font-size: 0.72em;
+}
+.md-editor .milkdown dl[data-type="footnote_definition"] {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 2em;
+}
+.md-editor .milkdown dl[data-type="footnote_definition"] dt {
+  font-weight: 600;
+  color: var(--brand-text);
+}
+.md-editor .milkdown dl[data-type="footnote_definition"] dt::after {
+  content: ":";
+}
+.md-editor .milkdown dl[data-type="footnote_definition"] dd {
+  margin: 0;
+}
+.md-editor .milkdown dl[data-type="footnote_definition"] dd p {
+  margin: 0;
+}
+
+/* Math */
+.md-editor .milkdown .katex {
+  font-size: 1.05em;
+}
+.md-editor .milkdown .milkdown-code-block :is(.cm-content, .cm-line) {
+  font-variant-ligatures: none;
+  font-feature-settings:
+    "calt" 0,
+    "liga" 0;
+}
+
+/* ProseMirror ends a paragraph whose last child is an inline node view with a
+   separator image and a <br>, which under a block-sized HTML box or image is a blank line. */
+.md-editor
+  .ProseMirror
+  p:has(> :is(.md-html-block))
+  > :is(br.ProseMirror-trailingBreak, img.ProseMirror-separator) {
+  /* ProseMirror's stylesheet pins the separator inline with !important. */
+  display: none !important;
+}
+
+/* A long document lays out only the blocks near the view: a transcript of
+   several hundred KB otherwise costs a whole-document layout on every forced
+   measure (the caret, a merged agent edit, the outline), which is hundreds of
+   milliseconds. `auto` remembers each block's size once it has been drawn. */
+.md-editor .ProseMirror > :not(.milkdown-code-block) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1.6em;
+}
+/* Except around the caret: typing into a block the browser may skip lays the
+   first character out after the caret has moved on (a new paragraph's first
+   letter landing at its end). */
+.md-editor .ProseMirror > .md-near-caret {
+  content-visibility: visible;
+}
+
+/* A fence drawn as something else is that thing, not a code block: no ground
+   or header of its own. Its source is one "Edit source" away; while it is
+   open, the block's own controls come back to close it. */
+.md-editor .milkdown .milkdown-code-block:has(.md-fence) {
+  background: transparent;
+}
+.md-editor
+  .milkdown
+  .milkdown-code-block:has(.md-fence):has(.codemirror-host.hidden)
+  .tools {
+  display: none;
+}
+.md-editor
+  .milkdown
+  .milkdown-code-block:has(.md-fence):not(:has(.codemirror-host.hidden)) {
+  background: var(--muted);
+}
+
+/* What React draws inside a fence is Studio's own UI, styled by Tailwind's
+   layers; the editor's and Crepe's unlayered resets (`.milkdown *` zeroes
+   every margin and padding) would otherwise win over every utility. */
+.md-editor .milkdown .ProseMirror .md-fence * {
+  all: revert-layer;
+}
+
+/* A message's body ends at the card's actions, not in a page's worth of room. */
+.md-editor.md-message-body .milkdown .ProseMirror {
+  padding-bottom: 8px;
+}

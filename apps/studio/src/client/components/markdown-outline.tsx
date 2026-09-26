@@ -63,7 +63,14 @@ const SCROLLBAR_CLEARANCE = 12;
  * The choice is remembered for this document and no longer; the next file
  * opens on the width's answer again.
  */
-export function MarkdownDocument({ children }: { children: ReactNode }) {
+export function MarkdownDocument({
+  children,
+  headingSelector,
+}: {
+  children: ReactNode;
+  /** Which elements are the document's headings, where it is drawn among other markup. */
+  headingSelector?: string;
+}) {
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
     null,
   );
@@ -71,7 +78,7 @@ export function MarkdownDocument({ children }: { children: ReactNode }) {
     null,
   );
   const [preference, setPreference] = useState<"column" | "rail" | null>(null);
-  const headings = useMarkdownHeadings(scrollElement);
+  const headings = useMarkdownHeadings(scrollElement, headingSelector);
   const layout = useOutlineLayout(scrollElement, layoutElement);
   const wide = layout.width >= WIDE_MIN_WIDTH;
   // Nothing at all for a document with fewer than two headings, where there

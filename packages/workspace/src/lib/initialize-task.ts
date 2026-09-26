@@ -33,6 +33,9 @@ export async function initializeTask(
   },
   _options: { signal?: AbortSignal },
 ) {
+  // Lets go of the id reserved below when any later step fails, so a chat or
+  // task that was never made does not hold its name in the index.
+  let release: (() => void) | undefined;
   return safeTry(async function* () {
     // A chat's folder goes under `chats/`, a task a chat started goes inside
     // that chat, and any other task goes flat under `tasks/`. Either id is
@@ -61,7 +64,7 @@ export async function initializeTask(
       : inChat
         ? chatTasksDir(parentTaskId)
         : workspaceConfig.tasksDir;
-    const release = () => {
+    release = () => {
       if (!reserved) {
         return;
       }
@@ -86,9 +89,8 @@ export async function initializeTask(
     );
     yield* ResultAsync.fromPromise(
       fs.mkdir(taskDir(taskId), { recursive: false }),
-      (error) => {
-        release();
-        return error instanceof Error &&
+      (error) =>
+        error instanceof Error &&
           "code" in error &&
           error.code === "EEXIST"
           ? new TypedError.Conflict(
@@ -97,8 +99,7 @@ export async function initializeTask(
           : new TypedError.FileSystem(
               error instanceof Error ? error.message : "Unknown error",
               { cause: error },
-            );
-      },
+            ),
     );
 
     // A chat runs no code of its own, so it takes none of a task's scaffold.
@@ -145,5 +146,8 @@ export async function initializeTask(
     }
 
     return ok({ taskId });
+  }).mapErr((error) => {
+    release?.();
+    return error;
   });
 }

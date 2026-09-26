@@ -84,6 +84,6 @@ export function icon(name: IconName, size = 16): string {
 }
 
 /** The Instrument mark, which the app draws in its brand color beside "Ask". */
-export function mark(size = 14): string {
+export function instrumentMark(size = 14): string {
   return `<svg class="md-mark" viewBox="0 0 72 72" width="${size}" height="${size}" aria-hidden="true"><path d="${MARK}" fill="currentColor"/></svg>`;
 }

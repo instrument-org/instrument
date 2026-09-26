@@ -1,3 +1,5 @@
+// How a read-only viewer hands its selection to the floating Ask button (see
+// ask-selection.tsx), and the Markdown table cell a quoted value becomes.
 import { type ReferenceElement } from "@floating-ui/dom";
 import { createContext, useContext } from "react";
 

@@ -1,6 +1,16 @@
+// The numbered markers a live editor (Markdown or code) draws where a staged
+// ask points, kept in step with its edits and with the window's asks.
 import { useEffect } from "react";
 
 import { numbered, useAskRevealer, useFileAsks } from "./staged-asks";
+
+/** A staged ask's place in an editor's text, kept in step with edits, and the number it wears (0 until the window numbers it). */
+export interface AskMark {
+  from: number;
+  id: string;
+  n: number;
+  to: number;
+}
 
 /** What an editor that marks staged asks in its text offers. */
 export interface AskMarkHost {
@@ -16,6 +26,42 @@ export interface AskMarkHost {
  * when it comes up again, where the words still read the same.
  */
 const placed = new Map<string, { from: number; quote: string; to: number }>();
+
+/**
+ * An editor's ask marks after one change: moved through its edits by `map`
+ * when the text changed, then with `add` put in (in place of a mark of the
+ * same ask) and `numbers` applied (a mark whose ask has none goes).
+ */
+export function stepAskMarks(
+  marks: AskMark[],
+  {
+    add,
+    map,
+    numbers,
+  }: {
+    add?: AskMark;
+    map?: (pos: number, assoc: -1 | 1) => number;
+    numbers?: readonly { id: string; n: number }[];
+  },
+): AskMark[] {
+  let next = map
+    ? marks.map((mark) => {
+        const from = map(mark.from, 1);
+        return { ...mark, from, to: Math.max(from, map(mark.to, -1)) };
+      })
+    : marks;
+  if (add) {
+    next = [...next.filter((mark) => mark.id !== add.id), add];
+  }
+  if (numbers) {
+    const byId = new Map(numbers.map(({ id, n }) => [id, n]));
+    next = next.flatMap((mark) => {
+      const n = byId.get(mark.id);
+      return n === undefined ? [] : [{ ...mark, n }];
+    });
+  }
+  return next;
+}
 
 /**
  * Keeps an editor's markers in step with the file's staged asks: numbered in

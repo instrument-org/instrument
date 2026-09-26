@@ -60,7 +60,7 @@ const KINDS: { icon: string; key: Kind; label: string }[] = [
   { icon: I.quote, key: "quote", label: "Quote" },
   { icon: I.code, key: "code", label: "Code" },
 ];
-const LIST_KINDS: readonly Kind[] = ["bullet", "ordered", "task"];
+const LIST_KINDS: ReadonlySet<Kind> = new Set(["bullet", "ordered", "task"]);
 
 /** What a block is, in "Turn into" terms. */
 function kindOf(node: PMNode, parent: null | PMNode): Kind | null {
@@ -283,14 +283,14 @@ function turnInto(view: EditorView, target: Target, kind: Kind) {
   const { parent, parentPos } = target;
   const isItem = node.type.name === "list_item";
   // A list item turned into another list kind changes its whole list.
-  if (isItem && LIST_KINDS.includes(kind) && parent && parentPos !== null) {
+  if (isItem && LIST_KINDS.has(kind) && parent && parentPos !== null) {
     pos = parentPos;
     node = parent;
   }
   let nodes = build(kind, linesOf(node, schema), schema);
   // Keep a list's own items (with their nesting) when only the list type changes.
   if (
-    LIST_KINDS.includes(kind) &&
+    LIST_KINDS.has(kind) &&
     ["bullet_list", "ordered_list"].includes(node.type.name)
   ) {
     const items = childrenOf(node).map(({ index: i, node: item }) =>
@@ -315,7 +315,7 @@ function turnInto(view: EditorView, target: Target, kind: Kind) {
     ];
   }
   let tr = state.tr;
-  if (isItem && !LIST_KINDS.includes(kind) && parent && parentPos !== null) {
+  if (isItem && !LIST_KINDS.has(kind) && parent && parentPos !== null) {
     // Split the item out of its list: items before stay, items after form a new list.
     const before: PMNode[] = [];
     const after: PMNode[] = [];
@@ -362,10 +362,6 @@ export function installBlockMenu(
   root: HTMLElement,
   { serializeNode }: { serializeNode: (node: PMNode) => string },
 ) {
-  const copy = (text: string) => {
-    void navigator.clipboard.writeText(text);
-  };
-
   function itemsFor(target: Target): MenuItem[] {
     const { node, parent } = target;
     const kind = kindOf(node, parent);
@@ -543,6 +539,10 @@ export function installBlockMenu(
     document.removeEventListener("pointerup", onPointerUp, true);
     root.removeEventListener("contextmenu", onContextMenu);
   };
+}
+
+function copy(text: string) {
+  void navigator.clipboard.writeText(text);
 }
 
 function menuEl(items: MenuItem[], { onClose }: { onClose: () => void }) {

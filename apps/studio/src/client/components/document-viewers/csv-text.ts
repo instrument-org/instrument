@@ -244,23 +244,6 @@ export function changedCells(before: CsvDocument, after: CsvDocument) {
   return changed;
 }
 
-/** Whether every field the column has below the header is written quoted. */
-export function columnAllQuoted(doc: CsvDocument, column: number) {
-  let seen = 0;
-  for (const record of doc.rowRecords) {
-    const first = doc.recordField[record] ?? 0;
-    const count = (doc.recordField[record + 1] ?? first) - first;
-    if (column >= count) {
-      continue;
-    }
-    if (!doc.fieldQuoted[first + column]) {
-      return false;
-    }
-    seen += 1;
-  }
-  return seen > 0;
-}
-
 /**
  * The delimiter a file uses: a tab for `.tsv`, which Papa could guess wrong on
  * a first line holding more commas than tabs, and Papa's guess otherwise.
@@ -272,25 +255,6 @@ export function detectDelimiter(filename: string, text: string) {
   const guessed = Papa.parse(text.slice(0, 64 * 1024), { preview: 50 }).meta
     .delimiter;
   return guessed || ",";
-}
-
-/**
- * A value as a field of this file: quoted only when it has to be (it holds the
- * delimiter, a quote or a line break) or when the field or its column already
- * is, and with any line break in it written as the file writes its own.
- */
-export function encodeField(
-  doc: CsvDocument,
-  value: string,
-  forceQuote: boolean,
-) {
-  const text = value.replaceAll(/\r\n|\r|\n/g, doc.eol);
-  const needs =
-    text.includes(doc.delimiter) ||
-    text.includes('"') ||
-    text.includes("\n") ||
-    text.includes("\r");
-  return needs || forceQuote ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 /** The last line a record's text reaches, for a record with a line break inside a field. */
@@ -449,15 +413,6 @@ export function recordKey(doc: CsvDocument, record: number) {
   return doc.text.slice(start, end);
 }
 
-/** Where a record's text sits in the file, line ending excluded. */
-export function recordSpan(doc: CsvDocument, record: number) {
-  const first = doc.recordField[record] ?? 0;
-  const last = (doc.recordField[record + 1] ?? first + 1) - 1;
-  return { end: doc.fieldEnd[last] ?? 0, start: doc.fieldStart[first] ?? 0 };
-}
-
-// ---------------------------------------------------------------- edits
-
 /**
  * Makes the person's unsaved edits again on top of a version of the file
  * someone else wrote: the text that results, and the edits restated against
@@ -534,6 +489,8 @@ export function spliceCell(
   };
 }
 
+// ---------------------------------------------------------------- edits
+
 /**
  * Removes records and one line ending with each: its own, or, for a run that
  * ends the file with no trailing newline, the one before the run, so the file
@@ -597,6 +554,38 @@ export function widthOf(doc: CsvDocument) {
   return width;
 }
 
+/** Whether every field the column has below the header is written quoted. */
+function columnAllQuoted(doc: CsvDocument, column: number) {
+  let seen = 0;
+  for (const record of doc.rowRecords) {
+    const first = doc.recordField[record] ?? 0;
+    const count = (doc.recordField[record + 1] ?? first) - first;
+    if (column >= count) {
+      continue;
+    }
+    if (!doc.fieldQuoted[first + column]) {
+      return false;
+    }
+    seen += 1;
+  }
+  return seen > 0;
+}
+
+/**
+ * A value as a field of this file: quoted only when it has to be (it holds the
+ * delimiter, a quote or a line break) or when the field or its column already
+ * is, and with any line break in it written as the file writes its own.
+ */
+function encodeField(doc: CsvDocument, value: string, forceQuote: boolean) {
+  const text = value.replaceAll(/\r\n|\r|\n/g, doc.eol);
+  const needs =
+    text.includes(doc.delimiter) ||
+    text.includes('"') ||
+    text.includes("\n") ||
+    text.includes("\r");
+  return needs || forceQuote ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
 /**
  * Finds an edited record in another version of the file: where it was, if the
  * text there is unchanged; wherever that text now is, nearest first; else by
@@ -627,4 +616,11 @@ function locate(
     return { exact: false, record: ref.record };
   }
   return null;
+}
+
+/** Where a record's text sits in the file, line ending excluded. */
+function recordSpan(doc: CsvDocument, record: number) {
+  const first = doc.recordField[record] ?? 0;
+  const last = (doc.recordField[record + 1] ?? first + 1) - 1;
+  return { end: doc.fieldEnd[last] ?? 0, start: doc.fieldStart[first] ?? 0 };
 }

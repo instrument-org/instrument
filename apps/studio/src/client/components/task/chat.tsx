@@ -42,7 +42,6 @@ import { toast } from "sonner";
 import { ChatStream, TypingRow } from "../chat-stream";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { TranscriptScrollContext } from "../transcript-scroll-context";
-import { UserMessage } from "../user-message";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import {
@@ -56,6 +55,7 @@ import {
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { UserMessage } from "../user-message";
 import { ChatZeroState } from "./chat-zero-state";
 import { QueuedPrompts } from "./queued-prompts";
 import { ScrollToEndBridge } from "./scroll-to-end-bridge";
@@ -648,37 +648,6 @@ export function TaskChat({
   );
 }
 
-// The transcript, wired to the scroller it is drawn in. ChatStream also renders
-// outside one (nested tool-agent streams) where useMessageScroller throws, so
-// reading the scroll commands is this wrapper's job rather than its own.
-function TranscriptStream(
-  props: Omit<ComponentProps<typeof ChatStream>, "renderAsItems">,
-) {
-  const { releaseAutoScroll } = useMessageScroller();
-
-  return (
-    <TranscriptScrollContext value={releaseAutoScroll}>
-      <ChatStream {...props} renderAsItems />
-    </TranscriptScrollContext>
-  );
-}
-
-// The bottom fade's counterpart at the scroll frame's top edge, softening the
-// transcript into the toolbar. Unlike the bottom, it only shows when there is
-// content scrolled above: at rest the first turn should read at full strength.
-function TranscriptTopFade() {
-  const scrollable = useMessageScrollerScrollable();
-
-  return (
-    <div
-      className={cn(
-        "pointer-events-none absolute top-0 right-3 left-0 h-6 bg-linear-to-b from-background to-transparent transition-opacity duration-150",
-        scrollable.start ? "opacity-100" : "opacity-0",
-      )}
-    />
-  );
-}
-
 /**
  * The words just sent, as the transcript will draw them once they are
  * stored, with the conversation's dots under them.
@@ -708,5 +677,36 @@ function SentPrompt({
       <UserMessage compact part={part} />
       <TypingRow />
     </div>
+  );
+}
+
+// The transcript, wired to the scroller it is drawn in. ChatStream also renders
+// outside one (nested tool-agent streams) where useMessageScroller throws, so
+// reading the scroll commands is this wrapper's job rather than its own.
+function TranscriptStream(
+  props: Omit<ComponentProps<typeof ChatStream>, "renderAsItems">,
+) {
+  const { releaseAutoScroll } = useMessageScroller();
+
+  return (
+    <TranscriptScrollContext value={releaseAutoScroll}>
+      <ChatStream {...props} renderAsItems />
+    </TranscriptScrollContext>
+  );
+}
+
+// The bottom fade's counterpart at the scroll frame's top edge, softening the
+// transcript into the toolbar. Unlike the bottom, it only shows when there is
+// content scrolled above: at rest the first turn should read at full strength.
+function TranscriptTopFade() {
+  const scrollable = useMessageScrollerScrollable();
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute top-0 right-3 left-0 h-6 bg-linear-to-b from-background to-transparent transition-opacity duration-150",
+        scrollable.start ? "opacity-100" : "opacity-0",
+      )}
+    />
   );
 }

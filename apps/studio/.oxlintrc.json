@@ -44,6 +44,8 @@
       {
         "allowlist": [
           "code-editor",
+          "md-editor",
+          "md-message-body",
           "pptx-viewer",
           "rpv-root",
           "rpv-stage",

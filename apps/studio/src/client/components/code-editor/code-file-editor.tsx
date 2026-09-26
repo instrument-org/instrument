@@ -6,6 +6,7 @@ import { linesLabel } from "@/client/components/orchestrator/staged-asks";
 import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { registerFileFlush } from "@/client/lib/file-flush";
+import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
 import { EditorView } from "@codemirror/view";
 import { useQuery } from "@tanstack/react-query";
@@ -16,14 +17,17 @@ import {
   type CodeExternalChange,
   type CodeSession,
   createCodeSession,
-  type SaveStatus,
 } from "./code-session";
 import { readOnlyReason } from "./text-sync";
 
-/** How often an open editor looks for the agent's writes. */
-const WATCH_INTERVAL_MS = 250;
-
 type Offscreen = "above" | "below" | null;
+
+declare global {
+  interface Window {
+    /** Each open editor's session by path, for checks to drive in development. */
+    __codeEditors?: Map<string, CodeSession>;
+  }
+}
 
 /**
  * A code or plain text file open as a live document: edited in place, saved
@@ -80,14 +84,11 @@ export function CodeFileEditor({
 
 /** A handle on each open editor for checks to drive, in development. */
 function exposeForTests(hostPath: string, session: CodeSession | null) {
-  const holder = window as unknown as {
-    __codeEditors?: Map<string, CodeSession>;
-  };
-  holder.__codeEditors ??= new Map();
+  window.__codeEditors ??= new Map();
   if (session) {
-    holder.__codeEditors.set(hostPath, session);
+    window.__codeEditors.set(hostPath, session);
   } else {
-    holder.__codeEditors.delete(hostPath);
+    window.__codeEditors.delete(hostPath);
   }
 }
 
@@ -117,18 +118,7 @@ function LiveCodeDocument({
   const wrapRef = useRef(wrapLines);
   wrapRef.current = wrapLines;
 
-  // The file on disk, looked at four times a second while it is open.
-  const watched = useQuery(
-    rpcClient.files.live.info.experimental_liveOptions({
-      input: { intervalMs: WATCH_INTERVAL_MS, path: hostPath },
-    }),
-  );
-  const modifiedAt = watched.data?.modifiedAt;
-  useEffect(() => {
-    if (modifiedAt !== undefined) {
-      session?.pull();
-    }
-  }, [modifiedAt, session]);
+  usePullOnDiskChange(hostPath, session);
 
   useEffect(() => {
     session?.setWrapLines(wrapLines);

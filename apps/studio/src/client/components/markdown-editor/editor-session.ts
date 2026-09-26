@@ -1,9 +1,19 @@
+import {
+  type AskMark,
+  stepAskMarks,
+} from "@/client/components/orchestrator/ask-marks";
 // One Markdown file open in the Milkdown editor: the editor itself, and the
 // disk I/O around it. Saves are debounced and flushed on demand; a write that
 // finds the file changed underneath it merges the disk text and tries again;
 // a change on disk (the agent writing the file) merges into the editor as the
 // minimal edits it made and flashes the blocks it touched. All disk I/O runs
 // through one queue, so a merge never interleaves with a save in flight.
+import {
+  AGENT_FLASH_MS,
+  createSaveQueue,
+  flushOnLeave,
+  type SaveStatus,
+} from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
@@ -38,10 +48,11 @@ import {
   type DiskState,
   type FlashRange,
   flushDomObserver,
-  splitFrontMatter,
+  mapPos,
 } from "./doc-sync";
+import { splitFrontMatter } from "./front-matter";
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
-import { icon, mark } from "./icons";
+import { icon, instrumentMark } from "./icons";
 
 export interface AskSelection {
   /** The kind of block the selection starts in, as a reader names it: "Heading", "Paragraph". */
@@ -77,21 +88,6 @@ export interface ExternalChange {
   keptYours: boolean;
   result: string;
 }
-
-export type SaveStatus = "error" | "saved" | "saving" | "unsaved";
-
-/** A staged ask's place in the document, kept in step with edits, and the number it wears. */
-interface AskMark {
-  from: number;
-  id: string;
-  n: number;
-  to: number;
-}
-
-/** How long typing rests before a save, and the longest a save waits under steady typing. */
-const SAVE_DEBOUNCE_MS = 400;
-const SAVE_MAX_WAIT_MS = 2000;
-const FLASH_MS = 1800;
 
 const flashKey = new PluginKey<FlashRange[] | null>("agent-flash");
 const askMarkKey = new PluginKey<AskMark[]>("ask-marks");
@@ -143,7 +139,7 @@ const codeColors = syntaxHighlighting(
   ]),
 );
 
-const ASK_ICON = `<span class="md-ask">${mark(14)}<span>Ask</span></span>`;
+const ASK_ICON = `<span class="md-ask">${instrumentMark(14)}<span>Ask</span></span>`;
 
 interface MdImage {
   title?: null | string;
@@ -153,16 +149,19 @@ interface MdParent {
   children?: (MdImage & MdParent)[];
 }
 
+/** Gives every image under `n` a string title where it has none. */
+function fillImageTitles(n: MdImage & MdParent) {
+  if (n.type === "image" && (n.title === null || n.title === undefined)) {
+    n.title = "";
+  }
+  for (const child of n.children ?? []) {
+    fillImageTitles(child);
+  }
+}
+const imageTitlePlugin = () => fillImageTitles;
+
 /** Commonmark's image node requires a string title; remark gives null when there is none, and the parser throws. */
-const imageTitleFix = $remark("imageTitleFix", () => () => (tree) => {
-  const walk = (n: MdImage & MdParent) => {
-    if (n.type === "image" && (n.title === null || n.title === undefined)) {
-      n.title = "";
-    }
-    n.children?.forEach(walk);
-  };
-  walk(tree);
-});
+const imageTitleFix = $remark("imageTitleFix", () => imageTitlePlugin);
 
 export async function createEditorSession(options: EditorSessionOptions) {
   const { hostPath, initial, root } = options;
@@ -211,56 +210,14 @@ export async function createEditorSession(options: EditorSessionOptions) {
 
   // ---------------------------------------------------------------- disk queue
 
-  let queue: Promise<void> = Promise.resolve();
-  const enqueue = (task: () => Promise<void>) => {
-    queue = queue.then(task).catch((error: unknown) => {
-      console.error("markdown editor:", error);
-      options.onStatus(
-        "error",
-        error instanceof Error ? error.message : "Could not save",
-      );
-    });
-    return queue;
-  };
-
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
-  let saveQueued = false;
-  let pendingSince = 0;
-  // Debounced, but never postponed past the max wait: a steady stream of
-  // keystrokes or agent writes must not keep the person's edits off disk.
-  const scheduleSave = (ms = SAVE_DEBOUNCE_MS) => {
-    clearTimeout(saveTimer);
-    pendingSince ||= Date.now();
-    options.onStatus("unsaved");
-    saveTimer = setTimeout(
-      () => {
-        saveTimer = undefined;
-        pendingSince = 0;
-        if (saveQueued) {
-          return;
-        }
-        saveQueued = true;
-        void enqueue(save);
-      },
-      Math.max(0, Math.min(ms, pendingSince + SAVE_MAX_WAIT_MS - Date.now())),
-    );
-  };
-
-  const flush = () => {
-    if (saveTimer !== undefined) {
-      clearTimeout(saveTimer);
-      saveTimer = undefined;
-      pendingSince = 0;
-      if (!saveQueued) {
-        saveQueued = true;
-        void enqueue(save);
-      }
-    }
-    return queue;
-  };
+  const saves = createSaveQueue({
+    label: "markdown editor",
+    onStatus: options.onStatus,
+    save,
+  });
+  const scheduleSave = saves.schedule;
 
   async function save() {
-    saveQueued = false;
     if (!disk) {
       return;
     }
@@ -301,15 +258,12 @@ export async function createEditorSession(options: EditorSessionOptions) {
     scheduleSave(100);
   }
 
-  let pullQueued = false;
   /** The file changed on disk (or may have): read it and merge what changed. */
   const pull = () => {
-    if (pullQueued || destroyed) {
+    if (destroyed) {
       return;
     }
-    pullQueued = true;
-    void enqueue(async () => {
-      pullQueued = false;
+    saves.pull(async () => {
       if (!disk) {
         return;
       }
@@ -382,9 +336,8 @@ export async function createEditorSession(options: EditorSessionOptions) {
   // ---------------------------------------------------------------- plugins
 
   let flashTimer: ReturnType<typeof setTimeout> | undefined;
-  let onDocChange = () => {
-    // Replaced once the editor is up.
-  };
+  // Set once the editor is up.
+  let onDocChange: (() => void) | null = null;
 
   /** Reports local doc changes (for autosave) and flashes blocks an external change touched. */
   const sessionPlugin = $prose(
@@ -431,8 +384,8 @@ export async function createEditorSession(options: EditorSessionOptions) {
               return ranges;
             }
             return ranges.map((r) => ({
-              from: tr.mapping.map(r.from, -1),
-              to: tr.mapping.map(r.to, 1),
+              from: mapPos(tr.mapping, r.from, -1),
+              to: mapPos(tr.mapping, r.to, 1),
             }));
           },
           init: () => null,
@@ -449,13 +402,13 @@ export async function createEditorSession(options: EditorSessionOptions) {
                 // See mergeIn: pending keystrokes first.
                 flushDomObserver(v);
                 v.dispatch(v.state.tr.setMeta("flash-clear", true));
-              }, FLASH_MS);
+              }, AGENT_FLASH_MS);
             }
             if (v.state.doc !== prev.doc && !applyingExternal && disk) {
               scheduleSave();
             }
             if (v.state.doc !== prev.doc) {
-              onDocChange();
+              onDocChange?.();
             }
           },
         }),
@@ -463,7 +416,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
   );
 
   /** An image in the file: its own picture, resolved against the file's folder. */
-  const imageView = $view(imageSchema.node, () => (node) => {
+  const renderImage: NodeViewConstructor = (node) => {
     const img = document.createElement("img");
     img.className = "md-image";
     const render = (n: PMNode) => {
@@ -486,7 +439,8 @@ export async function createEditorSession(options: EditorSessionOptions) {
         return true;
       },
     };
-  });
+  };
+  const imageView = $view(imageSchema.node, () => renderImage);
 
   /**
    * Raw HTML, rendered as Studio's viewer renders it: sanitized to GitHub's
@@ -494,17 +448,15 @@ export async function createEditorSession(options: EditorSessionOptions) {
    * here. Clicking a rendered node edits its source in a popover. The node
    * keeps the source verbatim, so an untouched block saves byte-identical.
    */
-  const htmlView = $view(
-    htmlSchema.node,
-    () => (node, pmView, getPos, decorations) =>
-      createHtmlView({
-        decorations,
-        getPos,
-        node,
-        resolveSrc: options.resolveSrc,
-        view: pmView,
-      }),
-  );
+  const renderHtml: NodeViewConstructor = (node, pmView, getPos, decorations) =>
+    createHtmlView({
+      decorations,
+      getPos,
+      node,
+      resolveSrc: options.resolveSrc,
+      view: pmView,
+    });
+  const htmlView = $view(htmlSchema.node, () => renderHtml);
   const htmlContainerPlugin = $prose(() => htmlStructurePlugin());
 
   /**
@@ -548,31 +500,19 @@ export async function createEditorSession(options: EditorSessionOptions) {
         },
         state: {
           apply(tr, marks) {
+            // What `addAskMark` and `setAskNumbers` below dispatch.
             const meta = tr.getMeta(askMarkKey) as
               | undefined
               | { add?: AskMark; numbers?: { id: string; n: number }[] };
-            let next = tr.docChanged
-              ? marks.map((mark) => {
-                  const from = tr.mapping.map(mark.from, 1);
-                  return {
-                    ...mark,
-                    from,
-                    to: Math.max(from, tr.mapping.map(mark.to, -1)),
-                  };
-                })
-              : marks;
-            if (meta?.add) {
-              const added = meta.add;
-              next = [...next.filter((mark) => mark.id !== added.id), added];
-            }
-            if (meta?.numbers) {
-              const byId = new Map(meta.numbers.map(({ id, n }) => [id, n]));
-              next = next.flatMap((mark) => {
-                const n = byId.get(mark.id);
-                return n === undefined ? [] : [{ ...mark, n }];
-              });
-            }
-            return next;
+            return stepAskMarks(marks, {
+              ...meta,
+              ...(tr.docChanged
+                ? {
+                    map: (pos: number, assoc: -1 | 1) =>
+                      mapPos(tr.mapping, pos, assoc),
+                  }
+                : {}),
+            });
           },
           init: () => [],
         },
@@ -785,24 +725,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
   options.onFrontMatter(disk.fm);
   options.onStatus("saved");
 
-  // Leaving the editor is a save: the caret going elsewhere, the window
-  // hiding, the window closing.
-  const onFocusOut = (e: FocusEvent) => {
-    if (!(e.relatedTarget instanceof Node) || !root.contains(e.relatedTarget)) {
-      void flush();
-    }
-  };
-  const onHide = () => {
-    if (document.visibilityState === "hidden") {
-      void flush();
-    }
-  };
-  const onUnload = () => {
-    void flush();
-  };
-  root.addEventListener("focusout", onFocusOut);
-  document.addEventListener("visibilitychange", onHide);
-  window.addEventListener("beforeunload", onUnload);
+  const stopFlushOnLeave = flushOnLeave(saves.flush, root);
 
   const handle = {
     /**
@@ -838,31 +761,22 @@ export async function createEditorSession(options: EditorSessionOptions) {
       if (destroyed) {
         return;
       }
-      root.removeEventListener("focusout", onFocusOut);
-      document.removeEventListener("visibilitychange", onHide);
-      window.removeEventListener("beforeunload", onUnload);
-      await flush();
+      stopFlushOnLeave();
+      await saves.flush();
       destroyed = true;
       clearTimeout(flashTimer);
-      clearTimeout(saveTimer);
+      saves.cancel();
       code.destroy();
       removeBlockMenu();
       await crepe?.destroy();
       crepe = null;
     },
     disk: () => disk,
-    flush,
+    flush: saves.flush,
     frontMatter: currentFrontMatter,
     /** Whether nothing is waiting to be written. */
-    idle: async () => {
-      await queue;
-      return (
-        !saveQueued &&
-        saveTimer === undefined &&
-        disk !== null &&
-        currentText() === disk.text
-      );
-    },
+    idle: async () =>
+      (await saves.idle()) && disk !== null && currentText() === disk.text,
     lastSplice: sync.lastSplice,
     pull,
     /** Scrolls a staged ask's place into view and selects it. */

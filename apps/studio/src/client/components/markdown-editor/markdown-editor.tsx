@@ -7,11 +7,8 @@ import { FileLoading } from "@/client/components/file-loading";
 import { MarkdownDocument } from "@/client/components/markdown-outline";
 import { MarkdownTaskContext } from "@/client/components/markdown-task-context";
 import { MermaidDiagram } from "@/client/components/mermaid-diagram";
-import {
-  MessageActions,
-  MessageCard,
-  messageKindOf,
-} from "@/client/components/message-card";
+import { MessageActions, MessageCard } from "@/client/components/message-card";
+import { messageKindOf } from "@/client/components/message-kind";
 import { useAskMarks } from "@/client/components/orchestrator/ask-marks";
 import { OrchestratorContext } from "@/client/components/orchestrator/context";
 import { linesLabel } from "@/client/components/orchestrator/staged-asks";
@@ -19,6 +16,7 @@ import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { registerFileFlush } from "@/client/lib/file-flush";
+import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
 import { isMermaidLanguage } from "@/client/lib/mermaid";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -37,13 +35,10 @@ import {
   createEditorSession,
   type EditorSession,
   type ExternalChange,
-  type SaveStatus,
 } from "./editor-session";
-import { FrontMatterCard, setFrontMatterField } from "./front-matter-card";
+import { setFrontMatterField, splitFrontMatter } from "./front-matter";
+import { FrontMatterCard } from "./front-matter-card";
 import { openSourcePopover } from "./html-render";
-
-/** How often an open editor looks for the agent's writes. */
-const WATCH_INTERVAL_MS = 250;
 
 /** The headings that are the document's, not the editor's own menus. */
 const HEADING_SELECTOR = ".ProseMirror > :is(h1, h2, h3, h4, h5, h6)";
@@ -56,6 +51,13 @@ interface Fence {
 }
 
 type Offscreen = "above" | "below" | null;
+
+declare global {
+  interface Window {
+    /** Each open editor's session by path, for the invariant check to drive in development. */
+    __markdownEditors?: Record<string, EditorSession>;
+  }
+}
 
 /**
  * A Markdown file open as a live document: edited in place, saved as it is
@@ -160,11 +162,8 @@ function editFenceSource(
 
 /** A handle on each open editor for the invariant check to drive, in development. */
 function exposeForTests(hostPath: string, session: EditorSession) {
-  const holder = window as unknown as {
-    __markdownEditors?: Record<string, EditorSession>;
-  };
-  holder.__markdownEditors ??= {};
-  holder.__markdownEditors[hostPath] = session;
+  window.__markdownEditors ??= {};
+  window.__markdownEditors[hostPath] = session;
 }
 
 /**
@@ -212,13 +211,6 @@ function FenceView({
   );
 }
 
-function frontMatterOf(text: string) {
-  const m = /^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(
-    text,
-  );
-  return m?.[0] ?? "";
-}
-
 function LiveDocument({
   hostPath,
   initial,
@@ -228,7 +220,7 @@ function LiveDocument({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<EditorSession | null>(null);
-  const [fm, setFm] = useState(() => frontMatterOf(initial.content));
+  const [fm, setFm] = useState(() => splitFrontMatter(initial.content).fm);
   // Bumped when the front matter changes on disk rather than in the card, so
   // the card redraws from it.
   const [fmRevision, setFmRevision] = useState(0);
@@ -244,18 +236,7 @@ function LiveDocument({
   const askRef = useRef({ begin, mark });
   askRef.current = { begin, mark };
 
-  // The file on disk, looked at four times a second while it is open.
-  const watched = useQuery(
-    rpcClient.files.live.info.experimental_liveOptions({
-      input: { intervalMs: WATCH_INTERVAL_MS, path: hostPath },
-    }),
-  );
-  const modifiedAt = watched.data?.modifiedAt;
-  useEffect(() => {
-    if (modifiedAt !== undefined) {
-      session?.pull();
-    }
-  }, [modifiedAt, session]);
+  usePullOnDiskChange(hostPath, session);
 
   /** Which way a change the agent made lies, when it is out of view. */
   const noteChange = (change: ExternalChange) => {
@@ -546,8 +527,6 @@ function MessageHead({
 }) {
   const [toValue, setTo] = useState(to);
   const [subjectValue, setSubject] = useState(subject);
-  const fmRef = useRef(fm);
-  fmRef.current = fm;
   const described = messageKindOf(kind);
   const field =
     "min-w-0 flex-1 rounded-sm bg-transparent px-1 py-0.5 text-foreground outline-none placeholder:text-muted-foreground/60 hover:bg-muted focus:bg-muted";
@@ -563,9 +542,7 @@ function MessageHead({
           className={field}
           onChange={(event) => {
             setTo(event.target.value);
-            onChange(
-              setFrontMatterField(fmRef.current, "to", event.target.value),
-            );
+            onChange(setFrontMatterField(fm, "to", event.target.value));
           }}
           placeholder="Who it is for"
           value={toValue}
@@ -579,13 +556,7 @@ function MessageHead({
             className={cn(field, "font-semibold")}
             onChange={(event) => {
               setSubject(event.target.value);
-              onChange(
-                setFrontMatterField(
-                  fmRef.current,
-                  "subject",
-                  event.target.value,
-                ),
-              );
+              onChange(setFrontMatterField(fm, "subject", event.target.value));
             }}
             placeholder="Subject"
             value={subjectValue}

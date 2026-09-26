@@ -21,11 +21,9 @@ import katex from "katex";
 
 // ---------------------------------------------------------------- schema
 
-interface MdCode {
-  lang?: null | string;
-  meta?: null | string;
-  value?: string;
-}
+/** A field of a remark node, which Milkdown types as unknown, as the string it is when set. */
+const stringField = (value: unknown) =>
+  typeof value === "string" ? value : "";
 
 /** "ts:src/a.ts" -> ["ts", ":src/a.ts"] */
 function splitLang(lang: string): [string, string] {
@@ -41,14 +39,15 @@ export const codeBlockInfo = codeBlockSchema.extendSchema((prev) => (ctx) => {
     parseMarkdown: {
       match: base.parseMarkdown.match,
       runner: (state, node, type) => {
-        const code = node as MdCode;
-        const [language, suffix] = splitLang(code.lang ?? "");
+        const [language, suffix] = splitLang(stringField(node.lang));
+        const meta = stringField(node.meta);
+        const value = stringField(node.value);
         state.openNode(type, {
-          info: suffix + (code.meta ? ` ${code.meta}` : ""),
+          info: suffix + (meta ? ` ${meta}` : ""),
           language,
         });
-        if (code.value) {
-          state.addText(code.value);
+        if (value) {
+          state.addText(value);
         }
         state.closeNode();
       },
@@ -92,15 +91,21 @@ export function labelOf(info: string): string {
 
 // ---------------------------------------------------------------- languages
 
+/** Mermaid and Studio's own fences are highlighted as Markdown. */
+const loadMarkdown = async () => {
+  const { markdown } = await import("@codemirror/lang-markdown");
+  return markdown();
+};
+
 const extra = [
   LanguageDescription.of({
     alias: ["mermaid"],
-    load: async () => (await import("@codemirror/lang-markdown")).markdown(),
+    load: loadMarkdown,
     name: "Mermaid",
   }),
   LanguageDescription.of({
     alias: ["message", "files"],
-    load: async () => (await import("@codemirror/lang-markdown")).markdown(),
+    load: loadMarkdown,
     name: "Studio block",
   }),
 ];
@@ -200,8 +205,34 @@ function rank(query: string): Entry[] {
 
 let openPicker: (() => void) | null = null;
 
+/**
+ * Wraps Crepe's preview hook. `renderFence` draws the fences Studio draws as
+ * something other than code (the element it returns is filled in by React);
+ * ```math fences render with KaTeX.
+ */
+export function renderPreview(
+  renderFence: (language: string, content: string) => null | string,
+) {
+  return (language: string, content: string): HTMLElement | null | string => {
+    const lang = language.toLowerCase();
+    const fence = content.trim() ? renderFence(lang, content) : null;
+    if (fence) {
+      return fence;
+    }
+    if (lang === "math" && content.trim()) {
+      return katex.renderToString(content, {
+        displayMode: true,
+        throwOnError: false,
+      });
+    }
+    return null;
+  };
+}
+
+// ---------------------------------------------------------------- previews
+
 /** Opens the picker under `anchor`; `choose(tag)` receives the fence tag ('' for plain text). */
-export function openLanguagePicker(
+function openLanguagePicker(
   anchor: HTMLElement,
   current: string,
   choose: (tag: string) => void,
@@ -340,32 +371,6 @@ export function openLanguagePicker(
     Object.assign(pop.style, { left: `${x}px`, top: `${y}px` });
   });
   input.focus({ preventScroll: true });
-}
-
-// ---------------------------------------------------------------- previews
-
-/**
- * Wraps Crepe's preview hook. `renderFence` draws the fences Studio draws as
- * something other than code (the element it returns is filled in by React);
- * ```math fences render with KaTeX.
- */
-export function renderPreview(
-  renderFence: (language: string, content: string) => null | string,
-) {
-  return (language: string, content: string): HTMLElement | null | string => {
-    const lang = language.toLowerCase();
-    const fence = content.trim() ? renderFence(lang, content) : null;
-    if (fence) {
-      return fence;
-    }
-    if (lang === "math" && content.trim()) {
-      return katex.renderToString(content, {
-        displayMode: true,
-        throwOnError: false,
-      });
-    }
-    return null;
-  };
 }
 
 // ---------------------------------------------------------------- decoration of Crepe's DOM

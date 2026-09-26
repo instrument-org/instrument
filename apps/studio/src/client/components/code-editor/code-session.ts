@@ -5,6 +5,17 @@
 // arrives as the smallest edits that make it, kept out of undo, and its lines
 // flash. All disk I/O runs through one queue, so a merge never interleaves
 // with a save in flight.
+import {
+  type AskMark,
+  stepAskMarks,
+} from "@/client/components/orchestrator/ask-marks";
+import {
+  AGENT_FLASH_MS,
+  createSaveQueue,
+  flushOnLeave,
+  type SaveStatus,
+} from "@/client/lib/live-file";
+import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
 import {
   defaultKeymap,
@@ -49,7 +60,7 @@ import {
   WidgetType,
 } from "@codemirror/view";
 
-import { mark } from "../markdown-editor/icons";
+import { instrumentMark } from "../markdown-editor/icons";
 import {
   changesBetween,
   detectIndent,
@@ -91,8 +102,6 @@ export interface CodeSessionOptions {
   wrapLines: boolean;
 }
 
-export type SaveStatus = "error" | "saved" | "saving" | "unsaved";
-
 interface DiskState {
   form: TextForm;
   /** The file's text exactly as it is on disk. */
@@ -100,23 +109,11 @@ interface DiskState {
   version: string;
 }
 
-/** How long typing rests before a save, and the longest a save waits under steady typing. */
-const SAVE_DEBOUNCE_MS = 400;
-const SAVE_MAX_WAIT_MS = 2000;
-const FLASH_MS = 1800;
 /** The most lines one agent write lights up; past it, only the first ones flash. */
 const FLASH_MAX_LINES = 400;
 
 /** Marks the transaction that brings a disk change in, so it is not taken for typing. */
 const external = Annotation.define<boolean>();
-
-/** A staged ask's place in the text, kept in step with edits, and the number it wears (0 until the window numbers it). */
-interface AskMark {
-  from: number;
-  id: string;
-  n: number;
-  to: number;
-}
 
 const addAskMark = StateEffect.define<AskMark>();
 const setAskNumbers = StateEffect.define<{ id: string; n: number }[]>();
@@ -147,17 +144,15 @@ const askMarksField = StateField.define<AskMark[]>({
   provide: (field) =>
     EditorView.decorations.from(field, (marks) =>
       Decoration.set(
-        marks.flatMap((mark) =>
-          mark.n === 0
+        marks.flatMap(({ from, n, to }) =>
+          n === 0
             ? []
             : [
-                ...(mark.to > mark.from
-                  ? [askMarkLine.range(mark.from, mark.to)]
-                  : []),
+                ...(to > from ? [askMarkLine.range(from, to)] : []),
                 Decoration.widget({
                   side: 1,
-                  widget: new AskBadge(mark.n),
-                }).range(mark.to),
+                  widget: new AskBadge(n),
+                }).range(to),
               ],
         ),
         true,
@@ -165,25 +160,15 @@ const askMarksField = StateField.define<AskMark[]>({
     ),
   update: (marks, tr) => {
     let next = tr.docChanged
-      ? marks.map((mark) => {
-          const from = tr.changes.mapPos(mark.from, 1);
-          return {
-            ...mark,
-            from,
-            to: Math.max(from, tr.changes.mapPos(mark.to, -1)),
-          };
+      ? stepAskMarks(marks, {
+          map: (pos, assoc) => tr.changes.mapPos(pos, assoc),
         })
       : marks;
     for (const effect of tr.effects) {
       if (effect.is(addAskMark)) {
-        const added = effect.value;
-        next = [...next.filter((mark) => mark.id !== added.id), added];
+        next = stepAskMarks(next, { add: effect.value });
       } else if (effect.is(setAskNumbers)) {
-        const byId = new Map(effect.value.map(({ id, n }) => [id, n]));
-        next = next.flatMap((mark) => {
-          const n = byId.get(mark.id);
-          return n === undefined ? [] : [{ ...mark, n }];
-        });
+        next = stepAskMarks(next, { numbers: effect.value });
       }
     }
     return next;
@@ -266,56 +251,14 @@ export function createCodeSession(options: CodeSessionOptions) {
 
   // ---------------------------------------------------------------- disk queue
 
-  let queue: Promise<void> = Promise.resolve();
-  const enqueue = (task: () => Promise<void>) => {
-    queue = queue.then(task).catch((error: unknown) => {
-      console.error("code editor:", error);
-      options.onStatus(
-        "error",
-        error instanceof Error ? error.message : "Could not save",
-      );
-    });
-    return queue;
-  };
-
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
-  let saveQueued = false;
-  let pendingSince = 0;
-  // Debounced, but never postponed past the max wait: a steady stream of
-  // keystrokes or agent writes must not keep the person's edits off disk.
-  const scheduleSave = (ms = SAVE_DEBOUNCE_MS) => {
-    clearTimeout(saveTimer);
-    pendingSince ||= Date.now();
-    options.onStatus("unsaved");
-    saveTimer = setTimeout(
-      () => {
-        saveTimer = undefined;
-        pendingSince = 0;
-        if (saveQueued) {
-          return;
-        }
-        saveQueued = true;
-        void enqueue(save);
-      },
-      Math.max(0, Math.min(ms, pendingSince + SAVE_MAX_WAIT_MS - Date.now())),
-    );
-  };
-
-  const flush = () => {
-    if (saveTimer !== undefined) {
-      clearTimeout(saveTimer);
-      saveTimer = undefined;
-      pendingSince = 0;
-      if (!saveQueued) {
-        saveQueued = true;
-        void enqueue(save);
-      }
-    }
-    return queue;
-  };
+  const saves = createSaveQueue({
+    label: "code editor",
+    onStatus: options.onStatus,
+    save,
+  });
+  const scheduleSave = saves.schedule;
 
   async function save() {
-    saveQueued = false;
     const text = currentText();
     if (text === disk.text) {
       options.onStatus("saved");
@@ -361,15 +304,12 @@ export function createCodeSession(options: CodeSessionOptions) {
     scheduleSave(100);
   }
 
-  let pullQueued = false;
   /** The file changed on disk (or may have): read it and merge what changed. */
   const pull = () => {
-    if (pullQueued || destroyed) {
+    if (destroyed) {
       return;
     }
-    pullQueued = true;
-    void enqueue(async () => {
-      pullQueued = false;
+    saves.pull(async () => {
       const r = await rpcClient.files.read.call({ path: hostPath });
       // Our own save's echo: the version we already hold.
       if (destroyed || r.version === disk.version || r.content === disk.text) {
@@ -500,7 +440,7 @@ export function createCodeSession(options: CodeSessionOptions) {
           if (!destroyed) {
             view.dispatch({ effects: clearFlash.of(null) });
           }
-        }, FLASH_MS);
+        }, AGENT_FLASH_MS);
       }
     }
     if (
@@ -588,32 +528,12 @@ export function createCodeSession(options: CodeSessionOptions) {
         });
       },
       (error: unknown) => {
-        console.warn("code editor: no language for", options.filename, error);
+        logger.debug("code editor: no language for", options.filename, error);
       },
     );
   }
 
-  // Leaving the editor is a save: the caret going elsewhere, the window
-  // hiding, the window closing.
-  const onFocusOut = (e: FocusEvent) => {
-    if (
-      !(e.relatedTarget instanceof Node) ||
-      !view.dom.contains(e.relatedTarget)
-    ) {
-      void flush();
-    }
-  };
-  const onHide = () => {
-    if (document.visibilityState === "hidden") {
-      void flush();
-    }
-  };
-  const onUnload = () => {
-    void flush();
-  };
-  view.dom.addEventListener("focusout", onFocusOut);
-  document.addEventListener("visibilitychange", onHide);
-  window.addEventListener("beforeunload", onUnload);
+  const stopFlushOnLeave = flushOnLeave(saves.flush, view.dom);
 
   return {
     /**
@@ -643,36 +563,29 @@ export function createCodeSession(options: CodeSessionOptions) {
       if (destroyed) {
         return;
       }
-      view.dom.removeEventListener("focusout", onFocusOut);
-      document.removeEventListener("visibilitychange", onHide);
-      window.removeEventListener("beforeunload", onUnload);
-      await flush();
+      stopFlushOnLeave();
+      await saves.flush();
       destroyed = true;
       clearTimeout(flashTimer);
-      clearTimeout(saveTimer);
+      saves.cancel();
       view.destroy();
     },
     disk: () => disk,
-    flush,
+    flush: saves.flush,
     /** Whether nothing is waiting to be written. */
-    idle: async () => {
-      await queue;
-      return (
-        !saveQueued && saveTimer === undefined && currentText() === disk.text
-      );
-    },
+    idle: async () => (await saves.idle()) && currentText() === disk.text,
     pull,
     /** Scrolls a staged ask's place into view and selects it. */
     revealAskMark: (id: string) => {
-      const mark = view.state
+      const place = view.state
         .field(askMarksField)
         .find((entry) => entry.id === id);
-      if (!mark) {
+      if (!place) {
         return;
       }
       view.dispatch({
-        effects: EditorView.scrollIntoView(mark.from, { y: "center" }),
-        selection: EditorSelection.range(mark.from, mark.to),
+        effects: EditorView.scrollIntoView(place.from, { y: "center" }),
+        selection: EditorSelection.range(place.from, place.to),
       });
     },
     /** The staged asks this file holds, numbered; a mark whose ask is gone goes too. */
@@ -705,7 +618,7 @@ function askTooltip(onAsk: (state: EditorState) => void): Extension {
           const button = document.createElement("button");
           button.type = "button";
           button.className = "code-ask";
-          button.innerHTML = `${mark(14)}<span>Ask</span>`;
+          button.innerHTML = `${instrumentMark(14)}<span>Ask</span>`;
           // Pressing it must not move the caret out of the selection it asks about.
           button.addEventListener("mousedown", (event) => {
             event.preventDefault();

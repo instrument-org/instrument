@@ -1,3 +1,6 @@
+// Asks staged on files in this window: the places the person marked for
+// Instrument, held in memory until a composer sends them, with the hooks each
+// surface uses to stage, list, move and reveal them.
 import { windowTabsAtom } from "@/client/atoms/orchestrator";
 import { promptDraftRefAtom } from "@/client/atoms/prompt-value";
 import {
@@ -73,14 +76,6 @@ export function asksPart(
       };
     }),
   };
-}
-
-/** An excerpt cut to what an ask carries. */
-export function clipExcerpt(text: string) {
-  const trimmed = text.trim();
-  return trimmed.length > EXCERPT_MAX
-    ? `${trimmed.slice(0, EXCERPT_MAX)}…`
-    : trimmed;
 }
 
 /** A file's name, from its path. */
@@ -167,9 +162,12 @@ export function useStagedAskActions() {
   };
 }
 
-/** A file's asks still waiting on its Ask, not yet moved into a composer. */
-export function useWaitingAsks(path: string) {
-  return useFileAsks(path).filter((ask) => ask.destination === undefined);
+/** An excerpt cut to what an ask carries. */
+function clipExcerpt(text: string) {
+  const trimmed = text.trim();
+  return trimmed.length > EXCERPT_MAX
+    ? `${trimmed.slice(0, EXCERPT_MAX)}…`
+    : trimmed;
 }
 
 /** Whether an ask was moved into this composer. */
@@ -251,7 +249,7 @@ export function useMoveAsks() {
  * The thread up beside what is on screen, whose composer takes what a file's
  * Ask moves; with none, a new draft takes it.
  */
-export function useThreadBeside(): StoreId.Session | undefined {
+function useThreadBeside(): StoreId.Session | undefined {
   const { group } = useAtomValue(windowTabsAtom);
   const parsed = StoreId.SessionSchema.safeParse(group);
   return parsed.success ? parsed.data : undefined;

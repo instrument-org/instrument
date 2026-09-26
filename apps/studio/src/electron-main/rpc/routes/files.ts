@@ -158,7 +158,7 @@ async function writeWhole(filePath: string, content: string) {
   const target = await fs.realpath(filePath).catch(() => filePath);
   const mode = await fs.stat(target).then(
     (stats) => stats.mode & 0o7777,
-    () => {},
+    () => null,
   );
   const staging = path.join(
     path.dirname(target),
@@ -166,7 +166,7 @@ async function writeWhole(filePath: string, content: string) {
   );
   try {
     await fs.writeFile(staging, content);
-    if (mode !== undefined) {
+    if (mode !== null) {
       await fs.chmod(staging, mode);
     }
     await fs.rename(staging, target);

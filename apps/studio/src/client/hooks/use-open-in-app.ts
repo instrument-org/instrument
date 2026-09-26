@@ -1,3 +1,5 @@
+// Opening a file or a web page in the app outside Instrument that it belongs
+// to, and naming that app.
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";

@@ -22,27 +22,15 @@ import {
 } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { ChatsIcon } from "@phosphor-icons/react/Chats";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { ExportIcon } from "@phosphor-icons/react/Export";
-import { MegaphoneIcon } from "@phosphor-icons/react/Megaphone";
-import { NoteIcon } from "@phosphor-icons/react/Note";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useState } from "react";
 
 import { MarkdownTaskContext } from "./markdown-task-context";
-
-const KIND: Record<MessageKind, { icon: ReactNode; label: string }> = {
-  chat: { icon: <ChatsIcon />, label: "Message" },
-  comment: { icon: <ChatCircleIcon />, label: "Comment" },
-  email: { icon: <EnvelopeSimpleIcon />, label: "Email" },
-  other: { icon: <NoteIcon />, label: "Text" },
-  post: { icon: <MegaphoneIcon />, label: "Post" },
-  text: { icon: <ChatCircleIcon />, label: "Text" },
-};
+import { messageKindOf } from "./message-kind";
 
 const ADDRESS = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 
@@ -171,7 +159,7 @@ export function MessageCard({
   isStreaming?: boolean;
   message: MessageDraft;
 }) {
-  const kind = KIND[message.kind];
+  const kind = messageKindOf(message.kind);
   const settled = !isStreaming && message.body !== "";
 
   return (
@@ -232,14 +220,6 @@ export function MessageCard({
 export function MessageFence({ code }: { code: string }) {
   const { isStreaming } = useContext(MarkdownTaskContext);
   return <MessageCard isStreaming={isStreaming} message={parseMessage(code)} />;
-}
-
-/** What a message is, as the card's head names it: its glyph and its word. */
-export function messageKindOf(kind: MessageKind): {
-  icon: ReactNode;
-  label: string;
-} {
-  return KIND[kind];
 }
 
 /** The icon of the app a Send row opens, or a glyph where there is none. */

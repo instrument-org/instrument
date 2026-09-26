@@ -20,13 +20,17 @@
 //    text. Each block-level hunk the agent made is applied at the matching
 //    place in the editor, narrowed to the characters that changed, out of undo
 //    history. A hunk that overlaps blocks the person changed keeps theirs.
+import { logger } from "@/client/lib/logger";
 import { Fragment, type Node as PMNode } from "@milkdown/kit/prose/model";
 import { type Transaction } from "@milkdown/kit/prose/state";
+import { type Mappable } from "@milkdown/kit/prose/transform";
 import { type EditorView } from "@milkdown/kit/prose/view";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
+
+import { splitFrontMatter } from "./front-matter";
 
 export interface BodyAnalysis {
   body: string;
@@ -91,11 +95,6 @@ const parseTree = (text: string): MdNode => remark.parse(text);
 const startOf = (n: MdNode) => n.position?.start.offset ?? 0;
 const endOf = (n: MdNode) => n.position?.end.offset ?? 0;
 
-// ---------------------------------------------------------------- front matter
-
-const FRONT_MATTER =
-  /^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
-
 interface NodeJson {
   attrs?: Record<string, unknown>;
   content?: NodeJson[];
@@ -122,7 +121,7 @@ export function childrenOf(
 // ---------------------------------------------------------------- node comparison
 
 /** Milkdown's trailing plugin keeps an empty paragraph at the end; it is not content. */
-export function contentNodes(pmDoc: PMNode): PMNode[] {
+function contentNodes(pmDoc: PMNode): PMNode[] {
   const nodes: PMNode[] = [];
   for (const { node: n } of childrenOf(pmDoc)) nodes.push(n);
   while (nodes.length > 0) {
@@ -136,34 +135,31 @@ export function contentNodes(pmDoc: PMNode): PMNode[] {
   return nodes;
 }
 
-export function splitFrontMatter(text: string): { body: string; fm: string } {
-  const m = FRONT_MATTER.exec(text);
-  return m
-    ? { body: text.slice(m[0].length), fm: m[0] }
-    : { body: text, fm: "" };
-}
-
 /**
  * Structural identity of a node, ignoring heading ids (Milkdown fills those
  * in after parsing; they are not in the Markdown). Nodes are immutable, so the
  * key is cached per node object.
  */
 const keyCache = new WeakMap<PMNode, string>();
-export function keyOf(node: PMNode): string {
+function keyOf(node: PMNode): string {
   let k = keyCache.get(node);
   if (k === undefined) {
-    const strip = (j: NodeJson): NodeJson => {
-      if (j.type === "heading" && j.attrs) {
-        j.attrs = { ...j.attrs, id: "" };
-      }
-      j.content?.forEach(strip);
-      return j;
-    };
     // `toJSON` is typed loosely by ProseMirror; its shape is NodeJson.
-    k = JSON.stringify(strip(node.toJSON() as NodeJson));
+    k = JSON.stringify(stripHeadingIds(node.toJSON() as NodeJson));
     keyCache.set(node, k);
   }
   return k;
+}
+
+/** A node's JSON with heading ids blanked, in place. */
+function stripHeadingIds(json: NodeJson): NodeJson {
+  if (json.type === "heading" && json.attrs) {
+    json.attrs = { ...json.attrs, id: "" };
+  }
+  for (const child of json.content ?? []) {
+    stripHeadingIds(child);
+  }
+  return json;
 }
 
 /** A copy with heading ids blanked, so position diffs ignore them. */
@@ -180,7 +176,7 @@ function stripIds(node: PMNode): PMNode {
   return node.type.create(attrs, kids, node.marks);
 }
 
-export const sameKeys = (a: readonly PMNode[], b: readonly PMNode[]) =>
+const sameKeys = (a: readonly PMNode[], b: readonly PMNode[]) =>
   a.length === b.length && a.every((n, i) => b[i] && keyOf(n) === keyOf(b[i]));
 
 /** LCS over two key arrays; returns, for each index of `a`, the matched index in `b` or -1. */
@@ -241,7 +237,6 @@ const isDefinition = (type: string) =>
 const isEmptyParagraph = (n: PMNode) =>
   n.type.name === "paragraph" && n.content.size === 0;
 
-export type DocSync = ReturnType<typeof createDocSync>;
 export interface DocSyncDeps {
   /** Milkdown's parser: Markdown to a document node. Throws on some input. */
   parse: (markdown: string) => PMNode;
@@ -358,13 +353,8 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
       if (!parsed?.length) {
         continue;
       }
-      const fits = (k: number) =>
-        parsed.every((n, m) => {
-          const c = children[k + m];
-          return c !== undefined && keyOf(c) === keyOf(n);
-        });
       for (let k = j; k + parsed.length <= children.length; k++) {
-        if (fits(k)) {
+        if (runMatches(children, k, parsed)) {
           g.first = k;
           g.size = parsed.length;
           for (let m = 0; m < g.size; m++) {
@@ -577,32 +567,6 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
   }
 
   /**
-   * Backslash escapes the serializer wrote inside text (not in code, HTML or
-   * math, where a backslash is content): offsets of each `\` that escapes an
-   * ASCII punctuation character other than a backslash.
-   */
-  function escapeSites(md: string): number[] {
-    const sites: number[] = [];
-    const visit = (n: MdNode) => {
-      if (n.type === "text" && n.position) {
-        const s = n.position.start.offset ?? 0;
-        const e = n.position.end.offset ?? 0;
-        for (let i = s; i < e - 1; i++) {
-          if (md[i] === "\\") {
-            if (/[!-/:-@[\]-`{-~]/.test(md[i + 1] ?? "")) {
-              sites.push(i);
-            }
-            i++;
-          }
-        }
-      }
-      n.children?.forEach(visit);
-    };
-    visit(parseTree(md));
-    return sites;
-  }
-
-  /**
    * Serialized Markdown for `nodes` with every backslash escape removed that
    * the text does not need: the result must parse, with the document's link
    * and footnote definitions as `context`, to exactly what `md` parses to.
@@ -679,12 +643,14 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
     );
     const demoted = new Set<Group>();
     // The previous attempt, while widening.
-    let prev: null | {
-      bad: number;
-      next: BodyAnalysis | null;
-      stats: { preserved: number; serialized: number };
-      text: string;
-    } = null;
+    let prev:
+      | undefined
+      | {
+          bad: number;
+          next: BodyAnalysis | null;
+          stats: { preserved: number; serialized: number };
+          text: string;
+        };
     const schema = pmDoc.type.schema;
     let note = "";
     const groupAt = (i: number) => {
@@ -788,7 +754,7 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
       // serializer's own round-trip limit (trailing spaces mid-typing, say),
       // not a fusion with a neighbor; widening further would only rewrite more
       // of the file, so settle for the text from before that last widening.
-      if (prev !== null && prev.bad === bad) {
+      if (prev?.bad === bad) {
         lastSplice = {
           ...prev.stats,
           note:
@@ -915,8 +881,8 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
     }
 
     const flashes: FlashRange[] = marks.map((f) => ({
-      from: tr.mapping.slice(f.step).map(f.from, -1),
-      to: tr.mapping.slice(f.step).map(f.to, 1),
+      from: mapPos(tr.mapping.slice(f.step), f.from, -1),
+      to: mapPos(tr.mapping.slice(f.step), f.to, 1),
     }));
     if (tr.docChanged) {
       tr.setMeta("addToHistory", false);
@@ -930,7 +896,7 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
         .setMeta("addToHistory", false);
       tag(all, []);
       v.dispatch(all);
-      console.warn("markdown editor: merge fell back to a full replace");
+      logger.error("markdown editor: merge fell back to a full replace");
     }
     let result =
       !tr.docChanged && next.fm === disk.fm
@@ -1042,12 +1008,24 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
   };
 }
 
+/** ASCII punctuation other than a backslash: what a Markdown backslash escapes. */
+const ESCAPABLE = /[!"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~]/;
+
 /** ProseMirror's DOM observer is internal; flushing it reads pending keystrokes into the state. */
 export function flushDomObserver(v: EditorView) {
   // `domObserver` is not in ProseMirror's public types.
   const observer = (v as unknown as { domObserver?: { flush?: () => void } })
     .domObserver;
   observer?.flush?.();
+}
+
+/**
+ * A position through a ProseMirror mapping. A mapping's `map` takes the side a
+ * position sticks to, not the `this` an array's `map` takes.
+ */
+export function mapPos(mapping: Mappable, pos: number, assoc: -1 | 1) {
+  // eslint-disable-next-line unicorn/no-array-method-this-argument -- a ProseMirror mapping, not an array
+  return mapping.map(pos, assoc);
 }
 
 function diffHunks(
@@ -1063,11 +1041,15 @@ function diffHunks(
   let ae = ae0;
   let bs = bs0;
   let be = be0;
-  while (as < ae && bs < be && a.charCodeAt(as) === b.charCodeAt(bs)) {
+  while (as < ae && bs < be && a.codePointAt(as) === b.codePointAt(bs)) {
     as++;
     bs++;
   }
-  while (ae > as && be > bs && a.charCodeAt(ae - 1) === b.charCodeAt(be - 1)) {
+  while (
+    ae > as &&
+    be > bs &&
+    a.codePointAt(ae - 1) === b.codePointAt(be - 1)
+  ) {
     ae--;
     be--;
   }
@@ -1103,6 +1085,34 @@ function diffHunks(
   }
   out.push({ ne: be, ns: bs, oe: ae, os: as });
   return out;
+}
+
+/**
+ * Backslash escapes the serializer wrote inside text (not in code, HTML or
+ * math, where a backslash is content): offsets of each `\` that escapes an
+ * ASCII punctuation character other than a backslash.
+ */
+function escapeSites(md: string): number[] {
+  const sites: number[] = [];
+  const visit = (n: MdNode) => {
+    if (n.type === "text" && n.position) {
+      const s = n.position.start.offset ?? 0;
+      const e = n.position.end.offset ?? 0;
+      for (let i = s; i < e - 1; i++) {
+        if (md[i] === "\\") {
+          if (ESCAPABLE.test(md[i + 1] ?? "")) {
+            sites.push(i);
+          }
+          i++;
+        }
+      }
+    }
+    for (const child of n.children ?? []) {
+      visit(child);
+    }
+  };
+  visit(parseTree(md));
+  return sites;
 }
 
 /**
@@ -1158,4 +1168,16 @@ function planMerge(
     }
   }
   return { conflicts, ops };
+}
+
+/** Whether `children` from `at` on are, node for node, the nodes in `run`. */
+function runMatches(
+  children: readonly PMNode[],
+  at: number,
+  run: readonly PMNode[],
+) {
+  return run.every((node, offset) => {
+    const child = children[at + offset];
+    return child !== undefined && keyOf(child) === keyOf(node);
+  });
 }

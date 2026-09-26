@@ -36,7 +36,12 @@ export function AskTray({ path }: { path: string }) {
   const [tray, setTray] = useAtom(askTrayAtom);
   const [isHovered, setHovered] = useState(false);
   const foldTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(foldTimer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(foldTimer.current);
+    },
+    [],
+  );
   if (waiting.length === 0) {
     return null;
   }

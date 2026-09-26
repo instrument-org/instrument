@@ -851,11 +851,11 @@ function OrchestratorLayout() {
         askAbout: (items) => {
           newDraft(undefined, items);
         },
+        browser,
         // With no chat beside the file, a new draft takes what was marked,
         // opened over the file now that the marking is done.
-        browser,
-        moveAsksToDraft: (ids) => {
-          moveAsks(ids, { draftId: newDraft(), kind: "draft" });
+        moveAsksToDraft: (askIds) => {
+          moveAsks(askIds, { draftId: newDraft(), kind: "draft" });
         },
         // The composer is a draft in a window of its own, which takes the
         // caret as it opens.

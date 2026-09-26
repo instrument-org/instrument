@@ -78,15 +78,6 @@ export async function storeFileOpenIcon(base64: string) {
   );
 }
 
-/**
- * An app icon that exists only as SVG, which nativeImage cannot decode (most
- * GNOME apps ship no PNG). Kept as it is and served as SVG; the renderer only
- * ever draws it as an image, where an SVG's scripts do not run.
- */
-export async function storeFileOpenSvgIcon(svg: Buffer) {
-  return svg.length === 0 ? null : storeIcon(svg, "svg");
-}
-
 export async function storeFileOpenNativeImage(image: NativeImage) {
   if (image.isEmpty()) {
     return null;
@@ -94,6 +85,15 @@ export async function storeFileOpenNativeImage(image: NativeImage) {
   return storePng(
     image.resize({ height: ICON_SIZE, width: ICON_SIZE }).toPNG(),
   );
+}
+
+/**
+ * An app icon that exists only as SVG, which nativeImage cannot decode (most
+ * GNOME apps ship no PNG). Kept as it is and served as SVG; the renderer only
+ * ever draws it as an image, where an SVG's scripts do not run.
+ */
+export async function storeFileOpenSvgIcon(svg: Buffer) {
+  return svg.length === 0 ? null : storeIcon(svg, "svg");
 }
 
 async function handleFileOpenIconRequest({
@@ -208,10 +208,6 @@ function iconDirectory() {
 // process; a leftover `.tmp` from a crash is harmless and never served.
 let tempFileCounter = 0;
 
-async function storePng(png: Buffer) {
-  return storeIcon(png, "png");
-}
-
 async function storeIcon(png: Buffer, extension: "png" | "svg") {
   const digest = createHash("sha256").update(png).digest("hex");
   const filename = `${digest}.${extension}`;
@@ -236,4 +232,8 @@ async function storeIcon(png: Buffer, extension: "png" | "svg") {
     }
   }
   return `${APP_PROTOCOL}://${FILE_OPEN_ICON_HOST}/${filename}`;
+}
+
+async function storePng(png: Buffer) {
+  return storeIcon(png, "png");
 }

@@ -7,7 +7,13 @@ import {
 } from "@/client/components/orchestrator/staged-asks";
 import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { registerFileFlush } from "@/client/lib/file-flush";
-import { logger } from "@/client/lib/logger";
+import {
+  AGENT_FLASH_MS,
+  createSaveQueue,
+  flushOnLeave,
+  type SaveStatus,
+  usePullOnDiskChange,
+} from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
 import { type ReferenceElement } from "@floating-ui/dom";
 import { useQuery } from "@tanstack/react-query";
@@ -46,12 +52,6 @@ import { inferAlignment } from "./grid-columns";
  */
 const cellOfAsk = new Map<string, { column: number; row: number }>();
 
-/** How often an open table looks for the agent's writes. */
-const WATCH_INTERVAL_MS = 250;
-/** How long editing rests before a save, and the longest a save waits under steady editing. */
-const SAVE_DEBOUNCE_MS = 400;
-const SAVE_MAX_WAIT_MS = 2000;
-const FLASH_MS = 1800;
 /**
  * Past these a file opens read-only. Every edit reparses the whole file to
  * keep each field's place in it, which stays under a frame's worth of work
@@ -66,7 +66,12 @@ const NO_FLASH: ReadonlySet<string> = new Set();
 
 type CsvSession = ReturnType<typeof createCsvSession>;
 
-type SaveStatus = "error" | "saved" | "saving" | "unsaved";
+declare global {
+  interface Window {
+    /** Each open table's session by path, for checks to drive in development. */
+    __csvEditors?: Record<string, CsvSession>;
+  }
+}
 
 /** A batch of cell edits as it can be undone: the cells, and their record's text afterwards. */
 type UndoEntry = Extract<CsvEdit, { kind: "cells" }>;
@@ -161,56 +166,14 @@ function createCsvSession(options: {
   let redoStack: UndoEntry[] = [];
   let destroyed = false;
 
-  let queue: Promise<void> = Promise.resolve();
-  const enqueue = (task: () => Promise<void>) => {
-    queue = queue.then(task).catch((error: unknown) => {
-      logger.error("csv editor:", error);
-      options.onStatus(
-        "error",
-        error instanceof Error ? error.message : "Could not save",
-      );
-    });
-    return queue;
-  };
-
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
-  let saveQueued = false;
-  let pendingSince = 0;
-  // Debounced, but never postponed past the max wait: a steady stream of
-  // edits or agent writes must not keep the person's changes off disk.
-  const scheduleSave = (ms = SAVE_DEBOUNCE_MS) => {
-    clearTimeout(saveTimer);
-    pendingSince ||= Date.now();
-    options.onStatus("unsaved");
-    saveTimer = setTimeout(
-      () => {
-        saveTimer = undefined;
-        pendingSince = 0;
-        if (saveQueued) {
-          return;
-        }
-        saveQueued = true;
-        void enqueue(save);
-      },
-      Math.max(0, Math.min(ms, pendingSince + SAVE_MAX_WAIT_MS - Date.now())),
-    );
-  };
-
-  const flush = () => {
-    if (saveTimer !== undefined) {
-      clearTimeout(saveTimer);
-      saveTimer = undefined;
-      pendingSince = 0;
-      if (!saveQueued) {
-        saveQueued = true;
-        void enqueue(save);
-      }
-    }
-    return queue;
-  };
+  const saves = createSaveQueue({
+    label: "csv editor",
+    onStatus: options.onStatus,
+    save,
+  });
+  const scheduleSave = saves.schedule;
 
   async function save() {
-    saveQueued = false;
     const text = local.text;
     if (text === disk.text) {
       pending = [];
@@ -254,15 +217,12 @@ function createCsvSession(options: {
     }
   }
 
-  let pullQueued = false;
   /** The file changed on disk (or may have): read it and take in what changed. */
   const pull = () => {
-    if (pullQueued || destroyed) {
+    if (destroyed) {
       return;
     }
-    pullQueued = true;
-    void enqueue(async () => {
-      pullQueued = false;
+    saves.pull(async () => {
       const result = await rpcClient.files.read.call({ path: hostPath });
       // Our own save's echo.
       if (result.version === disk.version || result.content === disk.text) {
@@ -338,17 +298,7 @@ function createCsvSession(options: {
     }
   };
 
-  // Leaving is a save: the window hiding or closing.
-  const onHide = () => {
-    if (document.visibilityState === "hidden") {
-      void flush();
-    }
-  };
-  const onUnload = () => {
-    void flush();
-  };
-  document.addEventListener("visibilitychange", onHide);
-  window.addEventListener("beforeunload", onUnload);
+  const stopFlushOnLeave = flushOnLeave(saves.flush);
 
   return {
     apply: (edit: CsvEdit) => {
@@ -359,20 +309,16 @@ function createCsvSession(options: {
       if (destroyed) {
         return;
       }
-      document.removeEventListener("visibilitychange", onHide);
-      window.removeEventListener("beforeunload", onUnload);
-      await flush();
+      stopFlushOnLeave();
+      await saves.flush();
       destroyed = true;
-      clearTimeout(saveTimer);
+      saves.cancel();
     },
     disk: () => disk,
     doc: () => local,
-    flush,
+    flush: saves.flush,
     /** Whether nothing is waiting to be written. */
-    idle: async () => {
-      await queue;
-      return !saveQueued && saveTimer === undefined && local.text === disk.text;
-    },
+    idle: async () => (await saves.idle()) && local.text === disk.text,
     pull,
     redo: () => {
       step(redoStack, undoStack);
@@ -437,7 +383,7 @@ function LiveTable({
           clearTimeout(flashTimer);
           flashTimer = setTimeout(() => {
             setFlashed(NO_FLASH);
-          }, FLASH_MS);
+          }, AGENT_FLASH_MS);
         }
       },
       onNotes: reportNotes,
@@ -450,11 +396,8 @@ function LiveTable({
     setSession(next);
     const unregister = registerFileFlush(hostPath, next.flush);
     if (import.meta.env.DEV) {
-      const holder = window as unknown as {
-        __csvEditors?: Record<string, CsvSession>;
-      };
-      holder.__csvEditors ??= {};
-      holder.__csvEditors[hostPath] = next;
+      window.__csvEditors ??= {};
+      window.__csvEditors[hostPath] = next;
     }
     return () => {
       unregister();
@@ -466,19 +409,7 @@ function LiveTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The file on disk, looked at four times a second while it is open.
-  const watched = useQuery({
-    ...rpcClient.files.live.info.experimental_liveOptions({
-      input: { intervalMs: WATCH_INTERVAL_MS, path: hostPath },
-    }),
-    enabled: session !== null,
-  });
-  const modifiedAt = watched.data?.modifiedAt;
-  useEffect(() => {
-    if (modifiedAt !== undefined) {
-      session?.pull();
-    }
-  }, [modifiedAt, session]);
+  usePullOnDiskChange(hostPath, session, { enabled: session !== null });
 
   const width = widthOf(doc);
   const header = doc.values[doc.headerRecord] ?? [];

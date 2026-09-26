@@ -16,6 +16,7 @@
 //   that structure from the plugin's node decorations.
 // - A source popover: clicking a rendered node (or its "HTML" tab) edits that
 //   node's source, and only that node's.
+import { logger } from "@/client/lib/logger";
 import { computePosition, flip, offset, shift } from "@floating-ui/dom";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
 import {
@@ -35,7 +36,7 @@ import { fromHtml } from "hast-util-from-html";
 import { defaultSchema, sanitize } from "hast-util-sanitize";
 import { toDom } from "hast-util-to-dom";
 
-import { childrenOf } from "./doc-sync";
+import { childrenOf, mapPos } from "./doc-sync";
 import { icon } from "./icons";
 
 export const el = <K extends keyof HTMLElementTagNameMap>(
@@ -79,7 +80,7 @@ const visible = (n: HastChild): boolean =>
       (VISIBLE_LEAVES.has(n.tagName) || n.children.some(visible));
 
 /** The sanitized hast of an HTML value (fragment root), or null if it cannot be parsed. */
-export function sanitizedTree(
+function sanitizedTree(
   value: string,
   resolveSrc: (src: string) => string,
 ): HastRoot | null {
@@ -98,13 +99,15 @@ export function sanitizedTree(
         n.properties.src = resolveSrc(n.properties.src);
       }
       if ("children" in n) {
-        n.children.forEach(fix);
+        for (const child of n.children) {
+          fix(child);
+        }
       }
     };
     fix(tree);
     return tree;
   } catch (error) {
-    console.warn("HTML did not render:", error);
+    logger.debug("HTML did not render:", error);
     return null;
   }
 }
@@ -142,7 +145,7 @@ const VOID = new Set([
   "wbr",
 ]);
 const TAG =
-  /<!--[\s\S]*?(?:-->|$)|<(\/?)([a-z][\w-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
+  /<!--[\s\S]*?(?:-->|$)|<(\/?)([a-z][\w-]*)(?![\w-])((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
 interface Balance {
   closes: string[];
   opens: { attrs: string; tag: string }[];
@@ -251,7 +254,7 @@ interface StructureState {
   toggled: Set<number>;
 }
 
-export const htmlStructureKey = new PluginKey<StructureState>("html-structure");
+const htmlStructureKey = new PluginKey<StructureState>("html-structure");
 
 interface HtmlRoleSpec {
   htmlExpanded?: boolean | null;
@@ -365,11 +368,11 @@ export function htmlStructurePlugin() {
         cls.push("md-html-hidden");
       }
       if (cls.length > 0) {
-        const style = `--html-depth: ${r.depth};${r.align ? ` text-align: ${r.align};` : ""}`;
+        const inlineStyle = `--html-depth: ${r.depth};${r.align ? ` text-align: ${r.align};` : ""}`;
         decos.push(
           Decoration.node(k.pos, k.pos + k.n.nodeSize, {
             class: cls.join(" "),
-            style,
+            style: inlineStyle,
           }),
         );
       }
@@ -489,7 +492,7 @@ export function htmlStructurePlugin() {
         }
         let toggled = old.toggled;
         if (tr.docChanged) {
-          toggled = new Set([...toggled].map((p) => tr.mapping.map(p, 1)));
+          toggled = new Set([...toggled].map((p) => mapPos(tr.mapping, p, 1)));
         }
         if (meta?.toggle !== undefined) {
           toggled = new Set(toggled);
@@ -535,17 +538,6 @@ interface Role {
   role: string;
   tag: string;
 }
-
-export function closeSourcePopover() {
-  if (!popover) {
-    return;
-  }
-  document.removeEventListener("mousedown", popover.outside, true);
-  popover.box.remove();
-  popover = null;
-}
-
-// ---------------------------------------------------------------- node view
 
 /** Edit one node's source in a popover under `anchor`; `save(next)` writes it. */
 export function openSourcePopover(
@@ -618,11 +610,27 @@ export function openSourcePopover(
   popover = { box, outside };
   area.focus();
 }
+
+// ---------------------------------------------------------------- node view
+
+function closeSourcePopover() {
+  if (!popover) {
+    return;
+  }
+  document.removeEventListener("mousedown", popover.outside, true);
+  popover.box.remove();
+  popover = null;
+}
+/** Whether a decoration's spec, which ProseMirror types as `any`, is an HTML node's role. */
+const isRoleSpec = (spec: unknown): spec is HtmlRoleSpec =>
+  typeof spec === "object" &&
+  spec !== null &&
+  "htmlRole" in spec &&
+  spec.htmlRole !== undefined;
 const roleOf = (decorations: readonly DecorationType[]): Role => {
-  const d = decorations.find(
-    (x) => (x.spec as Partial<HtmlRoleSpec>).htmlRole !== undefined,
-  );
-  const spec = d?.spec as HtmlRoleSpec | undefined;
+  const spec = decorations
+    .map((decoration): unknown => decoration.spec)
+    .find(isRoleSpec);
   return spec
     ? {
         expanded: spec.htmlExpanded ?? null,
@@ -634,6 +642,8 @@ const roleOf = (decorations: readonly DecorationType[]): Role => {
 const roleKey = (r: Role) => `${r.role}|${r.tag}|${String(r.expanded)}`;
 
 const caret = icon("caretRight", 12);
+
+const targetOf = (e: Event) => (e.target instanceof Element ? e.target : null);
 
 /**
  * The view over one `html` node. A paragraph holding only this node is an
@@ -765,15 +775,15 @@ export function createHtmlView({
       const row = el("span", "md-html-summary");
       row.setAttribute("role", "button");
       row.setAttribute("aria-expanded", String(role.expanded === true));
-      const icon = el("span", "md-html-caret");
-      icon.innerHTML = caret;
+      const caretBox = el("span", "md-html-caret");
+      caretBox.innerHTML = caret;
       const text = el("span", "md-html-summary-text");
       if (sum?.type === "element" && sum.children.some(visible)) {
         text.append(domOf(sum.children));
       } else {
         text.textContent = "Details";
       }
-      row.append(icon, text);
+      row.append(caretBox, text);
       dom.append(row);
       const rest = detChildren.filter((c) => c !== sum);
       if (role.expanded && rest.some(visible)) {
@@ -818,8 +828,6 @@ export function createHtmlView({
   };
   render();
 
-  const targetOf = (e: Event) =>
-    e.target instanceof Element ? e.target : null;
   dom.addEventListener("mousedown", (e) => {
     const t = targetOf(e);
     if (e.target === area || e.button !== 0 || t?.closest(".md-html-edit")) {

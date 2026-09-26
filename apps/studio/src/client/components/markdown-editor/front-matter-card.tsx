@@ -3,9 +3,11 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useState } from "react";
 
-const SPLIT =
-  /^(---[ \t]*\r?\n)([\s\S]*?)(\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$))$/;
-const ROW = /^(\w[\w.-]*):(?:[ \t]+(.*))?$/;
+import { splitFences } from "./front-matter";
+
+// A value never starts with a space or tab, so the run of them after the
+// colon is the only thing that can take them.
+const ROW = /^(\w[\w.-]*):(?:[ \t]+([^ \t].*))?$/;
 
 interface Row {
   key: string;
@@ -114,41 +116,6 @@ export function FrontMatterCard({
       </div>
     </details>
   );
-}
-
-/**
- * Sets one top-level `key: value` in front matter, rewriting only its line
- * (or adding one at the end); every other line keeps its bytes. A value YAML
- * would read as something else is written quoted.
- */
-export function setFrontMatterField(fm: string, key: string, value: string) {
-  const { close, inner, nl, open } = splitFences(fm || "---\n\n---\n");
-  const lines = inner ? inner.split(/\r?\n/) : [];
-  const at = lines.findIndex((l) => l.startsWith(`${key}:`));
-  // The line keeps the style it was written in: message fields are read as
-  // their line's text, so an agent's unquoted `subject: Re: invoice` stays
-  // unquoted. Only a value that would read as other YAML is quoted.
-  const wasQuoted = /^[^:]*:\s*["']/.test(lines[at] ?? "");
-  const needsQuotes = wasQuoted || /^["'[{|>&*!%@`#]|^\s|\s$/.test(value);
-  const line = `${key}: ${needsQuotes ? JSON.stringify(value) : value}`;
-  if (at === -1) {
-    lines.push(line);
-  } else {
-    lines[at] = line;
-  }
-  return open + lines.join(nl) + close;
-}
-
-/** Front matter taken apart: its fences, and what is between them. */
-export function splitFences(fm: string) {
-  const parts = SPLIT.exec(fm);
-  const inner = parts?.[2] ?? "";
-  return {
-    close: parts?.[3] ?? "\n---\n",
-    inner,
-    nl: inner.includes("\r\n") ? "\r\n" : "\n",
-    open: parts?.[1] ?? "---\n",
-  };
 }
 
 function fmFromRows(rows: Row[], open: string, close: string, nl: string) {

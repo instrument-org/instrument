@@ -84,9 +84,9 @@ export const codeHighlighting = syntaxHighlighting(
  * and a property in code the plain text color, which needs no rule.
  */
 export function propertyColors(languageName: string) {
-  const color = /^(json|yaml|toml)/i.test(languageName)
+  const color = /^(?:json|yaml|toml)/i.test(languageName)
     ? "var(--cm-tag)"
-    : /^(css|scss|sass|less)$/i.test(languageName)
+    : /^(?:css|scss|sass|less)$/i.test(languageName)
       ? "var(--cm-constant)"
       : null;
   return color

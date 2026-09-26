@@ -626,7 +626,7 @@ export function useWindowTabs() {
     setTabs((current) => {
       const { [key]: _remembered, ...activeByGroup } =
         current.activeByGroup ?? {};
-      const tabs = current.tabs.filter((tab) => tab.group !== key);
+      const kept = current.tabs.filter((tab) => tab.group !== key);
       const previousGroup =
         current.previousGroup === key ? undefined : current.previousGroup;
       return current.group === key
@@ -636,9 +636,9 @@ export function useWindowTabs() {
             activeId: null,
             group: undefined,
             previousGroup,
-            tabs,
+            tabs: kept,
           }
-        : { ...current, activeByGroup, previousGroup, tabs };
+        : { ...current, activeByGroup, previousGroup, tabs: kept };
     });
   };
 

@@ -1041,7 +1041,7 @@ function BodyCell({
     >
       {value ?? <span className="text-muted-foreground/60 italic">NULL</span>}
       {mark !== undefined && (
-        <span className="pointer-events-none absolute top-0.5 right-0.5 grid size-3.5 place-items-center rounded-full bg-brand-600 text-[9px] leading-none font-semibold text-white tabular-nums not-italic dark:bg-brand-500">
+        <span className="pointer-events-none absolute top-0.5 right-0.5 grid size-3.5 place-items-center rounded-full bg-brand-600 text-[9px] leading-none font-semibold text-white not-italic tabular-nums dark:bg-brand-500">
           {mark}
         </span>
       )}

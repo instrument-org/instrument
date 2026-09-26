@@ -67,10 +67,14 @@ export type PageEditorSaveResult =
   | { content: string; ok: false; version: string }
   | { ok: true; version: string };
 
-/** One of the file's staged asks, as the page's pins number them. */
+/** One of the file's staged asks, as the page's pins number them and the dock's list names them. */
 export interface PageEditorStagedAsk {
   id: string;
+  /** What the person typed for it, which may be nothing. */
+  instruction: string;
   /** Moved into a chat's composer, so it leaves the dock but keeps its pin until sent. */
   moved: boolean;
   n: number;
+  /** Where on the page, as the window says it: "Heading · line 12". */
+  target: string;
 }

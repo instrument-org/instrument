@@ -118,7 +118,7 @@ export function createAsks(ed: Editor): AsksApi {
             padding: {
               bottom: 70,
               left: 10,
-              right: state.panelMode ? 300 : 10,
+              right: state.panelMode === "style" ? 300 : 10,
               top: 8,
             },
           }),
@@ -206,7 +206,7 @@ export function createAsks(ed: Editor): AsksApi {
     ed.overlay.showToast(
       r.instruction
         ? `Added · ${clip(r.instruction, 60)}`
-        : "Added to your asks",
+        : "Added to your comments",
       {},
     );
   }
@@ -257,39 +257,43 @@ export function createAsks(ed: Editor): AsksApi {
   }
 
   /**
-   * The dock's list of the asks still waiting on this page: those the window
-   * has not yet moved into a chat. Moved ones keep their pins until sent.
+   * The list of the comments still waiting on this page, opened above the
+   * dock by its caret: those the window holds for the file and has not yet
+   * moved into a chat, in the window's words and numbers, including any
+   * staged before this Edit session. One the page still pins is brought into
+   * view when pressed. Moved ones keep their pins until sent.
    */
   function renderPanel() {
     const list = ui.reqList;
     list.innerHTML = "";
-    const waiting = state.requests.filter((r) => !r.moved);
-    for (const r of waiting) {
+    const waiting = state.staged.filter((a) => !a.moved);
+    for (const a of waiting) {
+      const r = state.requests.find((entry) => entry.id === a.id);
       const li = document.createElement("li");
-      li.dataset.n = String(r.n);
-      li.innerHTML = `<span class="pin num ${r.kind} ${r.stale ? "stale" : ""}">${r.n}</span><div><div class="instr"></div><div class="what"></div></div><button class="x" title="Remove">${I.close}</button>`;
-      find(li, ".instr").textContent = r.instruction;
+      li.dataset.n = String(a.n);
+      li.innerHTML = `<span class="pin num ${r?.kind ?? "ask"} ${r?.stale ? "stale" : ""}">${a.n}</span><div><div class="instr"></div><div class="what"></div></div><button class="x" title="Remove">${I.close}</button>`;
+      find(li, ".instr").textContent =
+        a.instruction || (r ? clip(r.payload.displayText, 60) : a.target);
       const what = find(li, ".what");
-      what.append(
-        clip(r.payload.displayText || kindName(r.el ?? document.body), 60),
-      );
-      const badge = document.createElement("span");
-      badge.className = `badge ${r.stale ? "stale" : ""} ${r.kind}`;
-      badge.textContent = r.stale
-        ? "moved or gone"
-        : r.kind === "edit"
-          ? "Queued edit"
-          : r.payload.label;
-      what.prepend(badge);
+      what.textContent = r?.stale ? "" : a.target;
+      if (r?.stale || r?.kind === "edit") {
+        const badge = document.createElement("span");
+        badge.className = `badge ${r.stale ? "stale" : ""} ${r.kind}`;
+        badge.textContent = r.stale ? "moved or gone" : "Queued edit";
+        what.prepend(badge);
+      }
       li.addEventListener("click", (e) => {
         if (closestIn(e, ".x")) {
-          state.requests.splice(state.requests.indexOf(r), 1);
-          ed.send({ id: r.id, type: "unstage" });
+          if (r) {
+            state.requests.splice(state.requests.indexOf(r), 1);
+          }
+          state.staged = state.staged.filter((entry) => entry.id !== a.id);
+          ed.send({ id: a.id, type: "unstage" });
           renderPanel();
           ed.overlay.layout();
           return;
         }
-        if (r.el?.isConnected) {
+        if (r?.el?.isConnected) {
           r.el.scrollIntoView({ behavior: "smooth", block: "center" });
           ed.overlay.flash(r.el, 2200);
           setTimeout(ed.overlay.layout, 400);
@@ -297,13 +301,10 @@ export function createAsks(ed: Editor): AsksApi {
       });
       list.append(li);
     }
-    find(ui.panel, ".empty").hidden = waiting.length > 0;
-    const count = find(ui.reqBtn, ".count");
-    count.textContent = String(waiting.length);
-    count.classList.toggle("has", waiting.length > 0);
-    for (const button of [ui.moveBtn, ui.panelMoveBtn]) {
-      button.hidden = waiting.length === 0;
-      find(button, "span").textContent = state.moveLabel;
+    ui.dockAsks.hidden = waiting.length === 0;
+    find(ui.moveBtn, "span").textContent = state.moveLabel;
+    if (waiting.length === 0 && state.panelMode === "requests") {
+      ed.style.setPanel(null);
     }
   }
 
@@ -319,7 +320,7 @@ export function createAsks(ed: Editor): AsksApi {
       `Could not save directly: ${why}. Turned it into request ${state.nextN - 1} for the agent.`,
       "warn",
     );
-    ed.overlay.showToast(`Added to your asks · ${why}`, {});
+    ed.overlay.showToast(`Added to your comments · ${why}`, {});
     void ed.serial(() => ed.reload.reloadKeeping(state.src));
     if (state.pendingExternal) {
       void ed.serial(ed.reload.applyExternal);
@@ -343,7 +344,7 @@ export function createAsks(ed: Editor): AsksApi {
       `Could not save directly: ${why}. Turned it into request ${state.nextN - 1} for the agent.`,
       "warn",
     );
-    ed.overlay.showToast(`Added to your asks · ${why}`, {});
+    ed.overlay.showToast(`Added to your comments · ${why}`, {});
   }
 
   // Moves the waiting asks into the chat beside the file, or a new draft;
@@ -378,7 +379,6 @@ export function createAsks(ed: Editor): AsksApi {
     find(pop, "[data-cancel]").addEventListener("click", closeAsk);
 
     ui.moveBtn.addEventListener("click", move);
-    ui.panelMoveBtn.addEventListener("click", move);
     ui.reqBtn.addEventListener("click", () => {
       ed.style.setPanel(state.panelMode === "requests" ? null : "requests");
     });
@@ -386,9 +386,6 @@ export function createAsks(ed: Editor): AsksApi {
       const showing = state.panelMode === "style" && !state.sel;
       ed.selection.select(null);
       ed.style.setPanel(showing ? null : "style");
-    });
-    find(ui.panel, "[data-close]").addEventListener("click", () => {
-      ed.style.setPanel(null);
     });
     find(ui.inspector, "[data-close]").addEventListener("click", () => {
       ed.style.setPanel(null);

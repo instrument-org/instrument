@@ -20,6 +20,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type OrchestratorShortcutId } from "@/shared/orchestrator-shortcuts";
+import { type ShortcutId } from "@/shared/shortcuts";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -42,7 +43,8 @@ import {
 import { locationCrumbs, type TabLocation } from "./tab-location";
 
 /**
- * The row every tab wears: back, forward, home, and where you are.
+ * The row every tab wears: back, forward, a page's reload, home, and where
+ * you are.
  *
  * It spans the pane rather than the window, which is the whole point of it.
  * History belongs to a tab: an arrow in the window bar would sit beside a
@@ -66,6 +68,7 @@ export function TabLocationRow({
   onForward,
   onSite,
   ref,
+  reload,
   trailing,
 }: {
   canGoBack: boolean;
@@ -83,6 +86,8 @@ export function TabLocationRow({
   onSite?: (url: string) => void;
   /** The row itself, so the window can put the caret in the field it holds. */
   ref?: Ref<HTMLDivElement>;
+  /** A page's reload, beside the arrows where a browser keeps it. */
+  reload?: ReactNode;
   /** What this page can do with itself, held at the row's right edge. */
   trailing?: ReactNode;
 }) {
@@ -99,24 +104,25 @@ export function TabLocationRow({
       ref={ref}
     >
       {leading}
-      <Control
+      <TabRowControl
         chord="back"
         disabled={!canGoBack}
         icon={<CaretLeftIcon className="size-4" />}
         label="Back"
         onClick={onBack}
       />
-      <Control
+      <TabRowControl
         chord="forward"
         disabled={!canGoForward}
         icon={<CaretRightIcon className="size-4" />}
         label="Forward"
         onClick={onForward}
       />
+      {reload}
       {/* Where a browser keeps its home button, and what this window's home
           is: the tab back to nothing in particular, ready to be told where
           to go next. */}
-      <Control
+      <TabRowControl
         disabled={false}
         icon={<HouseIcon className="size-4" />}
         label="Home"
@@ -174,7 +180,7 @@ export function TabLocationRow({
  * One of the row's own controls: a mark, what it is called, and what it
  * does, with the chord that does the same in the tooltip where it has one.
  */
-function Control({
+export function TabRowControl({
   chord,
   disabled,
   icon,
@@ -182,6 +188,7 @@ function Control({
   onAuxClick,
   onClick,
   onContextMenu,
+  shortcut,
 }: {
   chord?: OrchestratorShortcutId;
   disabled: boolean;
@@ -191,9 +198,11 @@ function Control({
   onAuxClick?: MouseEventHandler;
   onClick: () => void;
   onContextMenu?: MouseEventHandler;
+  /** The classic window's chord for it, where the control is one a page shares with that window. */
+  shortcut?: ShortcutId;
 }) {
   return (
-    <ToolbarTooltip chord={chord} label={label}>
+    <ToolbarTooltip chord={chord} label={label} shortcut={shortcut}>
       <button
         className={cn(
           "grid size-7 shrink-0 place-items-center rounded-md",

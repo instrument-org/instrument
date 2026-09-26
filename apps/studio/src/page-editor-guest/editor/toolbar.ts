@@ -194,7 +194,7 @@ export function createToolbar(ed: Editor): ToolbarApi {
             padding: {
               bottom: 70,
               left: 8,
-              right: state.panelMode ? 300 : 8,
+              right: state.panelMode === "style" ? 300 : 8,
               top: 8,
             },
           }),

@@ -201,6 +201,7 @@ export async function startEditor(bridge: PageEditorBridge) {
     })),
     sel: null,
     src: boot.src,
+    staged: [],
     theme: readTheme(boot.src),
     undoStack: [...(handed.undo ?? [])],
     verdictCache: new WeakMap(),
@@ -277,6 +278,7 @@ export async function startEditor(bridge: PageEditorBridge) {
             r.moved = staged.moved;
           }
         }
+        state.staged = message.asks;
         state.moveLabel = message.moveLabel;
         ed.asks.renderPanel();
         ed.overlay.layout();
@@ -422,6 +424,7 @@ function findUi(shadow: ShadowRoot): Ui {
     findAs(shadow, selector, HTMLButtonElement);
   return {
     crumbs: find(shadow, "#crumbs"),
+    dockAsks: find(shadow, "#dock-asks"),
     dockHint: find(shadow, "#dock-hint"),
     doneBtn: button("#done-btn"),
     flashes: find(shadow, "#flashes"),
@@ -434,7 +437,6 @@ function findUi(shadow: ShadowRoot): Ui {
     moveBtn: button("#move-btn"),
     pageBtn: button("#page-btn"),
     panel: find(shadow, "#panel"),
-    panelMoveBtn: button("#panel-move-btn"),
     pill: find(shadow, "#agent-pill"),
     pins: find(shadow, "#pins"),
     pop: findAs(shadow, "#popover", HTMLFormElement),

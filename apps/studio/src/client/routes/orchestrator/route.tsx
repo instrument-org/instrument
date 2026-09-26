@@ -296,6 +296,7 @@ function OrchestratorLayout() {
   // The element in the row a page's own bar is drawn into, once the row has
   // made one; null while a screen is up and the row is the field itself.
   const [chromeSlot, setChromeSlot] = useState<HTMLElement | null>(null);
+  const [reloadSlot, setReloadSlot] = useState<HTMLElement | null>(null);
   // The same tail for a screen, where a file's viewer puts its actions.
   const [screenRowSlot, setScreenRowSlot] = useState<HTMLElement | null>(null);
   // And its head, for a control over a panel at the screen's left edge.
@@ -1164,14 +1165,20 @@ function OrchestratorLayout() {
                         homeHref={newTabHrefOf(windowTabs.group)}
                         ref={locationRef}
                         // On a page the field sends the tab's own guest
-                        // somewhere, and the page's controls (reload, the way
-                        // out, the menu) are drawn into the row's tail by the
-                        // panel that has the page. A file shown as a page is
-                        // one too.
+                        // somewhere, and the page's controls are drawn into
+                        // the row by the panel that has the page: reload
+                        // beside the arrows, the rest (its mode, the menu) at
+                        // the tail. A file shown as a page is one too.
                         {...(tabLocation.kind === "page" ||
                         (tabLocation.kind === "file" && tabLocation.asPage)
                           ? {
                               onSite: (url: string) => openPage(url),
+                              reload: (
+                                <div
+                                  className="flex shrink-0 items-center empty:hidden"
+                                  ref={setReloadSlot}
+                                />
+                              ),
                               trailing: (
                                 <div
                                   className="flex shrink-0 items-center gap-0.5"
@@ -1214,6 +1221,7 @@ function OrchestratorLayout() {
                               chromeInto={chromeSlot}
                               compose={[...compose.hosts, ...slotHosts]}
                               ref={setBrowser}
+                              reloadInto={reloadSlot}
                               threadOfTask={childThreads}
                             />
                           </ActiveTabProvider>

@@ -43,27 +43,25 @@ export const UI_HTML = `
     <div class="ins-body"></div>
   </aside>
 
-  <aside id="panel" class="dock-panel" hidden>
-    <header class="ins-head"><div><div class="ins-title">Asks</div><div class="ins-sub">Waiting to go to a chat</div></div><button type="button" class="icon" data-close title="Close">
-      ${icon("x", 14)}</button></header>
-    <ol id="req-list"></ol>
-    <p class="empty">Select anything and choose <b>Ask</b>. What you add waits here until you add it to a chat.</p>
-    <footer><button type="button" id="panel-move-btn" class="primary agent" hidden>${mark(14)}<span>Add to new chat</span></button></footer>
-  </aside>
-
   <div id="agent-pill" hidden>${mark(14)}<span class="text">Instrument changed this page</span></div>
   <div id="toast" hidden><span class="msg"></span><button type="button" class="undo">Undo</button><button type="button" class="redo">Redo</button></div>
 
   <div id="dock-hint" hidden>Click to select · double-click text to edit</div>
   <div id="dock">
+    <div id="panel" hidden><ol id="req-list"></ol></div>
+    <div class="dock-row">
     <button id="done-btn" class="done" title="Back to the page (⌘E)"><span class="dot"></span>Editing<span class="done-label">Done</span></button>
     <span class="dock-sep pill-only"></span>
     <button id="undo-btn" class="icon-btn" title="Undo (⌘Z)" disabled>${icon("undo", 16)}</button>
     <button id="redo-btn" class="icon-btn" title="Redo (⇧⌘Z)" disabled>${icon("redo", 16)}</button>
     <span class="dock-sep"></span>
     <button id="page-btn" class="plain" title="Page colors, corners and type" hidden>${icon("palette", 16)}Page</button>
-    <button id="req-btn" class="plain" title="What you marked on this page">Asks <span class="count">0</span></button>
-    <button id="move-btn" class="primary agent small" title="Move the asks into a chat, to add words and send" hidden>${mark(14)}<span>Add to new chat</span></button>
+    <span id="dock-asks" hidden>
+      <span class="dock-sep"></span>
+      <button id="req-btn" class="icon-btn" title="Show comments" aria-expanded="false">${icon("caretUp", 14)}</button>
+      <button id="move-btn" class="primary agent" title="Move the comments into a chat, to add words and send">${icon("feather", 16)}<span>Add to new chat</span></button>
+    </span>
+    </div>
   </div>
   <input type="file" id="img-file" accept="image/*" hidden>
 </div>`;

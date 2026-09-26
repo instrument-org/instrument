@@ -1,11 +1,15 @@
-import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import {
@@ -13,19 +17,22 @@ import {
   getWebviewElement,
 } from "@/client/lib/browser-pool";
 import { registerFileFlush } from "@/client/lib/file-flush";
-import { cn } from "@/client/lib/utils";
+import { formatAccelerator } from "@/client/lib/format-accelerator";
 import { rpcClient } from "@/client/rpc/client";
+import { ORCHESTRATOR_SHORTCUTS } from "@/shared/orchestrator-shortcuts";
 import { PAGE_EDITOR_CHANNEL } from "@/shared/page-editor-channels";
 import {
   PageEditorGuestMessageSchema,
   type PageEditorHostMessage,
 } from "@/shared/page-editor-messages";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { pageEditPlacementAtom, usePageEdit } from "./page-edit-state";
@@ -146,15 +153,20 @@ export function PageEditSession({
   const placement = useAtomValue(pageEditPlacementAtom);
   const stageAsk = useStageAsk();
   const { remove: removeAsks } = useStagedAskActions();
-  const { label: moveLabel, move } = useMoveAsks();
+  const { label: moveLabelFor, move } = useMoveAsks();
   const asks = useFileAsks(path);
+  const moveLabel = moveLabelFor(
+    asks.filter((ask) => ask.destination === undefined).length,
+  );
   // The page's pins, numbered as the pills are, and which of them wait in
   // the page's dock rather than in a chat's composer.
   const staged = {
     asks: numbered(asks).map(({ ask, n }) => ({
       id: ask.id,
+      instruction: ask.instruction,
       moved: ask.destination !== undefined,
       n,
+      target: ask.target,
     })),
     moveLabel,
     type: "staged",
@@ -468,41 +480,83 @@ export function PageEditSession({
   ) : null;
 }
 
-/** View and Edit, side by side, for the row above the page. */
+/** The two ways a page's tab shows it, as its mode menu names them. */
+const PAGE_MODES = [
+  {
+    description: "See the page as it is",
+    icon: EyeIcon,
+    isEditing: false,
+    label: "Viewing",
+  },
+  {
+    description: "Change the page in place",
+    icon: PencilSimpleIcon,
+    isEditing: true,
+    label: "Editing",
+  },
+] as const;
+
+/**
+ * The page's mode, for the row above it: a quiet button naming the mode the
+ * page is in, which opens a menu of the two with the current one checked.
+ * ⌘E switches between them without it, and the menu says so on the mode it
+ * would switch to. Its mark and caret alone in a narrow row.
+ */
 export function PageEditToggle({ tabId }: { tabId: string }) {
   const { isEditing, setEditing } = usePageEdit(tabId);
-  const option = (label: string, value: boolean, icon: ReactNode) => (
-    <button
-      aria-label={label}
-      aria-pressed={isEditing === value}
-      className={cn(
-        "h-5.5 rounded-md border border-transparent px-2.5 text-xs font-medium outline-none focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid] @max-xl/tabrow:px-1.5",
-        isEditing === value
-          ? "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-      onClick={() => {
-        setEditing(value);
-      }}
-      type="button"
-    >
-      {/* Its mark alone in a narrow row. */}
-      <span className="@max-xl/tabrow:hidden">{label}</span>
-      <span className="hidden @max-xl/tabrow:inline [&_svg]:size-3.5">
-        {icon}
-      </span>
-    </button>
-  );
+  const current = PAGE_MODES[isEditing ? 1 : 0];
+  const chord = formatAccelerator(
+    ORCHESTRATOR_SHORTCUTS.editPage.accelerator,
+  ).join("");
   return (
-    <ToolbarTooltip
-      chord="editPage"
-      label={isEditing ? "Back to the page" : "Edit this page"}
-    >
-      <div className="mr-1 flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
-        {option("View", false, <EyeIcon />)}
-        {option("Edit", true, <PencilSimpleIcon />)}
-      </div>
-    </ToolbarTooltip>
+    // Non-modal, so a press on the page's guest (its own web contents) is not
+    // swallowed by a modal menu's overlay and closes it instead.
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label={`${current.label}. Change how the page is shown`}
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-foreground/70 outline-none hover:bg-foreground/8 hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid] data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground @max-xl/tabrow:gap-1 @max-xl/tabrow:px-1.5"
+          type="button"
+        >
+          <current.icon className="size-3.5" />
+          <span className="@max-xl/tabrow:sr-only">{current.label}</span>
+          <CaretDownIcon className="size-2.5 opacity-60" weight="bold" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-60"
+        // The page, not the trigger, is where attention goes after a pick.
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+        }}
+      >
+        {PAGE_MODES.map((mode) => (
+          <DropdownMenuItem
+            className="items-start gap-2.5 py-2"
+            key={mode.label}
+            onSelect={() => {
+              setEditing(mode.isEditing);
+            }}
+          >
+            <mode.icon className="mt-0.5" />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="font-medium">{mode.label}</span>
+              <span className="text-xs text-muted-foreground">
+                {mode.description}
+              </span>
+            </span>
+            {mode.isEditing === isEditing ? (
+              <CheckIcon className="mt-0.5 text-foreground" />
+            ) : (
+              <DropdownMenuShortcut className="mt-0.5">
+                {chord}
+              </DropdownMenuShortcut>
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -78,6 +78,11 @@ export function asksPart(
   };
 }
 
+/** Staged asks as a person counts them: "1 comment", "3 comments". */
+export function commentCount(count: number) {
+  return count === 1 ? "1 comment" : `${count} comments`;
+}
+
 /** A file's name, from its path. */
 export function fileNameOf(path: string) {
   return segmentsOf(path).at(-1) ?? path;
@@ -229,7 +234,9 @@ export function useMoveAsks() {
   const canMove = thread !== undefined || orchestrator?.moveAsksToDraft;
   return {
     canMove: Boolean(canMove),
-    label: thread === undefined ? "Add to new chat" : "Add to chat",
+    /** The button's words for `count` comments: "Add 3 comments to chat". */
+    label: (count: number) =>
+      `Add ${commentCount(count)} to ${thread === undefined ? "new chat" : "chat"}`,
     move: (ids: string[]) => {
       if (thread === undefined) {
         orchestrator?.moveAsksToDraft?.(ids);

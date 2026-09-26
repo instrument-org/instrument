@@ -1,4 +1,5 @@
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
+import { TabRowControl } from "@/client/components/orchestrator/tab-location-row";
 import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -107,11 +108,14 @@ export function TaskBrowserPanel({
    */
   address?: string;
   /**
-   * Where the bar goes: over the page as its own row, nowhere, or into an
-   * element the window keeps for it. Drawn there it loses the arrows, which
-   * that row has of its own, and keeps the address, reload and the menu.
+   * Where the bar goes: over the page as its own row, nowhere, or into
+   * elements the window keeps for it. Drawn there it loses the arrows and
+   * the address, which that row has of its own; reload goes beside the
+   * row's arrows (`reloadInto`) and the page's controls and menu to its end.
    */
-  chrome?: boolean | { into: HTMLElement | null };
+  chrome?:
+    | boolean
+    | { into: HTMLElement | null; reloadInto?: HTMLElement | null };
   // See FileViewer: set when the surface is already drawn around this.
   className?: string;
   /**
@@ -134,7 +138,7 @@ export function TaskBrowserPanel({
   menuItems?: ReactNode;
   /** Opens the page's text for editing, when the page is a file; the menu offers it. */
   onEditSource?: () => void;
-  /** Drawn ahead of reload in the row the bar is drawn into, for a page with a mode of its own. */
+  /** Drawn ahead of the menu in the row the bar is drawn into, for a page with a mode of its own. */
   pageControls?: ReactNode;
   /** Changes whenever the panel moves without resizing, so the guest is placed again; see useBrowserSlot. */
   relayoutKey?: string;
@@ -580,27 +584,24 @@ export function TaskBrowserPanel({
             </DropdownMenuContent>
           </DropdownMenu>
         );
-        // Reload and the menu, which the row above can carry as they are; the
+        // The page's controls and the menu, which the row above can carry as
+        // they are, and reload, which it keeps beside its arrows; the
         // address, and the way out to the app that opens the page, are drawn
         // there by the row itself.
         const controls = (
           <>
             {pageControls}
-            {/* Reload stays a chord away in a narrow row, so it gives up its
-                room first. */}
-            <ToolbarTooltip shortcut="reloadPage">
-              <Button
-                className="@max-lg/tabrow:hidden"
-                disabled={!active}
-                onClick={() => webviewFor()?.reload()}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <ArrowClockwiseIcon className="size-4" />
-              </Button>
-            </ToolbarTooltip>
             {menu}
           </>
+        );
+        const rowReload = (
+          <TabRowControl
+            disabled={!active}
+            icon={<ArrowClockwiseIcon className="size-4" />}
+            label="Reload"
+            onClick={() => webviewFor()?.reload()}
+            shortcut="reloadPage"
+          />
         );
         const bar = (
           <>
@@ -670,7 +671,12 @@ export function TaskBrowserPanel({
           </>
         );
         if (typeof chrome === "object") {
-          return chrome.into ? createPortal(controls, chrome.into) : null;
+          return (
+            <>
+              {chrome.reloadInto && createPortal(rowReload, chrome.reloadInto)}
+              {chrome.into && createPortal(controls, chrome.into)}
+            </>
+          );
         }
         return chrome ? (
           <div className="flex items-center gap-1 border-b p-1.5">

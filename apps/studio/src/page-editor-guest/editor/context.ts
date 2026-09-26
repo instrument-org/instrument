@@ -6,6 +6,7 @@
 import {
   type PageEditorGuestMessage,
   type PageEditorSaveResult,
+  type PageEditorStagedAsk,
 } from "@/shared/page-editor-messages";
 
 import {
@@ -147,6 +148,8 @@ export interface EditorState {
   sel: HTMLElement | null;
   /** The text the page and the index describe. */
   src: string;
+  /** The file's staged asks as the window last listed them, those staged in earlier Edit sessions included. */
+  staged: PageEditorStagedAsk[];
   theme: Theme;
   undoStack: UndoOp[];
   verdictCache: WeakMap<Element, QuickVerdict>;
@@ -367,6 +370,8 @@ export interface ToolbarApi {
 /** The editor's own elements, in its shadow root. */
 export interface Ui {
   crumbs: HTMLElement;
+  /** The dock's comments: the caret that opens their list, and the button that moves them into a chat. */
+  dockAsks: HTMLElement;
   dockHint: HTMLElement;
   doneBtn: HTMLButtonElement;
   flashes: HTMLElement;
@@ -379,7 +384,6 @@ export interface Ui {
   moveBtn: HTMLButtonElement;
   pageBtn: HTMLButtonElement;
   panel: HTMLElement;
-  panelMoveBtn: HTMLButtonElement;
   pill: HTMLElement;
   pins: HTMLElement;
   pop: HTMLFormElement;

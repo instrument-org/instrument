@@ -116,7 +116,10 @@ export function createStyle(ed: Editor): StyleApi {
     } else {
       ui.inspector.hidden = true;
     }
-    ui.reqBtn.classList.toggle("on", state.panelMode === "requests");
+    const isListOpen = state.panelMode === "requests";
+    ui.reqBtn.classList.toggle("on", isListOpen);
+    ui.reqBtn.setAttribute("aria-expanded", String(isListOpen));
+    ui.reqBtn.title = isListOpen ? "Hide comments" : "Show comments";
     ui.pageBtn.classList.toggle(
       "on",
       state.panelMode === "style" && !state.sel,

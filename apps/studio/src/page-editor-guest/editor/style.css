@@ -1477,19 +1477,28 @@ textarea::placeholder {
   color: var(--ink-2);
 }
 
-/* Requests */
+/* Comments: the list the dock's caret opens, drawn as the top of the dock
+   itself, the way the app's comment tray opens its list above its bar. */
+#panel {
+  min-width: min(384px, calc(100vw - 32px));
+  max-height: min(288px, calc(100vh - 120px));
+  overflow: auto;
+  border-bottom: 1px solid var(--line);
+}
 #panel ol {
   list-style: none;
   margin: 0;
-  padding: 6px;
-  overflow: auto;
-  flex: 1;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 #panel li {
   display: grid;
-  grid-template-columns: 22px 1fr auto;
-  gap: 10px;
-  padding: 8px 10px;
+  grid-template-columns: 16px 1fr auto;
+  align-items: start;
+  gap: 8px;
+  padding: 6px 4px 6px 8px;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -1500,19 +1509,26 @@ textarea::placeholder {
 #panel li.focus {
   background: var(--hover);
 }
+/* The number as the app's list and pills draw it: a small round badge. */
 #panel li .num {
   position: static;
-  margin: 0;
-  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: none;
+  font: 600 10px/16px var(--font);
 }
 #panel li .instr {
   overflow-wrap: anywhere;
+  font-size: 13px;
   line-height: 1.4;
 }
 #panel li .what {
   font-size: 12px;
   color: var(--ink-2);
-  margin-top: 4px;
+  margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1522,10 +1538,10 @@ textarea::placeholder {
   background: none;
   color: var(--icon);
   padding: 2px;
-  visibility: hidden;
+  opacity: 0.6;
   border-radius: 6px;
-  height: 22px;
-  width: 22px;
+  height: 24px;
+  width: 24px;
   display: grid;
   place-items: center;
 }
@@ -1534,7 +1550,7 @@ textarea::placeholder {
   color: var(--ink);
 }
 #panel li:hover .x {
-  visibility: visible;
+  opacity: 1;
 }
 /* The app's `Badge`, in its muted voice. */
 #panel .badge {
@@ -1550,23 +1566,12 @@ textarea::placeholder {
   background: var(--warn-soft);
   color: var(--warn);
 }
-#panel .empty {
-  margin: 16px;
-  color: var(--ink-2);
-  line-height: 1.5;
-}
-#panel footer {
-  padding: 10px;
-  border-top: 1px solid var(--line);
-  display: flex;
-  justify-content: flex-end;
-}
-
 
 /* ------------------------------------------------------------ dock, toast, pill */
 
-/* The dock stands like the app's floating Edit pill: a popover-colored
-   `rounded-xl` row, raised `shadow-lg`. */
+/* The dock stands like the app's floating comment tray: a popover-colored
+   `rounded-xl` box, raised `shadow-lg`, with its row of controls along the
+   bottom and, while the caret has it open, the list of comments above. */
 #dock {
   position: fixed;
   left: 50%;
@@ -1574,12 +1579,36 @@ textarea::placeholder {
   transform: translateX(-50%);
   z-index: 35;
   display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px;
+  flex-direction: column;
+  max-width: calc(100vw - 32px);
   background: var(--panel);
   border-radius: 12px;
   box-shadow: var(--shadow-panel);
+  overflow: hidden;
+}
+.dock-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+}
+#dock-asks {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+#dock-asks .primary {
+  white-space: nowrap;
+}
+#req-btn svg {
+  transition: transform 0.15s ease-out;
+}
+#req-btn.on {
+  background: var(--hover);
+  color: var(--ink);
+}
+#req-btn.on svg {
+  transform: rotate(180deg);
 }
 #dock .seg button {
   white-space: nowrap;
@@ -1633,24 +1662,6 @@ textarea::placeholder {
 }
 .plain.on {
   background: var(--accent);
-}
-.count {
-  display: inline-block;
-  min-width: 18px;
-  padding: 0 5px;
-  box-sizing: border-box;
-  border-radius: 9px;
-  background: var(--panel-3);
-  color: var(--ink-2);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 18px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-.count.has {
-  background: var(--brand);
-  color: var(--brand-ink);
 }
 #dock-hint {
   position: fixed;
@@ -1720,6 +1731,11 @@ textarea::placeholder {
   background: var(--accent);
 }
 #ui:has(#toast:not([hidden])) #dock-hint {
+  display: none;
+}
+/* The open list of comments stands where the toast and the hint would. */
+#ui:has(#panel:not([hidden])) #toast,
+#ui:has(#panel:not([hidden])) #dock-hint {
   display: none;
 }
 

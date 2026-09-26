@@ -222,6 +222,7 @@ export function BrowserTabs({
   compose,
   onPageChange,
   ref,
+  reloadInto,
   threadOfTask,
 }: {
   /** The element in the row above that the page's own bar is drawn into. */
@@ -231,6 +232,8 @@ export function BrowserTabs({
   /** Told the page on screen whenever it changes, and undefined when none is. */
   onPageChange?: (page: BrowserPage | undefined) => void;
   ref: Ref<BrowserTabsHandle>;
+  /** The element beside the row's arrows that the page's reload is drawn into. */
+  reloadInto?: HTMLElement | null;
   /**
    * The thread each task the conversation started was filed from, by its
    * session id, which is the group the task's browsing lands in; a task
@@ -985,7 +988,7 @@ export function BrowserTabs({
           {...(editTabs[active.id] && active.url
             ? { address: active.url }
             : {})}
-          chrome={{ into: chromeInto ?? null }}
+          chrome={{ into: chromeInto ?? null, reloadInto: reloadInto ?? null }}
           className="h-full"
           key={active.id}
           {...(editableId === undefined
@@ -993,7 +996,7 @@ export function BrowserTabs({
             : {
                 menuItems: <PageEditMenuItems />,
                 // A page's file asks about itself the way every file tab
-                // does, beside the View / Edit control when it is here.
+                // does, beside the Edit control when it is here.
                 pageControls: (
                   <>
                     {editPlacement === "row" && (
@@ -1205,7 +1208,15 @@ function FilePageReload({
       return;
     }
     if (shown.current !== undefined && shown.current !== modifiedAt) {
-      getWebviewElement(target)?.reload();
+      const webview = getWebviewElement(target);
+      try {
+        webview?.reload();
+      } catch {
+        // A guest not yet attached and ready refuses a reload, and needs
+        // none: its first load, still to come or under way, reads the file
+        // as it is. A change reported that early is a cached version from
+        // an earlier visit being brought up to date.
+      }
     }
     shown.current = modifiedAt;
   }, [modifiedAt, target]);

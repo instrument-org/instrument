@@ -198,7 +198,7 @@ function AskPill({
         n={n}
       >
         <button
-          aria-label={`Remove ask ${n}`}
+          aria-label={`Remove comment ${n}`}
           className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
           onClick={() => {
             remove([ask.id]);

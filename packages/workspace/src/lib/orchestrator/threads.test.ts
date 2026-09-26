@@ -255,15 +255,17 @@ describe("listThreads", () => {
     const taskId = freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
-    expect((await listThreads(taskId))[0]?.replyCount).toBe(0);
+    const [asked] = await listThreads(taskId);
+    expect(asked?.replyCount).toBe(0);
 
     await agentSays(taskId, sessionId, "Here is the list.", { minute: 2 });
     const [replied] = await listThreads(taskId);
     expect(replied?.latest?.text).toBe("Here is the list.");
 
-    const [reply] = (await Store.getMessagesWithParts({ sessionId, taskId }))
+    const read = await Store.getMessagesWithParts({ sessionId, taskId });
+    const reply = read
       ._unsafeUnwrap()
-      .filter((message) => message.role === "assistant");
+      .find((message) => message.role === "assistant");
     const part = reply?.parts.find((entry) => entry.type === "text");
     if (!part) {
       throw new Error("no reply text");

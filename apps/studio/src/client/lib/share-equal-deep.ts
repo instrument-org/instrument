@@ -10,6 +10,14 @@ export function shareEqualDeep<T>(previous: unknown, next: T): T {
   return share(previous, next) as T;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function share(previous: unknown, next: unknown): unknown {
   if (previous === next) {
     return previous;
@@ -39,12 +47,4 @@ function share(previous: unknown, next: unknown): unknown {
     return same ? previous : shared;
   }
   return next;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const prototype: unknown = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
 }

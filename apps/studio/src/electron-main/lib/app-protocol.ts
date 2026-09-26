@@ -18,7 +18,7 @@ const SITE_ICON_HOST = "site-icon";
 // instead.
 const VENDOR_HOST = "vendor";
 const ICON_SIZE = 64;
-const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.png$/;
+const ICON_FILENAME_PATTERN = /^[a-f0-9]{64}\.(?:png|svg)$/;
 // Deliberately narrow: these paths come from the renderer, and the only ones
 // that need to work are the payloads copied in at build time. Every dot has to
 // be followed by more of the segment, which is what makes `..` unspellable, so
@@ -78,6 +78,15 @@ export async function storeFileOpenIcon(base64: string) {
   );
 }
 
+/**
+ * An app icon that exists only as SVG, which nativeImage cannot decode (most
+ * GNOME apps ship no PNG). Kept as it is and served as SVG; the renderer only
+ * ever draws it as an image, where an SVG's scripts do not run.
+ */
+export async function storeFileOpenSvgIcon(svg: Buffer) {
+  return svg.length === 0 ? null : storeIcon(svg, "svg");
+}
+
 export async function storeFileOpenNativeImage(image: NativeImage) {
   if (image.isEmpty()) {
     return null;
@@ -106,7 +115,13 @@ async function handleFileOpenIconRequest({
         // The URL hashes the response bytes, so changed icons get a new URL.
         // This finite lifetime only bounds retention of unchanged content.
         "Cache-Control": `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`,
-        "Content-Type": "image/png",
+        ...(filename.endsWith(".svg")
+          ? {
+              "Content-Security-Policy":
+                "default-src 'none'; style-src 'unsafe-inline'",
+              "Content-Type": "image/svg+xml",
+            }
+          : { "Content-Type": "image/png" }),
       },
     });
   } catch {
@@ -194,8 +209,12 @@ function iconDirectory() {
 let tempFileCounter = 0;
 
 async function storePng(png: Buffer) {
+  return storeIcon(png, "png");
+}
+
+async function storeIcon(png: Buffer, extension: "png" | "svg") {
   const digest = createHash("sha256").update(png).digest("hex");
-  const filename = `${digest}.png`;
+  const filename = `${digest}.${extension}`;
   const iconPath = path.join(iconDirectory(), filename);
   try {
     // Content addressing means an existing file already holds these exact bytes.

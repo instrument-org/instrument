@@ -60,6 +60,8 @@ vi.mock("./app-protocol", () => ({
     Promise.resolve(base64 ? `icon://${base64}` : null),
   storeFileOpenNativeImage: (image: { name: string }) =>
     Promise.resolve(`native://${image.name}`),
+  storeFileOpenSvgIcon: (svg: Buffer) =>
+    Promise.resolve(`svg://${svg.toString("utf8")}`),
 }));
 
 let userDataDir: string;
@@ -985,6 +987,28 @@ describe("linux", () => {
     );
   });
 
+  it("draws an app that ships only a scalable SVG icon", async () => {
+    await fs.writeFile(
+      path.join(dataDir, "applications", "org.example.Svg.desktop"),
+      "[Desktop Entry]\nName=Example Svg\nIcon=org.example.Svg\n",
+      "utf8",
+    );
+    const iconDir = path.join(dataDir, "icons/hicolor/scalable/apps");
+    await fs.mkdir(iconDir, { recursive: true });
+    await fs.writeFile(path.join(iconDir, "org.example.Svg.svg"), "<svg/>");
+    execImpl = (call) =>
+      Promise.resolve(
+        call.args[1] === "filetype"
+          ? "application/pdf"
+          : "org.example.Svg.desktop",
+      );
+    const { getFileOpenTarget } = await importModule();
+
+    const target = await getFileOpenTarget("/tasks/a/report.pdf");
+
+    expect(target.iconUrl).toBe("svg://<svg/>");
+  });
+
   it("resolves the default browser from xdg-settings", async () => {
     await fs.writeFile(
       path.join(dataDir, "applications", "firefox.desktop"),
@@ -1081,7 +1105,9 @@ describe("win32", () => {
         "launchAppPath": null,
       }
     `);
-    expect(execCalls[0]?.script).toContain("AssocQueryString(0, $what, 'https'");
+    expect(execCalls[0]?.script).toContain(
+      "AssocQueryString(0, $what, 'https'",
+    );
   });
 
   it("refuses to interpolate an extension that isn't a simple one", async () => {

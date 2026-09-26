@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { storeFileOpenIcon } from "../app-protocol";
+import { storeFileOpenIcon, storeFileOpenSvgIcon } from "../app-protocol";
 import { runHelper } from "./helper-process";
 import { type ResolvedApp } from "./types";
 
@@ -50,19 +50,25 @@ function dataDirs() {
  * one, otherwise the hicolor theme every desktop falls back to, then pixmaps,
  * across the data dirs. A full icon-theme lookup would follow the desktop's
  * own theme; hicolor is the one every app installs into, which is what makes
- * it portable. SVG-only icons are skipped because nativeImage cannot decode
- * them.
+ * it portable. PNGs come first; an app that ships only a scalable SVG, as
+ * most GNOME apps do, is found last.
  */
 function linuxIconCandidates(icon: string, dirs: string[]) {
   if (path.isAbsolute(icon)) {
-    return icon.endsWith(".png") ? [icon] : [];
+    return /\.(?:png|svg)$/.test(icon) ? [icon] : [];
   }
-  return dirs.flatMap((dir) => [
-    ...HICOLOR_SIZES.map((size) =>
-      path.join(dir, "icons/hicolor", size, "apps", `${icon}.png`),
-    ),
-    path.join(dir, "pixmaps", `${icon}.png`),
-  ]);
+  return [
+    ...dirs.flatMap((dir) => [
+      ...HICOLOR_SIZES.map((size) =>
+        path.join(dir, "icons/hicolor", size, "apps", `${icon}.png`),
+      ),
+      path.join(dir, "pixmaps", `${icon}.png`),
+    ]),
+    ...dirs.flatMap((dir) => [
+      path.join(dir, "icons/hicolor/scalable/apps", `${icon}.svg`),
+      path.join(dir, "pixmaps", `${icon}.svg`),
+    ]),
+  ];
 }
 
 /** Reads `Name=` and `Icon=` from a desktop entry's main group. */
@@ -109,7 +115,9 @@ async function resolveIcon(icon: string) {
   for (const candidate of linuxIconCandidates(icon, dataDirs())) {
     try {
       const bytes = await fs.readFile(candidate);
-      return await storeFileOpenIcon(bytes.toString("base64"));
+      return candidate.endsWith(".svg")
+        ? await storeFileOpenSvgIcon(bytes)
+        : await storeFileOpenIcon(bytes.toString("base64"));
     } catch {
       // not installed at this size or in this dir; try the next one
     }

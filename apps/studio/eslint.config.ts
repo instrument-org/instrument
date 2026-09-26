@@ -7,6 +7,9 @@ export default [
   globalIgnores([
     // Vendored from a component registry; kept as it arrived.
     "src/client/components/extend/**",
+    // The page editor's guest code, ported from the editor prototype and kept
+    // close to it while the feature is being tried.
+    "src/page-editor-guest/port/**",
     "**/*.snap",
     "*.local",
     "src/client/routeTree.gen.ts",

@@ -11,6 +11,7 @@ import { gateway } from "./gateway";
 import { ideas } from "./ideas";
 import { onboarding } from "./onboarding";
 import { orchestrator } from "./orchestrator";
+import { pageEditor } from "./page-editor";
 import { plans } from "./plans";
 import { preferences } from "./preferences";
 import { providerConfig } from "./provider-config";
@@ -35,6 +36,7 @@ export const router = {
   ideas,
   onboarding,
   orchestrator,
+  pageEditor,
   plans,
   preferences,
   providerConfig,

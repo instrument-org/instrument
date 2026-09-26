@@ -58,7 +58,7 @@ import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 // Shape of the `<webview>` `did-fail-load` DOM event (Electron adds these
@@ -87,7 +87,9 @@ export function TaskBrowserPanel({
   focusAddress = true,
   insideOverlay = false,
   layer,
+  menuItems,
   onViewSource,
+  pageControls,
   relayoutKey,
   sessionId,
   sliding,
@@ -118,8 +120,12 @@ export function TaskBrowserPanel({
    * guest's own black default over the surface.
    */
   layer?: number;
+  /** More of the page's menu, for a page that has more to offer than a site. */
+  menuItems?: ReactNode;
   /** Shows the page's text, when the page has some to show; the menu offers it. */
   onViewSource?: () => void;
+  /** Drawn ahead of reload in the row the bar is drawn into, for a page with a mode of its own. */
+  pageControls?: ReactNode;
   /** Changes whenever the panel moves without resizing, so the guest is placed again; see useBrowserSlot. */
   relayoutKey?: string;
   sessionId: StoreId.Session;
@@ -516,6 +522,7 @@ export function TaskBrowserPanel({
                 <ArrowCounterClockwiseIcon className="size-4" />
                 Hard reload
               </DropdownMenuItem>
+              {menuItems}
               {onViewSource && (
                 <DropdownMenuItem onSelect={onViewSource}>
                   <CodeIcon className="size-4" />
@@ -542,6 +549,7 @@ export function TaskBrowserPanel({
         // the user's own browser comes along.
         const controls = (
           <>
+            {pageControls}
             <ToolbarTooltip shortcut="reloadPage">
               <Button
                 disabled={!active}

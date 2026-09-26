@@ -80,7 +80,7 @@ const TAB_CHORDS: WindowChord[] = [
  * The inbox column put away and brought back, on the chord the classic
  * window keeps for its sidebar: the column is this window's sidebar.
  */
-const VIEW_CHORDS: WindowChord[] = [chord("toggleInbox")];
+const VIEW_CHORDS: WindowChord[] = [chord("toggleInbox"), chord("editPage")];
 
 /**
  * Down and up the inbox from the thread on screen, in the order the list

@@ -60,6 +60,7 @@ import {
 } from "./lib/theme-utils";
 import { applyStandardUserAgent } from "./lib/user-agent";
 import { configurePlatformAuthenticator } from "./lib/web-authn";
+import { servePageEditorBoot } from "./page-editor/sessions";
 import { initializeRPC } from "./rpc/initialize";
 let appUpdater: AppUpdaterHandle | undefined;
 
@@ -208,6 +209,7 @@ async function bootstrapPrimaryInstance() {
   nativeTheme.on("updated", applyThemeToWindows);
   // Registered before any window exists, so no preload can ask before it answers.
   serveResolvedTheme();
+  servePageEditorBoot();
 
   await timeBootStep("setupBinDirectory", setupBinDirectory);
 

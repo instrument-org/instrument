@@ -1,4 +1,5 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { requestPageEditToggle } from "@/client/components/orchestrator/page-edit-state";
 import { requestBrowserFind } from "@/client/lib/foreground-browser-registry";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -90,6 +91,17 @@ export function useWindowCommands(
         event.preventDefault();
         latest.current.search();
       }
+      // Edit on the page on screen, for a key the main process did not take
+      // first.
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "e"
+      ) {
+        event.preventDefault();
+        requestPageEditToggle();
+      }
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     if (isMacOS()) {
@@ -120,6 +132,12 @@ export function useWindowCommands(
             }
             case "closeTab": {
               latest.current.closeTab();
+              break;
+            }
+            case "editPage": {
+              // The page tab on screen, when it shows a page's file; nothing
+              // otherwise.
+              requestPageEditToggle();
               break;
             }
             case "findInPage": {

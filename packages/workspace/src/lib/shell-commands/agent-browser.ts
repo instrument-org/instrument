@@ -1,3 +1,4 @@
+import { isChatId } from "../record-folders";
 import { execa } from "execa";
 import { defineCommand } from "just-bash";
 import { spawn } from "node:child_process";
@@ -11,7 +12,6 @@ import { TASK_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
-import { isChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { WebSearch } from "../../tools/web-search";

@@ -13,11 +13,11 @@ import {
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
-  chatIdOf,
   type SessionMessageDataPart,
   StoreId,
+  type TaskId,
 } from "@instrument-org/workspace/client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
 import { useEffect, useState } from "react";
@@ -74,6 +74,7 @@ export function useDrafts({
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const threadFilters = useAtomValue(threadFiltersAtom);
+  const queryClient = useQueryClient();
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
   );
@@ -211,6 +212,7 @@ export function useDrafts({
     }
     // Read at the press, while the draft's window and what its band has up
     // are still there to read; the window changes under it at once.
+    // eslint-disable-next-line unicorn/no-useless-undefined -- the send's `viewing` takes undefined, not void
     const viewing = draftContext(id).catch(() => undefined);
     // Chosen here rather than by the workspace, so the window can be the
     // thread's before the thread exists.
@@ -223,10 +225,20 @@ export function useDrafts({
       // The chat's record is made first, so the window never shows a thread
       // whose record is not there yet; it is a folder and a settings file,
       // so the press still feels immediate.
+      let chatId: TaskId;
       try {
-        await rpcClient.workspace.orchestrator.chats.ensure.call({
-          sessionId,
-        });
+        ({ taskId: chatId } =
+          await rpcClient.workspace.orchestrator.chats.ensure.call({
+            firstWords: send.prompt,
+            sessionId,
+          }));
+        // Known at once to the thread's screen, which asks for its chat.
+        queryClient.setQueryData(
+          rpcClient.workspace.orchestrator.chats.of.queryKey({
+            input: { sessionId },
+          }),
+          { taskId: chatId },
+        );
       } catch (error) {
         setStartingIds((current) => withoutId(current, id));
         setSentWords((current) => withoutKey(current, id));
@@ -243,7 +255,7 @@ export function useDrafts({
         await createMessage.mutateAsync({
           files: send.files,
           folders: send.folders,
-          id: chatIdOf(sessionId),
+          id: chatId,
           modelURI: send.modelURI,
           newSessionId: sessionId,
           output: send.output,

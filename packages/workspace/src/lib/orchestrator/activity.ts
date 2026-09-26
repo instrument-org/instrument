@@ -1,6 +1,6 @@
+import { sessionOfChat } from "../record-folders";
 import { z } from "zod";
 
-import { sessionOfChat } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";

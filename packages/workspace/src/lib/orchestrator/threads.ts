@@ -1,8 +1,8 @@
+import { chatOfSession, sessionOfChat } from "../record-folders";
 import { alphabetical, parallel, unique } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
-import { chatIdOf, sessionOfChat } from "../../schemas/chat-id";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -47,6 +47,8 @@ export const ThreadSchema = z.object({
   archived: z.boolean(),
   /** Whether the user starred it: a mark of the user's own, meaning whatever they mean by it. */
   starred: z.boolean(),
+  /** The chat's own record, which its transcript and its tasks are under. */
+  chatId: TaskIdSchema,
   /** When the root was sent, in ms. */
   createdAt: z.number(),
   /**
@@ -215,7 +217,10 @@ export async function markThreadSeen(
   // What was seen is a fact about the session as the window shows it, and the
   // live list re-reads on the session's events, so the count clears the
   // moment the thread is opened rather than the next time something is said.
-  publisher.publish("session.updated", { id: chatIdOf(sessionId), sessionId });
+  const chatId = chatOfSession(sessionId);
+  if (chatId) {
+    publisher.publish("session.updated", { id: chatId, sessionId });
+  }
 }
 
 /**
@@ -244,7 +249,10 @@ export async function markThreadUnseen(
       threadSeen: before ? { ...rest, [sessionId]: before.id } : rest,
     };
   });
-  publisher.publish("session.updated", { id: chatIdOf(sessionId), sessionId });
+  const chatId = chatOfSession(sessionId);
+  if (chatId) {
+    publisher.publish("session.updated", { id: chatId, sessionId });
+  }
 }
 
 /**
@@ -282,7 +290,10 @@ export async function setThreadTopics(
   sessionId: StoreId.Session,
   topics: string[],
 ): Promise<boolean> {
-  const taskId = chatIdOf(sessionId);
+  const taskId = chatOfSession(sessionId);
+  if (!taskId) {
+    return false;
+  }
   const session = await Store.getSession(sessionId, taskId);
   if (session.isErr()) {
     return false;
@@ -313,7 +324,11 @@ export async function settleThreadTitle(
 export async function threadById(
   sessionId: StoreId.Session,
 ): Promise<Thread | undefined> {
-  const session = await Store.getSession(sessionId, chatIdOf(sessionId));
+  const taskId = chatOfSession(sessionId);
+  if (!taskId) {
+    return undefined;
+  }
+  const session = await Store.getSession(sessionId, taskId);
   if (session.isErr() || session.value.parentId) {
     return undefined;
   }
@@ -331,7 +346,11 @@ export async function threadIsWorking(
   if (threadIsAlive(sessionId)) {
     return true;
   }
-  const { running } = await orchestratorActivity(chatIdOf(sessionId));
+  const taskId = chatOfSession(sessionId);
+  if (!taskId) {
+    return false;
+  }
+  const { running } = await orchestratorActivity(taskId);
   return running.some((task) => !task.waiting);
 }
 
@@ -595,7 +614,10 @@ async function saveMark(
   sessionId: StoreId.Session,
   mark: (session: Session.Type) => Session.Type,
 ): Promise<boolean> {
-  const taskId = chatIdOf(sessionId);
+  const taskId = chatOfSession(sessionId);
+  if (!taskId) {
+    return false;
+  }
   const session = await Store.getSession(sessionId, taskId);
   if (session.isErr()) {
     return false;
@@ -638,9 +660,9 @@ async function threadFor(
   session: Session.Type,
   shared: Shared,
 ): Promise<Thread | undefined> {
-  const taskId = chatIdOf(session.id);
+  const taskId = chatOfSession(session.id);
   const messages = await threadMessages(session.id);
-  if (!messages) {
+  if (!taskId || !messages) {
     return undefined;
   }
   const root = messages.find(isRoot);
@@ -700,6 +722,7 @@ async function threadFor(
   const lastReply = replies.at(-1)?.metadata.finishedAt;
   return {
     archived: session.archivedAt !== undefined,
+    chatId: taskId,
     createdAt: root.metadata.createdAt.getTime(),
     holds: {
       apps: await appsHeld(messages, filedTasks, shared.knownApps),
@@ -737,7 +760,10 @@ async function threadFor(
 function threadMessages(
   sessionId: StoreId.Session,
 ): Promise<SessionMessage.WithParts[] | undefined> {
-  const taskId = chatIdOf(sessionId);
+  const taskId = chatOfSession(sessionId);
+  if (!taskId) {
+    return Promise.resolve(undefined);
+  }
   const key = sessionKey(taskId, sessionId);
   const cached = messagesBySession.get(key);
   if (cached) {
@@ -769,8 +795,12 @@ function threadMessages(
 const TURN_START_GRACE_MS = 30_000;
 
 function threadIsAlive(sessionId: StoreId.Session): boolean {
+  const taskId = chatOfSession(sessionId);
+  if (!taskId) {
+    return false;
+  }
   const status = getTaskAgentStatus({
-    id: chatIdOf(sessionId),
+    id: taskId,
     workspaceRef: getWorkspaceActorRef(),
   });
   return (

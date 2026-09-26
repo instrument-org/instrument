@@ -1,9 +1,9 @@
+import { chatOfSession, isChatId, sessionOfChat } from "../record-folders";
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import ms from "ms";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
-import { chatIdOf, sessionOfChat } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
@@ -179,7 +179,15 @@ export async function wakeChatForApp(
   workspaceRef: WorkspaceActorRef,
   askedIn: StoreId.Session | undefined,
 ): Promise<void> {
-  const candidates = askedIn ? [chatIdOf(askedIn)] : listChatIds().toReversed();
+  // The chat that asked, when it is still there, and then the newest first,
+  // so an event for a chat since deleted still reaches someone.
+  const asked = askedIn ? chatOfSession(askedIn) : undefined;
+  const candidates = [
+    ...(asked ? [asked] : []),
+    ...listChatIds()
+      .toReversed()
+      .filter((id) => id !== asked),
+  ];
   for (const chatId of candidates) {
     const state = await getTaskState(taskDir(chatId));
     if (state.selectedModelURI) {
@@ -195,7 +203,11 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   const now = Date.now();
   for (const task of tasks) {
     const parentTaskId = task.parentTaskId;
-    if (parentTaskId === undefined || !isWorking(task.id)) {
+    if (
+      parentTaskId === undefined ||
+      !isChatId(parentTaskId) ||
+      !isWorking(task.id)
+    ) {
       overdueReportedAt.delete(task.id);
       continue;
     }
@@ -327,7 +339,9 @@ async function onSessionDone(
   }
   const childSettings = await getTaskSettings(taskDir(id));
   const orchestratorId = childSettings?.parentTaskId;
-  if (!orchestratorId) {
+  // Only a chat is woken. A task still parented to the window's record, from
+  // before chats had records of their own, has no conversation to report to.
+  if (!orchestratorId || !isChatId(orchestratorId)) {
     return;
   }
   const orchestratorSettings = await getTaskSettings(taskDir(orchestratorId));

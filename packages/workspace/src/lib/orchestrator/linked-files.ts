@@ -1,6 +1,6 @@
+import { sessionOfChat } from "../record-folders";
 import { sort, unique } from "radashi";
 
-import { sessionOfChat } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { pathsNamedInMessage } from "../paths-named-in-message";

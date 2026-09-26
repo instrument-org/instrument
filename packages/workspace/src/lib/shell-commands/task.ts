@@ -1,3 +1,4 @@
+import { isChatId, sessionOfChat } from "../record-folders";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
@@ -11,7 +12,6 @@ import { z } from "zod";
 
 import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
-import { isChatId, sessionOfChat } from "../../schemas/chat-id";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";

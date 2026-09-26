@@ -4,10 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { chatIdOf } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { createMemoryAppsConfig } from "../apps/memory-config";
 import { loadApp } from "../apps/store";
@@ -18,10 +18,11 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 import { runApp, type TaskCommandContext } from "./task";
 
-// The conversation the tasks were started in: a chat, by its record id.
-const ORCHESTRATOR_ID = chatIdOf(
-  StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
+// The chat the tasks were started in: a record of its own under `chats/`.
+const ORCHESTRATOR_SESSION = StoreId.SessionSchema.parse(
+  "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
+const ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("file-the-issue");
 
 const context: TaskCommandContext = {
@@ -84,6 +85,7 @@ function useWorkspace(taskId: string) {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
+  chatFor(ORCHESTRATOR_SESSION, ORCHESTRATOR_ID);
 }
 
 beforeEach(async () => {

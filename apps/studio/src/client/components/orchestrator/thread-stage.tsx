@@ -10,9 +10,9 @@ import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
-  chatIdOf,
   type SessionMessageDataPart,
   type StoreId,
+  type TaskId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useContext, useEffect, useState } from "react";
@@ -25,19 +25,7 @@ import { WorkingRow } from "./working-row";
 /** How many threads stay mounted behind the one on screen. */
 const KEPT = 4;
 
-/**
- * One thread's conversation: its transcript, opening at the end, and a
- * composer that replies in it. Nothing above the transcript: the row over
- * it names the thread, and the top of the scroll is the ask itself. The
- * thread is a session of the orchestrator's, so the chat is the same
- * conversation the inbox holds, narrowed to this one thread.
- */
-export function ThreadScreen({
-  isUp,
-  sendContext,
-  sentPrompt,
-  sessionId,
-}: {
+interface ThreadScreenProps {
   /** Whether this is the thread on screen: only that one marks itself read or takes the caret. */
   isUp: boolean;
   sendContext: () => Promise<
@@ -46,11 +34,117 @@ export function ThreadScreen({
   /** The words that open the thread, while the message they make is on its way. */
   sentPrompt?: string;
   sessionId: StoreId.Session;
+}
+
+/**
+ * One thread's conversation: its transcript, opening at the end, and a
+ * composer that replies in it. Nothing above the transcript: the row over
+ * it names the thread, and the top of the scroll is the ask itself. A
+ * thread is a chat with a record of its own, named for what it is about,
+ * so its record is asked for by the thread's session first.
+ */
+export function ThreadScreen(props: ThreadScreenProps) {
+  const chat = useQuery(
+    rpcClient.workspace.orchestrator.chats.of.queryOptions({
+      input: { sessionId: props.sessionId },
+      // A chat keeps its record for as long as it exists.
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+  );
+  const taskId = chat.data?.taskId;
+  if (!taskId) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner className="size-5" />
+      </div>
+    );
+  }
+  return <ChatScreen {...props} taskId={taskId} />;
+}
+
+/**
+ * The threads on screen and the few lately left, all mounted: the one whose
+ * group is up is shown over its tabs, and the others stay laid out under it,
+ * hidden, so coming back to a thread is the transcript as it was rather than
+ * a transcript rebuilt, with its images and its scroll. Which thread is up
+ * is the tab model's business; the stage only follows it.
+ */
+export function ThreadStage({
+  floating,
+  sendContext,
+  sessionId,
+}: {
+  /** The threads in their small views, which the stage leaves to them: a floating thread's conversation is drawn in its window and nowhere else. */
+  floating: StoreId.Session[];
+  /** What the tab under the thread shows, read as a reply is sent, so the reply carries it. */
+  sendContext: () => Promise<
+    SessionMessageDataPart.ViewContextDataPart | undefined
+  >;
+  /** The thread whose group is up, or nothing while a draft's is. */
+  sessionId: StoreId.Session | undefined;
 }) {
+  // `recency` is newest last, and says which to let go of; the one up is
+  // always among them. `order` is the same threads in the order they arrived,
+  // which is the order they are drawn in: a kept thread moved in the DOM is
+  // detached and put back, which takes its transcript's scroll to the top and
+  // replays every animation in it.
+  const [kept, setKept] = useState<{
+    order: StoreId.Session[];
+    recency: StoreId.Session[];
+  }>({ order: [], recency: [] });
+  if (sessionId !== undefined && kept.recency.at(-1) !== sessionId) {
+    setKept((current) => {
+      const recency = [
+        ...current.recency.filter((id) => id !== sessionId),
+        sessionId,
+      ].slice(-KEPT);
+      const order = current.order.filter((id) => recency.includes(id));
+      return {
+        order: order.includes(sessionId) ? order : [...order, sessionId],
+        recency,
+      };
+    });
+  }
+  return (
+    <>
+      {kept.order.map((id) => {
+        if (floating.includes(id)) {
+          return null;
+        }
+        const isUp = id === sessionId;
+        return (
+          <div
+            aria-hidden={!isUp}
+            // Hidden by visibility rather than display, so the transcript
+            // keeps its layout and its scroll while it waits.
+            className={cn(
+              "absolute inset-0",
+              isUp ? undefined : "pointer-events-none invisible",
+            )}
+            key={id}
+          >
+            <ActiveTabProvider isActive={isUp}>
+              <ThreadScreen
+                isUp={isUp}
+                sendContext={sendContext}
+                sessionId={id}
+              />
+            </ActiveTabProvider>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function ChatScreen({
+  isUp,
+  sendContext,
+  sentPrompt,
+  sessionId,
+  taskId,
+}: ThreadScreenProps & { taskId: TaskId }) {
   const orchestrator = useOrchestrator();
-  // The thread's own record: a chat is a record of its own, found by its
-  // session's id.
-  const taskId = chatIdOf(sessionId);
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: { id: taskId },
@@ -192,80 +286,5 @@ export function ThreadScreen({
         </OrchestratorContext>
       </div>
     </FileDropRegion>
-  );
-}
-
-/**
- * The threads on screen and the few lately left, all mounted: the one whose
- * group is up is shown over its tabs, and the others stay laid out under it,
- * hidden, so coming back to a thread is the transcript as it was rather than
- * a transcript rebuilt, with its images and its scroll. Which thread is up
- * is the tab model's business; the stage only follows it.
- */
-export function ThreadStage({
-  floating,
-  sendContext,
-  sessionId,
-}: {
-  /** The threads in their small views, which the stage leaves to them: a floating thread's conversation is drawn in its window and nowhere else. */
-  floating: StoreId.Session[];
-  /** What the tab under the thread shows, read as a reply is sent, so the reply carries it. */
-  sendContext: () => Promise<
-    SessionMessageDataPart.ViewContextDataPart | undefined
-  >;
-  /** The thread whose group is up, or nothing while a draft's is. */
-  sessionId: StoreId.Session | undefined;
-}) {
-  // `recency` is newest last, and says which to let go of; the one up is
-  // always among them. `order` is the same threads in the order they arrived,
-  // which is the order they are drawn in: a kept thread moved in the DOM is
-  // detached and put back, which takes its transcript's scroll to the top and
-  // replays every animation in it.
-  const [kept, setKept] = useState<{
-    order: StoreId.Session[];
-    recency: StoreId.Session[];
-  }>({ order: [], recency: [] });
-  if (sessionId !== undefined && kept.recency.at(-1) !== sessionId) {
-    setKept((current) => {
-      const recency = [
-        ...current.recency.filter((id) => id !== sessionId),
-        sessionId,
-      ].slice(-KEPT);
-      const order = current.order.filter((id) => recency.includes(id));
-      return {
-        order: order.includes(sessionId) ? order : [...order, sessionId],
-        recency,
-      };
-    });
-  }
-  return (
-    <>
-      {kept.order.map((id) => {
-        if (floating.includes(id)) {
-          return null;
-        }
-        const isUp = id === sessionId;
-        return (
-          <div
-            aria-hidden={!isUp}
-            // Hidden by visibility rather than display, so the transcript
-            // keeps its layout and its scroll while it waits.
-            className={cn(
-              "absolute inset-0",
-              isUp ? undefined : "pointer-events-none invisible",
-            )}
-            key={id}
-          >
-            <ActiveTabProvider isActive={isUp}>
-              <ThreadScreen
-                isUp={isUp}
-                sendContext={sendContext}
-                sessionId={id}
-              />
-            </ActiveTabProvider>
-          </div>
-        );
-      })}
-    </>
   );
 }

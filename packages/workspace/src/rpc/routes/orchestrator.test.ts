@@ -1,14 +1,32 @@
-import { describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { chatIdOf } from "../../schemas/chat-id";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../../lib/workspace-config";
+import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { chatFor } from "../../test/helpers/chat-record";
 import { publisher } from "../publisher";
 import { threadChanges } from "./orchestrator";
 
-// A chat, a task that is not one, and a task the chat started.
-const taskId = chatIdOf(StoreId.newSessionId());
+// A chat, a task that is not one, and a task the chat started. The chat is a
+// folder under a workspace root of this file's own.
+let taskId = TaskIdSchema.parse("2026-09-26-conversation");
+beforeAll(() => {
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    rootDir: WorkspaceDirSchema.parse(
+      fs.mkdtempSync(path.join(os.tmpdir(), "orchestrator-routes-")),
+    ),
+  });
+  taskId = chatFor(StoreId.newSessionId(), taskId);
+});
 const otherTaskId = TaskIdSchema.parse("orchestrator-other");
 const childTaskId = TaskIdSchema.parse("orchestrator-child");
 

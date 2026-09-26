@@ -1,10 +1,13 @@
 import { type AbsolutePath } from "../schemas/paths";
-import { SubdomainPartSchema } from "../schemas/subdomain-part";
+import {
+  type SubdomainPart,
+  SubdomainPartSchema,
+} from "../schemas/subdomain-part";
 import { absolutePathJoin } from "./absolute-path-join";
 import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
-import { chatTaskIdTaken } from "./record-folders";
+import { recordIdTaken } from "./record-folders";
 import { taskFolderSlug } from "./task-folder-slug";
 
 // Derives a sibling folder name for a branch by reusing the source folder's
@@ -24,7 +27,7 @@ export async function generateBranchFolderName({
 
   const { name, renamed } = await findAvailableName({
     isTaken: async (candidate) =>
-      chatTaskIdTaken(candidate) ||
+      recordIdTaken(candidate) ||
       (await pathExists(absolutePathJoin(tasksDir, candidate))),
     name: base,
   });
@@ -50,11 +53,42 @@ export async function generateTaskFolderName({
 
   const { name } = await findAvailableName({
     isTaken: async (candidate) =>
-      chatTaskIdTaken(candidate) ||
+      recordIdTaken(candidate) ||
       (await pathExists(absolutePathJoin(tasksDir, candidate))),
     name: base,
   });
 
+  return SubdomainPartSchema.parse(name);
+}
+
+/**
+ * How long the words in a chat's folder name may run. Shorter than a task's,
+ * since a task a chat starts sits inside the chat's folder, and the two names
+ * together are what a deep path inside the task has to fit around.
+ */
+const CHAT_SLUG_MAX = 24;
+
+/**
+ * A chat's folder name: the day it began and a few words of what it is about,
+ * the way a task's folder is named, so a chat's folder is as readable on disk
+ * as a task's. A numeric suffix when the name is taken. Synchronous, so the
+ * boot migration can name chats too.
+ */
+export function chatFolderName({
+  date,
+  isTaken,
+  title,
+}: {
+  date: Date;
+  isTaken: (candidate: string) => boolean;
+  title: string | undefined;
+}): SubdomainPart {
+  const slug = (title && taskFolderSlug(title, CHAT_SLUG_MAX)) || "chat";
+  const base = `${formatDatePrefix(date)}-${slug}`;
+  let name = base;
+  for (let suffix = 2; isTaken(name); suffix += 1) {
+    name = `${base}-${suffix}`;
+  }
   return SubdomainPartSchema.parse(name);
 }
 

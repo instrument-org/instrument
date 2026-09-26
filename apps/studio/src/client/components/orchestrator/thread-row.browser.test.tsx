@@ -105,6 +105,7 @@ function thread(overrides: Partial<Thread> = {}): Thread {
   const messageId = StoreId.newMessageId();
   return {
     archived: false,
+    chatId: TaskIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     createdAt: STARTED_AT.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: sessionId,

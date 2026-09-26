@@ -1,8 +1,7 @@
-import { ok, ResultAsync, safeTry } from "neverthrow";
+import { ok, Result, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 
 import { TASK_FOLDER_NAMES } from "../constants";
-import { isChatId } from "../schemas/chat-id";
 import { type TaskId } from "../schemas/task-id";
 import { type TaskSettingsUpdate } from "../schemas/task-settings";
 import { type WorkspaceConfig } from "../types";
@@ -10,7 +9,15 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
-import { chatsDir, chatTasksDir, placeChatTask } from "./record-folders";
+import {
+  chatsDir,
+  chatTasksDir,
+  forgetChat,
+  forgetChatTask,
+  isChatId,
+  placeChat,
+  placeChatTask,
+} from "./record-folders";
 import { taskDir } from "./task-dir-utils";
 import { updateTaskSettings } from "./task-settings";
 
@@ -28,17 +35,42 @@ export async function initializeTask(
 ) {
   return safeTry(async function* () {
     // A chat's folder goes under `chats/`, a task a chat started goes inside
-    // that chat, and any other task goes flat under `tasks/`.
-    const isChat = isChatId(taskId);
-    const { parentTaskId } = initialSettings;
+    // that chat, and any other task goes flat under `tasks/`. Either id is
+    // reserved in the index before its folder exists, which is what refuses
+    // a name another chat just took.
+    const { chatSessionId, parentTaskId } = initialSettings;
+    const isChat = chatSessionId !== undefined;
+    const inChat =
+      !isChat && parentTaskId !== undefined && isChatId(parentTaskId);
+    const reserved = yield* Result.fromThrowable(
+      () => {
+        if (isChat) {
+          placeChat(taskId, chatSessionId);
+        } else if (inChat) {
+          placeChatTask(taskId, parentTaskId);
+        }
+        return isChat || inChat;
+      },
+      (error) =>
+        new TypedError.Conflict(
+          error instanceof Error ? error.message : String(error),
+        ),
+    )();
     const parentDir = isChat
       ? chatsDir()
-      : parentTaskId && isChatId(parentTaskId)
+      : inChat
         ? chatTasksDir(parentTaskId)
         : workspaceConfig.tasksDir;
-    if (!isChat && parentTaskId && isChatId(parentTaskId)) {
-      placeChatTask(taskId, parentTaskId);
-    }
+    const release = () => {
+      if (!reserved) {
+        return;
+      }
+      if (isChat) {
+        forgetChat(taskId);
+      } else {
+        forgetChatTask(taskId);
+      }
+    };
 
     // Ensure the parent dir exists (idempotent), then create the task
     // dir non-recursively so it acts as an atomic existence guard. With
@@ -54,15 +86,19 @@ export async function initializeTask(
     );
     yield* ResultAsync.fromPromise(
       fs.mkdir(taskDir(taskId), { recursive: false }),
-      (error) =>
-        error instanceof Error && "code" in error && error.code === "EEXIST"
+      (error) => {
+        release();
+        return error instanceof Error &&
+          "code" in error &&
+          error.code === "EEXIST"
           ? new TypedError.Conflict(
               `Task directory already exists: ${taskDir(taskId)}`,
             )
           : new TypedError.FileSystem(
               error instanceof Error ? error.message : "Unknown error",
               { cause: error },
-            ),
+            );
+      },
     );
 
     // A chat runs no code of its own, so it takes none of a task's scaffold.

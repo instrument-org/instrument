@@ -2,6 +2,7 @@ import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import { ProjectIdSchema } from "./project-id";
+import { StoreId } from "./store-id";
 import { TaskIdSchema } from "./task-id";
 import { TaskIndicatorSchema } from "./task-indicator";
 import { TaskKindSchema } from "./task-kind";
@@ -15,6 +16,9 @@ export const TaskSettingsSchema = z.object({
   // the orchestrator when it creates the task (`--app`), possibly to none.
   // Absent on a task a person created, which reaches every app.
   apps: z.array(z.string()).optional(),
+  // On a chat's record, the one session it holds. A chat's folder is named for
+  // what it is about, so this is how a session finds its chat.
+  chatSessionId: StoreId.SessionSchema.optional(),
   // When the task was made, recorded for the same reason as `lastActivityAt`:
   // the observable answer is the session database's birth time, which is when
   // the task was first opened, and for a branched or imported task it is when

@@ -1,3 +1,4 @@
+import { ok, type Result } from "neverthrow";
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
@@ -18,7 +19,10 @@ import { importTask as importTaskLib } from "../../../lib/import-task";
 import { initializeTask } from "../../../lib/initialize-task";
 import { LiveTasksSnapshot } from "../../../lib/live-tasks-snapshot";
 import { newMessage } from "../../../lib/new-message";
+import { type TypedError } from "../../../lib/errors";
 import { newTaskId } from "../../../lib/new-task-id";
+import { isChatId } from "../../../lib/record-folders";
+import { ensureChat } from "../../../lib/orchestrator/chats";
 import { pathExists } from "../../../lib/path-exists";
 import { getProject } from "../../../lib/project";
 import { normalizeProjectInstructions } from "../../../lib/project-instructions";
@@ -33,14 +37,13 @@ import {
   getTaskSettings,
   updateTaskSettings,
 } from "../../../lib/task-settings";
-import { trashTask } from "../../../lib/trash-task";
+import { trashChat, trashTask } from "../../../lib/trash-task";
 import { startTutorialTaskReplay } from "../../../lib/tutorial-task-replay";
 import { updateSessionTitle } from "../../../lib/update-session-title";
 import {
   getTaskUsageSummary,
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
-import { chatIdOf } from "../../../schemas/chat-id";
 import { FileUpload } from "../../../schemas/file-upload";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../../schemas/paths";
@@ -49,7 +52,7 @@ import { ProjectIdSchema } from "../../../schemas/project-id";
 import { SessionMessageDataPart } from "../../../schemas/session/message-data-part";
 import { StoreId } from "../../../schemas/store-id";
 import { TaskSchema } from "../../../schemas/task";
-import { TaskIdSchema } from "../../../schemas/task-id";
+import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
 import { TaskKindSchema } from "../../../schemas/task-kind";
 import { TaskSettingsUpdateSchema } from "../../../schemas/task-settings";
 import { base, toORPCError } from "../../base";
@@ -212,26 +215,33 @@ const create = base
         project = projectResult.value;
       }
 
+      // An orchestrator made here is a chat, the way the window's first send
+      // makes one: a record of its own, named for the words it opens with.
       const chatSession =
         kind === "orchestrator" ? StoreId.newSessionId() : undefined;
-      const taskId = chatSession
-        ? chatIdOf(chatSession)
-        : await newTaskId({ prompt, workspaceConfig: context.workspaceConfig });
-
       const initialTaskName = name ?? defaultTaskName(prompt);
-
-      const result = await initializeTask(
-        {
-          initialSettings: {
-            kind,
-            name: initialTaskName,
-            projectId: projectId ?? undefined,
-          },
-          taskId,
+      let taskId: TaskId;
+      let result: Result<unknown, TypedError.Type> = ok(undefined);
+      if (chatSession) {
+        taskId = await ensureChat(chatSession, prompt);
+      } else {
+        taskId = await newTaskId({
+          prompt,
           workspaceConfig: context.workspaceConfig,
-        },
-        { signal },
-      );
+        });
+        result = await initializeTask(
+          {
+            initialSettings: {
+              kind,
+              name: initialTaskName,
+              projectId: projectId ?? undefined,
+            },
+            taskId,
+            workspaceConfig: context.workspaceConfig,
+          },
+          { signal },
+        );
+      }
 
       if (result.isErr()) {
         context.workspaceConfig.captureException(result.error);
@@ -513,7 +523,8 @@ const importTask = base
 const trash = base
   .input(z.object({ id: TaskIdSchema }))
   .handler(async ({ context, errors, input: { id } }) => {
-    const result = await trashTask({
+    // A chat goes with every task it started, stopped first.
+    const result = await (isChatId(id) ? trashChat : trashTask)({
       id,
       workspaceConfig: context.workspaceConfig,
       workspaceRef: context.workspaceRef,

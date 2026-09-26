@@ -3,10 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { chatIdOf, sessionOfChat } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
+import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import {
   killSessionBackgroundProcesses,
@@ -21,7 +21,9 @@ import { runKill, runLog, type TaskCommandContext } from "./task";
 
 // The chat the tasks were started in, a fresh one per test: a store handle is
 // kept per record id, and each test's workspace is a folder of its own.
-let ORCHESTRATOR_ID = chatIdOf(StoreId.newSessionId());
+let counter = 0;
+let ORCHESTRATOR_SESSION = StoreId.newSessionId();
+let ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("find-the-vault");
 
 let context: TaskCommandContext;
@@ -30,11 +32,12 @@ let rootDir: string;
 let sessionId: StoreId.Session;
 
 beforeEach(async () => {
-  ORCHESTRATOR_ID = chatIdOf(StoreId.newSessionId());
+  counter += 1;
+  ORCHESTRATOR_SESSION = StoreId.newSessionId();
+  ORCHESTRATOR_ID = TaskIdSchema.parse(`2026-09-26-conversation-${counter}`);
   context = { orchestratorTaskId: ORCHESTRATOR_ID, remainingYieldMs: () => 0 };
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-kill-"));
   createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", ORCHESTRATOR_ID));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     // A chat's record goes under the root, kept apart from the folders
@@ -46,7 +49,11 @@ beforeEach(async () => {
   });
   const orchestrator = await initializeTask(
     {
-      initialSettings: { kind: "orchestrator", name: "Instrument" },
+      initialSettings: {
+        chatSessionId: ORCHESTRATOR_SESSION,
+        kind: "orchestrator",
+        name: "Instrument",
+      },
       taskId: ORCHESTRATOR_ID,
       workspaceConfig: getWorkspaceConfig(),
     },
@@ -162,10 +169,7 @@ describe("task kill", () => {
   // A task started in another thread reports there, so steering it from here
   // would move a conversation the user is not having; reading it stays open.
   it("refuses to act on a task another chat started, naming the chat, and still reads it", async () => {
-    const theirs = sessionOfChat(ORCHESTRATOR_ID);
-    if (!theirs) {
-      throw new Error("not a chat");
-    }
+    const theirs = ORCHESTRATOR_SESSION;
     const saved = await Store.saveSession(
       {
         createdAt: new Date(),
@@ -178,7 +182,7 @@ describe("task kill", () => {
       throw saved.error;
     }
     const server = leave("node work/server.js");
-    const elsewhere = chatIdOf(StoreId.newSessionId());
+    const elsewhere = chatFor();
     const here = { ...context, orchestratorTaskId: elsewhere };
     await expect(runKill([CHILD_ID], here)).rejects.toThrow(
       `"find-the-vault" was started in another thread ("Vault hunt"), and is that thread's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it.`,

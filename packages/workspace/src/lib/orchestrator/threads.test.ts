@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { chatIdOf } from "../../schemas/chat-id";
+import { chatFor } from "../../test/helpers/chat-record";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
@@ -11,7 +11,6 @@ import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { placeChatTask } from "../record-folders";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
 import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type OrchestratorActivity } from "./activity";
@@ -95,7 +94,7 @@ const freshTask = async () => {
 
 /** A task started in a thread: a folder inside that thread's chat. */
 function fileTask(sessionId: StoreId.Session, child: TaskId) {
-  const dir = placeChatTask(child, chatIdOf(sessionId));
+  const dir = placeChatTask(child, chatFor(sessionId));
   fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -130,7 +129,7 @@ async function agentAsks(_taskId: TaskId, sessionId: StoreId.Session) {
     ],
     role: "assistant",
   };
-  const saved = await Store.saveMessageWithParts(message, chatIdOf(sessionId));
+  const saved = await Store.saveMessageWithParts(message, chatFor(sessionId));
   expect(saved.isOk()).toBe(true);
 }
 
@@ -179,7 +178,7 @@ async function agentSays(
     ],
     role: "assistant",
   };
-  const saved = await Store.saveMessageWithParts(message, chatIdOf(sessionId));
+  const saved = await Store.saveMessageWithParts(message, chatFor(sessionId));
   expect(saved.isOk()).toBe(true);
   return messageId;
 }
@@ -194,10 +193,10 @@ function partMetadata(ids: {
 /** A thread: a chat's folder and its one session. */
 async function session(_taskId: TaskId, title: string, minute = 0) {
   const id = StoreId.newSessionId();
-  fs.mkdirSync(taskDir(chatIdOf(id)), { recursive: true });
+  chatFor(id);
   await Store.saveSession(
     { createdAt: at(minute), id, title, updatedAt: at(minute) },
-    chatIdOf(id),
+    chatFor(id),
   );
   return id;
 }
@@ -217,7 +216,7 @@ async function userSays(
     ],
     role: "user",
   };
-  const saved = await Store.saveMessageWithParts(message, chatIdOf(sessionId));
+  const saved = await Store.saveMessageWithParts(message, chatFor(sessionId));
   expect(saved.isOk()).toBe(true);
   return messageId;
 }
@@ -296,7 +295,7 @@ describe("listThreads", () => {
 
     const read = await Store.getMessagesWithParts({
       sessionId,
-      taskId: chatIdOf(sessionId),
+      taskId: chatFor(sessionId),
     });
     const reply = read
       ._unsafeUnwrap()
@@ -307,7 +306,7 @@ describe("listThreads", () => {
     }
     await Store.savePart(
       { ...part, text: "Here is the new list." },
-      chatIdOf(sessionId),
+      chatFor(sessionId),
     );
     const [rewritten] = await listThreads();
     expect(rewritten?.latest?.text).toBe("Here is the new list.");
@@ -425,7 +424,7 @@ describe("listThreads", () => {
     const [renamed] = await listThreads();
     expect(renamed?.title).toBe("Weekly shop");
     expect(renamed?.updatedAt).toBe(before?.updatedAt);
-    const stored = await Store.getSession(sessionId, chatIdOf(sessionId));
+    const stored = await Store.getSession(sessionId, chatFor(sessionId));
     expect(stored._unsafeUnwrap().titleSettledAt).toBeInstanceOf(Date);
   });
 

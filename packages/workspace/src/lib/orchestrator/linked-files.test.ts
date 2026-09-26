@@ -3,14 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { chatIdOf } from "../../schemas/chat-id";
+import { chatFor } from "../../test/helpers/chat-record";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { linkedFiles } from "./linked-files";
 
@@ -64,16 +63,16 @@ async function said(
     ],
     role: "assistant",
   };
-  await Store.saveMessageWithParts(message, chatIdOf(sessionId));
+  await Store.saveMessageWithParts(message, chatFor(sessionId));
 }
 
 /** A thread of the conversation: a session under a title. */
 async function thread(_taskId: TaskId, title: string) {
   const sessionId = StoreId.newSessionId();
-  fs.mkdirSync(taskDir(chatIdOf(sessionId)), { recursive: true });
+  chatFor(sessionId);
   await Store.saveSession(
     { createdAt: new Date(), id: sessionId, title },
-    chatIdOf(sessionId),
+    chatFor(sessionId),
   );
   return sessionId;
 }

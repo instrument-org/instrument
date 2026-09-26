@@ -3,11 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { chatIdOf } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
-import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { type TaskKind } from "../../schemas/task-kind";
+import { chatFor } from "../../test/helpers/chat-record";
 import { initializeTask } from "../initialize-task";
 import { forgetRecordFolders } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -57,16 +56,8 @@ async function make(id: string, parentTaskId?: string, kind?: TaskKind) {
 describe("listChildTasks", () => {
   it("gives a chat its own tasks, the window every chat's, and a task none", async () => {
     const window = await make("instrument", undefined, "orchestrator");
-    const one = await make(
-      chatIdOf(StoreId.newSessionId()),
-      undefined,
-      "orchestrator",
-    );
-    const two = await make(
-      chatIdOf(StoreId.newSessionId()),
-      undefined,
-      "orchestrator",
-    );
+    const one = chatFor();
+    const two = chatFor();
     const first = await make("2026-09-26-first", one);
     const second = await make("2026-09-26-second", two);
 

@@ -1,7 +1,7 @@
+import { chatOfSession } from "../record-folders";
 import { defineCommand } from "just-bash";
 import { alphabetical } from "radashi";
 
-import { chatIdOf } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import {
   listThreads,
@@ -109,10 +109,11 @@ function findThread(
 
 /** A thread's messages as `who: what` lines, oldest first. */
 async function lines(sessionId: StoreId.Session): Promise<string[]> {
-  const messages = await Store.getMessagesWithParts({
-    sessionId,
-    taskId: chatIdOf(sessionId),
-  });
+  const taskId = chatOfSession(sessionId);
+  if (!taskId) {
+    return [];
+  }
+  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
   if (messages.isErr()) {
     return [];
   }

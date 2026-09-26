@@ -1,3 +1,8 @@
+import {
+  chatOfSession,
+  isChatId,
+  sessionOfChat,
+} from "../../lib/record-folders";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
@@ -57,7 +62,6 @@ import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";
 import { getTaskSettings } from "../../lib/task-settings";
 import { trashChat } from "../../lib/trash-task";
-import { chatIdOf, isChatId, sessionOfChat } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
@@ -334,10 +338,11 @@ const retitleThreadRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .output(z.object({ title: z.string().optional() }))
   .handler(async ({ input }) => {
-    const title = await retitleThread({
-      id: chatIdOf(input.sessionId),
-      sessionId: input.sessionId,
-    });
+    const id = chatOfSession(input.sessionId);
+    if (!id) {
+      return {};
+    }
+    const title = await retitleThread({ id, sessionId: input.sessionId });
     if (title === undefined) {
       return {};
     }
@@ -526,13 +531,27 @@ const opened = base
 
 /**
  * A chat's record, made before the window shows it, so the window never asks
- * for a chat that is not there yet. Idempotent: the send makes it too.
+ * for a chat that is not there yet, and named for the words it opens with.
+ * Asked again for the same session, it answers with the same chat.
  */
 const ensureChatRoute = base
-  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .input(
+    z.object({
+      firstWords: z.string().optional(),
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
   .output(z.object({ taskId: TaskIdSchema }))
   .handler(async ({ input }) => ({
-    taskId: await ensureChat(chatIdOf(input.sessionId)),
+    taskId: await ensureChat(input.sessionId, input.firstWords),
+  }));
+
+/** The record a chat's session is in, or none for a session that is not a chat's. */
+const chatOfRoute = base
+  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .output(z.object({ taskId: TaskIdSchema.nullable() }))
+  .handler(({ input }) => ({
+    taskId: chatOfSession(input.sessionId) ?? null,
   }));
 
 /**
@@ -542,7 +561,10 @@ const ensureChatRoute = base
 const trashChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ context, errors, input }) => {
-    const id = chatIdOf(input.sessionId);
+    const id = chatOfSession(input.sessionId);
+    if (!id) {
+      throw errors.NOT_FOUND({ message: "That chat is not there any more." });
+    }
     const chatTasks = chatTaskIds(id);
     const result = await trashChat({
       id,
@@ -562,7 +584,7 @@ const trashChatRoute = base
 
 export const orchestrator = {
   activity,
-  chats: { ensure: ensureChatRoute, trash: trashChatRoute },
+  chats: { ensure: ensureChatRoute, of: chatOfRoute, trash: trashChatRoute },
   children,
   childStatus,
   ensure,

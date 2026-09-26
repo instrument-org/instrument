@@ -1,4 +1,4 @@
-import { sessionOfChat } from "../../schemas/chat-id";
+import { sessionOfChat } from "../record-folders";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { taskDir } from "../task-dir-utils";

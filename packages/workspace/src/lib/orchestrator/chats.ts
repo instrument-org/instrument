@@ -1,40 +1,64 @@
 import path from "node:path";
 
-import { isChatId } from "../../schemas/chat-id";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
+import { type StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { assignMountNames } from "../assign-mount-names";
+import { chatFolderName } from "../generate-task-folder-name";
+import { getCurrentDate } from "../get-current-date";
 import { initializeTask } from "../initialize-task";
-import { chatDirs } from "../record-folders";
+import {
+  chatDirs,
+  chatOfSession,
+  recordIdTaken,
+  sessionOfChat,
+} from "../record-folders";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
-import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 import { ORCHESTRATOR_TITLE, windowTaskId } from "./ensure";
 
 /**
- * A chat's record, made the first time something is sent in it. It runs the
- * conversation's agent, and it starts with every folder the user has granted
- * any chat, and the window's own, since a grant is the user's answer to
- * "may Instrument reach this" rather than something one chat asked alone.
+ * A chat's record, made the first time something is sent in it, and named on
+ * disk the way a task is: the day it began and a few words of what was asked.
+ * It runs the conversation's agent, and it starts with every folder the user
+ * has granted any chat, and the window's own, since a grant is the user's
+ * answer to "may Instrument reach this" rather than something one chat asked
+ * alone. Asked again for the same session, it answers with the chat it made.
  */
-export async function ensureChat(chatId: TaskId): Promise<TaskId> {
-  if (!isChatId(chatId)) {
-    throw new Error(`Not a chat's id: ${chatId}`);
+export async function ensureChat(
+  sessionId: StoreId.Session,
+  firstWords?: string,
+): Promise<TaskId> {
+  const existing = chatOfSession(sessionId);
+  if (existing) {
+    return existing;
   }
-  if (await getTaskSettings(taskDir(chatId))) {
-    return chatId;
-  }
+  const chatId = TaskIdSchema.parse(
+    chatFolderName({
+      date: getCurrentDate(),
+      isTaken: recordIdTaken,
+      title: firstWords,
+    }),
+  );
   const made = await initializeTask(
     {
-      initialSettings: { kind: "orchestrator", name: ORCHESTRATOR_TITLE },
+      initialSettings: {
+        chatSessionId: sessionId,
+        kind: "orchestrator",
+        name: ORCHESTRATOR_TITLE,
+      },
       taskId: chatId,
       workspaceConfig: getWorkspaceConfig(),
     },
     {},
   );
-  // Two sends racing for the same new chat: the other one made it.
-  if (made.isErr() && !(await getTaskSettings(taskDir(chatId)))) {
+  if (made.isErr()) {
+    // Two sends racing for the same new chat: the other one made it.
+    const raced = chatOfSession(sessionId);
+    if (raced) {
+      return raced;
+    }
     throw made.error;
   }
   await setTaskState(taskDir(chatId), {
@@ -44,13 +68,15 @@ export async function ensureChat(chatId: TaskId): Promise<TaskId> {
 }
 
 /**
- * Every chat's record id, oldest first. A chat's id carries its session's
- * ULID, so the order the ids sort in is the order the chats were started.
+ * Every chat's record id, oldest first: by its session's id, a ULID, which
+ * orders to the millisecond where the day in a folder's name does not.
  */
 export function listChatIds(): TaskId[] {
   return chatDirs()
     .map((dir) => TaskIdSchema.parse(path.basename(dir)))
-    .sort();
+    .sort((a, b) =>
+      (sessionOfChat(a) ?? "").localeCompare(sessionOfChat(b) ?? ""),
+    );
 }
 
 /**
@@ -85,5 +111,3 @@ async function grantedFolders(): Promise<
     }),
   );
 }
-
-export { chatIdOf } from "../../schemas/chat-id";

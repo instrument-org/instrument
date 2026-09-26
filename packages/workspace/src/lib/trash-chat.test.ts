@@ -3,12 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { chatIdOf } from "../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
-import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
+import { chatFor } from "../test/helpers/chat-record";
 import { initializeTask } from "./initialize-task";
-import { chatTaskIdTaken, forgetRecordFolders } from "./record-folders";
+import { recordIdTaken, forgetRecordFolders } from "./record-folders";
 import { taskDir } from "./task-dir-utils";
 import { trashChat } from "./trash-task";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -68,7 +67,7 @@ async function make(id: string, parentTaskId?: string) {
 
 describe("trashChat", () => {
   it("trashes the chat's folder once, with the tasks it started inside it", async () => {
-    const chat = await make(chatIdOf(StoreId.newSessionId()));
+    const chat = chatFor();
     await make("2026-09-24-first-task", chat);
     await make("2026-09-24-second-task", chat);
     const other = await make("2026-09-24-not-this-chats");
@@ -81,7 +80,7 @@ describe("trashChat", () => {
 
     expect(result.isOk()).toBe(true);
     expect(trashed).toEqual([`chats/${chat}`]);
-    expect(chatTaskIdTaken("2026-09-24-first-task")).toBe(false);
+    expect(recordIdTaken("2026-09-24-first-task")).toBe(false);
     await expect(fs.access(taskDir(other))).resolves.toBeUndefined();
   });
 });

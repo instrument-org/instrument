@@ -1,6 +1,5 @@
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { chatIdOf } from "@instrument-org/workspace/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -156,7 +155,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
       menuOnly: true,
       run: () => {
         transcript.save("markdown", {
-          id: chatIdOf(thread.id),
+          id: thread.chatId,
           label: thread.title,
           sessionId: thread.id,
         });

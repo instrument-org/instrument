@@ -68,6 +68,7 @@ function thread(): Thread {
   const at = new Date(2026, 8, 16, 9, 0);
   return {
     archived: false,
+    chatId: TaskIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     createdAt: at.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: sessionId,

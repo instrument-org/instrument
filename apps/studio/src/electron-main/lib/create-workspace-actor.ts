@@ -80,6 +80,11 @@ export function createWorkspaceActor({
     if (migration.movedTaskCount > 0) {
       logger.info(`Migrated ${migration.movedTaskCount} task(s) to tasks/`);
     }
+    if (migration.chats.leftOver > 0) {
+      logger.warn(
+        `Left ${migration.chats.leftOver} chat item(s) in the old layout to move on the next boot`,
+      );
+    }
     if (migration.chats.chatCount > 0) {
       logger.info(
         `Gave ${migration.chats.chatCount} chat(s) folders of their own, moved ${migration.chats.movedTaskCount} task(s) into them, and wrote ${migration.chats.topicCount} topic(s) as files`,

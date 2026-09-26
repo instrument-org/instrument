@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { chatIdOf } from "../../schemas/chat-id";
+import { chatFor } from "../../test/helpers/chat-record";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
@@ -12,7 +12,6 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { createTopic } from "../orchestrator/topics";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
 import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createChatCommand } from "./chat";
@@ -75,8 +74,7 @@ function run(...args: string[]) {
 /** A thread: a session, the user's opening message, and one reply. */
 async function thread(title: string, ask: string, reply?: string) {
   const sessionId = StoreId.newSessionId();
-  const taskId = chatIdOf(sessionId);
-  fs.mkdirSync(taskDir(taskId), { recursive: true });
+  const taskId = chatFor(sessionId);
   await Store.saveSession(
     { createdAt: new Date(), id: sessionId, title, updatedAt: new Date() },
     taskId,
@@ -224,7 +222,7 @@ describe("chat tag", () => {
     const result = await run("tag", sessionId.slice(0, 8), "Home");
 
     expect(result.stdout).toBe('Filed "Groceries" under #Home.\n');
-    const session = await Store.getSession(sessionId, chatIdOf(sessionId));
+    const session = await Store.getSession(sessionId, chatFor(sessionId));
     expect(session._unsafeUnwrap().topics).toEqual([home.id]);
   });
 });

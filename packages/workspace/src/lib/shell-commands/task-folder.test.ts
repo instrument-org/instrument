@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { chatIdOf } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -16,10 +15,11 @@ import { getTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runFolder, type TaskCommandContext } from "./task";
 
-// The conversation the tasks were started in: a chat, by its record id.
-const ORCHESTRATOR_ID = chatIdOf(
-  StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
+// The chat the tasks were started in: a record of its own under `chats/`.
+const ORCHESTRATOR_SESSION = StoreId.SessionSchema.parse(
+  "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
+const ORCHESTRATOR_ID = TaskIdSchema.parse("2026-09-26-conversation");
 const CHILD_ID = TaskIdSchema.parse("find-the-vault");
 
 const context: TaskCommandContext = {
@@ -46,7 +46,7 @@ beforeEach(async () => {
   home = path.join(rootDir, "home");
   await fs.mkdir(path.join(home, "Downloads"), { recursive: true });
   await fs.mkdir(path.join(home, "Desktop"), { recursive: true });
-  for (const id of [ORCHESTRATOR_ID, CHILD_ID]) {
+  for (const id of [CHILD_ID]) {
     createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
   }
   setWorkspaceConfig({
@@ -59,7 +59,14 @@ beforeEach(async () => {
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   for (const [id, settings] of [
-    [ORCHESTRATOR_ID, { kind: "orchestrator" as const, name: "Conversation" }],
+    [
+      ORCHESTRATOR_ID,
+      {
+        chatSessionId: ORCHESTRATOR_SESSION,
+        kind: "orchestrator" as const,
+        name: "Conversation",
+      },
+    ],
     [CHILD_ID, { name: "Find the vault", parentTaskId: ORCHESTRATOR_ID }],
   ] as const) {
     const created = await initializeTask(

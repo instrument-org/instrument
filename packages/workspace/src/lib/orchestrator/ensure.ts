@@ -1,6 +1,6 @@
+import { isChatId } from "../record-folders";
 import { err, ok, type Result, type ResultAsync, safeTry } from "neverthrow";
 
-import { isChatId } from "../../schemas/chat-id";
 import { SubdomainPartSchema } from "../../schemas/subdomain-part";
 import { type TaskId } from "../../schemas/task-id";
 import { type TypedError } from "../errors";

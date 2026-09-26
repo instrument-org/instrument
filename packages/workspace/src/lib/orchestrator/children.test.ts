@@ -70,10 +70,10 @@ describe("listChildTasks", () => {
     const first = await make("2026-09-26-first", one);
     const second = await make("2026-09-26-second", two);
 
-    const ids = async (id: string) =>
-      (await listChildTasks(TaskIdSchema.parse(id)))
-        .map((task) => task.id)
-        .sort();
+    const ids = async (id: string) => {
+      const tasks = await listChildTasks(TaskIdSchema.parse(id));
+      return tasks.map((task) => task.id).sort();
+    };
 
     expect(await ids(one)).toEqual([first]);
     expect(await ids(window)).toEqual([first, second]);

@@ -1,6 +1,6 @@
 # Plan: chats as folders that own their tasks
 
-Status: built on its branch, not merged. The layout, chat records, chat trash (route only) and the boot migration are in. Still open: a delete control in the window, the thread-to-chat rename, and topic instructions reaching the agent (phase 2). Phase 1 of two; [legacy-data-migration.md](legacy-data-migration.md) is phase 2 and builds on this one.
+Status: built on its branch, not merged. The layout, chat records, deleting a chat from its own menu, and the boot migration are in. Still open: the thread-to-chat rename, and topic instructions reaching the agent (phase 2). Phase 1 of two; [legacy-data-migration.md](legacy-data-migration.md) is phase 2 and builds on this one.
 
 ## Problem
 
@@ -58,7 +58,7 @@ workspace/
 
 ## Deleting a chat
 
-`orchestrator.chats.trash` stops each of the chat's tasks the way trashing it alone does (browser reaped, background processes killed, store let go) without moving its folder, then trashes the chat's folder, which holds them all, in one piece. The window has no control for it yet.
+`orchestrator.chats.trash` stops each of the chat's tasks the way trashing it alone does (browser reaped, background processes killed, store let go) without moving its folder, then trashes the chat's folder, which holds them all, in one piece. The chat's own menu (beside its title, not on inbox rows) offers it behind a confirmation naming the chat and its tasks.
 
 ## Migration
 

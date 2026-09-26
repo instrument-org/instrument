@@ -7,9 +7,10 @@ import {
   XlsxViewer as XlsxWorkbookViewer,
 } from "@extend-ai/react-xlsx";
 import { list } from "radashi";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { FileLoading } from "../file-loading";
+import { markdownCell, useAskSelection } from "./ask-selection-context";
 import { tableClipboardItem, type TableCopyFormat } from "./table-clipboard";
 import { TableCopyMenu } from "./table-copy-menu";
 import { useCopyShortcut } from "./use-copy-shortcut";
@@ -88,6 +89,71 @@ export function XlsxViewer({
     onCopy: () => copyRange(selectedRange(controller)),
   });
 
+  // A block of cells dragged out on the canvas offers itself to Instrument,
+  // quoted with its sheet and range. The button stands where the drag ended,
+  // since the grid's cells are not elements to stand it over. The controller
+  // records the selection a render after the pointer lets go, so the release
+  // is kept and the button is placed once the selection it made is current.
+  const askSelection = useAskSelection();
+  const [release, setRelease] = useState<null | { x: number; y: number }>(null);
+  useEffect(() => {
+    if (!grid || !askSelection) {
+      return;
+    }
+    const onDown = () => {
+      setRelease(null);
+      askSelection.present(null);
+    };
+    const onUp = (event: PointerEvent) => {
+      const box = grid.getBoundingClientRect();
+      setRelease({ x: event.clientX - box.left, y: event.clientY - box.top });
+    };
+    grid.addEventListener("pointerdown", onDown, true);
+    grid.addEventListener("pointerup", onUp, true);
+    return () => {
+      grid.removeEventListener("pointerdown", onDown, true);
+      grid.removeEventListener("pointerup", onUp, true);
+      askSelection.present(null);
+    };
+  }, [askSelection, grid]);
+
+  const range = selectedRange(controller);
+  const sheetName = controller.activeSheet?.name;
+  const rangeKey = range
+    ? `${range.firstRow}:${range.firstCol}:${range.lastRow}:${range.lastCol}`
+    : "";
+  useEffect(() => {
+    if (!askSelection || !grid || !release) {
+      return;
+    }
+    const block = range;
+    if (
+      !block ||
+      sheetName === undefined ||
+      (block.firstRow === block.lastRow && block.firstCol === block.lastCol)
+    ) {
+      askSelection.present(null);
+      return;
+    }
+    const { x, y } = release;
+    askSelection.present({
+      location: `${sheetName}!${cellName(block.firstRow, block.firstCol)}:${cellName(block.lastRow, block.lastCol)}`,
+      quote: readRange({ controller, range: block }).then((values) =>
+        quoteRange(block, values),
+      ),
+      reference: {
+        contextElement: grid,
+        getBoundingClientRect: () => {
+          const now = grid.getBoundingClientRect();
+          return new DOMRect(now.left + x, now.top + y - 4, 0, 0);
+        },
+      },
+    });
+    // Placed again only when the release or the range itself changes, not on
+    // every render of the controller.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askSelection, grid, release, rangeKey, sheetName]);
+
   // Thrown rather than rendered so it reaches the surface's `CatchBoundary`.
   if (controller.error) {
     throw controller.error;
@@ -160,6 +226,33 @@ export function XlsxViewer({
       )}
     </XlsxViewerProvider>
   );
+}
+
+/** A cell's name as a spreadsheet writes it: column letters, then the 1-based row. */
+function cellName(row: number, col: number) {
+  let letters = "";
+  for (let n = col + 1; n > 0; n = Math.floor((n - 1) / 26)) {
+    letters = String.fromCodePoint(65 + ((n - 1) % 26)) + letters;
+  }
+  return `${letters}${row + 1}`;
+}
+
+/** A block of cells as a small Markdown table, headed by the sheet's own row numbers and column letters. */
+function quoteRange(
+  range: NonNullable<ReturnType<typeof selectedRange>>,
+  values: string[][],
+) {
+  const letters = list(range.firstCol, range.lastCol).map((col) =>
+    cellName(0, col).replace(/\d+$/, ""),
+  );
+  return [
+    `|   | ${letters.join(" | ")} |`,
+    `| --- | ${letters.map(() => "---").join(" | ")} |`,
+    ...values.map(
+      (row, index) =>
+        `| ${range.firstRow + index + 1} | ${row.map(markdownCell).join(" | ")} |`,
+    ),
+  ].join("\n");
 }
 
 async function readRange({

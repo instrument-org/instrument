@@ -50,6 +50,7 @@ import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
 import { useFileDrag } from "../hooks/use-file-drag";
 import { useFileOpenControl } from "../hooks/use-file-open-control";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
+import { AskSelection } from "./document-viewers/ask-selection";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
@@ -89,6 +90,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 const MarkdownEditor = lazy(() =>
   import("./markdown-editor/markdown-editor").then((module) => ({
     default: module.MarkdownEditor,
+  })),
+);
+
+// The code editor (CodeMirror and its languages) loads the first time a code
+// or text file is opened where it can be edited.
+const CodeFileEditor = lazy(() =>
+  import("./code-editor/code-file-editor").then((module) => ({
+    default: module.CodeFileEditor,
   })),
 );
 
@@ -290,6 +299,8 @@ export const fileViewerClassName =
   "flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm [--markdown-surface:var(--card)]";
 
 interface ViewerContext {
+  /** Whether the file opens as a live editor (code, text, CSV) rather than a view. */
+  editable: boolean;
   fallback: ReactNode;
   file: ViewerFile;
   imageLoadError: boolean;
@@ -364,12 +375,24 @@ const VIEWERS = {
     ),
     scrolls: "container",
   },
-  code: { hasToolbar: false, render: renderCode, scrolls: "container" },
+  code: {
+    hasToolbar: false,
+    render: (context) =>
+      context.editable
+        ? renderCodeEditor(context, "code")
+        : renderCode(context),
+    scrolls: "container",
+  },
   csv: {
     hasToolbar: true,
-    render: ({ fallback, file }) => (
+    render: ({ editable, fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
-        <LazyCsvViewer filename={file.filename} url={file.url} />
+        <LazyCsvViewer
+          editable={editable}
+          filename={file.filename}
+          hostPath={file.hostPath}
+          url={file.url}
+        />
       </ViewerSurface>
     ),
     scrolls: "self",
@@ -378,7 +401,9 @@ const VIEWERS = {
     hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
-        <LazyDocxViewer filename={file.filename} url={file.url} />
+        <AskSelection path={file.hostPath}>
+          <LazyDocxViewer filename={file.filename} url={file.url} />
+        </AskSelection>
       </ViewerSurface>
     ),
     scrolls: "self",
@@ -486,7 +511,9 @@ const VIEWERS = {
     hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
-        <LazyPptxViewer filename={file.filename} url={file.url} />
+        <AskSelection path={file.hostPath}>
+          <LazyPptxViewer filename={file.filename} url={file.url} />
+        </AskSelection>
       </ViewerSurface>
     ),
     scrolls: "self",
@@ -502,9 +529,12 @@ const VIEWERS = {
   },
   text: {
     hasToolbar: false,
-    render: ({ file, wrapLines }) => (
-      <PlainTextView url={file.url} wrapLines={wrapLines} />
-    ),
+    render: (context) =>
+      context.editable ? (
+        renderCodeEditor(context, "text")
+      ) : (
+        <PlainTextView url={context.file.url} wrapLines={context.wrapLines} />
+      ),
     scrolls: "container",
   },
   unknown: {
@@ -551,7 +581,9 @@ const VIEWERS = {
     hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
-        <LazyXlsxViewer filename={file.filename} url={file.url} />
+        <AskSelection path={file.hostPath}>
+          <LazyXlsxViewer filename={file.filename} url={file.url} />
+        </AskSelection>
       </ViewerSurface>
     ),
     scrolls: "self",
@@ -564,10 +596,36 @@ function renderCode({ file, wrapLines }: ViewerContext) {
   );
 }
 
+/**
+ * A code or text file as a live editor. It fills the scroll container and
+ * scrolls itself, which is what lets it draw only the lines in view of a
+ * long file. Keyed on the file for the same reason the Markdown editor is.
+ */
+function renderCodeEditor(
+  { file, wrapLines }: ViewerContext,
+  variant: "code" | "text",
+) {
+  return (
+    <div className="absolute inset-0">
+      <Suspense fallback={<FileLoading />}>
+        <CodeFileEditor
+          filename={file.filename}
+          hostPath={file.hostPath}
+          key={file.hostPath}
+          variant={variant}
+          wrapLines={wrapLines}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
 function renderPdf({ fallback, file }: ViewerContext) {
   return (
     <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
-      <LazyPdfViewer filename={file.filename} url={file.url} />
+      <AskSelection path={file.hostPath}>
+        <LazyPdfViewer filename={file.filename} url={file.url} />
+      </AskSelection>
     </ViewerSurface>
   );
 }
@@ -624,8 +682,9 @@ export function FileViewer({
   className?: string;
   /**
    * Whether a Markdown file opens as a live editor, with the static preview
-   * and the source as the other view modes. For a surface that is the file's
-   * own place (its tab); a glance at a file (Quick Look) keeps the preview.
+   * and the source as the other view modes; a code or plain text file as a
+   * live code editor; and a CSV as an editable grid. For a surface that is the file's own place (its tab);
+   * a glance at a file (Quick Look) keeps the static views.
    */
   editable?: boolean;
   file: ViewerFile;
@@ -727,6 +786,7 @@ export function FileViewer({
 
   const viewer: ViewerEntry = VIEWERS[fileType];
   const viewerContext: ViewerContext = {
+    editable,
     fallback: (
       <FilePreviewFallback
         // Only consulted when the filename carries no recognizable extension,

@@ -15,8 +15,7 @@ import { type Thread } from "./threads";
  */
 export function useSetThreadTopics(taskId: TaskId | undefined) {
   const queryClient = useQueryClient();
-  const key =
-    threadListOptions(taskId).queryKey;
+  const key = threadListOptions(taskId).queryKey;
   const mutation = useMutation(
     rpcClient.workspace.orchestrator.threads.setTopics.mutationOptions({
       onError: (error) => {

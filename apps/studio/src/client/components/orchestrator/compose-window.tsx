@@ -200,7 +200,6 @@ export function ComposeBar({
 export function ComposeWindow({
   browser,
   draft,
-  isStarting,
   modelURI,
   onChange,
   onClose,
@@ -218,7 +217,6 @@ export function ComposeWindow({
 }: {
   browser: BrowserTabsHandle | null;
   draft: Draft;
-  isStarting: boolean;
   modelURI: AIGatewayModelURI.Type | undefined;
   onChange: (update: (draft: Draft) => Draft) => void;
   /** The window's close, with the words as the box has them that moment: the caller keeps or throws the draft away by them. */
@@ -696,7 +694,6 @@ export function ComposeWindow({
                   autoResizeMaxHeight={WORDS_MAX_HEIGHT}
                   beforeModel={
                     <OutputPicker
-                      disabled={isStarting}
                       onChange={(name) => {
                         onChange((current) => {
                           const { output: _dropped, ...rest } = current;
@@ -710,7 +707,9 @@ export function ComposeWindow({
                   }
                   className="min-h-0 flex-1"
                   draftKey={key}
-                  isLoading={isStarting}
+                  // The window becomes the thread's at the press, so the
+                  // box is never left waiting on a send.
+                  isLoading={false}
                   lead={
                     chosen.length > 0 || showsIncluded ? (
                       <>

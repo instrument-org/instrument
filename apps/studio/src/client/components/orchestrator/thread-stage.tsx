@@ -34,6 +34,7 @@ const KEPT = 4;
 export function ThreadScreen({
   isUp,
   sendContext,
+  sentPrompt,
   sessionId,
 }: {
   /** Whether this is the thread on screen: only that one marks itself read or takes the caret. */
@@ -41,6 +42,8 @@ export function ThreadScreen({
   sendContext: () => Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   >;
+  /** The words that open the thread, while the message they make is on its way. */
+  sentPrompt?: string;
   sessionId: StoreId.Session;
 }) {
   const orchestrator = useOrchestrator();
@@ -57,9 +60,7 @@ export function ThreadScreen({
   );
   // The thread as the list beside the tabs knows it, for the newest reply
   // that has landed, which is what marks it read below.
-  const threads = useQuery(
-    threadListOptions(taskId),
-  );
+  const threads = useQuery(threadListOptions(taskId));
   const thread = threads.data?.find((entry) => entry.id === sessionId);
   // While the thread's own agent composes, the transcript shows the typing
   // dots; the thread is otherwise at work when a task filed from it is, and
@@ -176,6 +177,7 @@ export function ThreadScreen({
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
                   sendContext={sendContext}
+                  sentPrompt={sentPrompt}
                   task={task.data}
                   transcriptTrailing={
                     isWorkingElsewhere ? <WorkingRow /> : null

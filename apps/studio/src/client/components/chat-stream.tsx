@@ -1135,7 +1135,7 @@ function TurnWordmark() {
  * way a messaging app says someone is typing, in the place the reply will
  * land. No words are shown until the reply is whole.
  */
-function TypingRow() {
+export function TypingRow() {
   return (
     <div className="flex animate-in justify-start fill-mode-both fade-in">
       <span

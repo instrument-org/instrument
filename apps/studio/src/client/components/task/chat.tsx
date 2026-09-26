@@ -17,7 +17,8 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   type SessionMessageDataPart,
-  type StoreId,
+  type SessionMessagePart,
+  StoreId,
   type Task,
 } from "@instrument-org/workspace/client";
 import {
@@ -38,9 +39,10 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { ChatStream } from "../chat-stream";
+import { ChatStream, TypingRow } from "../chat-stream";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { TranscriptScrollContext } from "../transcript-scroll-context";
+import { UserMessage } from "../user-message";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import {
@@ -84,6 +86,7 @@ export function TaskChat({
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   sendContext,
+  sentPrompt,
   showTutorial,
   task,
   transcriptTrailing,
@@ -128,6 +131,13 @@ export function TaskChat({
   sendContext?: () => Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   >;
+  /**
+   * The words that open this session, sent a moment ago and not yet stored:
+   * drawn as its first message, with the conversation at work under it,
+   * until the stored one arrives, so a session shown from the press never
+   * reads as empty on the way.
+   */
+  sentPrompt?: string;
   showTutorial?: boolean;
   task: Task;
   /** Drawn under the transcript's last turn, inside the scroller: what is going on past the conversation. */
@@ -502,9 +512,14 @@ export function TaskChat({
               ref={contentRef}
             >
               {selectedSessionId ? (
-                isLoadingMessages ? (
+                sentPrompt !== undefined && messages.length === 0 ? (
+                  <SentPrompt sessionId={selectedSessionId} text={sentPrompt} />
+                ) : isLoadingMessages ? (
                   <div className="flex animate-in justify-center py-4 opacity-0 duration-150 fade-in-0 [animation-delay:500ms] [animation-fill-mode:forwards]">
-                    <Spinner className="size-4 text-muted-foreground" delay={0} />
+                    <Spinner
+                      className="size-4 text-muted-foreground"
+                      delay={0}
+                    />
                   </div>
                 ) : messageError ? (
                   <Alert className="mt-4" variant="warning">
@@ -643,5 +658,37 @@ function TranscriptTopFade() {
         scrollable.start ? "opacity-100" : "opacity-0",
       )}
     />
+  );
+}
+
+/**
+ * The words just sent, as the transcript will draw them once they are
+ * stored, with the conversation's dots under them.
+ */
+function SentPrompt({
+  sessionId,
+  text,
+}: {
+  sessionId: StoreId.Session;
+  text: string;
+}) {
+  const [part] = useState(
+    (): SessionMessagePart.TextPart => ({
+      metadata: {
+        createdAt: new Date(),
+        id: StoreId.newPartId(),
+        messageId: StoreId.newMessageId(),
+        sessionId,
+      },
+      state: "done",
+      text,
+      type: "text",
+    }),
+  );
+  return (
+    <div className="flex flex-col gap-2">
+      <UserMessage compact part={part} />
+      <TypingRow />
+    </div>
   );
 }

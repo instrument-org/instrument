@@ -59,9 +59,7 @@ export function ThreadPane({
   taskId: TaskId;
 }) {
   const appsBySlug = useAppsBySlug();
-  const threadsQuery = useQuery(
-    threadListOptions(taskId),
-  );
+  const threadsQuery = useQuery(threadListOptions(taskId));
   const topicsQuery = useQuery(
     rpcClient.workspace.orchestrator.topics.list.queryOptions({
       input: { id: taskId },

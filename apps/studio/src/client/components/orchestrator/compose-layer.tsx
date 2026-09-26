@@ -40,7 +40,7 @@ export function ComposeLayer({
   onStart,
   openOutside,
   sendContext,
-  startingIds,
+  sentWords,
   threads,
   topics,
 }: {
@@ -67,8 +67,8 @@ export function ComposeLayer({
   sendContext: () => Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   >;
-  /** The drafts being started, while their first messages are on their way. */
-  startingIds: ReadonlySet<string>;
+  /** What each draft being started sent, by the draft: its thread's window shows the words until its transcript has them. */
+  sentWords: ReadonlyMap<string, string>;
   threads: Thread[];
   topics: Topic[];
 }) {
@@ -136,6 +136,11 @@ export function ComposeLayer({
                 }}
                 right={entry.right}
                 sendContext={sendContext}
+                sentWords={
+                  entry.fromDraft === undefined
+                    ? undefined
+                    : sentWords.get(entry.fromDraft)
+                }
                 sessionId={sessionId}
                 thread={thread}
                 width={entry.width}
@@ -168,7 +173,6 @@ export function ComposeLayer({
             <ComposeWindow
               browser={browser}
               draft={draft}
-              isStarting={startingIds.has(draft.id)}
               key={draft.id}
               modelURI={modelURI}
               onChange={(update) => {

@@ -31,7 +31,7 @@ import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { ThreadScreen } from "./thread-stage";
 import { ThreadTitle } from "./thread-title";
-import { type Thread } from "./threads";
+import { draftTitle, type Thread } from "./threads";
 import { useThreadRename } from "./use-thread-rename";
 import { useWindowTabs } from "./window-tabs";
 
@@ -116,6 +116,7 @@ export function ThreadWindow({
   onPressTab,
   right,
   sendContext,
+  sentWords,
   sessionId,
   thread,
   width = THREAD_WINDOW_WIDTH,
@@ -134,6 +135,8 @@ export function ThreadWindow({
   sendContext: () => Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   >;
+  /** The words the draft this window was sent, while the thread they start is on its way. */
+  sentWords?: string;
   sessionId: StoreId.Session;
   thread: Thread | undefined;
   /** The window's width, narrower than its own on a row with less room. */
@@ -143,7 +146,8 @@ export function ThreadWindow({
   const openFile = useContext(FileOpenContext);
   const { allTabs } = useWindowTabs();
   const tabs = allTabs.filter((tab) => tab.group === sessionId);
-  const isWorking = thread?.state === "working";
+  const isWorking =
+    thread === undefined ? sentWords !== undefined : thread.state === "working";
   const rename = useThreadRename(thread);
   return (
     <motion.div
@@ -179,7 +183,7 @@ export function ThreadWindow({
           </h2>
         ) : (
           <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-            Thread
+            {sentWords === undefined ? "Thread" : draftTitle(sentWords)}
           </h2>
         )}
         <div className="flex shrink-0 items-center gap-0.5">
@@ -241,6 +245,7 @@ export function ThreadWindow({
               <ThreadScreen
                 isUp
                 sendContext={sendContext}
+                sentPrompt={sentWords}
                 sessionId={sessionId}
               />
             </ActiveTabProvider>

@@ -108,7 +108,6 @@ const FEATURE_CODES: Record<FeatureName, string> = {
   bash_summary_chip: "b",
   context_ring: "c",
   external_browser: "x",
-  float_every_draft: "f",
   instrument_2: "2",
   prompt_queue: "q",
   skills: "s",

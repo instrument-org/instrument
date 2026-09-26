@@ -23,11 +23,9 @@ import { useIdeas } from "./use-ideas";
  * Nothing is picked to begin with, and nothing is recommended.
  */
 export function OutputPicker({
-  disabled,
   onChange,
   value,
 }: {
-  disabled?: boolean;
   onChange: (name: string | undefined) => void;
   /** The picked page type, by its template folder's name. */
   value: string | undefined;
@@ -47,7 +45,6 @@ export function OutputPicker({
               ? "text-foreground/80 hover:text-foreground"
               : "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
           )}
-          disabled={disabled}
           size="sm"
           variant="ghost"
         >

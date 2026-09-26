@@ -9,7 +9,6 @@ const defaultFeatures: Features = {
   bash_summary_chip: false,
   context_ring: false,
   external_browser: false,
-  float_every_draft: false,
   instrument_2: false,
   prompt_queue: false,
   skills: false,

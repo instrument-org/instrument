@@ -108,6 +108,20 @@ export function useCompose(width: number) {
     );
     forget(key);
   };
+  /**
+   * The thread's small view goes back to being the draft's window in the
+   * same place, for a thread that never started: the draft comes back up
+   * with what its window was given still in it.
+   */
+  const becomeDraft = (sessionId: StoreId.Session, draftId: string) => {
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.kind === "thread" && entry.sessionId === sessionId
+          ? { draftId, kind: "draft", placement: "docked" }
+          : entry,
+      ),
+    );
+  };
   const setPlacement = (key: string, placement: ComposePlacement) => {
     setEntries((current) =>
       current.map((entry) =>
@@ -138,6 +152,7 @@ export function useCompose(width: number) {
   };
 
   return {
+    becomeDraft,
     becomeThread,
     entries,
     float,

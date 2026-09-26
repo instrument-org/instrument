@@ -240,9 +240,7 @@ function OrchestratorLayout() {
   );
   // The threads' titles, for the tabs standing on one; the pane reads the
   // same live list, so this is one subscription shared through the cache.
-  const threads = useQuery(
-    threadListOptions(ids?.taskId),
-  );
+  const threads = useQuery(threadListOptions(ids?.taskId));
   const threadTitles = new Map<StoreId.Session, string>(
     threads.data?.map((thread) => [thread.id, thread.title]) ?? [],
   );
@@ -749,6 +747,7 @@ function OrchestratorLayout() {
     closeDraft,
     deleteDraft,
     newDraft,
+    sentWords,
     showDraft,
     startingIds,
     startThread,
@@ -758,7 +757,6 @@ function OrchestratorLayout() {
     ids,
     place,
     saveDefaultModelURI,
-    toChat,
     topics,
     windowTabs,
   });
@@ -935,7 +933,7 @@ function OrchestratorLayout() {
                   openScreen(href, { newTab: true });
                 }}
                 sendContext={() => sendContextRef.current()}
-                startingIds={startingIds}
+                sentWords={sentWords}
                 threads={threads.data ?? []}
                 topics={topics}
               />
@@ -992,8 +990,12 @@ function OrchestratorLayout() {
                             arrivedId={arrivedId}
                             // Only a draft with words is a draft to come back
                             // to; one being written with none yet is its
-                            // window's alone.
-                            drafts={drafts.filter(hasWords)}
+                            // window's alone, and one being sent is already
+                            // its thread.
+                            drafts={drafts.filter(
+                              (draft) =>
+                                hasWords(draft) && !startingIds.has(draft.id),
+                            )}
                             onDeleteDraft={deleteDraft}
                             onListed={(listed) => {
                               listedThreads.current = listed;

@@ -11,6 +11,7 @@ import { fileHref } from "@/shared/computer-href";
 import { renderWithProviders } from "@/tests/render";
 import { StoreId } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import { sameHref, threadOfHrefPrefix, useWindowTabs } from "./window-tabs";
@@ -20,8 +21,24 @@ const THREAD_B = StoreId.newSessionId();
 
 function Navigation() {
   const tabs = useWindowTabs();
+  const [stepped, setStepped] = useState<string>();
   return (
     <>
+      <button
+        onClick={() => {
+          tabs.visitHref("task", fileHref("/Users/me/notes/plan.md"));
+        }}
+      >
+        Open the file in its tab
+      </button>
+      <button
+        onClick={() => {
+          setStepped(tabs.stepTab("task", -1) ?? "nowhere");
+        }}
+      >
+        Step the tab back
+      </button>
+      <span data-testid="stepped">{stepped}</span>
       <button
         onClick={() => {
           tabs.navigateScreen("/orchestrator/computer");
@@ -140,6 +157,23 @@ describe("window navigation", () => {
     expect(read().tabs[0]).toMatchObject({
       trail: ["/orchestrator/tasks/example", "/orchestrator/apps"],
     });
+  });
+
+  it("steps a tab back along its own trail, and nowhere past its start", () => {
+    const folder = "/orchestrator/computer?path=notes%2F&root=~";
+    const read = setup({ href: folder, id: "task", kind: "screen" });
+    fireEvent.click(screen.getByText("Open the file in its tab"));
+    expect(read().tabs[0]).toMatchObject({
+      at: 1,
+      href: fileHref("/Users/me/notes/plan.md"),
+    });
+    fireEvent.click(screen.getByText("Step the tab back"));
+    expect(screen.getByTestId("stepped").textContent).toBe(folder);
+    expect(read().tabs).toHaveLength(1);
+    expect(read().tabs[0]).toMatchObject({ at: 0, href: folder });
+    fireEvent.click(screen.getByText("Step the tab back"));
+    expect(screen.getByTestId("stepped").textContent).toBe("nowhere");
+    expect(read().tabs[0]).toMatchObject({ at: 0, href: folder });
   });
 
   it("reuses the website's tab and restores its guest through Back and Forward", () => {

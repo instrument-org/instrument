@@ -538,13 +538,26 @@ export function ComposeWindow({
           <ComposeFiles
             file={computer.file}
             key={up.id}
+            // Leaving a file opened from the Finder steps the tab back to its
+            // folder; a tab that opened on the file has nowhere to go back to.
             onLeaveFile={() => {
-              closeTab(up.id);
+              if (windowTabs.stepTab(up.id, -1) === undefined) {
+                closeTab(up.id);
+              }
             }}
             onLocationChange={(location) => {
               windowTabs.visitHref(up.id, computerHref(location));
             }}
-            onOpenFile={openFile}
+            // A file opened from the Finder takes the Finder's place in its
+            // tab; a page's file still opens as a page of its own.
+            onOpenFile={(hostPath) => {
+              const name = segmentsOf(hostPath).at(-1) ?? hostPath;
+              if (getFileType({ filename: name }) === "html") {
+                openFile(hostPath);
+              } else {
+                windowTabs.visitHref(up.id, fileHref(hostPath));
+              }
+            }}
             onViewChange={setFilesView}
             path={computer.path}
             root={computer.root}

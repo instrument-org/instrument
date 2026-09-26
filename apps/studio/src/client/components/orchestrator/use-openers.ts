@@ -1,7 +1,6 @@
 import {
   APPS_HREF,
   placeGroupOf,
-  placeOfGroup,
   THREADS_HREF,
 } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
@@ -20,7 +19,6 @@ import { toast } from "sonner";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type OpenOptions } from "./context";
-import { computerTabOf } from "./file-tabs";
 import { memoryOfHref, tasksFaceOfHref } from "./tab-location";
 import { type Thread } from "./threads";
 import {
@@ -187,17 +185,12 @@ export function useOpeners({
       return;
     }
     revealPane();
-    // In Files the computer is the place's own face, so a file opened from
-    // it is a tab of its own beside it rather than the computer's tab
-    // becoming the file.
-    const asOwnTab =
-      newTab ||
-      (placeOfGroup(windowTabs.group) === "files" &&
-        computerTabOf(href)?.file !== undefined);
+    // A file opened from a Finder takes the Finder's place in its tab, the
+    // way a folder does, and back returns to the folder.
     if (!active) {
       // Nothing in the pane to open it in place of.
       windowTabs.openScreen(href);
-    } else if (asOwnTab && !isFreshNewTab) {
+    } else if (newTab && !isFreshNewTab) {
       windowTabs.openOrFocusScreen(href);
     } else {
       windowTabs.navigateScreen(href);

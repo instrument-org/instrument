@@ -25,7 +25,7 @@ import { parseHref } from "./window-tabs";
  */
 interface ScreenNames {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
-  /** Each thread's title by its session, for a tab standing on one; a thread not in it is a "Thread". */
+  /** Each thread's title by its session, for a tab standing on one; a chat not in it is a "Chat". */
   threadTitles?: Map<StoreId.Session, string>;
 }
 

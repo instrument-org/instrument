@@ -465,27 +465,36 @@ export function useWindowTabs() {
   };
 
   /**
-   * A step along the active tab's own trail, or nothing when it has none left.
-   * The caller navigates to what comes back; this only moves the mark.
+   * A step along a screen tab's own trail, or nothing when it has none left:
+   * the address it steps to, which the tab now stands on. A tab drawn by
+   * another host (the draft window) is stepped this way, since the router
+   * never follows it.
    */
-  const step = (direction: -1 | 1): string | undefined => {
-    if (active?.kind !== "screen") {
+  const stepTab = (id: string, direction: -1 | 1): string | undefined => {
+    const tab = allTabs.find((entry) => entry.id === id);
+    if (tab?.kind !== "screen") {
       return undefined;
     }
-    const trail = active.trail ?? [active.href];
-    const next = (active.at ?? trail.length - 1) + direction;
-    const href = trail[next];
+    const next = atOf(tab) + direction;
+    const href = trailOf(tab)[next];
     if (href === undefined) {
       return undefined;
     }
     setTabs((current) => ({
       ...current,
-      tabs: current.tabs.map((tab) =>
-        tab.id === active.id ? { ...tab, at: next, href } : tab,
+      tabs: current.tabs.map((entry) =>
+        entry.id === id ? { ...entry, at: next, href } : entry,
       ),
     }));
     return href;
   };
+
+  /**
+   * A step along the active tab's own trail, or nothing when it has none left.
+   * The caller navigates to what comes back; this only moves the mark.
+   */
+  const step = (direction: -1 | 1): string | undefined =>
+    active ? stepTab(active.id, direction) : undefined;
 
   /**
    * Closes a tab. A thread's last tab closes like any other, and its pane
@@ -729,6 +738,7 @@ export function useWindowTabs() {
     /** The tab a group has up, or would come on screen at. */
     tabUpIn,
     /** The tabs of the group on screen, in strip order. */
+    stepTab,
     tabs,
     visitHref,
   };

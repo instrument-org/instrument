@@ -59,8 +59,8 @@ const TREE_BOUNDS: RailBounds = {
  * This Mac shows a folder or file in the current tab. Back returns to the
  * folder after opening a file; Space previews the selection in Quick Look.
  *
- * A file opened from the Finder gets a tab of its own with the Finder's
- * folder as a tree at its left and the file's crumbs over it, so the files
+ * A file opened from the Finder takes the Finder's place in its tab, with the
+ * Finder's folder as a tree at its left and the file's crumbs over it, so the files
  * of a folder can be leafed through, and a link between two documents
  * followed, without going back to the Finder. A row in the tree or a link
  * in the document swaps the file in the same tab.

@@ -54,6 +54,10 @@
       "pulls": [
         { "number": 452, "commit": "9bf8561b027e354e83dd8dcb2b8decb203961399" }
       ]
+    },
+    {
+      "name": "worker exit",
+      "diff": "worker-exit-3.4.1.diff"
     }
   ]
 }

@@ -1,0 +1,168 @@
+diff --git a/packages/just-bash/src/commands/js-exec/js-exec.ts b/packages/just-bash/src/commands/js-exec/js-exec.ts
+index 2822fec..e717535 100644
+--- a/packages/just-bash/src/commands/js-exec/js-exec.ts
++++ b/packages/just-bash/src/commands/js-exec/js-exec.ts
+@@ -451,6 +451,9 @@ function getOrCreateWorker(): Worker {
+     }
+     if (currentExecution) {
+       const workerError = sanitizeHostErrorMessage(getErrorMessage(err));
++      // The worker never sent the bridge its EXIT, so stop it here rather
++      // than leave it waiting out the whole script timeout.
++      currentExecution.bridgeHandler.stop();
+       currentExecution.resolve({
+         success: false,
+         error: workerError,
+@@ -459,6 +462,7 @@ function getOrCreateWorker(): Worker {
+     }
+     // Reject all queued executions
+     for (const queued of executionQueue) {
++      queued.bridgeHandler.stop();
+       queued.resolve({ success: false, error: "Worker crashed" });
+     }
+     executionQueue.length = 0;
+@@ -471,6 +475,7 @@ function getOrCreateWorker(): Worker {
+     }
+     sharedWorker = null;
+     if (currentExecution) {
++      currentExecution.bridgeHandler.stop();
+       currentExecution.resolve({
+         success: false,
+         error: "Worker exited unexpectedly",
+diff --git a/packages/just-bash/src/commands/python3/python3.ts b/packages/just-bash/src/commands/python3/python3.ts
+index bce387e..a1d9fd7 100644
+--- a/packages/just-bash/src/commands/python3/python3.ts
++++ b/packages/just-bash/src/commands/python3/python3.ts
+@@ -302,6 +302,7 @@ function processNextExecution(queueState: QueueState): void {
+   } catch (err) {
+     const message = err instanceof Error ? err.message : String(err);
+     next.state = "settled";
++    next.stopBridge();
+     next.settle({
+       success: false,
+       error: sanitizeHostErrorMessage(message),
+@@ -339,6 +340,10 @@ function processNextExecution(queueState: QueueState): void {
+ 
+     next.state = "terminating";
+     cleanupListeners();
++    // A worker that errored or exited never sent the bridge its EXIT, so the
++    // bridge would otherwise wait out the whole script timeout. On a normal
++    // finish the bridge has already stopped and this does nothing.
++    next.stopBridge();
+     next.settle(result);
+ 
+     if (terminateWorker) {
+diff --git a/packages/just-bash/src/commands/worker-bridge/worker-exit.test.ts b/packages/just-bash/src/commands/worker-bridge/worker-exit.test.ts
+new file mode 100644
+index 0000000..ba13a7a
+--- /dev/null
++++ b/packages/just-bash/src/commands/worker-bridge/worker-exit.test.ts
+@@ -0,0 +1,109 @@
++import { beforeEach, describe, expect, it, vi } from "vitest";
++import { EMPTY_BYTES } from "../../encoding.js";
++import { InMemoryFs } from "../../fs/in-memory-fs/in-memory-fs.js";
++import { resolveLimits } from "../../limits.js";
++import type { RuntimeCommandContext } from "../../types.js";
++
++// A worker that dies without ever sending the bridge its EXIT: one that fails
++// to load, crashes, or exits early. The bridge here is the real one, so a run
++// that is not told the worker is gone waits out the whole script timeout.
++const mockState = vi.hoisted(() => ({
++  death: "exit" as "exit" | "error",
++}));
++
++vi.mock("node:worker_threads", () => {
++  class MockWorker {
++    private handlers = new Map<string, Array<(payload?: unknown) => void>>();
++
++    constructor(_path: string, opts?: { workerData?: unknown }) {
++      // python3 hands its input over as workerData; js-exec posts it.
++      if (opts?.workerData !== undefined) this.die();
++    }
++
++    on(event: string, cb: (payload?: unknown) => void): this {
++      const list = this.handlers.get(event) ?? [];
++      list.push(cb);
++      this.handlers.set(event, list);
++      return this;
++    }
++
++    removeListener(event: string, cb: (payload?: unknown) => void): this {
++      const list = this.handlers.get(event) ?? [];
++      this.handlers.set(
++        event,
++        list.filter((handler) => handler !== cb),
++      );
++      return this;
++    }
++
++    postMessage(): void {
++      this.die();
++    }
++
++    terminate(): Promise<number> {
++      return Promise.resolve(0);
++    }
++
++    private die(): void {
++      queueMicrotask(() => {
++        const payload =
++          mockState.death === "error"
++            ? new Error("Cannot find module worker.js")
++            : 1;
++        for (const cb of this.handlers.get(mockState.death) ?? []) {
++          cb(payload);
++        }
++      });
++    }
++  }
++
++  return { Worker: MockWorker };
++});
++
++import { _resetJsExecWorkerForTests, jsExecCommand } from "../js-exec/js-exec.js";
++import { _resetExecutionQueue, python3Command } from "../python3/python3.js";
++
++function context(): RuntimeCommandContext {
++  return {
++    fs: new InMemoryFs(),
++    cwd: "/home/user",
++    env: new Map(),
++    stdin: EMPTY_BYTES,
++    limits: resolveLimits({
++      maxJsTimeoutMs: 30_000,
++      maxPythonTimeoutMs: 30_000,
++    }),
++  };
++}
++
++describe("a worker that dies before its bridge EXIT", () => {
++  beforeEach(() => {
++    _resetExecutionQueue();
++    _resetJsExecWorkerForTests();
++  });
++
++  it.each(["exit", "error"] as const)(
++    "fails python3 at once on %s instead of waiting out the timeout",
++    { timeout: 5_000 },
++    async (death) => {
++      mockState.death = death;
++      const result = await python3Command.execute(
++        ["-c", "print(1)"],
++        context(),
++      );
++      expect(result.exitCode).toBe(1);
++      expect(result.stderr).not.toContain("timeout");
++    },
++  );
++
++  it.each(["exit", "error"] as const)(
++    "fails js-exec at once on %s instead of waiting out the timeout",
++    { timeout: 5_000 },
++    async (death) => {
++      mockState.death = death;
++      const result = await jsExecCommand.execute(["-c", "1"], context());
++      expect(result.exitCode).toBe(1);
++      expect(result.stderr).not.toContain("timeout");
++    },
++  );
++});

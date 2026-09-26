@@ -110,6 +110,73 @@ export const ThreadSchema = z.object({
 
 export type Thread = z.output<typeof ThreadSchema>;
 
+/**
+ * Each thread's messages as last read, oldest first, by task and session.
+ * Reading every part of every thread is most of what building the list
+ * costs, and most rebuilds follow a change in one thread (a reply streaming)
+ * or in none (an archive, a star, a thread marked seen). An entry goes as
+ * soon as the store announces a change to its session, so the read after a
+ * write is always a fresh one; a read already on its way when the change
+ * lands is dropped with it rather than kept.
+ */
+const messagesBySession = new Map<
+  string,
+  Promise<SessionMessage.WithParts[] | undefined>
+>();
+
+function sessionKey(taskId: TaskId, sessionId: StoreId.Session): string {
+  return `${taskId}\n${sessionId}`;
+}
+
+function forgetSession({
+  id,
+  sessionId,
+}: {
+  id: TaskId;
+  sessionId: StoreId.Session;
+}) {
+  messagesBySession.delete(sessionKey(id, sessionId));
+}
+publisher.subscribe("message.updated", forgetSession);
+publisher.subscribe("message.removed", forgetSession);
+publisher.subscribe("session.removed", forgetSession);
+publisher.subscribe("part.updated", ({ id, part }) => {
+  forgetSession({ id, sessionId: part.metadata.sessionId });
+});
+publisher.subscribe("task.removed", ({ id }) => {
+  for (const key of messagesBySession.keys()) {
+    if (key.startsWith(`${id}\n`)) {
+      messagesBySession.delete(key);
+    }
+  }
+});
+
+/** A thread's messages, oldest first, or nothing when they cannot be read. */
+function threadMessages(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<SessionMessage.WithParts[] | undefined> {
+  const key = sessionKey(taskId, sessionId);
+  const cached = messagesBySession.get(key);
+  if (cached) {
+    return cached;
+  }
+  const read = Promise.resolve(
+    Store.getMessagesWithParts({ sessionId, taskId }),
+  ).then((result) => {
+    if (result.isErr()) {
+      // A failed read is not remembered: the next list tries again.
+      if (messagesBySession.get(key) === read) {
+        messagesBySession.delete(key);
+      }
+      return undefined;
+    }
+    return alphabetical(result.value, (message) => message.id);
+  });
+  messagesBySession.set(key, read);
+  return read;
+}
+
 /** What every thread of a conversation is read against, loaded once per list. */
 interface Shared {
   activity: OrchestratorActivity;
@@ -156,11 +223,11 @@ export async function markThreadSeen(
   taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<void> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
-  if (messages.isErr()) {
+  const messages = await threadMessages(taskId, sessionId);
+  if (!messages) {
     return;
   }
-  const newest = newestSettledIn(messages.value);
+  const newest = newestSettledIn(messages);
   if (!newest) {
     return;
   }
@@ -183,11 +250,10 @@ export async function markThreadUnseen(
   taskId: TaskId,
   sessionId: StoreId.Session,
 ): Promise<void> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
-  if (messages.isErr()) {
+  const ordered = await threadMessages(taskId, sessionId);
+  if (!ordered) {
     return;
   }
-  const ordered = alphabetical(messages.value, (message) => message.id);
   const newest = ordered.findLast(countsAsUnread);
   if (!newest) {
     return;
@@ -603,14 +669,10 @@ async function threadFor(
   session: Session.Type,
   shared: Shared,
 ): Promise<Thread | undefined> {
-  const read = await Store.getMessagesWithParts({
-    sessionId: session.id,
-    taskId,
-  });
-  if (read.isErr()) {
+  const messages = await threadMessages(taskId, session.id);
+  if (!messages) {
     return undefined;
   }
-  const messages = alphabetical(read.value, (message) => message.id);
   const root = messages.find(isRoot);
   if (!root) {
     return undefined;

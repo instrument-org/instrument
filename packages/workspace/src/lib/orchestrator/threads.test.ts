@@ -251,6 +251,28 @@ describe("listThreads", () => {
     expect(thread?.title).toBe("plan a trip to lisbon");
   });
 
+  it("reads what was said since the last list, and a part rewritten in place", async () => {
+    const taskId = freshTask();
+    const sessionId = await session(taskId, "Groceries");
+    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    expect((await listThreads(taskId))[0]?.replyCount).toBe(0);
+
+    await agentSays(taskId, sessionId, "Here is the list.", { minute: 2 });
+    const [replied] = await listThreads(taskId);
+    expect(replied?.latest?.text).toBe("Here is the list.");
+
+    const [reply] = (await Store.getMessagesWithParts({ sessionId, taskId }))
+      ._unsafeUnwrap()
+      .filter((message) => message.role === "assistant");
+    const part = reply?.parts.find((entry) => entry.type === "text");
+    if (!part) {
+      throw new Error("no reply text");
+    }
+    await Store.savePart({ ...part, text: "Here is the new list." }, taskId);
+    const [rewritten] = await listThreads(taskId);
+    expect(rewritten?.latest?.text).toBe("Here is the new list.");
+  });
+
   it("does not count a reply that is still being written as new", async () => {
     const taskId = freshTask();
     const sessionId = await session(taskId, "Groceries");

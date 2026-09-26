@@ -20,10 +20,10 @@ On one real workspace this was 38 chat sessions (13 from the channels era, 25 th
 ```text
 workspace/
   chats/
-    chat-<session ulid>/
+    2026-09-24-transcribe-20-minute/
       .instrument/
         task.db            this chat's one session and its messages
-        settings.json      kind, name, dates, model, folder grants
+        settings.json      the session it holds, kind, name, dates, model, folder grants
       attachments/         files sent in this chat
       tasks/
         <task id>/         a task this chat started, in the task layout it has today
@@ -36,7 +36,7 @@ workspace/
   memory/  apps/  skills/  projects/
 ```
 
-- **A chat's id comes from its session's.** `chat-` and the session id's ULID, lowercased so it is a DNS label (`chatIdOf`, `sessionOfChat` in `schemas/chat-id.ts`). Everything that knows a chat by its session (the window's routes, drafts, tab groups, a task's report home) finds the record with no lookup.
+- **A chat's folder is named the way a task's is**: the day it began and up to 24 characters of its first words, shorter than a task's 40 because a chat's tasks nest inside it and a deep path inside a task has to fit around both names. Its settings name the session it holds (`chatSessionId`), and the folder index maps a session to its chat and back; the window asks `orchestrator.chats.of` for a thread's record, and each listed thread carries its `chatId`.
 - **A chat's record is made before the window shows it.** `orchestrator.chats.ensure` runs at the draft's send, and `message.create` makes it too if it is missing. Drafts stay in window storage, so an empty chat folder never exists.
 - **The folder is the owner.** A task belongs to the chat whose `tasks/` holds it, and `parentTaskId` names the chat. `taskThreads` and `taskChannels` are gone.
 - **Task folders keep their names.** They stay dated and readable, and ids stay unique across the whole workspace: `generate-task-folder-name` and `new-task-id` check inside every chat too.
@@ -47,31 +47,31 @@ workspace/
 
 ## Resolving a folder from an id
 
-`taskDir(id)` resolves through `record-folders.ts`: a chat id is `chats/<id>`, a chat's task is found in an in-memory index read from `chats/*/tasks/*` on first use and kept current by `initializeTask` and `trashTask`, and anything else is flat under `tasks/`. `getTasks` lists chats, their tasks, and the flat tasks. Everything keyed by task id (the asset origin, RPC routes, the `task` command, browser state, background processes) works unchanged.
+`taskDir(id)` resolves through `record-folders.ts`: an in-memory index read on first use from `chats/*` (each chat's settings name its session) and `chats/*/tasks/*`, kept current by `initializeTask` and `trashTask`/`trashChat`; anything not in it is flat under `tasks/`. An id is reserved in the index the moment a chat or a task inside one is made, so two chats picking the same dated name are refused rather than both writing folders. `getTasks` lists chats, their tasks, and the flat tasks. Everything keyed by task id (the asset origin, RPC routes, the `task` command, browser state, background processes) works unchanged.
 
 ## What changes for the agent
 
 - **`/tasks` holds this chat's tasks only.** `childTaskMounts(chat)` mounts `chats/<id>/tasks/*`. Asked of the window's record, it holds every chat's tasks, since the window opens a path into any of them.
 - **Reach stays as it was.** A chat reads any chat's tasks (`task show`, `task log`) and steers only its own (`send`, `stop`, `kill`, `folder`, `app`, `tab`, `wake`); `chat read` and `chat search` read any chat. No prompt text changed.
-- **A finished task wakes its own chat**, found from its parent. An app's event wakes the chat it was asked for in, or the newest chat that has run.
+- **A finished task wakes its own chat**, found from its parent, and never the window's record. An app's event wakes the chat it was asked for in, or the newest chat that has run when that chat is gone.
 - **Topics reach the agent the way they did** (`data-threadTopics`), read from the files. How instructions reach the agent and its tasks is phase 2.
 
 ## Deleting a chat
 
-`orchestrator.chats.trash` stops each of the chat's tasks the way trashing it alone does (browser reaped, background processes killed, store let go) without moving its folder, then trashes the chat's folder, which holds them all, in one piece. The chat's own menu (beside its title, not on inbox rows) offers it behind a confirmation naming the chat and its tasks.
+`orchestrator.chats.trash` stops the chat's own agent and refuses it new messages, then stops each of the chat's tasks the way trashing it alone does (browser reaped, background processes killed, store let go) without moving its folder, then trashes the chat's folder, which holds them all, in one piece. The chat's own menu (beside its title, not on inbox rows) offers it behind a confirmation naming the chat and its tasks.
 
 ## Migration
 
 `migrateToChats` runs at the end of the boot layout migration, on raw files and `node:sqlite`, with no store open. It decides from the data rather than from a marker: a window record whose database still holds a chat session, or whose state still names the old maps, is moved; anything else is left alone. So a workspace an older beta wrote to again is caught on the next boot.
 
-1. Copy the window's `.instrument/` to `.pre-chats/<window id>/` once.
-2. Every top-level session becomes `chats/chat-<ulid>/`: its rows (every key whose second segment is the session, and a sub-agent session's under its top-level one) and the store's version row are copied into a database of its own, and its settings take the session's title and dates and the window's model, grants and app guides.
-3. Each task `taskThreads` or `taskChannels` names moves into its chat, with the chat as its parent.
-4. A file in the window's `attachments/` moves to the first chat whose messages name it.
+1. Copy the window's `.instrument/` aside to `.pre-chats/<window id>/`, whole or not at all.
+2. Every top-level session becomes a chat folder named by its session's day and title: its settings (naming the session) first, so a rerun finds it, then its rows (every key whose second segment is the session, and a sub-agent session's under its top-level one) and the store's version row, in one transaction. A session whose id the store would not read keeps its rows in the window.
+3. Each task `taskThreads` or `taskChannels` names moves into its chat, folder first and settings after, and every task in a chat is made to name it.
+4. A file in the window's `attachments/` moves to the chat whose messages name it as a whole path segment; spilled command output in `.tool-output/` moves to the chat holding the part it was written for.
 5. Each topic is written as `topics/<id>/topic.md`.
-6. Last, the moved rows are deleted from the window's database, and its state drops `channels`, `appChannels`, `taskChannels`, `taskThreads`, `topics` and `promptDraft`.
+6. Last, the rows of the chats that were written leave the window's database in one transaction, and its state drops the channel-era keys, the topics once all are written, and the task maps once every task in them moved.
 
-Every step is idempotent: an existing chat keeps its record, rows are inserted or ignored, a moved task is not found at its old place. On a copy of a real workspace it made 38 chats, moved 64 tasks and wrote 8 topics in two seconds, and the thread list read afterwards matched the one read before field for field, except for the order of site icons. `.pre-chats/` should be deleted by a later release.
+Each item moves on its own: one that fails (a folder another program holds open) is counted, logged at boot, and left for the next boot, and the rest go on. On a copy of a real workspace it made 38 chats, moved 64 tasks and wrote 8 topics in under a second, a second run changed nothing, and the thread list read afterwards matched the one read before field for field, except for the order of site icons. `.pre-chats/` should be deleted by a later release.
 
 ## Rename
 

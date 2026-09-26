@@ -25,6 +25,7 @@ import {
 import { TopicBanner } from "./topic-banner";
 import { useSetThreadTopics } from "./use-set-thread-topics";
 import { useThreadSearchFallback } from "./use-thread-search-fallback";
+import { backfillCandidates } from "./use-topic-backfill";
 
 /**
  * The chat pane: the inbox under the line that says where it stands, with
@@ -228,12 +229,20 @@ export function ThreadPane({
         topics={topics}
       />
       <NewTopicDialog
-        onCreate={(topic) => {
+        candidates={backfillCandidates(
+          threads.filter((thread) => thread.id !== newTopic?.forThread?.id),
+        )}
+        onCreate={(topic, alsoFile) => {
           const forThread = newTopic?.forThread;
           createTopic.mutate(
             { ...topic, id: taskId },
             {
               onSuccess: (created) => {
+                // Chats offered were filed under nothing, so the new topic
+                // is all they carry.
+                for (const id of alsoFile) {
+                  setThreadTopics(id, [created.id]);
+                }
                 if (forThread) {
                   setThreadTopics(forThread.id, [
                     ...forThread.topics,

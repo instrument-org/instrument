@@ -19,6 +19,7 @@ import {
   AlertDialogTrigger,
 } from "@/client/components/ui/alert-dialog";
 import { Button } from "@/client/components/ui/button";
+import { Checkbox } from "@/client/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -28,10 +29,12 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
+import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { useRef, useState } from "react";
 
 import { useEmojiSet } from "./emoji-set";
 import { useEmojiSuggestions } from "./emoji-suggestions";
+import { type BackfillCandidate, useTopicBackfill } from "./use-topic-backfill";
 
 /**
  * How sure the decision model has to be before its pick replaces the mark: a
@@ -103,12 +106,16 @@ export function EditTopicDialog({
  * got wrong permanently, since the topic's details rename and re-mark it.
  */
 export function NewTopicDialog({
+  candidates = [],
   onCreate,
   onOpenChange,
   open,
   taken = [],
 }: {
-  onCreate: (topic: TopicChoice) => void;
+  /** Chats the new topic can be filed on as it is made, when they fit it. */
+  candidates?: BackfillCandidate[];
+  /** The topic, and the chats the person chose to file under it at once. */
+  onCreate: (topic: TopicChoice, alsoFile: BackfillCandidate["id"][]) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   /** The marks already in use, so a new topic does not repeat one. */
@@ -118,6 +125,7 @@ export function NewTopicDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <TopicForm
         action="Create"
+        candidates={candidates}
         description="File chats under it to find them later."
         // Seeded from how many topics there already are, so opening the
         // dialog twice in a row offers two different marks without the
@@ -135,6 +143,9 @@ export function NewTopicDialog({
     </Dialog>
   );
 }
+
+/** How many of the chats that fit are named on the line before the rest are counted. */
+const FITS_NAMED = 3;
 
 /**
  * Deleting a topic, behind a confirmation: the tag goes, and the threads
@@ -176,12 +187,55 @@ function DeleteTopicButton({
 }
 
 /**
+ * The offer to file the chats that fit a new topic as it is made: one line,
+ * off until checked, naming the first few by title and counting the rest, so
+ * the person sees what would be filed without choosing chat by chat. The
+ * sparkle says Instrument found them.
+ */
+function FitsLine({
+  checked,
+  fits,
+  name,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  fits: BackfillCandidate[];
+  name: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  const named = fits.slice(0, FITS_NAMED).map((chat) => chat.title);
+  const more = fits.length - named.length;
+  return (
+    <label className="flex animate-in cursor-default items-start gap-2.5 rounded-lg bg-muted/60 px-3 py-2.5 duration-300 fade-in-0">
+      <Checkbox
+        checked={checked}
+        className="mt-0.5"
+        onCheckedChange={(value) => {
+          onCheckedChange(value === true);
+        }}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 text-sm">
+          <SparkleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          {`Also file ${fits.length} ${fits.length === 1 ? "chat that fits" : "chats that fit"} “${name}”`}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {named.join(" · ")}
+          {more > 0 && ` · ${more} more`}
+        </span>
+      </span>
+    </label>
+  );
+}
+
+/**
  * The fields, which start over from `initial` each time the dialog opens: the
  * form stays mounted through the dialog's close, so what was typed into it
  * last time would otherwise be waiting at the next opening.
  */
 function TopicForm({
   action,
+  candidates = [],
   deleting,
   description,
   initial,
@@ -191,11 +245,13 @@ function TopicForm({
   title,
 }: {
   action: string;
+  /** Chats to offer filing under the topic as it is made; none for a topic that exists. */
+  candidates?: BackfillCandidate[];
   /** Offered at the foot when the topic exists to be deleted: whose name to confirm, and what deleting does. */
   deleting?: { name: string; onDelete: () => void };
   description: string;
   initial: TopicChoice;
-  onCommit: (topic: TopicChoice) => void;
+  onCommit: (topic: TopicChoice, alsoFile: BackfillCandidate["id"][]) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   title: string;
@@ -207,6 +263,9 @@ function TopicForm({
   // A new topic's mark follows the best fit for its name until one is chosen
   // by hand; an existing topic's mark stays what its owner picked.
   const [follows, setFollows] = useState(!initial.name);
+  // Off until asked for: filing chats is the person's call, made once, for
+  // the whole set the line names.
+  const [isFilingFits, setFilingFits] = useState(false);
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -216,8 +275,10 @@ function TopicForm({
       setColor(initial.color);
       setPicking(false);
       setFollows(!initial.name);
+      setFilingFits(false);
     }
   }
+  const fits = useTopicBackfill({ candidates, name, open });
   const all = useEmojiSet();
   // Asked after a pause rather than per word, so the mark changes once the
   // name has settled instead of flickering through every prefix of it.
@@ -248,7 +309,10 @@ function TopicForm({
     if (!trimmed) {
       return;
     }
-    onCommit({ color, emoji, name: trimmed });
+    onCommit(
+      { color, emoji, name: trimmed },
+      isFilingFits ? fits.map((chat) => chat.id) : [],
+    );
     onOpenChange(false);
   };
 
@@ -305,6 +369,14 @@ function TopicForm({
           value={name}
         />
       </div>
+      {fits.length > 0 && (
+        <FitsLine
+          checked={isFilingFits}
+          fits={fits}
+          name={name.trim()}
+          onCheckedChange={setFilingFits}
+        />
+      )}
       <div>
         <p className="pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
           Color

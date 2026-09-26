@@ -65,6 +65,7 @@ import { useOpeners } from "@/client/components/orchestrator/use-openers";
 import { useRecordRecents } from "@/client/components/orchestrator/use-record-recents";
 import { useRouterSync } from "@/client/components/orchestrator/use-router-sync";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
+import { backfillCandidates } from "@/client/components/orchestrator/use-topic-backfill";
 import { useWindowCommands } from "@/client/components/orchestrator/use-window-commands";
 import {
   WindowBar,
@@ -1263,7 +1264,12 @@ function OrchestratorLayout() {
                 {/* Asked for from the thread's own head, so the topic it
                 makes is filed on the thread as it lands. */}
                 <NewTopicDialog
-                  onCreate={(topic) => {
+                  candidates={backfillCandidates(
+                    (threads.data ?? []).filter(
+                      (thread) => thread.id !== threadUp,
+                    ),
+                  )}
+                  onCreate={(topic, alsoFile) => {
                     const filedOn = threads.data?.find(
                       (thread) => thread.id === threadUp,
                     );
@@ -1271,6 +1277,9 @@ function OrchestratorLayout() {
                       { ...topic, id: screens.taskId },
                       {
                         onSuccess: (created) => {
+                          for (const id of alsoFile) {
+                            setThreadTopics(id, [created.id]);
+                          }
                           if (filedOn) {
                             setThreadTopics(filedOn.id, [
                               ...filedOn.topics,

@@ -1,29 +1,11 @@
-import {
-  askSystemOne,
-  selectSystemOneConfigs,
-} from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
-import { getWorkspaceServerURL } from "../../logic/server/url";
+import {
+  askDecisionModel,
+  SystemOneQuestionSchema,
+  SystemOneResponseSchema,
+} from "../../lib/system-one";
 import { base } from "../base";
-
-const AnswerSchema = z.object({
-  choice: z.string().optional(),
-  confidence: z.number().optional(),
-  noul: z.number().optional(),
-  probabilities: z.record(z.string(), z.number()).optional(),
-  score: z.number().optional(),
-  type: z.enum(["choice", "noul", "score"]),
-});
-
-const ResponseSchema = z.object({
-  answers: z.record(z.string(), AnswerSchema),
-  model: z.string(),
-  usage: z
-    .object({ cost: z.number().optional(), input_tokens: z.number() })
-    .partial()
-    .optional(),
-});
 
 /**
  * Typed questions about a state, answered by the decision model with a
@@ -34,50 +16,35 @@ const ResponseSchema = z.object({
 const ask = base
   .input(
     z.object({
-      questions: z.record(
-        z.string(),
-        z.object({
-          criteria: z.unknown().optional(),
-          instructions: z.unknown(),
-          type: z.enum(["choice", "noul", "score"]),
-        }),
-      ),
+      questions: z.record(z.string(), SystemOneQuestionSchema),
       state: z.unknown(),
     }),
   )
-  .output(ResponseSchema.extend({ ms: z.number(), provider: z.string() }))
+  .output(
+    SystemOneResponseSchema.extend({ ms: z.number(), provider: z.string() }),
+  )
   .handler(async ({ context, errors, input, signal }) => {
-    const configs = selectSystemOneConfigs(
-      context.workspaceConfig.getAIProviderConfigs(),
-    );
-    if (configs.length === 0) {
+    let asked: Awaited<ReturnType<typeof askDecisionModel>>;
+    try {
+      asked = await askDecisionModel({
+        body: input,
+        configs: context.workspaceConfig.getAIProviderConfigs(),
+        signal,
+      });
+    } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
+      throw errors.GATEWAY_FETCH_ERROR({
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+    if (!asked) {
       throw errors.NOT_FOUND({
         message: "Classifying needs an OpenRouter key or an Instrument sign-in",
       });
     }
-    const failures: string[] = [];
-    for (const config of configs) {
-      const started = performance.now();
-      try {
-        const body = await askSystemOne({
-          body: input,
-          config,
-          signal,
-          workspaceServerURL: getWorkspaceServerURL(),
-        });
-        return {
-          ...ResponseSchema.parse(body),
-          ms: Math.round(performance.now() - started),
-          provider: config.type,
-        };
-      } catch (error) {
-        if (signal?.aborted) {
-          throw error;
-        }
-        failures.push(error instanceof Error ? error.message : String(error));
-      }
-    }
-    throw errors.GATEWAY_FETCH_ERROR({ message: failures.join("\n") });
+    return { ...asked.response, ms: asked.ms, provider: asked.provider };
   });
 
 export const systemOne = { ask };

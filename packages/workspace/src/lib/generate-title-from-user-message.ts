@@ -173,6 +173,41 @@ export function generateTitleFromUserMessage({
   });
 }
 
+export function titleSourceText(message: SessionMessage.UserWithParts): string {
+  // Same as the message the agent reads: the model names what the user typed,
+  // not the `[$name](skill:name)` wire form the mention is stored in.
+  const text = renderSkillMentionsAsText(textForMessage(message));
+
+  const attachments = message.parts.find(
+    (part) => part.type === "data-attachments",
+  );
+  if (!attachments) {
+    return text;
+  }
+
+  const fileNames = attachments.data.files
+    .map((file) => file.filename)
+    .join(", ");
+  // A project's folders ride along on the first message of every task in that
+  // project, so a title drawn from one names the neighbors it has to be told
+  // apart from. Only what the user attached to this message is evidence about
+  // this task, and only that is what the line below claims to be.
+  const folderPaths = (attachments.data.folders ?? [])
+    .filter((folder) => folder.source !== "project")
+    .map((folder) => shortenHomePath(folder.path, os.homedir()))
+    .join(", ");
+
+  const sections = [text];
+  if (fileNames) {
+    sections.push(`Files attached by user: ${fileNames}`);
+  }
+  if (folderPaths) {
+    sections.push(`Folders attached by user: ${folderPaths}`);
+  }
+
+  return sections.join("\n\n");
+}
+
 function buildSystemPrompt({
   hasCurrentTitle,
   projectName,
@@ -279,39 +314,4 @@ function buildSystemPrompt({
 
     ${examples}
   `.trim();
-}
-
-function titleSourceText(message: SessionMessage.UserWithParts): string {
-  // Same as the message the agent reads: the model names what the user typed,
-  // not the `[$name](skill:name)` wire form the mention is stored in.
-  const text = renderSkillMentionsAsText(textForMessage(message));
-
-  const attachments = message.parts.find(
-    (part) => part.type === "data-attachments",
-  );
-  if (!attachments) {
-    return text;
-  }
-
-  const fileNames = attachments.data.files
-    .map((file) => file.filename)
-    .join(", ");
-  // A project's folders ride along on the first message of every task in that
-  // project, so a title drawn from one names the neighbors it has to be told
-  // apart from. Only what the user attached to this message is evidence about
-  // this task, and only that is what the line below claims to be.
-  const folderPaths = (attachments.data.folders ?? [])
-    .filter((folder) => folder.source !== "project")
-    .map((folder) => shortenHomePath(folder.path, os.homedir()))
-    .join(", ");
-
-  const sections = [text];
-  if (fileNames) {
-    sections.push(`Files attached by user: ${fileNames}`);
-  }
-  if (folderPaths) {
-    sections.push(`Folders attached by user: ${folderPaths}`);
-  }
-
-  return sections.join("\n\n");
 }

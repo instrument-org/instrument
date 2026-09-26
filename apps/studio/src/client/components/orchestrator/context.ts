@@ -22,14 +22,18 @@ export interface OrchestratorWindow {
   ask: (prompt: string) => void;
   /**
    * Opens a draft of a new thread with these files or folders picked to go
-   * with it, and words already in it when given; absent where there is no
-   * new draft to open, as inside one.
+   * with it; absent where there is no new draft to open, as inside one.
    */
-  askAbout?: (items: ChosenItem[], words?: string) => void;
+  askAbout?: (items: ChosenItem[]) => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
   /** Puts the caret in the conversation's composer, for a screen handing something over to be asked about. */
   focusComposer: () => void;
+  /**
+   * Opens a new draft and moves these staged asks into it as pills, for a
+   * file with no chat beside it; inside a draft, moves them into that one.
+   */
+  moveAsksToDraft?: (ids: string[]) => void;
   /** Navigates this surface's tab; conversation surfaces open another tab. */
   openPage: (url: string, options?: OpenOptions) => void;
   /** Opens a path the conversation named: a file in its viewer, a folder as the folder view standing in it. */

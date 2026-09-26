@@ -147,6 +147,8 @@ interface PromptInputProps {
    * otherwise fold the row shut and unfold it again on the focus that follows.
    */
   alwaysOpen?: boolean;
+  /** What goes with the words besides files, drawn first in the row attached files land in: places marked in a file, say. */
+  attachmentsLead?: React.ReactNode;
   autoFocus?: boolean;
   /** Where the box stops growing and the draft starts scrolling. Defaults by variant. */
   autoResizeMaxHeight?: number;
@@ -159,6 +161,8 @@ interface PromptInputProps {
   // surfaces a prompt is composed from scratch; above where the composer is
   // already pinned to the bottom of the window.
   folderTrayPlacement?: "above" | "below";
+  /** Whether `attachmentsLead` holds anything, which is enough to send with no words. */
+  hasAttachmentsLead?: boolean;
   id?: TaskId;
   isLoading: boolean;
   isStoppable?: boolean;
@@ -246,6 +250,7 @@ export const PromptInput = ({
   allowOpenInNewTab = false,
   allowWorkInProject = false,
   alwaysOpen,
+  attachmentsLead,
   autoFocus = false,
   autoResizeMaxHeight,
   beforeModel,
@@ -253,6 +258,7 @@ export const PromptInput = ({
   disabled = false,
   draftKey,
   folderTrayPlacement = "below",
+  hasAttachmentsLead = false,
   id,
   isLoading,
   isStoppable = false,
@@ -679,7 +685,7 @@ export const PromptInput = ({
   const canSubmit =
     !disabled &&
     !isLoading &&
-    (value.trim() || attachedItems.length > 0) &&
+    (value.trim() || attachedItems.length > 0 || hasAttachmentsLead) &&
     modelURI &&
     selectedModel;
 
@@ -693,7 +699,8 @@ export const PromptInput = ({
       pickerOpen ||
       menuView !== null ||
       value.trim().length > 0 ||
-      attachedItems.length > 0);
+      attachedItems.length > 0 ||
+      hasAttachmentsLead);
 
   // A pill stands beside the work in a column it shares with the conversation
   // it is part of, so it gives way to that conversation sooner than a block on
@@ -1056,13 +1063,16 @@ export const PromptInput = ({
         }
         actionsInto={actionsInto}
         attachments={
-          ((variant !== "pill" && lead) || attachedFiles.length > 0) && (
+          ((variant !== "pill" && lead) ||
+            hasAttachmentsLead ||
+            attachedFiles.length > 0) && (
             // A file lands in the corner of a box the user is looking away
             // from, at the caret, so it grows into place rather than appearing
             // there. `initial={false}`: the first one is carried in by the row
             // opening around it, and does not need a second motion of its own.
             <AnimatePresence initial={false}>
               {variant === "pill" ? null : lead}
+              {attachmentsLead}
               {attachedFiles.map((item) => (
                 <motion.div
                   animate={{ opacity: 1, scale: 1 }}

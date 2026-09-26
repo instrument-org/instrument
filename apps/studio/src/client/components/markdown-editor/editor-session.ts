@@ -16,7 +16,7 @@ import {
 } from "@milkdown/kit/core";
 import { htmlSchema, imageSchema } from "@milkdown/kit/preset/commonmark";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
-import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
+import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
 import {
   Decoration,
   DecorationSet,
@@ -43,12 +43,24 @@ import {
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, mark } from "./icons";
 
+export interface AskSelection {
+  /** The kind of block the selection starts in, as a reader names it: "Heading", "Paragraph". */
+  block?: string;
+  from: number;
+  lines?: [number, number];
+  quote: string;
+  /** Where the selection stands on screen as it was asked about. */
+  rect: DOMRect;
+  to: number;
+}
+
 export type EditorSession = Awaited<ReturnType<typeof createEditorSession>>;
 
 export interface EditorSessionOptions {
   hostPath: string;
   initial: { content: string; version: string };
-  onAsk: (selection: { lines?: [number, number]; quote: string }) => void;
+  /** Asks about the selection: its words, where they are, and a box to stand the ask card by. */
+  onAsk: (selection: AskSelection) => void;
   onExternalChange: (change: ExternalChange) => void;
   onFrontMatter: (fm: string) => void;
   onStatus: (status: SaveStatus, detail?: string) => void;
@@ -68,12 +80,34 @@ export interface ExternalChange {
 
 export type SaveStatus = "error" | "saved" | "saving" | "unsaved";
 
+/** A staged ask's place in the document, kept in step with edits, and the number it wears. */
+interface AskMark {
+  from: number;
+  id: string;
+  n: number;
+  to: number;
+}
+
 /** How long typing rests before a save, and the longest a save waits under steady typing. */
 const SAVE_DEBOUNCE_MS = 400;
 const SAVE_MAX_WAIT_MS = 2000;
 const FLASH_MS = 1800;
 
 const flashKey = new PluginKey<FlashRange[] | null>("agent-flash");
+const askMarkKey = new PluginKey<AskMark[]>("ask-marks");
+
+/** What a top-level block is called where an ask names its place. */
+const BLOCK_NAMES: Record<string, string> = {
+  blockquote: "Quote",
+  bullet_list: "List",
+  code_block: "Code block",
+  heading: "Heading",
+  html: "HTML",
+  image: "Image",
+  ordered_list: "List",
+  paragraph: "Paragraph",
+  table: "Table",
+};
 
 // Token colors come from CSS variables, so code blocks follow the theme.
 const codeColors = syntaxHighlighting(
@@ -109,7 +143,7 @@ const codeColors = syntaxHighlighting(
   ]),
 );
 
-const ASK_ICON = `<span class="md-ask">${mark(14)}<span>Ask Instrument</span></span>`;
+const ASK_ICON = `<span class="md-ask">${mark(14)}<span>Ask</span></span>`;
 
 interface MdImage {
   title?: null | string;
@@ -473,6 +507,78 @@ export async function createEditorSession(options: EditorSessionOptions) {
   );
   const htmlContainerPlugin = $prose(() => htmlStructurePlugin());
 
+  /**
+   * The places staged asks point at, tinted, each with its number at its
+   * end. Kept as positions and mapped through every edit, the person's and
+   * the agent's alike, so a marker stays on its words.
+   */
+  const askMarksPlugin = $prose(
+    () =>
+      new Plugin<AskMark[]>({
+        key: askMarkKey,
+        props: {
+          decorations(state) {
+            const marks = askMarkKey.getState(state) ?? [];
+            if (marks.length === 0) {
+              return null;
+            }
+            const size = state.doc.content.size;
+            return DecorationSet.create(
+              state.doc,
+              marks.flatMap((mark) => {
+                // Numbered once the window has it among its asks.
+                if (mark.n === 0) {
+                  return [];
+                }
+                const from = Math.min(mark.from, size);
+                const to = Math.min(mark.to, size);
+                return [
+                  ...(to > from
+                    ? [Decoration.inline(from, to, { class: "md-ask-mark" })]
+                    : []),
+                  Decoration.widget(to, () => askBadge(mark.n), {
+                    ignoreSelection: true,
+                    key: `ask-${mark.id}-${mark.n}`,
+                    side: 1,
+                  }),
+                ];
+              }),
+            );
+          },
+        },
+        state: {
+          apply(tr, marks) {
+            const meta = tr.getMeta(askMarkKey) as
+              | undefined
+              | { add?: AskMark; numbers?: { id: string; n: number }[] };
+            let next = tr.docChanged
+              ? marks.map((mark) => {
+                  const from = tr.mapping.map(mark.from, 1);
+                  return {
+                    ...mark,
+                    from,
+                    to: Math.max(from, tr.mapping.map(mark.to, -1)),
+                  };
+                })
+              : marks;
+            if (meta?.add) {
+              const added = meta.add;
+              next = [...next.filter((mark) => mark.id !== added.id), added];
+            }
+            if (meta?.numbers) {
+              const byId = new Map(meta.numbers.map(({ id, n }) => [id, n]));
+              next = next.flatMap((mark) => {
+                const n = byId.get(mark.id);
+                return n === undefined ? [] : [{ ...mark, n }];
+              });
+            }
+            return next;
+          },
+          init: () => [],
+        },
+      }),
+  );
+
   /** Marks the top-level blocks around the caret, which the stylesheet always lays out. */
   const nearCaretPlugin = $prose(
     () =>
@@ -521,14 +627,31 @@ export async function createEditorSession(options: EditorSessionOptions) {
 
   const ask = () => {
     const v = view();
-    const { from, to } = v.state.selection;
+    const { $from, from, to } = v.state.selection;
     if (from === to || !disk) {
       return;
     }
     flushDomObserver(v);
     const quote = v.state.doc.textBetween(from, to, "\n", " ");
     const lines = sync.sourceLines(v.state.doc, disk, from, to, quote);
-    options.onAsk({ quote, ...(lines ? { lines } : {}) });
+    const start = v.coordsAtPos(from);
+    const end = v.coordsAtPos(to);
+    const left = Math.min(start.left, end.left);
+    const block =
+      $from.depth > 0 ? BLOCK_NAMES[$from.node(1).type.name] : undefined;
+    options.onAsk({
+      ...(block ? { block } : {}),
+      from,
+      quote,
+      rect: new DOMRect(
+        left,
+        start.top,
+        Math.max(start.right, end.right) - left,
+        end.bottom - start.top,
+      ),
+      to,
+      ...(lines ? { lines } : {}),
+    });
   };
 
   // Crepe's image block is lossy by design (it stores the alt text as a size
@@ -601,7 +724,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
           builder.addGroup("ask", "Ask").addItem("ask", {
             active: () => false,
             icon: ASK_ICON,
-            label: "Ask Instrument",
+            label: "Ask",
             onRun: ask,
           });
         },
@@ -639,7 +762,8 @@ export async function createEditorSession(options: EditorSessionOptions) {
     .use(imageView)
     .use(htmlView)
     .use(htmlContainerPlugin)
-    .use(nearCaretPlugin);
+    .use(nearCaretPlugin)
+    .use(askMarksPlugin);
   await editor.create();
   editor.editor.action((ctx) => {
     viewRef = ctx.get(editorViewCtx);
@@ -681,6 +805,33 @@ export async function createEditorSession(options: EditorSessionOptions) {
   window.addEventListener("beforeunload", onUnload);
 
   const handle = {
+    /**
+     * Marks a staged ask's place, numbered once `setAskNumbers` names it; a
+     * place whose words no longer read as they did is not marked.
+     */
+    addAskMark: (id: string, from: number, to: number, quote?: string) => {
+      const v = view();
+      const size = v.state.doc.content.size;
+      if (
+        to > size ||
+        (quote !== undefined &&
+          v.state.doc.textBetween(from, to, "\n", " ") !== quote)
+      ) {
+        return;
+      }
+      v.dispatch(
+        v.state.tr.setMeta(askMarkKey, {
+          add: { from, id, n: 0, to },
+        }),
+      );
+    },
+    /** Where each staged ask's mark stands now, for putting them back on a later mount. */
+    askMarks: () =>
+      (askMarkKey.getState(view().state) ?? []).map(({ from, id, to }) => ({
+        from,
+        id,
+        to,
+      })),
     currentText,
     /** Saves what is unsaved, then tears the editor down. */
     destroy: async () => {
@@ -714,6 +865,33 @@ export async function createEditorSession(options: EditorSessionOptions) {
     },
     lastSplice: sync.lastSplice,
     pull,
+    /** Scrolls a staged ask's place into view and selects it. */
+    revealAskMark: (id: string) => {
+      const v = view();
+      const mark = askMarkKey
+        .getState(v.state)
+        ?.find((entry) => entry.id === id);
+      if (!mark) {
+        return;
+      }
+      const size = v.state.doc.content.size;
+      v.dispatch(
+        v.state.tr
+          .setSelection(
+            TextSelection.create(
+              v.state.doc,
+              Math.min(mark.from, size),
+              Math.min(mark.to, size),
+            ),
+          )
+          .scrollIntoView(),
+      );
+    },
+    /** The staged asks this document holds, numbered; a mark whose ask is gone goes too. */
+    setAskNumbers: (numbers: { id: string; n: number }[]) => {
+      const v = view();
+      v.dispatch(v.state.tr.setMeta(askMarkKey, { numbers }));
+    },
     /** Replaces the front matter with the card's edit; saved like typing. */
     setFrontMatter: (next: string) => {
       fmLocal = next;
@@ -723,6 +901,15 @@ export async function createEditorSession(options: EditorSessionOptions) {
     writeLog,
   };
   return handle;
+}
+
+/** A staged ask's number, as the badge at the end of its place. */
+function askBadge(n: number) {
+  const badge = document.createElement("span");
+  badge.className = "md-ask-badge";
+  badge.contentEditable = "false";
+  badge.textContent = String(n);
+  return badge;
 }
 
 /**

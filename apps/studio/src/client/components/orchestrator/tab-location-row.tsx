@@ -87,7 +87,9 @@ export function TabLocationRow({
   );
   return (
     <div
-      className="flex h-9 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
+      // A container, so what a screen or a page draws into the row can give
+      // up its words for its mark when the row is narrow.
+      className="@container/tabrow flex h-9 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
       ref={ref}
     >
       {leading}

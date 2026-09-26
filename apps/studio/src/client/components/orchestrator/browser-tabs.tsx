@@ -44,7 +44,9 @@ import {
 import { createPortal } from "react-dom";
 import { z } from "zod";
 
+import { AskTray } from "./ask-tray";
 import { useOrchestrator } from "./context";
+import { FileAskButton } from "./file-ask-button";
 import { segmentsOf } from "./host-path";
 import {
   PageEditMenuItems,
@@ -974,9 +976,23 @@ export function BrowserTabs({
             ? {}
             : {
                 menuItems: <PageEditMenuItems />,
-                ...(editPlacement === "row"
-                  ? { pageControls: <PageEditToggle tabId={editableId} /> }
-                  : {}),
+                // A page's file asks about itself the way every file tab
+                // does, beside the View / Edit control when it is here.
+                pageControls: (
+                  <>
+                    {editPlacement === "row" && (
+                      <PageEditToggle tabId={editableId} />
+                    )}
+                    {activeFilePath !== undefined && (
+                      <FileAskButton
+                        name={
+                          segmentsOf(activeFilePath).at(-1) ?? activeFilePath
+                        }
+                        path={activeFilePath}
+                      />
+                    )}
+                  </>
+                ),
               })}
           {...(activeFilePath === undefined
             ? {}
@@ -992,6 +1008,11 @@ export function BrowserTabs({
         />
       ) : null}
       {editableId !== undefined && <PageEditPill tabId={editableId} />}
+      {/* A page's file keeps its asks at its foot while viewed; in Edit the
+          page's own dock holds them. */}
+      {activeFilePath !== undefined && !(active && editTabs[active.id]) && (
+        <AskTray path={activeFilePath} />
+      )}
       {compose?.map((host) => {
         // The page the draft window has up, when what it has up is a page:
         // the tab its group remembers, or its first.

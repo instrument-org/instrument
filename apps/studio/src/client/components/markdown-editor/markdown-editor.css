@@ -81,7 +81,7 @@
   margin-block: 1.25em;
 }
 
-/* The selection toolbar's "Ask Instrument", a labeled button among the
+/* The selection toolbar's "Ask", a labeled button among the
    icons: the app's way of asking Instrument, its mark in the brand's green
    beside a plain label. */
 .md-editor .milkdown .milkdown-toolbar .toolbar-item:has(.md-ask) {
@@ -104,6 +104,31 @@
 }
 .dark .md-editor .milkdown .milkdown-toolbar .toolbar-item .md-ask svg.md-mark {
   color: var(--brand-400);
+}
+
+/* A staged ask's place: a quiet tint under its words and its number at
+   their end, in the brand's color the pills wear. */
+.md-editor .md-ask-mark {
+  background: color-mix(in oklab, var(--brand-500) 14%, transparent);
+  border-bottom: 1.5px solid
+    color-mix(in oklab, var(--brand-500) 55%, transparent);
+}
+.md-editor .md-ask-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 3px;
+  border-radius: 999px;
+  background: var(--brand-600);
+  color: white;
+  font: 600 10px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  vertical-align: 0.15em;
+  user-select: none;
+}
+.dark .md-editor .md-ask-badge {
+  background: var(--brand-500);
 }
 
 /* A fence Studio draws as something else (a message, files, a diagram) fills the block's preview. */

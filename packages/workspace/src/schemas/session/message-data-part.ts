@@ -11,8 +11,8 @@ export namespace SessionMessageDataPart {
    * Every part below is one of three cadences, and which one it is decides
    * whether it needs to guard against repeating itself.
    *
-   * - **Event**: something that happened on this turn -- `attachments`,
-   *   `contextRollover`, `intent`, `maxSteps`, `outputFormat`,
+   * - **Event**: something that happened on this turn -- `asks`,
+   *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `outputFormat`,
    *   `skillChanges`, `skillMentions`, and `projectContext` and
    *   `threadContext`, which are written once at creation. A repeat is
    *   impossible by construction; nothing to guard.
@@ -35,6 +35,7 @@ export namespace SessionMessageDataPart {
    */
   export const NameSchema = z.enum([
     "appEvent",
+    "asks",
     "attachedFolderChanges",
     "attachments",
     "backgroundProcesses",
@@ -318,6 +319,37 @@ export namespace SessionMessageDataPart {
   });
 
   export type IntentDataPart = z.output<typeof IntentDataPartSchema>;
+
+  /**
+   * Places in files the user marked and what they want changed at each,
+   * gathered on the file before sending and carried beside their words, so
+   * the request reads as a list of targets rather than quotes pasted into
+   * the message. Each names the file by its path (and the virtual path the
+   * agent reaches it by, when a granted folder covers it), where in the file
+   * in a reader's words, the words or source at that place, and what the
+   * user typed for it, which may be nothing.
+   */
+  export const AsksDataPartSchema = z.object({
+    asks: z
+      .array(
+        z.object({
+          /** What the surface knows about the place that its text alone does not say: that a script makes it, say. */
+          context: z.string().optional(),
+          excerpt: z.string().optional(),
+          file: z.object({
+            mount: z.string().optional(),
+            name: z.string(),
+            path: z.string(),
+          }),
+          instruction: z.string(),
+          /** Where in the file: "lines 12-14", "page 3", "Sales!A2:C3", "whole file". */
+          target: z.string(),
+        }),
+      )
+      .min(1),
+  });
+
+  export type AsksDataPart = z.output<typeof AsksDataPartSchema>;
 
   /**
    * The kind of page the user asked to receive the response as, picked on
@@ -867,6 +899,7 @@ export namespace SessionMessageDataPart {
   // oxlint-disable-next-line no-unused-vars
   const DataPartsSchema = z.object({
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
+    [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.attachedFolderChanges]:
       AttachedFolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,

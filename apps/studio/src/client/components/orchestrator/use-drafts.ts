@@ -26,6 +26,7 @@ import { ulid } from "ulid";
 
 import { type DraftSend } from "./compose-window";
 import { computerTabOf } from "./file-tabs";
+import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { NO_FILTERS, type Topic } from "./threads";
 import { type useCompose } from "./use-compose";
 import {
@@ -46,6 +47,7 @@ const THREAD_ARRIVAL_MS = ms("3 seconds");
  * of one.
  */
 export function useDrafts({
+  attachedFolders,
   compose,
   draftContext,
   ids,
@@ -55,6 +57,8 @@ export function useDrafts({
   topics,
   windowTabs,
 }: {
+  /** The orchestrator's granted folders, for how the agent reaches a file an ask is on. */
+  attachedFolders: Record<string, { mountName: string; path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
   compose: ReturnType<typeof useCompose>;
   /** What a draft's window has up, read as its thread starts. */
@@ -78,6 +82,8 @@ export function useDrafts({
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const [threadFilters, setThreadFilters] = useAtom(threadFiltersAtom);
+  const stagedAsks = useAtomValue(stagedAsksAtom);
+  const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
   );
@@ -140,13 +146,14 @@ export function useDrafts({
       group: draftGroupOf(draft.id),
     });
     showDraft(draft.id);
+    return draft.id;
   };
   /**
    * New, from the rail or its chord, or a button handing over a line: a
    * draft filed under the topic the inbox stands in while it stands in one,
    * with the window put on the chat, which is where a draft is written.
    */
-  const newDraft = (words?: string, chosen?: ChosenItem[]) => {
+  const newDraft = (words?: string, chosen?: ChosenItem[]) =>
     startDraft(
       isChat && threadFilters.topics.length === 1
         ? topics.find((topic) => topic.id === threadFilters.topics[0])?.id
@@ -154,7 +161,6 @@ export function useDrafts({
       typeof words === "string" ? words : "",
       chosen,
     );
-  };
   // What a draft's composer held is kept only as long as the draft: a
   // composer unmounting keeps its snapshot as it goes, so a draft sent or
   // thrown away is pruned here, after that.
@@ -169,6 +175,8 @@ export function useDrafts({
   }, [draftIds, setDraftSnapshots]);
   /** Throws a draft away: its window, its record, what its composer held, and its tabs. */
   const deleteDraft = (id: string) => {
+    // What was marked for it goes back to its file's Ask, to be sent another way.
+    returnAsks({ draftId: id, kind: "draft" });
     compose.remove(draftGroupOf(id));
     setDrafts((current) => current.filter((draft) => draft.id !== id));
     windowTabs.dropGroup(draftGroupOf(id));
@@ -207,6 +215,12 @@ export function useDrafts({
     setStartingIds((current) => new Set(current).add(id));
     // The model chosen for the thread is the one the next draft opens with.
     saveDefaultModelURI(send.modelURI);
+    // What was marked in files and moved to this draft goes as its asks.
+    const marked = stagedAsks.filter(
+      (ask) =>
+        ask.destination?.kind === "draft" && ask.destination.draftId === id,
+    );
+    const asks = asksPart(marked, attachedFolders);
     void (async () => {
       let viewing: SessionMessageDataPart.ViewContextDataPart | undefined;
       try {
@@ -221,6 +235,7 @@ export function useDrafts({
       let sessionId: StoreId.Session;
       try {
         ({ sessionId } = await createMessage.mutateAsync({
+          ...(asks ? { asks } : {}),
           files: send.files,
           folders: send.folders,
           id: ids.taskId,
@@ -239,6 +254,7 @@ export function useDrafts({
         setStartingIds((current) => withoutId(current, id));
       }
       setDrafts((current) => current.filter((entry) => entry.id !== id));
+      removeAsks(marked.map((ask) => ask.id));
       // What the draft gathered becomes the thread's tabs, the pages
       // and folders as they stand; the new-tab pages among them were
       // the band's own face and are not carried over, and a draft that

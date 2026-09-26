@@ -19,6 +19,7 @@ import { z } from "zod";
 import { type AgentName } from "../../agents/types";
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { appEventModelNote } from "../../lib/app-event-model-text";
+import { asksModelNote } from "../../lib/asks-model-text";
 import { attachedFolderChangesModelNote } from "../../lib/attached-folder-changes-model-text";
 import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
@@ -631,6 +632,20 @@ export namespace SessionMessage {
             injectedParts.push({ text: note, type: "text" });
           }
           previousViewContextNote = note;
+        }
+
+        const asksPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-asks";
+          } => part.type === "data-asks",
+        );
+        if (asksPart) {
+          injectedParts.push({
+            text: asksModelNote(asksPart.data),
+            type: "text",
+          });
         }
 
         const outputFormatPart = message.parts.find(

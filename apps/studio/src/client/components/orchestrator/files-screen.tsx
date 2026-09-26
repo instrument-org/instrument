@@ -28,15 +28,16 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
+import { AskTray } from "./ask-tray";
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
 import { useOrchestrator } from "./context";
+import { FileAskButton } from "./file-ask-button";
 import { mountOfHostPath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { folderOf, segmentsOf } from "./host-path";
-import { NewChatButton } from "./new-chat-button";
+import { useOnScreen } from "./on-screen";
 import { PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
-import { useOnScreen } from "./on-screen";
 import { useQuickLook } from "./quick-look";
 import { useWindowTabs } from "./window-tabs";
 
@@ -87,7 +88,7 @@ export function FilesScreen({
   /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
   tree: string | undefined;
 }) {
-  const { askAbout, browser, openPage, openScreen, rowLead, rowTail, taskId } =
+  const { browser, openPage, openScreen, rowLead, rowTail, taskId } =
     useOrchestrator();
   const { active, allTabs, close, closeActive, step, stepVisit } =
     useWindowTabs();
@@ -188,7 +189,7 @@ export function FilesScreen({
     hostedFile === undefined
       ? undefined
       : allTabs.find((tab) => tab.group === hostGroup)?.id;
-  const setEditTabs = useSetAtom(pageEditTabsAtom);
+  const [editTabs, setEditTabs] = useAtom(pageEditTabsAtom);
   usePageEditToggleOnScreen(
     hostedTabId === undefined
       ? null
@@ -347,14 +348,8 @@ export function FilesScreen({
     return null;
   }
 
-  const newChat = askAbout && activeFile && (
-    <NewChatButton
-      className="mr-1"
-      onPress={() => {
-        askAbout([{ kind: "file", path: activeFile.hostPath }]);
-      }}
-      title={`New chat with “${activeFile.name}”`}
-    />
+  const askButton = activeFile && (
+    <FileAskButton name={activeFile.name} path={activeFile.hostPath} />
   );
 
   if (activeFile && viewerFile && tree !== undefined) {
@@ -406,16 +401,16 @@ export function FilesScreen({
               />,
               rowLead,
             )}
-          <div className="min-h-0 min-w-0 flex-1">
+          <div className="relative min-h-0 min-w-0 flex-1">
             <FileViewer
               actionsInto={rowTail}
               actionsLead={
                 hostedTabId === undefined ? (
-                  newChat
+                  askButton
                 ) : (
                   <>
                     <PageEditToggle tabId={hostedTabId} />
-                    {newChat}
+                    {askButton}
                   </>
                 )
               }
@@ -427,6 +422,10 @@ export function FilesScreen({
                 ? {}
                 : { page: <div className="h-full" ref={setSlot} /> })}
             />
+            {/* A page in Edit keeps its asks in its own dock instead. */}
+            {!(hostedTabId !== undefined && editTabs[hostedTabId]) && (
+              <AskTray path={activeFile.hostPath} />
+            )}
           </div>
         </div>
       </FileOpenContext>
@@ -441,7 +440,7 @@ export function FilesScreen({
           // wears, so the viewer is the whole of the tab.
           <FileViewer
             actionsInto={rowTail}
-            actionsLead={newChat}
+            actionsLead={askButton}
             className={FULL_BLEED}
             editable
             file={viewerFile}
@@ -462,6 +461,7 @@ export function FilesScreen({
             {...quickLook.props}
           />
         )}
+        {activeFile && <AskTray path={activeFile.hostPath} />}
       </div>
       {quickLook.dialog}
     </div>

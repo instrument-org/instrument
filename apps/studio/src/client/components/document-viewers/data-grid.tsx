@@ -1,5 +1,6 @@
 import { logger } from "@/client/lib/logger";
 import { cn } from "@/client/lib/utils";
+import { type ReferenceElement } from "@floating-ui/dom";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { ColumnsIcon } from "@phosphor-icons/react/Columns";
@@ -18,6 +19,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import Papa from "papaparse";
 import {
   type KeyboardEvent,
+  type RefObject,
   useEffect,
   useMemo,
   useRef,
@@ -134,17 +136,25 @@ interface EditingCell extends CellPosition {
 export function DataGrid({
   columns,
   editing: edit,
+  marks,
   note,
   onAsk,
+  revealRef,
   rows,
   title,
 }: {
   columns: GridColumn[];
   /** Makes cells editable, for a file this surface can write. */
   editing?: GridEditing;
+  /** Numbered markers on cells, by `row:column` index into `rows` and `columns`: where staged asks start. */
+  marks?: ReadonlyMap<string, number>;
   note?: string;
-  /** Offers the selected block to Instrument, with a button over it. */
-  onAsk?: (block: GridBlock) => void;
+  /** Offers the selected block to Instrument, with a button over it; told where the block stands on screen. */
+  onAsk?: (block: GridBlock, reference: ReferenceElement) => void;
+  /** Filled with a way to bring a cell into view and select it, by index into `rows` and `columns`. */
+  revealRef?: RefObject<
+    ((cell: { column: number; row: number }) => void) | null
+  >;
   rows: CellValue[][];
   title?: string;
 }) {
@@ -263,6 +273,28 @@ export function DataGrid({
   }, [columnSizing, columnVirtualizer]);
 
   const totalWidth = columnVirtualizer.getTotalSize();
+
+  // A cell by its place in the data, found where the sort and filter put it.
+  useEffect(() => {
+    if (!revealRef) {
+      return;
+    }
+    revealRef.current = ({ column, row }) => {
+      const at = visibleRows.findIndex((record) => record.index === row);
+      const across = visibleColumns.findIndex(
+        (entry) => Number(entry.id) === column,
+      );
+      if (at === -1 || across === -1) {
+        return;
+      }
+      rowVirtualizer.scrollToIndex(at, { align: "center" });
+      columnVirtualizer.scrollToIndex(across);
+      setSelection({
+        anchor: { column: across, row: at },
+        focus: { column: across, row: at },
+      });
+    };
+  });
 
   const selectedRange = resolveRange({
     columnCount: visibleColumns.length,
@@ -810,6 +842,7 @@ export function DataGrid({
                               }
                               key={column.id}
                               left={virtualColumn.start}
+                              mark={marks?.get(`${record.index}:${column.id}`)}
                               onEdit={edit ? startEdit : undefined}
                               onSelect={extendTo}
                               position={position}
@@ -854,11 +887,14 @@ export function DataGrid({
                   disabled={!block}
                   onSelect={() => {
                     if (block) {
-                      onAsk(block);
+                      // The block's box as the menu closes, since the
+                      // selection it came from goes with the menu.
+                      const box = askReference.getBoundingClientRect();
+                      onAsk(block, { getBoundingClientRect: () => box });
                     }
                   }}
                 >
-                  Ask Instrument
+                  Ask
                 </ContextMenuItem>
                 <ContextMenuSeparator />
               </>
@@ -926,7 +962,8 @@ export function DataGrid({
       {askable && (
         <AskButton
           onAsk={() => {
-            onAsk(block);
+            const box = askReference.getBoundingClientRect();
+            onAsk(block, { getBoundingClientRect: () => box });
             // Asked, so the button goes; the cell the selection ended on stays.
             setSelection((current) =>
               current ? { anchor: current.focus, focus: current.focus } : null,
@@ -946,6 +983,7 @@ function BodyCell({
   align,
   flash,
   left,
+  mark,
   onEdit,
   onSelect,
   position,
@@ -956,6 +994,8 @@ function BodyCell({
   align?: "left" | "right";
   flash: boolean;
   left: number;
+  /** The number of a staged ask that starts at this cell, worn in its corner. */
+  mark?: number;
   onEdit?: (position: CellPosition) => void;
   onSelect: (position: CellPosition, extend: boolean) => void;
   position: CellPosition;
@@ -1000,6 +1040,11 @@ function BodyCell({
       title={value ?? undefined}
     >
       {value ?? <span className="text-muted-foreground/60 italic">NULL</span>}
+      {mark !== undefined && (
+        <span className="pointer-events-none absolute top-0.5 right-0.5 grid size-3.5 place-items-center rounded-full bg-brand-600 text-[9px] leading-none font-semibold text-white tabular-nums not-italic dark:bg-brand-500">
+          {mark}
+        </span>
+      )}
     </div>
   );
 }

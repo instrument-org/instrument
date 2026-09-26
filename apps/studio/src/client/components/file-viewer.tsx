@@ -822,7 +822,9 @@ export function FileViewer({
         dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
         file={file}
         iconClassName="size-4"
-        labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline"
+        // In a tab's row the app's name is the first thing to go when the
+        // row runs short, before the place the file is at.
+        labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline @max-3xl/tabrow:hidden!"
         size="sm"
         variant="ghost"
       />

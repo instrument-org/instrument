@@ -1,7 +1,9 @@
 import "./code-editor.css";
 
 import { FileLoading } from "@/client/components/file-loading";
-import { useAskAboutSelection } from "@/client/components/orchestrator/ask-about-selection";
+import { useAskMarks } from "@/client/components/orchestrator/ask-marks";
+import { linesLabel } from "@/client/components/orchestrator/staged-asks";
+import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { rpcClient } from "@/client/rpc/client";
 import { EditorView } from "@codemirror/view";
@@ -105,9 +107,10 @@ function LiveCodeDocument({
   const [offscreen, setOffscreen] = useState<Offscreen>(null);
   const [readOnly] = useState(() => readOnlyReason(initial.content));
   const changedAt = useRef(0);
-  const askAbout = useAskAboutSelection();
-  const askRef = useRef(askAbout);
-  askRef.current = askAbout;
+  const { begin, card } = useAskCard(hostPath);
+  const { mark } = useAskMarks(hostPath, session);
+  const askRef = useRef({ begin, mark });
+  askRef.current = { begin, mark };
   const wrapRef = useRef(wrapLines);
   wrapRef.current = wrapLines;
 
@@ -137,8 +140,15 @@ function LiveCodeDocument({
       filename,
       hostPath,
       initial,
-      onAsk: ({ lines, quote }) => {
-        askRef.current({ lines, path: hostPath, quote });
+      onAsk: ({ from, lines, quote, rect, to }) => {
+        askRef.current.begin({
+          excerpt: quote,
+          onStaged: (id) => {
+            askRef.current.mark(id, from, to, quote);
+          },
+          reference: { getBoundingClientRect: () => rect },
+          target: linesLabel(lines),
+        });
       },
       onExternalChange: (change: CodeExternalChange) => {
         changedAt.current = change.at;
@@ -225,6 +235,7 @@ function LiveCodeDocument({
           </div>
         )}
       </div>
+      {card}
     </div>
   );
 }

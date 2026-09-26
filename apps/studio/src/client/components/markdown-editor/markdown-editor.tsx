@@ -12,8 +12,10 @@ import {
   MessageCard,
   messageKindOf,
 } from "@/client/components/message-card";
-import { useAskAboutSelection } from "@/client/components/orchestrator/ask-about-selection";
+import { useAskMarks } from "@/client/components/orchestrator/ask-marks";
 import { OrchestratorContext } from "@/client/components/orchestrator/context";
+import { linesLabel } from "@/client/components/orchestrator/staged-asks";
+import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isMermaidLanguage } from "@/client/lib/mermaid";
@@ -234,9 +236,10 @@ function LiveDocument({
   const [targets, setTargets] = useState<Map<number, HTMLElement>>(new Map());
   const [offscreen, setOffscreen] = useState<Offscreen>(null);
   const changedRef = useRef<HTMLElement | null>(null);
-  const askAbout = useAskAboutSelection();
-  const askRef = useRef(askAbout);
-  askRef.current = askAbout;
+  const { begin, card } = useAskCard(hostPath);
+  const { mark } = useAskMarks(hostPath, session);
+  const askRef = useRef({ begin, mark });
+  askRef.current = { begin, mark };
 
   // The file on disk, looked at four times a second while it is open.
   const watched = useQuery(
@@ -284,8 +287,16 @@ function LiveDocument({
     const created = createEditorSession({
       hostPath,
       initial,
-      onAsk: ({ lines, quote }) => {
-        askRef.current({ path: hostPath, quote, ...(lines ? { lines } : {}) });
+      onAsk: ({ block, from, lines, quote, rect, to }) => {
+        const where = lines ? linesLabel(lines) : "selected text";
+        askRef.current.begin({
+          excerpt: quote,
+          onStaged: (id) => {
+            askRef.current.mark(id, from, to, quote);
+          },
+          reference: { getBoundingClientRect: () => rect },
+          target: block ? `${block} · ${where}` : where,
+        });
       },
       onExternalChange: (change) => {
         noteChange(change);
@@ -503,6 +514,7 @@ function LiveDocument({
             )
           : null;
       })}
+      {card}
     </MarkdownDocument>
   );
 }

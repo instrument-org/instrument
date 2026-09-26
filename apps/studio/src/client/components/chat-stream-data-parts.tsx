@@ -17,6 +17,7 @@ import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
+import { SentAsksNote } from "./orchestrator/ask-pills";
 import { OutputFormatNote } from "./orchestrator/output-format-note";
 import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
@@ -35,6 +36,8 @@ type DataPartVisibility = "always" | "dev" | "hidden";
 
 const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-appEvent": "always",
+  // The places the user marked in their files, as the pills they sent.
+  "data-asks": "always",
   "data-attachedFolderChanges": "always",
   "data-attachments": "hidden",
   // Deliberately not "always". This part is a persisted record of what was
@@ -141,6 +144,9 @@ export function renderDataPart({
         return null;
       }
       return <AppEventNote data={part.data} key={part.metadata.id} />;
+    }
+    case "data-asks": {
+      return <SentAsksNote data={part.data} key={part.metadata.id} />;
     }
     case "data-attachedFolderChanges": {
       return (

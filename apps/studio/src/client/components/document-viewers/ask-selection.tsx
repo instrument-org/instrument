@@ -1,8 +1,5 @@
-import {
-  type AskAboutSelection,
-  useAskAboutSelection,
-} from "@/client/components/orchestrator/ask-about-selection";
 import { OrchestratorContext } from "@/client/components/orchestrator/context";
+import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import {
   autoUpdate,
   computePosition,
@@ -29,7 +26,7 @@ import { AskSelectionContext, type AskTarget } from "./ask-selection-context";
 const RESTORE_WINDOW_MS = 400;
 
 /**
- * The floating "Ask Instrument" button, drawn as the Markdown editor's
+ * The floating "Ask" button, drawn as the Markdown editor's
  * selection toolbar draws it: the popover's raised card, the Instrument mark
  * in the brand's green beside a plain label. It follows its reference as the
  * document scrolls, and goes on Escape.
@@ -100,7 +97,7 @@ export function AskButton({
           className="size-3.5 text-brand-600 dark:text-brand-400"
           size={14}
         />
-        Ask Instrument
+        Ask
       </button>
     </div>,
     document.body,
@@ -114,8 +111,10 @@ export function AskButton({
  * A text selection the browser can see (a DOCX page, a slide) is found here,
  * with its page or slide read off the viewer's own markup. A viewer that
  * keeps its selection elsewhere reports it through {@link useAskSelection}.
- * Either way the same button floats over the selection, and asking quotes
- * the words with where they are in the file.
+ * Either way the same button floats over the selection, and asking opens
+ * the ask card over it, which stages the words with where they are in the
+ * file. These formats are read here rather than edited, so the place carries
+ * no marker of its own; its pill is where it is kept.
  */
 export function AskSelection({
   children,
@@ -125,7 +124,7 @@ export function AskSelection({
   path: string;
 }) {
   const orchestrator = useContext(OrchestratorContext);
-  const ask = useAskAboutSelection();
+  const { begin, card } = useAskCard(path);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [target, setTarget] = useState<AskTarget | null>(null);
 
@@ -234,14 +233,17 @@ export function AskSelection({
       {target && (
         <AskButton
           onAsk={() => {
-            const { location, quote } = target;
+            const { location, quote, reference } = target;
             setTarget(null);
+            // The place stands still for the card: a range's own box moves
+            // with the document, which is gone once the selection is.
+            const box = reference.getBoundingClientRect();
             void Promise.resolve(quote).then((words) => {
-              ask({
-                path,
-                quote: words,
-                ...(location ? { location } : {}),
-              } satisfies AskAboutSelection);
+              begin({
+                excerpt: words,
+                reference: { getBoundingClientRect: () => box },
+                target: location ?? "selected text",
+              });
             });
           }}
           onDismiss={() => {
@@ -250,6 +252,7 @@ export function AskSelection({
           reference={target.reference}
         />
       )}
+      {card}
     </AskSelectionContext>
   );
 }

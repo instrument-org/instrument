@@ -78,8 +78,8 @@ import { toast } from "sonner";
 
 import { useOrchestrator } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
+import { GlyphButton } from "./glyph-button";
 import { folderOf, homeRelative, joinHostPath, segmentsOf } from "./host-path";
-import { NewChatButton } from "./new-chat-button";
 
 /**
  * How many folders' layouts are kept. Past it the one left alone longest goes
@@ -1158,13 +1158,16 @@ export function ComputerPage({
                               (folderOnScreenPath ?? ""),
                           ).at(-1) ?? "this folder";
                         return (
-                          <NewChatButton
-                            className="ml-1"
-                            onPress={() => {
+                          <GlyphButton
+                            className="ml-1 h-7"
+                            onClick={() => {
                               draftAbout(selectedItem);
                             }}
-                            title={`New chat with “${about}”`}
-                          />
+                            size="sm"
+                            title={`Ask about “${about}”`}
+                          >
+                            Ask
+                          </GlyphButton>
                         );
                       }
                     : undefined

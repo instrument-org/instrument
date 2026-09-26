@@ -1,9 +1,16 @@
-import { useAskAboutSelection } from "@/client/components/orchestrator/ask-about-selection";
 import { OrchestratorContext } from "@/client/components/orchestrator/context";
+import {
+  linesLabel,
+  numbered,
+  useAskRevealer,
+  useFileAsks,
+} from "@/client/components/orchestrator/staged-asks";
+import { useAskCard } from "@/client/components/orchestrator/use-ask-card";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
+import { type ReferenceElement } from "@floating-ui/dom";
 import { useQuery } from "@tanstack/react-query";
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { FileLoading } from "../file-loading";
@@ -30,6 +37,13 @@ import {
   type GridEditing,
 } from "./data-grid";
 import { inferAlignment } from "./grid-columns";
+
+/**
+ * The cell each staged ask on a table starts at, by the ask's id, as a row
+ * and column of the data: kept past the table's own life, since the asks
+ * outlive a tab switch that unmounts it.
+ */
+const cellOfAsk = new Map<string, { column: number; row: number }>();
 
 /** How often an open table looks for the agent's writes. */
 const WATCH_INTERVAL_MS = 250;
@@ -91,6 +105,29 @@ export function CsvEditor({
   return (
     <LiveTable filename={filename} hostPath={hostPath} initial={initial.data} />
   );
+}
+
+/**
+ * A block of cells as a reader names it: its rows by the grid's numbers, and
+ * its columns by name when it is not every column.
+ */
+function blockLabel(block: GridBlock, columns: GridColumn[], width: number) {
+  const first = block.rows[0] ?? 0;
+  const last = block.rows.at(-1) ?? first;
+  const runs = block.rows.every((row, index) => row === first + index);
+  const rows =
+    block.rows.length === 1
+      ? `row ${first + 1}`
+      : runs
+        ? `rows ${first + 1}-${last + 1}`
+        : `${block.rows.length} rows`;
+  if (block.columns.length === width) {
+    return rows;
+  }
+  const names = block.columns.map(
+    (column) => columns[column]?.name || `column ${column + 1}`,
+  );
+  return `${rows} · ${names.length > 3 ? `${names.length} columns` : names.join(", ")}`;
 }
 
 /**
@@ -344,6 +381,8 @@ function createCsvSession(options: {
   };
 }
 
+// ---------------------------------------------------------------- session
+
 function LiveTable({
   filename,
   hostPath,
@@ -360,7 +399,24 @@ function LiveTable({
   const [session, setSession] = useState<CsvSession | null>(null);
   const readOnly = useMemo(() => readOnlyReason(doc), [doc]);
   const orchestrator = useContext(OrchestratorContext);
-  const askAbout = useAskAboutSelection();
+  const { begin, card } = useAskCard(hostPath);
+  // The asks staged on this file, each marked at the cell it starts at.
+  const asks = useFileAsks(hostPath);
+  const marks = new Map(
+    numbered(asks).flatMap(({ ask, n }) => {
+      const cell = cellOfAsk.get(ask.id);
+      return cell ? [[`${cell.row}:${cell.column}`, n] as const] : [];
+    }),
+  );
+  const revealRef = useRef<
+    ((cell: { column: number; row: number }) => void) | null
+  >(null);
+  useAskRevealer(hostPath, (id) => {
+    const cell = cellOfAsk.get(id);
+    if (cell) {
+      revealRef.current?.(cell);
+    }
+  });
 
   useEffect(() => {
     if (readOnlyReason(doc)) {
@@ -506,22 +562,39 @@ function LiveTable({
         }
       : undefined;
 
-  const ask = (block: GridBlock) => {
-    askAbout({ path: hostPath, ...quoteBlock(doc, block, columns) });
+  const ask = (block: GridBlock, reference: ReferenceElement) => {
+    const { lines, quote } = quoteBlock(doc, block, columns);
+    const first = { column: block.columns[0], row: block.rows[0] };
+    begin({
+      excerpt: quote,
+      onStaged: (id) => {
+        if (first.column !== undefined && first.row !== undefined) {
+          cellOfAsk.set(id, { column: first.column, row: first.row });
+        }
+      },
+      reference,
+      target: [
+        blockLabel(block, columns, width),
+        ...(lines ? [linesLabel(lines)] : []),
+      ].join(" · "),
+    });
   };
 
   return (
-    <DataGrid
-      columns={columns}
-      editing={editing}
-      note={readOnly ?? undefined}
-      onAsk={orchestrator ? ask : undefined}
-      rows={rows}
-    />
+    <>
+      <DataGrid
+        columns={columns}
+        editing={editing}
+        marks={marks}
+        note={readOnly ?? undefined}
+        onAsk={orchestrator ? ask : undefined}
+        revealRef={revealRef}
+        rows={rows}
+      />
+      {card}
+    </>
   );
 }
-
-// ---------------------------------------------------------------- session
 
 /**
  * A block of cells as the quote a question starts from: a small Markdown

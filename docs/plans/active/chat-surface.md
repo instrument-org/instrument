@@ -42,15 +42,29 @@ Page types will come from onboarding rather than a fixed catalog, so the classif
 
 - New page templates.
 
+## Rail thumbnails, measured
+
+Measured on an M1 Max with eight real sites open as parked guests (Wikipedia, GitHub, BBC, a YouTube video page, Google Maps, Apple, Hacker News, the New York Times):
+
+- A capture with `webContents.capturePage()` takes about 14ms (17ms at the 95th percentile) at 2560×1600, and scaling it to a 240px-wide JPEG takes about 3ms more; a thumbnail is 5 to 10KB. All captures of parked guests came back with the right page, none failed.
+- The main process pays roughly half a percent of one core per capture per second: eight thumbnails every two seconds costs about 2%, every second about 5%, every 250ms about 17%, against an idle 0.4 to 1.8%. The GPU process barely moves.
+- The pages themselves are the cost: eight open pages added about 2.9GB to the app (about 360MB each, 400 to 550MB for the heaviest), whether or not anything captures them.
+
+So thumbnails are pictures, never scaled live pages: a guest can be shown in only one place, the item in the full view needs a picture anyway, and a picture is cheap. A chat usually holds one or two pages, so the first version aims only to cost nothing noticeable:
+
+- A page is captured only while it is on screen: when it finishes loading, when it navigates, and once more as it leaves the view. Nothing is captured on a timer for pages nobody is looking at.
+- Each thumbnail is saved with its chat, so opening a chat, including after the app was quit, shows the rail at once from the saved pictures. A page that was not restored (the usual case after a relaunch) keeps its last thumbnail and loads only when opened.
+- Documents and pages the chat made use the file thumbnails the app already draws; a folder shows its icon and name. The app's own views are not screenshotted.
+- Because a thumbnail no longer needs its page, a page left unopened for a while can later be discarded and rebuilt from its address, which is where the memory saving is.
+
 ## Open questions
 
 1. Is Files the system file dialog, or a Finder tab like This Mac?
-2. How often is a thumbnail retaken: on focus, on the agent's navigation, on a timer?
-3. On a narrow window, does the rail fold to marks or hide?
-4. Should an app be connectable from inside the + menu instead of sending the person to the Apps landing page?
-5. Can two chats be maximized as modals at once, or does a second replace the first?
-6. Does a pasted image leave a mark in the words as well as a tab?
-7. Where does the model picker live once the + is not the best home for it?
+2. On a narrow window, does the rail fold to marks or hide?
+3. Should an app be connectable from inside the + menu instead of sending the person to the Apps landing page?
+4. Can two chats be maximized as modals at once, or does a second replace the first?
+5. Does a pasted image leave a mark in the words as well as a tab?
+6. Where does the model picker live once the + is not the best home for it?
 
 ## What changes in code
 
@@ -70,7 +84,7 @@ Each step lands and is checked in the app on its own.
 
 1. Copy: "thread" becomes "chat" in everything a person reads.
 2. The Finder opens a double-clicked file in place, with back and forward; the "where to open" choice goes.
-3. A measured spike on keeping rail thumbnails current (periodic captures against shrunken live pages), before the rail is built.
+3. Rail thumbnails as captured pictures (measured; see above).
 4. The reply box's +: tiles, Attach files and Add a folder, skills, model, apps to mention; / stays the keyboard path.
 5. The draft's zero state: tiles over a slim attach row, Web opening the browser inline, Apps opening the Apps landing page.
 6. The rail and the full view in Chats; the pane, its New tab page, and the tasks pane go.

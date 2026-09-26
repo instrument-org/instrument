@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
-import type { WebContents } from "electron";
+import type { NativeImage, WebContents } from "electron";
 
 import {
   type BrowserTargetId,
@@ -49,6 +49,12 @@ const FOCUS_PROBE_TIMEOUT_MS = 1000;
 // sleeping a fixed amount, so the common case costs one extra probe.
 const FOCUS_REPAIR_TIMEOUT_MS = 1000;
 const FOCUS_REPAIR_POLL_MS = 50;
+
+// What a screenshot that never got a frame most likely means. whileEmbedderComposites
+// makes a covered window draw, so reaching this is rare, but when it happens the
+// agent should read the page rather than retry the capture or blame the page.
+const SCREENSHOT_NOT_DRAWN =
+  "The page has not drawn a frame to capture, most likely because the Instrument window is covered by other windows or minimized. Reading it (snapshot, get text, eval) still works, so verify with those, or ask the user to bring the Instrument window into view and retry.";
 
 // How long the host waits on any one question it asks the guest around a
 // command (is it rendering, what is under the press, where is the element
@@ -145,7 +151,14 @@ export async function sendCommand({
     // which the debugger's fromSurface screenshot can't when the window is
     // occluded. Element clips (a clip without beyond-viewport) still use real CDP.
     if (!p.clip) {
-      return await captureViewportScreenshot(entry, p);
+      try {
+        return await captureViewportScreenshot(entry, p);
+      } catch (error) {
+        log.error(
+          `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`,
+        );
+        throw error;
+      }
     }
   }
 
@@ -286,12 +299,15 @@ export async function sendCommand({
     >(["Input.dispatchMouseEvent", "Input.synthesizeTapGesture"]);
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    const sent = wc.debugger.sendCommand(
+      method,
+      withMacEditingCommands(method, withoutMacNativeKeyCode(method, params)),
+    );
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
-      wc.debugger.sendCommand(
-        method,
-        withMacEditingCommands(method, withoutMacNativeKeyCode(method, params)),
-      ),
+      method === "Page.captureScreenshot"
+        ? whileEmbedderComposites(wc, sent)
+        : sent,
       new Promise<never>((_, reject) => {
         timeout = setTimeout(() => {
           // Cast is safe: has() is a runtime membership check against a fixed string set
@@ -300,7 +316,9 @@ export async function sendCommand({
           );
           const detail = isMouse
             ? `CDP command timed out: ${method}. The page did not acknowledge the input within 5s; it may still be loading or be unresponsive. Take a snapshot to see its current state before retrying.`
-            : `CDP command timed out: ${method}. The browser tab is not responding. The page may be unresponsive or still loading. Try navigating directly to a URL or ask the user to reload the app if the problem persists.`;
+            : method === "Page.captureScreenshot"
+              ? `CDP command timed out: ${method}. ${SCREENSHOT_NOT_DRAWN}`
+              : `CDP command timed out: ${method}. The browser tab is not responding. The page may be unresponsive or still loading. Try navigating directly to a URL or ask the user to reload the app if the problem persists.`;
           reject(new CdpCommandTimeoutError(method, detail));
         }, timeoutMs);
       }),
@@ -360,13 +378,12 @@ export async function sendCommand({
 }
 
 // Serve a viewport Page.captureScreenshot from webContents.capturePage instead
-// of the debugger. The paint-host guest is always composited (visibility:visible
-// in a visible window), so capturePage reads its live surface; the debugger's
-// fromSurface screenshot would instead block on a compositor frame when the
-// whole window is occluded/minimized. Plain capturePage (no stayHidden) lets
-// Electron force a frame if the window is hidden, matching the app's other
-// capture paths. Throws fast on timeout/empty so the recorder skips a frame
-// rather than the caller hanging.
+// of the debugger. capturePage reads the paint-host guest's surface directly.
+// Neither path forces a frame on its own when the Studio window is covered or
+// minimized: a page navigated to in that state has never drawn, so both wait
+// on a frame that never comes. whileEmbedderComposites is what makes one come.
+// Throws fast on timeout/empty so the recorder skips a frame rather than the
+// caller hanging.
 async function captureViewportScreenshot(
   entry: BrowserEntry,
   p: Protocol.Page.CaptureScreenshotRequest,
@@ -376,15 +393,37 @@ async function captureViewportScreenshot(
     throw new Error("webContents unavailable");
   }
   const CAPTURE_TIMEOUT_MS = 5000;
+  const CAPTURE_RETRY_MS = 50;
+  const deadline = Date.now() + CAPTURE_TIMEOUT_MS;
+  // A guest with no frame yet can fail at once (UnknownVizError) rather than
+  // wait, so keep asking while the embedder draws until the budget runs out.
+  const captureUntilFramed = async (): Promise<NativeImage> => {
+    for (;;) {
+      try {
+        return await wc.capturePage();
+      } catch (error) {
+        if (Date.now() + CAPTURE_RETRY_MS >= deadline) {
+          throw new Error(
+            `capturePage failed: ${String(error)}. ${SCREENSHOT_NOT_DRAWN}`,
+            { cause: error },
+          );
+        }
+        await sleep(CAPTURE_RETRY_MS);
+      }
+    }
+  };
   let timeout: ReturnType<typeof setTimeout> | undefined;
-  const image = await Promise.race([
-    wc.capturePage(),
-    new Promise<never>((_, reject) => {
-      timeout = setTimeout(() => {
-        reject(new Error("capturePage timed out"));
-      }, CAPTURE_TIMEOUT_MS);
-    }),
-  ]).finally(() => {
+  const image = await whileEmbedderComposites(
+    wc,
+    Promise.race([
+      captureUntilFramed(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error(`capturePage timed out. ${SCREENSHOT_NOT_DRAWN}`));
+        }, CAPTURE_TIMEOUT_MS);
+      }),
+    ]),
+  ).finally(() => {
     if (timeout) {
       clearTimeout(timeout);
     }
@@ -510,6 +549,44 @@ async function refusePressThatWouldMiss(entry: BrowserEntry, params: unknown) {
     throw new Error(
       "The click was not sent: the page's layout shifted after the element was measured, so the press would have landed on whatever moved into its place. Run the same click again.",
     );
+  }
+}
+
+// A page the guest navigates to while the Studio window is covered by another
+// app's window, or minimized, gets a new render widget that never presents a
+// frame, since the embedder's compositor is not drawing, so any capture of it
+// waits forever (a capturePage timeout, UnknownVizError, or a CDP screenshot
+// that never answers). A page painted before the window was covered is unaffected. Asking
+// the embedder for a capture of its own makes it draw once, which presents the
+// guest's pending frame; after that the guest captures normally until its next
+// navigation. The embedder capture is one pixel with stayHidden, so the
+// window's own renderer is never marked visible and nothing in it reacts. It
+// is repeated until the guest's capture settles, because a single one can
+// finish before the guest's frame arrives.
+async function whileEmbedderComposites<T>(
+  wc: WebContents,
+  capture: Promise<T>,
+): Promise<T> {
+  const embedder = wc.hostWebContents;
+  if (!embedder) {
+    return await capture;
+  }
+  const MAX_EMBEDDER_CAPTURES = 50;
+  const capturing = { settled: false };
+  void (async () => {
+    for (let i = 0; !capturing.settled && i < MAX_EMBEDDER_CAPTURES; i++) {
+      if (embedder.isDestroyed()) {
+        return;
+      }
+      await embedder
+        .capturePage({ height: 1, width: 1, x: 0, y: 0 }, { stayHidden: true })
+        .catch(noop);
+    }
+  })();
+  try {
+    return await capture;
+  } finally {
+    capturing.settled = true;
   }
 }
 

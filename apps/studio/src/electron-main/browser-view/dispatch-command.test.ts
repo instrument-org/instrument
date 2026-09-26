@@ -36,6 +36,7 @@ interface FakeWebContents {
   capturePage?: ReturnType<typeof vi.fn>;
   debugger: FakeDebugger;
   executeJavaScript: ReturnType<typeof vi.fn>;
+  hostWebContents?: { capturePage: ReturnType<typeof vi.fn>; isDestroyed: () => boolean };
   isDestroyed: () => boolean;
   printToPDF?: ReturnType<typeof vi.fn>;
 }
@@ -50,6 +51,7 @@ function makeEntry({
   // Guests hold keyboard focus in most of these tests; the focus gate has its
   // own cases below.
   hasFocus = true,
+  hostCapturePage,
   printToPDF,
   rendering = true,
   sendCommand: wcSendCommand = vi.fn(),
@@ -60,6 +62,7 @@ function makeEntry({
   capturePage?: ReturnType<typeof vi.fn>;
   destroyed?: boolean;
   hasFocus?: boolean | Promise<unknown>;
+  hostCapturePage?: ReturnType<typeof vi.fn>;
   printToPDF?: ReturnType<typeof vi.fn>;
   rendering?: boolean | Promise<unknown>;
   sendCommand?: ReturnType<typeof vi.fn>;
@@ -77,6 +80,10 @@ function makeEntry({
           const answer = isRenderingProbe(code) ? rendering : hasFocus;
           return answer instanceof Promise ? answer : Promise.resolve(answer);
         }),
+        hostWebContents: hostCapturePage && {
+          capturePage: hostCapturePage,
+          isDestroyed: () => false,
+        },
         isDestroyed: () => destroyed,
         printToPDF,
       }
@@ -298,6 +305,11 @@ describe("sendCommand", () => {
   });
 
   describe("Page.captureScreenshot viewport", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
     function fakeImage() {
       return {
         isEmpty: () => false,
@@ -357,6 +369,59 @@ describe("sendCommand", () => {
       expect(result).toEqual({
         data: Buffer.from("JPEG:42").toString("base64"),
       });
+    });
+
+    // A page navigated to while the window is covered has no frame until the
+    // window itself draws; until then its capture fails at once.
+    it("makes the window draw so a guest with no frame yet can be captured", async () => {
+      const hostCapturePage = vi.fn().mockResolvedValue(fakeImage());
+      const capturePage = vi
+        .fn()
+        .mockImplementation(() =>
+          hostCapturePage.mock.calls.length > 0
+            ? Promise.resolve(fakeImage())
+            : Promise.reject(new Error("UnknownVizError")),
+        );
+      const entry = makeEntry({ capturePage, hostCapturePage });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      const result = await sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Page.captureScreenshot",
+        params: {},
+        targetId: TARGET_ID,
+      });
+
+      expect(hostCapturePage).toHaveBeenCalledWith(
+        { height: 1, width: 1, x: 0, y: 0 },
+        { stayHidden: true },
+      );
+      expect(result).toEqual({ data: Buffer.from("PNG").toString("base64") });
+    });
+
+    it("names the covered window when a capture never gets a frame, and logs it", async () => {
+      vi.useFakeTimers();
+      const capturePage = vi.fn().mockReturnValue(new Promise(noop));
+      const errorSpy = vi.spyOn(log, "error").mockImplementation(noop);
+      const entry = makeEntry({ capturePage });
+      const entries = new Map([[TARGET_ID, entry]]);
+
+      const pending = sendCommand({
+        ensureDebuggerAttached: vi.fn(),
+        entries,
+        method: "Page.captureScreenshot",
+        params: {},
+        targetId: TARGET_ID,
+      });
+      const failure = pending.catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(String(await failure)).toContain(
+        "most likely because the Instrument window is covered",
+      );
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("method=Page.captureScreenshot"),
+      );
     });
 
     it("throws fast on an empty frame rather than falling back to the debugger", async () => {

@@ -1014,7 +1014,7 @@ async function requireChild(
   if (!parsed.success) {
     throw new Error(`"${rawId}" is not a task id. See \`task list\`.`);
   }
-  const task = await getTask(parsed.data, getWorkspaceConfig());
+  const task = await getTask(parsed.data);
   if (task.isErr() || task.value.parentTaskId !== orchestratorTaskId) {
     // An id is most often mistyped from the title it was given rather than
     // copied from what `new` printed, so the nearest of the orchestrator's own

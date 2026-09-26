@@ -28,6 +28,9 @@ export const TASK_FOLDER_NAMES = {
   work: "work",
 } as const;
 export const TASKS_DIR_NAME = "tasks";
+// One folder per chat at the workspace root, and the tasks a chat started in a
+// `tasks/` folder inside its own, so a chat and its work are one folder.
+export const CHATS_DIR_NAME = "chats";
 // One folder per app at the workspace root, mounted at /apps for the
 // orchestrator. Secrets never live here; the app's stores hold them.
 export const APPS_DIR_NAME = "apps";

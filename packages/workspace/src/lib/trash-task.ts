@@ -10,6 +10,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { killTaskBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
+import { forgetChatTask } from "./record-folders";
 import {
   disposeSessionsStoreStorage,
   markStorageAsDisposing,
@@ -81,6 +82,7 @@ export async function trashTask({
         }
 
         await workspaceConfig.trashItem(taskDir(taskId));
+        forgetChatTask(taskId);
 
         // In the off chance that a future task with the same id is
         // created, we remove the app being trashed.

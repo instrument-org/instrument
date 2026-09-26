@@ -54,7 +54,6 @@ import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";
 import { getTaskSettings } from "../../lib/task-settings";
-import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
@@ -80,7 +79,7 @@ const childStatus = base
     }),
   )
   .handler(async ({ errors, input }) => {
-    const task = await getTask(input.id, getWorkspaceConfig());
+    const task = await getTask(input.id);
     if (task.isErr()) {
       throw toORPCError(task.error, errors);
     }

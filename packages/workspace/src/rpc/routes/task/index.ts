@@ -62,8 +62,8 @@ import { taskState } from "./state";
 const byId = base
   .input(z.object({ id: TaskIdSchema }))
   .output(TaskSchema)
-  .handler(async ({ context, errors, input }) => {
-    const result = await getTask(input.id, context.workspaceConfig);
+  .handler(async ({ errors, input }) => {
+    const result = await getTask(input.id);
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
@@ -88,13 +88,13 @@ const byIds = base
       ])
       .array(),
   )
-  .handler(async ({ context, errors, input }) => {
+  .handler(async ({ errors, input }) => {
     const taskResults = await parallel(
       { limit: 12 },
       input.ids,
       async (id) => ({
         id,
-        result: await getTask(id, context.workspaceConfig),
+        result: await getTask(id),
       }),
     );
 
@@ -462,10 +462,7 @@ const branch = base
         id: result.value.taskId,
       });
 
-      const taskResult = await getTask(
-        result.value.taskId,
-        context.workspaceConfig,
-      );
+      const taskResult = await getTask(result.value.taskId);
       if (taskResult.isErr()) {
         context.workspaceConfig.captureException(taskResult.error);
         throw toORPCError(taskResult.error, errors);
@@ -735,7 +732,7 @@ const live = {
 
           let rescan = false;
           for (const taskId of batch.updated) {
-            const taskResult = await getTask(taskId, context.workspaceConfig);
+            const taskResult = await getTask(taskId);
             if (taskResult.isOk()) {
               snapshot.upsert(taskResult.value);
             } else {

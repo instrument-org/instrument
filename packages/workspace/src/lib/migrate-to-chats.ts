@@ -19,10 +19,6 @@ import { serializeTopic, type Topic } from "./orchestrator/topics";
 import { forgetRecordFolders } from "./record-folders";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
-// Presence = the workspace's chats have their own folders. Written once every
-// window record has been migrated, so a run a crash cut short runs again.
-const CHATS_MIGRATED_MARKER_NAME = ".chats-migrated";
-
 // Where the window record's settings and database are kept as they were before
 // the move, for a release, so a migration that went wrong can be undone by hand.
 const BACKUP_DIR_NAME = ".pre-chats";
@@ -78,9 +74,14 @@ interface StoreRow {
  * the window's. Synchronous and file-level, like the rest of the boot
  * migration: no store is open yet.
  *
- * Idempotent step by step, so a run a crash cut short finishes on the next
- * boot: a chat whose record exists keeps it, rows already copied are not
- * copied twice, a task already moved is not found at its old place.
+ * Runs on every boot and decides from the data rather than a marker: a
+ * window record whose database still holds a chat's session, or whose state
+ * still names the old maps, is moved; one that does not is left alone. So a
+ * build that wrote the old layout again (an older beta run in between) is
+ * caught on the next boot of this one. Idempotent step by step, so a run a
+ * crash cut short finishes on the next boot: a chat whose record exists keeps
+ * it, rows already copied are not copied twice, a task already moved is not
+ * found at its old place.
  */
 export function migrateToChats(rootDir: string): ChatsMigration {
   const migration: ChatsMigration = {
@@ -88,24 +89,19 @@ export function migrateToChats(rootDir: string): ChatsMigration {
     movedTaskCount: 0,
     topicCount: 0,
   };
-  const marker = path.join(
-    rootDir,
-    TASK_PRIVATE_FOLDER_NAME,
-    CHATS_MIGRATED_MARKER_NAME,
-  );
-  if (fs.existsSync(marker)) {
-    return migration;
-  }
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
-  for (const windowId of windowRecordIds(tasksDir)) {
+  const waiting = windowRecordIds(tasksDir).filter((windowId) =>
+    holdsOneConversation(path.join(tasksDir, windowId)),
+  );
+  for (const windowId of waiting) {
     const moved = migrateWindow(rootDir, windowId);
     migration.chatCount += moved.chatCount;
     migration.movedTaskCount += moved.movedTaskCount;
     migration.topicCount += moved.topicCount;
   }
-  fs.mkdirSync(path.dirname(marker), { recursive: true });
-  fs.writeFileSync(marker, "");
-  forgetRecordFolders();
+  if (waiting.length > 0) {
+    forgetRecordFolders();
+  }
   return migration;
 }
 
@@ -125,6 +121,40 @@ function chatNaming(
     }
   }
   return undefined;
+}
+
+/**
+ * Whether a window record is still in the one-conversation layout: chat
+ * sessions in its database, or the maps that layout kept in its state.
+ */
+function holdsOneConversation(windowDir: string): boolean {
+  const privateDir = path.join(windowDir, TASK_PRIVATE_FOLDER_NAME);
+  const state = readJson(path.join(privateDir, TASK_SETTINGS_FILE_NAME))?.state;
+  // Not the draft: a window can write one of its own in either layout.
+  if (
+    isRecord(state) &&
+    ["channels", "taskChannels", "taskThreads", "topics"].some(
+      (key) => state[key] !== undefined,
+    )
+  ) {
+    return true;
+  }
+  const dbPath = path.join(privateDir, TASK_DB_FILE_NAME);
+  if (!fs.existsSync(dbPath)) {
+    return false;
+  }
+  const db = new DatabaseSync(dbPath, { readOnly: true });
+  try {
+    return (
+      db
+        .prepare("select 1 from sessions where key like 'sessions:%' limit 1")
+        .get() !== undefined
+    );
+  } catch {
+    return false;
+  } finally {
+    db.close();
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

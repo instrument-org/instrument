@@ -206,6 +206,7 @@ export function ComposerFrame({
             className="row-start-1 -mx-2 -mt-2 mb-2 overflow-hidden"
             exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
             initial={{ height: 0, opacity: 0 }}
+            key="attachments"
             transition={BLOCK_OPEN}
           >
             <div

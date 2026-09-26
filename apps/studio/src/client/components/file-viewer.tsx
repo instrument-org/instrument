@@ -903,6 +903,7 @@ export function FileViewer({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
+              aria-label="More actions"
               className={fileViewerHeaderMenuTriggerClassName}
               size="icon-sm"
               variant="ghost"

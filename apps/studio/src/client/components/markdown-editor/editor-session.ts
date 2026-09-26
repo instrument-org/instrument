@@ -572,6 +572,13 @@ export async function createEditorSession(options: EditorSessionOptions) {
       return;
     }
     flushDomObserver(v);
+    // The toolbar re-reads only on a change to the selection or the document,
+    // never on focus moving to the ask card, so it is put away here; the next
+    // selection brings it back.
+    const toolbar = root.querySelector<HTMLElement>(".milkdown-toolbar");
+    if (toolbar) {
+      toolbar.dataset.show = "false";
+    }
     const quote = v.state.doc.textBetween(from, to, "\n", " ");
     const lines = sync.sourceLines(v.state.doc, disk, from, to, quote);
     const start = v.coordsAtPos(from);

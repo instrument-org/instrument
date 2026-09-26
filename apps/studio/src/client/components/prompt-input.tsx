@@ -56,6 +56,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  Fragment,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -1087,9 +1088,11 @@ export const PromptInput = ({
             // from, at the caret, so it grows into place rather than appearing
             // there. `initial={false}`: the first one is carried in by the row
             // opening around it, and does not need a second motion of its own.
+            // Every child here needs a key of its own: presence tells them
+            // apart by key, and two keyless ones read as the same child.
             <AnimatePresence initial={false}>
-              {variant === "pill" ? null : lead}
-              {attachmentsLead}
+              <Fragment key="lead">{variant === "pill" ? null : lead}</Fragment>
+              <Fragment key="attachments-lead">{attachmentsLead}</Fragment>
               {attachedFiles.map((item) => (
                 <motion.div
                   animate={{ opacity: 1, scale: 1 }}

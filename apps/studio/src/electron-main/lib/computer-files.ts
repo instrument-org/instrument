@@ -124,26 +124,30 @@ app.all("/*", async (c) => {
     }
     // `&theme=dark`: the app's theme, which a page or a document is drawn in.
     const theme = c.req.query("theme") === "dark" ? "dark" : "light";
-    const png = await fileThumbnail(
+    const drawn = await fileThumbnail(
       hostPath,
       size,
       fileThumbnailDeps(),
       theme,
     ).catch(() => null);
-    if (!png) {
+    if (!drawn) {
       return c.notFound();
     }
     // Drawn from the file as it is now, so only a caller naming the mtime it
-    // listed is told to keep it.
+    // listed is told to keep it. A page photographed before it finished
+    // loading is kept by nobody, so the next ask draws it again.
     const stats = await fs.stat(hostPath).catch(() => null);
-    c.header(
-      "Cache-Control",
-      stats && c.req.query("version") === String(stats.mtimeMs)
+    const versionMatches =
+      stats !== null && c.req.query("version") === String(stats.mtimeMs);
+    let cacheControl = "no-store";
+    if (drawn.complete) {
+      cacheControl = versionMatches
         ? `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`
-        : "no-cache",
-    );
+        : "no-cache";
+    }
+    c.header("Cache-Control", cacheControl);
     c.header("Content-Type", "image/png");
-    return c.body(new Uint8Array(png));
+    return c.body(new Uint8Array(drawn.png));
   }
   const result = await serveStaticFile(c, {
     filePath: hostPath,

@@ -48,7 +48,7 @@ const PAGE_SHAPED = /\.(?:csv|htm|html|json|markdown|md|rtf|txt)$/i;
 /** A page's width over its height, as the renderer draws a page. */
 const PAGE_ASPECT = 0.78;
 /** Part of the key, so pictures drawn before a change to how they are drawn are drawn again. */
-const DRAWING = "6";
+const DRAWING = "7";
 
 /** How many are kept on disk; past it the least recently written go. */
 const KEPT = 4000;
@@ -59,23 +59,32 @@ export interface Deps {
   dir: string;
 }
 
+/**
+ * A thumbnail as a PNG. An incomplete one is a page photographed before it
+ * finished loading: shown, but kept nowhere, so the next ask draws it again.
+ */
+export interface Thumbnail {
+  complete: boolean;
+  png: Buffer;
+}
+
 /** Where thumbnails are kept: beside the app's other caches of the person's files. */
 export function fileThumbnailDeps(): Deps {
   return { dir: path.join(app.getPath("userData"), "file-thumbnails") };
 }
 
-const inFlight = new Map<string, Promise<Buffer | null>>();
+const inFlight = new Map<string, Promise<null | Thumbnail>>();
 let running = 0;
 const waiting: (() => void)[] = [];
 let written = 0;
 
-/** The file's thumbnail as a PNG, or null where there is no picture of it. */
+/** The file's thumbnail, or null where there is no picture of it. */
 export async function fileThumbnail(
   hostPath: string,
   size: ThumbnailSize,
   deps: Deps,
   theme: ThumbnailTheme = "light",
-): Promise<Buffer | null> {
+): Promise<null | Thumbnail> {
   const stats = await fs.stat(hostPath);
   if (!stats.isFile()) {
     return null;
@@ -95,7 +104,7 @@ export async function fileThumbnail(
     const none = path.join(deps.dir, `${key}.none`);
     const kept = await fs.readFile(stored).catch(() => null);
     if (kept) {
-      return kept;
+      return { complete: true, png: kept };
     }
     if (
       await fs.stat(none).then(
@@ -108,8 +117,9 @@ export async function fileThumbnail(
     const rendered = isRendered
       ? await renderedAt(hostPath, stats.mtimeMs, size, theme, deps)
       : null;
+    const complete = rendered?.complete ?? true;
     const image =
-      rendered ??
+      rendered?.image ??
       pageShaped(
         hostPath,
         await withTurn(() =>
@@ -127,12 +137,15 @@ export async function fileThumbnail(
       return null;
     }
     const png = image.toPNG();
+    if (!complete) {
+      return { complete, png };
+    }
     await fs.writeFile(stored, png);
     written += 1;
     if (written % 200 === 1) {
       void prune(deps.dir);
     }
-    return png;
+    return { complete, png };
   })().finally(() => {
     inFlight.delete(key);
   });
@@ -140,7 +153,10 @@ export async function fileThumbnail(
   return request;
 }
 
-const renderedInFlight = new Map<string, Promise<NativeImage | null>>();
+const renderedInFlight = new Map<
+  string,
+  Promise<null | { complete: boolean; image: NativeImage }>
+>();
 
 async function draw(
   hostPath: string,
@@ -228,8 +244,8 @@ async function prune(dir: string) {
 /**
  * The file as the app draws it, scaled to `size` tall from the one drawing
  * kept at the largest size; null when it could not be drawn, which leaves it
- * to the system. A page photographed before it finished loading is shown but
- * not kept, so the next ask draws it again.
+ * to the system. A page photographed before it finished loading comes back
+ * marked incomplete and is not kept, so the next ask draws it again.
  */
 async function renderedAt(
   hostPath: string,
@@ -237,7 +253,7 @@ async function renderedAt(
   size: ThumbnailSize,
   theme: ThumbnailTheme,
   deps: Deps,
-): Promise<NativeImage | null> {
+): Promise<null | { complete: boolean; image: NativeImage }> {
   const key = createHash("sha256")
     .update(`${hostPath}\0${modifiedAt}\0rendered\0${theme}\0${DRAWING}`)
     .digest("hex");
@@ -247,7 +263,7 @@ async function renderedAt(
       const stored = path.join(deps.dir, `${key}.png`);
       const kept = await fs.readFile(stored).catch(() => null);
       if (kept) {
-        return nativeImage.createFromBuffer(kept);
+        return { complete: true, image: nativeImage.createFromBuffer(kept) };
       }
       try {
         const { complete, image } = await renderPicture(hostPath, theme);
@@ -255,7 +271,7 @@ async function renderedAt(
           await fs.mkdir(deps.dir, { recursive: true });
           await fs.writeFile(stored, image.toPNG());
         }
-        return image;
+        return { complete, image };
       } catch {
         return null;
       }
@@ -264,19 +280,23 @@ async function renderedAt(
     });
     renderedInFlight.set(key, pending);
   }
-  const full = await pending;
-  if (!full || full.isEmpty()) {
+  const drawn = await pending;
+  if (!drawn || drawn.image.isEmpty()) {
     return null;
   }
+  const { complete, image: full } = drawn;
   const { height, width } = full.getSize();
   if (height <= size) {
-    return full;
+    return drawn;
   }
-  return full.resize({
-    height: size,
-    quality: "good",
-    width: Math.max(1, Math.round((width * size) / height)),
-  });
+  return {
+    complete,
+    image: full.resize({
+      height: size,
+      quality: "good",
+      width: Math.max(1, Math.round((width * size) / height)),
+    }),
+  };
 }
 
 async function withTurn<T>(work: () => Promise<T>): Promise<T> {

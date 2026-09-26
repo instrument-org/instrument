@@ -1,13 +1,20 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   computerFileBase,
   handleComputerFileRequest,
   hostPathOfComputerFileUrl,
 } from "./computer-files";
+import { fileThumbnail } from "./file-thumbnails";
+
+vi.mock(import("./file-thumbnails"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  fileThumbnail: vi.fn(),
+  fileThumbnailDeps: () => ({ dir: "" }),
+}));
 
 let folder: string;
 let file: string;
@@ -50,6 +57,24 @@ describe("handleComputerFileRequest", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
+
+  it.each([
+    [true, "public, max-age=31536000, immutable"],
+    [false, "no-store"],
+  ])(
+    "answers a versioned thumbnail drawn complete: %s with %s",
+    async (complete, cacheControl) => {
+      vi.mocked(fileThumbnail).mockResolvedValueOnce({
+        complete,
+        png: Buffer.from("png"),
+      });
+      const response = await request(
+        urlFor(file, `?thumbnail=512&version=${mtimeMs}`),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Cache-Control")).toBe(cacheControl);
+    },
+  );
 
   it("answers a range with the slice and the whole's size", async () => {
     const response = await request(urlFor(file), {

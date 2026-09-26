@@ -200,6 +200,28 @@ function createValidateProductionEnv(
   };
 }
 
+// just-bash starts its WebAssembly runtimes (`python`, `js-exec`, `sqlite3`)
+// in workers it finds with `new URL("./worker.js", import.meta.url)`, so it
+// has to run from its own package folder. The build externalizes it with the
+// rest of the monorepo's dependencies; dev bundles those into out/main, where
+// the worker file does not exist and every run waits out the script timeout
+// without a word. Dev externalizes it at its resolved path instead, since
+// nothing under node_modules next to out/main can resolve the bare name.
+function externalizeJustBashInDev(): Plugin {
+  return {
+    enforce: "pre",
+    name: "externalize-just-bash-in-dev",
+    async resolveId(source, importer, options) {
+      if (source !== "just-bash") return null;
+      const resolved = await this.resolve(source, importer, {
+        ...options,
+        skipSelf: true,
+      });
+      return resolved && { external: true, id: resolved.id };
+    },
+  };
+}
+
 export default defineConfig(({ command }) => {
   const require = createRequire(import.meta.url);
   // In dev, ffmpeg-ffprobe-static is external but node_modules isn't next to
@@ -294,6 +316,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         ),
       },
       plugins: [
+        ...(command === "serve" ? [externalizeJustBashInDev()] : []),
         copyVendorAssets(),
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("main"),

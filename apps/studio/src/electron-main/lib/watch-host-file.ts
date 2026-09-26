@@ -60,8 +60,32 @@ export async function* watchHostFile({
     notify();
   };
 
+  // Node keeps one poller per filename at the interval its first listener
+  // asked for, so a faster interval than the shared one polls on its own: an
+  // open editor wants an agent's write within a quarter second, while every
+  // viewer of the same file is content with the default.
+  const polled = intervalMs < WATCH_INTERVAL_MS;
+  let lastModifiedAt: number | undefined;
+  const poll = async () => {
+    const info = await read();
+    const modifiedAt = info?.modifiedAt ?? 0;
+    if (lastModifiedAt !== undefined && modifiedAt !== lastModifiedAt) {
+      notify();
+    }
+    lastModifiedAt = modifiedAt;
+  };
+  const timer = polled
+    ? setInterval(() => {
+        void poll();
+      }, intervalMs)
+    : undefined;
+
   signal?.addEventListener("abort", notify, { once: true });
-  fsSync.watchFile(path, { interval: intervalMs }, listener);
+  if (polled) {
+    await poll();
+  } else {
+    fsSync.watchFile(path, { interval: intervalMs }, listener);
+  }
   try {
     while (signal?.aborted !== true) {
       const next = changed;
@@ -69,7 +93,10 @@ export async function* watchHostFile({
       await next;
     }
   } finally {
-    fsSync.unwatchFile(path, listener);
+    clearInterval(timer);
+    if (!polled) {
+      fsSync.unwatchFile(path, listener);
+    }
     signal?.removeEventListener("abort", notify);
   }
 }

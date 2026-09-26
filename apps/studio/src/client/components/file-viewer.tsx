@@ -30,11 +30,19 @@ import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { motion } from "motion/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
@@ -75,6 +83,14 @@ import {
 import { contextMenuComponents } from "./ui/menu-components";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+
+// The editor and everything under it (Milkdown, CodeMirror's languages) load
+// the first time a Markdown file is opened for editing, not with the viewer.
+const MarkdownEditor = lazy(() =>
+  import("./markdown-editor/markdown-editor").then((module) => ({
+    default: module.MarkdownEditor,
+  })),
+);
 
 /**
  * Wrapping is entirely ours to decide: the highlighter hands back tokens as
@@ -281,7 +297,7 @@ interface ViewerContext {
   onMediaError: (fallbackExtension: string) => void;
   /** A page's file drawn as its page, when the surface around the viewer can draw one. */
   page?: ReactNode;
-  viewMode: "preview" | "raw";
+  viewMode: ViewMode;
   wrapLines: boolean;
 }
 
@@ -314,6 +330,12 @@ interface ViewerEntry {
   render: (context: ViewerContext) => ReactNode;
   scrolls: "container" | "self";
 }
+
+/**
+ * How a document is shown: edited in place (a Markdown file where the surface
+ * allows it), drawn as it reads, or as its source.
+ */
+type ViewMode = "edit" | "preview" | "raw";
 
 const VIEWERS = {
   archive: {
@@ -427,6 +449,13 @@ const VIEWERS = {
         <div className="min-h-0 flex-1 overflow-auto">
           {renderCode(context)}
         </div>
+      ) : context.viewMode === "edit" ? (
+        <Suspense fallback={<FileLoading />}>
+          <MarkdownEditor
+            hostPath={context.file.hostPath}
+            key={context.file.hostPath}
+          />
+        </Suspense>
       ) : (
         <MarkdownDocument key={context.file.hostPath}>
           <MarkdownPreview url={context.file.url} />
@@ -576,6 +605,7 @@ export function FileViewer({
   actionsInto,
   actionsLead,
   className,
+  editable = false,
   file,
   onClose,
   onExpand,
@@ -592,6 +622,12 @@ export function FileViewer({
   // Set by a caller that already draws the surface this sits in, so the viewer
   // can drop its own card and fill the frame instead of nesting inside it.
   className?: string;
+  /**
+   * Whether a Markdown file opens as a live editor, with the static preview
+   * and the source as the other view modes. For a surface that is the file's
+   * own place (its tab); a glance at a file (Quick Look) keeps the preview.
+   */
+  editable?: boolean;
   file: ViewerFile;
   onClose?: () => void;
   onExpand?: () => void;
@@ -603,7 +639,10 @@ export function FileViewer({
   page?: ReactNode;
 }) {
   const { filename, hostPath, mimeType, url } = file;
-  const [viewMode, setViewMode] = useState<"preview" | "raw">("preview");
+  const canEdit = editable && getFileType(file) === "markdown";
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    canEdit ? "edit" : "preview",
+  );
   const [wrapLines, setWrapLines] = useAtom(fileViewerWrapLinesAtom);
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
@@ -673,7 +712,11 @@ export function FileViewer({
   };
 
   const handleViewModeChange = (value: string) => {
-    if (value === "preview" || value === "raw") {
+    if (
+      value === "preview" ||
+      value === "raw" ||
+      (canEdit && value === "edit")
+    ) {
       setViewMode(value);
     }
   };
@@ -765,7 +808,9 @@ export function FileViewer({
             {hasPreview && (
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
-                  {viewMode === "preview" ? (
+                  {viewMode === "edit" ? (
+                    <PencilSimpleIcon className="size-4" />
+                  ) : viewMode === "preview" ? (
                     <EyeIcon className="size-4" />
                   ) : (
                     <CodeIcon className="size-4" />
@@ -777,6 +822,12 @@ export function FileViewer({
                     onValueChange={handleViewModeChange}
                     value={viewMode}
                   >
+                    {canEdit && (
+                      <DropdownMenuRadioItem value="edit">
+                        <PencilSimpleIcon className="size-4" />
+                        <span>Edit</span>
+                      </DropdownMenuRadioItem>
+                    )}
                     <DropdownMenuRadioItem value="preview">
                       <EyeIcon className="size-4" />
                       <span>Preview</span>

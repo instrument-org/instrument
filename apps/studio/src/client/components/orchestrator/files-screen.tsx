@@ -364,6 +364,7 @@ export function FilesScreen({
               actionsInto={rowTail}
               actionsLead={newChat}
               className={FULL_BLEED}
+              editable
               file={viewerFile}
               key={activeFile.hostPath}
               {...(hostedFile === undefined
@@ -386,6 +387,7 @@ export function FilesScreen({
             actionsInto={rowTail}
             actionsLead={newChat}
             className={FULL_BLEED}
+            editable
             file={viewerFile}
             key={activeFile.hostPath}
           />

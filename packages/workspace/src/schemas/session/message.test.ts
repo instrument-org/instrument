@@ -1122,14 +1122,6 @@ describe("SessionMessage.toModelMessages", () => {
     expect(result).toMatchInlineSnapshot(`
       [
         {
-          "content": [],
-          "role": "assistant",
-        },
-        {
-          "content": [],
-          "role": "assistant",
-        },
-        {
           "content": [
             {
               "text": "<user_message>",

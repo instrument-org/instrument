@@ -1,12 +1,12 @@
 import {
-  type ImageModelV3,
-  type LanguageModelV3,
-  type LanguageModelV3CallOptions,
-  type LanguageModelV3StreamPart,
+  type ImageModelV4,
+  type LanguageModelV4,
+  type LanguageModelV4CallOptions,
+  type LanguageModelV4StreamPart,
 } from "@ai-sdk/provider";
 import { type AISDKWebSearchModelResult } from "@instrument-org/ai-gateway";
 import { simulateReadableStream } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import mockFs from "mock-fs";
 import { ok } from "neverthrow";
 import path from "node:path";
@@ -60,7 +60,7 @@ vi.mock(import("execa"), () => ({
 
 type Part =
   Awaited<
-    ReturnType<MockLanguageModelV3["doStream"]>
+    ReturnType<MockLanguageModelV4["doStream"]>
   >["stream"] extends ReadableStream<infer T>
     ? T
     : never;
@@ -133,7 +133,7 @@ describe("sessionMachine", () => {
       toolName: "read_file",
       type: "tool-call",
     },
-  ] as const satisfies LanguageModelV3StreamPart[];
+  ] as const satisfies LanguageModelV4StreamPart[];
 
   const writeFileChunks = [
     {
@@ -150,7 +150,7 @@ describe("sessionMachine", () => {
       toolName: "write_file",
       type: "tool-call",
     },
-  ] as const satisfies LanguageModelV3StreamPart[];
+  ] as const satisfies LanguageModelV4StreamPart[];
 
   const finishChunks = [
     { id: "1", type: "text-start" },
@@ -161,7 +161,7 @@ describe("sessionMachine", () => {
       type: "finish",
       usage: mockUsage,
     },
-  ] as const satisfies LanguageModelV3StreamPart[];
+  ] as const satisfies LanguageModelV4StreamPart[];
 
   // Appended to every mocked chunk set so each model turn ends the same way.
   const streamFinishChunk = {
@@ -180,7 +180,7 @@ describe("sessionMachine", () => {
         total: 10,
       },
     },
-  } as const satisfies LanguageModelV3StreamPart;
+  } as const satisfies LanguageModelV4StreamPart;
 
   const chooseToolCallId = "test-call-choose";
   const chooseChunks = [
@@ -198,7 +198,7 @@ describe("sessionMachine", () => {
       toolName: "choose",
       type: "tool-call",
     },
-  ] as const satisfies LanguageModelV3StreamPart[];
+  ] as const satisfies LanguageModelV4StreamPart[];
 
   beforeEach(async () => {
     const { execa } = await import("execa");
@@ -240,12 +240,12 @@ describe("sessionMachine", () => {
       "clock" | "inspect"
     >;
     agent?: AnyAgent;
-    aiSDKModel?: LanguageModelV3;
+    aiSDKModel?: LanguageModelV4;
     baseLLMRetryDelayMs?: number;
     /** Between every chunk, for a test about something landing mid-stream. */
     chunkDelayMs?: number;
     chunkSets?: Part[][];
-    imageModel?: ImageModelV3;
+    imageModel?: ImageModelV4;
     initialChunkDelaysMs?: number[];
     llmRequestChunkTimeoutMs?: number;
     maxStepCount?: number;
@@ -257,7 +257,7 @@ describe("sessionMachine", () => {
     webSearchModel?: AISDKWebSearchModelResult;
   }) {
     let currentChunkIndex = 0;
-    const mockLanguageModel = new MockLanguageModelV3({
+    const mockLanguageModel = new MockLanguageModelV4({
       // oxlint-disable-next-line typescript/require-await
       doStream: async () => {
         const currentChunks = chunkSets[currentChunkIndex];
@@ -601,9 +601,9 @@ describe("sessionMachine", () => {
         toolName: "generate_image",
         type: "tool-call",
       },
-    ] as const satisfies LanguageModelV3StreamPart[];
+    ] as const satisfies LanguageModelV4StreamPart[];
 
-    const mockImageModel: ImageModelV3 = {
+    const mockImageModel: ImageModelV4 = {
       doGenerate: vi.fn().mockResolvedValue({
         images: [
           "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
@@ -619,7 +619,7 @@ describe("sessionMachine", () => {
       maxImagesPerCall: undefined,
       modelId: "mock-image-model",
       provider: "mock-provider",
-      specificationVersion: "v3",
+      specificationVersion: "v4",
     };
 
     const session = await createAndRunTestMachine({
@@ -695,7 +695,7 @@ describe("sessionMachine", () => {
         toolName: "web_search",
         type: "tool-call",
       },
-    ] as const satisfies LanguageModelV3StreamPart[];
+    ] as const satisfies LanguageModelV4StreamPart[];
 
     // The session's model is one of ours, so the search runs against our own
     // endpoint rather than a provider's search model.
@@ -1376,7 +1376,7 @@ describe("sessionMachine", () => {
     let chunksReceived = 0;
     let onProgress: (() => void) | undefined;
 
-    const aiSDKModel = new MockLanguageModelV3({
+    const aiSDKModel = new MockLanguageModelV4({
       doStream: () => {
         const attempt = createManualModelStream();
         attempts.push(attempt);
@@ -1766,9 +1766,9 @@ describe("sessionMachine", () => {
     });
 
     it("leaves the attempt that failed out of the request", async () => {
-      const prompts: LanguageModelV3CallOptions["prompt"][] = [];
+      const prompts: LanguageModelV4CallOptions["prompt"][] = [];
       const result = await createActorAndTask({
-        aiSDKModel: new MockLanguageModelV3({
+        aiSDKModel: new MockLanguageModelV4({
           // oxlint-disable-next-line typescript/require-await
           doStream: async ({ prompt }) => {
             prompts.push(prompt);

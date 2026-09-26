@@ -1,4 +1,4 @@
-import { type ImageModelV3, type LanguageModelV3 } from "@ai-sdk/provider";
+import { type ImageModelV4, type LanguageModelV4 } from "@ai-sdk/provider";
 import {
   type AISDKImageModelResult,
   type AISDKWebSearchModelResult,
@@ -59,7 +59,7 @@ const mockProviderConfigs = new Map<
 export function createMockTaskConfig(
   id: TaskId,
   options: {
-    aiSDKModel?: LanguageModelV3;
+    aiSDKModel?: LanguageModelV4;
     /**
      * Models this config's provider knows about, for the paths that resolve an
      * id the app did not ask for. Empty by default, which is the cold-cache
@@ -67,7 +67,7 @@ export function createMockTaskConfig(
      */
     catalog?: AIGatewayModel.Type[];
     externalBrowser?: boolean;
-    imageModel?: ImageModelV3;
+    imageModel?: ImageModelV4;
     model?: AIGatewayModel.Type;
     webSearch?: WebSearchClient;
     webSearchModel?: AISDKWebSearchModelResult;
@@ -83,7 +83,7 @@ export function createMockTaskConfig(
   });
 
   if (options.aiSDKModel) {
-    (config as { [TEST_MODEL_OVERRIDE_KEY]?: LanguageModelV3 })[
+    (config as { [TEST_MODEL_OVERRIDE_KEY]?: LanguageModelV4 })[
       TEST_MODEL_OVERRIDE_KEY
     ] = options.aiSDKModel;
   }

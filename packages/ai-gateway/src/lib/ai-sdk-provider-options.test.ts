@@ -1,5 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { type LanguageModelV3 } from "@ai-sdk/provider";
+import { type LanguageModelV4 } from "@ai-sdk/provider";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { describe, expect, it } from "vitest";
 
@@ -26,7 +26,7 @@ const HELLO = [
   { content: [{ text: "hi", type: "text" as const }], role: "user" as const },
 ];
 
-function model(provider: string, modelId: string): LanguageModelV3 {
+function model(provider: string, modelId: string): LanguageModelV4 {
   const unused = () => {
     throw new Error("not called");
   };
@@ -35,7 +35,7 @@ function model(provider: string, modelId: string): LanguageModelV3 {
     doStream: unused,
     modelId,
     provider,
-    specificationVersion: "v3",
+    specificationVersion: "v4",
     supportedUrls: {},
   };
 }

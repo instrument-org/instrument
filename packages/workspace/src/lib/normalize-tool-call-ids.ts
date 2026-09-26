@@ -63,8 +63,10 @@ export function normalizeToolCallIds({
 
 function normalizeAssistantPart(part: AssistantPart): AssistantPart {
   switch (part.type) {
+    case "custom":
     case "file":
     case "reasoning":
+    case "reasoning-file":
     case "text": {
       return part;
     }

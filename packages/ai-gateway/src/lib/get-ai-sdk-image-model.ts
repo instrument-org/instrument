@@ -1,4 +1,4 @@
-import { type ImageModelV3, type LanguageModelV3 } from "@ai-sdk/provider";
+import { type ImageModelV4, type LanguageModelV4 } from "@ai-sdk/provider";
 import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { Result } from "typescript-result";
 
@@ -45,8 +45,8 @@ const GEMINI_IMAGE_MODEL_ID = "gemini-3.1-flash-lite-image";
 const OPENROUTER_GEMINI_IMAGE_MODEL_ID = `google/${GEMINI_IMAGE_MODEL_ID}`;
 
 export type AISDKImageModelResult =
-  | { model: ImageModelV3; type: "image" }
-  | { model: LanguageModelV3; type: "language" };
+  | { model: ImageModelV4; type: "image" }
+  | { model: LanguageModelV4; type: "language" };
 
 export async function getImageModel({
   callingModel,

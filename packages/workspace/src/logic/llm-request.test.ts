@@ -1,7 +1,7 @@
 import {
   APICallError,
-  type LanguageModelV3Prompt,
-  type LanguageModelV3StreamPart,
+  type LanguageModelV4Prompt,
+  type LanguageModelV4StreamPart,
 } from "@ai-sdk/provider";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import {
@@ -9,7 +9,7 @@ import {
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { simulateReadableStream } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import { errAsync } from "neverthrow";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -70,7 +70,7 @@ describe("llmRequestLogic", () => {
     outputTokens: 3,
     totalTokens: 5,
   };
-  let prompts: LanguageModelV3Prompt[] = [];
+  let prompts: LanguageModelV4Prompt[] = [];
   const mockDate = new Date("2013-08-31T12:00:00.000Z");
   const mockMessageId = StoreId.newMessageId();
   const mockMessages: SessionMessage.ContextWithParts[] = [
@@ -112,12 +112,12 @@ describe("llmRequestLogic", () => {
   }: {
     beforeStream?: () => Promise<void>;
     catalog?: AIGatewayModel.Type[];
-    chunks: LanguageModelV3StreamPart[];
+    chunks: LanguageModelV4StreamPart[];
     getMessages?: () => Promise<SessionMessage.ContextWithParts[]>;
     onChunkReceived?: () => void;
     provider?: AIProviderType;
   }) {
-    const mockLanguageModel = new MockLanguageModelV3({
+    const mockLanguageModel = new MockLanguageModelV4({
       doStream: async ({ prompt }) => {
         if (beforeStream) {
           await beforeStream();
@@ -1546,7 +1546,7 @@ describe("llmRequestLogic", () => {
         {
           "classification": "rate-limit",
           "kind": "unknown",
-          "message": "{"code":429,"message":"openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations","metadata":{"error_type":"rate_limit_exceeded"}}",
+          "message": "openai/gpt-5.6-luna is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations",
         }
       `);
     });

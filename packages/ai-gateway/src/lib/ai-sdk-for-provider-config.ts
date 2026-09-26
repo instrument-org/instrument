@@ -133,8 +133,8 @@ export async function createGoogleSDK(
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
-  const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
-  return createGoogleGenerativeAI({ apiKey, baseURL });
+  const { createGoogle } = await import("@ai-sdk/google");
+  return createGoogle({ apiKey, baseURL });
 }
 
 export async function createOpenAISDK(

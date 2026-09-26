@@ -93,6 +93,11 @@ export function generateTitleFromUserMessage({
         // The title is part of the session that prompted it, so it belongs in
         // that session's trace rather than in one of its own.
         headers: { [CLIENT_SESSION_ID_HEADER]: message.metadata.sessionId },
+        instructions: buildSystemPrompt({
+          hasCurrentTitle: currentTitle !== undefined,
+          projectName,
+          withReply: reply !== undefined,
+        }),
         maxOutputTokens: TASK_NAME_MAX_OUTPUT_TOKENS,
         model: aiSDKModel,
         prompt: userMessage,
@@ -103,11 +108,6 @@ export function generateTitleFromUserMessage({
         providerOptions: providerOptionsForModel(aiSDKModel, {
           effort: "low",
           reasoning: model.reasoning,
-        }),
-        system: buildSystemPrompt({
-          hasCurrentTitle: currentTitle !== undefined,
-          projectName,
-          withReply: reply !== undefined,
         }),
       });
 

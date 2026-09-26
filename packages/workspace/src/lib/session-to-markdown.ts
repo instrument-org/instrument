@@ -224,7 +224,11 @@ export function renderToolOutput(output: ToolResultPart["output"]): string[] {
       }
 
       const mediaTypes = output.value.flatMap((part) =>
-        part.type === "media" ? [part.mediaType] : [],
+        part.type === "file" ||
+        part.type === "file-data" ||
+        part.type === "image-data"
+          ? [part.mediaType]
+          : [],
       );
       if (mediaTypes.length > 0) {
         lines.push(
@@ -688,6 +692,10 @@ function renderAssistantMessage(
         hasModelVisibleContent = true;
       }
       switch (part.type) {
+        case "custom": {
+          lines.push(`*[Provider content: ${part.kind}]*`);
+          break;
+        }
         case "file": {
           lines.push(
             `*[File: ${part.filename ?? "unknown"} (${part.mediaType})]*`,
@@ -696,6 +704,10 @@ function renderAssistantMessage(
         }
         case "reasoning": {
           lines.push("", `*[Reasoning]*`, "", fenceText(part.text), "");
+          break;
+        }
+        case "reasoning-file": {
+          lines.push(`*[Reasoning file (${part.mediaType})]*`);
           break;
         }
         case "text": {

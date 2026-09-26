@@ -1,4 +1,4 @@
-import { type LanguageModelV3Source } from "@ai-sdk/provider";
+import { type LanguageModelV4Source } from "@ai-sdk/provider";
 import {
   type AIGatewayModel,
   type AIGatewayProviderConfig,
@@ -315,14 +315,14 @@ async function* searchWithProviderModel({
       abortSignal: signal,
       // A search runs inside a turn, so it groups with the turn that asked for it.
       headers: { [CLIENT_SESSION_ID_HEADER]: sessionId },
+      instructions: searchSystemPrompt(),
       model,
       prompt,
       providerOptions,
-      system: searchSystemPrompt(),
       tools,
     });
 
-    for await (const part of textResult.fullStream) {
+    for await (const part of textResult.stream) {
       switch (part.type) {
         case "abort": {
           return;
@@ -391,7 +391,7 @@ async function* searchWithProviderModel({
   }
 }
 
-function urlSource(source: LanguageModelV3Source): undefined | WebSearchSource {
+function urlSource(source: LanguageModelV4Source): undefined | WebSearchSource {
   return source.sourceType === "url"
     ? { title: source.title, url: source.url }
     : undefined;

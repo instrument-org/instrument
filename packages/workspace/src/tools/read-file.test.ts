@@ -287,8 +287,10 @@ describe("ReadFile", () => {
           model: createMockAIGatewayModel({ features }),
           taskId,
         });
-        return tool.description
-          ?.split("\n")
+        const description =
+          typeof tool.description === "string" ? tool.description : "";
+        return description
+          .split("\n")
           .find(
             (line) =>
               line.includes("cannot take") || line.includes("You can read"),
@@ -1368,7 +1370,7 @@ describe("toModelOutput", () => {
           {
             "data": "abc123",
             "mediaType": "image/png",
-            "type": "media",
+            "type": "file-data",
           },
         ],
       }
@@ -1398,7 +1400,7 @@ describe("toModelOutput", () => {
           {
             "data": "abc123",
             "mediaType": "application/pdf",
-            "type": "media",
+            "type": "file-data",
           },
         ],
       }
@@ -1428,7 +1430,7 @@ describe("toModelOutput", () => {
           {
             "data": "abc123",
             "mediaType": "audio/mpeg",
-            "type": "media",
+            "type": "file-data",
           },
         ],
       }
@@ -1458,7 +1460,7 @@ describe("toModelOutput", () => {
           {
             "data": "abc123",
             "mediaType": "video/mp4",
-            "type": "media",
+            "type": "file-data",
           },
         ],
       }

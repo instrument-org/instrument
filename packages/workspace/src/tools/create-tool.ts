@@ -1,10 +1,7 @@
-import type {
-  JSONValue,
-  LanguageModelV2ToolResultOutput,
-} from "@ai-sdk/provider";
+import type { JSONValue } from "@ai-sdk/provider";
 import type * as z from "zod";
 
-import { tool } from "ai";
+import { tool, type ToolResultPart } from "ai";
 
 import type { AgentName } from "../agents/types";
 import type { AgentTool, ToolName } from "./types";
@@ -65,7 +62,7 @@ function buildTool<
     input: unknown;
     output: unknown;
     toolCallId: string;
-  }): LanguageModelV2ToolResultOutput => {
+  }): ToolResultPart["output"] => {
     try {
       return options.toModelOutput({
         input: input as z.output<TInputSchema>,
@@ -93,10 +90,12 @@ function buildTool<
           : setup.inputSchema;
 
       return (
-        // Ideally we wouldn't cast, but this isn't needed because the generic
-        // is declared in the type
-        // oxlint-disable-next-line typescript/no-explicit-any
-        tool<any, any>({
+        // Our tools take no execution context.
+        tool<
+          z.output<TInputSchema>,
+          z.output<TOutputSchema>,
+          Record<string, never>
+        >({
           description,
           inputSchema: toolInputSchemaForLLM(inputSchema),
           outputSchema: setup.outputSchema,
@@ -116,16 +115,17 @@ function buildTool<
           ? setup.inputSchema("main")
           : setup.inputSchema;
 
-      return (
-        // oxlint-disable-next-line typescript/no-explicit-any
-        tool<any, any>({
-          description: "", // None because this is never shown to agent
-          inputSchema,
-          outputSchema: setup.outputSchema,
-          toModelOutput,
-          type: "function",
-        })
-      );
+      return tool<
+        z.output<TInputSchema>,
+        z.output<TOutputSchema>,
+        Record<string, never>
+      >({
+        description: "", // None because this is never shown to agent
+        inputSchema,
+        outputSchema: setup.outputSchema,
+        toModelOutput,
+        type: "function",
+      });
     },
   };
 }

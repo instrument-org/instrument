@@ -1,5 +1,5 @@
 import { APICallError } from "ai";
-import { MockLanguageModelV3 } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import os from "node:os";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,7 +22,7 @@ function createMockLanguageModel(
   options: { finishReason?: "length" | "stop"; reasoningTokens?: number } = {},
 ) {
   const finishReason = options.finishReason ?? "stop";
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doGenerate: () =>
       Promise.resolve({
         content: [{ text, type: "text" }],
@@ -71,7 +71,7 @@ function createMockMessage(text: string) {
 const mockMessage = createMockMessage("Build a todo app");
 
 function createMockLanguageModelThatThrows(error: Error) {
-  return new MockLanguageModelV3({
+  return new MockLanguageModelV4({
     doGenerate: () => Promise.reject(error),
   });
 }
@@ -114,7 +114,7 @@ function setupTest(
 }
 
 function setupTestWithModel(
-  languageModel: MockLanguageModelV3,
+  languageModel: MockLanguageModelV4,
   options: { captureException?: (...args: unknown[]) => void } = {},
 ) {
   const model = createMockAIGatewayModel();

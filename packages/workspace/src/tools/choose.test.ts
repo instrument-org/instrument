@@ -4,6 +4,12 @@ import { TOOLS } from "./all";
 
 const input = { choices: ["React", "Vue"], question: "Which framework?" };
 
+function modelText(
+  output: ReturnType<typeof TOOLS.Choose.toModelOutput>,
+): string | undefined {
+  return output.type === "text" ? output.value : undefined;
+}
+
 describe("choose", () => {
   it("tells the model a choice from an answer of the user's own, and passes on a note or a skip", () => {
     const outputs = [
@@ -16,8 +22,9 @@ describe("choose", () => {
     expect(
       outputs.map(
         (output) =>
-          TOOLS.Choose.toModelOutput({ input, output, toolCallId: "test" })
-            .value,
+          modelText(
+            TOOLS.Choose.toModelOutput({ input, output, toolCallId: "test" }),
+          ),
       ),
     ).toMatchInlineSnapshot(`
       [
@@ -34,11 +41,13 @@ describe("choose", () => {
 
   it("reads a choice written with stray spaces as selected, since the answer is stored trimmed", () => {
     expect(
-      TOOLS.Choose.toModelOutput({
-        input: { ...input, choices: ["React ", "Vue"] },
-        output: { selectedChoice: "React" },
-        toolCallId: "test",
-      }).value,
+      modelText(
+        TOOLS.Choose.toModelOutput({
+          input: { ...input, choices: ["React ", "Vue"] },
+          output: { selectedChoice: "React" },
+          toolCallId: "test",
+        }),
+      ),
     ).toBe("User selected: React");
   });
 

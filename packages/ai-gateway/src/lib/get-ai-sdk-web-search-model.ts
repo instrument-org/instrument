@@ -1,6 +1,6 @@
 import {
-  type LanguageModelV3,
-  type SharedV3ProviderOptions,
+  type LanguageModelV4,
+  type SharedV4ProviderOptions,
 } from "@ai-sdk/provider";
 import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { type ToolSet } from "ai";
@@ -38,8 +38,8 @@ const PROVIDER_TYPE_PRIORITY: WebSearchProviderType[] = [
 ];
 
 export interface AISDKWebSearchModelResult {
-  model: LanguageModelV3;
-  providerOptions?: SharedV3ProviderOptions;
+  model: LanguageModelV4;
+  providerOptions?: SharedV4ProviderOptions;
   tools?: ToolSet;
 }
 

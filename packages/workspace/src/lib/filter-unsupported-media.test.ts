@@ -594,7 +594,7 @@ describe("filterUnsupportedMedia", () => {
     expect(result).toEqual(messages);
   });
 
-  it.each([["media"], ["image-data"]] as const)(
+  it.each([["file-data"], ["image-data"]] as const)(
     "should replace a %s image inside a tool result",
     async (type) => {
       // An image the agent read is media the user never attached, and a model

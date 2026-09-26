@@ -295,6 +295,9 @@ export const llmRequestLogic = fromPromise<
   }
 
   const toolCalls: Record<string, SessionMessagePart.ToolPart> = {};
+  // Why each invalid tool call was rejected, read back when its `tool-error`
+  // arrives: that part carries only the SDK's rendering of this error.
+  const invalidToolCallErrors = new Map<string, unknown>();
   const toolCallInputText: Record<string, string> = {};
   try {
     // Fetch AI SDK model at the last moment before making the LLM request
@@ -324,10 +327,12 @@ export const llmRequestLogic = fromPromise<
     requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
       abortSignal: signal,
+      // Persisted system context rides in the message list, not only at the top.
+      allowSystemInMessages: true,
       // A shell command called as though it were a tool becomes the bash call
       // the model meant. See `shellCommandFromToolName` for what that failure
       // looks like and why it is repaired here rather than prompted away.
-      experimental_repairToolCall: ({ toolCall }) => {
+      repairToolCall: ({ toolCall }) => {
         const command = shellCommandFromToolName({
           availableToolNames: Object.keys(tools),
           toolName: toolCall.toolName,
@@ -361,7 +366,7 @@ export const llmRequestLogic = fromPromise<
       tools,
     });
 
-    for await (const part of result.fullStream) {
+    for await (const part of result.stream) {
       if (isSignalAborted() || part.type === "abort") {
         // Ensures we don't try to process any more parts
         break;
@@ -378,6 +383,14 @@ export const llmRequestLogic = fromPromise<
         await endSupersededReasoning();
       }
       switch (part.type) {
+        case "custom": {
+          // Skipped on purpose. Providers emit these only for features we do not
+          // turn on (OpenAI Responses compaction, Anthropic code-execution
+          // container uploads, Google Interactions processing), so there is
+          // nothing to store or replay. Enabling one of those features means
+          // persisting its parts, since the provider expects them back.
+          break;
+        }
         case "error": {
           // This blows up the whole stream for any error, but it does not have
           // to. E.g. an invalid tool call could still contain other valid tool
@@ -498,6 +511,13 @@ export const llmRequestLogic = fromPromise<
           }
           break;
         }
+        case "reasoning-file": {
+          // Skipped on purpose: an image a Gemini model drew while thinking. It
+          // is a draft of the answer, not the answer, and the transcript has no
+          // slot for it. Gemini documents the thought signatures it checks on
+          // the answer parts that follow, and those are stored and replayed.
+          break;
+        }
         case "reasoning-start": {
           if (part.id in reasoningMap) {
             continue;
@@ -520,6 +540,7 @@ export const llmRequestLogic = fromPromise<
           await scopedStore.savePart(newReasoningPart);
           break;
         }
+
         case "source": {
           // eslint-disable-next-line unicorn/prefer-ternary
           if (part.sourceType === "url") {
@@ -565,7 +586,6 @@ export const llmRequestLogic = fromPromise<
           });
           break;
         }
-
         case "start-step": {
           // We only run one step, so this is covered by "start"
           msToFirstChunk ??= msSinceRequestStart();
@@ -625,7 +645,18 @@ export const llmRequestLogic = fromPromise<
           };
           break;
         }
+        case "tool-approval-response": {
+          getWorkspaceConfig().captureException(
+            new Error(
+              `Unexpected tool approval response: ${JSON.stringify(part)}`,
+            ),
+          );
+          break;
+        }
         case "tool-call": {
+          if (part.invalid) {
+            invalidToolCallErrors.set(part.toolCallId, part.error);
+          }
           const existingPart = toolCalls[part.toolCallId];
           if (existingPart?.state === "input-streaming") {
             const updatedPart: SessionMessagePart.ToolPart = {
@@ -686,10 +717,13 @@ export const llmRequestLogic = fromPromise<
         case "tool-error": {
           // Still happens even without execute if parameters are invalid
           const toolCall = toolCalls[part.toolCallId];
+          const invalidCallError = invalidToolCallErrors.get(part.toolCallId);
           const errorText =
-            typeof part.error === "string"
-              ? part.error
-              : JSON.stringify(part.error);
+            invalidCallError instanceof Error
+              ? bareErrorMessage(invalidCallError)
+              : typeof part.error === "string"
+                ? part.error
+                : JSON.stringify(part.error);
           const providerMetadataProps =
             part.providerMetadata === undefined
               ? {}
@@ -1002,3 +1036,19 @@ export const llmRequestLogic = fromPromise<
 
   return { message: assistantMessage, parts: await getCurrentParts() };
 });
+
+/**
+ * An error's message with every cause it embeds reduced to that cause's own
+ * message. The AI SDK writes a cause into its parent's message as
+ * `Name: message`, so an invalid tool call reads `AI_InvalidToolInputError:
+ * Invalid input for tool read_file: AI_TypeValidationError: ...`, and this
+ * text goes back to the model as the tool's result. SDK class names tell a
+ * model nothing it can act on.
+ */
+function bareErrorMessage(error: Error): string {
+  const { cause } = error;
+  if (!(cause instanceof Error)) {
+    return error.message;
+  }
+  return error.message.replace(String(cause), bareErrorMessage(cause));
+}

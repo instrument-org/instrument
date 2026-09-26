@@ -575,7 +575,7 @@ describe("renderToolOutput", () => {
           {
             data: "base64-image-data",
             mediaType: "image/png",
-            type: "media",
+            type: "file-data",
           },
         ],
       }),

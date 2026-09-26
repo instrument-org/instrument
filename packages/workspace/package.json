@@ -81,7 +81,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@ai-sdk/provider": "^3.0.8",
+    "@ai-sdk/provider": "^4.0.17",
     "@instrument-org/eslint-config": "workspace:*",
     "@instrument-org/typescript-config": "workspace:*",
     "@t3-oss/env-core": "^0.13.8",

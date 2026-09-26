@@ -14,6 +14,7 @@ import {
 } from "@/client/components/message-card";
 import { useAskAboutSelection } from "@/client/components/orchestrator/ask-about-selection";
 import { OrchestratorContext } from "@/client/components/orchestrator/context";
+import { UpdatedPill } from "@/client/components/updated-pill";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isMermaidLanguage } from "@/client/lib/mermaid";
 import { cn } from "@/client/lib/utils";
@@ -24,8 +25,6 @@ import {
   isMessageDocument,
   parseMessage,
 } from "@instrument-org/workspace/client";
-import { ArrowDownIcon } from "@phosphor-icons/react/ArrowDown";
-import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { useQuery } from "@tanstack/react-query";
 import { useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -476,8 +475,8 @@ function LiveDocument({
       </div>
       {offscreen && (
         <div className="pointer-events-none sticky bottom-4 flex justify-center">
-          <button
-            className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-border bg-popover px-3 py-1.5 text-xs font-medium text-foreground shadow-md hover:bg-muted"
+          <UpdatedPill
+            direction={offscreen}
             onClick={() => {
               changedRef.current?.scrollIntoView({
                 behavior: "smooth",
@@ -485,15 +484,7 @@ function LiveDocument({
               });
               setOffscreen(null);
             }}
-            type="button"
-          >
-            {offscreen === "below" ? (
-              <ArrowDownIcon className="size-3.5" />
-            ) : (
-              <ArrowUpIcon className="size-3.5" />
-            )}
-            {offscreen === "below" ? "Updated below" : "Updated above"}
-          </button>
+          />
         </div>
       )}
       {fences.map((fence) => {

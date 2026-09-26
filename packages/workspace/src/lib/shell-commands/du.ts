@@ -2,7 +2,6 @@ import { defineCommand } from "just-bash";
 import fs from "node:fs/promises";
 import { Worker } from "node:worker_threads";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
 import { relativeWithin } from "../path-containment";
@@ -39,13 +38,13 @@ interface DuOptions {
 
 /**
  * What a walk needs to know about one root: how to print it, where it is on
- * disk, and which of its entries is the mount's private dir.
+ * disk, and which of its entries the mount masks.
  */
 interface DuRoot {
   display: string;
   hostPath: string;
-  /** Set on a mount root whose private dir the walk must not enter or count. */
-  privateDirName: null | string;
+  /** On a mount root, the masked entries the walk must not enter or count. */
+  maskedNames: readonly string[];
 }
 
 /**
@@ -304,25 +303,17 @@ function resolveOperand(
   const owner = resolveHostPath(layout, virtualPath);
   if (owner !== null) {
     const hostPath = resolveReadOnlyHostPath(layout, virtualPath);
-    // The private dir, and a symlink out of its mount, read as absent here as
-    // they do everywhere else in the shell. The spelling check covers a
-    // case-insensitive disk, where `.INSTRUMENT` is the same directory.
+    // A masked entry, and a symlink out of its mount, read as absent here as
+    // they do everywhere else in the shell.
     const relative = relativeWithin(owner.mount.mountPoint, virtualPath);
-    const namesPrivateDir =
-      owner.mount.masksPrivateDir &&
-      relative?.split("/")[1]?.toLowerCase() ===
-        TASK_FOLDER_NAMES.private.toLowerCase();
-    if (hostPath === null || namesPrivateDir) {
+    if (hostPath === null) {
       return { display, kind: "missing" };
     }
     return {
       display,
       hostPath,
       kind: "path",
-      privateDirName:
-        owner.mount.masksPrivateDir && relative === "/"
-          ? TASK_FOLDER_NAMES.private
-          : null,
+      maskedNames: relative === "/" ? owner.mount.maskedEntries : [],
     };
   }
 
@@ -349,9 +340,7 @@ function resolveOperand(
         return {
           display: `${base}/${name}`,
           hostPath: mount.hostRoot,
-          privateDirName: mount.masksPrivateDir
-            ? TASK_FOLDER_NAMES.private
-            : null,
+          maskedNames: mount.maskedEntries,
         };
       })
       .toSorted((a, b) => (a.display < b.display ? -1 : 1)),
@@ -447,7 +436,7 @@ function child(display, name) {
   return display === "/" ? "/" + name : display.replace(/\/+$/, "") + "/" + name;
 }
 
-function walk(hostPath, display, privateDirName, depth) {
+function walk(hostPath, display, maskedNames, depth) {
   let stat;
   try {
     stat = fs.lstatSync(hostPath);
@@ -467,10 +456,10 @@ function walk(hostPath, display, privateDirName, depth) {
     }
     names.sort();
     for (const name of names) {
-      if (privateDirName !== null && name.toLowerCase() === privateDirName.toLowerCase()) {
+      if (maskedNames.some((masked) => name.toLowerCase() === masked.toLowerCase())) {
         continue;
       }
-      total += walk(path.join(hostPath, name), child(display, name), null, depth + 1);
+      total += walk(path.join(hostPath, name), child(display, name), [], depth + 1);
     }
     if (depth <= options.maxDepth) emit(total, display);
   } else if (depth === 0 || (options.all && depth <= options.maxDepth)) {
@@ -486,11 +475,11 @@ try {
       errors.push("du: cannot access '" + operand.display + "': No such file or directory\n");
       exitCode = 1;
     } else if (operand.kind === "path") {
-      grand += walk(operand.hostPath, operand.display, operand.privateDirName, 0);
+      grand += walk(operand.hostPath, operand.display, operand.maskedNames, 0);
     } else {
       let total = 0;
       for (const root of operand.children) {
-        total += walk(root.hostPath, root.display, root.privateDirName, 1);
+        total += walk(root.hostPath, root.display, root.maskedNames, 1);
       }
       if (options.maxDepth >= 0) emit(total, operand.display);
       grand += total;

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MOUNT } from "../mount-points";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema, TaskDirSchema } from "../schemas/paths";
+import { chatsDir } from "./record-folders";
 import {
   applyUnicodeFallbacks,
   resolveAgentPath,
@@ -15,6 +16,7 @@ import {
 } from "./resolve-agent-path";
 import {
   buildWorkspaceFsLayout,
+  resolveNativeHostPath,
   resolveReadOnlyHostPath,
 } from "./workspace-fs-layout";
 
@@ -278,6 +280,103 @@ describe("private-dir (.instrument) restriction", () => {
         }).isOk(),
       ).toBe(true);
     });
+  });
+});
+
+// A chat's folder holds its tasks under tasks/, and mounts writable at /task.
+// Its tasks are its to read only at /tasks/<id>, read-only and with their
+// private dirs masked, so none of these resolvers may reach them through the
+// chat's own folder.
+describe("a chat's tasks dir", () => {
+  const chat = TaskDirSchema.parse(path.join(chatsDir(), "2026-09-26-chat"));
+  const childId = "2026-09-26-child";
+  const child = TaskDirSchema.parse(path.join(chat, "tasks", childId));
+  const layout = buildWorkspaceFsLayout({
+    extraMounts: [
+      {
+        hostRoot: child,
+        maskedEntries: [".instrument"],
+        mountPoint: `${MOUNT.tasks}/${childId}`,
+        readOnly: true,
+      },
+    ],
+    taskHostRoot: chat,
+  });
+
+  it.each([
+    `tasks/${childId}/.instrument/settings.json`,
+    `tasks/${childId}/output/report.md`,
+    "tasks",
+    `${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
+    `${MOUNT.task}/tasks/${childId}/output/report.md`,
+    `${MOUNT.task}/TASKS/${childId}/output/report.md`,
+  ])("refuses %s for reading and writing", (input) => {
+    const read = resolveAgentPath({ inputPath: input, layout });
+    expect(read.isErr()).toBe(true);
+    if (read.isErr()) {
+      expect(read.error.message).toMatch(/tasks\/ directory|private/);
+    }
+    expect(resolveWritableToolPath({ inputPath: input, layout }).isErr()).toBe(
+      true,
+    );
+  });
+
+  it("refuses the read-only host path a real binary receives", () => {
+    expect(
+      resolveReadOnlyHostPath(layout, `${MOUNT.task}/tasks/${childId}`),
+    ).toBeNull();
+  });
+
+  it("quarantines the native host path", () => {
+    const native = resolveNativeHostPath(
+      chat,
+      `${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
+    );
+    expect(native.startsWith(path.join(child, ".instrument"))).toBe(false);
+  });
+
+  it("reads the task through its own mount, and refuses its private dir there", () => {
+    expect(
+      resolveAgentPath({
+        inputPath: `${MOUNT.tasks}/${childId}/output/report.md`,
+        layout,
+      }).isOk(),
+    ).toBe(true);
+    expect(
+      resolveAgentPath({
+        inputPath: `${MOUNT.tasks}/${childId}/.instrument/settings.json`,
+        layout,
+      }).isErr(),
+    ).toBe(true);
+  });
+
+  it("leaves the chat's own files writable", () => {
+    expect(
+      resolveWritableToolPath({
+        inputPath: "attachments/brief.md",
+        layout,
+      }).isOk(),
+    ).toBe(true);
+    expect(
+      resolveWritableToolPath({
+        inputPath: "work/tasks/notes.md",
+        layout,
+      }).isOk(),
+    ).toBe(true);
+  });
+
+  // Only a chat's folder holds its tasks; a task's own `tasks` folder is an
+  // ordinary one of its own.
+  it("leaves a task's own tasks folder alone", () => {
+    const task = buildWorkspaceFsLayout({
+      taskHostRoot: TaskDirSchema.parse(path.join("/tmp", "task")),
+    });
+    expect(
+      resolveWritableToolPath({
+        inputPath: "tasks/todo.md",
+        layout: task,
+      }).isOk(),
+    ).toBe(true);
   });
 });
 

@@ -1,3 +1,4 @@
+import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type Task } from "../../schemas/task";
 import { type TaskId } from "../../schemas/task-id";
@@ -21,7 +22,7 @@ export async function childTaskMounts(
   const children = await listChildTasks(orchestratorTaskId);
   return children.map((child) => ({
     hostRoot: taskDir(child.id),
-    masksPrivateDir: true,
+    maskedEntries: [TASK_FOLDER_NAMES.private],
     mountPoint: `${MOUNT.tasks}/${child.id}`,
     readOnly: true,
   }));

@@ -1,11 +1,11 @@
 import { defineCommand } from "just-bash";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
 import { type TaskId } from "../../schemas/task-id";
 import { filterShellOutput, pathVariants } from "../filter-shell-output";
-import { isAtOrUnder } from "../path-containment";
+import { isAtOrUnder, relativeWithin } from "../path-containment";
 import { RG_DISK_PATH } from "../ripgrep";
 import { taskDir } from "../task-dir-utils";
 import {
@@ -102,6 +102,31 @@ const PRIVATE_DIR_DENY_GLOBS = [
   `!/${TASK_FOLDER_NAMES.private}/**`,
 ] as const;
 
+/**
+ * Keeps ripgrep out of a chat's `tasks/` dir, which the chat reaches only
+ * through the read-only `/tasks/<id>` mounts.
+ *
+ * The first pair holds wherever the walk starts: it excludes every task's
+ * private dir under a `tasks/` dir, which also covers a walk over one of
+ * those `/tasks/<id>` mounts. The second excludes the dir outright, and is
+ * added only while the working directory is the chat's root, because a glob
+ * is anchored there rather than at the search root: from anywhere else it
+ * would hide an ordinary `tasks` folder of the chat's own.
+ */
+const CHAT_TASKS_DENY_GLOBS = [
+  "--glob",
+  `!**/${TASKS_DIR_NAME}/*/${TASK_FOLDER_NAMES.private}/**`,
+  "--iglob",
+  `!**/${TASKS_DIR_NAME}/*/${TASK_FOLDER_NAMES.private}/**`,
+] as const;
+
+const CHAT_TASKS_ROOT_DENY_GLOBS = [
+  "--glob",
+  `!/${TASKS_DIR_NAME}/**`,
+  "--iglob",
+  `!/${TASKS_DIR_NAME}/**`,
+] as const;
+
 export function createRgCommand({
   attachedFolders,
   extraMounts,
@@ -145,7 +170,7 @@ export function createRgCommand({
       [
         "--no-config",
         "--path-separator=/",
-        ...withPrivateDirDenied(bridged.args),
+        ...withPrivateDirDenied(bridged.args, denyGlobs(layout, taskCwd)),
       ],
       {
         cancelSignal: ctx.signal,
@@ -270,6 +295,14 @@ function bridgePathArgs(
           error: privateDirLiteralError(`${RG_COMMAND.name}: "${arg}"`),
         };
       }
+      if (
+        !arg.startsWith("-") &&
+        namesInsideChatTasks(layout, resolveVirtual(arg))
+      ) {
+        return {
+          error: `${RG_COMMAND.name}: ${arg}: path is not accessible; each task's folder is at ${MOUNT.tasks}/<id>`,
+        };
+      }
       bridged.push(arg);
       continue;
     }
@@ -306,6 +339,38 @@ function deniedFlag(arg: string): null | string {
   return null;
 }
 
+/** Every deny glob this search takes, given where it runs from. */
+function denyGlobs(layout: WorkspaceFsLayout, taskCwd: string): string[] {
+  if (!layout.task.maskedEntries.includes(TASKS_DIR_NAME)) {
+    return [...PRIVATE_DIR_DENY_GLOBS];
+  }
+  return [
+    ...PRIVATE_DIR_DENY_GLOBS,
+    ...CHAT_TASKS_DENY_GLOBS,
+    ...(taskCwd === layout.task.hostRoot ? CHAT_TASKS_ROOT_DENY_GLOBS : []),
+  ];
+}
+
+/**
+ * True for a path strictly inside a chat's `tasks/` dir. The dir itself is
+ * left to the deny globs: a bare `tasks` argument is as likely a pattern as a
+ * path, and refusing a search for the word would cost more than it guards.
+ */
+function namesInsideChatTasks(
+  layout: WorkspaceFsLayout,
+  virtualPath: string,
+): boolean {
+  if (!layout.task.maskedEntries.includes(TASKS_DIR_NAME)) {
+    return false;
+  }
+  // Lowercased for a case-insensitive disk, where `TASKS/<id>` is the same dir.
+  const relative = relativeWithin(
+    `${MOUNT.task}/${TASKS_DIR_NAME}`,
+    virtualPath.toLowerCase(),
+  );
+  return relative !== null && relative !== "/";
+}
+
 /**
  * The agent's arguments with the private-dir deny globs after them.
  *
@@ -314,14 +379,13 @@ function deniedFlag(arg: string): null | string {
  * typed without meaning anything by it. Still ahead of a `--` though, since
  * everything past that is a path operand rather than a flag.
  */
-function withPrivateDirDenied(args: string[]): string[] {
+function withPrivateDirDenied(
+  args: string[],
+  globs: readonly string[],
+): string[] {
   const operandsFrom = args.indexOf("--");
 
   return operandsFrom === -1
-    ? [...args, ...PRIVATE_DIR_DENY_GLOBS]
-    : [
-        ...args.slice(0, operandsFrom),
-        ...PRIVATE_DIR_DENY_GLOBS,
-        ...args.slice(operandsFrom),
-      ];
+    ? [...args, ...globs]
+    : [...args.slice(0, operandsFrom), ...globs, ...args.slice(operandsFrom)];
 }

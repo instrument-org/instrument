@@ -1,26 +1,44 @@
 import { type IFileSystem } from "just-bash";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
+import { MOUNT } from "../mount-points";
 import { normalizePath } from "./normalize-path";
 
 /**
- * True when a task-relative path (as returned by relativeWithin, e.g.
- * `/.instrument` or `/.instrument/state.json`) is the private dir or inside it.
+ * The root entries a mount can mask: its private dir, and in a chat's own
+ * folder the `tasks/` dir its tasks live in. A chat's tasks are mounted on
+ * their own, read-only and with their private dirs masked, at
+ * `/tasks/<id>`; reached through the chat's writable folder instead, every one
+ * of those guards would be gone.
+ */
+export type MaskedEntry =
+  | typeof TASK_FOLDER_NAMES.private
+  | typeof TASKS_DIR_NAME;
+
+/**
+ * The masked entry a mount-relative path (as returned by relativeWithin, e.g.
+ * `/.instrument` or `/.instrument/state.json`) is or is inside, if any.
  * Compared without case: on a case-insensitive disk, the default on macOS and
  * Windows, `.INSTRUMENT` opens the same directory.
  */
-export function isPrivateRelative(relativeWithinTask: string): boolean {
-  const privateSegment = `/${TASK_FOLDER_NAMES.private}`;
-  const lower = relativeWithinTask.toLowerCase();
-  return lower === privateSegment || lower.startsWith(`${privateSegment}/`);
+export function maskedEntryOf(
+  relativeWithinMount: string,
+  entries: readonly MaskedEntry[],
+): MaskedEntry | undefined {
+  const lower = relativeWithinMount.toLowerCase();
+  return entries.find((entry) => {
+    const segment = `/${entry.toLowerCase()}`;
+    return lower === segment || lower.startsWith(`${segment}/`);
+  });
 }
 
 /**
- * Wrap a filesystem so the `.instrument` dir at its root is invisible to the
- * agent shell. Used for the task mount, whose private dir holds the task db and
- * state, and for the project mount, whose private dir holds the project's folder
- * list and the access granted to each.
+ * Wrap a filesystem so the given entries at its root are invisible to the agent
+ * shell. The `.instrument` dir is masked on the task mount, whose private dir
+ * holds the task db and state, and on the project mount, whose private dir
+ * holds the project's folder list and the access granted to each. A chat's
+ * task mount masks its `tasks/` dir too (see {@link MaskedEntry}).
  *
  * The mask is a decorator on the mount rather than an empty filesystem mounted
  * over `/task/.instrument`, because `MountableFs` refuses to mount inside an
@@ -43,7 +61,14 @@ export function isPrivateRelative(relativeWithinTask: string): boolean {
  * still reads it. See
  * docs/findings/private-dir-masking-is-not-a-boundary.md.
  */
-export function maskPrivateDirFs(delegate: IFileSystem): IFileSystem {
+export function maskPrivateDirFs(
+  delegate: IFileSystem,
+  entries: readonly MaskedEntry[],
+): IFileSystem {
+  const isPrivate = (mountRelativePath: string) =>
+    maskedEntryIn(mountRelativePath, entries) !== undefined;
+  const erofs = (op: string, filePath: string) =>
+    readOnlyError(op, filePath, maskedEntryIn(filePath, entries));
   const readFileBytes = delegate.readFileBytes?.bind(delegate);
   const readdirWithFileTypes = delegate.readdirWithFileTypes?.bind(delegate);
 
@@ -105,7 +130,10 @@ export function maskPrivateDirFs(delegate: IFileSystem): IFileSystem {
       if (isPrivate(filePath)) {
         throw enoent("scandir", filePath);
       }
-      return withoutPrivateEntry(filePath, await delegate.readdir(filePath));
+      const listed = await delegate.readdir(filePath);
+      return withinTaskRoot(filePath)
+        ? listed.filter((name) => !isMaskedName(name, entries))
+        : listed;
     },
 
     readFile: (filePath, options) =>
@@ -141,7 +169,8 @@ export function maskPrivateDirFs(delegate: IFileSystem): IFileSystem {
         : delegate.stat(filePath),
 
     symlink: (target, linkPath) =>
-      isPrivate(linkPath) || symlinkResolvesIntoPrivate(target, linkPath)
+      isPrivate(linkPath) ||
+      symlinkResolvesIntoPrivate(target, linkPath, isPrivate)
         ? Promise.reject(erofs("symlink", linkPath))
         : delegate.symlink(target, linkPath),
 
@@ -171,10 +200,10 @@ export function maskPrivateDirFs(delegate: IFileSystem): IFileSystem {
       if (isPrivate(filePath)) {
         throw enoent("scandir", filePath);
       }
-      const entries = await readdirWithFileTypes(filePath);
+      const listed = await readdirWithFileTypes(filePath);
       return withinTaskRoot(filePath)
-        ? entries.filter((entry) => entry.name !== TASK_FOLDER_NAMES.private)
-        : entries;
+        ? listed.filter((entry) => !isMaskedName(entry.name, entries))
+        : listed;
     };
   }
 
@@ -188,25 +217,39 @@ function enoent(op: string, filePath: string) {
   );
 }
 
-function erofs(op: string, filePath: string) {
-  return Object.assign(
-    new Error(
-      `EROFS: read-only file system, ${op} '${filePath}' -- the ` +
-        `${TASK_FOLDER_NAMES.private} directory holds internals and is ` +
-        `not writable`,
-    ),
-    { code: "EROFS" },
-  );
+function isMaskedName(name: string, entries: readonly string[]) {
+  return entries.includes(name);
 }
 
 /**
- * True for the private dir or anything inside it. Paths here are relative to
- * the task mount, so a leading `/` means the task root.
+ * The masked entry a path is or is inside. Paths here are relative to the
+ * mount, so a leading `/` means its root.
  */
-function isPrivate(mountRelativePath: string): boolean {
+function maskedEntryIn(
+  mountRelativePath: string,
+  entries: readonly MaskedEntry[],
+): MaskedEntry | undefined {
   const normalized = normalizePath(mountRelativePath);
-  return isPrivateRelative(
+  return maskedEntryOf(
     normalized.startsWith("/") ? normalized : `/${normalized}`,
+    entries,
+  );
+}
+
+function readOnlyError(
+  op: string,
+  filePath: string,
+  entry: MaskedEntry | undefined,
+) {
+  const reason =
+    entry === TASKS_DIR_NAME
+      ? `a chat's tasks are not reachable through its folder; each one is ` +
+        `mounted read-only at ${MOUNT.tasks}/<id>`
+      : `the ${TASK_FOLDER_NAMES.private} directory holds internals and is ` +
+        `not writable`;
+  return Object.assign(
+    new Error(`EROFS: read-only file system, ${op} '${filePath}' -- ${reason}`),
+    { code: "EROFS" },
   );
 }
 
@@ -215,7 +258,11 @@ function isPrivate(mountRelativePath: string): boolean {
  * path passed to a later call, so resolve the target the way both a relative
  * and an absolute reading would land and refuse either.
  */
-function symlinkResolvesIntoPrivate(target: string, linkPath: string): boolean {
+function symlinkResolvesIntoPrivate(
+  target: string,
+  linkPath: string,
+  isPrivate: (mountRelativePath: string) => boolean,
+): boolean {
   const normalizedLink = normalizePath(linkPath);
   const linkDir = path.posix.dirname(
     normalizedLink.startsWith("/") ? normalizedLink : `/${normalizedLink}`,
@@ -229,10 +276,4 @@ function symlinkResolvesIntoPrivate(target: string, linkPath: string): boolean {
 function withinTaskRoot(mountRelativePath: string): boolean {
   const normalized = normalizePath(mountRelativePath);
   return normalized === "/" || normalized === "." || normalized === "";
-}
-
-function withoutPrivateEntry(mountRelativePath: string, entries: string[]) {
-  return withinTaskRoot(mountRelativePath)
-    ? entries.filter((entry) => entry !== TASK_FOLDER_NAMES.private)
-    : entries;
 }

@@ -7,13 +7,17 @@ import { noop } from "radashi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { MOUNT } from "../../mount-points";
-import { WorkspaceDirSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { createTsxBashWorker } from "../../test/helpers/tsx-bash-worker";
-import { type BashEnvOptions, createLocalBashEnv } from "../create-bash-env";
+import {
+  type BashEnvOptions,
+  type BashRunner,
+  createLocalBashEnv,
+} from "../create-bash-env";
 import { placeChatTask } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
@@ -150,6 +154,150 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
       taskId: chatTaskId,
     }).exec("cat work/here.txt");
     expect(result.stdout).toBe("inside the chat\n");
+  });
+
+  // A chat's tasks sit inside the chat's own folder, which mounts writable at
+  // /task. The chat reaches them at /tasks/<id>, read-only with their private
+  // dirs masked, and must not get around that through /task/tasks/<id>.
+  describe("a chat's tasks", () => {
+    const childId = TaskIdSchema.parse(`01k${"nestedchild".padEnd(23, "0")}`);
+    let chatId: TaskId;
+    let childDir: string;
+    let chatDir: string;
+    let chatBash: (command: string) => ReturnType<BashRunner["exec"]>;
+
+    const childSettings = () =>
+      fs.readFile(path.join(childDir, ".instrument", "settings.json"), "utf8");
+
+    beforeAll(async () => {
+      chatId = chatFor();
+      childDir = placeChatTask(childId, chatId);
+      chatDir = path.dirname(path.dirname(childDir));
+      await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
+      await fs.writeFile(
+        path.join(childDir, ".instrument", "settings.json"),
+        '{"private":"sentinel"}',
+      );
+      await fs.mkdir(path.join(childDir, "output"), { recursive: true });
+      await fs.writeFile(path.join(childDir, "output", "report.md"), "made\n");
+      await fs.mkdir(path.join(chatDir, "attachments"), { recursive: true });
+      await fs.mkdir(path.join(chatDir, "work"), { recursive: true });
+      await fs.writeFile(
+        path.join(chatDir, "attachments", "replacement.json"),
+        '{"private":"overwritten"}',
+      );
+      const bashOptions: BashEnvOptions = {
+        orchestrator: {
+          // The mount `childTaskMounts` gives the orchestrator for this task.
+          childMounts: [
+            {
+              hostRoot: AbsolutePathSchema.parse(childDir),
+              maskedEntries: [".instrument"],
+              mountPoint: `${MOUNT.tasks}/${childId}`,
+              readOnly: true,
+            },
+          ],
+        },
+        sessionId: StoreId.newSessionId(),
+        taskId: chatId,
+      };
+      const bash = remoteBash(bashOptions);
+      chatBash = (command) => bash.exec(command);
+    });
+
+    it("reads a task through its read-only mount", async () => {
+      const result = await chatBash(
+        `cat ${MOUNT.tasks}/${childId}/output/report.md`,
+      );
+      expect(result).toMatchObject({ exitCode: 0, stdout: "made\n" });
+      const privateRead = await chatBash(
+        `cat ${MOUNT.tasks}/${childId}/.instrument/settings.json`,
+      );
+      expect(privateRead.exitCode).not.toBe(0);
+    });
+
+    it.each([
+      `${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
+      `tasks/${childId}/.instrument/settings.json`,
+      `${MOUNT.task}/TASKS/${childId}/.instrument/settings.json`,
+      `${MOUNT.task}/tasks/${childId}/output/report.md`,
+    ])("refuses to read %s", async (target) => {
+      const result = await chatBash(`cat ${target}`);
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stdout).toBe("");
+    });
+
+    it.each([
+      `cp ${MOUNT.task}/attachments/replacement.json ${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
+      `cp attachments/replacement.json tasks/${childId}/.instrument/settings.json`,
+      `cp -r ${MOUNT.task}/attachments ${MOUNT.task}/tasks/${childId}/.instrument`,
+      `mv ${MOUNT.task}/attachments/replacement.json ${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
+      `echo '{}' > ${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
+      `rm -rf ${MOUNT.task}/tasks`,
+      `rm -f ${MOUNT.task}/tasks/${childId}/output/report.md`,
+      `mkdir -p ${MOUNT.task}/tasks/${childId}/output/more`,
+      `ln -s ${MOUNT.task}/tasks/${childId} ${MOUNT.task}/work/child && cp ${MOUNT.task}/attachments/replacement.json ${MOUNT.task}/work/child/.instrument/settings.json`,
+    ])("leaves the task untouched by %s", async (command) => {
+      // A refused redirection rejects rather than reporting an exit code.
+      await chatBash(command).catch(noop);
+      await expect(childSettings()).resolves.toBe('{"private":"sentinel"}');
+      await expect(
+        fs.readFile(path.join(childDir, "output", "report.md"), "utf8"),
+      ).resolves.toBe("made\n");
+      await expect(
+        fs.stat(path.join(childDir, "output", "more")),
+      ).rejects.toThrow();
+      await expect(
+        fs.stat(path.join(chatDir, "attachments", "replacement.json")),
+      ).resolves.toBeDefined();
+    });
+
+    // Each of these also reaches the chat's own attachment, so a command that
+    // failed outright cannot pass for one that left the tasks dir alone.
+    it.each([
+      `ls -aR ${MOUNT.task}`,
+      `find ${MOUNT.task}`,
+      `grep -r private ${MOUNT.task}`,
+      `rg -uu private ${MOUNT.task}`,
+      `rg -uu --files`,
+      `cd ${MOUNT.task}/work && rg -uu private ${MOUNT.task}`,
+      `cd ${MOUNT.task}/work && rg -uu private ..`,
+      `du -a ${MOUNT.task}`,
+    ])("keeps %s out of the tasks dir", async (command) => {
+      const result = await chatBash(command);
+      expect(result.stdout).toMatch(/replacement\.json|overwritten/);
+      expect(result.stdout).not.toMatch(/sentinel|report\.md|\btasks\b/);
+    });
+
+    it.each([
+      `rg -uu private tasks`,
+      `rg -uu private tasks/${childId}`,
+      `rg -uu private ${MOUNT.task}/tasks/${childId}/.instrument`,
+    ])("finds nothing with %s", async (command) => {
+      const result = await chatBash(command);
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stdout).toBe("");
+    });
+
+    it("copies nothing out of the tasks dir", async () => {
+      const result = await chatBash(
+        `cp -r ${MOUNT.task}/tasks ${MOUNT.task}/work/copy`,
+      );
+      expect(result.exitCode).not.toBe(0);
+      await expect(
+        fs.stat(path.join(chatDir, "work", "copy")),
+      ).rejects.toThrow();
+    });
+
+    it("leaves the chat's own files writable", async () => {
+      const result = await chatBash(
+        `cp attachments/replacement.json work/kept.json && mkdir -p work/tasks && echo note > work/tasks/todo.md && cat work/kept.json work/tasks/todo.md`,
+      );
+      expect(result).toMatchObject({
+        exitCode: 0,
+        stdout: '{"private":"overwritten"}note\n',
+      });
+    });
   });
 
   it("streams native output to the sink before the result settles", async () => {

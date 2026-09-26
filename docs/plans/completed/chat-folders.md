@@ -1,6 +1,6 @@
 # Plan: chats as folders that own their tasks
 
-Status: built on its branch, not merged. The layout, chat records, deleting a chat from its own menu, and the boot migration are in. Still open: the thread-to-chat rename, and topic instructions reaching the agent (phase 2). Phase 1 of two; [legacy-data-migration.md](legacy-data-migration.md) is phase 2 and builds on this one.
+Status: landed. Chats have folders of their own, with their tasks inside, a Delete chat in their own menu, and a boot migration from the one-conversation layout. Not in it: the thread-to-chat rename, and topic instructions reaching the agent, which [legacy-data-migration.md](../active/legacy-data-migration.md) (phase 2) takes on.
 
 ## Problem
 
@@ -79,7 +79,7 @@ Each item moves on its own: one that fails (a folder another program holds open)
 
 ## Not in this plan
 
-- Tasks from 1.x and projects: [legacy-data-migration.md](legacy-data-migration.md).
+- Tasks from 1.x and projects: [legacy-data-migration.md](../active/legacy-data-migration.md).
 - Cross-chat reach beyond what exists (archiving or steering other chats, topic-wide chats, chats messaging chats). The layout decides who owns a task, not who can reach one: the index resolves any id anywhere, so wider reach is a permission on the `task` and `chat` commands when it's wanted.
 - A single conversation store or search index across chats: [conversation-storage.md](conversation-storage.md). Per-chat databases are what that plan's fan-out measurements assume.
 

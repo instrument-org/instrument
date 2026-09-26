@@ -1,6 +1,6 @@
 # Plan: bringing 1.x tasks and projects into chats
 
-Status: proposal, not started. Phase 2 of two; it builds on [chat-folders.md](chat-folders.md).
+Status: proposal, not started. Phase 2 of two; it builds on [chat-folders.md](../completed/chat-folders.md).
 
 ## Goal
 
@@ -69,14 +69,14 @@ Best effort, from what 1.x recorded. None of it is required for the chat to work
 
 - **Name and mark.** A leading emoji in the project's folder name becomes the topic's emoji and comes off the name. Any other project gets no emoji: `TopicFace` already draws the first letter (`topic-mark.tsx`), and `topicColor` already derives a color from the name.
 - **Merge by name.** A project whose name matches an existing topic (ignoring case and the leading emoji) merges into that topic, and the topic keeps its emoji and color.
-- **Instructions.** A non-empty `AGENTS.md` becomes the body of the topic's `topic.md` (for a merged topic, it's added after any body the topic already has). It reaches the chat's agent and its tasks as [chat-folders.md](chat-folders.md) describes: automatically, cut at the cap with a pointer to the file.
+- **Instructions.** A non-empty `AGENTS.md` becomes the body of the topic's `topic.md` (for a merged topic, it's added after any body the topic already has). It reaches the chat's agent and its tasks as [chat-folders.md](../completed/chat-folders.md) describes: automatically, cut at the cap with a pointer to the file.
 - **Project folders are not migrated.** A topic's own folder holds its `topic.md` and, later, reference files; it is never a folder of the user's that tasks work in. A project's folder list is dropped, and so is the `/project` mount. An adopted task that used one resumes without it. The chat's agent can hand the folder back with `task folder <id> --add`, and it can ask you for one it can't reach with `request_folder`.
 - **Membership.** Every task with `projectId` gives its adopted chat that topic. `projectId` is then cleared.
 - **`projects/`** moves to `.pre-chats/projects/`.
 
 ## Migration
 
-This is the layout version after [chat-folders.md](chat-folders.md)'s, in `migrate-workspace-layout.ts`. It's raw files and `node:sqlite`, and idempotent step by step.
+This is the layout version after [chat-folders.md](../completed/chat-folders.md)'s, in `migrate-workspace-layout.ts`. It's raw files and `node:sqlite`, and idempotent step by step.
 
 1. Projects to topics, as above, so the topics exist before the chats that carry them.
 2. Tasks with no user message go to the trash.

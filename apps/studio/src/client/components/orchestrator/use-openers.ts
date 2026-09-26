@@ -9,10 +9,11 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
   isFolderPath,
-  type StoreId,
+  StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -66,6 +67,7 @@ export function useOpeners({
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { active } = windowTabs;
   const isFreshNewTab = active !== undefined && isFreshTab(active);
   // A task's tab is the task's: the guest in it is the one the task is
@@ -218,11 +220,27 @@ export function useOpeners({
     }
     const isFolder = isFolderPath(path);
     const filePath = isFolder ? path.slice(0, -1) : path;
+    // A path a chat named is read against that chat's own record: its own
+    // folder and grants are what `/task` and `/mnt` mean to it. The window's
+    // record reads it where no chat is in view.
+    const thread = StoreId.SessionSchema.safeParse(
+      options?.group ?? windowTabs.group,
+    );
     void (async () => {
+      const chat = thread.success
+        ? await queryClient
+            .fetchQuery(
+              rpcClient.workspace.orchestrator.chats.of.queryOptions({
+                input: { sessionId: thread.data },
+                staleTime: Number.POSITIVE_INFINITY,
+              }),
+            )
+            .catch(() => {})
+        : undefined;
       const [error, hostPaths] = await safe(
         rpcClient.workspace.task.files.hostPaths.call({
           filePaths: [filePath],
-          taskId: ids.taskId,
+          taskId: chat?.taskId ?? ids.taskId,
         }),
       );
       const hostPath = hostPaths?.[filePath];

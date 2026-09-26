@@ -569,7 +569,7 @@ export function ComposeWindow({
             size="sm"
             variant="outline"
           >
-            Open beside the thread
+            Open beside the chat
           </Button>
         </div>
       </Card>
@@ -637,7 +637,7 @@ export function ComposeWindow({
               <div className="flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
                 <FeatherIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="shrink-0 text-[13px] font-medium">
-                  New thread
+                  New chat
                 </span>
                 <TopicSlot
                   onClear={() => {

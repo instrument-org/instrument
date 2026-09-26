@@ -300,5 +300,5 @@ function emptyLineFor(filters: ThreadFilters, total: number): string {
   if (filters.place === "needsYou") {
     return "Nothing needs you.";
   }
-  return total === 0 ? "Press New to start a thread." : "Nothing matches.";
+  return total === 0 ? "Press New to start a chat." : "Nothing matches.";
 }

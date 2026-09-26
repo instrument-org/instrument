@@ -245,7 +245,7 @@ export function ComposeZeroState({
               <MarkSkeletons count={3} />
             ) : recents.data.length === 0 ? (
               <span className="text-[11px] text-muted-foreground">
-                Files from your threads show up here.
+                Files from your chats show up here.
               </span>
             ) : (
               recents.data.slice(0, FILES_SHOWN).map((file) => (

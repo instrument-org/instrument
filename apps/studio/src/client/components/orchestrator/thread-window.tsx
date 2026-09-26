@@ -183,7 +183,7 @@ export function ThreadWindow({
           </h2>
         ) : (
           <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-            {sentWords === undefined ? "Thread" : draftTitle(sentWords)}
+            {sentWords === undefined ? "Chat" : draftTitle(sentWords)}
           </h2>
         )}
         <div className="flex shrink-0 items-center gap-0.5">

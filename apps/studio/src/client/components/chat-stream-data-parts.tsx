@@ -337,8 +337,8 @@ export function renderDataPart({
           key={part.metadata.id}
           text={
             part.data.threads.length === 0
-              ? "First thread of the chat"
-              : `Other threads: ${part.data.threads.map((thread) => thread.title).join(" · ")}`
+              ? "The first chat"
+              : `Other chats: ${part.data.threads.map((thread) => thread.title).join(" · ")}`
           }
         />
       );
@@ -351,7 +351,7 @@ export function renderDataPart({
           key={part.metadata.id}
           text={
             part.data.topics.length === 0
-              ? "No topics on this thread"
+              ? "No topics on this chat"
               : `Topics: ${part.data.topics.map((topic) => topic.name).join(", ")}`
           }
         />

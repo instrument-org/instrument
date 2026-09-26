@@ -483,8 +483,8 @@ describe("a draft's title", () => {
       "\n  \n  Guard the Nest ",
       "Guard the Nest",
     ],
-    ["a name for none", "", "New thread"],
-    ["a name for only blank lines", " \n\t\n", "New thread"],
+    ["a name for none", "", "New chat"],
+    ["a name for only blank lines", " \n\t\n", "New chat"],
     [
       "the words as a person reads them, an app by its name",
       "Check [Gmail](instrument://app/gmail) for the invoice",

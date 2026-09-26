@@ -193,7 +193,7 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
   };
 
   const threadsMenu: MenuItemConstructorOptions = {
-    label: "Threads",
+    label: "Chats",
     submenu: menuItems(THREAD_CHORDS),
   };
 

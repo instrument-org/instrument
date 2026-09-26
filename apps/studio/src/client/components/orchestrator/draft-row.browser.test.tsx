@@ -142,7 +142,7 @@ describe("DraftRow", () => {
 
   it("is a new thread while it has no words, and wears no pill for a topic that is gone", async () => {
     const { row } = await renderRow(draft({ topicId: "money", words: " \n" }));
-    expect(row.textContent).toBe("New thread9:11 AMDraft");
+    expect(row.textContent).toBe("New chat9:11 AMDraft");
   });
 
   it("opens the draft from a click anywhere on it, and from Enter", async () => {

@@ -258,6 +258,6 @@ export function draftTitle(words: string): string {
     stripMarkdown(renderSkillMentionsAsText(words))
       .split("\n")
       .map((line) => line.trim())
-      .find(Boolean) ?? "New thread"
+      .find(Boolean) ?? "New chat"
   );
 }

@@ -46,7 +46,7 @@ export function ThreadTaskList({
         </h1>
         {rows.length === 0 ? (
           <p className="px-2 py-3 text-sm text-muted-foreground">
-            Nothing yet. Ask for something in the thread and it shows up here.
+            Nothing yet. Ask for something in the chat and it shows up here.
           </p>
         ) : (
           rows.map((item) => (

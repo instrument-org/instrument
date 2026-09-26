@@ -24,6 +24,7 @@ import {
 } from "./threads";
 import { TopicBanner } from "./topic-banner";
 import { useSetThreadTopics } from "./use-set-thread-topics";
+import { useThreadSearchFallback } from "./use-thread-search-fallback";
 
 /**
  * The chat pane: the inbox under the line that says where it stands, with
@@ -94,9 +95,28 @@ export function ThreadPane({
     setScrollSignal((signal) => signal + 1);
   };
   const topicNames = new Map(topics.map((topic) => [topic.id, topic.name]));
-  const shown = threads.filter((thread) =>
+  const matched = threads.filter((thread) =>
     matchesFilters(thread, filters, topicNames),
   );
+  const outside = outsideFilters(threads, filters, topicNames);
+  // Words that turn up in no thread anywhere are handed to the decision
+  // model, which reads the threads the other filters keep for the one the
+  // search means; its finds stand in the list's place, under a line saying
+  // where they came from.
+  const aiSearch = useThreadSearchFallback({
+    active:
+      filters.place !== "drafts" &&
+      filters.search.trim() !== "" &&
+      matched.length === 0 &&
+      outside === 0,
+    candidates: threads.filter((thread) =>
+      matchesFilters(thread, { ...filters, search: "" }, topicNames),
+    ),
+    search: filters.search,
+    topicNames,
+  });
+  const isAISearch = aiSearch.isLooking || aiSearch.threads.length > 0;
+  const shown = matched.length > 0 ? matched : aiSearch.threads;
   const listed = byActivity(shown).map((thread) => thread.id);
   // Keyed by value: the list is rebuilt on every read of the threads, and
   // the callback is written fresh each render; the ids are what matter.
@@ -172,11 +192,20 @@ export function ThreadPane({
           topic={chosenTopic}
         />
       )}
+      {isAISearch && (
+        <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+          AI results
+        </p>
+      )}
       <ThreadList
         appsBySlug={appsBySlug}
         arrivedId={arrivedId}
         drafts={shownDrafts}
-        emptyLine={emptyLineFor(filters, threads.length)}
+        emptyLine={
+          aiSearch.isLooking
+            ? "Looking through your chats…"
+            : emptyLineFor(filters, threads.length)
+        }
         // The drafts are kept on this computer, so they are never on
         // their way.
         isLoading={shownDrafts === undefined && threadsQuery.data === undefined}
@@ -193,7 +222,7 @@ export function ThreadPane({
           changeFilters(widenToSearch(filters));
         }}
         openId={openThreadId}
-        outside={outsideFilters(threads, filters, topicNames)}
+        outside={outside}
         scrollSignal={scrollSignal}
         threads={shown}
         topics={topics}

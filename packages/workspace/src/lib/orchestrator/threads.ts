@@ -124,10 +124,6 @@ const messagesBySession = new Map<
   Promise<SessionMessage.WithParts[] | undefined>
 >();
 
-function sessionKey(taskId: TaskId, sessionId: StoreId.Session): string {
-  return `${taskId}\n${sessionId}`;
-}
-
 function forgetSession({
   id,
   sessionId,
@@ -136,6 +132,10 @@ function forgetSession({
   sessionId: StoreId.Session;
 }) {
   messagesBySession.delete(sessionKey(id, sessionId));
+}
+
+function sessionKey(taskId: TaskId, sessionId: StoreId.Session): string {
+  return `${taskId}\n${sessionId}`;
 }
 publisher.subscribe("message.updated", forgetSession);
 publisher.subscribe("message.removed", forgetSession);
@@ -150,32 +150,6 @@ publisher.subscribe("task.removed", ({ id }) => {
     }
   }
 });
-
-/** A thread's messages, oldest first, or nothing when they cannot be read. */
-function threadMessages(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-): Promise<SessionMessage.WithParts[] | undefined> {
-  const key = sessionKey(taskId, sessionId);
-  const cached = messagesBySession.get(key);
-  if (cached) {
-    return cached;
-  }
-  const read = Promise.resolve(
-    Store.getMessagesWithParts({ sessionId, taskId }),
-  ).then((result) => {
-    if (result.isErr()) {
-      // A failed read is not remembered: the next list tries again.
-      if (messagesBySession.get(key) === read) {
-        messagesBySession.delete(key);
-      }
-      return undefined;
-    }
-    return alphabetical(result.value, (message) => message.id);
-  });
-  messagesBySession.set(key, read);
-  return read;
-}
 
 /** What every thread of a conversation is read against, loaded once per list. */
 interface Shared {
@@ -312,7 +286,7 @@ export async function setThreadTopics(
   if (session.isErr()) {
     return false;
   }
-  const existing = await listTopics(taskId);
+  const existing = await listTopics();
   const known = new Set(existing.map((topic) => topic.id));
   const saved = await Store.saveSession(
     {
@@ -764,6 +738,32 @@ async function threadFor(
       latest?.at ?? 0,
     ),
   };
+}
+
+/** A thread's messages, oldest first, or nothing when they cannot be read. */
+function threadMessages(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<SessionMessage.WithParts[] | undefined> {
+  const key = sessionKey(taskId, sessionId);
+  const cached = messagesBySession.get(key);
+  if (cached) {
+    return cached;
+  }
+  const read = Promise.resolve(
+    Store.getMessagesWithParts({ sessionId, taskId }),
+  ).then((result) => {
+    if (result.isErr()) {
+      // A failed read is not remembered: the next list tries again.
+      if (messagesBySession.get(key) === read) {
+        messagesBySession.delete(key);
+      }
+      return;
+    }
+    return alphabetical(result.value, (message) => message.id);
+  });
+  messagesBySession.set(key, read);
+  return read;
 }
 
 /** Whether the thread's own agent is at work this moment. */

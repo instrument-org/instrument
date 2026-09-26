@@ -1,5 +1,9 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
@@ -7,6 +11,7 @@ import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { setTaskState } from "../task-record";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type OrchestratorActivity } from "./activity";
 import {
   archiveThread,
@@ -64,10 +69,19 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 // Task state and sessions are real files under the mock workspace, so a task
 // id reused across runs would read the last run's threads.
 let counter = 0;
-const freshTask = () =>
-  createMockTaskConfig(
+const freshTask = () => {
+  const taskId = createMockTaskConfig(
     TaskIdSchema.parse(`threads-${Date.now()}-${(counter += 1)}`),
   );
+  // Topics are files at the workspace root, so each task gets a root of its own.
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    rootDir: WorkspaceDirSchema.parse(
+      fs.mkdtempSync(path.join(os.tmpdir(), "threads-root-")),
+    ),
+  });
+  return taskId;
+};
 
 beforeEach(() => {
   running.value = [];
@@ -330,7 +344,7 @@ describe("listThreads", () => {
 
   it("carries the topics a thread is tagged with, dropping ids that are not topics", async () => {
     const taskId = freshTask();
-    const home = await createTopic(taskId, { name: "Home" });
+    const home = await createTopic({ name: "Home" });
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list");
 

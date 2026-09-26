@@ -191,19 +191,6 @@ export async function updateTaskState(
   return written.state;
 }
 
-/** Applies a change to the topics, reading them inside the write queue. */
-export async function updateTaskTopics(
-  dir: TaskDir,
-  update: (
-    topics: NonNullable<TaskState["topics"]>,
-  ) => NonNullable<TaskState["topics"]>,
-): Promise<NonNullable<TaskState["topics"]>> {
-  const written = await updateTaskState(dir, (state) => ({
-    topics: update(state.topics ?? []),
-  }));
-  return written.topics ?? [];
-}
-
 function emptyRecord(unreadable: boolean): TaskRecord {
   return {
     raw: {},

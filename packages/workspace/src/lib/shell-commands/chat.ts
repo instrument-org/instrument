@@ -51,7 +51,7 @@ export function createChatCommand({
         return await runThreads(orchestratorTaskId, rest);
       }
       case "topics": {
-        return await runTopics(orchestratorTaskId);
+        return await runTopics();
       }
       default: {
         return {
@@ -194,9 +194,9 @@ async function runTag(taskId: TaskId, args: string[]) {
       `${CHAT_NAME} tag: which thread, and which topic? ${CHAT_NAME} tag <thread> <topic>.`,
     );
   }
-  const topic = await topicByName(taskId, topicWord);
+  const topic = await topicByName(topicWord);
   if (!topic) {
-    const topics = await listTopics(taskId);
+    const topics = await listTopics();
     const known = topics.filter((entry) => !entry.retired);
     return failure(
       `${CHAT_NAME} tag: no topic called "${topicWord}". ${known.length > 0 ? `The topics: ${known.map((entry) => `#${entry.name}`).join(", ")}.` : "There are no topics yet; the user makes them."}`,
@@ -230,11 +230,11 @@ async function runTag(taskId: TaskId, args: string[]) {
 async function runThreads(taskId: TaskId, args: string[]) {
   const topicWord = option(args, "--topic");
   const count = Number(option(args, "-n") ?? DEFAULT_THREADS);
-  const topics = await listTopics(taskId);
+  const topics = await listTopics();
   const names = new Map(topics.map((topic) => [topic.id, topic.name]));
   let threads = await listThreads(taskId);
   if (topicWord !== undefined) {
-    const topic = await topicByName(taskId, topicWord);
+    const topic = await topicByName(topicWord);
     if (!topic) {
       return failure(
         `${CHAT_NAME} threads: no topic called "${topicWord}". ${CHAT_NAME} topics names them.`,
@@ -256,8 +256,8 @@ async function runThreads(taskId: TaskId, args: string[]) {
   };
 }
 
-async function runTopics(taskId: TaskId) {
-  const every = await listTopics(taskId);
+async function runTopics() {
+  const every = await listTopics();
   const topics = every.filter((topic) => !topic.retired);
   return {
     exitCode: 0,

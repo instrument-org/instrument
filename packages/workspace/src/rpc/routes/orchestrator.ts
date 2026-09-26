@@ -48,6 +48,7 @@ import {
   listTopics,
   retireTopic,
   TOPIC_NAME_MAX,
+  TopicSchema,
   updateTopic,
 } from "../../lib/orchestrator/topics";
 import { Store } from "../../lib/store";
@@ -160,15 +161,6 @@ const ensure = base
     return result.value;
   });
 
-const TopicSchema = z.object({
-  about: z.string().optional(),
-  color: z.string().optional(),
-  createdAt: z.number(),
-  emoji: z.string().optional(),
-  id: z.string(),
-  name: z.string(),
-  retired: z.boolean().optional(),
-});
 
 /** What the user picks about a topic: its mark, its tint. */
 const TopicMarkSchema = z.object({
@@ -387,21 +379,19 @@ const setThreadTopicsRoute = base
 
 /** The conversation's topics: in use first, in the order made, then retired. */
 const listTopicsRoute = base
-  .input(z.object({ id: TaskIdSchema }))
   .output(TopicSchema.array())
-  .handler(({ input }) => listTopics(input.id));
+  .handler(() => listTopics());
 
 /** Makes a topic under a name. */
 const createTopicRoute = base
   .input(
     TopicMarkSchema.extend({
-      id: TaskIdSchema,
       name: TopicNameSchema,
     }),
   )
   .output(TopicSchema)
   .handler(({ input }) =>
-    createTopic(input.id, {
+    createTopic({
       ...(input.color ? { color: input.color } : {}),
       ...(input.emoji ? { emoji: input.emoji } : {}),
       name: input.name,
@@ -412,13 +402,12 @@ const createTopicRoute = base
 const updateTopicRoute = base
   .input(
     TopicMarkSchema.extend({
-      id: TaskIdSchema,
       name: TopicNameSchema.optional(),
       topicId: z.string(),
     }),
   )
   .handler(async ({ input }) => {
-    await updateTopic(input.id, input.topicId, {
+    await updateTopic(input.topicId, {
       ...(input.color === undefined ? {} : { color: input.color }),
       ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
       ...(input.name === undefined ? {} : { name: input.name }),
@@ -427,9 +416,9 @@ const updateTopicRoute = base
 
 /** Takes a topic out of the menus, leaving the threads that carry it alone. */
 const retireTopicRoute = base
-  .input(z.object({ id: TaskIdSchema, topicId: z.string() }))
+  .input(z.object({ topicId: z.string() }))
   .handler(async ({ input }) => {
-    await retireTopic(input.id, input.topicId);
+    await retireTopic(input.topicId);
   });
 
 /**

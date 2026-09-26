@@ -20,7 +20,7 @@ export async function threadContextFor(
 ): Promise<SessionMessageDataPart.ThreadContextDataPart> {
   const [threads, topics] = await Promise.all([
     listThreads(taskId),
-    listTopics(taskId),
+    listTopics(),
   ]);
   const names = new Map(topics.map((topic) => [topic.id, topic.name]));
   return {

@@ -41,6 +41,11 @@ export function useEmojiSuggestions(
   } = {},
 ) {
   const [settled, setSettled] = useState(text.trim());
+  // Emptied at once rather than after the pause, so text that is gone (a
+  // cleared field, a form opened afresh) is never answered for.
+  if (!text.trim() && settled !== "") {
+    setSettled("");
+  }
   useEffect(() => {
     const timer = setTimeout(() => {
       setSettled(text.trim());

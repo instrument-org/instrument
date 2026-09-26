@@ -59,6 +59,11 @@ export function useTopicBackfill({
   open: boolean;
 }) {
   const [settled, setSettled] = useState(name.trim());
+  // Cleared at once rather than after the pause: a dialog closed or opened
+  // afresh has no name, and the last one's chats must not be offered in it.
+  if ((!open || !name.trim()) && settled !== "") {
+    setSettled("");
+  }
   useEffect(() => {
     const timer = setTimeout(() => {
       setSettled(name.trim());

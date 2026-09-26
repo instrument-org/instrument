@@ -49,7 +49,6 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useHydrateAtoms } from "jotai/utils";
@@ -348,7 +347,10 @@ export function ComposeWindow({
   const ideas = useIdeas();
   const output = ideas.data?.find((idea) => idea.name === draft.output);
   const topic = topics.find((entry) => entry.id === draft.topicId);
-  useDraftTopicSuggestion({ draft, onChange, topics, words });
+  // Retired topics stay nameable on a draft already filed under one, but are
+  // never offered or picked again.
+  const liveTopics = topics.filter((entry) => !entry.retired);
+  useDraftTopicSuggestion({ draft, onChange, topics: liveTopics, words });
 
   // The head's slot the composer's button row is drawn into. State rather
   // than a ref: the row is a portal, which needs the element to exist.
@@ -646,7 +648,7 @@ export function ComposeWindow({
                   }}
                   suggested={draft.topicSource === "suggested"}
                   topic={topic}
-                  topics={topics}
+                  topics={liveTopics}
                 />
                 {/* The composer's own row, drawn here by the box below. */}
                 <div
@@ -1059,8 +1061,7 @@ function nameOfPath(path: string) {
  * The topic the thread will be filed under, after the draft's name: the pill
  * the thread will wear with a way to take it off, or a dashed slot that
  * offers the topics when none is picked yet. A topic Instrument filed on its
- * own carries a sparkle, the mark it puts on names it gave, so the person can
- * tell it from one they picked.
+ * own says so on hover.
  */
 function TopicSlot({
   onClear,
@@ -1085,12 +1086,6 @@ function TopicSlot({
             : undefined
         }
       >
-        {suggested && (
-          <SparkleIcon
-            aria-label="Filed by Instrument"
-            className="size-3 shrink-0 text-muted-foreground"
-          />
-        )}
         <TopicPill topic={topic} />
         <button
           aria-label={`Don't file under ${topic.name}`}

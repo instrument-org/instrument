@@ -29,7 +29,7 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
-import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { useRef, useState } from "react";
 
 import { useEmojiSet } from "./emoji-set";
@@ -187,10 +187,10 @@ function DeleteTopicButton({
 }
 
 /**
- * The offer to file the chats that fit a new topic as it is made: one line,
- * off until checked, naming the first few by title and counting the rest, so
- * the person sees what would be filed without choosing chat by chat. The
- * sparkle says Instrument found them.
+ * The offer to file the chats that fit a new topic as it is made: one
+ * checkbox, off until checked, over the first few chats by title, each with
+ * the chat mark so it reads as a chat, and a count of the rest, so the person
+ * sees what would be filed without choosing chat by chat.
  */
 function FitsLine({
   checked,
@@ -203,10 +203,12 @@ function FitsLine({
   name: string;
   onCheckedChange: (checked: boolean) => void;
 }) {
-  const named = fits.slice(0, FITS_NAMED).map((chat) => chat.title);
+  const named = fits.slice(0, FITS_NAMED);
   const more = fits.length - named.length;
   return (
-    <label className="flex animate-in cursor-default items-start gap-2.5 rounded-lg bg-muted/60 px-3 py-2.5 duration-300 fade-in-0">
+    // min-w-0 so a long title truncates inside the dialog rather than
+    // widening the grid track it sits in.
+    <label className="flex min-w-0 animate-in cursor-default items-start gap-2.5 rounded-lg bg-muted/60 px-3 py-2.5 duration-300 fade-in-0">
       <Checkbox
         checked={checked}
         className="mt-0.5"
@@ -215,13 +217,17 @@ function FitsLine({
         }}
       />
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-sm">
-          <SparkleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="block text-sm break-words">
           {`Also file ${fits.length} ${fits.length === 1 ? "chat that fits" : "chats that fit"} “${name}”`}
         </span>
-        <span className="block truncate text-xs text-muted-foreground">
-          {named.join(" · ")}
-          {more > 0 && ` · ${more} more`}
+        <span className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
+          {named.map((chat) => (
+            <span className="flex min-w-0 items-center gap-1.5" key={chat.id}>
+              <ChatCircleIcon className="size-3 shrink-0" />
+              <span className="truncate">{chat.title}</span>
+            </span>
+          ))}
+          {more > 0 && <span className="pl-4.5">{`and ${more} more`}</span>}
         </span>
       </span>
     </label>

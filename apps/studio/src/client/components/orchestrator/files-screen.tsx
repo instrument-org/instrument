@@ -24,7 +24,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
@@ -34,6 +34,8 @@ import { mountOfHostPath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { folderOf, segmentsOf } from "./host-path";
 import { NewChatButton } from "./new-chat-button";
+import { PageEditToggle } from "./page-edit";
+import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useOnScreen } from "./on-screen";
 import { useQuickLook } from "./quick-look";
 import { useWindowTabs } from "./window-tabs";
@@ -159,18 +161,57 @@ export function FilesScreen({
   const hostedFile =
     isPageFile && tree !== undefined ? activeFile.hostPath : undefined;
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (hostedFile === undefined || hostGroup === undefined || !browser) {
-      return;
-    }
-    browser.openOrFocus(fileUrlOf(hostedFile), { group: hostGroup });
-    // Once per file hosted; the browser handle is stable once it exists.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostedFile, hostGroup, hasBrowser]);
   const hostedTabIds = allTabs
     .filter((tab) => tab.group === hostGroup)
     .map((tab) => tab.id)
     .join("\n");
+  useEffect(() => {
+    if (hostedFile === undefined || hostGroup === undefined || !browser) {
+      return;
+    }
+    const id = browser.openOrFocus(fileUrlOf(hostedFile), {
+      group: hostGroup,
+    });
+    // One page per file tab: the slot draws the group's first tab, so the
+    // page of the file the tree was on before goes.
+    for (const other of hostedTabIds.split("\n").filter(Boolean)) {
+      if (other !== id) {
+        close(other);
+      }
+    }
+    // Once per file hosted; the browser handle is stable once it exists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostedFile, hostGroup, hasBrowser]);
+  // The hosted page's tab, which Edit switches the way a page tab's own
+  // View / Edit does.
+  const hostedTabId =
+    hostedFile === undefined
+      ? undefined
+      : allTabs.find((tab) => tab.group === hostGroup)?.id;
+  const setEditTabs = useSetAtom(pageEditTabsAtom);
+  usePageEditToggleOnScreen(
+    hostedTabId === undefined
+      ? null
+      : () => {
+          setEditTabs((current) => {
+            const { [hostedTabId]: was, ...rest } = current;
+            return was ? rest : { ...rest, [hostedTabId]: true };
+          });
+        },
+  );
+  // Edit belongs to the file it was switched on for: leafing to another file
+  // in the tree, or leaving, shows the next one as its page.
+  useEffect(() => {
+    if (hostedTabId === undefined) {
+      return;
+    }
+    return () => {
+      setEditTabs((current) => {
+        const { [hostedTabId]: _was, ...rest } = current;
+        return rest;
+      });
+    };
+  }, [hostedTabId, hostedFile, setEditTabs]);
   useEffect(() => {
     if (hostedFile !== undefined) {
       return;
@@ -182,13 +223,19 @@ export function FilesScreen({
     // re-read of the list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hostedFile, hostedTabIds]);
+  // The hosted tabs as they stand now, for the way out: the cleanup below
+  // runs once, long after the render that set it up.
+  const hostedTabIdsNow = useRef(hostedTabIds);
+  useEffect(() => {
+    hostedTabIdsNow.current = hostedTabIds;
+  });
   useEffect(
     () => () => {
-      for (const id of hostedTabIds.split("\n").filter(Boolean)) {
+      for (const id of hostedTabIdsNow.current.split("\n").filter(Boolean)) {
         close(id);
       }
     },
-    // On the way out alone, with the tabs as they stood.
+    // On the way out alone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -362,7 +409,16 @@ export function FilesScreen({
           <div className="min-h-0 min-w-0 flex-1">
             <FileViewer
               actionsInto={rowTail}
-              actionsLead={newChat}
+              actionsLead={
+                hostedTabId === undefined ? (
+                  newChat
+                ) : (
+                  <>
+                    <PageEditToggle tabId={hostedTabId} />
+                    {newChat}
+                  </>
+                )
+              }
               className={FULL_BLEED}
               editable
               file={viewerFile}

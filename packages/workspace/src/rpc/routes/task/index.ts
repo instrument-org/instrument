@@ -40,6 +40,7 @@ import {
   getTaskUsageSummary,
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
+import { chatIdOf } from "../../../schemas/chat-id";
 import { FileUpload } from "../../../schemas/file-upload";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../../schemas/paths";
@@ -155,8 +156,8 @@ const create = base
         )
         .optional(),
       intent: SessionMessageDataPart.IntentDataPartSchema.shape.text.optional(),
-      // An orchestrator is created this way only by the eval harness; the app
-      // opens one through `orchestrator.ensure`.
+      // An orchestrator is created this way only by the eval harness, and it
+      // is made a chat, the way the window's first send makes one.
       kind: TaskKindSchema.optional(),
       modelURI: AIGatewayModelURI.Schema,
       name: z.string().trim().min(1).optional(),
@@ -211,10 +212,11 @@ const create = base
         project = projectResult.value;
       }
 
-      const taskId = await newTaskId({
-        prompt,
-        workspaceConfig: context.workspaceConfig,
-      });
+      const chatSession =
+        kind === "orchestrator" ? StoreId.newSessionId() : undefined;
+      const taskId = chatSession
+        ? chatIdOf(chatSession)
+        : await newTaskId({ prompt, workspaceConfig: context.workspaceConfig });
 
       const initialTaskName = name ?? defaultTaskName(prompt);
 
@@ -237,7 +239,7 @@ const create = base
       }
 
       const sessionResult = await createSession({
-        sessionId: StoreId.newSessionId(),
+        sessionId: chatSession ?? StoreId.newSessionId(),
         signal,
         taskId,
       });

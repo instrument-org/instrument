@@ -235,7 +235,9 @@ export function useOpeners({
                 staleTime: Number.POSITIVE_INFINITY,
               }),
             )
-            .catch(() => {})
+            .catch(() => {
+              // No record for the chat: the path resolves against the task it names.
+            })
         : undefined;
       const [error, hostPaths] = await safe(
         rpcClient.workspace.task.files.hostPaths.call({

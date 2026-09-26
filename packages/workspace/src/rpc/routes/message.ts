@@ -61,6 +61,13 @@ const create = base
         .optional(),
       id: TaskIdSchema,
       modelURI: AIGatewayModelURI.Schema,
+      /**
+       * The id for the session this message opens, when the caller chose
+       * it: a window that shows the new thread from the press, before this
+       * call has answered, has to know which thread it is showing. Ignored
+       * alongside `sessionId`, which names a session that already exists.
+       */
+      newSessionId: StoreId.SessionSchema.optional(),
       /** The kind of page the user asked to receive the response as. */
       output: SessionMessageDataPart.OutputFormatDataPartSchema.optional(),
       prompt: z.string(),
@@ -80,6 +87,7 @@ const create = base
         folders,
         id,
         modelURI,
+        newSessionId,
         output,
         prompt,
         sessionId,
@@ -120,7 +128,7 @@ const create = base
           threadContext = await threadContextFor(taskId);
         }
         const sessionResult = await createSession({
-          sessionId: StoreId.newSessionId(),
+          sessionId: newSessionId ?? StoreId.newSessionId(),
           taskId,
         });
         if (sessionResult.isErr()) {

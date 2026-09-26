@@ -586,6 +586,70 @@ describe("getFileOpenTarget", () => {
   });
 });
 
+describe("getBrowserOpenTarget", () => {
+  it("names the app the system opens an https URL with", async () => {
+    execImpl = (call) =>
+      Promise.resolve(
+        JSON.stringify({
+          appName: call.args[4]?.startsWith("https:") ? "Safari.app" : "",
+          bundleId: "com.apple.Safari",
+          iconBase64: "png-safari",
+        }),
+      );
+    const { getBrowserOpenTarget } = await importModule();
+
+    expect(await getBrowserOpenTarget()).toMatchInlineSnapshot(`
+      {
+        "appName": "Safari",
+        "iconUrl": "icon://png-safari",
+        "launchAppPath": null,
+      }
+    `);
+    await getBrowserOpenTarget();
+    expect(execCalls).toHaveLength(1);
+  });
+
+  it("names no browser when the default one is Instrument", async () => {
+    execImpl = () =>
+      Promise.resolve(
+        JSON.stringify({
+          appName: "Instrument.app",
+          bundleId: APP_BUNDLE_ID,
+          iconBase64: "png-instrument",
+        }),
+      );
+    const { getBrowserOpenTarget } = await importModule();
+
+    const target = await getBrowserOpenTarget();
+
+    expect(target.appName).toBeNull();
+  });
+
+  it("names no browser rather than rejecting when the lookup fails", async () => {
+    execImpl = () => Promise.reject(new Error("osascript timed out"));
+    const { getBrowserOpenTarget } = await importModule();
+
+    expect(await getBrowserOpenTarget()).toMatchInlineSnapshot(`
+      {
+        "appName": null,
+        "iconUrl": null,
+        "launchAppPath": null,
+      }
+    `);
+  });
+
+  it("keeps the browser apart from every file type in the cache", async () => {
+    const { getBrowserOpenTarget, getFileOpenTarget } = await importModule();
+
+    await getBrowserOpenTarget();
+    await getFileOpenTarget("/tasks/a/page.html");
+    await flushSave();
+
+    const { targets } = await readCache();
+    expect(Object.keys(targets).sort()).toEqual([".html", "https:"]);
+  });
+});
+
 describe("persisted cache", () => {
   it("reuses persisted targets and candidates on the next launch", async () => {
     const first = await importModule();
@@ -897,6 +961,73 @@ describe("linux", () => {
     `);
   });
 
+  it("draws the app with its hicolor icon", async () => {
+    await fs.writeFile(
+      path.join(dataDir, "applications", "org.example.Viewer.desktop"),
+      "[Desktop Entry]\nName=Example Viewer\nIcon=org.example.Viewer\n",
+      "utf8",
+    );
+    const iconDir = path.join(dataDir, "icons/hicolor/128x128/apps");
+    await fs.mkdir(iconDir, { recursive: true });
+    await fs.writeFile(path.join(iconDir, "org.example.Viewer.png"), "png");
+    execImpl = (call) =>
+      Promise.resolve(
+        call.args[1] === "filetype"
+          ? "text/markdown"
+          : "org.example.Viewer.desktop",
+      );
+    const { getFileOpenTarget } = await importModule();
+
+    const target = await getFileOpenTarget("/tasks/a/notes.md");
+
+    expect(target.iconUrl).toBe(
+      `icon://${Buffer.from("png").toString("base64")}`,
+    );
+  });
+
+  it("resolves the default browser from xdg-settings", async () => {
+    await fs.writeFile(
+      path.join(dataDir, "applications", "firefox.desktop"),
+      [
+        "[Desktop Entry]",
+        "Name=Firefox",
+        "Icon=firefox",
+        "",
+        "[Desktop Action new-window]",
+        "Name=New Window",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await fs.mkdir(path.join(dataDir, "pixmaps"), { recursive: true });
+    await fs.writeFile(path.join(dataDir, "pixmaps", "firefox.png"), "fx");
+    execImpl = (call) =>
+      Promise.resolve(
+        call.file === "xdg-settings" &&
+          call.args.join(" ") === "get default-web-browser"
+          ? "firefox.desktop\n"
+          : "",
+      );
+    const { getBrowserOpenTarget } = await importModule();
+
+    expect(await getBrowserOpenTarget()).toMatchInlineSnapshot(`
+      {
+        "appName": "Firefox",
+        "iconUrl": "icon://Zng=",
+        "launchAppPath": null,
+      }
+    `);
+  });
+
+  it("names no browser when xdg-settings has none", async () => {
+    execImpl = () => Promise.reject(new Error("xdg-settings: not found"));
+    const { getBrowserOpenTarget } = await importModule();
+
+    const target = await getBrowserOpenTarget();
+
+    expect(target.appName).toBeNull();
+  });
+
   it("falls back when the desktop entry is missing", async () => {
     execImpl = (call) =>
       Promise.resolve(
@@ -930,6 +1061,27 @@ describe("win32", () => {
         "launchAppPath": null,
       }
     `);
+  });
+
+  it("resolves the default browser from the https URL association", async () => {
+    execImpl = () =>
+      Promise.resolve(
+        JSON.stringify({
+          appName: "Google Chrome",
+          exePath: "C:\\chrome.exe",
+        }),
+      );
+    fileIconImpl = () => Promise.resolve({ name: "chrome-icon" });
+    const { getBrowserOpenTarget } = await importModule();
+
+    expect(await getBrowserOpenTarget()).toMatchInlineSnapshot(`
+      {
+        "appName": "Google Chrome",
+        "iconUrl": "native://chrome-icon",
+        "launchAppPath": null,
+      }
+    `);
+    expect(execCalls[0]?.script).toContain("$associations\\https\\UserChoice");
   });
 
   it("refuses to interpolate an extension that isn't a simple one", async () => {

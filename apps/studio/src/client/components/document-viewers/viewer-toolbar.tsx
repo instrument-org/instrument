@@ -243,13 +243,17 @@ export function ViewerRailToggle({
  * bounded control and the rest are ghost buttons, so gaps alone carry the
  * grouping without stacking a second set of vertical lines onto it.
  *
+ * Under the header its controls sit high, tucked against it; in a viewer with
+ * no header of its own (its actions in a tab's row above) it is a row by
+ * itself, and they are centered in it.
+ *
  * Declares a container so the controls inside can collapse against the panel's
  * own width. The artifact panel is resizable and the window is zoomable, so a
  * viewport breakpoint would be measuring the wrong thing.
  */
 export function ViewerToolbar({ children }: { children: ReactNode }) {
   return (
-    <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 px-2 pb-3 viewer-chrome-stroke">
+    <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 px-2 pb-3 viewer-chrome-stroke in-data-headless:pb-0">
       {children}
     </div>
   );

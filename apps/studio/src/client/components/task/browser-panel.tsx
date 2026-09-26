@@ -1,3 +1,4 @@
+import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -20,6 +21,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/client/components/ui/input-group";
+import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import {
   ZoomLevelMenu,
@@ -28,6 +30,7 @@ import {
 import { useBrowserFind } from "@/client/hooks/use-browser-find";
 import { useBrowserSlot } from "@/client/hooks/use-browser-slot";
 import { useIsGuestCovered } from "@/client/hooks/use-guest-covered";
+import { openInAppTargetOfUrl } from "@/client/hooks/use-open-in-app";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { getWebviewElement } from "@/client/lib/browser-pool";
@@ -401,6 +404,7 @@ export function TaskBrowserPanel({
   // act on the current page, so they're only meaningful once one exists; zoom in
   // particular is per-page and doesn't carry to the next navigation.
   const pageUrl = active ? currentUrl() : undefined;
+  const openInTarget = openInAppTargetOfUrl(pageUrl);
 
   return (
     <div
@@ -552,30 +556,38 @@ export function TaskBrowserPanel({
                 <CopyIcon className="size-4" />
                 Copy URL
               </DropdownMenuItem>
-              {/* Also here for a row too narrow to show its own button. */}
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  if (pageUrl) {
-                    openExternalLink.mutate({ url: pageUrl });
-                  }
-                }}
-              >
-                <ArrowSquareOutIcon className="size-4" />
-                Open in external browser
-              </DropdownMenuItem>
+              {/* In a row of the window's the app is the address field's own
+                  button, and the menu names it too, with the others that
+                  could open a page's file. */}
+              {typeof chrome === "object" && openInTarget ? (
+                <OpenInAppMenuItems
+                  menuComponents={dropdownMenuComponents}
+                  target={openInTarget}
+                />
+              ) : (
+                <DropdownMenuItem
+                  disabled={!pageUrl}
+                  onSelect={() => {
+                    if (pageUrl) {
+                      openExternalLink.mutate({ url: pageUrl });
+                    }
+                  }}
+                >
+                  <ArrowSquareOutIcon className="size-4" />
+                  Open in external browser
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         );
         // Reload and the menu, which the row above can carry as they are; the
-        // address is drawn there by the row itself, so only its way out to
-        // the user's own browser comes along.
+        // address, and the way out to the app that opens the page, are drawn
+        // there by the row itself.
         const controls = (
           <>
             {pageControls}
-            {/* Reload stays a chord away in a narrow row, and the way out to
-                the user's browser is in the menu, so both give up their room
-                first. */}
+            {/* Reload stays a chord away in a narrow row, so it gives up its
+                room first. */}
             <ToolbarTooltip shortcut="reloadPage">
               <Button
                 className="@max-lg/tabrow:hidden"
@@ -588,21 +600,6 @@ export function TaskBrowserPanel({
               </Button>
             </ToolbarTooltip>
             {menu}
-            <ToolbarTooltip label="Open in external browser">
-              <Button
-                className="@max-lg/tabrow:hidden"
-                disabled={!pageUrl}
-                onClick={() => {
-                  if (pageUrl) {
-                    openExternalLink.mutate({ url: pageUrl });
-                  }
-                }}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <ArrowSquareOutIcon className="size-4" />
-              </Button>
-            </ToolbarTooltip>
           </>
         );
         const bar = (

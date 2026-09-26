@@ -11,8 +11,14 @@ import {
   renderDarwinIcons,
   resolveDarwinTarget,
 } from "./file-open-target/resolve-darwin";
-import { resolveLinuxTarget } from "./file-open-target/resolve-linux";
-import { resolveWin32Target } from "./file-open-target/resolve-win32";
+import {
+  resolveLinuxBrowserTarget,
+  resolveLinuxTarget,
+} from "./file-open-target/resolve-linux";
+import {
+  resolveWin32BrowserTarget,
+  resolveWin32Target,
+} from "./file-open-target/resolve-win32";
 import {
   type CandidateApp,
   type FileOpenCandidate,
@@ -39,6 +45,21 @@ const COMMON_FILE_EXTENSIONS = [
   ".pptx",
 ];
 
+// The browser is keyed apart from every file type: a scheme, where a file type
+// is an extension, so the two can never collide in the targets cache.
+const BROWSER_TARGET_KEY = "https:";
+
+// What the Mac is asked to open when naming the browser: any https URL
+// resolves to the same app, so the page on screen never leaves the process.
+const BROWSER_PROBE_URL = "https://example.com/";
+
+// What a platform that cannot name the browser answers.
+const UNRESOLVED_BROWSER: FileOpenTarget = {
+  appName: null,
+  iconUrl: null,
+  launchAppPath: null,
+};
+
 // Resolution results that only make sense for this process: promises in flight,
 // and per-path entries for files that have no extension to key on. Everything
 // worth keeping across launches lives in cache-store.
@@ -47,6 +68,17 @@ const sessionTargets = new Map<string, Promise<FileOpenTarget>>();
 const candidatesCache = new Map<string, Promise<CandidateApp[]>>();
 const iconCache = new Map<string, Promise<null | string>>();
 const iconRefreshes = new Set<string>();
+
+/**
+ * The default browser's name and icon, for "Open in {browser}" on a web page.
+ * Cached like a file type, and null fields when the platform cannot say,
+ * which is the caller's cue to offer a generic way out instead.
+ */
+export async function getBrowserOpenTarget(): Promise<FileOpenTarget> {
+  return getCachedTarget(BROWSER_TARGET_KEY, resolveBrowserTarget, () =>
+    Promise.resolve(UNRESOLVED_BROWSER),
+  );
+}
 
 // Rejects when the lookup itself failed, so callers can tell "this file type
 // has no alternate apps" apart from "we could not find out". Collapsing the two
@@ -97,23 +129,11 @@ export async function getFileOpenTarget(
     return pending.catch(() => fallbackTarget(fullPath));
   }
 
-  const cached = await cacheStore.getTarget(ext);
-  if (cached) {
-    if (cached.isStale) {
-      // Serve the cached value immediately but refresh in the background so a
-      // changed default app is picked up without ever blocking the caller.
-      refreshTargetInBackground(ext, fullPath);
-    }
-    return cached.value;
-  }
-
-  const inFlight = inFlightTargets.get(ext);
-  if (inFlight) {
-    return inFlight.catch(() => fallbackTarget(fullPath));
-  }
-  const pending = resolveAndStoreTarget(ext, fullPath);
-  inFlightTargets.set(ext, pending);
-  return pending.catch(() => fallbackTarget(fullPath));
+  return getCachedTarget(
+    ext,
+    () => resolveTarget(fullPath),
+    () => fallbackTarget(fullPath),
+  );
 }
 
 // Seeds the persisted caches for the file types most commonly produced or
@@ -169,6 +189,34 @@ async function fallbackTarget(fullPath: string): Promise<FileOpenTarget> {
     iconUrl: await getFileTypeIconUrl(fullPath),
     launchAppPath: null,
   };
+}
+
+// Serves a target from the persisted cache, refreshing a stale one behind the
+// caller, and otherwise resolves it once however many callers ask at a time.
+// Never rejects: a failed lookup answers with `fallback`, and is not cached,
+// so the next request retries.
+async function getCachedTarget(
+  key: string,
+  resolve: () => Promise<FileOpenTarget>,
+  fallback: () => Promise<FileOpenTarget>,
+): Promise<FileOpenTarget> {
+  const cached = await cacheStore.getTarget(key);
+  if (cached) {
+    if (cached.isStale) {
+      // Serve the cached value immediately but refresh in the background so a
+      // changed default app is picked up without ever blocking the caller.
+      refreshTargetInBackground(key, resolve);
+    }
+    return cached.value;
+  }
+
+  const inFlight = inFlightTargets.get(key);
+  if (inFlight) {
+    return inFlight.catch(fallback);
+  }
+  const pending = resolveAndStoreTarget(key, resolve);
+  inFlightTargets.set(key, pending);
+  return pending.catch(fallback);
 }
 
 // The raw enumeration for a file type, before curation. Persisted in this form
@@ -265,12 +313,15 @@ function refreshIconsInBackground(appPaths: string[]) {
     });
 }
 
-function refreshTargetInBackground(ext: string, fullPath: string) {
-  if (inFlightTargets.has(ext)) {
+function refreshTargetInBackground(
+  key: string,
+  resolve: () => Promise<FileOpenTarget>,
+) {
+  if (inFlightTargets.has(key)) {
     return;
   }
-  const pending = resolveAndStoreTarget(ext, fullPath);
-  inFlightTargets.set(ext, pending);
+  const pending = resolveAndStoreTarget(key, resolve);
+  inFlightTargets.set(key, pending);
   // Background refresh failures are non-fatal; the stale value stays cached.
   void pending.catch(() => null);
 }
@@ -297,15 +348,15 @@ async function resolveAndStoreIcons(appPaths: string[]) {
 }
 
 async function resolveAndStoreTarget(
-  ext: string,
-  fullPath: string,
+  key: string,
+  resolve: () => Promise<FileOpenTarget>,
 ): Promise<FileOpenTarget> {
   try {
-    const target = await resolveTarget(fullPath);
-    await cacheStore.setTarget(ext, target);
+    const target = await resolve();
+    await cacheStore.setTarget(key, target);
     return target;
   } finally {
-    inFlightTargets.delete(ext);
+    inFlightTargets.delete(key);
   }
 }
 
@@ -321,6 +372,36 @@ async function resolveAssociatedApp(
     }
     case "win32": {
       return resolveWin32Target(fullPath);
+    }
+    default: {
+      return null;
+    }
+  }
+}
+
+async function resolveBrowserTarget(): Promise<FileOpenTarget> {
+  const resolved = await resolveDefaultBrowser();
+  // A browser that is Instrument itself is no way out of Instrument.
+  if (!resolved || resolved.bundleId === APP_BUNDLE_ID) {
+    return UNRESOLVED_BROWSER;
+  }
+  return {
+    appName: resolved.appName,
+    iconUrl: resolved.iconUrl,
+    launchAppPath: null,
+  };
+}
+
+async function resolveDefaultBrowser(): Promise<null | ResolvedApp> {
+  switch (process.platform) {
+    case "darwin": {
+      return resolveDarwinTarget(BROWSER_PROBE_URL);
+    }
+    case "linux": {
+      return resolveLinuxBrowserTarget();
+    }
+    case "win32": {
+      return resolveWin32BrowserTarget();
     }
     default: {
       return null;

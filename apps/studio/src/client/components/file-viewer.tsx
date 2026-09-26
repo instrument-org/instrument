@@ -59,6 +59,7 @@ import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
 import { MarkdownDocument } from "./markdown-outline";
 import { MessageCard } from "./message-card";
+import { OpenInAppMenuItems } from "./open-in-app";
 import { OpenTaskFileButton } from "./open-task-file-button";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
@@ -76,7 +77,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { contextMenuComponents } from "./ui/menu-components";
+import {
+  contextMenuComponents,
+  dropdownMenuComponents,
+} from "./ui/menu-components";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -741,7 +745,10 @@ export function FileViewer({
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
   const imageLoadError = imageErrorUrl === url;
   const contentRef = useRef<HTMLDivElement>(null);
-  const openControl = useFileOpenControl(file);
+  // In a row of its own the file's app is the address field's, and the menu
+  // offers the others; the viewer's own head keeps the split button.
+  const isInRow = actionsInto !== undefined;
+  const openControl = useFileOpenControl(file, { loadCandidates: !isInRow });
   const revealFileMutation = useMutation(
     rpcClient.utils.showFileInFolder.mutationOptions({
       onError: (error) => {
@@ -790,6 +797,7 @@ export function FileViewer({
     fileActions.showDownload ||
     fileActions.showReveal;
   const showOverflowMenu =
+    isInRow ||
     canCopy ||
     fileActions.showDownload ||
     fileActions.showReveal ||
@@ -865,18 +873,18 @@ export function FileViewer({
           Source
         </span>
       )}
-      <OpenTaskFileButton
-        className={fileViewerHeaderActionClassName}
-        control={openControl}
-        dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
-        file={file}
-        iconClassName="size-4"
-        // In a tab's row the app's name is the first thing to go when the
-        // row runs short, before the place the file is at.
-        labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline @max-3xl/tabrow:hidden!"
-        size="sm"
-        variant="ghost"
-      />
+      {!isInRow && (
+        <OpenTaskFileButton
+          className={fileViewerHeaderActionClassName}
+          control={openControl}
+          dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}
+          file={file}
+          iconClassName="size-4"
+          labelClassName="hidden max-w-40 min-w-0 truncate @min-[380px]:inline"
+          size="sm"
+          variant="ghost"
+        />
+      )}
       {showOverflowMenu && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -889,6 +897,17 @@ export function FileViewer({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {isInRow && (
+              <>
+                <OpenInAppMenuItems
+                  menuComponents={dropdownMenuComponents}
+                  target={{ hostPath }}
+                />
+                {(hasHeaderMenuActions ||
+                  richView !== undefined ||
+                  showsFileText) && <DropdownMenuSeparator />}
+              </>
+            )}
             {onExpand && (
               <DropdownMenuItem onClick={onExpand}>
                 <ArrowsOutSimpleIcon className="size-4" />
@@ -950,7 +969,12 @@ export function FileViewer({
   );
 
   return (
-    <div className={cn(fileViewerClassName, className)}>
+    <div
+      className={cn(fileViewerClassName, className)}
+      // Read by a format's toolbar, which sits under the head when there is
+      // one and stands alone as the first row when there is not.
+      data-headless={isInRow || undefined}
+    >
       {actionsInto === undefined ? (
         <FileViewerHeader
           actions={actions}

@@ -32,6 +32,8 @@ function renderIcon(image, size) {
 
 // Resolves the default app via NSWorkspace and returns its real icon
 // (works for asset-catalog-only apps where reading the .icns would fail).
+// Takes a file path, or a URL with a scheme, which resolves the app that
+// handles that scheme: an https URL names the default browser.
 export const DARWIN_RESOLVE_SCRIPT = `
 ObjC.import("AppKit");
 ${DARWIN_RENDER_ICON_FN}
@@ -40,7 +42,10 @@ function run(argv) {
   const size = parseInt(argv[1], 10) || 128;
   const result = { appName: "", bundleId: "", iconBase64: "" };
   try {
-    const url = ws.URLForApplicationToOpenURL($.NSURL.fileURLWithPath(argv[0]));
+    const target = /^[a-z][a-z0-9+.-]*:/i.test(argv[0])
+      ? $.NSURL.URLWithString(argv[0])
+      : $.NSURL.fileURLWithPath(argv[0]);
+    const url = ws.URLForApplicationToOpenURL(target);
     const appPath = url.path.js;
     if (!appPath) {
       return JSON.stringify(result);

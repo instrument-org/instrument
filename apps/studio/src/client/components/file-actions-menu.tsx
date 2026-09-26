@@ -12,12 +12,10 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useFileOpenTarget } from "../hooks/use-file-open-target";
-import { useOpenFile } from "../hooks/use-open-file";
 import { useTimedFlag } from "../hooks/use-timed-flag";
-import { getRevealInFolderLabel } from "../lib/utils";
+import { getRevealInFolderLabel, isMacOS } from "../lib/utils";
 import { RevealInFolderIcon } from "./icons/reveal-in-folder";
-import { OpenTargetIcon } from "./open-target-icon";
-import { OpenWithMenu } from "./open-with-menu";
+import { OpenInAppMenuItems } from "./open-in-app";
 import { Button, type ButtonVariant } from "./ui/button";
 import {
   DropdownMenu,
@@ -93,8 +91,10 @@ export function FileActionsMenuItems({
   const { Item, Separator } = menuComponents;
   const fileActions = useFileActionVisibility(file);
   const showCopy = fileActions.showCopy && canCopy;
-  const openFile = useOpenFile();
-  const { openLabel, showOpen, showOpenWith } = useFileOpenTarget(file);
+  const { showOpen } = useFileOpenTarget(file);
+  // The Mac lists the apps once the submenu opens, so the row is there from
+  // the first frame; elsewhere there is a row only once an app is named.
+  const showOpenIn = isMacOS() || showOpen;
 
   const showFileInFolderMutation = useMutation(
     rpcClient.utils.showFileInFolder.mutationOptions({
@@ -134,7 +134,10 @@ export function FileActionsMenuItems({
   };
 
   const hasFileActions =
-    showOpen || showCopy || fileActions.showDownload || fileActions.showReveal;
+    showOpenIn ||
+    showCopy ||
+    fileActions.showDownload ||
+    fileActions.showReveal;
 
   if (!onAddToChat && !hasFileActions) {
     return null;
@@ -142,19 +145,15 @@ export function FileActionsMenuItems({
 
   return (
     <>
-      {showOpen && (
+      {showOpenIn && (
         <>
-          <Item
-            onClick={() => {
-              openFile(file);
-            }}
-          >
-            <OpenTargetIcon className="size-4" file={file} />
-            <span>{openLabel}</span>
-          </Item>
-          {showOpenWith && (
-            <OpenWithMenu file={file} menuComponents={menuComponents} />
-          )}
+          <OpenInAppMenuItems
+            // A file Studio cannot show is opened elsewhere to be seen at
+            // all, so its app keeps a row of its own.
+            defaultRow={getFileType(file) === "unknown"}
+            menuComponents={menuComponents}
+            target={{ hostPath: file.hostPath }}
+          />
           {(onAddToChat != null || hasFileActions) && <Separator />}
         </>
       )}

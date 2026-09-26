@@ -3,11 +3,16 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
+import { OpenInAppButton } from "@/client/components/open-in-app";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { InstrumentGlyph } from "@/client/components/wordmark";
+import {
+  type OpenInAppTarget,
+  openInAppTargetOfUrl,
+} from "@/client/hooks/use-open-in-app";
 import {
   useGesturesFor,
   useOpenGestures,
@@ -85,6 +90,7 @@ export function TabLocationRow({
   const openHome = home.destinations.find(
     (destination) => destination.id === "open",
   );
+  const openIn = openInAppTargetOf(location);
   return (
     <div
       // A container, so what a screen or a page draws into the row can give
@@ -126,7 +132,12 @@ export function TabLocationRow({
         // else, edge to edge, puts the caret in the input the way a browser's
         // address bar does.
         <div
-          className="group/field relative mx-1 flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-sm focus-within:border-foreground/30"
+          className={cn(
+            "group/field relative mx-1 flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-sm focus-within:border-foreground/30",
+            // The app's icon sits in the field's round end, as close to it
+            // as the curve allows.
+            openIn && "pr-0.5",
+          )}
           onPointerDown={(event) => {
             if (
               event.target instanceof Element &&
@@ -151,6 +162,7 @@ export function TabLocationRow({
               )
             }
           />
+          {openIn && <OpenInAppButton target={openIn} />}
         </div>
       )}
       {trailing}
@@ -441,6 +453,21 @@ function locationText(location: TabLocation) {
     }
     case "thread": {
       return location.title;
+    }
+  }
+}
+
+/** What another app can open of the place: a file, or a site's address. */
+function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
+  switch (location.kind) {
+    case "file": {
+      return { hostPath: location.path };
+    }
+    case "page": {
+      return openInAppTargetOfUrl(location.url);
+    }
+    default: {
+      return;
     }
   }
 }

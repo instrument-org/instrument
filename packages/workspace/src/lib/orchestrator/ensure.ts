@@ -1,4 +1,4 @@
-import { err, ok, type Result, type ResultAsync, safeTry } from "neverthrow";
+import { err, ok, type Result, ResultAsync, safeTry } from "neverthrow";
 
 import { SubdomainPartSchema } from "../../schemas/subdomain-part";
 import { type TaskId } from "../../schemas/task-id";
@@ -15,6 +15,12 @@ import { getWorkspaceConfig } from "../workspace-config";
 const ORCHESTRATOR_FOLDER_NAME = SubdomainPartSchema.parse("instrument");
 export const ORCHESTRATOR_TITLE = "Instrument";
 
+/** A find-or-create still running, by the workspace it was asked in. */
+const pending = new Map<
+  string,
+  Promise<Result<{ taskId: TaskId }, TypedError.Type>>
+>();
+
 /**
  * The window's own record, created the first time. It holds what belongs to
  * the window rather than to any one chat: the folders granted before any chat
@@ -22,8 +28,28 @@ export const ORCHESTRATOR_TITLE = "Instrument";
  * in, and the pages the window's browser has open. The chats themselves are
  * records of their own under `chats/`. One window today: the first by
  * creation wins when several exist.
+ *
+ * Callers asking while one is already finding or creating it share that one,
+ * since the window's first load asks from several routes at once and two
+ * creates would both claim the same folder name.
  */
 export function ensureOrchestrator(): ResultAsync<
+  { taskId: TaskId },
+  TypedError.Type
+> {
+  const root = getWorkspaceConfig().rootDir;
+  const running = pending.get(root);
+  if (running) {
+    return new ResultAsync(running);
+  }
+  const started = Promise.resolve(findOrCreateOrchestrator()).finally(() => {
+    pending.delete(root);
+  });
+  pending.set(root, started);
+  return new ResultAsync(started);
+}
+
+function findOrCreateOrchestrator(): ResultAsync<
   { taskId: TaskId },
   TypedError.Type
 > {

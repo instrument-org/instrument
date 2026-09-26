@@ -101,7 +101,7 @@ describe("reasoningProviderOptions", () => {
       "openai.responses",
       "max",
       capability(),
-      { openai: { reasoningEffort: "xhigh" } },
+      { openai: { reasoningEffort: "xhigh", reasoningSummary: null } },
     ],
     [
       "says nothing to a provider whose vocabulary we have not written down",

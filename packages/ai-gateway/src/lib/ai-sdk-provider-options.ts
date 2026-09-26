@@ -45,6 +45,14 @@ export function providerOptionsForModel(
     } satisfies OpenAIResponsesProviderOptions;
   }
 
+  if (typeof model !== "string" && model.provider === "xai.responses") {
+    // xAI's Responses API keeps every response on its servers unless told
+    // not to. Off, as for OpenAI above, which also has the provider ask for
+    // reasoning back as encrypted content that is stored with the turn and
+    // replayed.
+    result.xai = { store: false };
+  }
+
   if (effort && typeof model !== "string") {
     const asked = reasoningProviderOptions({
       effort,

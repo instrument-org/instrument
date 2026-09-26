@@ -47,6 +47,12 @@ describe("providerOptionsForModel", () => {
     ).toEqual({});
   });
 
+  it("keeps xAI responses off its servers", () => {
+    expect(providerOptionsForModel(model("xai.responses", "grok-4"))).toEqual({
+      xai: { store: false },
+    });
+  });
+
   it("carries a level alongside the flags a model already needed", () => {
     expect(
       providerOptionsForModel(model("openai.responses", "gpt-5.6-luna"), {
@@ -57,6 +63,7 @@ describe("providerOptionsForModel", () => {
       openai: {
         include: ["reasoning.encrypted_content"],
         reasoningEffort: "low",
+        reasoningSummary: null,
         store: false,
       },
     });

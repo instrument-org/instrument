@@ -1,0 +1,11 @@
+/* A cell someone else just changed: lit in the brand's green, fading out,
+   as the Markdown editor lights a block the agent wrote. Run by the grid's
+   `animate-[grid-flash_…]` class. */
+@keyframes grid-flash {
+  from {
+    background-color: color-mix(in srgb, var(--brand-500) 32%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}

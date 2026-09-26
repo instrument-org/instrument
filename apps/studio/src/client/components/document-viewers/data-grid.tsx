@@ -15,7 +15,14 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
+import Papa from "papaparse";
+import {
+  type KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { Button } from "../ui/button";
 import {
@@ -36,11 +43,13 @@ import { Input } from "../ui/input";
 import { MenuScrollArea } from "../ui/menu-scroll-area";
 import { toolbarClassName } from "../ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { AskButton } from "./ask-selection";
 import { tableClipboardItem, type TableCopyFormat } from "./table-clipboard";
 import { TABLE_COPY_ALTERNATES } from "./table-copy-formats";
 import { TableCopyMenu } from "./table-copy-menu";
 import { useCopyShortcut } from "./use-copy-shortcut";
 import { ViewerToolbar, ViewerToolbarSpacer } from "./viewer-toolbar";
+import "./data-grid.css";
 
 const ROW_HEIGHT = 28;
 const HEADER_HEIGHT = 30;
@@ -61,6 +70,12 @@ const CELL_PADDING = 24;
  */
 export type CellValue = null | string;
 
+/** A block of cells, by index into the grid's `rows` and `columns`, in the order shown. */
+export interface GridBlock {
+  columns: number[];
+  rows: number[];
+}
+
 export interface GridColumn {
   /** Right, for columns whose values are numbers, so the digits line up. */
   align?: "left" | "right";
@@ -69,9 +84,32 @@ export interface GridColumn {
   type?: string;
 }
 
+/**
+ * What a grid whose file can be written lets the reader do to it. Rows and
+ * columns are indexes into the grid's own `rows` and `columns`, whatever
+ * sort or filter is on screen.
+ */
+export interface GridEditing {
+  /** Cells someone else just changed, as `row:column`, or `h:column` for a header, to light up. */
+  flashed: ReadonlySet<string>;
+  onAddColumn: () => void;
+  /** Cells changed from the grid: typed, cleared or pasted. */
+  onChange: (changes: { column: number; row: number; value: string }[]) => void;
+  onDeleteRows: (rows: number[]) => void;
+  onInsertRow: (row: number, where: "above" | "below") => void;
+  onRedo: () => void;
+  onRenameColumn: (column: number, name: string) => void;
+  onUndo: () => void;
+}
+
 interface CellPosition {
   column: number;
   row: number;
+}
+
+/** A cell open for typing, by its place on screen; row -1 is the header. */
+interface EditingCell extends CellPosition {
+  draft: string;
 }
 
 /**
@@ -95,12 +133,18 @@ interface CellPosition {
  */
 export function DataGrid({
   columns,
+  editing: edit,
   note,
+  onAsk,
   rows,
   title,
 }: {
   columns: GridColumn[];
+  /** Makes cells editable, for a file this surface can write. */
+  editing?: GridEditing;
   note?: string;
+  /** Offers the selected block to Instrument, with a button over it. */
+  onAsk?: (block: GridBlock) => void;
   rows: CellValue[][];
   title?: string;
 }) {
@@ -121,6 +165,10 @@ export function DataGrid({
     anchor: CellPosition;
     focus: CellPosition;
   }>(null);
+  const [editing, setEditing] = useState<EditingCell | null>(null);
+  // Whether a pointer is building a selection, so the Ask button waits for
+  // the drag to finish rather than chasing it.
+  const [dragging, setDragging] = useState(false);
 
   // Held as state rather than a ref because both virtualizers and the copy
   // shortcut need it, and they need it on a render rather than whenever the
@@ -268,7 +316,8 @@ export function DataGrid({
   // make a selection reachable at all.
   useCopyShortcut({
     container: grid,
-    onCopy: () => copyBlock(readSelection(copyHeaders)),
+    // A cell open for typing copies its own text, as any text field does.
+    onCopy: () => !editing && copyBlock(readSelection(copyHeaders)),
   });
 
   const extendTo = (position: CellPosition, extend: boolean) => {
@@ -277,6 +326,198 @@ export function DataGrid({
         ? { anchor: current.anchor, focus: position }
         : { anchor: position, focus: position },
     );
+  };
+
+  /** The selected block, by index into `rows` and `columns`. */
+  const selectedBlock = (): GridBlock | null => {
+    if (!selectedRange) {
+      return null;
+    }
+    const taken = visibleColumns.slice(
+      selectedRange.firstColumn,
+      selectedRange.lastColumn + 1,
+    );
+    const block: GridBlock = {
+      columns: taken.map((column) => Number(column.id)),
+      rows: [],
+    };
+    for (
+      let row = selectedRange.firstRow;
+      row <= selectedRange.lastRow;
+      row += 1
+    ) {
+      const record = visibleRows[row];
+      if (record) {
+        block.rows.push(record.index);
+      }
+    }
+    return block;
+  };
+
+  /** What a cell on screen holds, by its place on screen; row -1 is the header. */
+  const valueAt = ({ column, row }: CellPosition) => {
+    const id = visibleColumns[column]?.id;
+    if (id === undefined) {
+      return "";
+    }
+    return row === -1
+      ? (columns[Number(id)]?.name ?? "")
+      : (visibleRows[row]?.original[Number(id)] ?? "");
+  };
+
+  const scrollToCell = ({ column, row }: CellPosition) => {
+    if (row >= 0) {
+      rowVirtualizer.scrollToIndex(row);
+    }
+    columnVirtualizer.scrollToIndex(column);
+  };
+
+  const startEdit = (position: CellPosition, typed?: string) => {
+    if (!edit || !visibleColumns[position.column]) {
+      return;
+    }
+    if (position.row !== -1 && !visibleRows[position.row]) {
+      return;
+    }
+    scrollToCell(position);
+    setEditing({ ...position, draft: typed ?? valueAt(position) });
+  };
+
+  /**
+   * Writes the open cell back if it changed, then steps the selection the way
+   * the key that closed it asks: Enter down, Tab across, shifted the other way.
+   */
+  const commitEdit = (move?: { column: number; row: number }) => {
+    if (!editing || !edit) {
+      return;
+    }
+    const { column, draft, row } = editing;
+    setEditing(null);
+    const id = visibleColumns[column]?.id;
+    if (id !== undefined && draft !== valueAt(editing)) {
+      if (row === -1) {
+        edit.onRenameColumn(Number(id), draft);
+      } else {
+        const record = visibleRows[row];
+        if (record) {
+          edit.onChange([
+            { column: Number(id), row: record.index, value: draft },
+          ]);
+        }
+      }
+    }
+    if (move) {
+      const target = {
+        column: Math.min(
+          Math.max(column + move.column, 0),
+          visibleColumns.length - 1,
+        ),
+        row: Math.min(
+          Math.max(Math.max(row, 0) + move.row, 0),
+          visibleRows.length - 1,
+        ),
+      };
+      extendTo(target, false);
+      scrollToCell(target);
+    }
+    grid?.focus({ preventScroll: true });
+  };
+
+  /** Empties every selected cell, as Delete does in a spreadsheet. */
+  const clearSelection = () => {
+    const block = selectedBlock();
+    if (!block || !edit) {
+      return;
+    }
+    const changes = block.rows.flatMap((row) =>
+      block.columns.flatMap((column) =>
+        (rows[row]?.[column] ?? "") === "" ? [] : [{ column, row, value: "" }],
+      ),
+    );
+    if (changes.length > 0) {
+      edit.onChange(changes);
+    }
+  };
+
+  /**
+   * Pastes tab-separated text (what a spreadsheet or this grid copies) from
+   * the focused cell rightwards and down, over the rows as they are sorted
+   * and filtered on screen.
+   */
+  const pasteText = (text: string) => {
+    const at = selection?.focus;
+    if (!edit || !at) {
+      return;
+    }
+    const block = Papa.parse<string[]>(text.replace(/\r?\n$/, ""), {
+      delimiter: "\t",
+    }).data;
+    const changes: { column: number; row: number; value: string }[] = [];
+    for (const [rowOffset, values] of block.entries()) {
+      const record = visibleRows[at.row + rowOffset];
+      for (const [columnOffset, value] of values.entries()) {
+        const id = visibleColumns[at.column + columnOffset]?.id;
+        if (record && id !== undefined) {
+          changes.push({ column: Number(id), row: record.index, value });
+        }
+      }
+    }
+    if (changes.length > 0) {
+      edit.onChange(changes);
+    }
+  };
+
+  /**
+   * The keys that edit rather than move: Enter or F2 opens the focused cell,
+   * typing opens it on what was typed, Delete empties the selection, and the
+   * platform's undo and redo take back cell edits. Reports whether it acted.
+   */
+  const editKey = (event: KeyboardEvent<HTMLDivElement>, at: CellPosition) => {
+    if (!edit) {
+      return false;
+    }
+    const mod = event.metaKey || event.ctrlKey;
+    if (mod && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        edit.onRedo();
+      } else {
+        edit.onUndo();
+      }
+      return true;
+    }
+    if (!selection) {
+      return false;
+    }
+    if (event.key === "Enter" || event.key === "F2") {
+      event.preventDefault();
+      startEdit(at);
+      return true;
+    }
+    if (event.key === "Tab") {
+      event.preventDefault();
+      const target = {
+        column: Math.min(
+          Math.max(at.column + (event.shiftKey ? -1 : 1), 0),
+          visibleColumns.length - 1,
+        ),
+        row: at.row,
+      };
+      extendTo(target, false);
+      scrollToCell(target);
+      return true;
+    }
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      clearSelection();
+      return true;
+    }
+    if (event.key.length === 1 && !mod && !event.altKey) {
+      event.preventDefault();
+      startEdit(at, event.key);
+      return true;
+    }
+    return false;
   };
 
   /**
@@ -290,6 +531,10 @@ export function DataGrid({
     }
     const from = selection?.focus ?? { column: 0, row: 0 };
     let to: CellPosition;
+
+    if (edit && editKey(event, from)) {
+      return;
+    }
 
     switch (event.key) {
       case "ArrowDown": {
@@ -343,6 +588,68 @@ export function DataGrid({
   };
 
   const filtered = visibleRows.length !== rows.length;
+
+  const block = selectedBlock();
+  const askable =
+    onAsk !== undefined &&
+    !editing &&
+    !dragging &&
+    block !== null &&
+    block.rows.length * block.columns.length > 1;
+  // The button stands over the selected cells that are drawn, and follows
+  // them as the grid scrolls.
+  const askReference = useMemo(
+    () => ({
+      contextElement: grid ?? undefined,
+      getBoundingClientRect: () => {
+        const cells = grid?.querySelectorAll(
+          '[role="gridcell"][aria-selected="true"]',
+        );
+        const bounds = grid?.getBoundingClientRect() ?? new DOMRect();
+        if (!cells || cells.length === 0) {
+          return new DOMRect(bounds.left, bounds.top, 0, 0);
+        }
+        let top = Infinity;
+        let left = Infinity;
+        let right = -Infinity;
+        let bottom = -Infinity;
+        for (const cell of cells) {
+          const box = cell.getBoundingClientRect();
+          top = Math.min(top, box.top);
+          left = Math.min(left, box.left);
+          right = Math.max(right, box.right);
+          bottom = Math.max(bottom, box.bottom);
+        }
+        // Clamped to the grid, so a block scrolled partly out of view keeps
+        // its button inside the panel.
+        top = Math.max(top, bounds.top + HEADER_HEIGHT);
+        return new DOMRect(left, top, right - left, Math.max(bottom - top, 0));
+      },
+    }),
+    [grid],
+  );
+
+  // A pointer held over the grid is a selection being built; it ends
+  // wherever the button is let go.
+  useEffect(() => {
+    if (!dragging) {
+      return;
+    }
+    const onUp = () => {
+      setDragging(false);
+    };
+    document.addEventListener("pointerup", onUp);
+    return () => {
+      document.removeEventListener("pointerup", onUp);
+    };
+  }, [dragging]);
+
+  const editingLeft = editing
+    ? (columnVirtualizer.measurementsCache[editing.column]?.start ?? 0)
+    : 0;
+  const editingWidth = editing
+    ? (visibleColumns[editing.column]?.getSize() ?? MIN_COLUMN_WIDTH)
+    : 0;
 
   const emptyState = describeEmptyGrid({
     clearFilter: () => {
@@ -406,8 +713,26 @@ export function DataGrid({
               // not what lands on their clipboard.
               className="min-h-0 flex-1 overflow-auto outline-none select-none focus-visible:outline-[2px] focus-visible:-outline-offset-2 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
               onKeyDown={moveSelection}
-              onPointerDown={() => {
-                grid?.focus({ preventScroll: true });
+              onPaste={(event) => {
+                if (edit && !editing) {
+                  event.preventDefault();
+                  pasteText(event.clipboardData.getData("text/plain"));
+                }
+              }}
+              onPointerDown={(event) => {
+                if (event.button === 0) {
+                  setDragging(true);
+                }
+                // A click elsewhere in the grid closes the open cell, which
+                // blurring it writes back.
+                if (
+                  !(
+                    event.target instanceof HTMLElement &&
+                    event.target.closest("[data-grid-editor]")
+                  )
+                ) {
+                  grid?.focus({ preventScroll: true });
+                }
               }}
               ref={setGrid}
               role="grid"
@@ -430,6 +755,7 @@ export function DataGrid({
                     return column ? (
                       <HeaderCell
                         column={column}
+                        flash={edit?.flashed.has(`h:${column.id}`) ?? false}
                         key={column.id}
                         left={virtualColumn.start}
                         onResize={headersById
@@ -477,8 +803,14 @@ export function DataGrid({
                           return (
                             <BodyCell
                               align={columns[Number(column.id)]?.align}
+                              flash={
+                                edit?.flashed.has(
+                                  `${record.index}:${column.id}`,
+                                ) ?? false
+                              }
                               key={column.id}
                               left={virtualColumn.start}
+                              onEdit={edit ? startEdit : undefined}
                               onSelect={extendTo}
                               position={position}
                               selected={inRange(selectedRange, position)}
@@ -490,10 +822,47 @@ export function DataGrid({
                     </div>
                   );
                 })}
+
+                {editing && (
+                  <CellEditor
+                    draft={editing.draft}
+                    height={ROW_HEIGHT}
+                    left={editingLeft}
+                    onCancel={() => {
+                      setEditing(null);
+                      grid?.focus({ preventScroll: true });
+                    }}
+                    onChange={(draft) => {
+                      setEditing({ ...editing, draft });
+                    }}
+                    onCommit={commitEdit}
+                    top={
+                      editing.row === -1
+                        ? (grid?.scrollTop ?? 0)
+                        : editing.row * ROW_HEIGHT + HEADER_HEIGHT
+                    }
+                    width={editingWidth}
+                  />
+                )}
               </div>
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
+            {onAsk && (
+              <>
+                <ContextMenuItem
+                  disabled={!block}
+                  onSelect={() => {
+                    if (block) {
+                      onAsk(block);
+                    }
+                  }}
+                >
+                  Ask Instrument
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            )}
             <ContextMenuItem
               disabled={!selectedRange}
               onSelect={() => {
@@ -524,6 +893,23 @@ export function DataGrid({
             >
               Include headers
             </ContextMenuCheckboxItem>
+            {edit && (
+              <GridEditMenuItems
+                block={block}
+                columnName={(column) => columns[column]?.name ?? ""}
+                edit={edit}
+                onEdit={() => {
+                  if (selection) {
+                    startEdit(selection.focus);
+                  }
+                }}
+                onRename={() => {
+                  if (selection) {
+                    startEdit({ column: selection.focus.column, row: -1 });
+                  }
+                }}
+              />
+            )}
             <ContextMenuSeparator />
             <ContextMenuItem
               onSelect={() => {
@@ -537,13 +923,30 @@ export function DataGrid({
           </ContextMenuContent>
         </ContextMenu>
       )}
+      {askable && (
+        <AskButton
+          onAsk={() => {
+            onAsk(block);
+            // Asked, so the button goes; the cell the selection ended on stays.
+            setSelection((current) =>
+              current ? { anchor: current.focus, focus: current.focus } : null,
+            );
+          }}
+          onDismiss={() => {
+            setSelection(null);
+          }}
+          reference={askReference}
+        />
+      )}
     </>
   );
 }
 
 function BodyCell({
   align,
+  flash,
   left,
+  onEdit,
   onSelect,
   position,
   selected,
@@ -551,7 +954,9 @@ function BodyCell({
   width,
 }: {
   align?: "left" | "right";
+  flash: boolean;
   left: number;
+  onEdit?: (position: CellPosition) => void;
   onSelect: (position: CellPosition, extend: boolean) => void;
   position: CellPosition;
   selected: boolean;
@@ -565,7 +970,15 @@ function BodyCell({
         "absolute top-0 h-full truncate border-r border-b border-border/40 px-2 py-1",
         align === "right" && "text-right tabular-nums",
         selected && "bg-brand-500/25",
+        flash && "animate-[grid-flash_1.6s_ease-out]",
       )}
+      onDoubleClick={
+        onEdit
+          ? () => {
+              onEdit(position);
+            }
+          : undefined
+      }
       onPointerDown={(event) => {
         // Right-click keeps whatever is already selected when it lands inside
         // it, so "Copy" in the menu copies the block the user built rather
@@ -588,6 +1001,109 @@ function BodyCell({
     >
       {value ?? <span className="text-muted-foreground/60 italic">NULL</span>}
     </div>
+  );
+}
+
+/**
+ * The open cell: a text box laid over it, as wide as its column and growing
+ * with its lines. Enter and Tab write it back and move on (shifted, the other
+ * way), Option+Enter starts a new line in it, Escape leaves it as it was, and
+ * leaving it any other way writes it back where it stands.
+ */
+function CellEditor({
+  draft,
+  height,
+  left,
+  onCancel,
+  onChange,
+  onCommit,
+  top,
+  width,
+}: {
+  draft: string;
+  height: number;
+  left: number;
+  onCancel: () => void;
+  onChange: (draft: string) => void;
+  onCommit: (move?: { column: number; row: number }) => void;
+  top: number;
+  width: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // Set when a key has already closed the cell, so the blur that follows
+  // does not write it a second time.
+  const closed = useRef(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    element.focus({ preventScroll: true });
+    element.setSelectionRange(element.value.length, element.value.length);
+  }, []);
+
+  const lines = Math.min(draft.split("\n").length, 8);
+
+  return (
+    <textarea
+      aria-label="Cell"
+      className="absolute z-30 resize-none rounded-xs bg-background px-2 py-1 leading-5 shadow-md outline-2 -outline-offset-1 outline-ring"
+      data-grid-editor
+      onBlur={() => {
+        if (!closed.current) {
+          closed.current = true;
+          onCommit();
+        }
+      }}
+      onChange={(event) => {
+        onChange(event.target.value);
+      }}
+      onKeyDown={(event) => {
+        // Kept from the grid, whose keys move the selection.
+        event.stopPropagation();
+        if (event.nativeEvent.isComposing) {
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closed.current = true;
+          onCancel();
+          return;
+        }
+        if (event.key === "Enter" && event.altKey) {
+          event.preventDefault();
+          const element = event.currentTarget;
+          const { selectionEnd, selectionStart, value } = element;
+          onChange(
+            `${value.slice(0, selectionStart)}\n${value.slice(selectionEnd)}`,
+          );
+          requestAnimationFrame(() => {
+            element.setSelectionRange(selectionStart + 1, selectionStart + 1);
+          });
+          return;
+        }
+        if (event.key === "Enter" || event.key === "Tab") {
+          event.preventDefault();
+          closed.current = true;
+          const step = event.shiftKey ? -1 : 1;
+          onCommit(
+            event.key === "Enter"
+              ? { column: 0, row: step }
+              : { column: step, row: 0 },
+          );
+        }
+      }}
+      ref={ref}
+      spellCheck={false}
+      style={{
+        height: Math.max(height, lines * 20 + 8),
+        left,
+        minWidth: Math.max(width, 160),
+        top,
+      }}
+      value={draft}
+    />
   );
 }
 
@@ -750,13 +1266,81 @@ function describeEmptyGrid({
   return null;
 }
 
+/** What a writable grid's menu adds: editing the cell, and rows and columns. */
+function GridEditMenuItems({
+  block,
+  columnName,
+  edit,
+  onEdit,
+  onRename,
+}: {
+  block: GridBlock | null;
+  columnName: (column: number) => string;
+  edit: GridEditing;
+  onEdit: () => void;
+  onRename: () => void;
+}) {
+  const firstRow = block?.rows[0];
+  const lastRow = block?.rows.at(-1);
+  const firstColumn = block?.columns[0];
+  const rowCount = block?.rows.length ?? 0;
+  return (
+    <>
+      <ContextMenuSeparator />
+      <ContextMenuItem disabled={!block} onSelect={onEdit}>
+        Edit cell
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={firstRow === undefined}
+        onSelect={() => {
+          if (firstRow !== undefined) {
+            edit.onInsertRow(firstRow, "above");
+          }
+        }}
+      >
+        Insert row above
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={lastRow === undefined}
+        onSelect={() => {
+          if (lastRow !== undefined) {
+            edit.onInsertRow(lastRow, "below");
+          }
+        }}
+      >
+        Insert row below
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={rowCount === 0}
+        onSelect={() => {
+          if (block) {
+            edit.onDeleteRows(block.rows);
+          }
+        }}
+        variant="destructive"
+      >
+        {rowCount > 1 ? `Delete ${rowCount} rows` : "Delete row"}
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem disabled={firstColumn === undefined} onSelect={onRename}>
+        {firstColumn === undefined
+          ? "Rename column"
+          : `Rename “${columnName(firstColumn) || "column"}”`}
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={edit.onAddColumn}>Add column</ContextMenuItem>
+    </>
+  );
+}
+
 function HeaderCell({
   column,
+  flash,
   left,
   onResize,
   spec,
 }: {
   column: Column<CellValue[]>;
+  flash: boolean;
   left: number;
   onResize?: (event: unknown) => void;
   spec?: GridColumn;
@@ -767,7 +1351,10 @@ function HeaderCell({
 
   return (
     <div
-      className="absolute top-0 flex h-full items-center border-r border-b border-border/60 bg-card"
+      className={cn(
+        "absolute top-0 flex h-full items-center border-r border-b border-border/60 bg-card",
+        flash && "animate-[grid-flash_1.6s_ease-out]",
+      )}
       role="columnheader"
       style={{ left, width: column.getSize() }}
     >

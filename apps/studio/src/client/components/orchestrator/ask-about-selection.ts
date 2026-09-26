@@ -16,6 +16,11 @@ import { OrchestratorContext } from "./context";
 export interface AskAboutSelection {
   /** Where the quote sits in the file, 1-based and inclusive, when the surface knows. */
   lines?: [number, number];
+  /**
+   * Where the quote sits, for a file that has no lines to count: "page 3",
+   * "slide 2", "Sales!B2:C4". Read after the file's name, in place of lines.
+   */
+  location?: string;
   /** A line of the person's own to go with the quote, when the surface has one. */
   note?: string;
   /** The file the quote is from, by its path on this computer. */
@@ -33,6 +38,7 @@ export interface AskAboutSelection {
  */
 export function quoteForComposer({
   lines,
+  location,
   note,
   path,
   quote,
@@ -40,7 +46,9 @@ export function quoteForComposer({
   const name = path.split(/[/\\]/).at(-1) ?? path;
   const where =
     lines === undefined
-      ? name
+      ? location === undefined
+        ? name
+        : `${name}, ${location}`
       : lines[0] === lines[1]
         ? `${name}, line ${lines[0]}`
         : `${name}, lines ${lines[0]}-${lines[1]}`;

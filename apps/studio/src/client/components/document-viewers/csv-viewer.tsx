@@ -2,16 +2,39 @@ import { useQuery } from "@tanstack/react-query";
 import Papa from "papaparse";
 
 import { FileLoading } from "../file-loading";
+import { CsvEditor } from "./csv-editor";
 import { type CellValue, DataGrid, type GridColumn } from "./data-grid";
 import { inferAlignment } from "./grid-columns";
 
+/**
+ * A delimited text file as a table. Where the surface is the file's own place
+ * (its tab), the table is edited in place and follows the file as the agent
+ * writes it; a glance at the file (Quick Look) reads it once.
+ */
 export function CsvViewer({
+  editable = false,
   filename,
+  hostPath,
   url,
 }: {
+  editable?: boolean;
   filename: string;
+  hostPath?: string;
   url: string;
 }) {
+  if (editable && hostPath) {
+    return <CsvEditor filename={filename} hostPath={hostPath} key={hostPath} />;
+  }
+  return <CsvReader filename={filename} url={url} />;
+}
+
+function CsvGrid({ filename, text }: { filename: string; text: string }) {
+  const { columns, rows } = parseDelimited({ filename, text });
+
+  return <DataGrid columns={columns} rows={rows} />;
+}
+
+function CsvReader({ filename, url }: { filename: string; url: string }) {
   const { data, error, isLoading } = useQuery({
     queryFn: async () => {
       const response = await fetch(url);
@@ -38,12 +61,6 @@ export function CsvViewer({
   // the sort, filter and hidden columns the reader set up for the last one,
   // which are all held by column position and would land on unrelated data.
   return <CsvGrid filename={filename} key={url} text={data ?? ""} />;
-}
-
-function CsvGrid({ filename, text }: { filename: string; text: string }) {
-  const { columns, rows } = parseDelimited({ filename, text });
-
-  return <DataGrid columns={columns} rows={rows} />;
 }
 
 function parseDelimited({

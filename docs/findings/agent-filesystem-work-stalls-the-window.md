@@ -156,7 +156,7 @@ Two traps in the harness itself. `find` over a folder containing any unreadable 
 
 ## What resolves it
 
-Nothing in process. The work has to leave the thread, which is [the plan](../plans/active/agent-turn-off-the-main-thread.md).
+Nothing in process. The work has to leave the thread, which is [the plan](../plans/active/agent-turn-off-the-main-thread.md). Its first move runs the interpreter alone in a worker thread, which takes this finding's stall off main without moving the rest of the agent turn.
 
 Two cheaper mitigations are real but partial, and both are worth doing regardless because they shrink the exposure before the boundary lands. Lowering the two traversal budgets and the output ceiling bounds what a single call can cost, and is a few lines in `create-bash-env.ts`. Giving the file walk the native treatment `rg` already has removes the syscall storm, using the `resolveReadOnlyHostPath` seam and the obligations that come with it, but leaves the buffered result above, so it is the larger piece of work for the smaller share of the stall.
 

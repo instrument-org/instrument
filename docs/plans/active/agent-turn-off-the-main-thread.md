@@ -1,6 +1,6 @@
 # Move the agent turn off the Electron main thread
 
-Status: **active, not started.** The problem is measured and traced in [the agent's filesystem work stalls the window](../../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do. No code has been written.
+Status: **active.** The interpreter runs in a worker thread (below); the utility process is not started. The problem is measured and traced in [the agent's filesystem work stalls the window](../../findings/agent-filesystem-work-stalls-the-window.md). The direction below is settled by a survey of what comparable apps do.
 
 ## Problem
 
@@ -69,6 +69,14 @@ Quit teardown, which already has [a livelock finding](../../findings/quit-teardo
 Crash handling. Detection comes from the main-process `child-process-gone` event filtered by service name, plus the message port's own close event. Restart policy must be bounded with a named limit and an explicit list of errors treated as non-recoverable, which is what every subsystem in the survey does.
 
 Subprocess containment. A process boundary alone does not kill the agent's tool work: a killed child does not reap descendants that have re-parented. Whatever owns the OS-level process range needs to live inside the child.
+
+## The interpreter alone, in a worker thread
+
+A smaller move than the utility process takes the part of the stall the finding measures: the just-bash interpreter, its filesystem, and every command that only does host work run in one long-lived `node:worker_threads` worker (`packages/workspace/src/lib/bash-worker/`). Studio runs every shell there; `INSTRUMENT_BASH_WORKER=0` keeps it on main, and tests and `run-bash` stay on their own thread unless it is `1`. `createBashEnv` hands back an `exec` that posts to the worker, so the bash tool does not change.
+
+The commands that act on state only main holds (`MAIN_THREAD_COMMANDS` in `create-bash-env.ts`: `task`, `chat`, `memory`, `open`, `app`, `agent-browser`, `jobs`, `fg`, `kill`) are stand-ins in the worker that send their argv, cwd, environment and stdin back to main, which runs the real command in the async context the tool call was made in. Three other pieces of main-owned state are reached the same way: a skill written through the shell is credited to the turn that wrote it, each task's venv has one creator, and the process trees the worker starts are reported so main can end them if the worker dies.
+
+Measured in Studio against a 60,000-file task folder, three concurrent `find` scans moved a renderer's RPC round trip to main from 154 ms at the median and 291 ms at worst to 2 ms and 26 ms. It does not move anything else on this page: the store writes, the model stream and the message yields stay on main, and one worker serves every task, so one task's long synchronous walk still delays the others' shells.
 
 ## Migration order
 

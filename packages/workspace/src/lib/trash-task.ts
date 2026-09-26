@@ -31,16 +31,20 @@ interface RemoveTaskOptions {
 }
 
 /**
- * Puts a chat in the trash with every task it started: each task is stopped
- * the way trashing it alone stops it (its browser reaped, what it left running
- * killed, its store let go), and then the chat's folder, which holds them all,
- * goes to the trash in one piece.
+ * Puts a chat in the trash with every task it started. The chat's own agent
+ * is stopped first and refused new messages, so nothing it does meanwhile
+ * starts a task that would be missed; then each task is stopped the way
+ * trashing it alone stops it (its browser reaped, what it left running killed,
+ * its store let go); then the chat's folder, which holds them all, goes to the
+ * trash in one piece. The index forgets them only once the folder is gone, so
+ * a failure partway leaves every task still listed where it still is.
  */
 export async function trashChat({
   id,
   workspaceConfig,
   workspaceRef,
 }: RemoveTaskOptions) {
+  workspaceRef.send({ type: "prepareToTrashTask", value: { id } });
   for (const child of chatTaskIds(id)) {
     const stopped = await trashTask({
       id: child,
@@ -49,6 +53,7 @@ export async function trashChat({
       workspaceRef,
     });
     if (stopped.isErr()) {
+      workspaceRef.send({ type: "removeTaskBeingTrashed", value: { id } });
       return err(stopped.error);
     }
   }
@@ -119,8 +124,8 @@ export async function trashTask({
 
         if (!keepFolder) {
           await workspaceConfig.trashItem(taskDir(taskId));
+          forgetChatTask(taskId);
         }
-        forgetChatTask(taskId);
 
         // In the off chance that a future task with the same id is
         // created, we remove the app being trashed.

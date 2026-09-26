@@ -57,7 +57,11 @@ export function ThreadScreen(props: ThreadScreenProps) {
   if (!taskId) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        {chat.data === null ? "This chat is gone." : <Spinner className="size-5" />}
+        {chat.data === null ? (
+          "This chat is gone."
+        ) : (
+          <Spinner className="size-5" />
+        )}
       </div>
     );
   }

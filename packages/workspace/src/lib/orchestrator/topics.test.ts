@@ -37,7 +37,6 @@ describe("topicName", () => {
 
 describe("createTopic", () => {
   it("adds a topic with an id of its own, keeping the order", async () => {
-
     const reddit = await createTopic({ emoji: "🦆", name: "# Reddit" });
     const home = await createTopic({ name: "Home" });
 

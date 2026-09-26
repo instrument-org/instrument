@@ -100,9 +100,7 @@ export function ComposeZeroState({
   const visited = useAtomValue(visitedPagesAtom);
   const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
-  const recents = useQuery(
-    rpcClient.workspace.computer.recents.queryOptions(),
-  );
+  const recents = useQuery(rpcClient.workspace.computer.recents.queryOptions());
 
   // The sites kept first, then the pages lately seen that are not among
   // them, one per site on the line, so the line is the places a person goes

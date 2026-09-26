@@ -106,7 +106,10 @@ function oneConversation() {
   insert.run(
     `parts:${THREAD}:msg_1:prt_4`,
     null,
-    superjson({ text: "Saved /task/work/shot.png and work/shared.md", type: "text" }),
+    superjson({
+      text: "Saved /task/work/shot.png and work/shared.md",
+      type: "text",
+    }),
   );
   insert.run(
     `parts:${CHANNEL}:msg_1:prt_5`,
@@ -401,14 +404,26 @@ describe("migrateToChats", () => {
       path.join(root, "chats", THREAD_CHAT, ".instrument", "settings.json"),
       { chatSessionId: THREAD, kind: "orchestrator", name: "Instrument" },
     );
-    fs.mkdirSync(path.join(root, "chats", THREAD_CHAT, ".instrument", "task.db"));
+    fs.mkdirSync(
+      path.join(root, "chats", THREAD_CHAT, ".instrument", "task.db"),
+    );
 
     const migration = migrateToChats(root);
     expect(migration.chatCount).toBe(1);
     expect(migration.leftOver).toBe(2);
-    const windowDb = path.join(root, "tasks", "instrument", ".instrument", "task.db");
-    expect(keysIn(windowDb).filter((key) => key.includes(THREAD))).toHaveLength(5);
-    expect(fs.existsSync(path.join(root, "tasks", "2026-09-24-from-a-thread"))).toBe(true);
+    const windowDb = path.join(
+      root,
+      "tasks",
+      "instrument",
+      ".instrument",
+      "task.db",
+    );
+    expect(keysIn(windowDb).filter((key) => key.includes(THREAD))).toHaveLength(
+      5,
+    );
+    expect(
+      fs.existsSync(path.join(root, "tasks", "2026-09-24-from-a-thread")),
+    ).toBe(true);
     const state = readJson(
       path.join(root, "tasks", "instrument", ".instrument", "settings.json"),
     ).state as Record<string, unknown>;
@@ -417,7 +432,10 @@ describe("migrateToChats", () => {
     fs.rmSync(path.join(root, "chats", THREAD_CHAT, ".instrument", "task.db"), {
       recursive: true,
     });
-    expect(migrateToChats(root)).toMatchObject({ leftOver: 0, movedTaskCount: 1 });
+    expect(migrateToChats(root)).toMatchObject({
+      leftOver: 0,
+      movedTaskCount: 1,
+    });
     expect(keysIn(windowDb).filter((key) => key.includes(THREAD))).toEqual([]);
   });
 

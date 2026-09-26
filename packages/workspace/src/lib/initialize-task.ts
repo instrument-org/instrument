@@ -90,9 +90,7 @@ export async function initializeTask(
     yield* ResultAsync.fromPromise(
       fs.mkdir(taskDir(taskId), { recursive: false }),
       (error) =>
-        error instanceof Error &&
-          "code" in error &&
-          error.code === "EEXIST"
+        error instanceof Error && "code" in error && error.code === "EEXIST"
           ? new TypedError.Conflict(
               `Task directory already exists: ${taskDir(taskId)}`,
             )

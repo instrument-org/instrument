@@ -194,9 +194,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 function mentions(rows: StoreRow[], fileName: string): boolean {
   const escaped = fileName.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
-  const pattern = new RegExp(
-    String.raw`(^|[\s/"\\])${escaped}($|[^\w.-])`,
-  );
+  const pattern = new RegExp(String.raw`(^|[\s/"\\])${escaped}($|[^\w.-])`);
   return rows.some(
     (row) => row.key.startsWith("parts:") && pattern.test(textOf(row.blob)),
   );
@@ -278,7 +276,11 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
   // window, still takes its tasks and files.
   for (const [sessionId, name] of made) {
     const parsed = StoreId.SessionSchema.safeParse(sessionId);
-    if (parsed.success && !chatOf.has(parsed.data) && !failed.has(parsed.data)) {
+    if (
+      parsed.success &&
+      !chatOf.has(parsed.data) &&
+      !failed.has(parsed.data)
+    ) {
       chatOf.set(parsed.data, name);
     }
   }

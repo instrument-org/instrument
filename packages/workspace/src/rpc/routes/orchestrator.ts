@@ -54,7 +54,8 @@ import {
 import {
   chatOfSession,
   chatTaskIds,
-  isChatId, sessionOfChat 
+  isChatId,
+  sessionOfChat,
 } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";

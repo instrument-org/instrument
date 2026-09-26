@@ -1,4 +1,3 @@
-import { chatOfSession } from "../record-folders";
 import { defineCommand } from "just-bash";
 import { alphabetical } from "radashi";
 
@@ -9,6 +8,7 @@ import {
   type Thread,
 } from "../orchestrator/threads";
 import { listTopics, type Topic, topicByName } from "../orchestrator/topics";
+import { chatOfSession } from "../record-folders";
 import { Store } from "../store";
 import { CHAT_COMMAND } from "./chat-command";
 

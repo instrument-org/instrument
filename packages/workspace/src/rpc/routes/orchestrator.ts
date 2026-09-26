@@ -1,8 +1,3 @@
-import {
-  chatOfSession,
-  isChatId,
-  sessionOfChat,
-} from "../../lib/record-folders";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
@@ -56,7 +51,11 @@ import {
   TopicSchema,
   updateTopic,
 } from "../../lib/orchestrator/topics";
-import { chatTaskIds } from "../../lib/record-folders";
+import {
+  chatOfSession,
+  chatTaskIds,
+  isChatId, sessionOfChat 
+} from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";

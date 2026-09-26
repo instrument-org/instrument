@@ -1,4 +1,3 @@
-import { sessionOfChat } from "../../lib/record-folders";
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { eventIterator, type } from "@orpc/server";
 import { sleep } from "radashi";
@@ -13,6 +12,7 @@ import { newMessage } from "../../lib/new-message";
 import { threadContextFor } from "../../lib/orchestrator/thread-context";
 import { setThreadTopics } from "../../lib/orchestrator/threads";
 import { getTaskProjectName } from "../../lib/project";
+import { sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
 import { getTaskSettings, recordTaskActivity } from "../../lib/task-settings";

@@ -1,4 +1,3 @@
-import { chatOfSession, isChatId, sessionOfChat } from "../record-folders";
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import ms from "ms";
 
@@ -10,6 +9,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { getTasks } from "../get-tasks";
 import { filesNamedIn } from "../parse-files-block";
+import { chatOfSession, isChatId, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";

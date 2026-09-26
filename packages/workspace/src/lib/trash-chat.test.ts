@@ -7,7 +7,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { initializeTask } from "./initialize-task";
-import { recordIdTaken, forgetRecordFolders } from "./record-folders";
+import { forgetRecordFolders, recordIdTaken } from "./record-folders";
 import { taskDir } from "./task-dir-utils";
 import { trashChat } from "./trash-task";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";

@@ -1,4 +1,3 @@
-import { chatOfSession, sessionOfChat } from "../record-folders";
 import { alphabetical, parallel, unique } from "radashi";
 import { z } from "zod";
 
@@ -13,7 +12,7 @@ import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { chatTaskIds } from "../record-folders";
+import { chatOfSession, chatTaskIds, sessionOfChat  } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, updateTaskState } from "../task-record";

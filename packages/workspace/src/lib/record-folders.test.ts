@@ -19,7 +19,6 @@ import {
   recordIdTaken,
   sessionOfChat,
 } from "./record-folders";
-
 import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -65,10 +64,6 @@ async function make(id: string, parentTaskId?: string) {
   return taskId;
 }
 
-function relative(dir: string) {
-  return path.relative(rootDir, dir);
-}
-
 async function makeChat(name: string, sessionId = SESSION) {
   const taskId = TaskIdSchema.parse(name);
   const made = await initializeTask(
@@ -85,6 +80,10 @@ async function makeChat(name: string, sessionId = SESSION) {
   );
   expect(made.isOk()).toBe(true);
   return taskId;
+}
+
+function relative(dir: string) {
+  return path.relative(rootDir, dir);
 }
 
 describe("chat folder names", () => {

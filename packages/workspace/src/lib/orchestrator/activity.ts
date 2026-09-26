@@ -1,4 +1,3 @@
-import { sessionOfChat } from "../record-folders";
 import { z } from "zod";
 
 import { type SessionMessage } from "../../schemas/session/message";
@@ -7,6 +6,7 @@ import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { listTaskBackgroundProcesses } from "../background-processes";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { isToolPart } from "../is-tool-part";
+import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { listChildTasks } from "./children";

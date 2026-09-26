@@ -1,7 +1,7 @@
-import { ok, type Result } from "neverthrow";
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { call, eventIterator } from "@orpc/server";
+import { ok, type Result } from "neverthrow";
 import { parallel } from "radashi";
 import { z } from "zod";
 
@@ -11,6 +11,7 @@ import { changedMessageBatches } from "../../../lib/changed-message-batches";
 import { changedTaskBatches } from "../../../lib/changed-task-batches";
 import { createSession } from "../../../lib/create-session";
 import { defaultTaskName } from "../../../lib/default-task-name";
+import { type TypedError } from "../../../lib/errors";
 import { exportTaskZip } from "../../../lib/export-task-zip";
 import { findAvailableName } from "../../../lib/find-available-name";
 import { generateTitleFromUserMessage } from "../../../lib/generate-title-from-user-message";
@@ -19,13 +20,12 @@ import { importTask as importTaskLib } from "../../../lib/import-task";
 import { initializeTask } from "../../../lib/initialize-task";
 import { LiveTasksSnapshot } from "../../../lib/live-tasks-snapshot";
 import { newMessage } from "../../../lib/new-message";
-import { type TypedError } from "../../../lib/errors";
 import { newTaskId } from "../../../lib/new-task-id";
-import { isChatId } from "../../../lib/record-folders";
 import { ensureChat } from "../../../lib/orchestrator/chats";
 import { pathExists } from "../../../lib/path-exists";
 import { getProject } from "../../../lib/project";
 import { normalizeProjectInstructions } from "../../../lib/project-instructions";
+import { isChatId } from "../../../lib/record-folders";
 import { Store } from "../../../lib/store";
 import { taskDir } from "../../../lib/task-dir-utils";
 import {

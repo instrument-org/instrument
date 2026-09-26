@@ -1,4 +1,3 @@
-import { isChatId, sessionOfChat } from "../record-folders";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
@@ -66,6 +65,7 @@ import {
 import { outputFolderPath } from "../orchestrator/output-folder";
 import { renderSteps, sessionSteps } from "../orchestrator/steps";
 import { askWake, cancelAskedWake, expectStop } from "../orchestrator/wake";
+import { isChatId, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";

@@ -1,4 +1,3 @@
-import { isChatId } from "../record-folders";
 import { execa } from "execa";
 import { defineCommand } from "just-bash";
 import { spawn } from "node:child_process";
@@ -34,6 +33,7 @@ import { isTaskId } from "../is-task-id";
 import { browserHostForTask } from "../orchestrator/browser-host";
 import { windowTaskId } from "../orchestrator/ensure";
 import { isAtOrUnder } from "../path-containment";
+import { isChatId } from "../record-folders";
 import {
   getBrowserSessionDir,
   getDownloadsDir,

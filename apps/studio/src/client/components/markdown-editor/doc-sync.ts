@@ -15,6 +15,9 @@
 //    editor shows (a serialized list fusing with a preserved neighbor), the
 //    neighbors of the mismatch are re-serialized too, never the whole file.
 //    Serialized blocks drop the backslash escapes their text does not need.
+//    A list the person changed is written the same way one level down: its
+//    unchanged items write their disk bytes, and only the changed ones are
+//    serialized, in the list's own marker and nested indent.
 // 2. External changes merge as a block-level three-way merge: base = the disk
 //    text the editor last synced with, ours = the editor, theirs = the new disk
 //    text. Each block-level hunk the agent made is applied at the matching
@@ -179,6 +182,21 @@ function stripIds(node: PMNode): PMNode {
 const sameKeys = (a: readonly PMNode[], b: readonly PMNode[]) =>
   a.length === b.length && a.every((n, i) => b[i] && keyOf(n) === keyOf(b[i]));
 
+/**
+ * One stretch of a spliced body: a disk block written as it is, a list
+ * written item by item over the disk list it replaced, or editor nodes
+ * through the serializer.
+ */
+type Item =
+  | { from: number; group: Group; list?: undefined; nodes?: undefined }
+  | {
+      from: number;
+      group?: undefined;
+      list: { group: Group; text: string };
+      nodes?: undefined;
+    }
+  | { from: number; group?: undefined; list?: undefined; nodes: PMNode[] };
+
 /** LCS over two key arrays; returns, for each index of `a`, the matched index in `b` or -1. */
 function lcsMatch(a: readonly string[], b: readonly string[]): number[] {
   const n = a.length;
@@ -232,6 +250,15 @@ function lcsMatch(a: readonly string[], b: readonly string[]): number[] {
   return out;
 }
 
+/** The disk block an item of a splice writes over, if any. */
+const itemGroup = (it: Item | undefined) => it?.group ?? it?.list?.group;
+
+/** `text` with every line after its first indented by `by` spaces. */
+const indented = (text: string, by: number) =>
+  text.replaceAll(/\n(?=[^\n])/g, `\n${" ".repeat(by)}`);
+
+const isList = (n: PMNode) =>
+  n.type.name === "bullet_list" || n.type.name === "ordered_list";
 const isDefinition = (type: string) =>
   type === "definition" || type === "footnoteDefinition";
 const isEmptyParagraph = (n: PMNode) =>
@@ -623,6 +650,218 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
     return dropped.length > 0 ? without(dropped) : md;
   }
 
+  /**
+   * A top-level list the editor changed some items of, written over the disk
+   * list `g` item by item (see {@link listText}). Null when `g` is not one
+   * list of the same kind, when no item survived or stands in the place of
+   * one, or when the result would not parse back to exactly `node`.
+   */
+  function splicedList(node: PMNode, g: Group, d: BodyAnalysis): null | string {
+    const diskNode =
+      g.first >= 0 && g.size === 1 ? d.nodes[g.first]?.node : undefined;
+    if (!diskNode) {
+      return null;
+    }
+    const source = d.body.slice(g.start, g.end);
+    const list = parseTree(source).children?.[0];
+    if (!list) {
+      return null;
+    }
+    const text = listText(node, diskNode, list, source, d.context);
+    return text === null ? null : text + source.slice(endOf(list));
+  }
+
+  /**
+   * A list written over the disk list it replaced, `list` being that list's
+   * Markdown node with offsets into `source`: each item the editor still has
+   * unchanged (aligned by structure, as blocks are) writes its disk bytes,
+   * with the disk's spacing between items that were neighbors there. A
+   * changed item paired with the disk item it replaced keeps that item's
+   * marker and every child block it did not change, a changed nested list
+   * the same way one level down; any other goes through the serializer and
+   * is given the list's own marker and nested indent. With `context`, the
+   * result must parse back to exactly `node`; a nested list, whose lines
+   * carry their indent from the file, is checked with the list it is in.
+   */
+  function listText(
+    node: PMNode,
+    diskNode: PMNode,
+    list: MdNode,
+    source: string,
+    context: null | string,
+  ): null | string {
+    const mdItems = list.type === "list" ? (list.children ?? []) : [];
+    const diskItems = childrenOf(diskNode).map((c) => c.node);
+    const items = childrenOf(node).map((c) => c.node);
+    const firstItem = mdItems[0];
+    if (
+      !isList(node) ||
+      diskNode.type !== node.type ||
+      !firstItem ||
+      mdItems.length !== diskItems.length
+    ) {
+      return null;
+    }
+    const match = lcsMatch(items.map(keyOf), diskItems.map(keyOf));
+    const counterpart = pairUnmatched(match, diskItems.length);
+    if (match.every((m) => m < 0) && counterpart.size === 0) {
+      return null;
+    }
+    const schema = node.type.schema;
+    const ordered = node.type.name === "ordered_list";
+    const lineStart = (at: number) => source.lastIndexOf("\n", at - 1) + 1;
+    const columnOf = (at: number) => at - lineStart(at);
+    const slice = (n: MdNode) => source.slice(startOf(n), endOf(n));
+    const itemSource = (m: number) => {
+      const item = mdItems[m];
+      return item ? slice(item) : "";
+    };
+    const column = columnOf(startOf(firstItem));
+    const marker = /^(?:([*+-])|(\d+)([.)]))/.exec(itemSource(0));
+    const numberOf = (m: number) => Number(/^\d+/.exec(itemSource(m))?.[0]);
+    // How far past the list's column the items' continuation lines stand,
+    // the shallowest seen: where the list keeps its nested blocks.
+    let nested: number | undefined;
+    for (const [m] of mdItems.entries()) {
+      for (const line of itemSource(m).split("\n").slice(1)) {
+        if (line.trim()) {
+          const indent = (/^ */.exec(line)?.[0].length ?? 0) - column;
+          nested = Math.min(nested ?? indent, indent);
+        }
+      }
+    }
+    const secondItem = mdItems[1];
+    const separator = secondItem
+      ? source.slice(endOf(firstItem), startOf(secondItem))
+      : `\n${" ".repeat(column)}`;
+    const serializeBlock = (block: PMNode) =>
+      serialize(schema.topNodeType.create(null, [block])).replaceAll(
+        /^\n+|\n+$/g,
+        "",
+      );
+
+    /** A changed item as the serializer writes it, given the list's marker and nested indent. */
+    const serializedItem = (item: PMNode, number: number) => {
+      const attrs = ordered ? { ...node.attrs, order: number } : node.attrs;
+      const md = serializeBlock(node.type.create(attrs, [item]));
+      const head = /^(?:[*+-]|\d+[.)])([ \t]+)/.exec(md);
+      if (!head) {
+        return null;
+      }
+      const width = head[0].length;
+      const shift =
+        nested !== undefined && nested > width && nested < width + 4
+          ? nested - width
+          : 0;
+      const own = ordered
+        ? `${number}${marker?.[3] ?? "."}`
+        : (marker?.[1] ?? "-");
+      return indented(
+        `${own}${head[1] ?? " "}${md.slice(width)}`,
+        column + shift,
+      );
+    };
+
+    /** A changed item written over the disk item `m` it replaced, keeping the child blocks it did not change. */
+    const reusedItem = (item: PMNode, m: number, number: number) => {
+      const mdItem = mdItems[m];
+      const diskItem = diskItems[m];
+      const mdKids = mdItem?.children ?? [];
+      const firstKid = mdKids[0];
+      if (
+        !mdItem ||
+        !diskItem ||
+        !firstKid ||
+        mdKids.length !== diskItem.childCount ||
+        JSON.stringify(item.attrs) !== JSON.stringify(diskItem.attrs)
+      ) {
+        return null;
+      }
+      const kids = childrenOf(item).map((c) => c.node);
+      const diskKids = childrenOf(diskItem).map((c) => c.node);
+      const kidMatch = lcsMatch(kids.map(keyOf), diskKids.map(keyOf));
+      const kidCounterpart = pairUnmatched(kidMatch, diskKids.length);
+      const contentColumn = columnOf(startOf(firstKid));
+      const secondKid = mdKids[1];
+      const kidSeparator = secondKid
+        ? source.slice(endOf(firstKid), startOf(secondKid))
+        : `\n${" ".repeat(contentColumn)}`;
+      const prefix = source.slice(startOf(mdItem), startOf(firstKid));
+      let text = ordered ? prefix.replace(/^\d+/, String(number)) : prefix;
+      let previous = -2;
+      for (const [k, kid] of kids.entries()) {
+        const at = kidMatch[k] ?? -1;
+        const standsFor = at >= 0 ? at : (kidCounterpart.get(k) ?? -2);
+        const before = mdKids[previous];
+        const here = mdKids[standsFor];
+        if (k > 0) {
+          text +=
+            before && here && standsFor === previous + 1
+              ? source.slice(endOf(before), startOf(here))
+              : kidSeparator;
+        }
+        const diskKid = diskKids[standsFor];
+        text +=
+          at >= 0 && here
+            ? slice(here)
+            : ((here && diskKid
+                ? listText(kid, diskKid, here, source, null)
+                : null) ?? indented(serializeBlock(kid), contentColumn));
+        previous = standsFor;
+      }
+      return text;
+    };
+
+    const build = (reuse: boolean) => {
+      let text = "";
+      let next = marker?.[2]
+        ? Number(marker[2])
+        : Number(node.attrs.order ?? 1);
+      let previous = -2;
+      for (const [i, item] of items.entries()) {
+        const m = match[i] ?? -1;
+        const standsFor = m >= 0 ? m : (counterpart.get(i) ?? -2);
+        const before = mdItems[previous];
+        const here = mdItems[standsFor];
+        if (i > 0) {
+          text +=
+            before && here && standsFor === previous + 1
+              ? source.slice(endOf(before), startOf(here))
+              : separator;
+        }
+        if (m >= 0) {
+          text += itemSource(m);
+          next = ordered ? numberOf(m) + 1 : next;
+        } else {
+          const written =
+            (reuse && standsFor >= 0
+              ? reusedItem(item, standsFor, next)
+              : null) ?? serializedItem(item, next);
+          if (written === null) {
+            return null;
+          }
+          text += written;
+          next++;
+        }
+        previous = standsFor;
+      }
+      return text;
+    };
+
+    for (const reuse of [true, false]) {
+      const text = build(reuse);
+      if (text !== null && context === null) {
+        return text;
+      }
+      const reparsed =
+        text === null || context === null ? null : nodesForSlice(text, context);
+      if (text !== null && reparsed && sameKeys(reparsed, [node])) {
+        return text;
+      }
+    }
+    return null;
+  }
+
   /** Disk bytes for every block the editor still has unchanged, serializer output for the rest. */
   function splicedBody(pmDoc: PMNode, d: DiskState): string {
     // Empty paragraphs (Enter pressed twice) are not written; Milkdown would
@@ -661,10 +900,7 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
     for (let attempt = 0; ; attempt++) {
       // Walk the editor's nodes; a disk group is intact when all of its nodes
       // align, in order, with consecutive editor nodes.
-      type Item =
-        | { from: number; group: Group; nodes?: undefined }
-        | { from: number; group?: undefined; nodes: PMNode[] };
-      const items: Item[] = [];
+      const walked: Item[] = [];
       for (let i = 0; i < E.length;) {
         const g = groupAt(i);
         const intact =
@@ -676,36 +912,82 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
             (_, m) => match[i + m] === g.first + m,
           ).every(Boolean);
         if (intact) {
-          items.push({ from: i, group: g });
+          walked.push({ from: i, group: g });
           i += g.size;
         } else {
-          const last = items.at(-1);
+          const last = walked.at(-1);
           const node = E[i];
           if (node) {
             if (last?.nodes) {
               last.nodes.push(node);
             } else {
-              items.push({ from: i, nodes: [node] });
+              walked.push({ from: i, nodes: [node] });
             }
           }
           i++;
         }
       }
 
+      // A changed list is written item by item over the disk list it stands
+      // in the place of: one of the same kind, between the same intact
+      // neighbors, that nothing else was written over.
+      const used = new Set<Group>();
+      const spliced: Item[] = [];
+      for (const [k, it] of walked.entries()) {
+        if (!it.nodes) {
+          spliced.push(it);
+          continue;
+        }
+        const lo = walked.slice(0, k).findLast((x) => x.group)?.group?.index;
+        const hi = walked.slice(k + 1).find((x) => x.group)?.group?.index;
+        let candidates = d.groups
+          .slice((lo ?? -1) + 1, hi ?? d.groups.length)
+          .filter((g) => !demoted.has(g));
+        let run: PMNode[] = [];
+        let runFrom = it.from;
+        for (const [offset, node] of it.nodes.entries()) {
+          const g = isList(node)
+            ? candidates.find((c) => d.nodes[c.first]?.node.type === node.type)
+            : undefined;
+          const text = g && !used.has(g) ? splicedList(node, g, d) : null;
+          if (g && text !== null) {
+            if (run.length > 0) {
+              spliced.push({ from: runFrom, nodes: run });
+              run = [];
+            }
+            spliced.push({ from: it.from + offset, list: { group: g, text } });
+            used.add(g);
+            candidates = candidates.slice(candidates.indexOf(g) + 1);
+          } else {
+            if (run.length === 0) {
+              runFrom = it.from + offset;
+            }
+            run.push(node);
+          }
+        }
+        if (run.length > 0) {
+          spliced.push({ from: runFrom, nodes: run });
+        }
+      }
+
       let text = d.lead;
       let preserved = 0;
       let serialized = 0;
-      for (const [k, it] of items.entries()) {
-        const before = items[k - 1];
-        if (before) {
+      for (const [k, it] of spliced.entries()) {
+        const before = itemGroup(spliced[k - 1]);
+        const here = itemGroup(it);
+        if (k > 0) {
           text +=
-            it.group && before.group?.index === it.group.index - 1
-              ? d.body.slice(before.group.end, it.group.start)
+            before && here && before.index === here.index - 1
+              ? d.body.slice(before.end, here.start)
               : "\n\n";
         }
         if (it.group) {
           text += d.body.slice(it.group.start, it.group.end);
           preserved++;
+        } else if (it.list) {
+          text += it.list.text;
+          serialized++;
         } else {
           const md = serialize(
             schema.topNodeType.create(null, it.nodes),
@@ -714,11 +996,11 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
           serialized += it.nodes.length;
         }
       }
-      const last = items.at(-1);
+      const last = itemGroup(spliced.at(-1));
       text +=
-        last?.group && last.group.index === d.groups.length - 1
-          ? d.body.slice(last.group.end)
-          : items.length > 0
+        last?.index === d.groups.length - 1
+          ? d.body.slice(last.end)
+          : spliced.length > 0
             ? "\n"
             : "";
 
@@ -764,14 +1046,15 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
         splicedDisk = { base: d, next: prev.next };
         return prev.text;
       }
-      let k = items.findLastIndex((it) => it.from <= bad);
+      let k = spliced.findLastIndex((it) => it.from <= bad);
       if (k < 0) {
         k = 0;
       }
       let grew = false;
-      for (const it of [items[k - 1], items[k], items[k + 1]]) {
-        if (it?.group && !demoted.has(it.group)) {
-          demoted.add(it.group);
+      for (const it of [spliced[k - 1], spliced[k], spliced[k + 1]]) {
+        const g = itemGroup(it);
+        if (g && !demoted.has(g)) {
+          demoted.add(g);
           grew = true;
         }
       }
@@ -1113,6 +1396,28 @@ function escapeSites(md: string): number[] {
   };
   visit(parseTree(md));
   return sites;
+}
+
+/**
+ * For each unaligned index of a list's editor items, the unaligned disk item
+ * in the same place: between the same aligned neighbors, taken in order. What
+ * an item the person changed was before they changed it.
+ */
+function pairUnmatched(match: readonly number[], diskCount: number) {
+  const pairs = new Map<number, number>();
+  let next = 0;
+  for (const [i, m] of match.entries()) {
+    if (m >= 0) {
+      next = m + 1;
+      continue;
+    }
+    const bound = match.slice(i + 1).find((x) => x >= 0) ?? diskCount;
+    if (next < bound) {
+      pairs.set(i, next);
+      next++;
+    }
+  }
+  return pairs;
 }
 
 /**

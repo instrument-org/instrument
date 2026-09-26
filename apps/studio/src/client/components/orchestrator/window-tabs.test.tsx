@@ -7,12 +7,13 @@ import {
   type WindowTab,
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
+import { fileHref } from "@/shared/computer-href";
 import { renderWithProviders } from "@/tests/render";
 import { StoreId } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { threadOfHrefPrefix, useWindowTabs } from "./window-tabs";
+import { sameHref, threadOfHrefPrefix, useWindowTabs } from "./window-tabs";
 
 const THREAD_A = StoreId.newSessionId();
 const THREAD_B = StoreId.newSessionId();
@@ -383,5 +384,34 @@ describe("threadOfHrefPrefix", () => {
     ["another screen", "/orchestrator/tasks/ses_01JC", undefined],
   ])("resolves %s", (_case, href, expected) => {
     expect(threadOfHrefPrefix(href, threads)).toBe(expected);
+  });
+});
+
+describe("sameHref", () => {
+  const FILE = "/Users/casey/notes/alpha.md";
+
+  it.each([
+    // The router writes a pushed address back out with `~` as `%7E`, and the
+    // two have to read as one screen or the tab never follows the push.
+    [
+      "a file's address and the router's spelling of it",
+      fileHref(FILE),
+      `/orchestrator/computer?file=${encodeURIComponent(FILE)}&path=&root=%7E`,
+      true,
+    ],
+    [
+      "the same search in another order",
+      "/orchestrator/computer?root=~&path=",
+      "/orchestrator/computer?path=&root=~",
+      true,
+    ],
+    [
+      "two files",
+      fileHref(FILE),
+      fileHref("/Users/casey/notes/beta.md"),
+      false,
+    ],
+  ])("compares %s", (_case, a, b, expected) => {
+    expect(sameHref(a, b)).toBe(expected);
   });
 });

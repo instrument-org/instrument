@@ -55,6 +55,15 @@ export function parseHref(href: string) {
   return { pathname: url.pathname, search: url.searchParams };
 }
 
+/** Two addresses are one screen when the route and every search entry agree, however either was encoded. */
+export function sameHref(a: string, b: string) {
+  const [x, y] = [parseHref(a), parseHref(b)];
+  if (x.pathname.replace(/\/$/, "") !== y.pathname.replace(/\/$/, "")) {
+    return false;
+  }
+  return searchEntries(x.search) === searchEntries(y.search);
+}
+
 /**
  * The tabs with one of them on screen, in its own group: choosing a tab of
  * another group is moving to that group, with the group being left
@@ -755,15 +764,6 @@ function movingTo(
     group,
     previousGroup: current.group,
   };
-}
-
-/** Two addresses are one screen when the route and every search entry agree, however either was encoded. */
-function sameHref(a: string, b: string) {
-  const [x, y] = [parseHref(a), parseHref(b)];
-  if (x.pathname.replace(/\/$/, "") !== y.pathname.replace(/\/$/, "")) {
-    return false;
-  }
-  return searchEntries(x.search) === searchEntries(y.search);
 }
 
 function searchEntries(search: URLSearchParams) {

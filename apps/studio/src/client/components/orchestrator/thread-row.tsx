@@ -514,7 +514,6 @@ function Peek({
  * stops short of the door.
  */
 function StarControl({ thread }: { thread: Thread }) {
-  const { taskId } = useOrchestrator();
   const star = useMutation(
     rpcClient.workspace.orchestrator.threads.star.mutationOptions(),
   );
@@ -531,11 +530,7 @@ function StarControl({ thread }: { thread: Thread }) {
       onAuxClick={stopHere}
       onClick={(event) => {
         stopHere(event);
-        star.mutate({
-          id: taskId,
-          sessionId: thread.id,
-          starred: !thread.starred,
-        });
+        star.mutate({ sessionId: thread.id, starred: !thread.starred });
       }}
       type="button"
     >

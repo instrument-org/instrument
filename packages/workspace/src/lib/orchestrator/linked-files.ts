@@ -1,9 +1,11 @@
 import { sort, unique } from "radashi";
 
+import { sessionOfChat } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { Store } from "../store";
+import { listChatIds } from "./chats";
 
 /**
  * How far back into a thread this reads. A file the conversation handed over
@@ -25,20 +27,18 @@ export interface LinkedFile {
  * What the agent chose to show is the whole of it: a `files` fence or a link
  * to a path, the two things a reply draws as something to open. Read back out
  * of what was said rather than recorded as it happened, so it needs nothing
- * kept up to date and says the same thing after a restart. Every thread is
+ * kept up to date and says the same thing after a restart. Every chat is
  * asked, since the user saw all of them.
  *
  * A path here is what the user was shown, not a promise that anything is still
  * there; the file may have been moved or thrown away since.
  */
-export async function linkedFiles(
-  orchestratorTaskId: TaskId,
-): Promise<LinkedFile[]> {
-  const sessions = await Store.getSessions(orchestratorTaskId);
+export async function linkedFiles(): Promise<LinkedFile[]> {
   const shown = await Promise.all(
-    (sessions.isOk() ? sessions.value : []).map((session) =>
-      shownIn(orchestratorTaskId, session.id),
-    ),
+    listChatIds().flatMap((chatId) => {
+      const sessionId = sessionOfChat(chatId);
+      return sessionId ? [shownIn(chatId, sessionId)] : [];
+    }),
   );
   // Newest first, then one entry per file: a file handed over again is the
   // same file, and the time that matters is the last time it was shown.

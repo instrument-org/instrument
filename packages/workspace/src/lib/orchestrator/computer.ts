@@ -267,7 +267,7 @@ export async function recentComputerFiles({
   taskId: TaskId;
 }): Promise<ComputerRecent[]> {
   const [shown, { layout, roots }] = await Promise.all([
-    linkedFiles(taskId),
+    linkedFiles(),
     orchestratorView(taskId),
   ]);
   const described = await Promise.all(

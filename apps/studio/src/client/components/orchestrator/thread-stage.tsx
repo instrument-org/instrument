@@ -10,6 +10,7 @@ import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  chatIdOf,
   type SessionMessageDataPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
@@ -47,7 +48,9 @@ export function ThreadScreen({
   sessionId: StoreId.Session;
 }) {
   const orchestrator = useOrchestrator();
-  const { taskId } = orchestrator;
+  // The thread's own record: a chat is a record of its own, found by its
+  // session's id.
+  const taskId = chatIdOf(sessionId);
   const task = useQuery(
     rpcClient.workspace.task.live.byId.experimental_liveOptions({
       input: { id: taskId },
@@ -60,7 +63,7 @@ export function ThreadScreen({
   );
   // The thread as the list beside the tabs knows it, for the newest reply
   // that has landed, which is what marks it read below.
-  const threads = useQuery(threadListOptions(taskId));
+  const threads = useQuery(threadListOptions());
   const thread = threads.data?.find((entry) => entry.id === sessionId);
   // While the thread's own agent composes, the transcript shows the typing
   // dots; the thread is otherwise at work when a task filed from it is, and
@@ -90,10 +93,10 @@ export function ThreadScreen({
     if (!isUp) {
       return;
     }
-    markSeen.mutate({ id: taskId, sessionId });
+    markSeen.mutate({ sessionId });
     // The mutation is stable; re-running on its identity would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [isUp, taskId, sessionId, newestSettledMessageId]);
+  }, [isUp, sessionId, newestSettledMessageId]);
 
   if (!task.data || !state.data) {
     return (

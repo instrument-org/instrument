@@ -44,6 +44,14 @@ export function chatTaskDirs(): TaskDir[] {
   return [...nestedTasks().values()];
 }
 
+/** The ids of the tasks inside one chat. */
+export function chatTaskIds(chatId: TaskId): TaskId[] {
+  const inside = chatDir(chatId) + path.sep;
+  return [...nestedTasks()].flatMap(([id, dir]) =>
+    dir.startsWith(inside) ? [id] : [],
+  );
+}
+
 /**
  * Whether a chat's task already has this id. Ids are unique across the whole
  * workspace, so a name picked for a task anywhere has to check inside every

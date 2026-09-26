@@ -3,6 +3,7 @@ import ms from "ms";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
+import { chatIdOf, sessionOfChat } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
@@ -17,6 +18,7 @@ import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { threadOfTask } from "./attribution";
+import { listChatIds } from "./chats";
 import { taskFolderHoldings } from "./folder-holdings";
 import {
   cutForNote,
@@ -167,27 +169,23 @@ export function startOrchestratorWake(workspaceRef: WorkspaceActorRef): void {
 }
 
 /**
- * Wake every orchestrator with the same part: what an app event does, since
- * the user acted on the app rather than on any one conversation. An
- * orchestrator that has never been messaged has no model to wake with and
- * nothing waiting on the news, so it is left alone. `threadOf` names the
- * thread to wake each one in; none means its newest.
+ * Wakes one chat with an app's event: the one the app was asked for in, or,
+ * for an app nobody asked for, the newest chat that has run, since the user
+ * acted on the app rather than on any one conversation. A chat that has never
+ * been messaged has no model to wake with and nothing waiting on the news.
  */
-export async function wakeOrchestrators(
+export async function wakeChatForApp(
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
-  threadOf?: (orchestratorId: TaskId) => Promise<StoreId.Session | undefined>,
+  askedIn: StoreId.Session | undefined,
 ): Promise<void> {
-  const { tasks } = await getTasks(getWorkspaceConfig());
-  for (const task of tasks) {
-    if (task.kind !== "orchestrator") {
-      continue;
+  const candidates = askedIn ? [chatIdOf(askedIn)] : listChatIds().toReversed();
+  for (const chatId of candidates) {
+    const state = await getTaskState(taskDir(chatId));
+    if (state.selectedModelURI) {
+      await wakeWith(chatId, part, workspaceRef, sessionOfChat(chatId));
+      return;
     }
-    const state = await getTaskState(taskDir(task.id));
-    if (!state.selectedModelURI) {
-      continue;
-    }
-    await wakeWith(task.id, part, workspaceRef, await threadOf?.(task.id));
   }
 }
 
@@ -236,10 +234,7 @@ async function deliver(
   const byThread = new Map<string, TaskEvent[]>();
   const sessions = new Map<string, StoreId.Session | undefined>();
   for (const event of events) {
-    const sessionId = await threadOfTask({
-      orchestratorTaskId: orchestratorId,
-      taskId: event.taskId,
-    });
+    const sessionId = await threadOfTask(event.taskId);
     const key = sessionId ?? "";
     sessions.set(key, sessionId);
     byThread.set(key, [...(byThread.get(key) ?? []), event]);

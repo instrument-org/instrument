@@ -49,6 +49,7 @@ export {
 export { viewContextModelNote } from "./lib/view-context-model-text";
 export { readWebSearchResults } from "./lib/web-search-results";
 export { MOUNT } from "./mount-points";
+export { chatIdOf, isChatId, sessionOfChat } from "./schemas/chat-id";
 export { FileUpload } from "./schemas/file-upload";
 export { FolderAttachment } from "./schemas/folder-attachment";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";

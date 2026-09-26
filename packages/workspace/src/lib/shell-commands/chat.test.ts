@@ -4,13 +4,16 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
+import { chatIdOf } from "../../schemas/chat-id";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { createTopic } from "../orchestrator/topics";
 import { Store } from "../store";
+import { taskDir } from "../task-dir-utils";
+import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createChatCommand } from "./chat";
 
@@ -35,22 +38,30 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 // Task state and sessions are real files under the mock workspace, so a task
 // id reused across runs would read the last run's threads.
 let counter = 0;
-const freshTask = () => {
+/**
+ * The window's record, in a workspace of its own: chats, topics and the
+ * window's record all live under the root, so each test gets one.
+ */
+const freshTask = async () => {
   const taskId = createMockTaskConfig(
-    TaskIdSchema.parse(`chat-${Date.now()}-${(counter += 1)}`),
+    TaskIdSchema.parse(`window-${Date.now()}-${(counter += 1)}`),
   );
-  // Topics are files at the workspace root, so each task gets a root of its own.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chat-root-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    rootDir: WorkspaceDirSchema.parse(
-      fs.mkdtempSync(path.join(os.tmpdir(), "chat-root-")),
-    ),
+    rootDir: WorkspaceDirSchema.parse(root),
+    tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
+  const made = await updateTaskSettings(taskId, {
+    kind: "orchestrator",
+    name: "Instrument",
+  });
+  expect(made.isOk()).toBe(true);
   return taskId;
 };
 
-function run(taskId: TaskId, ...args: string[]) {
-  return createChatCommand({ orchestratorTaskId: taskId }).execute(
+function run(...args: string[]) {
+  return createChatCommand().execute(
     args,
     createCommandContext({
       cwd: "/task",
@@ -62,13 +73,10 @@ function run(taskId: TaskId, ...args: string[]) {
 }
 
 /** A thread: a session, the user's opening message, and one reply. */
-async function thread(
-  taskId: TaskId,
-  title: string,
-  ask: string,
-  reply?: string,
-) {
+async function thread(title: string, ask: string, reply?: string) {
   const sessionId = StoreId.newSessionId();
+  const taskId = chatIdOf(sessionId);
+  fs.mkdirSync(taskDir(taskId), { recursive: true });
   await Store.saveSession(
     { createdAt: new Date(), id: sessionId, title, updatedAt: new Date() },
     taskId,
@@ -125,25 +133,24 @@ async function thread(
 
 describe("chat threads", () => {
   it("lists each thread with its state, title, topics and latest line", async () => {
-    const taskId = freshTask();
+    await freshTask();
     await createTopic({ name: "Home" });
     const groceries = await thread(
-      taskId,
       "Groceries for the week",
       "make me a grocery list",
       "Starting the list.",
     );
-    const lisbon = await thread(taskId, "Trip to Lisbon", "plan a trip");
-    await run(taskId, "tag", "groceries", "home");
+    const lisbon = await thread("Trip to Lisbon", "plan a trip");
+    await run("tag", "groceries", "home");
 
-    const result = await run(taskId, "threads");
+    const result = await run("threads");
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       `${groceries}  idle  "Groceries for the week"  #Home  Starting the list.\n${lisbon}  working  "Trip to Lisbon"  nothing yet\n`,
     );
 
-    const filtered = await run(taskId, "threads", "--topic", "home");
+    const filtered = await run("threads", "--topic", "home");
     expect(filtered.stdout).toContain("Groceries");
     expect(filtered.stdout).not.toContain("Lisbon");
   });
@@ -151,16 +158,15 @@ describe("chat threads", () => {
 
 describe("chat read", () => {
   it("reads a thread by words from its title", async () => {
-    const taskId = freshTask();
+    await freshTask();
     await thread(
-      taskId,
       "Groceries for the week",
       "make me a grocery list",
       "Starting the list.",
     );
-    await thread(taskId, "Trip to Lisbon", "plan a trip");
+    await thread("Trip to Lisbon", "plan a trip");
 
-    const result = await run(taskId, "read", "lisbon");
+    const result = await run("read", "lisbon");
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(
@@ -169,11 +175,11 @@ describe("chat read", () => {
   });
 
   it("lists the matches when the words fit more than one thread", async () => {
-    const taskId = freshTask();
-    await thread(taskId, "Trip to Lisbon", "plan a trip");
-    await thread(taskId, "Trip to Porto", "plan another trip");
+    await freshTask();
+    await thread("Trip to Lisbon", "plan a trip");
+    await thread("Trip to Porto", "plan another trip");
 
-    const result = await run(taskId, "read", "trip");
+    const result = await run("read", "trip");
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("matches 2 threads");
@@ -184,11 +190,11 @@ describe("chat read", () => {
 
 describe("chat search", () => {
   it("finds a line across every thread", async () => {
-    const taskId = freshTask();
-    await thread(taskId, "Groceries", "make me a grocery list", "Added Zevia.");
-    await thread(taskId, "Trip to Lisbon", "plan a trip");
+    await freshTask();
+    await thread("Groceries", "make me a grocery list", "Added Zevia.");
+    await thread("Trip to Lisbon", "plan a trip");
 
-    const result = await run(taskId, "search", "zevia");
+    const result = await run("search", "zevia");
 
     expect(result.stdout).toMatch(
       /^\S+ {2}"Groceries" {2}you: Added Zevia\.\n$/,
@@ -198,11 +204,11 @@ describe("chat search", () => {
 
 describe("chat tag", () => {
   it("refuses a topic that does not exist and names the ones that do", async () => {
-    const taskId = freshTask();
+    await freshTask();
     await createTopic({ name: "Home" });
-    await thread(taskId, "Groceries", "make me a grocery list");
+    await thread("Groceries", "make me a grocery list");
 
-    const result = await run(taskId, "tag", "groceries", "work");
+    const result = await run("tag", "groceries", "work");
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
@@ -211,32 +217,28 @@ describe("chat tag", () => {
   });
 
   it("files the thread under the topic", async () => {
-    const taskId = freshTask();
+    await freshTask();
     const home = await createTopic({ name: "Home" });
-    const sessionId = await thread(
-      taskId,
-      "Groceries",
-      "make me a grocery list",
-    );
+    const sessionId = await thread("Groceries", "make me a grocery list");
 
-    const result = await run(taskId, "tag", sessionId.slice(0, 8), "Home");
+    const result = await run("tag", sessionId.slice(0, 8), "Home");
 
     expect(result.stdout).toBe('Filed "Groceries" under #Home.\n');
-    const session = await Store.getSession(sessionId, taskId);
+    const session = await Store.getSession(sessionId, chatIdOf(sessionId));
     expect(session._unsafeUnwrap().topics).toEqual([home.id]);
   });
 });
 
 describe("chat topics", () => {
   it("names the topics in use", async () => {
-    const taskId = freshTask();
+    await freshTask();
     await createTopic({
       about: "the house",
       emoji: "🏠",
       name: "Home",
     });
 
-    const result = await run(taskId, "topics");
+    const result = await run("topics");
 
     expect(result.stdout).toBe("#Home  🏠  the house\n");
   });

@@ -3,14 +3,16 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { chatIdOf } from "../../schemas/chat-id";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { placeChatTask } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
-import { setTaskState } from "../task-record";
+import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type OrchestratorActivity } from "./activity";
 import {
@@ -69,19 +71,33 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 // Task state and sessions are real files under the mock workspace, so a task
 // id reused across runs would read the last run's threads.
 let counter = 0;
-const freshTask = () => {
+/**
+ * The window's record, in a workspace of its own: chats, topics and the
+ * window's record all live under the root, so each test gets one.
+ */
+const freshTask = async () => {
   const taskId = createMockTaskConfig(
     TaskIdSchema.parse(`threads-${Date.now()}-${(counter += 1)}`),
   );
-  // Topics are files at the workspace root, so each task gets a root of its own.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "threads-root-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    rootDir: WorkspaceDirSchema.parse(
-      fs.mkdtempSync(path.join(os.tmpdir(), "threads-root-")),
-    ),
+    rootDir: WorkspaceDirSchema.parse(root),
+    tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
+  const made = await updateTaskSettings(taskId, {
+    kind: "orchestrator",
+    name: "Instrument",
+  });
+  expect(made.isOk()).toBe(true);
   return taskId;
 };
+
+/** A task started in a thread: a folder inside that thread's chat. */
+function fileTask(sessionId: StoreId.Session, child: TaskId) {
+  const dir = placeChatTask(child, chatIdOf(sessionId));
+  fs.mkdirSync(dir, { recursive: true });
+}
 
 beforeEach(() => {
   running.value = [];
@@ -91,7 +107,7 @@ beforeEach(() => {
 
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));
 
-async function agentAsks(taskId: TaskId, sessionId: StoreId.Session) {
+async function agentAsks(_taskId: TaskId, sessionId: StoreId.Session) {
   const messageId = StoreId.newMessageId();
   const message: SessionMessage.AssistantWithParts = {
     id: messageId,
@@ -114,13 +130,13 @@ async function agentAsks(taskId: TaskId, sessionId: StoreId.Session) {
     ],
     role: "assistant",
   };
-  const saved = await Store.saveMessageWithParts(message, taskId);
+  const saved = await Store.saveMessageWithParts(message, chatIdOf(sessionId));
   expect(saved.isOk()).toBe(true);
 }
 
 /** A finished reply, with words and whatever tool calls it made. */
 async function agentSays(
-  taskId: TaskId,
+  _taskId: TaskId,
   sessionId: StoreId.Session,
   text: string,
   {
@@ -163,7 +179,7 @@ async function agentSays(
     ],
     role: "assistant",
   };
-  const saved = await Store.saveMessageWithParts(message, taskId);
+  const saved = await Store.saveMessageWithParts(message, chatIdOf(sessionId));
   expect(saved.isOk()).toBe(true);
   return messageId;
 }
@@ -175,17 +191,19 @@ function partMetadata(ids: {
   return { createdAt: new Date(), id: StoreId.newPartId(), ...ids };
 }
 
-async function session(taskId: TaskId, title: string, minute = 0) {
+/** A thread: a chat's folder and its one session. */
+async function session(_taskId: TaskId, title: string, minute = 0) {
   const id = StoreId.newSessionId();
+  fs.mkdirSync(taskDir(chatIdOf(id)), { recursive: true });
   await Store.saveSession(
     { createdAt: at(minute), id, title, updatedAt: at(minute) },
-    taskId,
+    chatIdOf(id),
   );
   return id;
 }
 
 async function userSays(
-  taskId: TaskId,
+  _taskId: TaskId,
   sessionId: StoreId.Session,
   text: string,
   minute = 0,
@@ -199,14 +217,14 @@ async function userSays(
     ],
     role: "user",
   };
-  const saved = await Store.saveMessageWithParts(message, taskId);
+  const saved = await Store.saveMessageWithParts(message, chatIdOf(sessionId));
   expect(saved.isOk()).toBe(true);
   return messageId;
 }
 
 describe("listThreads", () => {
   it("lists the threads oldest first, with their roots, counts and latest lines", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const groceries = await session(taskId, "Groceries for the week", 1);
     await userSays(taskId, groceries, "make me a grocery list", 1);
     await agentSays(taskId, groceries, "Starting the list.\nMore below.", {
@@ -218,7 +236,7 @@ describe("listThreads", () => {
     // A session nobody has typed in is not a thread.
     await session(taskId, "Untitled chat", 5);
 
-    const threads = await listThreads(taskId);
+    const threads = await listThreads();
 
     expect(
       threads.map((thread) => ({
@@ -257,26 +275,29 @@ describe("listThreads", () => {
   });
 
   it("lets the ask stand for a thread the agent has not named yet", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Untitled chat 3");
     await userSays(taskId, sessionId, "plan a trip to lisbon\nin october", 1);
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
     expect(thread?.title).toBe("plan a trip to lisbon");
   });
 
   it("reads what was said since the last list, and a part rewritten in place", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
-    const [asked] = await listThreads(taskId);
+    const [asked] = await listThreads();
     expect(asked?.replyCount).toBe(0);
 
     await agentSays(taskId, sessionId, "Here is the list.", { minute: 2 });
-    const [replied] = await listThreads(taskId);
+    const [replied] = await listThreads();
     expect(replied?.latest?.text).toBe("Here is the list.");
 
-    const read = await Store.getMessagesWithParts({ sessionId, taskId });
+    const read = await Store.getMessagesWithParts({
+      sessionId,
+      taskId: chatIdOf(sessionId),
+    });
     const reply = read
       ._unsafeUnwrap()
       .find((message) => message.role === "assistant");
@@ -284,13 +305,16 @@ describe("listThreads", () => {
     if (!part) {
       throw new Error("no reply text");
     }
-    await Store.savePart({ ...part, text: "Here is the new list." }, taskId);
-    const [rewritten] = await listThreads(taskId);
+    await Store.savePart(
+      { ...part, text: "Here is the new list." },
+      chatIdOf(sessionId),
+    );
+    const [rewritten] = await listThreads();
     expect(rewritten?.latest?.text).toBe("Here is the new list.");
   });
 
   it("does not count a reply that is still being written as new", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Working on it", {
@@ -298,37 +322,37 @@ describe("listThreads", () => {
       minute: 2,
     });
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
     expect(thread?.unread).toBe(0);
   });
 
   it("puts one reply back among the unread when asked, and clears it again on seeing", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
     await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
-    await markThreadSeen(taskId, sessionId);
+    await markThreadSeen(sessionId);
 
-    await markThreadUnseen(taskId, sessionId);
-    const [put] = await listThreads(taskId);
+    await markThreadUnseen(sessionId);
+    const [put] = await listThreads();
     expect(put?.unread).toBe(1);
 
-    await markThreadSeen(taskId, sessionId);
-    const [seen] = await listThreads(taskId);
+    await markThreadSeen(sessionId);
+    const [seen] = await listThreads();
     expect(seen?.unread).toBe(0);
   });
 
   it("clears the count once seen, and counts again from there", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Done.", { minute: 2 });
 
-    await markThreadSeen(taskId, sessionId);
+    await markThreadSeen(sessionId);
     await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
     expect(thread?.unread).toBe(1);
     // A reply still arriving is not settled, so seeing the thread now records
     // the reply before it.
@@ -336,84 +360,82 @@ describe("listThreads", () => {
       finished: false,
       minute: 4,
     });
-    const seen = await threadById(taskId, sessionId);
+    const seen = await threadById(sessionId);
     const settled = seen?.newestSettledMessageId;
     expect(settled).toBeDefined();
     expect(settled).not.toBe(streaming);
   });
 
   it("carries the topics a thread is tagged with, dropping ids that are not topics", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const home = await createTopic({ name: "Home" });
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list");
 
-    await setThreadTopics(taskId, sessionId, [home.id, "top_nothing"]);
+    await setThreadTopics(sessionId, [home.id, "top_nothing"]);
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
     expect(thread?.topics).toEqual([home.id]);
   });
 
   it("puts a thread away and brings it back, without moving its stamp", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries", 1);
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
-    const [before] = await listThreads(taskId);
+    const [before] = await listThreads();
     expect(before?.archived).toBe(false);
 
-    await archiveThread(taskId, sessionId);
-    const [archived] = await listThreads(taskId);
+    await archiveThread(sessionId);
+    const [archived] = await listThreads();
     expect(archived?.archived).toBe(true);
     expect(archived?.updatedAt).toBe(before?.updatedAt);
 
-    await unarchiveThread(taskId, sessionId);
-    const [back] = await listThreads(taskId);
+    await unarchiveThread(sessionId);
+    const [back] = await listThreads();
     expect(back?.archived).toBe(false);
   });
 
   it("stars a thread and takes the star off, without moving its stamp", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries", 1);
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
-    const [before] = await listThreads(taskId);
+    const [before] = await listThreads();
     expect(before?.starred).toBe(false);
 
-    await setThreadStarred(taskId, sessionId, true);
-    const [starred] = await listThreads(taskId);
+    await setThreadStarred(sessionId, true);
+    const [starred] = await listThreads();
     expect(starred?.starred).toBe(true);
     expect(starred?.updatedAt).toBe(before?.updatedAt);
 
-    await setThreadStarred(taskId, sessionId, false);
-    const [back] = await listThreads(taskId);
+    await setThreadStarred(sessionId, false);
+    const [back] = await listThreads();
     expect(back?.starred).toBe(false);
   });
 
   it("takes the name the user typed, without moving its stamp", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries", 1);
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
-    const [before] = await listThreads(taskId);
+    const [before] = await listThreads();
 
-    await renameThread(taskId, sessionId, "Weekly shop");
-    const [renamed] = await listThreads(taskId);
+    await renameThread(sessionId, "Weekly shop");
+    const [renamed] = await listThreads();
     expect(renamed?.title).toBe("Weekly shop");
     expect(renamed?.updatedAt).toBe(before?.updatedAt);
-    const stored = await Store.getSession(sessionId, taskId);
+    const stored = await Store.getSession(sessionId, chatIdOf(sessionId));
     expect(stored._unsafeUnwrap().titleSettledAt).toBeInstanceOf(Date);
   });
 
   it("is working while a task filed from it runs, and says its step", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
     const child = TaskIdSchema.parse("grocery-list");
-    await setTaskState(taskDir(taskId), {
-      taskThreads: { [child]: sessionId },
-    });
+    fileTask(sessionId, child);
     running.value = [
       {
         step: "Checking the pantry",
@@ -424,7 +446,7 @@ describe("listThreads", () => {
       },
     ];
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
 
     expect(thread?.state).toBe("working");
     expect(thread?.latest).toEqual({
@@ -438,14 +460,12 @@ describe("listThreads", () => {
   });
 
   it("waits, rather than works, while a task filed from it is stopped on an ask", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
     const child = TaskIdSchema.parse("grocery-list");
-    await setTaskState(taskDir(taskId), {
-      taskThreads: { [child]: sessionId },
-    });
+    fileTask(sessionId, child);
     running.value = [
       {
         step: "Picking a store",
@@ -457,7 +477,7 @@ describe("listThreads", () => {
       },
     ];
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
 
     expect(thread?.state).toBe("waiting");
     expect(thread?.latest).toEqual({
@@ -486,13 +506,13 @@ describe("listThreads", () => {
         updatedAt: at(4).getTime(),
       },
     ];
-    const [busy] = await listThreads(taskId);
+    const [busy] = await listThreads();
     expect(busy?.state).toBe("working");
     expect(busy?.latest?.text).toBe("Checking the pantry");
   });
 
   it("is working while its own agent is alive, saying what it is doing", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "", {
@@ -501,7 +521,7 @@ describe("listThreads", () => {
     });
     alive.value = new Set([sessionId]);
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
 
     expect(thread?.state).toBe("working");
     expect(thread?.latest?.kind).toBe("step");
@@ -513,18 +533,18 @@ describe("listThreads", () => {
   it("is working while a message it was just sent waits for its agent, for a while", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
-      const taskId = freshTask();
+      const taskId = await freshTask();
       const sessionId = await session(taskId, "Groceries", 1);
       await userSays(taskId, sessionId, "make me a grocery list", 1);
       await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
       await userSays(taskId, sessionId, "add eggs", 3);
 
       vi.setSystemTime(at(3).getTime() + 5000);
-      const soon = await listThreads(taskId);
+      const soon = await listThreads();
       expect(soon[0]?.state).toBe("working");
 
       vi.setSystemTime(at(3).getTime() + 60_000);
-      const later = await listThreads(taskId);
+      const later = await listThreads();
       expect(later[0]?.state).toBe("idle");
     } finally {
       vi.useRealTimers();
@@ -532,28 +552,26 @@ describe("listThreads", () => {
   });
 
   it("is working while a task filed from it has finished and its wake waits to be written", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
     const child = TaskIdSchema.parse("grocery-list-done");
-    await setTaskState(taskDir(taskId), {
-      taskThreads: { [child]: sessionId },
-    });
+    fileTask(sessionId, child);
     pendingWakes.value = new Set([child]);
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
 
     expect(thread?.state).toBe("working");
   });
 
   it("is waiting while its last turn ended on a question", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentAsks(taskId, sessionId);
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
 
     expect(thread?.state).toBe("waiting");
     expect(thread?.latest).toEqual({
@@ -564,14 +582,14 @@ describe("listThreads", () => {
   });
 
   it("is waiting, not working, while its own agent stands on the question it asked", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentAsks(taskId, sessionId);
     // The agent is alive to the machine: its turn is open on the tool call.
     alive.value = new Set([sessionId]);
     try {
-      const [thread] = await listThreads(taskId);
+      const [thread] = await listThreads();
       expect(thread?.state).toBe("waiting");
       expect(thread?.latest?.kind).toBe("question");
     } finally {
@@ -580,7 +598,7 @@ describe("listThreads", () => {
   });
 
   it("reads a reply that is only the files it handed over by what it wrote", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Compare");
     await userSays(taskId, sessionId, "compare the two quotes", 1);
     await agentSays(
@@ -590,7 +608,7 @@ describe("listThreads", () => {
       { minute: 2 },
     );
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
     expect(thread?.latest).toEqual({
       at: at(2).getTime(),
       kind: "reply",
@@ -603,13 +621,13 @@ describe("listThreads", () => {
       "```files\n/mnt/Instrument/quotes/a.md\n/mnt/Instrument/quotes/b.png\n/mnt/Instrument/quotes/c.html\n```",
       { minute: 3 },
     );
-    const [updated] = await listThreads(taskId);
+    const [updated] = await listThreads();
     expect(updated?.latest?.text).toBe("Wrote 3 files: a.md, b.png, c.html");
     expect(updated?.replyCount).toBe(2);
   });
 
   it("reads what the thread made and used out of its replies", async () => {
-    const taskId = freshTask();
+    const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(
@@ -631,7 +649,7 @@ describe("listThreads", () => {
       { minute: 3 },
     );
 
-    const [thread] = await listThreads(taskId);
+    const [thread] = await listThreads();
 
     expect(thread?.holds).toEqual({
       apps: ["notion"],

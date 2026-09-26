@@ -13,6 +13,7 @@ import {
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
+  chatIdOf,
   type SessionMessageDataPart,
   StoreId,
 } from "@instrument-org/workspace/client";
@@ -216,10 +217,25 @@ export function useDrafts({
     const sessionId = StoreId.newSessionId();
     setStartingIds((current) => new Set(current).add(id));
     setSentWords((current) => new Map(current).set(id, send.prompt));
-    compose.becomeThread(id, sessionId);
     // The model chosen for the thread is the one the next draft opens with.
     saveDefaultModelURI(send.modelURI);
     void (async () => {
+      // The chat's record is made first, so the window never shows a thread
+      // whose record is not there yet; it is a folder and a settings file,
+      // so the press still feels immediate.
+      try {
+        await rpcClient.workspace.orchestrator.chats.ensure.call({
+          sessionId,
+        });
+      } catch (error) {
+        setStartingIds((current) => withoutId(current, id));
+        setSentWords((current) => withoutKey(current, id));
+        toast.error("Failed to start the chat", {
+          description: error instanceof Error ? error.message : String(error),
+        });
+        return;
+      }
+      compose.becomeThread(id, sessionId);
       // Each send settles on its own: the mutation observer follows only the
       // latest call, so callbacks handed to it would be lost for a draft sent
       // while another was still on its way.
@@ -227,7 +243,7 @@ export function useDrafts({
         await createMessage.mutateAsync({
           files: send.files,
           folders: send.folders,
-          id: ids.taskId,
+          id: chatIdOf(sessionId),
           modelURI: send.modelURI,
           newSessionId: sessionId,
           output: send.output,
@@ -298,17 +314,17 @@ function isIncludable(tab: WindowTab): boolean {
   );
 }
 
+function withoutId(ids: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  const next = new Set(ids);
+  next.delete(id);
+  return next;
+}
+
 function withoutKey<T>(
   map: ReadonlyMap<string, T>,
   key: string,
 ): ReadonlyMap<string, T> {
   const next = new Map(map);
   next.delete(key);
-  return next;
-}
-
-function withoutId(ids: ReadonlySet<string>, id: string): ReadonlySet<string> {
-  const next = new Set(ids);
-  next.delete(id);
   return next;
 }

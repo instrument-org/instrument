@@ -141,7 +141,7 @@ export function startAgentCompletionNotifications({
       if (body === undefined) {
         return;
       }
-      const thread = await threadOf({ context, id, sessionId });
+      const thread = await threadOf({ context, sessionId });
       // A reply while a task of the thread's is still at work is a step on
       // the way: the line said before a hand-off, a task sent back. The news
       // is the reply that leaves the thread at rest, with nothing of its own
@@ -174,20 +174,18 @@ export function startAgentCompletionNotifications({
    */
   async function threadOf({
     context,
-    id,
     sessionId,
   }: {
     context: {
       workspaceConfig: WorkspaceConfig;
       workspaceRef: WorkspaceActorRef;
     };
-    id: TaskId;
     sessionId: StoreId.Session;
   }): Promise<Thread | undefined> {
     try {
       const threads = await call(
         workspaceRouter.orchestrator.threads.list,
-        { id },
+        undefined,
         { context },
       );
       return threads.find((thread) => thread.id === sessionId);

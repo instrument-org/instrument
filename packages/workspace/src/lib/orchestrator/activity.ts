@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { sessionOfChat } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
@@ -8,7 +9,6 @@ import { getTaskAgentStatus } from "../get-task-agent-status";
 import { isToolPart } from "../is-tool-part";
 import { Store } from "../store";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
-import { taskThreads } from "./attribution";
 import { listChildTasks } from "./children";
 import { latestSessionId } from "./latest-session";
 import { type LeftRunning } from "./left-running";
@@ -152,17 +152,22 @@ export async function orchestratorActivity(
   orchestratorTaskId: TaskId,
 ): Promise<OrchestratorActivity> {
   const children = await listChildTasks(orchestratorTaskId);
-  const threads = await taskThreads(orchestratorTaskId);
   const running = await Promise.all(
     children
       .filter((child) => isWorking(child.id))
-      .map(async (child) => ({
-        ...(await runningLines(child.id)),
-        taskId: child.id,
-        ...(threads[child.id] ? { thread: threads[child.id] } : {}),
-        title: child.title,
-        updatedAt: child.updatedAt.getTime(),
-      })),
+      .map(async (child) => {
+        const thread =
+          child.parentTaskId === undefined
+            ? undefined
+            : sessionOfChat(child.parentTaskId);
+        return {
+          ...(await runningLines(child.id)),
+          taskId: child.id,
+          ...(thread ? { thread } : {}),
+          title: child.title,
+          updatedAt: child.updatedAt.getTime(),
+        };
+      }),
   );
   return { running };
 }

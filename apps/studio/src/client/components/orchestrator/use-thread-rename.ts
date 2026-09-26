@@ -4,7 +4,6 @@ import { useMutation } from "@tanstack/react-query";
 import { sleep } from "radashi";
 import { toast } from "sonner";
 
-import { useOrchestrator } from "./context";
 import { type Thread } from "./threads";
 
 // Long enough for the live list to carry the new name before the field goes,
@@ -20,7 +19,6 @@ export type ThreadRename = ReturnType<typeof useThreadRename>;
  * Either one settles the title, so the app never renames the thread after.
  */
 export function useThreadRename(thread: Thread | undefined) {
-  const { taskId } = useOrchestrator();
   const { mutateAsync: renameThread } = useMutation(
     rpcClient.workspace.orchestrator.threads.rename.mutationOptions({
       onError: (error) => {
@@ -42,7 +40,7 @@ export function useThreadRename(thread: Thread | undefined) {
   const inline = useInlineRename({
     onSave: async (title) => {
       if (thread) {
-        await renameThread({ id: taskId, sessionId: thread.id, title });
+        await renameThread({ sessionId: thread.id, title });
       }
     },
     value: thread?.title ?? "",
@@ -53,10 +51,7 @@ export function useThreadRename(thread: Thread | undefined) {
     }
     let title: string | undefined;
     try {
-      ({ title } = await retitle.mutateAsync({
-        id: taskId,
-        sessionId: thread.id,
-      }));
+      ({ title } = await retitle.mutateAsync({ sessionId: thread.id }));
     } catch {
       // Toasted by the mutation; the field stays open.
       return;

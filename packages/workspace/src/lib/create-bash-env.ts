@@ -579,7 +579,7 @@ export async function createBashEnv({
           remainingYieldMs,
           sessionId,
         }),
-        createChatCommand({ orchestratorTaskId: taskId }),
+        createChatCommand(),
         createMemoryCommand({ orchestratorTaskId: taskId, sessionId }),
         createAppCommand({ taskId }),
         createOpenCommand({ sessionId, taskId }),

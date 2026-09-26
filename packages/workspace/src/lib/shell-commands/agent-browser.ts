@@ -11,6 +11,7 @@ import { TASK_FOLDER_NAMES } from "../../constants";
 import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
+import { isChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { WebSearch } from "../../tools/web-search";
@@ -31,6 +32,7 @@ import { recordBrowserUse } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import { browserHostForTask } from "../orchestrator/browser-host";
+import { windowTaskId } from "../orchestrator/ensure";
 import { isAtOrUnder } from "../path-containment";
 import {
   getBrowserSessionDir,
@@ -708,7 +710,14 @@ export function createAgentBrowserCommand({
       // since the tab is the user's and outlives the task.
       const state = await getTaskState(taskDir(taskId));
       const settings = await getTaskSettings(taskDir(taskId));
-      const handedTab = state.browserTargetId;
+      // A chat drives the tab on the window's screen, which the window
+      // records on its own record rather than on any chat's.
+      const windowState = isChatId(taskId)
+        ? await getTaskState(taskDir(await windowTaskId()))
+        : undefined;
+      const handedTab = windowState
+        ? windowState.browserTargetId
+        : state.browserTargetId;
       if (handedTab && workspaceConfig.browser.getTargetMeta(handedTab)) {
         targetId = handedTab;
       } else if (settings?.kind === "orchestrator") {

@@ -1,8 +1,8 @@
 import { defineCommand } from "just-bash";
 import { alphabetical } from "radashi";
 
+import { chatIdOf } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import {
   listThreads,
   setThreadTopics,
@@ -30,25 +30,21 @@ const SEARCH_MAX = 20;
  * one thread able to answer about another without every thread riding along
  * in the prompt.
  */
-export function createChatCommand({
-  orchestratorTaskId,
-}: {
-  orchestratorTaskId: TaskId;
-}) {
+export function createChatCommand() {
   return defineCommand(CHAT_COMMAND.name, async (args) => {
     const [subcommand, ...rest] = args;
     switch (subcommand) {
       case "read": {
-        return await runRead(orchestratorTaskId, rest);
+        return await runRead(rest);
       }
       case "search": {
-        return await runSearch(orchestratorTaskId, rest);
+        return await runSearch(rest);
       }
       case "tag": {
-        return await runTag(orchestratorTaskId, rest);
+        return await runTag(rest);
       }
       case "threads": {
-        return await runThreads(orchestratorTaskId, rest);
+        return await runThreads(rest);
       }
       case "topics": {
         return await runTopics();
@@ -112,11 +108,11 @@ function findThread(
 }
 
 /** A thread's messages as `who: what` lines, oldest first. */
-async function lines(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-): Promise<string[]> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+async function lines(sessionId: StoreId.Session): Promise<string[]> {
+  const messages = await Store.getMessagesWithParts({
+    sessionId,
+    taskId: chatIdOf(sessionId),
+  });
   if (messages.isErr()) {
     return [];
   }
@@ -143,15 +139,15 @@ function option(args: string[], flag: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
-async function runRead(taskId: TaskId, args: string[]) {
+async function runRead(args: string[]) {
   const tailIndex = args.indexOf("--tail");
   const words = tailIndex === -1 ? args : args.slice(0, tailIndex);
-  const found = findThread(await listThreads(taskId), words);
+  const found = findThread(await listThreads(), words);
   if ("error" in found) {
     return failure(`${CHAT_NAME} read: ${found.error}`);
   }
   const tail = Number(option(args, "--tail") ?? DEFAULT_TAIL);
-  const said = await lines(taskId, found.thread.id);
+  const said = await lines(found.thread.id);
   const shown = said.slice(
     -(Number.isFinite(tail) && tail > 0 ? tail : DEFAULT_TAIL),
   );
@@ -162,15 +158,15 @@ async function runRead(taskId: TaskId, args: string[]) {
   };
 }
 
-async function runSearch(taskId: TaskId, args: string[]) {
+async function runSearch(args: string[]) {
   const words = args.join(" ").trim().toLowerCase();
   if (!words) {
     return failure(`${CHAT_NAME} search: what words?`);
   }
-  const threads = await listThreads(taskId);
+  const threads = await listThreads();
   const hits: string[] = [];
   for (const thread of threads) {
-    for (const line of await lines(taskId, thread.id)) {
+    for (const line of await lines(thread.id)) {
       if (line.toLowerCase().includes(words)) {
         hits.push(`${thread.id}  "${thread.title}"  ${line}`);
       }
@@ -186,7 +182,7 @@ async function runSearch(taskId: TaskId, args: string[]) {
   };
 }
 
-async function runTag(taskId: TaskId, args: string[]) {
+async function runTag(args: string[]) {
   const topicWord = args.at(-1);
   const threadWords = args.slice(0, -1);
   if (!topicWord || threadWords.length === 0) {
@@ -202,7 +198,7 @@ async function runTag(taskId: TaskId, args: string[]) {
       `${CHAT_NAME} tag: no topic called "${topicWord}". ${known.length > 0 ? `The topics: ${known.map((entry) => `#${entry.name}`).join(", ")}.` : "There are no topics yet; the user makes them."}`,
     );
   }
-  const found = findThread(await listThreads(taskId), threadWords);
+  const found = findThread(await listThreads(), threadWords);
   if ("error" in found) {
     return failure(`${CHAT_NAME} tag: ${found.error}`);
   }
@@ -213,7 +209,7 @@ async function runTag(taskId: TaskId, args: string[]) {
       stdout: `"${found.thread.title}" is already under #${topic.name}.\n`,
     };
   }
-  const written = await setThreadTopics(taskId, found.thread.id, [
+  const written = await setThreadTopics(found.thread.id, [
     ...found.thread.topics,
     topic.id,
   ]);
@@ -227,12 +223,12 @@ async function runTag(taskId: TaskId, args: string[]) {
   };
 }
 
-async function runThreads(taskId: TaskId, args: string[]) {
+async function runThreads(args: string[]) {
   const topicWord = option(args, "--topic");
   const count = Number(option(args, "-n") ?? DEFAULT_THREADS);
   const topics = await listTopics();
   const names = new Map(topics.map((topic) => [topic.id, topic.name]));
-  let threads = await listThreads(taskId);
+  let threads = await listThreads();
   if (topicWord !== undefined) {
     const topic = await topicByName(topicWord);
     if (!topic) {

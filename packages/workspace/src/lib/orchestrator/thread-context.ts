@@ -1,7 +1,6 @@
 import { sort } from "radashi";
 
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
-import { type TaskId } from "../../schemas/task-id";
 import { listThreads } from "./threads";
 import { listTopics } from "./topics";
 
@@ -15,13 +14,8 @@ const THREADS_IN_CONTEXT = 12;
  * stored on its root, so the note is the same every time the transcript is
  * rebuilt.
  */
-export async function threadContextFor(
-  taskId: TaskId,
-): Promise<SessionMessageDataPart.ThreadContextDataPart> {
-  const [threads, topics] = await Promise.all([
-    listThreads(taskId),
-    listTopics(),
-  ]);
+export async function threadContextFor(): Promise<SessionMessageDataPart.ThreadContextDataPart> {
+  const [threads, topics] = await Promise.all([listThreads(), listTopics()]);
   const names = new Map(topics.map((topic) => [topic.id, topic.name]));
   return {
     sentAt: Date.now(),

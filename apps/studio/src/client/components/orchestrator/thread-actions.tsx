@@ -1,6 +1,6 @@
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { chatIdOf } from "@instrument-org/workspace/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -21,7 +21,6 @@ import { type Thread } from "./threads";
 
 /** Which thread a call is about, as every thread mutation takes it. */
 interface ThreadInput {
-  id: TaskId;
   sessionId: string;
 }
 
@@ -48,10 +47,10 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
   const transcript = useTranscriptActions({ id: taskId, sessionId: undefined });
   const queryClient = useQueryClient();
   const paint = (sessionId: string, change: (thread: Thread) => Thread) => {
-    paintThread(queryClient, { id: taskId, sessionId }, change);
+    paintThread(queryClient, { sessionId }, change);
   };
   const repaint = () => {
-    repaintThreads(queryClient, taskId);
+    repaintThreads(queryClient);
   };
   // The rest are each held as their stable `mutate` rather than as the
   // mutation object, which is new on every render and would make the
@@ -89,7 +88,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
     }),
   );
   return (thread) => {
-    const input = { id: taskId, sessionId: thread.id };
+    const input = { sessionId: thread.id };
     const put: RowAction = thread.archived
       ? {
           icon: <ArrowCounterClockwiseIcon className="size-3.5" />,
@@ -157,6 +156,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
       menuOnly: true,
       run: () => {
         transcript.save("markdown", {
+          id: chatIdOf(thread.id),
           label: thread.title,
           sessionId: thread.id,
         });
@@ -173,22 +173,20 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
  */
 function paintThread(
   queryClient: QueryClient,
-  { id, sessionId }: ThreadInput,
+  { sessionId }: ThreadInput,
   change: (thread: Thread) => Thread,
 ) {
-  queryClient.setQueryData<Thread[]>(
-    threadListOptions(id).queryKey,
-    (threads) =>
-      threads?.map((thread) =>
-        thread.id === sessionId ? change(thread) : thread,
-      ),
+  queryClient.setQueryData<Thread[]>(threadListOptions().queryKey, (threads) =>
+    threads?.map((thread) =>
+      thread.id === sessionId ? change(thread) : thread,
+    ),
   );
 }
 
 /** Asks for the list's truth again at once, after a paint the workspace refused. */
-function repaintThreads(queryClient: QueryClient, taskId: TaskId) {
+function repaintThreads(queryClient: QueryClient) {
   void queryClient.invalidateQueries({
-    queryKey: threadListOptions(taskId).queryKey,
+    queryKey: threadListOptions().queryKey,
   });
 }
 
@@ -220,7 +218,7 @@ function setArchived(
       });
     },
     (error: unknown) => {
-      repaintThreads(queryClient, input.id);
+      repaintThreads(queryClient);
       toast.error(
         archived
           ? "Failed to archive the chat"

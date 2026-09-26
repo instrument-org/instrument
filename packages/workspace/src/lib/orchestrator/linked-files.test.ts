@@ -1,10 +1,17 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
+import { chatIdOf } from "../../schemas/chat-id";
+import { WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { Store } from "../store";
+import { taskDir } from "../task-dir-utils";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { linkedFiles } from "./linked-files";
 
 vi.mock(import("../session-store-storage"));
@@ -12,14 +19,23 @@ vi.mock(import("../session-store-storage"));
 // Task state and sessions are real files under the mock workspace, so a task
 // id reused across runs would read the last run's conversation.
 let counter = 0;
-const freshTask = () =>
-  createMockTaskConfig(
+// Chats live under the workspace root, so each test gets a root of its own.
+const freshTask = () => {
+  const taskId = createMockTaskConfig(
     TaskIdSchema.parse(`linked-${Date.now()}-${(counter += 1)}`),
   );
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    rootDir: WorkspaceDirSchema.parse(
+      fs.mkdtempSync(path.join(os.tmpdir(), "linked-root-")),
+    ),
+  });
+  return taskId;
+};
 
 /** A reply in a thread, said at a given moment. */
 async function said(
-  taskId: TaskId,
+  _taskId: TaskId,
   sessionId: StoreId.Session,
   text: string,
   at: Date,
@@ -48,15 +64,16 @@ async function said(
     ],
     role: "assistant",
   };
-  await Store.saveMessageWithParts(message, taskId);
+  await Store.saveMessageWithParts(message, chatIdOf(sessionId));
 }
 
 /** A thread of the conversation: a session under a title. */
-async function thread(taskId: TaskId, title: string) {
+async function thread(_taskId: TaskId, title: string) {
   const sessionId = StoreId.newSessionId();
+  fs.mkdirSync(taskDir(chatIdOf(sessionId)), { recursive: true });
   await Store.saveSession(
     { createdAt: new Date(), id: sessionId, title },
-    taskId,
+    chatIdOf(sessionId),
   );
   return sessionId;
 }
@@ -80,7 +97,7 @@ describe("linkedFiles", () => {
       at(2),
     );
 
-    const shown = await linkedFiles(taskId);
+    const shown = await linkedFiles();
 
     expect(shown.map((file) => file.path)).toEqual([
       "output/chart.png",
@@ -95,7 +112,7 @@ describe("linkedFiles", () => {
     await said(taskId, work, "```files\noutput/deck.pdf\n```", at(1));
     await said(taskId, home, "```files\n/mnt/Documents/plan.md\n```", at(2));
 
-    const shown = await linkedFiles(taskId);
+    const shown = await linkedFiles();
 
     expect(shown.map((file) => file.path)).toEqual([
       "/mnt/Documents/plan.md",
@@ -113,7 +130,7 @@ describe("linkedFiles", () => {
       at(1),
     );
 
-    const shown = await linkedFiles(taskId);
+    const shown = await linkedFiles();
 
     expect(shown.map((file) => file.path)).toEqual(["output/report.md"]);
   });
@@ -125,7 +142,7 @@ describe("linkedFiles", () => {
     await said(taskId, sessionId, "```files\noutput/chart.png\n```", at(2));
     await said(taskId, sessionId, "```files\noutput/report.md\n```", at(3));
 
-    const shown = await linkedFiles(taskId);
+    const shown = await linkedFiles();
 
     expect(shown).toEqual([
       { at: at(3).getTime(), path: "output/report.md" },
@@ -134,8 +151,8 @@ describe("linkedFiles", () => {
   });
 
   it("has nothing to show for a conversation with no threads", async () => {
-    const taskId = freshTask();
+    freshTask();
 
-    await expect(linkedFiles(taskId)).resolves.toEqual([]);
+    await expect(linkedFiles()).resolves.toEqual([]);
   });
 });

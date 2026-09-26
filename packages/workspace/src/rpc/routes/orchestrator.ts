@@ -22,7 +22,7 @@ import {
   orchestratorActivity,
   OrchestratorActivitySchema,
 } from "../../lib/orchestrator/activity";
-import { taskThreads } from "../../lib/orchestrator/attribution";
+import { ensureChat } from "../../lib/orchestrator/chats";
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
 import {
@@ -55,6 +55,7 @@ import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
 import { setTaskState } from "../../lib/task-record";
 import { getTaskSettings } from "../../lib/task-settings";
+import { chatIdOf, isChatId, sessionOfChat } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
@@ -114,17 +115,17 @@ const children = base
   )
   .handler(async ({ input }) => {
     const tasks = await listChildTasks(input.id);
-    const filedIn = await taskThreads(input.id);
-    const sessions = await Store.getSessions(input.id);
-    const titles = new Map(
-      sessions.isOk()
-        ? sessions.value.map((session) => [session.id, session.title])
-        : [],
-    );
     return await Promise.all(
       tasks.map(async (task) => {
-        const threadId = filedIn[task.id];
-        const threadTitle = threadId ? titles.get(threadId) : undefined;
+        const threadId =
+          task.parentTaskId === undefined
+            ? undefined
+            : sessionOfChat(task.parentTaskId);
+        const thread =
+          threadId && task.parentTaskId
+            ? await Store.getSession(threadId, task.parentTaskId)
+            : undefined;
+        const threadTitle = thread?.isOk() ? thread.value.title : undefined;
         return {
           ...task,
           dir: taskDir(task.id),
@@ -140,16 +141,11 @@ const children = base
   });
 
 /**
- * The orchestrator task and the session to talk to it in, created on first
- * use, with the home folder and the workspace folder attached to it.
+ * The window's own record, created on first use, with the home folder and the
+ * workspace folder attached to it: every chat starts with what it holds.
  */
 const ensure = base
-  .output(
-    z.object({
-      sessionId: StoreId.SessionSchema,
-      taskId: TaskIdSchema,
-    }),
-  )
+  .output(z.object({ taskId: TaskIdSchema }))
   .handler(async ({ context, errors }) => {
     const result = await ensureOrchestrator();
     if (result.isErr()) {
@@ -160,7 +156,6 @@ const ensure = base
     await ensureOutputFolder(result.value.taskId);
     return result.value;
   });
-
 
 /** What the user picks about a topic: its mark, its tint. */
 const TopicMarkSchema = z.object({
@@ -175,9 +170,8 @@ const TopicNameSchema = z
 
 /** The conversation's threads, oldest first. */
 const listThreadsRoute = base
-  .input(z.object({ id: TaskIdSchema }))
   .output(ThreadSchema.array())
-  .handler(({ input }) => listThreads(input.id));
+  .handler(() => listThreads());
 
 /**
  * Fires whenever anything lands in any thread of the task, a thread's
@@ -197,8 +191,8 @@ const listThreadsRoute = base
  * A burst of events collapses into one firing per pull, since the next batch
  * is only taken once the consumer has come back for it.
  */
-export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
-  const batches = changedMessageBatches({ id }, signal);
+export function threadChanges(signal: AbortSignal | undefined) {
+  const batches = changedMessageBatches({ id: isChatId }, signal);
   const sessionUpdates = publisher.subscribe("session.updated", { signal });
   const sessionRemoved = publisher.subscribe("session.removed", { signal });
   const sessionTags = publisher.subscribe("session.tagsChanged", { signal });
@@ -218,7 +212,7 @@ export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
       | typeof sessionUpdates,
   ) {
     for await (const payload of generator) {
-      if (payload.id === id) {
+      if (isChatId(payload.id)) {
         yield null;
       }
     }
@@ -238,11 +232,11 @@ export function threadChanges(id: TaskId, signal: AbortSignal | undefined) {
   async function* childSteps() {
     for await (const { id: childId, part } of partUpdates) {
       if (
-        childId !== id &&
+        !isChatId(childId) &&
         part.type.startsWith("tool-") &&
         "state" in part &&
         part.state === "input-available" &&
-        (await parentOf(childId)) === id
+        isChatId((await parentOf(childId)) ?? "")
       ) {
         yield null;
       }
@@ -275,14 +269,13 @@ async function* everyOne(generator: AsyncIterable<unknown>) {
 
 /** The same list, re-read on every change in any thread, bursts collapsed. */
 const liveListThreadsRoute = base
-  .input(z.object({ id: TaskIdSchema }))
   .output(eventIterator(ThreadSchema.array()))
-  .handler(async function* ({ input, signal }) {
-    const changes = threadChanges(input.id, signal);
+  .handler(async function* ({ signal }) {
+    const changes = threadChanges(signal);
     try {
-      yield await listThreads(input.id);
+      yield await listThreads();
       for await (const _change of changes) {
-        yield await listThreads(input.id);
+        yield await listThreads();
       }
     } finally {
       await changes.return();
@@ -291,43 +284,42 @@ const liveListThreadsRoute = base
 
 /** What the user has seen in a thread, so its count can clear. */
 const seenThreadRoute = base
-  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await markThreadSeen(input.id, input.sessionId);
+    await markThreadSeen(input.sessionId);
   });
 
 /** A thread the user wants back among the unread: its newest reply unseen again. */
 const unseenThreadRoute = base
-  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await markThreadUnseen(input.id, input.sessionId);
+    await markThreadUnseen(input.sessionId);
   });
 
 /** Puts a thread away: out of the inbox, still in the list, marked. */
 const archiveThreadRoute = base
-  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await archiveThread(input.id, input.sessionId);
+    await archiveThread(input.sessionId);
   });
 
 /** Stars a thread, or takes the star off. */
 const starThreadRoute = base
   .input(
     z.object({
-      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
       starred: z.boolean(),
     }),
   )
   .handler(async ({ input }) => {
-    await setThreadStarred(input.id, input.sessionId, input.starred);
+    await setThreadStarred(input.sessionId, input.starred);
   });
 
 /** Brings a thread back into the inbox. */
 const unarchiveThreadRoute = base
-  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await unarchiveThread(input.id, input.sessionId);
+    await unarchiveThread(input.sessionId);
   });
 
 /**
@@ -337,17 +329,17 @@ const unarchiveThreadRoute = base
  * title the same as one they typed.
  */
 const retitleThreadRoute = base
-  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .input(z.object({ sessionId: StoreId.SessionSchema }))
   .output(z.object({ title: z.string().optional() }))
   .handler(async ({ input }) => {
     const title = await retitleThread({
-      id: input.id,
+      id: chatIdOf(input.sessionId),
       sessionId: input.sessionId,
     });
     if (title === undefined) {
       return {};
     }
-    await settleThreadTitle(input.id, input.sessionId);
+    await settleThreadTitle(input.sessionId);
     return { title };
   });
 
@@ -355,26 +347,24 @@ const retitleThreadRoute = base
 const renameThreadRoute = base
   .input(
     z.object({
-      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
       title: z.string().trim().min(1),
     }),
   )
   .handler(async ({ input }) => {
-    await renameThread(input.id, input.sessionId, input.title);
+    await renameThread(input.sessionId, input.title);
   });
 
 /** The topics a thread carries, replaced whole. */
 const setThreadTopicsRoute = base
   .input(
     z.object({
-      id: TaskIdSchema,
       sessionId: StoreId.SessionSchema,
       topics: z.array(z.string()),
     }),
   )
   .handler(async ({ input }) => {
-    await setThreadTopics(input.id, input.sessionId, input.topics);
+    await setThreadTopics(input.sessionId, input.topics);
   });
 
 /** The conversation's topics: in use first, in the order made, then retired. */
@@ -462,7 +452,8 @@ const open = base
     for await (const event of publisher.subscribe("orchestrator.open", {
       signal,
     })) {
-      if (event.id === input.id) {
+      // A chat's own asks, and the window record's, all open in the window.
+      if (event.id === input.id || isChatId(event.id)) {
         yield {
           ...event.target,
           ...(event.sessionId ? { sessionId: event.sessionId } : {}),
@@ -531,8 +522,20 @@ const opened = base
     publisher.publish("orchestrator.opened", input);
   });
 
+/**
+ * A chat's record, made before the window shows it, so the window never asks
+ * for a chat that is not there yet. Idempotent: the send makes it too.
+ */
+const ensureChatRoute = base
+  .input(z.object({ sessionId: StoreId.SessionSchema }))
+  .output(z.object({ taskId: TaskIdSchema }))
+  .handler(async ({ input }) => ({
+    taskId: await ensureChat(chatIdOf(input.sessionId)),
+  }));
+
 export const orchestrator = {
   activity,
+  chats: { ensure: ensureChatRoute },
   children,
   childStatus,
   ensure,

@@ -5,6 +5,8 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { group } from "radashi";
+import { z } from "zod";
 
 import {
   CHATS_DIR_NAME,
@@ -13,6 +15,7 @@ import {
   TASKS_DIR_NAME,
   TOPICS_DIR_NAME,
 } from "../constants";
+import { MOUNT } from "../mount-points";
 import { StoreId } from "../schemas/store-id";
 import { chatFolderName } from "./generate-task-folder-name";
 import { serializeTopic, type Topic } from "./orchestrator/topics";
@@ -27,6 +30,47 @@ const BACKUP_DIR_NAME = ".pre-chats";
 // channels themselves, and a draft the window keeps in its own storage. The
 // topics, and the two maps of which chat started which task, are dropped
 // separately, and only once everything they name has moved.
+// The files still to be moved from the window into chats, kept beside the
+// window's settings until every move in it is done. It is what a later boot
+// retries from, since the rows that said which chat a file belongs to are gone
+// from the window by then.
+const FILE_MOVES_FILE_NAME = "chat-file-moves.json";
+
+// The folders of the window whose files and folders go to the chats that use
+// them. A command's spilled output goes by its part id instead.
+const FILE_FOLDERS: readonly string[] = [
+  TASK_FOLDER_NAMES.attachments,
+  TASK_FOLDER_NAMES.downloads,
+  TASK_FOLDER_NAMES.screenshots,
+  TASK_FOLDER_NAMES.work,
+];
+
+// A document whose relative references are followed, so a page takes the
+// images, styles and pages it loads with it; how much of one is read; and how
+// many are read inside one folder.
+const DOCUMENT_FILE = /\.(?:css|html?|markdown|md|svg)$/i;
+const DOCUMENT_READ_LIMIT = 2 * 1024 * 1024;
+const FOLDER_DOCUMENT_LIMIT = 200;
+
+// A path a document loads: an HTML or SVG attribute, a CSS `url()` or
+// `@import`, or a Markdown link or image.
+const REFERENCE =
+  /\b(?:data|href|poster|src)\s*=\s*["']([^"']+)["']|url\(\s*["']?([^"')\s]+)|@import\s+["']([^"']+)["']|\]\(\s*<?([^)\s>]+)/gi;
+
+const FileMovesSchema = z.array(
+  z.object({
+    /** The chat folder it goes to. */
+    chat: z.string(),
+    /** A file or folder, relative to the window's folder; it lands at the same path in the chat. */
+    from: z.string(),
+    /** Set while a session that is not a chat yet also uses it, so the window keeps its own. */
+    keep: z.boolean().optional(),
+    /** The session the chat holds, so a move never lands in a chat that holds another. */
+    session: z.string(),
+  }),
+);
+type FileMove = z.output<typeof FileMovesSchema>[number];
+
 const RETIRED_STATE_KEYS = new Set(["appChannels", "channels", "promptDraft"]);
 const TASK_MAP_KEYS = new Set(["taskChannels", "taskThreads"]);
 
@@ -82,9 +126,11 @@ interface StoreRow {
  *
  * Each item moves on its own, so one that fails (a folder another program
  * holds open, say) is left for the next boot and the rest go on. What records
- * where an item belongs is only let go once the item has moved: a chat's rows
- * leave the window's database only once its own database holds them, and the
- * maps of which chat started which task only once every task in them moved.
+ * where an item belongs is only let go once the item has moved, or once it is
+ * written down elsewhere: a chat's rows leave the window's database only once
+ * its own database holds them and the window's list of file moves names every
+ * file they placed, and the maps of which chat started which task only once
+ * every task in them moved.
  */
 export function migrateToChats(rootDir: string): ChatsMigration {
   const migration: ChatsMigration = {
@@ -94,15 +140,21 @@ export function migrateToChats(rootDir: string): ChatsMigration {
     topicCount: 0,
   };
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
-  const waiting = windowRecordIds(tasksDir).filter((windowId) =>
+  const windows = windowRecordIds(tasksDir);
+  const waiting = windows.filter((windowId) =>
     holdsOneConversation(path.join(tasksDir, windowId)),
   );
-  for (const windowId of waiting) {
-    const moved = migrateWindow(rootDir, windowId);
-    migration.chatCount += moved.chatCount;
-    migration.leftOver += moved.leftOver;
-    migration.movedTaskCount += moved.movedTaskCount;
-    migration.topicCount += moved.topicCount;
+  for (const windowId of windows) {
+    if (waiting.includes(windowId)) {
+      const moved = migrateWindow(rootDir, windowId);
+      migration.chatCount += moved.chatCount;
+      migration.leftOver += moved.leftOver;
+      migration.movedTaskCount += moved.movedTaskCount;
+      migration.topicCount += moved.topicCount;
+    }
+    // Whether or not the window still holds a conversation: a move an earlier
+    // boot could not make is on its list.
+    migration.leftOver += moveFiles(rootDir, path.join(tasksDir, windowId));
   }
   if (waiting.length > 0) {
     forgetRecordFolders();
@@ -150,6 +202,41 @@ function chatsBySession(chatsDir: string): Map<string, string> {
 }
 
 /**
+ * Copies a file or folder through a temporary name beside it, so an
+ * interrupted copy never leaves a partial one where a chat reads it.
+ */
+function copyInto(source: string, to: string) {
+  const partial = path.join(
+    path.dirname(to),
+    `.${path.basename(to)}.${process.pid}.partial`,
+  );
+  fs.rmSync(partial, { force: true, recursive: true });
+  try {
+    fs.cpSync(source, partial, { recursive: true, verbatimSymlinks: true });
+    fs.renameSync(partial, to);
+  } catch (error) {
+    fs.rmSync(partial, { force: true, recursive: true });
+    throw error;
+  }
+}
+
+/** The documents in a file or folder, up to a limit for a folder. */
+function documentsIn(target: string): string[] {
+  try {
+    if (!fs.statSync(target).isDirectory()) {
+      return DOCUMENT_FILE.test(target) ? [target] : [];
+    }
+    return fs
+      .readdirSync(target, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile() && DOCUMENT_FILE.test(entry.name))
+      .slice(0, FOLDER_DOCUMENT_LIMIT)
+      .map((entry) => path.join(entry.parentPath, entry.name));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Whether a window record is still in the one-conversation layout: chat
  * sessions in its database, or the maps that layout kept in its state.
  */
@@ -188,16 +275,87 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Whether a chat's rows name a file of the window's by its own name, as a
- * whole path segment, so `a.png` is found neither inside `data.png` nor in
- * `a.png.bak`.
+ * The item at the top of the window's folders that a reference in a document
+ * points into, when it points at something there: not a URL, a fragment, or a
+ * path outside the window.
  */
-function mentions(rows: StoreRow[], fileName: string): boolean {
-  const escaped = fileName.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
-  const pattern = new RegExp(String.raw`(^|[\s/"\\])${escaped}($|[^\w.-])`);
-  return rows.some(
-    (row) => row.key.startsWith("parts:") && pattern.test(textOf(row.blob)),
+function itemAt(
+  windowDir: string,
+  document: string,
+  reference: string,
+): string | undefined {
+  const bare = reference.split(/[#?]/)[0] ?? "";
+  if (!bare || /^[a-z][\w+.-]*:/i.test(bare) || bare.startsWith("//")) {
+    return undefined;
+  }
+  let decoded = bare;
+  try {
+    decoded = decodeURIComponent(bare);
+  } catch {
+    // A stray `%` in a real file name: take the reference as written.
+  }
+  const taskRoot = `${MOUNT.task}/`;
+  const target = decoded.startsWith(taskRoot)
+    ? path.join(windowDir, decoded.slice(taskRoot.length))
+    : decoded.startsWith("/")
+      ? undefined
+      : path.resolve(path.dirname(document), decoded);
+  if (!target || !present(target)) {
+    return undefined;
+  }
+  const [folder, name] = path.relative(windowDir, target).split(/[/\\]/);
+  return folder &&
+    name &&
+    FILE_FOLDERS.includes(folder) &&
+    !name.startsWith(".")
+    ? `${folder}/${name}`
+    : undefined;
+}
+
+/**
+ * The other items at the top of the window's folders that the documents in
+ * one load by relative path (or by a path under `/task`).
+ */
+function loadedItems(windowDir: string, item: string): string[] {
+  const found = new Set<string>();
+  for (const document of documentsIn(path.join(windowDir, item))) {
+    let text: string;
+    try {
+      if (fs.statSync(document).size > DOCUMENT_READ_LIMIT) {
+        continue;
+      }
+      text = fs.readFileSync(document, "utf8");
+    } catch {
+      continue;
+    }
+    for (const match of text.matchAll(REFERENCE)) {
+      const reference = match.slice(1).find(Boolean);
+      const loaded =
+        reference === undefined
+          ? undefined
+          : itemAt(windowDir, document, reference);
+      if (loaded && loaded !== item) {
+        found.add(loaded);
+      }
+    }
+  }
+  return [...found];
+}
+
+/**
+ * Whether a chat's parts name a file of the window's by its own name, as a
+ * whole path segment, so `a.png` is found neither inside `data.png` nor in
+ * `a.png.bak`. A folder is named by a path through it (`report/index.html`)
+ * or a path ending in it (`/task/work/report`), not by the bare word.
+ */
+function mentions(texts: string[], name: string, isFolder: boolean): boolean {
+  const escaped = name.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
+  const pattern = new RegExp(
+    isFolder
+      ? String.raw`(^|[\s/"\\])${escaped}/|/${escaped}($|[^\w.-])`
+      : String.raw`(^|[\s/"\\])${escaped}($|[^\w.-])`,
   );
+  return texts.some((text) => pattern.test(text));
 }
 
 function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
@@ -293,7 +451,15 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
     tasksDir,
   });
   migration.movedTaskCount += tasksLeft.moved;
-  migration.leftOver += moveFiles({ chatOf, chatsDir, groups, windowDir });
+  // Where each file goes is written down before the rows that say so leave
+  // the window, so a move that fails is retried from the list alone.
+  let filesRecorded = true;
+  try {
+    recordFileMoves(windowDir, planFileMoves({ chatOf, groups, windowDir }));
+  } catch {
+    filesRecorded = false;
+    migration.leftOver += 1;
+  }
   const topics = writeTopics(rootDir, state);
   migration.topicCount += topics.written;
   migration.leftOver += tasksLeft.left + topics.left;
@@ -302,7 +468,7 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
   // window's database only once its own database holds them, all in one
   // transaction. The window keeps the rest: its tabs' browser records, the
   // store's own version, and any session that could not become a chat.
-  if (written.size > 0 && fs.existsSync(dbPath)) {
+  if (filesRecorded && written.size > 0 && fs.existsSync(dbPath)) {
     const db = new DatabaseSync(dbPath);
     try {
       const remove = db.prepare("delete from sessions where key = ?");
@@ -341,57 +507,66 @@ function migrateWindow(rootDir: string, windowId: string): ChatsMigration {
 }
 
 /**
- * A file sent in a chat, a command's output spilled to a file, and a file the
- * agent made or fetched go with the chat that names them: a spill by the id of
- * the part it was written for, any other by its name as a whole path segment.
- * A file more than one chat names stays in the window, since no one chat owns
- * it, and so does anything in a subfolder. Returns how many could not be moved.
+ * Makes the moves on the window's list. A file or folder more than one chat
+ * uses is copied to each but the last, which takes the original, and only once
+ * every copy landed, so a failed copy keeps its source for the next boot. One
+ * a session that is not a chat yet also uses is only copied. A move whose
+ * source is gone, whose chat no longer holds its session, or whose
+ * destination is already taken is dropped: nothing is overwritten. Returns how
+ * many moves are still to be made.
  */
-function moveFiles({
-  chatOf,
-  chatsDir,
-  groups,
-  windowDir,
-}: {
-  chatOf: Map<StoreId.Session, string>;
-  chatsDir: string;
-  groups: Map<StoreId.Session, StoreRow[]>;
-  windowDir: string;
-}): number {
-  let left = 0;
-  const files = [
-    TASK_FOLDER_NAMES.attachments,
-    TASK_FOLDER_NAMES.downloads,
-    TASK_FOLDER_NAMES.screenshots,
-    TASK_FOLDER_NAMES.toolOutput,
-    TASK_FOLDER_NAMES.work,
-  ].flatMap((dir) =>
-    readFiles(path.join(windowDir, dir)).map((name) => ({ dir, name })),
+function moveFiles(rootDir: string, windowDir: string): number {
+  const listPath = path.join(
+    windowDir,
+    TASK_PRIVATE_FOLDER_NAME,
+    FILE_MOVES_FILE_NAME,
   );
-  for (const { dir, name } of files) {
-    const partId =
-      dir === TASK_FOLDER_NAMES.toolOutput ? name.split(".")[0] : undefined;
-    const owners = [...groups].filter(([, rows]) =>
-      partId
-        ? rows.some((row) => row.key.endsWith(`:${partId}`))
-        : mentions(rows, name),
-    );
-    const owner = owners.length === 1 ? owners[0]?.[0] : undefined;
-    const chat = owner ? chatOf.get(owner) : undefined;
-    if (!chat) {
+  if (!fs.existsSync(listPath)) {
+    return 0;
+  }
+  const chatsDir = path.join(rootDir, CHATS_DIR_NAME);
+  const chatOfSession = chatsBySession(chatsDir);
+  const left: FileMove[] = [];
+  for (const [from, moves] of Object.entries(
+    group(readFileMoves(listPath), (move) => move.from),
+  )) {
+    if (!moves) {
       continue;
     }
-    const to = path.join(chatsDir, chat, dir, name);
-    try {
-      if (!fs.existsSync(to)) {
+    const source = path.join(windowDir, from);
+    const due = moves.filter(
+      (move) =>
+        chatOfSession.get(move.session) === move.chat &&
+        present(source) &&
+        !present(path.join(chatsDir, move.chat, from)),
+    );
+    const last = moves.some((move) => move.keep) ? undefined : due.at(-1);
+    let failed = false;
+    for (const move of due) {
+      const to = path.join(chatsDir, move.chat, from);
+      try {
         fs.mkdirSync(path.dirname(to), { recursive: true });
-        fs.renameSync(path.join(windowDir, dir, name), to);
+        if (move === last && !failed) {
+          fs.renameSync(source, to);
+        } else {
+          copyInto(source, to);
+        }
+      } catch {
+        failed = true;
+        left.push(move);
       }
-    } catch {
-      left += 1;
     }
   }
-  return left;
+  try {
+    if (left.length === 0) {
+      fs.rmSync(listPath, { force: true });
+    } else {
+      writeJsonFileSync(listPath, left);
+    }
+  } catch {
+    // The list as it was stays, and the next boot drops what already moved.
+  }
+  return left.length;
 }
 
 /**
@@ -467,12 +642,117 @@ function moveTasks({
   return { left, moved };
 }
 
+/**
+ * Which session uses each file and folder at the top of the window's folders,
+ * and so which chats it goes to: a command's spilled output by the id of the
+ * part it was written for, and anything else by its name in a chat's parts,
+ * then everything a document it holds loads by relative path, as far as
+ * that goes. A folder moves whole, so a page inside it keeps its own files.
+ */
+function planFileMoves({
+  chatOf,
+  groups,
+  windowDir,
+}: {
+  chatOf: Map<StoreId.Session, string>;
+  groups: Map<StoreId.Session, StoreRow[]>;
+  windowDir: string;
+}): FileMove[] {
+  const users = new Map<string, Set<StoreId.Session>>();
+  const unread: [string, StoreId.Session][] = [];
+  const use = (item: string, session: StoreId.Session) => {
+    const sessions = users.get(item) ?? new Set();
+    if (!sessions.has(session)) {
+      sessions.add(session);
+      users.set(item, sessions);
+      unread.push([item, session]);
+    }
+  };
+  for (const name of readFiles(
+    path.join(windowDir, TASK_FOLDER_NAMES.toolOutput),
+  )) {
+    const partId = name.split(".")[0] ?? name;
+    for (const [session, rows] of groups) {
+      if (rows.some((row) => row.key.endsWith(`:${partId}`))) {
+        use(`${TASK_FOLDER_NAMES.toolOutput}/${name}`, session);
+      }
+    }
+  }
+  const texts = [...groups].map(
+    ([session, rows]) =>
+      [
+        session,
+        rows
+          .filter((row) => row.key.startsWith("parts:"))
+          .map((row) => textOf(row.blob)),
+      ] as const,
+  );
+  for (const folder of FILE_FOLDERS) {
+    for (const entry of readEntries(path.join(windowDir, folder))) {
+      for (const [session, text] of texts) {
+        if (mentions(text, entry.name, entry.isDirectory())) {
+          use(`${folder}/${entry.name}`, session);
+        }
+      }
+    }
+  }
+  for (let next = unread.pop(); next; next = unread.pop()) {
+    const [item, session] = next;
+    for (const loaded of loadedItems(windowDir, item)) {
+      use(loaded, session);
+    }
+  }
+  return [...users].flatMap(([from, sessions]) => {
+    const keep = [...sessions].some((session) => !chatOf.has(session));
+    return [...sessions].flatMap((session) => {
+      const chat = chatOf.get(session);
+      return chat ? [{ chat, from, session, ...(keep ? { keep } : {}) }] : [];
+    });
+  });
+}
+
+/** Whether anything stands at a path, a broken link included. */
+function present(target: string): boolean {
+  try {
+    fs.lstatSync(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function readDirs(dir: string): string[] {
   try {
     return fs
       .readdirSync(dir, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+/** A folder's files, folders and links, but not its hidden ones. */
+function readEntries(dir: string): fs.Dirent[] {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter(
+        (entry) =>
+          (entry.isFile() || entry.isDirectory() || entry.isSymbolicLink()) &&
+          !entry.name.startsWith("."),
+      );
+  } catch {
+    return [];
+  }
+}
+
+function readFileMoves(file: string): FileMove[] {
+  try {
+    const parsed = FileMovesSchema.safeParse(
+      JSON.parse(fs.readFileSync(file, "utf8")),
+    );
+    return parsed.success ? parsed.data : [];
   } catch {
     return [];
   }
@@ -550,6 +830,28 @@ function readWindowRows(dbPath: string) {
     db.close();
   }
   return { globals, groups, sessions };
+}
+
+/**
+ * Adds a run's moves to the window's list, a later plan for the same file and
+ * chat replacing an earlier one.
+ */
+function recordFileMoves(windowDir: string, moves: FileMove[]) {
+  if (moves.length === 0) {
+    return;
+  }
+  const listPath = path.join(
+    windowDir,
+    TASK_PRIVATE_FOLDER_NAME,
+    FILE_MOVES_FILE_NAME,
+  );
+  const merged = new Map(
+    [...readFileMoves(listPath), ...moves].map((move) => [
+      `${move.chat}\0${move.from}`,
+      move,
+    ]),
+  );
+  writeJsonFileSync(listPath, [...merged.values()]);
 }
 
 /**

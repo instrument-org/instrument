@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
 import { migrateToChats } from "./migrate-to-chats";
@@ -18,8 +18,34 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   fs.rmSync(root, { force: true, recursive: true });
 });
+
+function addPart(session: StoreId.Session, partId: string, text: string) {
+  const db = new DatabaseSync(
+    path.join(root, "tasks", "instrument", ".instrument", "task.db"),
+  );
+  db.prepare("insert into sessions (key, value, blob) values (?, ?, ?)").run(
+    `parts:${session}:msg_1:${partId}`,
+    null,
+    superjson({ text, type: "text" }),
+  );
+  db.close();
+}
+
+/** Makes renaming one file fail once, as a file another program holds open does. */
+function busyOnce(file: string) {
+  const rename = fs.renameSync.bind(fs);
+  let failed = false;
+  vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+    if (!failed && String(from) === file) {
+      failed = true;
+      throw Object.assign(new Error("EBUSY"), { code: "EBUSY" });
+    }
+    rename(from, to);
+  });
+}
 
 function keysIn(dbFile: string): string[] {
   const db = new DatabaseSync(dbFile, { readOnly: true });
@@ -165,6 +191,14 @@ function readJson(file: string): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
 }
 
+function removeLegacyRows() {
+  const db = new DatabaseSync(
+    path.join(root, "tasks", "instrument", ".instrument", "task.db"),
+  );
+  db.exec("delete from sessions where key like '%ses_legacy1%'");
+  db.close();
+}
+
 function superjson(json: Record<string, unknown>) {
   return Buffer.from(JSON.stringify({ json }));
 }
@@ -178,6 +212,12 @@ function tree(dir: string): string[] {
     )
     .filter((file) => !file.startsWith(".pre-chats"))
     .sort();
+}
+
+function writeFile(relative: string, content: string) {
+  const file = path.join(root, relative);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, content);
 }
 
 function writeJson(file: string, value: unknown) {
@@ -205,16 +245,17 @@ describe("migrateToChats", () => {
         "chats/2026-09-24-instrument/.instrument/task.db",
         "chats/2026-09-24-instrument/attachments/a.png",
         "chats/2026-09-24-instrument/tasks/2026-09-10-from-a-channel/.instrument/settings.json",
+        "chats/2026-09-24-instrument/work/shared.md",
         "chats/2026-09-24-transcribe-the-note/.instrument/settings.json",
         "chats/2026-09-24-transcribe-the-note/.instrument/task.db",
         "chats/2026-09-24-transcribe-the-note/.tool-output/prt_2.log",
         "chats/2026-09-24-transcribe-the-note/attachments/data.png",
         "chats/2026-09-24-transcribe-the-note/tasks/2026-09-24-from-a-thread/.instrument/settings.json",
+        "chats/2026-09-24-transcribe-the-note/work/shared.md",
         "chats/2026-09-24-transcribe-the-note/work/shot.png",
         "tasks/2026-08-07-a-1x-task/.instrument/settings.json",
         "tasks/instrument/.instrument/settings.json",
         "tasks/instrument/.instrument/task.db",
-        "tasks/instrument/work/shared.md",
         "topics/top_01/topic.md",
       ]
     `);
@@ -437,6 +478,18 @@ describe("migrateToChats", () => {
       movedTaskCount: 1,
     });
     expect(keysIn(windowDb).filter((key) => key.includes(THREAD))).toEqual([]);
+    // The file both chats name went to the one that moved first as a copy, and
+    // to the other once it could.
+    for (const chat of [THREAD_CHAT, CHANNEL_CHAT]) {
+      expect(
+        fs.existsSync(path.join(root, "chats", chat, "work", "shared.md")),
+      ).toBe(true);
+    }
+    expect(
+      fs.existsSync(
+        path.join(root, "tasks", "instrument", "work", "shared.md"),
+      ),
+    ).toBe(false);
   });
 
   it("moves what an older build wrote in the old layout after an earlier run", () => {
@@ -462,6 +515,120 @@ describe("migrateToChats", () => {
     expect(fs.existsSync(path.join(root, "chats", "2026-09-27-later"))).toBe(
       true,
     );
+  });
+
+  it.each([
+    ["alongside a session that stays in the window", false],
+    ["with nothing else left in the window", true],
+  ])("moves a file whose move failed on a later run, %s", (_, alone) => {
+    oneConversation();
+    if (alone) {
+      removeLegacyRows();
+    }
+    const source = path.join(
+      root,
+      "tasks",
+      "instrument",
+      "attachments",
+      "data.png",
+    );
+    const moved = path.join(
+      root,
+      "chats",
+      THREAD_CHAT,
+      "attachments",
+      "data.png",
+    );
+    busyOnce(source);
+
+    expect(migrateToChats(root)).toEqual({
+      chatCount: 2,
+      leftOver: 1,
+      movedTaskCount: 2,
+      topicCount: 1,
+    });
+    expect(fs.existsSync(source)).toBe(true);
+    expect(fs.existsSync(moved)).toBe(false);
+
+    vi.restoreAllMocks();
+    expect(migrateToChats(root).leftOver).toBe(0);
+    expect(fs.existsSync(source)).toBe(false);
+    expect(fs.readFileSync(moved, "utf8")).toBe("png");
+    expect(migrateToChats(root).leftOver).toBe(0);
+  });
+
+  it("moves a document with the files it refers to and the folder it sits in", () => {
+    oneConversation();
+    // A page in the shared folder, and the asset it loads, which no chat names.
+    writeFile(
+      "tasks/instrument/work/report.html",
+      '<img src="assets/plot.svg"><link href="./assets/style.css?v=1">',
+    );
+    writeFile("tasks/instrument/work/assets/plot.svg", "<svg/>");
+    writeFile("tasks/instrument/work/assets/style.css", "body{}");
+    // A page kept in a folder of its own, named by a file inside it.
+    writeFile("tasks/instrument/work/deck/index.html", '<img src="img/a.png">');
+    writeFile("tasks/instrument/work/deck/img/a.png", "png");
+    // Nothing names this one, so it stays where it is.
+    writeFile("tasks/instrument/work/scratch/notes.txt", "notes");
+    addPart(THREAD, "prt_6", "Open /task/work/report.html");
+    addPart(CHANNEL, "prt_7", "Made /task/work/deck/index.html");
+
+    expect(migrateToChats(root).leftOver).toBe(0);
+    expect(tree(path.join(root, "chats"))).toMatchInlineSnapshot(`
+      [
+        "chats/2026-09-24-instrument/.instrument/settings.json",
+        "chats/2026-09-24-instrument/.instrument/task.db",
+        "chats/2026-09-24-instrument/attachments/a.png",
+        "chats/2026-09-24-instrument/tasks/2026-09-10-from-a-channel/.instrument/settings.json",
+        "chats/2026-09-24-instrument/work/deck/img/a.png",
+        "chats/2026-09-24-instrument/work/deck/index.html",
+        "chats/2026-09-24-instrument/work/shared.md",
+        "chats/2026-09-24-transcribe-the-note/.instrument/settings.json",
+        "chats/2026-09-24-transcribe-the-note/.instrument/task.db",
+        "chats/2026-09-24-transcribe-the-note/.tool-output/prt_2.log",
+        "chats/2026-09-24-transcribe-the-note/attachments/data.png",
+        "chats/2026-09-24-transcribe-the-note/tasks/2026-09-24-from-a-thread/.instrument/settings.json",
+        "chats/2026-09-24-transcribe-the-note/work/assets/plot.svg",
+        "chats/2026-09-24-transcribe-the-note/work/assets/style.css",
+        "chats/2026-09-24-transcribe-the-note/work/report.html",
+        "chats/2026-09-24-transcribe-the-note/work/shared.md",
+        "chats/2026-09-24-transcribe-the-note/work/shot.png",
+      ]
+    `);
+    expect(tree(path.join(root, "tasks", "instrument"))).toMatchInlineSnapshot(`
+      [
+        "tasks/instrument/.instrument/settings.json",
+        "tasks/instrument/.instrument/task.db",
+        "tasks/instrument/work/scratch/notes.txt",
+      ]
+    `);
+  });
+
+  it("copies a document more than one chat refers to into each of them", () => {
+    oneConversation();
+    writeFile("tasks/instrument/work/both.html", '<img src="pics/one.png">');
+    writeFile("tasks/instrument/work/pics/one.png", "png");
+    addPart(THREAD, "prt_6", "See work/both.html");
+    addPart(CHANNEL, "prt_7", "See work/both.html");
+
+    expect(migrateToChats(root).leftOver).toBe(0);
+    for (const chat of [THREAD_CHAT, CHANNEL_CHAT]) {
+      expect(
+        fs.readFileSync(
+          path.join(root, "chats", chat, "work", "pics", "one.png"),
+          "utf8",
+        ),
+      ).toBe("png");
+      expect(
+        fs.existsSync(path.join(root, "chats", chat, "work", "both.html")),
+      ).toBe(true);
+    }
+    expect(
+      fs.existsSync(
+        path.join(root, "tasks", "instrument", "work", "both.html"),
+      ),
+    ).toBe(false);
   });
 
   it("leaves a workspace with no conversation alone", () => {

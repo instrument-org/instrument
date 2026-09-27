@@ -37,6 +37,7 @@ export function ComposeLayer({
   onExpandThread,
   onModelChange,
   onNewTopic,
+  onOpenThread,
   onPressThreadTab,
   onStart,
   openOutside,
@@ -62,6 +63,8 @@ export function ComposeLayer({
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
   onNewTopic: (draftId: string, name: string) => void;
+  /** A popped-out chat asked to open in Chats, from its title: the window goes and the chat is selected. */
+  onOpenThread: (sessionId: StoreId.Session) => void;
   /** A thing a grown window cannot draw, asked for: the chat lands in Chats with that tab in front. */
   onPressThreadTab: (sessionId: StoreId.Session, tabId: string) => void;
   onStart: (id: string, send: DraftSend) => void;
@@ -134,6 +137,9 @@ export function ComposeLayer({
                 }}
                 onMinimize={() => {
                   compose.setPlacement(sessionId, "bar");
+                }}
+                onOpenInChats={() => {
+                  onOpenThread(sessionId);
                 }}
                 onPageHost={(element) => {
                   compose.setHost(sessionId, element);

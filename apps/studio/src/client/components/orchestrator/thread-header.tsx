@@ -174,7 +174,7 @@ export function ThreadHeader({
  * saving its transcript), renaming it, which opens the title's field, and
  * deleting it. Its topics are the pills beside the title.
  */
-function ThreadMenu({
+export function ThreadMenu({
   onDelete,
   onEditTopics,
   rename,

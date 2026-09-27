@@ -938,6 +938,7 @@ function OrchestratorLayout() {
                 onNewTopic={(draftId, name) => {
                   setNewTopic({ draftId, ...(name ? { name } : {}) });
                 }}
+                onOpenThread={landThread}
                 onPressThreadTab={landOnTab}
                 onStart={startThread}
                 openOutside={(href) => {

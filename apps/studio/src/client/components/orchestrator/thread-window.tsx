@@ -28,8 +28,10 @@ import {
 } from "./compose-layout";
 import { GroupItem, WindowButton } from "./compose-window";
 import { OrchestratorContext, useOrchestrator } from "./context";
+import { DeleteChatDialog } from "./delete-chat-dialog";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
+import { ThreadMenu } from "./thread-header";
 import { ThreadRail } from "./thread-rail";
 import { ThreadScreen } from "./thread-stage";
 import { ThreadTitle } from "./thread-title";
@@ -99,14 +101,14 @@ export function ThreadBar({
  * bottom-right corner, over whatever place the window stands in, the way a
  * video keeps playing in its small window over the page that owns it, with
  * the rail of what the chat holds along its right edge. Its head carries the
- * pulse while the chat works, the chat's title, which renames it when
- * clicked, and the window's buttons.
+ * pulse while the chat works, the chat's title, which opens that chat in
+ * Chats when clicked, its own menu, and the window's buttons.
  *
  * Grown, it is a window over the whole row, the way a draft grows: the
  * conversation, the thing pressed on the rail drawn large beside it, and the
  * rail. Pressing a tile in the small window grows it with that thing up, and
  * so does anything the conversation asks to have shown; what the agent opens
- * behind stays behind. Nothing here takes the window to Chats.
+ * behind stays behind. Its title takes the window to that chat in Chats.
  */
 export function ThreadWindow({
   arrives,
@@ -115,6 +117,7 @@ export function ThreadWindow({
   onCloseTab,
   onLandOnTab,
   onMinimize,
+  onOpenInChats,
   onPageHost,
   onPlacementChange,
   placement,
@@ -134,6 +137,8 @@ export function ThreadWindow({
   /** Lands in Chats with the chat open and this tab up, for a thing the window cannot draw. */
   onLandOnTab: (tabId: string) => void;
   onMinimize: () => void;
+  /** Takes the window to its chat in Chats: the window goes and the chat is selected. */
+  onOpenInChats: () => void;
   /** The element the chat's page is drawn into while the window is grown with a page up, null while none is. */
   onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
@@ -162,6 +167,7 @@ export function ThreadWindow({
   const isWorking =
     thread === undefined ? sentWords !== undefined : thread.state === "working";
   const rename = useThreadRename(thread);
+  const [isDeleting, setDeleting] = useState(false);
   const threadTitles = new Map<StoreId.Session, string>(
     thread === undefined ? [] : [[thread.id, thread.title]],
   );
@@ -280,6 +286,14 @@ export function ThreadWindow({
       }
       transition={COMPOSE_MOTION}
     >
+      {thread && (
+        <DeleteChatDialog
+          onDeleted={onClose}
+          onOpenChange={setDeleting}
+          open={isDeleting}
+          thread={thread}
+        />
+      )}
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 select-none">
         {isWorking ? (
           <PlanningDotIcon className="size-4" />
@@ -288,12 +302,23 @@ export function ThreadWindow({
         )}
         {thread ? (
           <h2 className="flex min-w-0 flex-1">
-            <ThreadTitle
-              className="text-[13px] font-semibold"
-              grow
-              rename={rename}
-              title={thread.title}
-            />
+            {rename.isEditing ? (
+              <ThreadTitle
+                className="text-[13px] font-semibold"
+                grow
+                rename={rename}
+                title={thread.title}
+              />
+            ) : (
+              <button
+                className="-mx-1.5 flex h-8 min-w-0 flex-1 items-center rounded-lg px-1.5 text-left text-[13px] font-semibold outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
+                onClick={onOpenInChats}
+                title="Open in Chats"
+                type="button"
+              >
+                <span className="min-w-0 truncate">{thread.title}</span>
+              </button>
+            )}
           </h2>
         ) : (
           <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
@@ -301,6 +326,15 @@ export function ThreadWindow({
           </h2>
         )}
         <div className="flex shrink-0 items-center gap-0.5">
+          {thread && (
+            <ThreadMenu
+              onDelete={() => {
+                setDeleting(true);
+              }}
+              rename={rename}
+              thread={thread}
+            />
+          )}
           <WindowButton label="Minimize" onClick={onMinimize}>
             <MinusIcon className="size-4" />
           </WindowButton>

@@ -30,6 +30,7 @@ import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import {
   Fragment,
@@ -61,10 +62,12 @@ export function TabLocationRow({
   canGoBack,
   canGoForward,
   field,
+  hasHome = true,
   homeHref = NEW_TAB_HREF,
   leading,
   location,
   onBack,
+  onClose,
   onForward,
   onSite,
   ref,
@@ -75,12 +78,16 @@ export function TabLocationRow({
   canGoForward: boolean;
   /** What stands in for the field: a page's own address bar and controls. */
   field?: ReactNode;
+  /** Whether the row offers its home; off beside a chat, whose things have no new tab to go back to. */
+  hasHome?: boolean;
   /** Where the home button goes: the new tab of whatever the pane holds, a place's own kind included. */
   homeHref?: string;
   /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
   leading?: ReactNode;
   location: TabLocation;
   onBack: () => void;
+  /** Puts the view away, for a row over something shown large beside a chat; the thing stays with the chat. */
+  onClose?: () => void;
   onForward: () => void;
   /** Where a site typed into the field goes on this tab, when not a new tab of its own. */
   onSite?: (url: string) => void;
@@ -122,16 +129,18 @@ export function TabLocationRow({
       {/* Where a browser keeps its home button, and what this window's home
           is: the tab back to nothing in particular, ready to be told where
           to go next. */}
-      <TabRowControl
-        disabled={false}
-        icon={<HouseIcon className="size-4" />}
-        label="Home"
-        onAuxClick={home.onAuxClick}
-        onClick={() => {
-          openHome?.run();
-        }}
-        onContextMenu={home.onContextMenu}
-      />
+      {hasHome && (
+        <TabRowControl
+          disabled={false}
+          icon={<HouseIcon className="size-4" />}
+          label="Home"
+          onAuxClick={home.onAuxClick}
+          onClick={() => {
+            openHome?.run();
+          }}
+          onContextMenu={home.onContextMenu}
+        />
+      )}
       {field ?? (
         // The box is the field everywhere the place itself is not: a press on
         // one of the places you are under goes there, and a press anywhere
@@ -172,6 +181,14 @@ export function TabLocationRow({
         </div>
       )}
       {trailing}
+      {onClose && (
+        <TabRowControl
+          disabled={false}
+          icon={<XIcon className="size-4" />}
+          label="Close"
+          onClick={onClose}
+        />
+      )}
     </div>
   );
 }

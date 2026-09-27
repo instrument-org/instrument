@@ -4,6 +4,10 @@ import {
   setRasterBudget,
 } from "@/electron-main/browser-view/guest-surface";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
+import {
+  capturePageThumbnail,
+  readPageThumbnail,
+} from "@/electron-main/browser-view/page-thumbnails";
 import { siteIconDeps } from "@/electron-main/lib/app-protocol";
 import { rememberPageIcon as keepPageIcon } from "@/electron-main/lib/site-icons";
 import { base } from "@/electron-main/rpc/base";
@@ -147,6 +151,26 @@ const rememberPageIcon = base
     stored: await keepPageIcon(input, siteIconDeps()),
   }));
 
+/**
+ * A browser tab's page as a picture, for the tiles that stand for it: taken
+ * of the guest by its contents id while it is on screen, and read back by the
+ * tab's id whenever the tile is drawn, including after a relaunch.
+ */
+const thumbnails = {
+  capture: base
+    .input(z.object({ key: z.string(), webContentsId: z.number() }))
+    .output(z.object({ url: z.string().nullable() }))
+    .handler(async ({ input }) => ({
+      url: await capturePageThumbnail(input),
+    })),
+  get: base
+    .input(z.object({ key: z.string() }))
+    .output(z.object({ url: z.string().nullable() }))
+    .handler(async ({ input }) => ({
+      url: await readPageThumbnail(input.key),
+    })),
+};
+
 export const browser = {
   events,
   live,
@@ -156,4 +180,5 @@ export const browser = {
   syncGuestSurface,
   syncHostFocus,
   syncRasterBudget,
+  thumbnails,
 };

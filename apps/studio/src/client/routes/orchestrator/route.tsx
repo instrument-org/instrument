@@ -7,7 +7,6 @@ import {
   draftOfGroup,
   draftsAtom,
   inboxOpenAtom,
-  NEW_TAB_HREF,
   newTabHrefOf,
   newThreadOnArrivalAtom,
   orchestratorSidebarWidthAtom,
@@ -20,6 +19,7 @@ import {
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
   THREADS_HREF,
+  WEB_HREF,
 } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { AppRail } from "@/client/components/orchestrator/app-rail";
@@ -41,7 +41,6 @@ import {
 } from "@/client/components/orchestrator/host-path";
 import { InboxToggle } from "@/client/components/orchestrator/inbox-toggle";
 import { NewTopicDialog } from "@/client/components/orchestrator/new-topic-dialog";
-import { PaneToggle } from "@/client/components/orchestrator/pane-toggle";
 import { RightPane } from "@/client/components/orchestrator/right-pane";
 import { screenLocation } from "@/client/components/orchestrator/screen-presentation";
 import { contextReaders } from "@/client/components/orchestrator/send-context";
@@ -54,8 +53,8 @@ import { TabLocationRow } from "@/client/components/orchestrator/tab-location-ro
 import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
 import { threadListOptions } from "@/client/components/orchestrator/thread-list-query";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
+import { ThreadRail } from "@/client/components/orchestrator/thread-rail";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
-import { ThreadTasksButton } from "@/client/components/orchestrator/thread-tasks-button";
 import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-view";
 import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-view";
 import { useCompose } from "@/client/components/orchestrator/use-compose";
@@ -99,9 +98,10 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { fileHref } from "@/shared/computer-href";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  encodeBrowserTargetId,
   type SessionMessageDataPart,
   StoreId,
   type TaskId,
@@ -497,21 +497,10 @@ function OrchestratorLayout() {
       setPaneOpen(windowTabs.group, true);
     }
   };
-  const togglePane = () => {
-    const group = windowTabs.group;
-    if (group === undefined || !isChat) {
-      return;
-    }
-    if (showsPane) {
-      setPaneOpen(group, false);
-      return;
-    }
-    setPaneOpen(group, true);
-    if (tabs.length === 0) {
-      windowTabs.openScreen(NEW_TAB_HREF);
-    }
-  };
-  const paneToggle = <PaneToggle isOpen={showsPane} onToggle={togglePane} />;
+  // A chat on screen in the column keeps what it holds down its right edge,
+  // and what is pressed there comes up between the two; a place, or a chat
+  // in its own window, keeps a row of tabs over the whole area instead.
+  const hasRail = isChat && !isThreadOut && threadUp !== undefined;
   /** Opens the new tab of whatever the pane holds: a place's own kind, or the page that reaches everything. */
   const openNewTab = () => {
     windowTabs.openScreen(newTabHrefOf(windowTabs.group));
@@ -1031,215 +1020,232 @@ function OrchestratorLayout() {
                 the edge between them, and the pane's state each group's
                 own. In a place the pane is the whole area: a place is its
                 tabs, with no conversation beside them. */}
-                <RightPane
-                  conversation={
-                    <div className="relative flex h-full min-h-0 flex-col">
-                      {/* The threads, kept mounted behind the one on screen so
+                <div className="flex min-h-0 flex-1">
+                  <div className="relative min-w-0 flex-1">
+                    <RightPane
+                      conversation={
+                        <div className="relative flex h-full min-h-0 flex-col">
+                          {/* The threads, kept mounted behind the one on screen so
                       switching back is the transcript as it was. */}
-                      <div className="absolute inset-0 flex flex-col">
-                        <ThreadHeader
-                          // Ahead of the title, the inbox column put away
-                          // or brought back, so the thread and its tabs can
-                          // have the window.
-                          leading={
-                            <InboxToggle isCollapsible={showsRightArea} />
-                          }
-                          onDeleted={() => {
-                            // The thread and the tabs it had are gone; the
-                            // inbox takes the window back.
-                            if (threadUp) {
-                              windowTabs.forgetGroup(threadUp);
-                            }
-                            setInboxOpen(true);
-                          }}
-                          onNewTopic={() => {
-                            setNewTopicOpen(true);
-                          }}
-                          onSetTopics={(next) => {
-                            if (threadUp) {
-                              setThreadTopics(threadUp, next);
-                            }
-                          }}
-                          popOut={
-                            threadUp === undefined
-                              ? undefined
-                              : {
-                                  isOut: floating.includes(threadUp),
-                                  onToggle: () => {
-                                    if (floating.includes(threadUp)) {
-                                      compose.remove(threadUp);
-                                    } else {
-                                      compose.float(threadUp);
+                          <div className="absolute inset-0 flex flex-col">
+                            <ThreadHeader
+                              // Ahead of the title, the inbox column put away
+                              // or brought back, so the thread and its tabs can
+                              // have the window.
+                              leading={
+                                <InboxToggle isCollapsible={showsRightArea} />
+                              }
+                              onDeleted={() => {
+                                // The thread and the tabs it had are gone; the
+                                // inbox takes the window back.
+                                if (threadUp) {
+                                  windowTabs.forgetGroup(threadUp);
+                                }
+                                setInboxOpen(true);
+                              }}
+                              onNewTopic={() => {
+                                setNewTopicOpen(true);
+                              }}
+                              onSetTopics={(next) => {
+                                if (threadUp) {
+                                  setThreadTopics(threadUp, next);
+                                }
+                              }}
+                              popOut={
+                                threadUp === undefined
+                                  ? undefined
+                                  : {
+                                      isOut: floating.includes(threadUp),
+                                      onToggle: () => {
+                                        if (floating.includes(threadUp)) {
+                                          compose.remove(threadUp);
+                                        } else {
+                                          compose.float(threadUp);
+                                        }
+                                      },
+                                    }
+                              }
+                              thread={threads.data?.find(
+                                (thread) => thread.id === threadUp,
+                              )}
+                              topics={topics}
+                            />
+                            <div className="relative min-h-0 flex-1">
+                              <ThreadStage
+                                floating={floating}
+                                sendContext={() => sendContextRef.current()}
+                                sessionId={threadUp}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      }
+                      fills={!isChat || isThreadOut}
+                      isOpen={showsPane}
+                      onCollapse={() => {
+                        if (windowTabs.group !== undefined) {
+                          setPaneOpen(windowTabs.group, false);
+                        }
+                      }}
+                      paneKey={windowTabs.group ?? "window"}
+                    >
+                      <div className="flex h-full flex-col">
+                        {/* The pane, edge to edge, with the strip as its first
+                    row: the tabs of the thread or the draft on screen, and at
+                    the row's end the toggle that puts the pane away. */}
+                        <div
+                          className={cn(
+                            "flex h-full min-h-0 w-full flex-col overflow-hidden",
+                            // A hairline only where the conversation is beside it;
+                            // filling the card, the card's own edge is its edge.
+                            isChat && !isThreadOut && "border-l border-border",
+                          )}
+                        >
+                          {!hasRail && (
+                            <div className="flex h-10 shrink-0 items-center border-b border-border pr-1 pl-1">
+                              <WindowTabStrip
+                                childTitles={childTitles}
+                                groupKey={windowTabs.group ?? "window"}
+                                onClose={requestClose}
+                                onNew={openNewTab}
+                                onReorder={windowTabs.reorder}
+                                onSelect={(id) => {
+                                  setTasksFace(undefined);
+                                  windowTabs.select(id);
+                                }}
+                                selectedId={
+                                  isTasksViewUp ? undefined : active?.id
+                                }
+                                tabs={tabs}
+                                threadTitles={threadTitles}
+                              />
+                            </div>
+                          )}
+                          <TabLocationRow
+                            canGoBack={canGoBack}
+                            canGoForward={canGoForward}
+                            hasHome={!hasRail}
+                            homeHref={newTabHrefOf(windowTabs.group)}
+                            {...(hasRail
+                              ? {
+                                  onClose: () => {
+                                    if (windowTabs.group !== undefined) {
+                                      setPaneOpen(windowTabs.group, false);
                                     }
                                   },
                                 }
-                          }
-                          thread={threads.data?.find(
-                            (thread) => thread.id === threadUp,
-                          )}
-                          topics={topics}
-                          trailing={showsPane ? null : paneToggle}
-                        />
-                        <div className="relative min-h-0 flex-1">
-                          <ThreadStage
-                            floating={floating}
-                            sendContext={() => sendContextRef.current()}
-                            sessionId={threadUp}
+                              : {})}
+                            ref={locationRef}
+                            // On a page the field sends the tab's own guest
+                            // somewhere, and the page's controls are drawn into
+                            // the row by the panel that has the page: reload
+                            // beside the arrows, the rest (its mode, the menu) at
+                            // the tail. A file shown as a page is one too.
+                            {...(tabLocation.kind === "page" ||
+                            (tabLocation.kind === "file" && tabLocation.asPage)
+                              ? {
+                                  onSite: (url: string) => openPage(url),
+                                  reload: (
+                                    <div
+                                      className="flex shrink-0 items-center empty:hidden"
+                                      ref={setReloadSlot}
+                                    />
+                                  ),
+                                  trailing: (
+                                    <div
+                                      className="flex shrink-0 items-center gap-0.5"
+                                      ref={setChromeSlot}
+                                    />
+                                  ),
+                                }
+                              : isFileScreen
+                                ? {
+                                    leading: (
+                                      <div
+                                        className="flex shrink-0 items-center empty:hidden"
+                                        ref={setScreenRowLead}
+                                      />
+                                    ),
+                                    trailing: (
+                                      <div
+                                        className="flex shrink-0 items-center gap-0.5"
+                                        ref={setScreenRowSlot}
+                                      />
+                                    ),
+                                  }
+                                : {})}
+                            location={tabLocation}
+                            onBack={goBack}
+                            onForward={goForward}
                           />
-                        </div>
-                      </div>
-                    </div>
-                  }
-                  fills={!isChat || isThreadOut}
-                  isOpen={showsPane}
-                  onCollapse={() => {
-                    if (windowTabs.group !== undefined) {
-                      setPaneOpen(windowTabs.group, false);
-                    }
-                  }}
-                  paneKey={windowTabs.group ?? "window"}
-                >
-                  <div className="flex h-full flex-col">
-                    {/* The pane, edge to edge, with the strip as its first
-                    row: the tabs of the thread or the draft on screen, and at
-                    the row's end the toggle that puts the pane away. */}
-                    <div
-                      className={cn(
-                        "flex h-full min-h-0 w-full flex-col overflow-hidden",
-                        // A hairline only where the conversation is beside it;
-                        // filling the card, the card's own edge is its edge.
-                        isChat && !isThreadOut && "border-l border-border",
-                      )}
-                    >
-                      <div className="flex h-10 shrink-0 items-center border-b border-border pr-1 pl-1">
-                        <WindowTabStrip
-                          childTitles={childTitles}
-                          groupKey={windowTabs.group ?? "window"}
-                          onClose={requestClose}
-                          onNew={openNewTab}
-                          onReorder={windowTabs.reorder}
-                          onSelect={(id) => {
-                            setTasksFace(undefined);
-                            windowTabs.select(id);
-                          }}
-                          selectedId={isTasksViewUp ? undefined : active?.id}
-                          tabs={tabs}
-                          threadTitles={threadTitles}
-                          trailing={
-                            <>
-                              {/* A place, or a thread in the corner, has no
-                              conversation to fold the pane away for. */}
-                              {isChat && !isThreadOut && paneToggle}
-                              {/* The thread's own task list, one press from
-                              wherever the pane is; a draft has no tasks
-                              yet. */}
-                              {threadUp !== undefined && (
-                                <ThreadTasksButton
-                                  isOpen={isTasksViewUp}
-                                  onOpen={() => {
-                                    // A place to go, never a switch: pressed
-                                    // with the list already up, nothing moves;
-                                    // with a task up, it goes back to the
-                                    // list. A tab picked is what puts the
-                                    // face away.
-                                    if (
-                                      isTasksViewUp &&
-                                      tasksFace.task === undefined
-                                    ) {
-                                      return;
-                                    }
-                                    showTasksFace(undefined, threadUp);
-                                  }}
-                                />
+                          <div className="relative min-h-0 flex-1">
+                            <Outlet />
+                            {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
+                            <div
+                              className={cn(
+                                "absolute inset-0 bg-background",
+                                isPageShown ? undefined : "invisible",
                               )}
-                            </>
-                          }
-                        />
-                      </div>
-                      <TabLocationRow
-                        canGoBack={canGoBack}
-                        canGoForward={canGoForward}
-                        homeHref={newTabHrefOf(windowTabs.group)}
-                        ref={locationRef}
-                        // On a page the field sends the tab's own guest
-                        // somewhere, and the page's controls are drawn into
-                        // the row by the panel that has the page: reload
-                        // beside the arrows, the rest (its mode, the menu) at
-                        // the tail. A file shown as a page is one too.
-                        {...(tabLocation.kind === "page" ||
-                        (tabLocation.kind === "file" && tabLocation.asPage)
-                          ? {
-                              onSite: (url: string) => openPage(url),
-                              reload: (
-                                <div
-                                  className="flex shrink-0 items-center empty:hidden"
-                                  ref={setReloadSlot}
+                            >
+                              {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
+                              <ActiveTabProvider isActive={isPageShown}>
+                                <BrowserTabs
+                                  chromeInto={chromeSlot}
+                                  compose={[...compose.hosts, ...slotHosts]}
+                                  ref={setBrowser}
+                                  reloadInto={reloadSlot}
+                                  threadOfTask={childThreads}
                                 />
-                              ),
-                              trailing: (
-                                <div
-                                  className="flex shrink-0 items-center gap-0.5"
-                                  ref={setChromeSlot}
-                                />
-                              ),
-                            }
-                          : isFileScreen
-                            ? {
-                                leading: (
-                                  <div
-                                    className="flex shrink-0 items-center empty:hidden"
-                                    ref={setScreenRowLead}
-                                  />
-                                ),
-                                trailing: (
-                                  <div
-                                    className="flex shrink-0 items-center gap-0.5"
-                                    ref={setScreenRowSlot}
-                                  />
-                                ),
-                              }
-                            : {})}
-                        location={tabLocation}
-                        onBack={goBack}
-                        onForward={goForward}
-                      />
-                      <div className="relative min-h-0 flex-1">
-                        <Outlet />
-                        {/* Hidden rather than unmounted while a screen is up, so the pages stay. */}
-                        <div
-                          className={cn(
-                            "absolute inset-0 bg-background",
-                            isPageShown ? undefined : "invisible",
-                          )}
-                        >
-                          {/* The guests are the pool's, drawn over a slot rather than in it, so hiding this box hides nothing of theirs: the panel parks its guest when told the screen is off, the way a task page does when its tab is in the background. */}
-                          <ActiveTabProvider isActive={isPageShown}>
-                            <BrowserTabs
-                              chromeInto={chromeSlot}
-                              compose={[...compose.hosts, ...slotHosts]}
-                              ref={setBrowser}
-                              reloadInto={reloadSlot}
-                              threadOfTask={childThreads}
-                            />
-                          </ActiveTabProvider>
-                        </div>
-                        {/* The thread's tasks as the pane's face, over the tab
+                              </ActiveTabProvider>
+                            </div>
+                            {/* The thread's tasks as the pane's face, over the tab
                         up: the list, or the task pressed in it. */}
-                        {isTasksViewUp && (
-                          <div className="absolute inset-0 bg-background">
-                            <ThreadTasksView
-                              onOpen={(id) => {
-                                showTasksFace(id, tasksFace.thread);
-                              }}
-                              sessionId={tasksFace.thread}
-                              taskId={tasksFace.task}
-                            />
+                            {isTasksViewUp && (
+                              <div className="absolute inset-0 bg-background">
+                                <ThreadTasksView
+                                  onOpen={(id) => {
+                                    showTasksFace(id, tasksFace.thread);
+                                  }}
+                                  sessionId={tasksFace.thread}
+                                  taskId={tasksFace.task}
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    </RightPane>
                   </div>
-                </RightPane>
+                  {hasRail && ids && (
+                    <ThreadRail
+                      activeId={isTasksViewUp ? undefined : active?.id}
+                      appsBySlug={appsBySlug}
+                      isViewOpen={showsPane}
+                      onAddComputer={() => {
+                        windowTabs.openScreen(folderHref("~"));
+                        revealPane();
+                      }}
+                      onAddWeb={() => {
+                        windowTabs.openScreen(WEB_HREF);
+                        revealPane();
+                      }}
+                      onClose={requestClose}
+                      onSelect={(id) => {
+                        setTasksFace(undefined);
+                        windowTabs.select(id);
+                        revealPane();
+                      }}
+                      tabs={tabs}
+                      targetOf={(tab) =>
+                        encodeBrowserTargetId(
+                          tab.taskId ?? ids.taskId,
+                          StoreId.SessionSchema.parse(tab.id),
+                        )
+                      }
+                      threadTitles={threadTitles}
+                    />
+                  )}
+                </div>
                 <AlertDialog
                   onOpenChange={(open) => {
                     if (!open) {

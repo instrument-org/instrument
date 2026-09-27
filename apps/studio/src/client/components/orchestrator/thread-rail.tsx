@@ -85,7 +85,11 @@ export function ThreadRail({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 p-2">
             <div className="grid grid-cols-2 gap-1">
-              <AddTile icon={<GlobeIcon />} label="Web" onSelect={onAddWeb} />
+              <AddTile
+                icon={<GlobeIcon />}
+                label="Browser"
+                onSelect={onAddWeb}
+              />
               <AddTile
                 icon={<DesktopIcon />}
                 label={computerName()}

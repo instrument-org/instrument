@@ -104,7 +104,7 @@ export function screenPresentation(
     };
   }
   if (pathname === WEB_HREF) {
-    return { icon: <GlobeIcon className="size-3.5" />, title: "Web" };
+    return { icon: <GlobeIcon className="size-3.5" />, title: "Browser" };
   }
   if (pathname === "/orchestrator/computer") {
     const file = search.get("file");

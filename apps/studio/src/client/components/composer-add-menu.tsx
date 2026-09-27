@@ -296,7 +296,7 @@ export function ComposerAddMenu({
                     gone rather than as the menu hands focus back. */}
                 <PlaceTile
                   icon={GlobeIcon}
-                  label="Web"
+                  label="Browser"
                   onSelect={() => {
                     chose.current = "hand-off";
                     handOff.current = places.onOpenWeb;

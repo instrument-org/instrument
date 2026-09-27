@@ -102,7 +102,7 @@ export function ComposeZeroState({
       <div className="grid shrink-0 grid-cols-3 gap-3">
         <Tile
           icon={GlobeIcon}
-          name="Web"
+          name="Browser"
           onOpen={() => {
             setBrowsing(true);
           }}
@@ -176,7 +176,7 @@ export function WebStart({
           type="button"
         >
           <ArrowLeftIcon className="size-3.5" />
-          Web
+          Browser
         </button>
       )}
       <Box>
@@ -281,7 +281,7 @@ function AddressField({
               icon: <MagnifyingGlassIcon className="size-4" />,
               id: "search",
               name: `Search for “${words}”`,
-              note: "Web",
+              note: "Browser",
               run: () => {
                 const url = resolveUrlOrSearch(words);
                 if (url) {

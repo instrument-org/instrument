@@ -25,6 +25,7 @@ import {
   PageEditorGuestMessageSchema,
   type PageEditorHostMessage,
 } from "@/shared/page-editor-messages";
+import { isPageEditAddress } from "@instrument-org/shared";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/Check";
@@ -57,8 +58,6 @@ import {
  * what waits into a chat, as the tray under any other file does. A page is only ever edited from its tab, and the file
  * a tab edits is the one it shows.
  */
-
-const TOO_LARGE = "This page is too large to edit here";
 
 /** How long a flush waits for the guest to answer, for a guest that is gone or stuck. */
 const FLUSH_TIMEOUT_MS = 3000;
@@ -248,11 +247,6 @@ export function PageEditSession({
         );
         return;
       }
-      if (result.tooLarge) {
-        setCover(null);
-        giveUp(TOO_LARGE);
-        return;
-      }
       generation = result.generation;
     };
     const send = (message: PageEditorHostMessage) => {
@@ -387,7 +381,7 @@ export function PageEditSession({
     // script) leaves Edit: what it shows then is not what is being edited.
     const onNavigate = (event: Event) => {
       const { url } = event as Event & { url?: string };
-      if (generation !== undefined && url && !url.startsWith("data:")) {
+      if (generation !== undefined && url && !isPageEditAddress(url)) {
         latest.current.setEditing(false);
       }
     };

@@ -22,7 +22,7 @@ export const pageEditor = {
   /**
    * Shows the file ready to edit, from `text` when the editor holds text of
    * its own, with its `state` handed back to it. Answers the load's
-   * generation, which `stop` names, or that the page is too large to edit.
+   * generation, which `stop` names.
    */
   load: base
     .input(

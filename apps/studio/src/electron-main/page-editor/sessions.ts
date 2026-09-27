@@ -2,8 +2,19 @@ import { committedDocumentOf } from "@/electron-main/browser-view/frame-document
 import { PAGE_EDITOR_BOOT_CHANNEL } from "@/shared/page-editor-channels";
 import { stampPageSource } from "@/shared/page-source";
 import { is } from "@electron-toolkit/utils";
-import { ipcMain, type WebContents, webContents } from "electron";
-import { createHash } from "node:crypto";
+import {
+  isPageEditAddress,
+  PAGE_EDIT_PARAM,
+  withoutPageEditParam,
+} from "@instrument-org/shared";
+import {
+  ipcMain,
+  net,
+  type Session,
+  type WebContents,
+  webContents,
+} from "electron";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -15,9 +26,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  * own `file://` address, with the same folder confinement. What changes in
  * Edit is the text the guest is handed. The main process reads the file,
  * stamps a `data-src-id` on every element the file writes (on the copy only;
- * nothing is written to disk), and loads that copy into the guest as data
- * whose base address is the file's, so the document's URL, origin and
- * relative addresses are the file's own.
+ * nothing is written to disk), and loads that copy at the file's own address
+ * with one query parameter added, `?instrument-edit=<nonce>`. The guest's
+ * session answers that exact address with the copy and every other `file://`
+ * address from disk ({@link serveEditedPages}), so the document's URL, origin,
+ * folder and relative addresses are the file's own, and a page of any size
+ * can be edited.
  *
  * The editor itself runs in the guest's isolated world, the one its preload
  * runs in: it shares the page's DOM and none of its JavaScript. The preload
@@ -29,16 +43,20 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 interface EditSession {
   /** Which load this is: `stop` names the one it ends, so a late stop never ends a later Edit. */
   generation: number;
+  /** The browser session the guest loads in, whose `file://` requests serve the copy. */
+  guestSession: Session;
   /** The file on this computer the guest shows. */
   path: string;
   /** The text the stamped copy was made from. */
   src: string;
+  /** The copy the guest is handed: `src` with an id on every element. */
+  stamped: string;
   /** What the editor handed over when it asked to be reloaded: its undo stack, selection, scroll. */
   state: unknown;
   /**
-   * The exact address the stamped copy was loaded at. Only a document at this
-   * address is this edit: history, a page's own navigation or a reload of an
-   * older copy lands anywhere else, and gets no editor.
+   * The exact address the stamped copy was loaded at, its nonce included. Only
+   * a document at this address is this edit: history, a page's own navigation
+   * or a reload of an older copy lands anywhere else, and gets no editor.
    */
   url: string;
   version: string;
@@ -51,11 +69,8 @@ const watched = new Set<number>();
 
 let generations = 0;
 
-/** How a stamped copy's address starts, which tells one apart in a guest's history. */
-const STAMPED_PREFIX = "data:text/html;charset=utf-8;base64,";
-
-/** The longest address Chromium loads; a stamped copy past it cannot be shown. */
-const MAX_URL_LENGTH = 2 * 1024 * 1024;
+/** Browser sessions whose `file://` requests go through {@link serveEditedPages} now. */
+const servedSessions = new Set<Session>();
 
 /** Same fingerprint as `files.read` / `files.write` give, so versions compare across them. */
 function versionOf(text: string) {
@@ -72,24 +87,9 @@ export const pageEditorPreloadPath = () =>
 let cachedBundle: string | undefined;
 
 /**
- * The page file an editing guest shows, for the folder confinement of its
- * data-loaded copy: only for a frame whose document is the stamped copy
- * loaded at its own address.
- */
-export function editedPageOf(
-  webContentsId: number | undefined,
-  documentUrl: string | undefined,
-) {
-  const session =
-    webContentsId === undefined ? undefined : sessions.get(webContentsId);
-  return session && documentUrl === session.url ? session.path : undefined;
-}
-
-/**
  * Shows a page's file in its guest ready to edit: `text` when the editor asks
  * to be reloaded on text it already holds, the file as it is on disk
- * otherwise. A page whose stamped copy is too long an address to load is
- * left as it is.
+ * otherwise.
  */
 export async function loadEditablePage({
   path: filePath,
@@ -101,7 +101,7 @@ export async function loadEditablePage({
   state?: unknown;
   text?: string;
   webContentsId: number;
-}): Promise<{ generation: number; tooLarge: false } | { tooLarge: true }> {
+}): Promise<{ generation: number }> {
   const guest = guestOf(webContentsId);
   if (!guest) {
     throw new Error("That page is not open");
@@ -111,27 +111,35 @@ export async function loadEditablePage({
   }
   const disk = await fs.promises.readFile(filePath, "utf8");
   const src = text ?? disk;
-  const url = `${STAMPED_PREFIX}${Buffer.from(stampPageSource(src)).toString("base64")}`;
-  if (url.length > MAX_URL_LENGTH) {
-    return { tooLarge: true };
-  }
+  const url = editAddress(guest, filePath);
   watch(guest);
   generations += 1;
   const generation = generations;
+  serveEditedPages(guest.session);
   sessions.set(guest.id, {
     generation,
+    guestSession: guest.session,
     path: filePath,
     src,
+    stamped: stampPageSource(src),
     state: state ?? null,
     url,
     version: versionOf(disk),
   });
-  await guest.loadURL(url, {
-    baseURLForDataURL: pathToFileURL(filePath).href,
-  });
+  try {
+    await guest.loadURL(url);
+  } catch (error) {
+    // A copy that never showed ends its Edit here, and with the last one the
+    // session's `file://` handler, rather than being left to a navigation that
+    // may never come.
+    if (sessions.get(guest.id)?.generation === generation) {
+      endEdit(guest.id);
+    }
+    throw error;
+  }
   // Each reload replaces the copy before it, so Back never lands on one.
   forgetStampedCopies(guest);
-  return { generation, tooLarge: false };
+  return { generation };
 }
 
 export function servePageEditorBoot() {
@@ -171,7 +179,6 @@ export function servePageEditorBoot() {
  */
 export async function stopEditingPage({
   generation,
-  path: filePath,
   webContentsId,
 }: {
   generation: number;
@@ -186,9 +193,10 @@ export async function stopEditingPage({
   if (session && session.generation !== generation) {
     return;
   }
-  sessions.delete(guest.id);
-  if (guest.getURL().startsWith(STAMPED_PREFIX)) {
-    const href = pathToFileURL(filePath).href;
+  endEdit(guest.id);
+  const shown = guest.getURL();
+  if (isPageEditAddress(shown)) {
+    const href = withoutPageEditParam(shown);
     try {
       await guest.loadURL(href);
     } catch {
@@ -206,6 +214,36 @@ export async function stopEditingPage({
   forgetStampedCopies(guest);
 }
 
+/**
+ * The address a page's copy in Edit loads at: the file's own, keeping the
+ * query and fragment the guest showed it with, plus a fresh nonce.
+ */
+function editAddress(guest: WebContents, filePath: string) {
+  const address = new URL(pathToFileURL(filePath).href);
+  try {
+    const current = new URL(withoutPageEditParam(guest.getURL()));
+    if (current.protocol === "file:" && current.pathname === address.pathname) {
+      address.search = current.search;
+      address.hash = current.hash;
+    }
+  } catch {
+    // Not showing an address yet; the file's own will do.
+  }
+  address.searchParams.append(PAGE_EDIT_PARAM, randomUUID());
+  return address.href;
+}
+
+/** Ends a guest's Edit, and stops serving a browser session no Edit is live in. */
+function endEdit(guestId: number) {
+  sessions.delete(guestId);
+  for (const guestSession of servedSessions) {
+    if (![...sessions.values()].some((s) => s.guestSession === guestSession)) {
+      guestSession.protocol.unhandle("file");
+      servedSessions.delete(guestSession);
+    }
+  }
+}
+
 /** Every stamped copy in a guest's history but the one it shows. */
 function forgetStampedCopies(guest: WebContents) {
   const history = guest.navigationHistory;
@@ -213,10 +251,31 @@ function forgetStampedCopies(guest: WebContents) {
   for (let index = history.length() - 1; index >= 0; index -= 1) {
     if (
       index !== active &&
-      history.getEntryAtIndex(index).url.startsWith(STAMPED_PREFIX)
+      isPageEditAddress(history.getEntryAtIndex(index).url)
     ) {
       history.removeEntryAtIndex(index);
     }
+  }
+}
+
+/**
+ * A `file://` request of a page in Edit that is not its copy, answered from
+ * disk: a file that cannot be read is not found, and a range is a partial
+ * answer that names the whole file's size.
+ */
+async function fromDisk(request: Request) {
+  const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("range") ?? "");
+  if (range) {
+    return rangeFromDisk(
+      fileURLToPath(request.url),
+      range[1] ?? "",
+      range[2] ?? "",
+    );
+  }
+  try {
+    return await net.fetch(request, { bypassCustomProtocolHandlers: true });
+  } catch {
+    return new Response(null, { status: 404 });
   }
 }
 
@@ -224,6 +283,39 @@ function forgetStampedCopies(guest: WebContents) {
 function guestOf(webContentsId: number) {
   const wc = webContents.fromId(webContentsId);
   return wc && !wc.isDestroyed() && wc.getType() === "webview" ? wc : undefined;
+}
+
+async function rangeFromDisk(hostPath: string, from: string, to: string) {
+  let file: fs.promises.FileHandle;
+  try {
+    file = await fs.promises.open(hostPath, "r");
+  } catch {
+    return new Response(null, { status: 404 });
+  }
+  try {
+    const { size } = await file.stat();
+    const [start, end] = from
+      ? [Number(from), to ? Math.min(Number(to), size - 1) : size - 1]
+      : [Math.max(0, size - Number(to)), size - 1];
+    if (start >= size || start > end) {
+      return new Response(null, {
+        headers: { "content-range": `bytes */${size}` },
+        status: 416,
+      });
+    }
+    const body = new Uint8Array(end - start + 1);
+    await file.read(body, 0, body.length, start);
+    return new Response(body, {
+      headers: {
+        "accept-ranges": "bytes",
+        "content-length": String(body.length),
+        "content-range": `bytes ${start}-${end}/${size}`,
+      },
+      status: 206,
+    });
+  } finally {
+    await file.close();
+  }
 }
 
 /** Read on every boot in development, so a rebuilt bundle is picked up by the next Edit. */
@@ -239,6 +331,40 @@ function readBundle() {
 }
 
 /**
+ * Answers a guest session's `file://` requests while an Edit is live in it:
+ * the stamped copy for the address that Edit loaded, the file from disk for
+ * everything else. Every guest shares a session and a request does not say
+ * which guest made it, so the address's nonce is what picks the copy. The
+ * folder rule (`local-file-policy.ts`) runs before this, on the same address.
+ * Registered by the first Edit in a session and removed with the last
+ * ({@link endEdit}), so the browser's own file loading serves every page
+ * nobody is editing.
+ */
+function serveEditedPages(guestSession: Session) {
+  if (servedSessions.has(guestSession)) {
+    return;
+  }
+  servedSessions.add(guestSession);
+  guestSession.protocol.handle("file", (request) => {
+    const url = withoutFragment(request.url);
+    if (isPageEditAddress(url)) {
+      for (const session of sessions.values()) {
+        if (withoutFragment(session.url) === url) {
+          return new Response(session.stamped, {
+            headers: { "content-type": "text/html; charset=utf-8" },
+          });
+        }
+      }
+      // An Edit that has ended (a reload racing the stop, a stale history
+      // entry, an address typed by hand) goes back to the file's own address
+      // rather than showing the file under an address that still says Edit.
+      return Response.redirect(withoutPageEditParam(request.url), 302);
+    }
+    return fromDisk(request);
+  });
+}
+
+/**
  * Whether the guest's page is this file, by the document it last loaded
  * rather than its address: a page's own script can move its address to
  * another file with `history.pushState`, and Edit must never open the file
@@ -250,7 +376,7 @@ function showsFile(guest: WebContents, filePath: string) {
   if (committed === undefined) {
     return false;
   }
-  if (committed.startsWith(STAMPED_PREFIX)) {
+  if (isPageEditAddress(committed)) {
     return sessions.get(guest.id)?.path === filePath;
   }
   try {
@@ -274,11 +400,34 @@ function watch(guest: WebContents) {
   guest.on("did-navigate", (_event, url) => {
     const session = sessions.get(id);
     if (session && url !== session.url) {
-      sessions.delete(id);
+      endEdit(id);
+    }
+    // An Edit address with no Edit behind it (a reload that raced the end of
+    // one, or a stale history entry) goes to the file's own address, so the
+    // tab never shows the file under an address that still says Edit.
+    if (isPageEditAddress(url) && sessions.get(id)?.url !== url) {
+      setImmediate(() => {
+        if (!guest.isDestroyed() && guest.getURL() === url) {
+          guest.loadURL(withoutPageEditParam(url)).then(
+            () => {
+              forgetStampedCopies(guest);
+            },
+            () => {
+              // A navigation of the page's own overtook this one; the tab is
+              // no longer at the Edit address either way.
+            },
+          );
+        }
+      });
     }
   });
   guest.once("destroyed", () => {
-    sessions.delete(id);
+    endEdit(id);
     watched.delete(id);
   });
+}
+
+function withoutFragment(url: string) {
+  const at = url.indexOf("#");
+  return at === -1 ? url : url.slice(0, at);
 }

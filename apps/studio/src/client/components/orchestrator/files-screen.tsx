@@ -423,11 +423,12 @@ export function FilesScreen({
                 : {
                     page: (
                       // Square at the bottom left while the tree stands
-                      // against it; the window's own corner when it is put away.
+                      // against it, and at the right whatever the pane's own
+                      // corner is; the pane's corners when the tree is away.
                       <div
                         className={
                           isTreeOpen
-                            ? "h-full [--guest-bottom-radius:0_var(--radius-2xl)]"
+                            ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,var(--radius-2xl))]"
                             : "h-full"
                         }
                         ref={setSlot}

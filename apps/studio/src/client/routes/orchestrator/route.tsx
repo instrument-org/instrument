@@ -500,6 +500,8 @@ function OrchestratorLayout() {
   // pressed there comes up between the two; a place keeps a row of tabs
   // over the whole area instead.
   const hasRail = isChat && threadUp !== undefined;
+  // Drawn only once there is something in it.
+  const showsRail = hasRail && tabs.length > 0;
   /** Opens the new tab of whatever the pane holds: a place's own kind, or the page that reaches everything. */
   const openNewTab = () => {
     windowTabs.openScreen(newTabHrefOf(windowTabs.group));
@@ -1130,6 +1132,16 @@ function OrchestratorLayout() {
                             // A hairline only where the conversation is beside it;
                             // filling the card, the card's own edge is its edge.
                             isChat && "border-l border-border",
+                            // A page's bottom corners follow what they meet:
+                            // square against the conversation at the left and
+                            // against the rail at the right, round only where
+                            // the pane reaches the card's own corner. A screen
+                            // squaring its own left reads the right from
+                            // `--pane-bottom-right-radius`.
+                            isChat &&
+                              (showsRail
+                                ? "[--guest-bottom-radius:0] [--pane-bottom-right-radius:0]"
+                                : "[--guest-bottom-radius:0_var(--radius-2xl)]"),
                           )}
                         >
                           {!hasRail && (
@@ -1253,7 +1265,7 @@ function OrchestratorLayout() {
                       </div>
                     </RightPane>
                   </div>
-                  {hasRail && ids && tabs.length > 0 && (
+                  {showsRail && ids && (
                     <ThreadRail
                       activeId={isTasksViewUp ? undefined : active?.id}
                       appsBySlug={appsBySlug}

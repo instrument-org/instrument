@@ -636,10 +636,10 @@ export function ComposeWindow({
                   topics={liveTopics}
                 />
                 {/* The composer's own row, drawn here by the box below. */}
-                {/* Clipped rather than drawn over the words before it: the
-                    model's name gives way first on a crowded head. */}
+                {/* Kept whole at the head's end: on a crowded head the
+                    sentence's names give way before the model's. */}
                 <div
-                  className="flex min-w-0 flex-1 items-center overflow-hidden pl-2"
+                  className="ml-auto flex shrink-0 items-center pl-2"
                   ref={setHeadSlot}
                 />
                 <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border pl-2">
@@ -1199,7 +1199,7 @@ function OutputHead({
   output: Idea | undefined;
 }) {
   return (
-    <span className="flex min-w-0 shrink-0 items-center gap-0.5">
+    <span className="flex min-w-0 items-center gap-0.5">
       <OutputPicker onChange={onChange} value={output?.name}>
         <button
           aria-label={output ? `Output: ${output.title}` : "Pick an output"}

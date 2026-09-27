@@ -39,7 +39,14 @@ export async function capturePageThumbnail({
   captures += 1;
   const mine = captures;
   latest.set(key, mine);
-  const image = await guest.capturePage();
+  let image: Electron.NativeImage;
+  try {
+    image = await guest.capturePage();
+  } catch {
+    // A guest closing as the picture is taken refuses it; there is nothing
+    // left to keep.
+    return null;
+  }
   if (image.isEmpty() || latest.get(key) !== mine) {
     return null;
   }

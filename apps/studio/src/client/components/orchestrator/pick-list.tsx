@@ -60,6 +60,14 @@ export function PickList({
             onChange={(event) => {
               setFind(event.target.value);
             }}
+            // Enter takes the one row the words leave.
+            onKeyDown={(event) => {
+              const [only, ...rest] = shown;
+              if (event.key === "Enter" && only && rest.length === 0) {
+                event.preventDefault();
+                onToggle(only.id);
+              }
+            }}
             placeholder={findPlaceholder}
             value={find}
           />

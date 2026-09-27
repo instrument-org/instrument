@@ -121,5 +121,7 @@ describe("ls over a large attached folder", () => {
     expect(Number(result.stdout.trim())).toBeGreaterThan(
       DIRECTORIES * FILES_PER_DIRECTORY,
     );
-  });
+    // Walking the whole tree through the worker takes a few seconds on its
+    // own and longer while other suites load the machine.
+  }, 30_000);
 });

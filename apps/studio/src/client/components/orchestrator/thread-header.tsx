@@ -14,6 +14,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
+import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
@@ -24,7 +25,7 @@ import { useThreadActions } from "./thread-actions";
 import { TopicPill } from "./thread-row";
 import { ThreadTitle } from "./thread-title";
 import { type Thread, type Topic } from "./threads";
-import { AddTopicChip, TopicPicker } from "./topic-picker";
+import { TopicPicker } from "./topic-picker";
 import { type ThreadRename, useThreadRename } from "./use-thread-rename";
 
 /**
@@ -68,6 +69,7 @@ export function ThreadHeader({
   });
   const rename = useThreadRename(thread);
   const [isDeleting, setDeleting] = useState(false);
+  const [topicsOpen, setTopicsOpen] = useState(false);
   return (
     <div className="flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
       {thread && (
@@ -97,7 +99,9 @@ export function ThreadHeader({
         {thread && (
           <TopicPicker
             chosen={new Set(thread.topics)}
+            isOpen={topicsOpen}
             onNew={onNewTopic}
+            onOpenChange={setTopicsOpen}
             onToggle={(id) => {
               onSetTopics(
                 thread.topics.includes(id)
@@ -108,7 +112,9 @@ export function ThreadHeader({
             topics={topics}
           >
             {filed.length === 0 ? (
-              <AddTopicChip />
+              // No dashed slot in the head: a chat with no topics is filed
+              // from the menu, and this is only the picker's anchor then.
+              <span aria-hidden className="h-4 w-0 shrink-0" />
             ) : (
               <button
                 aria-label="Topics"
@@ -126,6 +132,9 @@ export function ThreadHeader({
           <ThreadMenu
             onDelete={() => {
               setDeleting(true);
+            }}
+            onEditTopics={() => {
+              setTopicsOpen(true);
             }}
             rename={rename}
             thread={thread}
@@ -167,10 +176,13 @@ export function ThreadHeader({
  */
 function ThreadMenu({
   onDelete,
+  onEditTopics,
   rename,
   thread,
 }: {
   onDelete: () => void;
+  /** Opens the topic picker, when the head that owns the menu has one. */
+  onEditTopics?: () => void;
   rename: ThreadRename;
   thread: Thread;
 }) {
@@ -230,6 +242,16 @@ function ThreadMenu({
           <PencilSimpleIcon className="size-3.5" />
           Rename
         </DropdownMenuItem>
+        {onEditTopics && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onEditTopics();
+            }}
+          >
+            <TagIcon className="size-3.5" />
+            Topics
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={() => {
             reveal.mutate({ id: thread.chatId, type: "show-in-folder" });

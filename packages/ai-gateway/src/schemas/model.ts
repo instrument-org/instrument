@@ -125,6 +125,12 @@ export namespace AIGatewayModel {
      */
     releasedAt: z.iso.date().optional(),
     restricted: RestrictionSchema.optional(),
+    /**
+     * For a model that stands for another, such as `instrument/auto`, the
+     * provider id of the model it resolves to right now, as our gateway
+     * reports it. Absent for every other model and from an older gateway.
+     */
+    sourceModelId: z.string().optional(),
     tags: ModelTagsSchema,
     uri: AIGatewayModelURI.Schema,
   });

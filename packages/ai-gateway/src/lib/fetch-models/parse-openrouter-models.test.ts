@@ -69,6 +69,19 @@ describe("parseOpenRouterModelsList", () => {
     ).toBeUndefined();
   });
 
+  it("carries the model our alias resolves to, and nothing for a model without one", () => {
+    expect({
+      alias: parseOne(
+        openRouterModel({
+          id: "instrument/auto",
+          instrument: { sourceModelId: "openai/gpt-6-luna" },
+          name: "Instrument: Auto",
+        }),
+      ).sourceModelId,
+      plain: parseOne(openRouterModel()).sourceModelId,
+    }).toEqual({ alias: "openai/gpt-6-luna", plain: undefined });
+  });
+
   it("drops batch variants and keeps the model they mirror", () => {
     const models = parseOpenRouterModelsList({
       config,

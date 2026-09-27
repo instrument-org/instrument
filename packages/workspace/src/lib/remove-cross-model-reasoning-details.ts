@@ -1,4 +1,7 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import {
+  type AIGatewayModel,
+  namesSameModel,
+} from "@instrument-org/ai-gateway";
 import { type ProviderMetadata } from "ai";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -24,16 +27,13 @@ export function removeCrossModelReasoningDetails({
   const sourceProviderIds = new Set<string>();
 
   const sanitizedMessages = messages.map((message) => {
-    if (
-      message.role !== "assistant" ||
-      message.metadata.aiGatewayModel?.uri === model.uri
-    ) {
+    if (message.role !== "assistant" || answeredBySameModel(message, model)) {
       return message;
     }
 
     // Encrypted reasoning, OpenRouter's or OpenAI's, is provider-private
-    // continuation state. It is only safe to replay for the exact same stored
-    // model URI.
+    // continuation state. It is only safe to replay to the model that wrote
+    // it.
     const sanitizedParts = message.parts.map((part) => {
       const result = removeEncryptedReasoningFromPart(part);
       redactedReasoningDetailsCount += result.redactedReasoningDetailsCount;
@@ -59,6 +59,29 @@ export function removeCrossModelReasoningDetails({
     sourceModelIds: [...sourceModelIds],
     sourceProviderIds: [...sourceProviderIds],
   };
+}
+
+/**
+ * Whether the model that answered `message` is the one about to be asked.
+ *
+ * The stored model URI has to match. For a model that stands for another,
+ * such as `instrument/auto`, the URI can stay the same while the model behind
+ * it changes, so the model that actually answered has to be the one the alias
+ * resolves to now. Without a current resolution (a gateway that does not
+ * report one) or a record of who answered, the URI is all there is to go on.
+ */
+function answeredBySameModel(
+  message: SessionMessage.AssistantWithParts,
+  model: AIGatewayModel.Type,
+): boolean {
+  if (message.metadata.aiGatewayModel?.uri !== model.uri) {
+    return false;
+  }
+  const served = message.metadata.modelIdServed;
+  if (model.sourceModelId === undefined || served === undefined) {
+    return true;
+  }
+  return namesSameModel(model.sourceModelId, served);
 }
 
 function hasDefinedValues(record: Record<string, unknown>) {

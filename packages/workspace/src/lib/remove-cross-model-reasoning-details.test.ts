@@ -13,10 +13,12 @@ const mockDate = new Date("2026-05-27T16:45:28.214Z");
 function createAssistantMessage({
   aiGatewayModel,
   modelId,
+  modelIdServed,
   providerId,
 }: {
   aiGatewayModel?: AIGatewayModel.Type;
   modelId: string;
+  modelIdServed?: string;
   providerId: string;
 }): SessionMessage.AssistantWithParts {
   const sessionId = StoreId.newSessionId();
@@ -29,6 +31,7 @@ function createAssistantMessage({
       createdAt: mockDate,
       finishReason: "tool-calls",
       modelId,
+      modelIdServed,
       providerId,
       sessionId,
     },
@@ -258,6 +261,64 @@ describe("removeCrossModelReasoningDetails", () => {
 
     const [message] = result.messages;
     expect(message).toBe(sourceMessage);
+  });
+
+  describe("on a model that stands for another", () => {
+    const auto = (sourceModelId: string | undefined) => ({
+      ...createMockAIGatewayModel({
+        canonicalId: "auto",
+        provider: "instrument",
+        providerId: "instrument/auto",
+      }),
+      sourceModelId,
+    });
+    const answeredBy = (modelIdServed: string | undefined) =>
+      createAssistantMessage({
+        aiGatewayModel: auto(undefined),
+        modelId: "auto",
+        modelIdServed,
+        providerId: "instrument",
+      });
+
+    it.each([
+      {
+        case: "keeps reasoning while the alias resolves to the model that answered",
+        modelIdServed: "openai/gpt-6-luna",
+        redacted: 0,
+        sourceModelId: "openai/gpt-6-luna",
+      },
+      {
+        case: "keeps reasoning from a dated build of the model it resolves to",
+        modelIdServed: "openai/gpt-6-luna-2026-09-14",
+        redacted: 0,
+        sourceModelId: "openai/gpt-6-luna",
+      },
+      {
+        case: "strips reasoning once the alias resolves to another model",
+        modelIdServed: "openai/gpt-6-luna",
+        redacted: 1,
+        sourceModelId: "anthropic/claude-sonnet-5",
+      },
+      {
+        case: "keeps reasoning when the gateway reports no resolution, as before",
+        modelIdServed: "openai/gpt-6-luna",
+        redacted: 0,
+        sourceModelId: undefined,
+      },
+      {
+        case: "keeps reasoning when the turn does not record who answered, as before",
+        modelIdServed: undefined,
+        redacted: 0,
+        sourceModelId: "anthropic/claude-sonnet-5",
+      },
+    ])("$case", ({ modelIdServed, redacted, sourceModelId }) => {
+      const result = removeCrossModelReasoningDetails({
+        messages: [answeredBy(modelIdServed)],
+        model: auto(sourceModelId),
+      });
+
+      expect(result.redactedMessageCount).toBe(redacted);
+    });
   });
 });
 

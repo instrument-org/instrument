@@ -95,7 +95,7 @@ export function ThreadRail({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-3">
         {newestFirst.map((tab) => (
           <RailTile
             appsBySlug={appsBySlug}

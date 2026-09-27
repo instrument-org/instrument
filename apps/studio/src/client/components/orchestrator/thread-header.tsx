@@ -12,6 +12,7 @@ import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { TagIcon } from "@phosphor-icons/react/Tag";
@@ -43,6 +44,7 @@ export function ThreadHeader({
   onDeleted,
   onNewTopic,
   onSetTopics,
+  onViewTasks,
   popOut,
   thread,
   topics,
@@ -55,6 +57,8 @@ export function ThreadHeader({
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewTopic: (name?: string) => void;
   onSetTopics: (topics: string[]) => void;
+  /** Opens the chat's tasks as the pane's face, when the head can reach them. */
+  onViewTasks?: () => void;
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
   popOut?: { isOut: boolean; onToggle: () => void };
   thread: Thread | undefined;
@@ -136,6 +140,7 @@ export function ThreadHeader({
             onEditTopics={() => {
               setTopicsOpen(true);
             }}
+            onViewTasks={onViewTasks}
             rename={rename}
             thread={thread}
           />
@@ -177,12 +182,15 @@ export function ThreadHeader({
 export function ThreadMenu({
   onDelete,
   onEditTopics,
+  onViewTasks,
   rename,
   thread,
 }: {
   onDelete: () => void;
   /** Opens the topic picker, when the head that owns the menu has one. */
   onEditTopics?: () => void;
+  /** Opens the chat's tasks, when the head can reach them. */
+  onViewTasks?: () => void;
   rename: ThreadRename;
   thread: Thread;
 }) {
@@ -233,6 +241,16 @@ export function ThreadMenu({
             {action.label}
           </DropdownMenuItem>
         ))}
+        {onViewTasks && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onViewTasks();
+            }}
+          >
+            <ListChecksIcon className="size-3.5" />
+            View tasks
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={() => {
             renaming.current = true;

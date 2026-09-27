@@ -120,6 +120,7 @@ export function ThreadWindow({
   onOpenInChats,
   onPageHost,
   onPlacementChange,
+  onViewTasks,
   placement,
   right,
   sendContext,
@@ -142,6 +143,8 @@ export function ThreadWindow({
   /** The element the chat's page is drawn into while the window is grown with a page up, null while none is. */
   onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
+  /** Opens the chat's tasks: the window goes and the tasks face comes up in Chats. */
+  onViewTasks: () => void;
   placement: "docked" | "expanded";
   /** Where the window stands along the foot, in layout px from the right edge. */
   right: number;
@@ -331,6 +334,7 @@ export function ThreadWindow({
               onDelete={() => {
                 setDeleting(true);
               }}
+              onViewTasks={onViewTasks}
               rename={rename}
               thread={thread}
             />

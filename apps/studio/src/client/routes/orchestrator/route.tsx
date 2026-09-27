@@ -941,6 +941,10 @@ function OrchestratorLayout() {
                 onOpenThread={landThread}
                 onPressThreadTab={landOnTab}
                 onStart={startThread}
+                onViewThreadTasks={(sessionId) => {
+                  compose.remove(sessionId);
+                  showTasksFace(undefined, sessionId);
+                }}
                 openOutside={(href) => {
                   openScreen(href, { newTab: true });
                 }}
@@ -1069,6 +1073,13 @@ function OrchestratorLayout() {
                                   setThreadTopics(threadUp, next);
                                 }
                               }}
+                              onViewTasks={
+                                threadUp === undefined
+                                  ? undefined
+                                  : () => {
+                                      showTasksFace(undefined, threadUp);
+                                    }
+                              }
                               popOut={
                                 threadUp === undefined
                                   ? undefined

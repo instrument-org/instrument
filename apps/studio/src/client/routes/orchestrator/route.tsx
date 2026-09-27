@@ -932,9 +932,6 @@ function OrchestratorLayout() {
                 }}
                 onExpandThread={landThread}
                 onModelChange={setDefaultModelURI}
-                onOpenApps={() => {
-                  choosePlace("apps");
-                }}
                 onPressThreadTab={landOnTab}
                 onStart={startThread}
                 openOutside={(href) => {

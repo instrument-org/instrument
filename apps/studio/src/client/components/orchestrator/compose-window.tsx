@@ -1,4 +1,5 @@
 import {
+  APPS_HREF,
   type ChosenItem,
   type ComposePlacement,
   type Draft,
@@ -34,7 +35,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { appMentionToken } from "@/client/lib/app-mention";
 import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
@@ -61,7 +61,9 @@ import {
   useState,
 } from "react";
 
+import { AppFront } from "./app-front";
 import { useAppsBySlug } from "./apps-by-slug";
+import { AppsHome } from "./apps-home";
 import { AskPills } from "./ask-pills";
 import { type BrowserTabsHandle, TabIcon } from "./browser-tabs";
 import { ComposeFiles } from "./compose-files";
@@ -93,6 +95,11 @@ export interface DraftSend {
   /** The kind of page the response should come back as, when one was picked. */
   output?: { name: string; title: string };
   prompt: string;
+}
+
+/** Whether an address is Apps or one app's front, which a draft's band shows itself. */
+function isAppsHref(pathname: string) {
+  return pathname === APPS_HREF || pathname.startsWith(`${APPS_HREF}/`);
 }
 
 /** How many marks the minimized bar shows of what the draft holds. */
@@ -207,7 +214,6 @@ export function ComposeWindow({
   onChange,
   onClose,
   onModelChange,
-  onOpenApps,
   onPageHost,
   onPlacementChange,
   onStart,
@@ -225,8 +231,6 @@ export function ComposeWindow({
   /** The window's close, with the words as the box has them that moment: the caller keeps or throws the draft away by them. */
   onClose: (words: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  /** Takes the window to the Apps place, for a draft with no app to name yet. */
-  onOpenApps: () => void;
   /** The element the draft's page is drawn into while a page is up, null while none is. */
   onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
@@ -416,23 +420,17 @@ export function ComposeWindow({
       openScreenIn(fileHref(hostPath));
     }
   };
-  const nameApp = (app: { name: string; slug: string }) => {
-    inputRef.current?.insertText(appMentionToken(app));
-    inputRef.current?.focus();
-  };
-  // A screen asked for from inside the band: an app is named in the words
-  // rather than opened, the computer opens in the band, and anything else
-  // (a thread, a task, a skill) has no place in a draft and opens beside the
-  // thread instead.
+  // A screen asked for from inside the band: the apps and the computer open
+  // in the band, and anything else (a chat, a task, a skill) has no place in
+  // a draft and opens beside the chat instead. An app is named in the words
+  // by mentioning it.
   const openScreen = (href: string) => {
     const { pathname } = parseHref(href);
-    if (pathname.startsWith("/orchestrator/apps/")) {
-      const slug = pathname.slice("/orchestrator/apps/".length);
-      const app = appsBySlug.get(slug);
-      nameApp({ name: app?.name ?? slug, slug });
-      return;
-    }
-    if (computerTabOf(href) || pathname === parseHref(NEW_TAB_HREF).pathname) {
+    if (
+      computerTabOf(href) ||
+      isAppsHref(pathname) ||
+      pathname === parseHref(NEW_TAB_HREF).pathname
+    ) {
       openScreenIn(href);
       return;
     }
@@ -519,7 +517,9 @@ export function ComposeWindow({
           onAttachFolder={() => {
             inputRef.current?.pickFolder();
           }}
-          onOpenApps={onOpenApps}
+          onOpenApps={() => {
+            openScreenIn(APPS_HREF);
+          }}
           onOpenFolder={openFolder}
           onOpenPage={openPage}
         />
@@ -562,6 +562,34 @@ export function ComposeWindow({
             onViewChange={setFilesView}
             path={computer.path}
             root={computer.root}
+          />
+        </Card>
+      );
+    }
+    const { pathname } = parseHref(up.href);
+    if (pathname === APPS_HREF) {
+      return (
+        <Card>
+          <AppsHome
+            onOpenApp={(slug) => {
+              windowTabs.visitHref(up.id, `${APPS_HREF}/${slug}`);
+            }}
+            showsConnect={false}
+          />
+        </Card>
+      );
+    }
+    if (pathname.startsWith(`${APPS_HREF}/`)) {
+      return (
+        <Card>
+          <AppFront
+            onToApps={() => {
+              if (windowTabs.stepTab(up.id, -1) === undefined) {
+                windowTabs.visitHref(up.id, APPS_HREF);
+              }
+            }}
+            reportsScreen={false}
+            slug={pathname.slice(APPS_HREF.length + 1)}
           />
         </Card>
       );

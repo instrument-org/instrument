@@ -35,7 +35,6 @@ export function ComposeLayer({
   onCloseThread,
   onExpandThread,
   onModelChange,
-  onOpenApps,
   onPressThreadTab,
   onStart,
   openOutside,
@@ -57,8 +56,6 @@ export function ComposeLayer({
   /** A thread's small view expanded: it lands in Chat, whole. */
   onExpandThread: (sessionId: StoreId.Session) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  /** Takes the window to the Apps place, for a draft with no app to name yet. */
-  onOpenApps: () => void;
   /** A tab pressed in a small view's picture: the thread lands in Chat with that tab in front. */
   onPressThreadTab: (sessionId: StoreId.Session, tabId: string) => void;
   onStart: (id: string, send: DraftSend) => void;
@@ -182,7 +179,6 @@ export function ComposeLayer({
                 onCloseDraft(draft.id, words);
               }}
               onModelChange={onModelChange}
-              onOpenApps={onOpenApps}
               onPageHost={(element) => {
                 compose.setHost(key, element);
               }}

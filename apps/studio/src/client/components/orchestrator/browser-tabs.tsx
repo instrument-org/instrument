@@ -363,35 +363,41 @@ export function BrowserTabs({
   const restored = useRef(new Set<string>());
   const activeUrl = active?.url;
   // A tab that comes back after a launch opens where it was: the workspace
-  // recreates the guest blank and this sends it to the page it last held.
-  // Fired on the tab coming up rather than on its guest being absent, because
-  // a local file's guest attaches to about:blank so fast it is already there
-  // when this first runs, which the old guest-absent guard read as "showing
-  // its page" and skipped, leaving the tab blank.
-  useEffect(() => {
+  // recreates the guest blank and this sends it to the page it last held,
+  // once, the first time the tab is shown. Shown means up in the window or
+  // handed back by `openOrFocus`, which is how a page drawn inside another
+  // screen (a file tab's page, Quick Look, a popped-out chat) comes up
+  // without ever being the window's active tab. Keyed on the tab coming up
+  // rather than on its guest being absent, because a local file's guest
+  // attaches to about:blank so fast it is already there when this runs.
+  const restoreOnce = (tab: { id: string; taskId?: TaskId; url?: string }) => {
     if (
-      !active ||
-      !activeUrl ||
-      activeUrl === "about:blank" ||
-      !bootTabIds.current?.has(active.id) ||
-      restored.current.has(active.id)
+      !tab.url ||
+      tab.url === "about:blank" ||
+      !bootTabIds.current?.has(tab.id) ||
+      restored.current.has(tab.id)
     ) {
       return;
     }
-    restored.current.add(active.id);
+    restored.current.add(tab.id);
     // A recreated guest has no native history from the preceding launch.
     setAllTabs((current) => ({
       ...current,
-      tabs: current.tabs.map((tab) =>
-        tab.id === active.id ? { ...tab, pageBackSteps: 0 } : tab,
+      tabs: current.tabs.map((entry) =>
+        entry.id === tab.id ? { ...entry, pageBackSteps: 0 } : entry,
       ),
     }));
     void rpcClient.workspace.browser.open.call({
       host: WINDOW_BROWSER_HOST,
-      id: active.taskId ?? taskId,
-      sessionId: StoreId.SessionSchema.parse(active.id),
-      url: activeUrl,
+      id: tab.taskId ?? taskId,
+      sessionId: StoreId.SessionSchema.parse(tab.id),
+      url: tab.url,
     });
+  };
+  useEffect(() => {
+    if (active) {
+      restoreOnce(active);
+    }
     // Fired once per restored tab, when it first comes up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, activeUrl, taskId]);
@@ -874,6 +880,7 @@ export function BrowserTabs({
                   tab.group === key && !tab.taskId && sameAddress(tab.url, url),
               );
         if (atFile) {
+          restoreOnce(atFile);
           if (options?.show || key === latest.current.group) {
             setAllTabs((current) => selectTab(current, atFile.id));
           }

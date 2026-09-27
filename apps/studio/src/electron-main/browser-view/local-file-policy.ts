@@ -4,15 +4,10 @@ import {
   type Session,
   type WebContents,
 } from "electron";
+import fs, { realpathSync } from "node:fs";
 import path from "node:path";
 
 import { committedDocumentOf, trackFrameDocumentsIn } from "./frame-documents";
-
-/** The file a guest's frame showing `documentUrl` is a stamped copy of, when it is the one being edited. */
-type EditedPageOf = (
-  webContentsId: number | undefined,
-  documentUrl: string | undefined,
-) => string | undefined;
 
 /**
  * What a page loaded from a file on this computer may read from the disk: its
@@ -28,27 +23,35 @@ type EditedPageOf = (
  *
  * So the rule is a static server's: a page at `/a/b/page.html` reaches
  * `/a/b/**` and nothing else. A navigation to another file is the person's
- * own act (a link they clicked, a file they opened) and is left alone; the
- * agent's way of asking a guest for a `file://` address is refused before it
- * reaches the guest at all. That holds only in a guest: a window a page
- * opened never shows a file (see `isAllowedGuestRequest`). The task's private
- * directory is refused as a segment anywhere, the way every other road to a
- * file refuses it.
+ * own act (a link they clicked, a file they opened) and is left alone here;
+ * the agent opens and reads only the files its own tools reach, which the CDP
+ * bridge enforces. That holds only in a guest: a window a page opened never
+ * shows a file (see `isAllowedGuestRequest`). The task's private directory is
+ * refused as a segment anywhere, the way every other road to a file refuses
+ * it.
  *
  * The page is the document its frame loaded, never the address the frame
  * shows now, which the page's own script can rewrite (see
  * `frame-documents.ts`). Call this before the session's first guest exists.
  */
-export function confineLocalPagesToTheirFolder(
-  guestSession: Session,
-  editedPageOf?: EditedPageOf,
-) {
+export function confineLocalPagesToTheirFolder(guestSession: Session) {
   trackFrameDocumentsIn(guestSession);
   guestSession.webRequest.onBeforeRequest(
     { urls: ["file:///*"] },
     (details, callback) => {
-      callback({
-        cancel: !isAllowedGuestRequest(details, editedPageOf),
+      if (!isAllowedGuestRequest(details)) {
+        callback({ cancel: true });
+        return;
+      }
+      if (details.resourceType === "mainFrame") {
+        callback({});
+        return;
+      }
+      void leadsBesidePage(
+        details.url,
+        committedDocumentOf(details.webContentsId, details.frame),
+      ).then((allowed) => {
+        callback({ cancel: !allowed });
       });
     },
   );
@@ -72,7 +75,6 @@ export function isAllowedGuestRequest(
   details: Parameters<typeof isAllowedLocalRequest>[0] & {
     webContents?: Pick<WebContents, "getType">;
   },
-  editedPage?: EditedPageOf,
 ): boolean {
   if (
     details.resourceType === "mainFrame" &&
@@ -80,19 +82,36 @@ export function isAllowedGuestRequest(
   ) {
     return false;
   }
-  return isAllowedLocalRequest(details, editedPage);
+  return isAllowedLocalRequest(details);
 }
 
+/**
+ * Whether a page may save a local file as a download. A download never passes
+ * through the request filter, so without this a page could hand any file on
+ * the computer to whoever reads the downloads folder, which for the agent's
+ * tab is the agent. Same rule as the page's own reads, so `pageUrl` is the
+ * document the page loaded, never the address it shows.
+ */
+export function isAllowedLocalDownload(
+  url: string,
+  pageUrl: string | undefined,
+): boolean {
+  const requested = hostPathOf(url);
+  return (
+    requested !== undefined &&
+    !PRIVATE_DIR_SEGMENT_REGEX.test(requested) &&
+    sitsBesidePage(requested, hostPathOf(pageUrl))
+  );
+}
+
+/**
+ * The page's folder or below it by name, which is what this answers; where the
+ * name really leads is {@link leadsBesidePage}, asked of every request this
+ * lets through.
+ */
 export function isAllowedLocalRequest(
   details: Partial<Pick<OnBeforeRequestListenerDetails, "webContentsId">> &
     Pick<OnBeforeRequestListenerDetails, "frame" | "resourceType" | "url">,
-  /**
-   * The file a guest editing a page shows. That page is loaded as data with
-   * the file's address as its base, so its frame's document is a `data:`
-   * address; the folder it may read is the file's, as it is in View, and only
-   * while the frame's document is the exact address the edit loaded.
-   */
-  editedPage?: EditedPageOf,
 ): boolean {
   const requested = hostPathOf(details.url);
   if (requested === undefined || PRIVATE_DIR_SEGMENT_REGEX.test(requested)) {
@@ -101,14 +120,85 @@ export function isAllowedLocalRequest(
   if (details.resourceType === "mainFrame") {
     return true;
   }
-  const loaded = committedDocumentOf(details.webContentsId, details.frame);
-  const page =
-    editedPage?.(details.webContentsId, loaded) ?? hostPathOf(loaded);
-  if (page === undefined) {
+  const page = hostPathOf(
+    committedDocumentOf(details.webContentsId, details.frame),
+  );
+  return (
+    page !== undefined &&
+    requested.startsWith(`${path.dirname(page)}${path.sep}`)
+  );
+}
+
+/** A page's folder, resolved, for the next request from the same folder. */
+const realFolders = new Map<string, Promise<string | undefined>>();
+const REAL_FOLDERS_KEPT = 256;
+
+/**
+ * Whether a request the page's folder holds by name is also there by where
+ * the name really leads: a symlink beside the page could otherwise point
+ * anywhere. Off the main thread, since every picture and script a page loads
+ * asks it. A file that does not exist has nothing to give, so its name alone
+ * decides.
+ *
+ * The answer is about the name at the moment it is asked; the browser then
+ * opens the name itself, and nothing here can hand it a descriptor instead.
+ * Whoever can write into the page's folder between the two (swap a file for
+ * a symlink, or create one where nothing was) gets the file it leads to. For
+ * the agent that is its own folder, and the gap is a race it would have to
+ * win on every read; for the person's own folders it is nobody else.
+ */
+export async function leadsBesidePage(
+  requestUrl: string,
+  pageUrl: string | undefined,
+): Promise<boolean> {
+  const requested = hostPathOf(requestUrl);
+  const page = hostPathOf(pageUrl);
+  if (requested === undefined || page === undefined) {
     return false;
   }
-  const folder = path.dirname(page);
-  return requested.startsWith(`${folder}${path.sep}`);
+  const realFolder = realFolderOf(path.dirname(page));
+  let realRequested: string;
+  try {
+    realRequested = await fs.promises.realpath(requested);
+  } catch {
+    return true;
+  }
+  const resolvedFolder = await realFolder;
+  return (
+    resolvedFolder !== undefined &&
+    realRequested.startsWith(`${resolvedFolder}${path.sep}`) &&
+    !PRIVATE_DIR_SEGMENT_REGEX.test(realRequested)
+  );
+}
+
+/**
+ * Whether a page may take its tab to `toUrl`, for a tab an agent drives whose
+ * readable folders on this computer are `agentRoots` (null while no agent has
+ * driven it). A page the agent can read may go to another such file and
+ * anywhere that is not a file, and never to a file outside them: a link or a
+ * script in the agent's own page is otherwise a way to open, and then read,
+ * any file on the computer. A file the agent cannot read is the person's own
+ * page, which the agent cannot read either, so where its links lead is left
+ * to the person.
+ *
+ * Only for navigations the page starts. The agent's own navigations are
+ * checked by the CDP bridge before they reach the guest, and the person's
+ * (the address bar, opening a file) are theirs.
+ */
+export function mayPageNavigateTo(
+  agentRoots: null | readonly string[],
+  fromUrl: string | undefined,
+  toUrl: string,
+): boolean {
+  const to = hostPathOf(toUrl);
+  if (agentRoots === null || to === undefined) {
+    return true;
+  }
+  if (isUnderAnyRoot(to, agentRoots)) {
+    return true;
+  }
+  const from = hostPathOf(fromUrl);
+  return from !== undefined && !isUnderAnyRoot(from, agentRoots);
 }
 
 /** The path a `file://` address names, normalized; nothing for any other address. */
@@ -126,4 +216,75 @@ function hostPathOf(url: string | undefined): string | undefined {
   } catch {
     return;
   }
+}
+
+/** Under one of `roots` by name and by where the name really leads. */
+function isUnderAnyRoot(hostPath: string, roots: readonly string[]) {
+  const real = realpathOrSelf(hostPath);
+  return roots.some((root) => {
+    const realRoot = realpathOrSelf(root);
+    return (
+      (hostPath === root || hostPath.startsWith(`${root}${path.sep}`)) &&
+      (real === realRoot || real.startsWith(`${realRoot}${path.sep}`))
+    );
+  });
+}
+
+function realFolderOf(folder: string) {
+  let resolved = realFolders.get(folder);
+  if (resolved === undefined) {
+    if (realFolders.size >= REAL_FOLDERS_KEPT) {
+      realFolders.clear();
+    }
+    resolved = realpathOrNothing(folder);
+    realFolders.set(folder, resolved);
+  }
+  return resolved;
+}
+
+async function realpathOrNothing(hostPath: string) {
+  try {
+    return await fs.promises.realpath(hostPath);
+  } catch {
+    return;
+  }
+}
+
+function realpathOrSelf(hostPath: string) {
+  try {
+    return realpathSync(hostPath);
+  } catch {
+    return hostPath;
+  }
+}
+
+/**
+ * In the page's folder or below it, by name and by where the name really
+ * leads: a symlink beside the page could otherwise point anywhere. A file that
+ * does not exist has nothing to give, so its name alone decides.
+ */
+function sitsBesidePage(requested: string, page: string | undefined) {
+  if (page === undefined) {
+    return false;
+  }
+  const folder = path.dirname(page);
+  if (!requested.startsWith(`${folder}${path.sep}`)) {
+    return false;
+  }
+  let realRequested: string;
+  try {
+    realRequested = realpathSync(requested);
+  } catch {
+    return true;
+  }
+  let realFolder: string;
+  try {
+    realFolder = realpathSync(folder);
+  } catch {
+    return false;
+  }
+  return (
+    realRequested.startsWith(`${realFolder}${path.sep}`) &&
+    !PRIVATE_DIR_SEGMENT_REGEX.test(realRequested)
+  );
 }

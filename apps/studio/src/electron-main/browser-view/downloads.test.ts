@@ -45,6 +45,12 @@ vi.mock("electron", () => ({
     },
   },
 }));
+// The document a guest loaded, which the download rule judges a page by, as
+// the fake guest's main frame names it.
+vi.mock("./frame-documents", () => ({
+  committedDocumentOf: (_id: number, frame?: { url?: string }) => frame?.url,
+}));
+
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   getWorkspaceFolder: () => home.workspace,
 }));
@@ -420,6 +426,78 @@ describe("attachDownloadHandler", () => {
       guid: "guid-from-cdp",
       suggestedFilename: "report.pdf",
       url: "https://example.com/report.pdf",
+    });
+  });
+
+  describe("a local file the page may not save", () => {
+    const pageAt = (entry: BrowserEntry, url: string) => {
+      entry.webContents = {
+        id: ++webContentsCounter,
+        mainFrame: { url },
+      } as unknown as WebContents;
+    };
+
+    it("tells agent-browser at once that the download was canceled", () => {
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      pageAt(entry, "file:///Users/me/site/index.html");
+      entry.authorizedDownloadPath = "/tmp/dl";
+      entry.pendingDownloadGuids.set("file:///etc/hosts", "guid-1");
+      const onEvent = vi.fn();
+      entry.eventListeners.add(onEvent);
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      attachDownloadHandler({ entries, session });
+
+      const item = makeFakeItem({
+        filename: "hosts",
+        url: "file:///etc/hosts",
+      });
+      trigger(item, entry);
+
+      expect(item.cancel).toHaveBeenCalledOnce();
+      expect(item.setSavePath).not.toHaveBeenCalled();
+      expect(entry.authorizedDownloadPath).toBeNull();
+      expect(onEvent.mock.calls).toEqual([
+        [
+          "Page.downloadWillBegin",
+          {
+            frameId: TARGET_ID,
+            guid: "guid-1",
+            suggestedFilename: "hosts",
+            url: "file:///etc/hosts",
+          },
+        ],
+        [
+          "Page.downloadProgress",
+          {
+            guid: "guid-1",
+            receivedBytes: 0,
+            state: "canceled",
+            totalBytes: 0,
+          },
+        ],
+      ]);
+    });
+
+    it("cancels the person's own click without an agent-browser event", () => {
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      pageAt(entry, "file:///Users/me/site/index.html");
+      const onEvent = vi.fn();
+      entry.eventListeners.add(onEvent);
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      attachDownloadHandler({ entries, session });
+
+      const item = makeFakeItem({
+        filename: "hosts",
+        url: "file:///etc/hosts",
+      });
+      trigger(item, entry);
+
+      expect(item.cancel).toHaveBeenCalledOnce();
+      expect(onEvent).not.toHaveBeenCalled();
     });
   });
 

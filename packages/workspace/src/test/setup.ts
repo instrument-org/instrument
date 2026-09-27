@@ -40,9 +40,14 @@ setWorkspaceConfig({
     closeTarget: () => Promise.resolve(),
     createTarget: rejectBrowserTarget,
     getTargetMeta: () => null,
+    getTargetUrl: (): string | undefined => {
+      // No guest is ever live here, so there is no address to report.
+      return;
+    },
     listTargets: () => Promise.resolve([]),
     onTargetDestroyed: noopCleanup,
     sendCommand: () => Promise.resolve({}),
+    setAgentFileRoots: noop,
     stopScreencast: noop,
     subscribeEvents: noopCleanup,
   },

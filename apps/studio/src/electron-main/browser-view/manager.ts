@@ -30,7 +30,7 @@ import {
   applyStandardUserAgent,
 } from "../lib/user-agent";
 import { selectWebAuthnAccountOnRequest } from "../lib/web-authn";
-import { editedPageOf, pageEditorPreloadPath } from "../page-editor/sessions";
+import { pageEditorPreloadPath } from "../page-editor/sessions";
 import { attachDevHooks, notifyDebugChange } from "./dev-hooks";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
@@ -50,8 +50,12 @@ import {
   createFocusGuard,
   isAgentDrivenCommand,
 } from "./focus-guard";
+import { committedDocumentOf } from "./frame-documents";
 import { attachGuestInteractions } from "./guest-interactions";
-import { confineLocalPagesToTheirFolder } from "./local-file-policy";
+import {
+  confineLocalPagesToTheirFolder,
+  mayPageNavigateTo,
+} from "./local-file-policy";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
 import {
@@ -226,6 +230,29 @@ export function createBrowserViewManager(): BrowserViewManager {
   function bindGuest(entry: BrowserEntry, guest: WebContents) {
     entry.webContents = guest;
     const { targetId } = entry;
+
+    // A page the agent can read may not take its tab to a file the agent
+    // cannot; see `mayPageNavigateTo`. Fires only for navigations the page
+    // starts, never for the address bar or the agent's own `Page.navigate`.
+    guest.on("will-frame-navigate", (details) => {
+      if (
+        details.isMainFrame &&
+        !mayPageNavigateTo(
+          entry.agentFileRoots,
+          committedDocumentOf(guest.id, guest.mainFrame),
+          details.url,
+        )
+      ) {
+        log.warn(
+          `refused a page taking its tab outside the agent's folders targetId=${targetId}`,
+        );
+        details.preventDefault();
+        publisher.publish("browser.navigation-refused", {
+          host: entry.host,
+          targetId,
+        });
+      }
+    });
 
     // Allow only genuine sign-in popups, and only when the user -- not agent CDP
     // activity -- is driving this guest. A popup the agent triggers would be a
@@ -565,6 +592,13 @@ export function createBrowserViewManager(): BrowserViewManager {
         sessionId: entry.sessionId,
       };
     },
+    getTargetUrl: (targetId) => {
+      const entry = entries.get(targetId);
+      const guest = entry?.webContents;
+      return guest && !guest.isDestroyed()
+        ? committedDocumentOf(guest.id, guest.mainFrame)
+        : undefined;
+    },
     listTargets,
     onTargetDestroyed,
     sendCommand: (async (
@@ -596,6 +630,12 @@ export function createBrowserViewManager(): BrowserViewManager {
         settle();
       }
     }) satisfies BrowserConfig["sendCommand"],
+    setAgentFileRoots: (targetId, roots) => {
+      const entry = entries.get(targetId);
+      if (entry) {
+        entry.agentFileRoots = roots;
+      }
+    },
     stopScreencast: (targetId) => {
       const entry = entries.get(targetId);
       if (entry) {
@@ -780,7 +820,7 @@ function sessionForEntry(entry: BrowserEntry) {
   // Required, not optional: a passkey sign-in that finds more than one
   // credential is cancelled outright when nothing answers this.
   selectWebAuthnAccountOnRequest(guestSession);
-  confineLocalPagesToTheirFolder(guestSession, editedPageOf);
+  confineLocalPagesToTheirFolder(guestSession);
   return guestSession;
 }
 

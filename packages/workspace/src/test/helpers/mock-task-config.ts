@@ -179,9 +179,14 @@ export function createStubBrowserConfig(): BrowserConfig {
         targetId: encodeBrowserTargetId(id, sessionId),
       }),
     getTargetMeta: () => null,
+    getTargetUrl: (): string | undefined => {
+      // No guest is ever live here, so there is no address to report.
+      return;
+    },
     listTargets: () => Promise.resolve([]),
     onTargetDestroyed: () => noop,
     sendCommand: () => Promise.resolve({}),
+    setAgentFileRoots: noop,
     stopScreencast: noop,
     subscribeEvents: () => noop,
   };

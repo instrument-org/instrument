@@ -36,6 +36,13 @@ interface PublisherEvents {
   // element moves Chromium's keyboard focus across the process boundary;
   // `webContents.focus()` on the guest does not.
   "browser.focus-guest": { targetId: BrowserTargetId };
+  // A page in a tab an agent drives tried to go to a file outside the agent's
+  // folders and was kept where it is. The window hosting the guest says so,
+  // since otherwise a link the person clicked just does nothing.
+  "browser.navigation-refused": {
+    host: BrowserHost;
+    targetId: BrowserTargetId;
+  };
   // Agent-driven browser input can move Chromium keyboard focus into a guest.
   // The renderer owns the exact Studio element that must be restored.
   "browser.restore-host-focus": null;

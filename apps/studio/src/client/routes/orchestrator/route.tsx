@@ -1160,10 +1160,12 @@ function OrchestratorLayout() {
                             {...(hasRail
                               ? {
                                   onClose: () => {
-                                    if (active) {
-                                      requestClose(active.id);
-                                    } else if (isTasksViewUp) {
+                                    // The tasks' face stands over the tab up,
+                                    // so it is what the cross puts away.
+                                    if (isTasksViewUp) {
                                       setTasksFace(undefined);
+                                    } else if (active) {
+                                      requestClose(active.id);
                                     } else if (windowTabs.group !== undefined) {
                                       setPaneOpen(windowTabs.group, false);
                                     }

@@ -207,6 +207,9 @@ export function ThreadMenu({
   // The menu hands focus back to its trigger as it closes, which would land
   // after the field took it and blur the rename shut.
   const renaming = useRef(false);
+  // What opens once the menu has gone, for a picker that would otherwise be
+  // dismissed by the focus the menu hands back as it closes.
+  const handOff = useRef<(() => void) | null>(null);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -232,6 +235,12 @@ export function ThreadMenu({
           if (renaming.current) {
             renaming.current = false;
             event.preventDefault();
+          }
+          const opensNext = handOff.current;
+          if (opensNext) {
+            handOff.current = null;
+            event.preventDefault();
+            opensNext();
           }
         }}
       >
@@ -263,7 +272,7 @@ export function ThreadMenu({
         {onEditTopics && (
           <DropdownMenuItem
             onSelect={() => {
-              onEditTopics();
+              handOff.current = onEditTopics;
             }}
           >
             <TagIcon className="size-3.5" />

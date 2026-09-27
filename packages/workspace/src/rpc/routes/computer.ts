@@ -18,10 +18,16 @@ import { base } from "../base";
  * A folder the operating system will not let this app read is its own
  * answer rather than a failure: on a Mac the first read of a protected folder
  * is the moment the system asks, and a refusal there is silent from then on,
- * so the screen has to say what happened and where it is undone.
+ * so the screen has to say what happened and where it is undone. A path that
+ * names a file is its own answer too: a typed path is asked for as a folder to
+ * learn whether it is one, and the caller opens a file for that answer.
  */
 const list = base
   .errors({
+    NOT_A_FOLDER: {
+      data: z.object({ path: z.string() }),
+      message: "The path names a file, not a folder",
+    },
     NOT_PERMITTED: {
       data: z.object({ path: z.string() }),
       message: "The operating system has not let this app read the folder",
@@ -36,17 +42,22 @@ const list = base
       if (isPermissionError(error)) {
         throw errors.NOT_PERMITTED({ data: { path: input.path } });
       }
+      if (errorCode(error) === "ENOTDIR") {
+        throw errors.NOT_A_FOLDER({ data: { path: input.path } });
+      }
       throw error;
     }
   });
 
+/** The system error code a failed read carries, if it carries one. */
+function errorCode(error: unknown) {
+  return error instanceof Error && "code" in error ? error.code : undefined;
+}
+
 /** A read the operating system refused, as opposed to a folder that is not there. */
 function isPermissionError(error: unknown) {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error.code === "EPERM" || error.code === "EACCES")
-  );
+  const code = errorCode(error);
+  return code === "EPERM" || code === "EACCES";
 }
 
 /** The folders the computer is entered from, and its volumes. */

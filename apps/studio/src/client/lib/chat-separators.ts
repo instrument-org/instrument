@@ -13,7 +13,7 @@ const DAY_MS = 24 * HOUR_MS;
  * How long a chat has to sit quiet before the next message gets a separator of
  * its own, the way a text thread marks a return to it.
  */
-export const SEPARATOR_GAP_MS = HOUR_MS;
+const SEPARATOR_GAP_MS = HOUR_MS;
 
 /**
  * A line drawn above a message the person sent: when it was sent, and, where

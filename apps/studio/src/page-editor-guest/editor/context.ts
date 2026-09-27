@@ -29,13 +29,6 @@ import { type OffsetMap, type ReorderGesture } from "./structure";
 import { type BlockedBy } from "./style-panel";
 import { type Theme } from "./tokens";
 
-/** An ask being written in the popover. */
-export interface Asking {
-  change: null | string;
-  el: HTMLElement;
-  verdict: AskVerdict;
-}
-
 /** An ask this page holds, pinned to its element. */
 export interface AskRequest {
   change: null | string;
@@ -51,6 +44,7 @@ export interface AskRequest {
   /** Its element could not be found again. */
   stale: boolean;
 }
+
 export interface AsksApi {
   addRequest: (
     el: Element,
@@ -69,7 +63,6 @@ export interface AsksApi {
   toAgent: (e: EditSession, newText: null | string, why: string) => void;
   toAgentChange: (el: HTMLElement, change: string, why: string) => void;
 }
-
 /** The file as the window last reported it, and how to write it. */
 export interface DocHandle {
   /** The last text known on disk. */
@@ -174,12 +167,6 @@ export interface EditSession {
 
 export type ElementKind = "box" | "image" | "text";
 
-export interface Flash {
-  el: Element;
-  self?: boolean;
-  until: number;
-}
-
 export interface HistoryApi {
   init: () => void;
   redo: () => Promise<void>;
@@ -235,11 +222,6 @@ export interface LiveApi {
   withAttributes: (fn: () => void) => void;
 }
 
-/** A write that brought the live page along, and how, for the status line. */
-export type LiveResult =
-  | (Extract<WriteResult, { ok: true }> & { how: string })
-  | { ok: false };
-
 /** How to bring the live page along when a structural edit is undone or redone. */
 export interface LiveStep {
   after: ChildNode[];
@@ -271,8 +253,6 @@ export interface OverlayApi {
 
 export type PanelMode = "requests" | "style";
 
-export type Placement = "pill" | "row";
-
 /** A probe of which properties a class cannot change on an element. */
 export interface Probe {
   /** Property -> why a class cannot change it; null until the probe finishes. */
@@ -287,9 +267,6 @@ export interface QuickVerdict {
   kind: ElementKind;
   name: string;
 }
-
-/** An undone step, holding the regions that redo it. */
-export type RedoOp = Omit<UndoOp, "regions"> & { regions: Region[] };
 
 export interface ReloadApi {
   afterBusy: () => void;
@@ -345,14 +322,6 @@ export interface StyleApi {
   startProbe: (el: HTMLElement) => void;
 }
 
-/** A style value shown on the live page without being written. */
-export interface StylePreview {
-  el: HTMLElement;
-  priority: string;
-  prop: string;
-  saved: string;
-}
-
 export interface TextEditApi {
   commitEdit: () => void;
   restoreText: (el: Element, seg: Segments) => boolean;
@@ -399,14 +368,45 @@ export interface Ui {
   undoBtn: HTMLButtonElement;
 }
 
-export interface UndoOp {
+export type WriteResult =
+  | { external: boolean; ok: true; placed: Placed; prev: string }
+  | { ok: false };
+
+/** An ask being written in the popover. */
+interface Asking {
+  change: null | string;
+  el: HTMLElement;
+  verdict: AskVerdict;
+}
+
+interface Flash {
+  el: Element;
+  self?: boolean;
+  until: number;
+}
+
+/** A write that brought the live page along, and how, for the status line. */
+type LiveResult =
+  | (Extract<WriteResult, { ok: true }> & { how: string })
+  | { ok: false };
+
+type Placement = "pill" | "row";
+
+/** An undone step, holding the regions that redo it. */
+type RedoOp = Omit<UndoOp, "regions"> & { regions: Region[] };
+
+/** A style value shown on the live page without being written. */
+interface StylePreview {
+  el: HTMLElement;
+  priority: string;
+  prop: string;
+  saved: string;
+}
+
+interface UndoOp {
   key: string;
   label: string;
   live?: LiveStep;
   regions: AppliedRegion[];
   time: number;
 }
-
-export type WriteResult =
-  | { external: boolean; ok: true; placed: Placed; prev: string }
-  | { ok: false };

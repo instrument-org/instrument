@@ -39,14 +39,14 @@ export interface RequestPayload {
   text: string;
 }
 
-/** How a request describes what it points at, beyond the reasons a verdict can give. */
-export type RequestStatus = "element" | "static";
-
 /** A text edit the editor could not write itself, queued for the agent. */
 export interface TextEdit {
   from: string;
   to: string;
 }
+
+/** How a request describes what it points at, beyond the reasons a verdict can give. */
+type RequestStatus = "element" | "static";
 
 const STATUS: Record<string, string> = {
   changed: "in the file, but a script rewrites it after load",

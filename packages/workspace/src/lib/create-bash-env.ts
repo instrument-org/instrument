@@ -548,7 +548,7 @@ export function createBashDescription({
  * stand-ins that send the call back to the main thread; every other command
  * runs where the interpreter does.
  */
-export const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
+const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
   AGENT_BROWSER_COMMAND.name,
   APP_COMMAND.name,
   CHAT_COMMAND.name,

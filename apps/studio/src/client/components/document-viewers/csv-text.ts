@@ -51,13 +51,6 @@ export type CsvEdit =
   | { kind: "deleteRows"; refs: RecordRef[] }
   | { kind: "insertRow"; ref: RecordRef; where: "above" | "below" };
 
-/** A record an edit was made to, and how to find it again. */
-export interface RecordRef {
-  /** The record's text when the edit was made. */
-  key: string;
-  record: number;
-}
-
 export interface ReplayNotes {
   /** Cells whose row or column had to be found by position rather than by its text. */
   byPosition: number;
@@ -71,6 +64,13 @@ export interface Splice {
   from: number;
   insert: string;
   to: number;
+}
+
+/** A record an edit was made to, and how to find it again. */
+interface RecordRef {
+  /** The record's text when the edit was made. */
+  key: string;
+  record: number;
 }
 
 /**

@@ -39,7 +39,7 @@ import { toDom } from "hast-util-to-dom";
 import { childrenOf, mapPos } from "./doc-sync";
 import { icon } from "./icons";
 
-export const el = <K extends keyof HTMLElementTagNameMap>(
+const el = <K extends keyof HTMLElementTagNameMap>(
   tag: K,
   cls?: string,
   text?: string,
@@ -116,7 +116,7 @@ const domOf = (children: HastChild[]) =>
   toDom({ children, type: "root" }, { fragment: true });
 
 /** Sanitized DOM for an HTML value, or null when nothing visible survives. */
-export function renderHtml(
+function renderHtml(
   value: string,
   resolveSrc: (src: string) => string,
 ): Node | null {

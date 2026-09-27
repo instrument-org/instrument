@@ -64,7 +64,7 @@ export function FrontMatterCard({
         </span>
         {rows !== null && (
           <button
-            className="ml-auto rounded-sm px-1.5 py-0.5 hover:bg-muted hover:text-foreground"
+            className="ml-auto shrink-0 rounded-sm px-1.5 py-0.5 whitespace-nowrap hover:bg-muted hover:text-foreground"
             onClick={(event) => {
               event.preventDefault();
               if (!asYaml) {

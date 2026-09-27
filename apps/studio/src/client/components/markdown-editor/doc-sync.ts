@@ -68,12 +68,6 @@ export interface Group {
   start: number;
 }
 
-export interface SpliceStats {
-  note: string;
-  preserved: number;
-  serialized: number;
-}
-
 interface MdNode {
   children?: MdNode[];
   position?: { end: MdPoint; start: MdPoint };
@@ -83,9 +77,15 @@ interface MdNode {
 interface MdPoint {
   offset?: number;
 }
+
 interface NodeEntry {
   group: Group | null;
   node: PMNode;
+}
+interface SpliceStats {
+  note: string;
+  preserved: number;
+  serialized: number;
 }
 
 // A single `$` is not math, as in Studio's static renderer: `$42,000` is money.

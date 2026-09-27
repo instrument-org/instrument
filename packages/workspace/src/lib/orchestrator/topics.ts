@@ -145,11 +145,6 @@ export async function topicByName(name: string): Promise<Topic | undefined> {
   );
 }
 
-/** A topic's own folder: its file, and later whatever it keeps for reference. */
-export function topicDir(topicId: string): AbsolutePath {
-  return absolutePathJoin(topicsDir(), topicId);
-}
-
 /** What a name becomes: no hash, one space between words, bounded. */
 export function topicName(raw: string): string {
   return raw
@@ -181,17 +176,6 @@ export async function updateTopic(
     ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
     ...(change.name === undefined ? {} : { name: topicName(change.name) }),
   }));
-}
-
-/** Writes a topic's file whole, making its folder the first time. */
-export async function writeTopic(topic: Topic): Promise<void> {
-  const dir = topicDir(topic.id);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(
-    path.join(dir, TOPIC_FILE_NAME),
-    serializeTopic(topic),
-    "utf8",
-  );
 }
 
 async function changeTopic(
@@ -257,4 +241,20 @@ async function readTopic(folder: string): Promise<Topic | undefined> {
     name: topicName(text("name") ?? folder),
     ...(record.retired === true ? { retired: true } : {}),
   };
+}
+
+/** A topic's own folder: its file, and later whatever it keeps for reference. */
+function topicDir(topicId: string): AbsolutePath {
+  return absolutePathJoin(topicsDir(), topicId);
+}
+
+/** Writes a topic's file whole, making its folder the first time. */
+async function writeTopic(topic: Topic): Promise<void> {
+  const dir = topicDir(topic.id);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(
+    path.join(dir, TOPIC_FILE_NAME),
+    serializeTopic(topic),
+    "utf8",
+  );
 }

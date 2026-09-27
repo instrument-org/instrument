@@ -5,7 +5,7 @@
  * control from a class list as written in the file.
  */
 
-export const SIZES: readonly (readonly [name: string, px: number])[] = [
+const SIZES: readonly (readonly [name: string, px: number])[] = [
   ["xs", 12],
   ["sm", 14],
   ["base", 16],

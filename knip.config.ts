@@ -44,6 +44,9 @@ const config: KnipConfig = {
         "src/client/main.tsx!",
         "src/electron-main/index.ts!",
         "src/electron-preload/index.ts!",
+        // Page editor guest: built by a nested Vite build in electron.vite.config.ts.
+        "src/page-editor-guest/preload.ts!",
+        "src/page-editor-guest/editor/index.ts!",
         "electron.vite.config.ts!",
         "src/index.html!",
         // Browser build: reached through Vite aliases, which knip cannot follow.
@@ -86,7 +89,7 @@ const config: KnipConfig = {
       // The default run calls `evals/cli.ts!` redundant for that reason: keep it.
       entry: ["__mocks__/*", "evals/cli.ts!", "scripts/*.ts!"],
       ignore: ["fixtures/**/*"],
-      ignoreBinaries: ["which", "ldd", "taskkill", "xcode-select"],
+      ignoreBinaries: ["which", "ldd", "ps", "taskkill", "xcode-select"],
       project: [projectFiles, "!src/test/**!"],
     },
   },

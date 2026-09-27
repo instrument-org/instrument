@@ -671,23 +671,6 @@ export function resolveReadOnlyHostPath(
   return hostPath;
 }
 
-/**
- * What the task mount masks: its private dir, and in a chat's own folder the
- * `tasks/` dir holding the chat's tasks.
- *
- * Those tasks are mounted one by one at `/tasks/<id>`, read-only and with
- * their own private dirs masked, which is the only way the chat reaches them.
- * The chat's folder mounts writable at `/task`, so without this the same child
- * would also sit at `/task/tasks/<id>`, writable and with its private dir in
- * plain view. Decided by where the folder is rather than by an id so that it
- * holds for every consumer handed only the task's host root.
- */
-export function taskMaskedEntries(taskHostRoot: TaskDir): MaskedEntry[] {
-  return nodePath.dirname(taskHostRoot) === chatsDir()
-    ? [TASK_FOLDER_NAMES.private, TASKS_DIR_NAME]
-    : [TASK_FOLDER_NAMES.private];
-}
-
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [layout.task, ...nonTaskMounts(layout)];
@@ -765,4 +748,21 @@ function masked(mount: WorkspaceFsMount, fs: IFileSystem): IFileSystem {
   return mount.maskedEntries.length > 0
     ? maskPrivateDirFs(fs, mount.maskedEntries)
     : fs;
+}
+
+/**
+ * What the task mount masks: its private dir, and in a chat's own folder the
+ * `tasks/` dir holding the chat's tasks.
+ *
+ * Those tasks are mounted one by one at `/tasks/<id>`, read-only and with
+ * their own private dirs masked, which is the only way the chat reaches them.
+ * The chat's folder mounts writable at `/task`, so without this the same child
+ * would also sit at `/task/tasks/<id>`, writable and with its private dir in
+ * plain view. Decided by where the folder is rather than by an id so that it
+ * holds for every consumer handed only the task's host root.
+ */
+function taskMaskedEntries(taskHostRoot: TaskDir): MaskedEntry[] {
+  return nodePath.dirname(taskHostRoot) === chatsDir()
+    ? [TASK_FOLDER_NAMES.private, TASKS_DIR_NAME]
+    : [TASK_FOLDER_NAMES.private];
 }

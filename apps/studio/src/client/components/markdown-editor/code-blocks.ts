@@ -75,7 +75,7 @@ export const codeBlockInfo = codeBlockSchema.extendSchema((prev) => (ctx) => {
   };
 });
 
-export function labelOf(info: string): string {
+function labelOf(info: string): string {
   if (!info) {
     return "";
   }
@@ -157,7 +157,7 @@ const entries: Entry[] = [
 ];
 const tagOf = (e: Entry) =>
   PREFERRED[e.name] ?? e.alias[0] ?? e.name.toLowerCase();
-export const displayName = (language: string) => {
+const displayName = (language: string) => {
   if (!language) {
     return "Plain text";
   }

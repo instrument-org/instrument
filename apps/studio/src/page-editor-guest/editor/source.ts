@@ -30,25 +30,9 @@ export interface Analysis {
   shadowCache: Map<string, ShadowHit[]>;
   src: string;
 }
-export interface DataAttr {
-  end: number;
-  name: string;
-  start: number;
-  value: string;
-}
-
 export interface Range {
   end: number;
   start: number;
-}
-
-export interface ScriptInfo {
-  domId: string | undefined;
-  end: number;
-  start: number;
-  text: string;
-  /** The script's `type`, or "script" when it has none. */
-  type: string;
 }
 
 /** The text nodes of one element in source order, and whether they map back exactly. */
@@ -69,8 +53,30 @@ export interface Splice {
   text: string;
 }
 
+interface DataAttr {
+  end: number;
+  name: string;
+  start: number;
+  value: string;
+}
+
+interface ScriptInfo {
+  domId: string | undefined;
+  end: number;
+  start: number;
+  text: string;
+  /** The script's `type`, or "script" when it has none. */
+  type: string;
+}
+
+type SourceNode =
+  | DefaultTreeAdapterTypes.ChildNode
+  | DefaultTreeAdapterTypes.ParentNode;
+
+type SourceTextNode = DefaultTreeAdapterTypes.TextNode;
+
 /** A text node's characters, split into literal runs and entities. */
-export interface TextRun {
+interface TextRun {
   /** Where the run ends in the block's decoded text. */
   de: number;
   /** Where the run starts in the block's decoded text. */
@@ -85,7 +91,7 @@ export interface TextRun {
   value?: string;
 }
 
-export interface TextSegment {
+interface TextSegment {
   de: number;
   ds: number;
   end: number;
@@ -93,12 +99,6 @@ export interface TextSegment {
   runs: TextRun[];
   start: number;
 }
-
-type SourceNode =
-  | DefaultTreeAdapterTypes.ChildNode
-  | DefaultTreeAdapterTypes.ParentNode;
-
-type SourceTextNode = DefaultTreeAdapterTypes.TextNode;
 
 const decoder = document.createElement("textarea");
 const decodeEntity = (s: string) => {

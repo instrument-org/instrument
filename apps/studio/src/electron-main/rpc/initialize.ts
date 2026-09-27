@@ -21,6 +21,16 @@ import { router } from "./routes";
 // Increased from the default of 10.
 EventEmitter.defaultMaxListeners = 100;
 
+// A folder listing the system refused, or asked for at a path that names a
+// file, is an answer the folder view shows (or the typed-path field opens the
+// file for), not a bug. Rethrow for the client, skip the capture.
+function isHandledFolderAnswer(error: unknown): boolean {
+  return (
+    error instanceof ORPCError &&
+    (error.code === "NOT_A_FOLDER" || error.code === "NOT_PERMITTED")
+  );
+}
+
 // INVALID_INPUT is input the person typed and the app refused (e.g. a project
 // name with a character Windows forbids in a file name). The UI shows it by the
 // field, so it is theirs to fix rather than a bug; rethrow, skip the capture.
@@ -60,6 +70,7 @@ function isHandledOpenError(error: unknown): boolean {
 function shouldSkipCapture(error: unknown): boolean {
   return (
     isHandledNotFound(error) ||
+    isHandledFolderAnswer(error) ||
     isHandledOpenError(error) ||
     isHandledInvalidUrl(error) ||
     isHandledInvalidInput(error) ||

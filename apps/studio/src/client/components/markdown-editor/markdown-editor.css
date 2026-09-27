@@ -617,10 +617,20 @@ textarea.md-input {
 .md-editor .milkdown .milkdown-table-block {
   margin: 0;
 }
+/* A table too wide for the column scrolls inside its block rather than
+   breaking words, as the static renderer's markdown tables do. */
+.md-editor .milkdown .milkdown-table-block .table-wrapper {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+/* Laid out by its content, so no column is narrower than its longest word:
+   the table fills the column and wraps between words, and past that it
+   overflows into the wrapper's scroll. */
 .md-editor .milkdown .milkdown-table-block table {
   font-size: 13px;
   line-height: 1.5;
   border-collapse: collapse;
+  table-layout: auto;
   width: 100%;
   margin: 0;
 }

@@ -446,7 +446,12 @@ export function TaskBrowserPanel({
             open={menuOpen}
           >
             <DropdownMenuTrigger asChild>
-              <Button disabled={!pageUrl} size="icon-sm" variant="ghost">
+              <Button
+                aria-label="More actions"
+                disabled={!pageUrl}
+                size="icon-sm"
+                variant="ghost"
+              >
                 <DotsThreeVerticalIcon className="size-4" />
               </Button>
             </DropdownMenuTrigger>

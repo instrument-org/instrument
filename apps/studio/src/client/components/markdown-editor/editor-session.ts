@@ -55,17 +55,6 @@ import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, instrumentMark } from "./icons";
 import { fitSelectionToolbar } from "./toolbar-fit";
 
-export interface AskSelection {
-  /** The kind of block the selection starts in, as a reader names it: "Heading", "Paragraph". */
-  block?: string;
-  from: number;
-  lines?: [number, number];
-  quote: string;
-  /** Where the selection stands on screen as it was asked about. */
-  rect: DOMRect;
-  to: number;
-}
-
 export type EditorSession = Awaited<ReturnType<typeof createEditorSession>>;
 
 export interface EditorSessionOptions {
@@ -88,6 +77,17 @@ export interface ExternalChange {
   /** Whether the person's version of a block was kept over the agent's. */
   keptYours: boolean;
   result: string;
+}
+
+interface AskSelection {
+  /** The kind of block the selection starts in, as a reader names it: "Heading", "Paragraph". */
+  block?: string;
+  from: number;
+  lines?: [number, number];
+  quote: string;
+  /** Where the selection stands on screen as it was asked about. */
+  rect: DOMRect;
+  to: number;
 }
 
 const flashKey = new PluginKey<FlashRange[] | null>("agent-flash");

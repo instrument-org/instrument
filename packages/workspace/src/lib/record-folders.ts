@@ -37,11 +37,6 @@ let index:
       tasks: Map<TaskId, TaskDir>;
     };
 
-/** A chat's own folder. */
-export function chatDir(id: TaskId): TaskDir {
-  return TaskDirSchema.parse(path.join(chatsDir(), id));
-}
-
 /** Every chat's folder. */
 export function chatDirs(): TaskDir[] {
   return [...read().chats.keys()].map((id) => chatDir(id));
@@ -172,6 +167,11 @@ export function recordIdTaken(id: string): boolean {
 export function sessionOfChat(id: string): StoreId.Session | undefined {
   const parsed = TaskIdSchema.safeParse(id);
   return parsed.success ? read().chats.get(parsed.data) : undefined;
+}
+
+/** A chat's own folder. */
+function chatDir(id: TaskId): TaskDir {
+  return TaskDirSchema.parse(path.join(chatsDir(), id));
 }
 
 function listDirs(dir: string): string[] {

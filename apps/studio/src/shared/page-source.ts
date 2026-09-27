@@ -9,12 +9,12 @@ export interface PageSourceEntry {
   node: Element;
   tag: string;
 }
+type Element = DefaultTreeAdapterTypes.Element;
+
 /** An element's location in the file, which always has a start tag of its own. */
-export type PageSourceLocation = NonNullable<Element["sourceCodeLocation"]> & {
+type PageSourceLocation = NonNullable<Element["sourceCodeLocation"]> & {
   startTag: NonNullable<NonNullable<Element["sourceCodeLocation"]>["startTag"]>;
 };
-
-type Element = DefaultTreeAdapterTypes.Element;
 
 /**
  * The elements of an HTML file that come from its own markup, in document

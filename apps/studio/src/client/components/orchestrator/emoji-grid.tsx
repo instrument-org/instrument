@@ -31,33 +31,6 @@ const SHOWN = 240;
 const COLUMNS = 8;
 const ROW_HEIGHT = 34;
 
-export function Cells({
-  emoji,
-  onPick,
-}: {
-  emoji: Emoji[];
-  onPick: (emoji: string) => void;
-}) {
-  return (
-    <div className="grid grid-cols-8 gap-0.5">
-      {emoji.map((one) => (
-        <button
-          aria-label={one.label}
-          className="grid size-8 place-items-center rounded-md text-lg hover:bg-accent"
-          key={one.unicode}
-          onClick={() => {
-            onPick(one.unicode);
-          }}
-          title={one.label}
-          type="button"
-        >
-          {one.unicode}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /**
  * Every emoji, browsable by category and searchable by name and by the words
  * a person would guess. With no query the grid is one scroll of every
@@ -245,6 +218,33 @@ export function EmojiGrid({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function Cells({
+  emoji,
+  onPick,
+}: {
+  emoji: Emoji[];
+  onPick: (emoji: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-8 gap-0.5">
+      {emoji.map((one) => (
+        <button
+          aria-label={one.label}
+          className="grid size-8 place-items-center rounded-md text-lg hover:bg-accent"
+          key={one.unicode}
+          onClick={() => {
+            onPick(one.unicode);
+          }}
+          title={one.label}
+          type="button"
+        >
+          {one.unicode}
+        </button>
+      ))}
     </div>
   );
 }

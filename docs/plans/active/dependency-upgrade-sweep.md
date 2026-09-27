@@ -28,7 +28,7 @@ Same major, patch line, and it contains the fix for a crash class we have hit fr
 
 Also in the range, all relevant to surfaces we own:
 
-- 42.5.1: `ProtocolResponse.url` requests went through the default session instead of the session the handler was registered on. We register per-task protocol handlers for the asset origin.
+- 42.5.1: `ProtocolResponse.url` requests went through the default session instead of the session the handler was registered on. We register protocol handlers per session (the file channel, the app scheme).
 - 42.4.1: DevTools Network panel dropped most requests after navigation while `webContents.debugger` was attached, which is exactly how the in-app browser drives CDP. Same release fixes a `safeStorage.isAsyncEncryptionAvailable()` crash before async encryption finished initializing.
 - 42.5.2: windows opened from links inside a sandboxed iframe now inherit the iframe's sandbox restrictions. Feeds directly into [browser-popups-as-agent-drivable-tabs.md](browser-popups-as-agent-drivable-tabs.md).
 - 42.6.0: fixes running under tsx import transpilation, which is how most of our scripts run.
@@ -138,9 +138,9 @@ Risk: low, but it is the binary behind every git operation, so it wants a real t
 
 This is the single highest-value bump in the tree, and it is a same-major patch.
 
-We are inside the affected range of GHSA-9hp6-4448-45g2 (URL path parsing path confusion, 4.8.0 to 4.9.6) and below the fix for GHSA-m732-5p4w-x69g (improper authorization, `<4.10.2`) and GHSA-2gcr-mfcq-wcc3 (`app.mount()` strips the mount prefix using the undecoded path). Our workspace server routes on the `Host` header to decide whether a request is the app origin or the `assets.<task-id>` origin ([uri-details-for-host.ts](../../../packages/workspace/src/logic/server/uri-details-for-host.ts)), so routing correctness is a security boundary here, not a nicety.
+We are inside the affected range of GHSA-9hp6-4448-45g2 (URL path parsing path confusion, 4.8.0 to 4.9.6) and below the fix for GHSA-m732-5p4w-x69g (improper authorization, `<4.10.2`) and GHSA-2gcr-mfcq-wcc3 (`app.mount()` strips the mount prefix using the undecoded path). Our workspace server fronts the CDP bridge and the model proxy on loopback, so routing correctness is a security boundary here, not a nicety.
 
-One concrete hit rather than a theoretical one: [assets.ts](../../../packages/workspace/src/logic/server/routes/assets.ts) applies bare `cors()` to the asset origin, and GHSA-88fw-hqm2-52qc (`<4.12.25`) is "CORS middleware reflects any Origin with credentials when `origin` defaults to the wildcard". Worth pairing the bump with an explicit origin allowlist.
+The CORS advisory GHSA-88fw-hqm2-52qc (`<4.12.25`) no longer has a caller: the only `cors()` use was the task file origin, which is gone.
 
 `@hono/node-server` is worse in one specific way: GHSA-9mqv-5hh9-4cgg, unauthenticated memory-leak DoS via aborted WebSocket handshake, covers `<=2.0.9`, and we proxy websockets ([websocket-proxy.ts](../../../packages/workspace/src/logic/server/websocket-proxy.ts)).
 

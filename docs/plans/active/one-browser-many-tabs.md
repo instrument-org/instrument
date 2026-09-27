@@ -15,7 +15,7 @@ different provenance.
 
 The evidence that they are the same thing: the agent and the user already load
 the **same URL** through the **same guest pool**. An HTML artifact preview is a
-tab whose URL happens to be on the task's asset origin. A popup is a tab the
+tab whose URL happens to be a `file://` address. A popup is a tab the
 page opened. A user-opened browser is a tab the user opened. Nothing about any
 of them justifies its own target kind, its own RPC, or its own React host.
 

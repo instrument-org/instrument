@@ -34,7 +34,7 @@ Two OS processes matter: Electron **main** and the **renderer**. Almost all serv
     |-- Studio RPC routes + workspaceRouter
     |-- workspaceMachine (XState actor)
     |     `-- workspace HTTP server (Hono / @hono/node-server)
-    |           |-- per-task asset origin, CDP bridge
+    |           |-- CDP bridge
     |           `-- ai-gateway app mounted at AI_GATEWAY_API_PATH
     |-- file channel (instrument://computer-<token>, the renderer's own read of any file on the computer)
     `-- browser view manager (embedded Chromium guests the agent and the person browse in)
@@ -42,7 +42,7 @@ Two OS processes matter: Electron **main** and the **renderer**. Almost all serv
 
 - **Renderer ↔ main** is [oRPC](../../apps/studio/AGENTS.md) over a `MessageChannel`; the UI never calls remote services directly, only through main-process RPC. Main hosts Studio's own routes (`apps/studio/src/electron-main/rpc/routes/`) plus the workspace router (`workspaceRouter` from `@instrument-org/workspace/electron`).
 - **Boot** happens in [`create-workspace-actor.ts`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts): it starts `workspaceMachine`, injecting `aiGatewayApp`, the browser manager, `getAIProviderConfigs`, the on-disk model cache, the registry / system-skills / task-template directories, the bundled `pnpm` and `uv` binary paths (plus uv's data dir), the `external_browser` flag getter, and the web-search client.
-- **Workspace server** is a Hono app served in-process via `@hono/node-server` ([`server/index.ts`](../../packages/workspace/src/logic/server/index.ts)), and everything on it is for the agent: the `assets.<task>.<host>` origin its browser opens a task's files on ([asset-origin.md](asset-origin.md)), the CDP bridge `agent-browser` drives a guest through, and the ai-gateway app every in-process model call is pointed at. The port falls back to a free one, so multiple dev instances can coexist.
+- **Workspace server** is a Hono app served in-process via `@hono/node-server` ([`server/index.ts`](../../packages/workspace/src/logic/server/index.ts)), and everything on it is for the agent: the CDP bridge `agent-browser` drives a guest through, and the ai-gateway app every in-process model call is pointed at. It serves no files: a page on the computer opens at its `file://` address for the agent as for the person ([in-app-browser.md](in-app-browser.md#a-file-on-the-computer-has-one-address-for-the-person-and-the-agent)). The port falls back to a free one, so multiple dev instances can coexist.
 - **The file channel** is how the person's own viewers read a file: `instrument://computer-<token>/<host path>`, an app-scheme handler in main ([`computer-files.ts`](../../apps/studio/src/electron-main/lib/computer-files.ts)) that serves any file the app's user can read, by its real path. It is registered on the app's own session only, so no browser guest can name it, and the host carries a per-launch token the renderer learns over RPC, so agent-authored HTML in the artifact preview cannot either.
 - **Session and agent machines** (`packages/workspace/src/machines/`) drive an agent turn within a task; the workspace machine supervises them per task.
 - **Sandboxing** of what the agent's tools can touch is a userland concern implemented inside each tool, not OS isolation. See [agent-sandbox.md](agent-sandbox.md).

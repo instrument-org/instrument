@@ -185,7 +185,7 @@ Not built: globs and directories, and an item cap.
 
 **Streaming** falls out of the syntax: `remend` closes the unterminated fence, and only lines the fence has finished are drawn, so raw syntax never reaches the screen. A line is finished when a newline follows it — mid-stream the last one is a path still being typed, and drawing it would put up a card for `output/ch` and replace it on every keystroke. `part.state === "streaming"` is threaded down to the renderer for this; nothing else in the pipeline can tell a half-typed path from a complete one.
 
-**Missing** is not a render-time state. An image reports itself by failing to load, since the asset origin is a static file server and `ImageWithFallback` already draws the failure; everything else reports when someone asks for it. This replaced a dimmed "not found" card gated on a per-path lookup, and the trade is deliberate: whether a file is there has a different answer every minute, so the honest moment to ask is the one where it matters.
+**Missing** is not a render-time state. An image reports itself by failing to load, since the file channel it loads from is a static file server and `ImageWithFallback` already draws the failure; everything else reports when someone asks for it. This replaced a dimmed "not found" card gated on a per-path lookup, and the trade is deliberate: whether a file is there has a different answer every minute, so the honest moment to ask is the one where it matters.
 
 **A line that was never a path** is still skipped rather than drawn as a card naming it. A fence is a block of lines, unlike a link, so a stray sentence can land in one. No model in the evals has put one there; this keeps the first one that does from reading as a bug in the file.
 

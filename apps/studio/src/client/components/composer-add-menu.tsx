@@ -456,8 +456,10 @@ function BackItem({ label, onBack }: { label: string; onBack: () => void }) {
 }
 
 /**
- * A kind of thing the plus opens beside the chat, drawn as that kind: its
- * mark in a pane of its own and the name under it, never anything real in it.
+ * A kind of thing the plus opens beside the chat, as a compact tile: its mark
+ * over its name in a card of its own, sized to sit beside the attach buttons
+ * and leave room for the skills and the model below rather than tower over
+ * them.
  */
 function PlaceTile({
   icon: TileIcon,
@@ -470,12 +472,10 @@ function PlaceTile({
 }) {
   return (
     <DropdownMenuItem
-      className="group/tile flex-col gap-1.5 rounded-xl p-1.5 text-xs font-medium"
+      className="group/tile flex-col justify-center gap-1 rounded-lg border border-border bg-card p-2 text-xs font-medium shadow-xs"
       onSelect={onSelect}
     >
-      <span className="grid aspect-[4/3] w-full place-items-center rounded-lg bg-card shadow-xs ring-1 ring-border/70 group-data-highlighted/tile:ring-border">
-        <TileIcon className="size-7 text-muted-foreground group-data-highlighted/tile:text-foreground" />
-      </span>
+      <TileIcon className="size-5 text-muted-foreground group-data-highlighted/tile:text-foreground" />
       <span className="max-w-full truncate">{label}</span>
     </DropdownMenuItem>
   );

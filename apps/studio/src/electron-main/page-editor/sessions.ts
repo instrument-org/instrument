@@ -1,3 +1,4 @@
+import { committedDocumentOf } from "@/electron-main/browser-view/frame-documents";
 import { PAGE_EDITOR_BOOT_CHANNEL } from "@/shared/page-editor-channels";
 import { stampPageSource } from "@/shared/page-source";
 import { is } from "@electron-toolkit/utils";
@@ -5,7 +6,7 @@ import { ipcMain, type WebContents, webContents } from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 /**
  * Editing a page's file in place, in the guest that shows it.
@@ -104,6 +105,9 @@ export async function loadEditablePage({
   const guest = guestOf(webContentsId);
   if (!guest) {
     throw new Error("That page is not open");
+  }
+  if (!showsFile(guest, filePath)) {
+    throw new Error("That page is not showing this file");
   }
   const disk = await fs.promises.readFile(filePath, "utf8");
   const src = text ?? disk;
@@ -232,6 +236,28 @@ function readBundle() {
     cachedBundle = text;
   }
   return text;
+}
+
+/**
+ * Whether the guest's page is this file, by the document it last loaded
+ * rather than its address: a page's own script can move its address to
+ * another file with `history.pushState`, and Edit must never open the file
+ * that address names. A guest already editing this file shows its stamped
+ * copy, which is the file too.
+ */
+function showsFile(guest: WebContents, filePath: string) {
+  const committed = committedDocumentOf(guest.id, guest.mainFrame);
+  if (committed === undefined) {
+    return false;
+  }
+  if (committed.startsWith(STAMPED_PREFIX)) {
+    return sessions.get(guest.id)?.path === filePath;
+  }
+  try {
+    return path.resolve(fileURLToPath(committed)) === path.resolve(filePath);
+  } catch {
+    return false;
+  }
 }
 
 /**

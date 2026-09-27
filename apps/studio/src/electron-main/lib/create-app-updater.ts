@@ -490,8 +490,15 @@ export function createAppUpdater({
     // Nothing to learn once the app is on its way out, but keep the timer alive
     // so a failed install resumes polling.
     if (!phase.installing) {
-      await checkForUpdates();
-      recordCheck();
+      // A throw here must not skip the reschedule below, or polling stops for
+      // the life of the process. Recording the check writes preferences, which
+      // fails on a full disk.
+      try {
+        await checkForUpdates();
+        recordCheck();
+      } catch (error) {
+        log.error("Update poll failed:", error);
+      }
     }
     schedulePoll();
   };

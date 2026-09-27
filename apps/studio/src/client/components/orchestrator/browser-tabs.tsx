@@ -61,6 +61,7 @@ import {
   pageEditTabsAtom,
   usePageEditToggleOnScreen,
 } from "./page-edit-state";
+import { strayWindowGuests } from "./stray-window-guests";
 import { stepTabVisit, visitInTab } from "./tab-history";
 import { isHomeTab, selectTab } from "./window-tabs";
 
@@ -266,6 +267,34 @@ export function BrowserTabs({
       input: { id: taskId, level: "visible" },
     }),
   );
+
+  // A tab closed anywhere takes its guest with it. Each is asked for once:
+  // the guest stays attached until the close lands.
+  const closingGuests = useRef(new Set<BrowserTargetId>());
+  useEffect(() => {
+    const stray = strayWindowGuests({
+      attached,
+      heldIds: everyTabId,
+      windowTaskId: taskId,
+    });
+    for (const target of closingGuests.current) {
+      if (!attached.has(target)) {
+        closingGuests.current.delete(target);
+      }
+    }
+    for (const target of stray) {
+      const decoded = decodeBrowserTargetId(target);
+      if (!decoded || closingGuests.current.has(target)) {
+        continue;
+      }
+      closingGuests.current.add(target);
+      void rpcClient.workspace.browser.close
+        .call({ id: decoded.id, sessionId: decoded.sessionId })
+        .catch(() => {
+          closingGuests.current.delete(target);
+        });
+    }
+  }, [attached, everyTabId, taskId]);
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
     encodeBrowserTargetId(

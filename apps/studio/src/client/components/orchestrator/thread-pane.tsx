@@ -146,7 +146,10 @@ export function ThreadPane({
   // since that is what asking for one there means; one made from the head's
   // picker is the topic the list then stands in, since that is what picking
   // it means.
-  const [newTopic, setNewTopic] = useState<{ forThread?: Thread }>();
+  const [newTopic, setNewTopic] = useState<{
+    forThread?: Thread;
+    name?: string;
+  }>();
   // The topic whose details are open, by id, so a re-read of the list does
   // not close the dialog under the user.
   const [editingId, setEditingId] = useState<string>();
@@ -207,8 +210,8 @@ export function ThreadPane({
         // their way.
         isLoading={shownDrafts === undefined && threadsQuery.data === undefined}
         onDeleteDraft={onDeleteDraft}
-        onNewTopic={(thread) => {
-          setNewTopic({ forThread: thread });
+        onNewTopic={(thread, name) => {
+          setNewTopic({ forThread: thread, ...(name ? { name } : {}) });
         }}
         onOpen={onOpenThread}
         onOpenDraft={onOpenDraft}
@@ -228,6 +231,7 @@ export function ThreadPane({
         candidates={backfillCandidates(
           threads.filter((thread) => thread.id !== newTopic?.forThread?.id),
         )}
+        {...(newTopic?.name ? { name: newTopic.name } : {})}
         onCreate={(topic, alsoFile) => {
           const forThread = newTopic?.forThread;
           createTopic.mutate(topic, {

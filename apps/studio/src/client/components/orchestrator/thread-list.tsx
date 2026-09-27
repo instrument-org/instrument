@@ -30,7 +30,7 @@ const ListedThread = memo(function ListedThread({
   appsBySlug: AppsBySlug;
   density: RowDensity;
   handlers: RefObject<{
-    onNewTopic: (thread: Thread) => void;
+    onNewTopic: (thread: Thread, name?: string) => void;
     onOpen: (thread: Thread) => void;
     onSetTopics: (thread: Thread, topics: string[]) => void;
   }>;
@@ -43,8 +43,8 @@ const ListedThread = memo(function ListedThread({
     <ThreadRow
       {...row}
       actions={actionsFor(thread)}
-      onNewTopic={() => {
-        handlers.current.onNewTopic(thread);
+      onNewTopic={(name) => {
+        handlers.current.onNewTopic(thread, name);
       }}
       onOpen={() => {
         handlers.current.onOpen(thread);
@@ -108,7 +108,7 @@ export function ThreadList({
   isLoading: boolean;
   onDeleteDraft: (id: string) => void;
   /** Opens the new-topic dialog for a thread: the topic it makes is filed on that thread. */
-  onNewTopic: (thread: Thread) => void;
+  onNewTopic: (thread: Thread, name?: string) => void;
   onOpen: (thread: Thread) => void;
   onOpenDraft: (id: string) => void;
   onSetTopics: (thread: Thread, topics: string[]) => void;

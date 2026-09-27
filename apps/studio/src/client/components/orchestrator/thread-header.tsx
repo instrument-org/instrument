@@ -3,13 +3,9 @@ import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
@@ -18,8 +14,6 @@ import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
@@ -30,7 +24,7 @@ import { useThreadActions } from "./thread-actions";
 import { TopicPill } from "./thread-row";
 import { ThreadTitle } from "./thread-title";
 import { type Thread, type Topic } from "./threads";
-import { TopicMark } from "./topic-mark";
+import { AddTopicChip, TopicPicker } from "./topic-picker";
 import { type ThreadRename, useThreadRename } from "./use-thread-rename";
 
 /**
@@ -57,7 +51,8 @@ export function ThreadHeader({
   leading?: ReactNode;
   /** Told once the thread has been deleted, so the window can put it away. */
   onDeleted: () => void;
-  onNewTopic: () => void;
+  /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
+  onNewTopic: (name?: string) => void;
   onSetTopics: (topics: string[]) => void;
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
   popOut?: { isOut: boolean; onToggle: () => void };
@@ -96,20 +91,44 @@ export function ThreadHeader({
         ) : (
           <h2 className="min-w-0 truncate text-sm font-medium">Chat</h2>
         )}
-        {/* After the title, the way mail puts a label after a subject. */}
-        {filed.map((topic) => (
-          <TopicPill key={topic.id} topic={topic} />
-        ))}
+        {/* After the title, the way mail puts a label after a subject;
+            pressing them, or the slot while there are none, opens the topic
+            picker every filing shares. */}
+        {thread && (
+          <TopicPicker
+            chosen={new Set(thread.topics)}
+            onNew={onNewTopic}
+            onToggle={(id) => {
+              onSetTopics(
+                thread.topics.includes(id)
+                  ? thread.topics.filter((entry) => entry !== id)
+                  : [...thread.topics, id],
+              );
+            }}
+            topics={topics}
+          >
+            {filed.length === 0 ? (
+              <AddTopicChip />
+            ) : (
+              <button
+                aria-label="Topics"
+                className="flex min-w-0 items-center gap-1"
+                type="button"
+              >
+                {filed.map((topic) => (
+                  <TopicPill key={topic.id} topic={topic} />
+                ))}
+              </button>
+            )}
+          </TopicPicker>
+        )}
         {thread && (
           <ThreadMenu
             onDelete={() => {
               setDeleting(true);
             }}
-            onNewTopic={onNewTopic}
-            onSetTopics={onSetTopics}
             rename={rename}
             thread={thread}
-            topics={topics}
           />
         )}
       </div>
@@ -144,22 +163,16 @@ export function ThreadHeader({
  * The thread's own menu, beside its title: what the inbox row offers from
  * its edge and its menu (putting it away, marking it read, starring it,
  * saving its transcript), renaming it, which opens the title's field, and
- * its topics.
+ * deleting it. Its topics are the pills beside the title.
  */
 function ThreadMenu({
   onDelete,
-  onNewTopic,
-  onSetTopics,
   rename,
   thread,
-  topics,
 }: {
   onDelete: () => void;
-  onNewTopic: () => void;
-  onSetTopics: (topics: string[]) => void;
   rename: ThreadRename;
   thread: Thread;
-  topics: Topic[];
 }) {
   const actions = useThreadActions(thread);
   const reveal = useMutation(
@@ -225,38 +238,6 @@ function ThreadMenu({
           <RevealInFolderIcon className="size-4" />
           {getRevealInFolderLabel()}
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <TagIcon className="size-4" />
-            Topics
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="max-h-80 overflow-y-auto">
-            {topics
-              .filter((entry) => !entry.retired)
-              .map((entry) => (
-                <DropdownMenuCheckboxItem
-                  checked={thread.topics.includes(entry.id)}
-                  key={entry.id}
-                  onSelect={() => {
-                    onSetTopics(
-                      thread.topics.includes(entry.id)
-                        ? thread.topics.filter((id) => id !== entry.id)
-                        : [...thread.topics, entry.id],
-                    );
-                  }}
-                >
-                  <TopicMark topic={entry} />
-                  {entry.name}
-                </DropdownMenuCheckboxItem>
-              ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onNewTopic}>
-              <PlusIcon className="size-4" />
-              New topic…
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
         <DropdownMenuSeparator />
         {/* Only here, where one chat is all there is: a row in the inbox is
             one of many, and a press there should not be able to end one. */}

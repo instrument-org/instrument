@@ -666,7 +666,8 @@ function OrchestratorLayout() {
     windowTabs.close(id);
   };
   const requestClose = (id: string) => {
-    const tab = tabs.find((entry) => entry.id === id);
+    // Any group's: a popped-out chat's rail closes its tabs here too.
+    const tab = windowTabs.allTabs.find((entry) => entry.id === id);
     if (tab?.kind !== "page" || !tab.taskId) {
       windowTabs.close(id);
       return;
@@ -715,7 +716,13 @@ function OrchestratorLayout() {
     }),
   );
   const setThreadTopics = useSetThreadTopics();
-  const [isNewTopicOpen, setNewTopicOpen] = useState(false);
+  // The new-topic dialog, asked for from a chat's head or a draft's, with
+  // what was typed in the picker: the topic it makes files that chat or
+  // that draft.
+  const [newTopic, setNewTopic] = useState<{
+    draftId?: string;
+    name?: string;
+  }>();
 
   // What goes with a message, read at the moment of sending.
   const { draftContext, sendContext } = contextReaders({
@@ -916,6 +923,7 @@ function OrchestratorLayout() {
                   );
                 }}
                 onCloseDraft={closeDraft}
+                onCloseTab={requestClose}
                 onCloseThread={(sessionId) => {
                   compose.remove(sessionId);
                 }}
@@ -927,6 +935,9 @@ function OrchestratorLayout() {
                   }
                 }}
                 onModelChange={setDefaultModelURI}
+                onNewTopic={(draftId, name) => {
+                  setNewTopic({ draftId, ...(name ? { name } : {}) });
+                }}
                 onPressThreadTab={landOnTab}
                 onStart={startThread}
                 openOutside={(href) => {
@@ -1049,8 +1060,8 @@ function OrchestratorLayout() {
                                 }
                                 setInboxOpen(true);
                               }}
-                              onNewTopic={() => {
-                                setNewTopicOpen(true);
+                              onNewTopic={(name) => {
+                                setNewTopic(name ? { name } : {});
                               }}
                               onSetTopics={(next) => {
                                 if (threadUp) {
@@ -1293,22 +1304,39 @@ function OrchestratorLayout() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-                {/* Asked for from the thread's own head, so the topic it
-                makes is filed on the thread as it lands. */}
+                {/* Asked for from a chat's head or a draft's, so the topic
+                it makes is filed on that chat or draft as it lands. */}
                 <NewTopicDialog
                   candidates={backfillCandidates(
                     (threads.data ?? []).filter(
                       (thread) => thread.id !== threadUp,
                     ),
                   )}
+                  {...(newTopic?.name ? { name: newTopic.name } : {})}
                   onCreate={(topic, alsoFile) => {
-                    const filedOn = threads.data?.find(
-                      (thread) => thread.id === threadUp,
-                    );
+                    const forDraft = newTopic?.draftId;
+                    const filedOn =
+                      forDraft === undefined
+                        ? threads.data?.find((thread) => thread.id === threadUp)
+                        : undefined;
                     createTopic.mutate(topic, {
                       onSuccess: (created) => {
                         for (const id of alsoFile) {
                           setThreadTopics(id, [created.id]);
+                        }
+                        if (forDraft !== undefined) {
+                          setDrafts((current) =>
+                            current.map((draft) =>
+                              draft.id === forDraft
+                                ? {
+                                    ...draft,
+                                    topicId: created.id,
+                                    topicSource: "chosen",
+                                    updatedAt: Date.now(),
+                                  }
+                                : draft,
+                            ),
+                          );
                         }
                         if (filedOn) {
                           setThreadTopics(filedOn.id, [
@@ -1319,8 +1347,12 @@ function OrchestratorLayout() {
                       },
                     });
                   }}
-                  onOpenChange={setNewTopicOpen}
-                  open={isNewTopicOpen}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setNewTopic(undefined);
+                    }
+                  }}
+                  open={newTopic !== undefined}
                   taken={topics.flatMap((topic) =>
                     topic.emoji ? [topic.emoji] : [],
                   )}

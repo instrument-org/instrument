@@ -26,12 +26,6 @@ import {
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -47,9 +41,9 @@ import {
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useHydrateAtoms } from "jotai/utils";
@@ -77,12 +71,14 @@ import { ComposeZeroState, WebStart } from "./compose-zero-state";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
+import { IdeaSketch } from "./idea-sketch";
+import { type Idea } from "./ideas";
 import { OutputPicker } from "./output-picker";
 import { screenPresentation } from "./screen-presentation";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { TopicPill } from "./thread-row";
 import { draftTitle, type Topic } from "./threads";
-import { TopicMark } from "./topic-mark";
+import { AddTopicChip, TopicPicker } from "./topic-picker";
 import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
 import { useIdeas } from "./use-ideas";
 import { WindowTabStrip } from "./window-tab-strip";
@@ -215,6 +211,7 @@ export function ComposeWindow({
   onChange,
   onClose,
   onModelChange,
+  onNewTopic,
   onPageHost,
   onPlacementChange,
   onStart,
@@ -232,6 +229,8 @@ export function ComposeWindow({
   /** The window's close, with the words as the box has them that moment: the caller keeps or throws the draft away by them. */
   onClose: (words: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  /** Makes a topic named for what was typed in the head's topic picker, and files the draft under it. */
+  onNewTopic: (name: string) => void;
   /** The element the draft's page is drawn into while a page is up, null while none is. */
   onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
@@ -606,9 +605,17 @@ export function ComposeWindow({
             <FileDropRegion className="flex h-full min-h-0 flex-col">
               <div className="flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
                 <FeatherIcon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="shrink-0 text-[13px] font-medium">
-                  New chat
-                </span>
+                <OutputHead
+                  onChange={(name) => {
+                    onChange((current) => {
+                      const { output: _dropped, ...rest } = current;
+                      return name === undefined
+                        ? rest
+                        : { ...rest, output: name };
+                    });
+                  }}
+                  output={output}
+                />
                 <TopicSlot
                   onClear={() => {
                     onChange((current) => {
@@ -616,6 +623,7 @@ export function ComposeWindow({
                       return { ...rest, topicSource: "chosen" };
                     });
                   }}
+                  onNew={onNewTopic}
                   onPick={(picked) => {
                     onChange((current) => ({
                       ...current,
@@ -628,8 +636,10 @@ export function ComposeWindow({
                   topics={liveTopics}
                 />
                 {/* The composer's own row, drawn here by the box below. */}
+                {/* Clipped rather than drawn over the words before it: the
+                    model's name gives way first on a crowded head. */}
                 <div
-                  className="flex min-w-0 flex-1 items-center pl-2"
+                  className="flex min-w-0 flex-1 items-center overflow-hidden pl-2"
                   ref={setHeadSlot}
                 />
                 <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border pl-2">
@@ -685,19 +695,6 @@ export function ComposeWindow({
                   }
                   autoFocus
                   autoResizeMaxHeight={WORDS_MAX_HEIGHT}
-                  beforeModel={
-                    <OutputPicker
-                      onChange={(name) => {
-                        onChange((current) => {
-                          const { output: _dropped, ...rest } = current;
-                          return name === undefined
-                            ? rest
-                            : { ...rest, output: name };
-                        });
-                      }}
-                      value={draft.output}
-                    />
-                  }
                   className="min-h-0 flex-1"
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
@@ -1189,86 +1186,137 @@ function nameOfPath(path: string) {
 }
 
 /**
- * The topic the thread will be filed under, after the draft's name: the pill
- * the thread will wear with a way to take it off, or a dashed slot that
- * offers the topics when none is picked yet. A topic Instrument filed on its
- * own explains itself on hover.
+ * What the draft is, as the head's first words: "New chat" until a page type
+ * is picked, then "Make a" and that type, with its × to go back to a chat.
+ * The words open the catalog of page types, which is rare enough to live
+ * behind them rather than beside the send.
+ */
+function OutputHead({
+  onChange,
+  output,
+}: {
+  onChange: (name: string | undefined) => void;
+  output: Idea | undefined;
+}) {
+  return (
+    <span className="flex min-w-0 shrink-0 items-center gap-0.5">
+      <OutputPicker onChange={onChange} value={output?.name}>
+        <button
+          aria-label={output ? `Output: ${output.title}` : "Pick an output"}
+          className="inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[13px] font-medium hover:bg-foreground/6 data-[state=open]:bg-foreground/6"
+          type="button"
+        >
+          {output ? (
+            <>
+              <span className="shrink-0">
+                {/^[aeiou]/i.test(output.title) ? "Make an" : "Make a"}
+              </span>
+              <IdeaSketch
+                className="h-4 w-auto shrink-0 drop-shadow-xs"
+                rows={output.sketch ?? []}
+              />
+              <span className="max-w-40 min-w-0 truncate">{output.title}</span>
+            </>
+          ) : (
+            <span className="shrink-0">New chat</span>
+          )}
+          <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
+        </button>
+      </OutputPicker>
+      {output && (
+        <button
+          aria-label={`Don't make ${output.title}`}
+          className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+          onClick={() => {
+            onChange(undefined);
+          }}
+          title="Just a chat"
+          type="button"
+        >
+          <XIcon className="size-3" weight="bold" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The topic the chat will be filed under, after what the draft is, joined by
+ * "in": the pill the chat will wear, which opens the topic picker, with a way
+ * to take it off, or a dashed slot that opens the same picker when none is
+ * picked yet. A topic Instrument filed on its own explains itself on hover.
  */
 function TopicSlot({
   onClear,
+  onNew,
   onPick,
   suggested,
   topic,
   topics,
 }: {
   onClear: () => void;
+  /** Makes a topic, named for what was typed in the picker, and files the draft under it. */
+  onNew: (name: string) => void;
   onPick: (topic: Topic) => void;
   suggested: boolean;
   topic: Topic | undefined;
   topics: Topic[];
 }) {
-  if (topic) {
-    return (
-      <span className="flex min-w-0 animate-in items-center gap-0.5 duration-300 fade-in-0">
-        {suggested ? (
-          // A topic that arrived on its own says where it came from.
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="flex min-w-0">
-                <TopicPill topic={topic} />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-64" side="bottom">
-              <p className="font-medium">Instrument picked this topic</p>
-              <p className="opacity-80">
-                {`What you wrote fits “${topic.name}”.`}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <TopicPill topic={topic} />
-        )}
-        <button
-          aria-label={`Don't file under ${topic.name}`}
-          className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-          onClick={onClear}
-          title={`Don't file under ${topic.name}`}
-          type="button"
-        >
-          <XIcon className="size-3" weight="bold" />
-        </button>
-      </span>
-    );
+  const picker = (trigger: ReactNode) => (
+    <TopicPicker
+      chosen={new Set(topic ? [topic.id] : [])}
+      onNew={onNew}
+      onToggle={(id) => {
+        const picked = topics.find((entry) => entry.id === id);
+        if (id === topic?.id || !picked) {
+          onClear();
+        } else {
+          onPick(picked);
+        }
+      }}
+      single
+      topics={topics}
+    >
+      {trigger}
+    </TopicPicker>
+  );
+  if (!topic) {
+    return picker(<AddTopicChip />);
   }
+  const pill = picker(
+    <button className="flex min-w-0" type="button">
+      <TopicPill topic={topic} />
+    </button>,
+  );
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-2 text-[11px] text-muted-foreground hover:border-foreground/30 hover:text-foreground data-[state=open]:text-foreground"
-          type="button"
-        >
-          <PlusIcon className="size-3" />
-          Topic
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {topics.length === 0 ? (
-          <DropdownMenuItem disabled>No topics yet</DropdownMenuItem>
-        ) : (
-          topics.map((entry) => (
-            <DropdownMenuItem
-              key={entry.id}
-              onSelect={() => {
-                onPick(entry);
-              }}
-            >
-              <TopicMark size="sm" topic={entry} />
-              {entry.name}
-            </DropdownMenuItem>
-          ))
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <span className="flex min-w-0 animate-in items-center gap-1 duration-300 fade-in-0">
+      <span className="shrink-0 text-[13px] text-muted-foreground">in</span>
+      {suggested ? (
+        // A topic that arrived on its own says where it came from.
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="flex min-w-0">{pill}</span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-64" side="bottom">
+            <p className="font-medium">Instrument picked this topic</p>
+            <p className="opacity-80">
+              {`What you wrote fits “${topic.name}”.`}
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        pill
+      )}
+      <button
+        aria-label={`Don't file under ${topic.name}`}
+        className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+        onClick={onClear}
+        title={`Don't file under ${topic.name}`}
+        type="button"
+      >
+        <XIcon className="size-3" weight="bold" />
+      </button>
+    </span>
   );
 }
 

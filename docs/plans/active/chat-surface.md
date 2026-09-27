@@ -1,6 +1,6 @@
 # Plan: chat surface
 
-Status: slices 1 through 7 built; 8 (the head's output dropdown) and 9 (app-level tabs) remain.
+Status: slices 1 through 8 built, except suggesting the output (open question 7); 9 (app-level tabs) gets its own plan.
 
 ---
 
@@ -65,6 +65,7 @@ So thumbnails are pictures, never scaled live pages: a guest can be shown in onl
 4. Can two chats be maximized as modals at once, or does a second replace the first?
 5. Does a pasted image leave a mark in the words as well as a tab?
 6. Where does the model picker live once the + is not the best home for it?
+7. Where do the page types the output dropdown offers come from: the shipped templates, a catalog generated at onboarding, or both? Suggesting the output from the draft's words waits on this, since each type needs a description the classifier reads and a check that it is recognized before it is offered.
 
 ## What changes in code
 

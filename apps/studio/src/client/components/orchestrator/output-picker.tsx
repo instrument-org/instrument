@@ -7,7 +7,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { FileIcon } from "@phosphor-icons/react/File";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { IdeaSketch } from "./idea-sketch";
 import { groupIdeas, type Idea } from "./ideas";
@@ -20,12 +20,16 @@ import { useIdeas } from "./use-ideas";
  * catalog in a popover under itself, over whatever is below, four tiles
  * across in the catalog's groups, scrolling down: one is picked at a time,
  * pressing the picked one again takes it off, and so does Clear at the head.
- * Nothing is picked to begin with, and nothing is recommended.
+ * Nothing is picked to begin with, and nothing is recommended. A caller with
+ * a place of its own for it (the draft's head) hands in its own trigger.
  */
 export function OutputPicker({
+  children,
   onChange,
   value,
 }: {
+  /** The trigger the catalog opens under, in place of the chip. */
+  children?: ReactNode;
   onChange: (name: string | undefined) => void;
   /** The picked page type, by its template folder's name. */
   value: string | undefined;
@@ -36,33 +40,35 @@ export function OutputPicker({
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
-        <Button
-          aria-expanded={open}
-          aria-label={picked ? `Output: ${picked.title}` : "Output"}
-          className={cn(
-            "flex h-auto max-w-40 min-w-0 items-center gap-1.5 rounded-lg px-1.5! py-1 text-left text-xs leading-4 font-medium",
-            picked
-              ? "text-foreground/80 hover:text-foreground"
-              : "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
-          )}
-          size="sm"
-          variant="ghost"
-        >
-          {picked ? (
-            <IdeaSketch
-              className="h-4 w-auto shrink-0 drop-shadow-xs"
-              rows={picked.sketch ?? []}
-            />
-          ) : (
-            <FileIcon className="size-4 shrink-0" />
-          )}
-          <span className="min-w-0 truncate">
-            {picked ? picked.title : "Output"}
-          </span>
-        </Button>
+        {children ?? (
+          <Button
+            aria-expanded={open}
+            aria-label={picked ? `Output: ${picked.title}` : "Output"}
+            className={cn(
+              "flex h-auto max-w-40 min-w-0 items-center gap-1.5 rounded-lg px-1.5! py-1 text-left text-xs leading-4 font-medium",
+              picked
+                ? "text-foreground/80 hover:text-foreground"
+                : "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
+            )}
+            size="sm"
+            variant="ghost"
+          >
+            {picked ? (
+              <IdeaSketch
+                className="h-4 w-auto shrink-0 drop-shadow-xs"
+                rows={picked.sketch ?? []}
+              />
+            ) : (
+              <FileIcon className="size-4 shrink-0" />
+            )}
+            <span className="min-w-0 truncate">
+              {picked ? picked.title : "Output"}
+            </span>
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
-        align="end"
+        align={children ? "start" : "end"}
         className="flex w-130 flex-col p-0"
         maxHeight="460px"
         side="bottom"

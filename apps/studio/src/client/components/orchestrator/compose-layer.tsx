@@ -32,9 +32,11 @@ export function ComposeLayer({
   modelURI,
   onChangeDraft,
   onCloseDraft,
+  onCloseTab,
   onCloseThread,
   onExpandThread,
   onModelChange,
+  onNewTopic,
   onPressThreadTab,
   onStart,
   openOutside,
@@ -51,11 +53,15 @@ export function ComposeLayer({
   onChangeDraft: (id: string, update: (draft: Draft) => Draft) => void;
   /** A window closed, with the words as its box had them: the draft is kept or thrown away by them. */
   onCloseDraft: (id: string, words: string) => void;
+  /** A tab closed from a chat window's rail: asks first while a task is working in it. */
+  onCloseTab: (id: string) => void;
   /** A thread's small view closed: the window goes, and the thread is as it was in Chat. */
   onCloseThread: (sessionId: StoreId.Session) => void;
   /** A thread's small view grown to fill the row: the chat is no longer the one selected in Chats, since a page shows in one place. */
   onExpandThread: (sessionId: StoreId.Session) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
+  onNewTopic: (draftId: string, name: string) => void;
   /** A thing a grown window cannot draw, asked for: the chat lands in Chats with that tab in front. */
   onPressThreadTab: (sessionId: StoreId.Session, tabId: string) => void;
   onStart: (id: string, send: DraftSend) => void;
@@ -122,6 +128,7 @@ export function ComposeLayer({
                 onClose={() => {
                   onCloseThread(sessionId);
                 }}
+                onCloseTab={onCloseTab}
                 onLandOnTab={(tabId) => {
                   onPressThreadTab(sessionId, tabId);
                 }}
@@ -186,6 +193,9 @@ export function ComposeLayer({
                 onCloseDraft(draft.id, words);
               }}
               onModelChange={onModelChange}
+              onNewTopic={(name) => {
+                onNewTopic(draft.id, name);
+              }}
               onPageHost={(element) => {
                 compose.setHost(key, element);
               }}

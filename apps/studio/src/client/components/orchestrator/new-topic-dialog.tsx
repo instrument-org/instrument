@@ -107,6 +107,7 @@ export function EditTopicDialog({
  */
 export function NewTopicDialog({
   candidates = [],
+  name = "",
   onCreate,
   onOpenChange,
   open,
@@ -114,6 +115,8 @@ export function NewTopicDialog({
 }: {
   /** Chats the new topic can be filed on as it is made, when they fit it. */
   candidates?: BackfillCandidate[];
+  /** The name it starts with: what was typed where it was asked for. */
+  name?: string;
   /** The topic, and the chats the person chose to file under it at once. */
   onCreate: (topic: TopicChoice, alsoFile: BackfillCandidate["id"][]) => void;
   onOpenChange: (open: boolean) => void;
@@ -133,8 +136,9 @@ export function NewTopicDialog({
         initial={{
           color: TOPIC_COLORS[taken.length % TOPIC_COLORS.length] ?? "#3b6ef6",
           emoji: starterEmoji(taken, taken.length),
-          name: "",
+          name,
         }}
+        isNew
         onCommit={onCreate}
         onOpenChange={onOpenChange}
         open={open}
@@ -245,6 +249,7 @@ function TopicForm({
   deleting,
   description,
   initial,
+  isNew = false,
   onCommit,
   onOpenChange,
   open,
@@ -257,6 +262,8 @@ function TopicForm({
   deleting?: { name: string; onDelete: () => void };
   description: string;
   initial: TopicChoice;
+  /** A topic being made, whose mark follows its name until one is picked by hand. */
+  isNew?: boolean;
   onCommit: (topic: TopicChoice, alsoFile: BackfillCandidate["id"][]) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -268,7 +275,7 @@ function TopicForm({
   const [isPicking, setPicking] = useState(false);
   // A new topic's mark follows the best fit for its name until one is chosen
   // by hand; an existing topic's mark stays what its owner picked.
-  const [follows, setFollows] = useState(!initial.name);
+  const [follows, setFollows] = useState(isNew);
   // Off until asked for: filing chats is the person's call, made once, for
   // the whole set the line names.
   const [isFilingFits, setFilingFits] = useState(false);
@@ -280,7 +287,7 @@ function TopicForm({
       setEmoji(initial.emoji);
       setColor(initial.color);
       setPicking(false);
-      setFollows(!initial.name);
+      setFollows(isNew);
       setFilingFits(false);
     }
   }

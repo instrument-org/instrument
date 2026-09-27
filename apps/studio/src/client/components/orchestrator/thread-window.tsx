@@ -112,6 +112,7 @@ export function ThreadWindow({
   arrives,
   childTitles,
   onClose,
+  onCloseTab,
   onLandOnTab,
   onMinimize,
   onPageHost,
@@ -128,6 +129,8 @@ export function ThreadWindow({
   arrives: boolean;
   childTitles: Map<TaskId, string>;
   onClose: () => void;
+  /** Closes one of the chat's tabs, the way the window's strip does: asking first while a task is working in it. */
+  onCloseTab: (id: string) => void;
   /** Lands in Chats with the chat open and this tab up, for a thing the window cannot draw. */
   onLandOnTab: (tabId: string) => void;
   onMinimize: () => void;
@@ -194,7 +197,7 @@ export function ThreadWindow({
   const closeTab = (id: string) => {
     const index = tabs.findIndex((tab) => tab.id === id);
     const neighbor = tabs[index - 1] ?? tabs[index + 1];
-    windowTabs.close(id);
+    onCloseTab(id);
     if (up?.id === id) {
       if (neighbor) {
         windowTabs.selectIn(sessionId, neighbor.id);

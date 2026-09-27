@@ -12,11 +12,6 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/client/components/ui/popover";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId } from "@instrument-org/workspace/client";
@@ -41,7 +36,7 @@ import {
 import { type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
-import { TopicPickList } from "./topic-menu";
+import { TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 
 /** How long the corner's bar stays after the topic list closes: the list's exit animation. */
@@ -93,7 +88,8 @@ export function ThreadRow({
   isArriving?: boolean;
   /** Whether this thread is the one open beside the list. */
   isOpen: boolean;
-  onNewTopic: () => void;
+  /** Opens the new-topic dialog for this thread, with the name typed in the picker when anything was. */
+  onNewTopic: (name?: string) => void;
   /** A plain click: the thread in place of whatever the window shows. */
   onOpen: () => void;
   onSetTopics: (topics: string[]) => void;
@@ -338,7 +334,11 @@ export function ThreadRow({
                 </ContextMenuCheckboxItem>
               ))}
             <ContextMenuSeparator />
-            <ContextMenuItem onSelect={onNewTopic}>
+            <ContextMenuItem
+              onSelect={() => {
+                onNewTopic();
+              }}
+            >
               <PlusIcon className="size-4" />
               New topic…
             </ContextMenuItem>
@@ -579,10 +579,10 @@ function StateDot({ thread }: { thread: Thread }) {
 }
 
 /**
- * The control that files the thread, first in the corner's bar: its list
- * is every topic with a check on each that is on, and a new one at the
- * foot. The row keeps its open state, so the bar stays in the flow while
- * the list is up and the list keeps its anchor as it closes.
+ * The control that files the thread, first in the corner's bar: the topic
+ * picker every filing shares. The row keeps its open state, so the bar stays
+ * in the flow while the list is up and the list keeps its anchor as it
+ * closes.
  */
 function TagControl({
   isOpen,
@@ -593,7 +593,7 @@ function TagControl({
   topics,
 }: {
   isOpen: boolean;
-  onNewTopic: () => void;
+  onNewTopic: (name: string) => void;
   onOpenChange: (open: boolean) => void;
   onToggle: (id: string) => void;
   thread: Thread;
@@ -602,44 +602,27 @@ function TagControl({
   return (
     // The list is drawn elsewhere on the page but is this span's in React's
     // eyes, so a pick inside it stops here rather than opening the thread. A
-    // right click stops only inside the list: on the control it is the row's,
-    // and raises the row's menu like a right click on the words.
+    // right click on the control is the row's, and raises the row's menu
+    // like a right click on the words.
     <span className="flex shrink-0" onAuxClick={stopHere} onClick={stopHere}>
-      <Popover onOpenChange={onOpenChange} open={isOpen}>
-        <PopoverTrigger asChild>
-          <button
-            aria-label="Topics"
-            className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
-            title="Topics"
-            type="button"
-          >
-            <TagIcon className="size-3.5" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="end"
-          className="w-60 p-1"
-          // Focus does not come back to the control as the list closes: the
-          // bar would stay for it after the pointer had gone.
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-          }}
-          onContextMenu={stopHere}
-          role="menu"
-          side="bottom"
-          sideOffset={4}
+      <TopicPicker
+        align="end"
+        chosen={new Set(thread.topics)}
+        isOpen={isOpen}
+        onNew={onNewTopic}
+        onOpenChange={onOpenChange}
+        onToggle={onToggle}
+        topics={topics}
+      >
+        <button
+          aria-label="Topics"
+          className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
+          title="Topics"
+          type="button"
         >
-          <TopicPickList
-            chosen={new Set(thread.topics)}
-            onNew={() => {
-              onOpenChange(false);
-              onNewTopic();
-            }}
-            onToggle={onToggle}
-            topics={topics}
-          />
-        </PopoverContent>
-      </Popover>
+          <TagIcon className="size-3.5" />
+        </button>
+      </TopicPicker>
     </span>
   );
 }

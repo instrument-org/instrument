@@ -25,6 +25,7 @@ export function PickList({
   chosen,
   entries,
   findPlaceholder,
+  findsAlways = false,
   foot,
   onToggle,
   rowTrailing,
@@ -33,8 +34,10 @@ export function PickList({
   chosen: ReadonlySet<string>;
   entries: PickEntry[];
   findPlaceholder: string;
-  /** Drawn under the rows, past a hairline: an action that adds to the list. */
-  foot?: ReactNode;
+  /** Whether the find field is there however short the list: for a list whose foot makes an entry of what was typed. */
+  findsAlways?: boolean;
+  /** Drawn under the rows, past a hairline: an action that adds to the list, told what is typed in the find field. */
+  foot?: ((find: string) => ReactNode) | ReactNode;
   onToggle: (id: string) => void;
   /** Something at a row's edge past the check, shown while the row is hovered. */
   rowTrailing?: (entry: PickEntry) => ReactNode;
@@ -48,7 +51,7 @@ export function PickList({
     : entries;
   return (
     <div className="flex max-h-80 flex-col">
-      {entries.length > FIND_FROM && (
+      {(findsAlways || entries.length > FIND_FROM) && (
         <div className="relative mb-1 shrink-0">
           <MagnifyingGlassIcon className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -110,7 +113,9 @@ export function PickList({
         )}
       </div>
       {foot && (
-        <div className="mt-1 shrink-0 border-t border-border pt-1">{foot}</div>
+        <div className="mt-1 shrink-0 border-t border-border pt-1">
+          {typeof foot === "function" ? foot(find.trim()) : foot}
+        </div>
       )}
     </div>
   );

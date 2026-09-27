@@ -91,22 +91,28 @@ export function TopicContextMenu({
 
 /**
  * Every topic, a check on each that is on, and a new one at the foot: the
- * list behind the inbox head's topic picker and behind a row's tag control
- * alike, so filing and filtering are learned once. A topic's own menu, by
+ * list behind the inbox head's topic picker, a row's tag control, a draft's
+ * topic and a chat's head alike, so filing and filtering are learned once.
+ * Where it files, it opens on a find field whose words the foot offers to
+ * make into a topic. A topic's own menu, by
  * right click or the dots at its edge, opens the topic's details, which is
  * where its name, its mark, and its deletion live.
  */
 export function TopicPickList({
   chosen,
+  files = false,
   onDetails,
   onNew,
   onToggle,
   topics,
 }: {
   chosen: ReadonlySet<string>;
+  /** Whether the list files something under a topic, rather than filtering by one. */
+  files?: boolean;
   /** Absent where a topic is only being applied, not kept. */
   onDetails?: (topic: Topic) => void;
-  onNew: () => void;
+  /** Makes a topic, named for what was typed in the find field when anything was. */
+  onNew: (name: string) => void;
   onToggle: (id: string) => void;
   topics: Topic[];
 }) {
@@ -120,13 +126,20 @@ export function TopicPickList({
         id: topic.id,
         label: topic.name,
       }))}
-      findPlaceholder="Find a topic"
-      foot={
-        <PickListAction onSelect={onNew}>
+      findPlaceholder={files ? "Find or make a topic" : "Find a topic"}
+      findsAlways={files}
+      foot={(find) => (
+        <PickListAction
+          onSelect={() => {
+            onNew(find);
+          }}
+        >
           <PlusIcon className="size-3.5 text-muted-foreground" />
-          New topic…
+          <span className="min-w-0 truncate">
+            {find ? `New topic “${find}”…` : "New topic…"}
+          </span>
         </PickListAction>
-      }
+      )}
       onToggle={onToggle}
       {...(onDetails
         ? {

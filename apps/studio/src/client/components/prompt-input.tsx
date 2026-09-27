@@ -155,8 +155,6 @@ interface PromptInputProps {
   autoFocus?: boolean;
   /** Where the box stops growing and the draft starts scrolling. Defaults by variant. */
   autoResizeMaxHeight?: number;
-  /** A control of the host's in the button row, before the model: what the response comes back as, say. */
-  beforeModel?: React.ReactNode;
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
@@ -261,7 +259,6 @@ export const PromptInput = ({
   attachmentsLead,
   autoFocus = false,
   autoResizeMaxHeight,
-  beforeModel,
   className,
   disabled = false,
   draftKey,
@@ -1022,8 +1019,6 @@ export const PromptInput = ({
                   selectedSessionId={selectedSessionId}
                 />
               )}
-
-              {beforeModel}
 
               <ModelPicker
                 className="min-w-0"

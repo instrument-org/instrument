@@ -184,7 +184,13 @@ export async function stopEditingPage({
   sessions.delete(guest.id);
   if (guest.getURL().startsWith(STAMPED_PREFIX)) {
     const href = pathToFileURL(filePath).href;
-    await guest.loadURL(href);
+    try {
+      await guest.loadURL(href);
+    } catch {
+      // The guest is being torn down or has been sent elsewhere meanwhile;
+      // there is no page left to put back.
+      return;
+    }
     // The visit from before Edit is this same page, now older than the file.
     const history = guest.navigationHistory;
     const active = history.getActiveIndex();

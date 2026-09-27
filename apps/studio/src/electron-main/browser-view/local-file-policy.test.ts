@@ -7,7 +7,10 @@ import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 
 import { trackFrameDocuments } from "./frame-documents";
-import { isAllowedLocalRequest } from "./local-file-policy";
+import {
+  isAllowedGuestRequest,
+  isAllowedLocalRequest,
+} from "./local-file-policy";
 
 const { liveFrames } = vi.hoisted(() => ({ liveFrames: new Set<string>() }));
 
@@ -285,5 +288,48 @@ describe("isAllowedLocalRequest", () => {
       expect(read("file:///etc/hosts")).toBe(false);
       expect(read(`${FOLDER}/chart.png`)).toBe(true);
     });
+  });
+});
+
+describe("isAllowedGuestRequest", () => {
+  const navigate = (
+    type: ReturnType<WebContents["getType"]> | undefined,
+    url: string,
+  ) =>
+    isAllowedGuestRequest({
+      frame: null,
+      resourceType: "mainFrame",
+      url,
+      webContents: type === undefined ? undefined : { getType: () => type },
+    });
+
+  it("lets a guest move to another file", () => {
+    expect(navigate("webview", "file:///Users/casey/Desktop/other.html")).toBe(
+      true,
+    );
+  });
+
+  // A local page opens a popup to any web address, then sends it to a file:
+  // the opener would read that file through its handle, one `file://` origin
+  // to another.
+  it.each([
+    ["a popup a page opened", "window"],
+    ["a contents the request does not name", undefined],
+  ] as const)("never shows a file in %s", (_case, type) => {
+    expect(navigate(type, "file:///etc/hosts")).toBe(false);
+  });
+
+  it("still confines a guest page's reads to its folder", () => {
+    const { contents, main } = pageGuest();
+    const read = (url: string) =>
+      isAllowedGuestRequest({
+        frame: main as unknown as WebFrameMain,
+        resourceType: "xhr",
+        url,
+        webContents: { getType: () => "webview" },
+        webContentsId: contents.id,
+      });
+    expect(read(`${FOLDER}/data.json`)).toBe(true);
+    expect(read("file:///etc/hosts")).toBe(false);
   });
 });

@@ -1,5 +1,9 @@
 import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
-import { type OnBeforeRequestListenerDetails, type Session } from "electron";
+import {
+  type OnBeforeRequestListenerDetails,
+  type Session,
+  type WebContents,
+} from "electron";
 import path from "node:path";
 
 import { committedDocumentOf, trackFrameDocumentsIn } from "./frame-documents";
@@ -26,8 +30,10 @@ type EditedPageOf = (
  * `/a/b/**` and nothing else. A navigation to another file is the person's
  * own act (a link they clicked, a file they opened) and is left alone; the
  * agent's way of asking a guest for a `file://` address is refused before it
- * reaches the guest at all. The task's private directory is refused as a
- * segment anywhere, the way every other road to a file refuses it.
+ * reaches the guest at all. That holds only in a guest: a window a page
+ * opened never shows a file (see `isAllowedGuestRequest`). The task's private
+ * directory is refused as a segment anywhere, the way every other road to a
+ * file refuses it.
  *
  * The page is the document its frame loaded, never the address the frame
  * shows now, which the page's own script can rewrite (see
@@ -42,7 +48,7 @@ export function confineLocalPagesToTheirFolder(
     { urls: ["file:///*"] },
     (details, callback) => {
       callback({
-        cancel: !isAllowedLocalRequest(details, editedPageOf),
+        cancel: !isAllowedGuestRequest(details, editedPageOf),
       });
     },
   );
@@ -52,6 +58,30 @@ const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
   `(?:^|[/\\\\])${TASK_PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:[/\\\\]|$)`,
   "i",
 );
+
+/**
+ * `isAllowedLocalRequest` for a browser guest's session, which also holds the
+ * windows a guest's pages open (sign-in popups, see `window-open-policy.ts`).
+ * An opener keeps a handle to its popup and every `file://` document shares
+ * one origin, so a local page that opened a popup and then sent it to
+ * `file:///etc/hosts` would read that file through the handle. So a file is
+ * a page of its own only in a guest, the one contents the person navigates;
+ * any other contents here is a popup, and never shows one.
+ */
+export function isAllowedGuestRequest(
+  details: Parameters<typeof isAllowedLocalRequest>[0] & {
+    webContents?: Pick<WebContents, "getType">;
+  },
+  editedPage?: EditedPageOf,
+): boolean {
+  if (
+    details.resourceType === "mainFrame" &&
+    details.webContents?.getType() !== "webview"
+  ) {
+    return false;
+  }
+  return isAllowedLocalRequest(details, editedPage);
+}
 
 export function isAllowedLocalRequest(
   details: Partial<Pick<OnBeforeRequestListenerDetails, "webContentsId">> &

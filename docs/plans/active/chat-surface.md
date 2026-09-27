@@ -1,6 +1,6 @@
 # Plan: chat surface
 
-Status: direction settled after four wireframe rounds; nothing built. Code slices start once the file-editing work has merged.
+Status: slices 1 through 7 built; 8 (the head's output dropdown) and 9 (app-level tabs) remain.
 
 ---
 

@@ -70,6 +70,11 @@ const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
  * `file:///etc/hosts` would read that file through the handle. So a file is
  * a page of its own only in a guest, the one contents the person navigates;
  * any other contents here is a popup, and never shows one.
+ *
+ * A request that names no contents at all is let through to the folder rule:
+ * a guest's first navigation after a launch arrives that way, with no
+ * contents, id, or frame to tell it from anything else. Popups are held back
+ * where they are known instead, by {@link refuseLocalFilesInPopups}.
  */
 export function isAllowedGuestRequest(
   details: Parameters<typeof isAllowedLocalRequest>[0] & {
@@ -78,7 +83,8 @@ export function isAllowedGuestRequest(
 ): boolean {
   if (
     details.resourceType === "mainFrame" &&
-    details.webContents?.getType() !== "webview"
+    details.webContents !== undefined &&
+    details.webContents.getType() !== "webview"
   ) {
     return false;
   }
@@ -127,6 +133,29 @@ export function isAllowedLocalRequest(
     page !== undefined &&
     requested.startsWith(`${path.dirname(page)}${path.sep}`)
   );
+}
+
+/** The navigation half of {@link refuseLocalFilesInPopups}, for one window. */
+export function refuseLocalFilesIn(popup: Pick<WebContents, "on">): void {
+  popup.on("will-frame-navigate", (event) => {
+    if (event.url.toLowerCase().startsWith("file:")) {
+      event.preventDefault();
+    }
+  });
+}
+
+/**
+ * Keeps a window a guest's page opened, and every window that one opens in
+ * turn, from ever showing a file, whoever sends it there: its own script or
+ * its opener's, which is how a local page would read another file through
+ * the handle it keeps. Opening one at a file is refused before this, by the
+ * open policy's http(s) rule.
+ */
+export function refuseLocalFilesInPopups(popup: WebContents): void {
+  refuseLocalFilesIn(popup);
+  popup.on("did-create-window", (child) => {
+    refuseLocalFilesInPopups(child.webContents);
+  });
 }
 
 /** A page's folder, resolved, for the next request from the same folder. */

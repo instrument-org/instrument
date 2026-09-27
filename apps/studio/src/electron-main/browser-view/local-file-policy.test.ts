@@ -17,6 +17,7 @@ import {
   isAllowedLocalRequest,
   leadsBesidePage,
   mayPageNavigateTo,
+  refuseLocalFilesIn,
 } from "./local-file-policy";
 
 const { liveFrames } = vi.hoisted(() => ({ liveFrames: new Set<string>() }));
@@ -304,11 +305,44 @@ describe("isAllowedGuestRequest", () => {
   // A local page opens a popup to any web address, then sends it to a file:
   // the opener would read that file through its handle, one `file://` origin
   // to another.
+  it("never shows a file in a popup a page opened", () => {
+    expect(navigate("window", "file:///etc/hosts")).toBe(false);
+  });
+
+  // A guest's first navigation after a launch names no contents at all.
+  it("lets a navigation that names no contents reach its file", () => {
+    expect(navigate(undefined, "file:///Users/casey/Desktop/page.html")).toBe(
+      true,
+    );
+  });
+});
+
+describe("refuseLocalFilesIn", () => {
+  const navigateTo = (url: string) => {
+    let listener:
+      | ((event: { preventDefault: () => void; url: string }) => void)
+      | undefined;
+    refuseLocalFilesIn({
+      on: ((_name: string, handler: typeof listener) => {
+        listener = handler;
+      }) as unknown as WebContents["on"],
+    });
+    let isPrevented = false;
+    listener?.({
+      preventDefault: () => {
+        isPrevented = true;
+      },
+      url,
+    });
+    return isPrevented;
+  };
+
   it.each([
-    ["a popup a page opened", "window"],
-    ["a contents the request does not name", undefined],
-  ] as const)("never shows a file in %s", (_case, type) => {
-    expect(navigate(type, "file:///etc/hosts")).toBe(false);
+    ["a file", "file:///etc/hosts", true],
+    ["a file in capitals", "FILE:///etc/hosts", true],
+    ["a website", "https://accounts.example.com/", false],
+  ])("refuses a popup's navigation to %s: %s", (_case, url, isRefused) => {
+    expect(navigateTo(url)).toBe(isRefused);
   });
 
   it("still confines a guest page's reads to its folder", () => {

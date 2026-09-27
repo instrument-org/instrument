@@ -55,6 +55,7 @@ import { attachGuestInteractions } from "./guest-interactions";
 import {
   confineLocalPagesToTheirFolder,
   mayPageNavigateTo,
+  refuseLocalFilesInPopups,
 } from "./local-file-policy";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
@@ -290,6 +291,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     // flows); keep the shape policy on the child so those don't hang either.
     guest.on("did-create-window", (child) => {
       child.webContents.setWindowOpenHandler(guestWindowOpenHandler);
+      refuseLocalFilesInPopups(child.webContents);
     });
     // Mute: the page may be agent-driven and not visible to the user.
     guest.setAudioMuted(true);

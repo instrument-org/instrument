@@ -8,6 +8,7 @@ import {
   finderOnScreenAtom,
   NEW_TAB_HREF,
   type ScreenView,
+  WEB_HREF,
   type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
@@ -72,7 +73,7 @@ import {
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
 } from "./compose-layout";
-import { ComposeZeroState } from "./compose-zero-state";
+import { ComposeZeroState, WebStart } from "./compose-zero-state";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
@@ -525,96 +526,23 @@ export function ComposeWindow({
         />
       );
     }
-    if (up.kind === "page") {
-      return (
-        <Card>
-          <div className="h-full" ref={setPageHost} />
-        </Card>
-      );
-    }
-    const computer = computerTabOf(up.href);
-    if (computer) {
-      return (
-        <Card>
-          <ComposeFiles
-            file={computer.file}
-            key={up.id}
-            // Leaving a file opened from the Finder steps the tab back to its
-            // folder; a tab that opened on the file has nowhere to go back to.
-            onLeaveFile={() => {
-              if (windowTabs.stepTab(up.id, -1) === undefined) {
-                closeTab(up.id);
-              }
-            }}
-            onLocationChange={(location) => {
-              windowTabs.visitHref(up.id, computerHref(location));
-            }}
-            // A file opened from the Finder takes the Finder's place in its
-            // tab; a page's file still opens as a page of its own.
-            onOpenFile={(hostPath) => {
-              const name = segmentsOf(hostPath).at(-1) ?? hostPath;
-              if (getFileType({ filename: name }) === "html") {
-                openFile(hostPath);
-              } else {
-                windowTabs.visitHref(up.id, fileHref(hostPath));
-              }
-            }}
-            onViewChange={setFilesView}
-            path={computer.path}
-            root={computer.root}
-          />
-        </Card>
-      );
-    }
-    const { pathname } = parseHref(up.href);
-    if (pathname === APPS_HREF) {
-      return (
-        <Card>
-          <AppsHome
-            onOpenApp={(slug) => {
-              windowTabs.visitHref(up.id, `${APPS_HREF}/${slug}`);
-            }}
-            showsConnect={false}
-          />
-        </Card>
-      );
-    }
-    if (pathname.startsWith(`${APPS_HREF}/`)) {
-      return (
-        <Card>
-          <AppFront
-            onToApps={() => {
-              if (windowTabs.stepTab(up.id, -1) === undefined) {
-                windowTabs.visitHref(up.id, APPS_HREF);
-              }
-            }}
-            reportsScreen={false}
-            slug={pathname.slice(APPS_HREF.length + 1)}
-          />
-        </Card>
-      );
-    }
-    const { icon, title } = screenPresentation(up.href, { appsBySlug });
     return (
-      <Card>
-        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
-          <span className="flex items-center gap-2 text-foreground">
-            <span className="[&_svg]:size-4">{icon}</span>
-            {title}
-          </span>
-          <p>Opens beside the chat, not in a draft.</p>
-          <Button
-            onClick={() => {
-              openOutside(up.href);
-              closeTab(up.id);
-            }}
-            size="sm"
-            variant="outline"
-          >
-            Open beside the chat
-          </Button>
-        </div>
-      </Card>
+      <GroupItem
+        closeTab={closeTab}
+        group={group}
+        onFilesView={setFilesView}
+        onPageHost={setPageHost}
+        openPage={openPage}
+        outside={{
+          label: "Open beside the chat",
+          note: "Opens beside the chat, not in a draft.",
+          onOpen: (tab) => {
+            openOutside(tab.href);
+            closeTab(tab.id);
+          },
+        }}
+        up={up}
+      />
     );
   })();
 
@@ -866,6 +794,148 @@ export function ComposeWindow({
         </FileOpenContext>
       </OrchestratorContext>
     </motion.div>
+  );
+}
+
+/**
+ * The thing a floating window's group has up, drawn large in the window: a
+ * page by the browser (drawn into the host this reports), the computer by
+ * its Finder, a file in place of the Finder that opened it, and Apps by its
+ * landing page and each app's own. Anything else is the window's to say it
+ * cannot draw, with the way to where it can be.
+ */
+export function GroupItem({
+  closeTab,
+  group,
+  onFilesView,
+  onPageHost,
+  openPage,
+  outside,
+  up,
+}: {
+  closeTab: (id: string) => void;
+  group: string;
+  /** What the Finder has up, in the terms the conversation is told it. */
+  onFilesView?: (view: null | ScreenView) => void;
+  /** The element the page is drawn into, while a page is up. */
+  onPageHost: (element: HTMLDivElement | null) => void;
+  /** Opens a page in the group and puts it up. */
+  openPage: (url: string) => void;
+  /** A screen the window cannot draw: what to say, and the way to where it can be. */
+  outside: {
+    label: string;
+    note: string;
+    onOpen: (tab: Extract<WindowTab, { kind: "screen" }>) => void;
+  };
+  up: WindowTab;
+}) {
+  const windowTabs = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
+  const { browser } = useOrchestrator();
+  if (up.kind === "page") {
+    return (
+      <Card>
+        <div className="h-full" ref={onPageHost} />
+      </Card>
+    );
+  }
+  const computer = computerTabOf(up.href);
+  if (computer) {
+    return (
+      <Card>
+        <ComposeFiles
+          file={computer.file}
+          key={up.id}
+          // Leaving a file opened from the Finder steps the tab back to its
+          // folder; a tab that opened on the file has nowhere to go back to.
+          onLeaveFile={() => {
+            if (windowTabs.stepTab(up.id, -1) === undefined) {
+              closeTab(up.id);
+            }
+          }}
+          onLocationChange={(location) => {
+            windowTabs.visitHref(up.id, computerHref(location));
+          }}
+          // A file opened from the Finder takes the Finder's place in its
+          // tab; a page's file still opens as a page of its own.
+          onOpenFile={(hostPath) => {
+            const name = segmentsOf(hostPath).at(-1) ?? hostPath;
+            if (getFileType({ filename: name }) === "html") {
+              openPage(fileUrlOf(hostPath));
+            } else {
+              windowTabs.visitHref(up.id, fileHref(hostPath));
+            }
+          }}
+          onViewChange={(view) => {
+            onFilesView?.(view);
+          }}
+          path={computer.path}
+          root={computer.root}
+        />
+      </Card>
+    );
+  }
+  const { pathname } = parseHref(up.href);
+  if (pathname === WEB_HREF) {
+    return (
+      <Card>
+        <div className="mx-auto h-full w-full max-w-2xl">
+          <WebStart
+            onOpenPage={(url) => {
+              browser?.open(url, { group, replacing: up });
+            }}
+          />
+        </div>
+      </Card>
+    );
+  }
+  if (pathname === APPS_HREF) {
+    return (
+      <Card>
+        <AppsHome
+          onOpenApp={(slug) => {
+            windowTabs.visitHref(up.id, `${APPS_HREF}/${slug}`);
+          }}
+          showsConnect={false}
+        />
+      </Card>
+    );
+  }
+  if (pathname.startsWith(`${APPS_HREF}/`)) {
+    return (
+      <Card>
+        <AppFront
+          onToApps={() => {
+            if (windowTabs.stepTab(up.id, -1) === undefined) {
+              windowTabs.visitHref(up.id, APPS_HREF);
+            }
+          }}
+          reportsScreen={false}
+          slug={pathname.slice(APPS_HREF.length + 1)}
+        />
+      </Card>
+    );
+  }
+  const { icon, title } = screenPresentation(up.href, { appsBySlug });
+  return (
+    <Card>
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+        <span className="flex items-center gap-2 text-foreground">
+          <span className="[&_svg]:size-4">{icon}</span>
+          {title}
+        </span>
+        <p>{outside.note}</p>
+        <Button
+          onClick={() => {
+            outside.onOpen(up);
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {outside.label}
+        </Button>
+      </div>
+    </Card>
   );
 }
 

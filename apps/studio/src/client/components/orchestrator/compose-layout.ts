@@ -5,6 +5,9 @@ export const COMPOSE_WIDTH = 600;
 export const THREAD_WINDOW_WIDTH = 420;
 export const COMPOSE_BAR_WIDTH = 300;
 
+/** How much wider a thread's small view stands for the rail of what the chat holds, in layout px (the rail's `w-30`). */
+export const THREAD_RAIL_WIDTH = 120;
+
 /**
  * The window layer a draft's page guest is shown on: above the draft windows
  * (`z-40`) so the page is not under its own opaque window, and under every
@@ -37,6 +40,8 @@ export type PlacedCompose = ComposeEntry & { right: number; width?: number };
 export function layoutCompose(
   entries: ComposeEntry[],
   width: number,
+  /** Whether a thread's small view carries its rail, which it does while the chat holds anything. */
+  hasRail: (entry: ComposeEntry) => boolean = () => false,
 ): PlacedCompose[] {
   const isOneExpanded = entries.some((entry) => entry.placement === "expanded");
   const placed: PlacedCompose[] = [];
@@ -49,7 +54,7 @@ export function layoutCompose(
     if (isOneExpanded && entry.placement === "docked") {
       continue;
     }
-    const own = widthOf(entry);
+    const own = widthOf(entry) + (hasRail(entry) ? THREAD_RAIL_WIDTH : 0);
     // The first that does not fit ends the row, and everything older with
     // it: a bar squeezed in past a window would put the windows out of order.
     if (right + own + COMPOSE_GAP > width) {

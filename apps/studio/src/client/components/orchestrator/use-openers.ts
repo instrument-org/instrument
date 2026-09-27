@@ -80,12 +80,19 @@ export function useOpeners({
    */
   const openPage = (
     url: string,
-    { group: into, newTab = false, show = false }: OpenOptions = {},
+    {
+      activate = false,
+      group: into,
+      newTab = false,
+      show = false,
+    }: OpenOptions = {},
   ) => {
     if (into !== undefined && into !== windowTabs.group) {
       const id = browser?.openOrFocus(url, { group: into, show });
       if (show) {
         setPaneOpen(into, true);
+      } else if (activate && id !== undefined) {
+        windowTabs.selectIn(into, id);
       }
       return id;
     }
@@ -113,7 +120,12 @@ export function useOpeners({
   };
   const openScreen = (
     href: string,
-    { group: into, newTab = false, show = false }: OpenOptions = {},
+    {
+      activate = false,
+      group: into,
+      newTab = false,
+      show = false,
+    }: OpenOptions = {},
   ) => {
     // A whole id, or the start of one the way a reply's link carries it,
     // among the threads the window has: a whole id that names none of them
@@ -170,6 +182,7 @@ export function useOpeners({
     }
     if (into !== undefined && into !== windowTabs.group) {
       windowTabs.openOrFocusScreen(href, {
+        activate,
         group: into,
         isOpened: true,
         show,

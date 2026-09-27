@@ -53,10 +53,7 @@ import { TabLocationRow } from "@/client/components/orchestrator/tab-location-ro
 import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
 import { threadListOptions } from "@/client/components/orchestrator/thread-list-query";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
-import {
-  ThreadRail,
-  usePageThumbnailHousekeeping,
-} from "@/client/components/orchestrator/thread-rail";
+import { ThreadRail } from "@/client/components/orchestrator/thread-rail";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
 import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-view";
 import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-view";
@@ -65,6 +62,7 @@ import { useDrafts } from "@/client/components/orchestrator/use-drafts";
 import { useHistorySteps } from "@/client/components/orchestrator/use-history-steps";
 import { ideasQueryOptions } from "@/client/components/orchestrator/use-ideas";
 import { useOpeners } from "@/client/components/orchestrator/use-openers";
+import { usePageThumbnailHousekeeping } from "@/client/components/orchestrator/use-page-thumbnail-housekeeping";
 import { useRecordRecents } from "@/client/components/orchestrator/use-record-recents";
 import { useRouterSync } from "@/client/components/orchestrator/use-router-sync";
 import { useSetThreadTopics } from "@/client/components/orchestrator/use-set-thread-topics";
@@ -379,7 +377,9 @@ function OrchestratorLayout() {
     }
   }, [showsRightArea, rowWidth, sidebarWidth, bounds.max, setSidebarWidth]);
   // The drafts being written, in windows along the row's foot.
-  const compose = useCompose(rowWidth);
+  const compose = useCompose(rowWidth, (group) =>
+    windowTabs.allTabs.some((tab) => tab.group === group),
+  );
   // A draft is written over the screen, never on it: a draft's group left
   // on screen by an earlier launch is put away, and a draft with no words
   // is not kept past its window, so one left over from a launch goes too.
@@ -450,17 +450,13 @@ function OrchestratorLayout() {
     windowTabs.group === undefined ||
     (paneOpenByGroup[windowTabs.group] ?? true);
   // The threads in their small views, floating over the row.
-  const floating = compose.entries.flatMap((entry) =>
-    entry.kind === "thread" ? [entry.sessionId] : [],
+  const floating = new Set(
+    compose.entries.flatMap((entry) =>
+      entry.kind === "thread" ? [entry.sessionId] : [],
+    ),
   );
-  // The thread on screen has its conversation in the corner, so its column
-  // goes and the pane takes the row, the way it does in a place.
-  const isThreadOut =
-    isChat && threadUp !== undefined && floating.includes(threadUp);
   const showsPane =
-    !isChat ||
-    isThreadOut ||
-    ((tabs.length > 0 || isTasksViewUp) && isPaneWanted);
+    !isChat || ((tabs.length > 0 || isTasksViewUp) && isPaneWanted);
   // Whether the page in the pane is what is on screen: the tab a page, the
   // pane open, and no screen over it. Off, the guest is parked. A window in
   // the corner does not park it: the guest stands on the window's lowest
@@ -500,10 +496,10 @@ function OrchestratorLayout() {
       setPaneOpen(windowTabs.group, true);
     }
   };
-  // A chat on screen in the column keeps what it holds down its right edge,
-  // and what is pressed there comes up between the two; a place, or a chat
-  // in its own window, keeps a row of tabs over the whole area instead.
-  const hasRail = isChat && !isThreadOut && threadUp !== undefined;
+  // A chat on screen keeps what it holds down its right edge, and what is
+  // pressed there comes up between the two; a place keeps a row of tabs
+  // over the whole area instead.
+  const hasRail = isChat && threadUp !== undefined;
   /** Opens the new tab of whatever the pane holds: a place's own kind, or the page that reaches everything. */
   const openNewTab = () => {
     windowTabs.openScreen(newTabHrefOf(windowTabs.group));
@@ -923,7 +919,13 @@ function OrchestratorLayout() {
                 onCloseThread={(sessionId) => {
                   compose.remove(sessionId);
                 }}
-                onExpandThread={landThread}
+                onExpandThread={(sessionId) => {
+                  // A page shows in one place: the grown window draws the
+                  // chat's, so Chats lets the chat go.
+                  if (windowTabs.group === sessionId) {
+                    leaveGroup();
+                  }
+                }}
                 onModelChange={setDefaultModelURI}
                 onPressThreadTab={landOnTab}
                 onStart={startThread}
@@ -1059,12 +1061,15 @@ function OrchestratorLayout() {
                                 threadUp === undefined
                                   ? undefined
                                   : {
-                                      isOut: floating.includes(threadUp),
+                                      isOut: floating.has(threadUp),
+                                      // Popped out, the chat stays listed and
+                                      // is simply no longer the one selected.
                                       onToggle: () => {
-                                        if (floating.includes(threadUp)) {
+                                        if (floating.has(threadUp)) {
                                           compose.remove(threadUp);
                                         } else {
                                           compose.float(threadUp);
+                                          leaveGroup();
                                         }
                                       },
                                     }
@@ -1076,7 +1081,6 @@ function OrchestratorLayout() {
                             />
                             <div className="relative min-h-0 flex-1">
                               <ThreadStage
-                                floating={floating}
                                 sendContext={() => sendContextRef.current()}
                                 sessionId={threadUp}
                               />
@@ -1084,7 +1088,7 @@ function OrchestratorLayout() {
                           </div>
                         </div>
                       }
-                      fills={!isChat || isThreadOut}
+                      fills={!isChat}
                       isOpen={showsPane}
                       onCollapse={() => {
                         if (windowTabs.group !== undefined) {
@@ -1102,7 +1106,7 @@ function OrchestratorLayout() {
                             "flex h-full min-h-0 w-full flex-col overflow-hidden",
                             // A hairline only where the conversation is beside it;
                             // filling the card, the card's own edge is its edge.
-                            isChat && !isThreadOut && "border-l border-border",
+                            isChat && "border-l border-border",
                           )}
                         >
                           {!hasRail && (

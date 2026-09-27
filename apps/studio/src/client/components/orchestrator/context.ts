@@ -11,6 +11,8 @@ import { type BrowserTabsHandle } from "./browser-tabs";
  * behind.
  */
 export interface OpenOptions {
+  /** Puts the thing in front of its group without bringing the group on screen: for a group drawn by a window of its own. */
+  activate?: boolean;
   group?: string;
   newTab?: boolean;
   show?: boolean;

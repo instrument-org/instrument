@@ -20,25 +20,34 @@ import { COMPOSE_GUEST_LAYER, layoutCompose } from "./compose-layout";
  * windows over the pane's page and starts the threads the drafts become. Everything is keyed by the group the window shows: the
  * draft's key, or the thread's session.
  */
-export function useCompose(width: number) {
+export function useCompose(
+  width: number,
+  /** Whether a thread's group holds anything, which gives its small view a rail. */
+  holdsAnything: (group: string) => boolean,
+) {
   const [entries, setEntries] = useAtom(composeAtom);
-  // Where each draft window's page is drawn, by the draft's group, once the
-  // window has made the element; and what each draft window's band has up.
-  // A thread's small view draws no page and reports no view.
+  // Where each window's page is drawn, by the window's group, once the
+  // window has made the element (a draft's band, or a thread grown to fill
+  // the row); and what each draft window's band has up.
   const [hostsById, setHostsById] = useState<
     Record<string, HTMLElement | null>
   >({});
   const [viewsById, setViewsById] = useState<Record<string, null | ScreenView>>(
     {},
   );
-  const placed = layoutCompose(entries, width);
+  const placed = layoutCompose(
+    entries,
+    width,
+    (entry) => entry.kind === "thread" && holdsAnything(entry.sessionId),
+  );
   const windows = placed.filter((entry) => entry.placement !== "bar");
+  // A thread's small view draws no page; grown to fill the row it does.
   const hosts: ComposeHost[] = windows.flatMap((entry) =>
-    entry.kind === "draft"
+    entry.kind === "draft" || entry.placement === "expanded"
       ? [
           {
-            group: draftGroupOf(entry.draftId),
-            into: hostsById[draftGroupOf(entry.draftId)] ?? null,
+            group: composeKeyOf(entry),
+            into: hostsById[composeKeyOf(entry)] ?? null,
             isActive: true,
             layer: COMPOSE_GUEST_LAYER,
             place: `${entry.placement}:${entry.right}:${entry.width ?? ""}`,

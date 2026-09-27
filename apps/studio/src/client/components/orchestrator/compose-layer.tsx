@@ -53,10 +53,10 @@ export function ComposeLayer({
   onCloseDraft: (id: string, words: string) => void;
   /** A thread's small view closed: the window goes, and the thread is as it was in Chat. */
   onCloseThread: (sessionId: StoreId.Session) => void;
-  /** A thread's small view expanded: it lands in Chat, whole. */
+  /** A thread's small view grown to fill the row: the chat is no longer the one selected in Chats, since a page shows in one place. */
   onExpandThread: (sessionId: StoreId.Session) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  /** A tab pressed in a small view's picture: the thread lands in Chat with that tab in front. */
+  /** A thing a grown window cannot draw, asked for: the chat lands in Chats with that tab in front. */
   onPressThreadTab: (sessionId: StoreId.Session, tabId: string) => void;
   onStart: (id: string, send: DraftSend) => void;
   openOutside: (href: string) => void;
@@ -122,15 +122,22 @@ export function ComposeLayer({
                 onClose={() => {
                   onCloseThread(sessionId);
                 }}
-                onExpand={() => {
-                  onExpandThread(sessionId);
+                onLandOnTab={(tabId) => {
+                  onPressThreadTab(sessionId, tabId);
                 }}
                 onMinimize={() => {
                   compose.setPlacement(sessionId, "bar");
                 }}
-                onPressTab={(tabId) => {
-                  onPressThreadTab(sessionId, tabId);
+                onPageHost={(element) => {
+                  compose.setHost(sessionId, element);
                 }}
+                onPlacementChange={(placement) => {
+                  if (placement === "expanded") {
+                    onExpandThread(sessionId);
+                  }
+                  compose.setPlacement(sessionId, placement);
+                }}
+                placement={entry.placement}
                 right={entry.right}
                 sendContext={sendContext}
                 sentWords={

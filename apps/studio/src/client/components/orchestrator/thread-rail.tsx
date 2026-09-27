@@ -1,4 +1,4 @@
-import { everyTabIdAtom, type WindowTab } from "@/client/atoms/orchestrator";
+import { type WindowTab } from "@/client/atoms/orchestrator";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -20,51 +20,16 @@ import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { safe } from "@orpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { computerName } from "./computer-name";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { SiteIcon } from "./sidebar";
-
-/**
- * Keeps the pages' pictures to the tabs the window holds: at startup, every
- * picture but those of the restored tabs is thrown away, and from then on a
- * picture goes with its tab, whether the tab was closed or its chat trashed.
- */
-export function usePageThumbnailHousekeeping() {
-  const queryClient = useQueryClient();
-  const ids = useAtomValue(everyTabIdAtom);
-  const previous = useRef<ReadonlySet<string>>(undefined);
-  useEffect(() => {
-    const before = previous.current;
-    previous.current = ids;
-    if (before === undefined) {
-      // An empty window keeps everything: it may not be the window's tabs yet.
-      if (ids.size > 0) {
-        void safe(
-          rpcClient.browser.thumbnails.keepOnly.call({ keys: [...ids] }),
-        );
-      }
-      return;
-    }
-    const gone = [...before].filter((id) => !ids.has(id));
-    if (gone.length === 0) {
-      return;
-    }
-    for (const id of gone) {
-      queryClient.removeQueries({ queryKey: thumbnailKey(id) });
-    }
-    void safe(rpcClient.browser.thumbnails.forget.call({ keys: gone }));
-  }, [ids, queryClient]);
-}
+import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
 
 /** How long a page on screen is left to settle before its picture is taken. */
 const SETTLE_MS = 1500;
-
-const thumbnailKey = (key: string) => ["page-thumbnail", key] as const;
 
 /**
  * What a chat holds, down its right edge: a tile for each thing it has open

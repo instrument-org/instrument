@@ -74,12 +74,9 @@ export function ThreadScreen(props: ThreadScreenProps) {
  * is the tab model's business; the stage only follows it.
  */
 export function ThreadStage({
-  floating,
   sendContext,
   sessionId,
 }: {
-  /** The threads in their small views, which the stage leaves to them: a floating thread's conversation is drawn in its window and nowhere else. */
-  floating: StoreId.Session[];
   /** What the tab under the thread shows, read as a reply is sent, so the reply carries it. */
   sendContext: () => Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
@@ -112,9 +109,6 @@ export function ThreadStage({
   return (
     <>
       {kept.order.map((id) => {
-        if (floating.includes(id)) {
-          return null;
-        }
         const isUp = id === sessionId;
         return (
           <div

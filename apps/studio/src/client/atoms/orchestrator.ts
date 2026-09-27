@@ -362,6 +362,9 @@ export function originOf(url: string | undefined): string | undefined {
 /** The address a new tab opens at: the page with the box that reaches everything. */
 export const NEW_TAB_HREF = "/orchestrator/home";
 
+/** The web's starting view beside a chat: an address field over the sites kept and lately seen. */
+export const WEB_HREF = "/orchestrator/web";
+
 /** The address of the apps: the tab the Apps place opens on. */
 export const APPS_HREF = "/orchestrator/apps";
 

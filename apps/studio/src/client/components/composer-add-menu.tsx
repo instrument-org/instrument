@@ -1,4 +1,5 @@
 import { openCreateProject } from "@/client/atoms/project-modal";
+import { type ComposerApp } from "@/client/components/app-mention";
 import {
   type ComposerSkill,
   SkillMenuRow,
@@ -18,10 +19,18 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ProjectId } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { DesktopIcon } from "@phosphor-icons/react/Desktop";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
+
+import { AppIcon } from "./orchestrator/app-icon";
 
 /**
  * Something the composer can be given, offered by name in the menu that adds
@@ -54,7 +63,28 @@ export interface ComposerAction {
  * replaces the menu rather than opening a second one beside it, so the caller
  * owns this: a slash-typed "Work in a project" opens the menu already turned.
  */
-export type ComposerMenuView = "projects" | "root";
+export type ComposerMenuView = "apps" | "projects" | "root" | "skills";
+
+/**
+ * What a chat's plus opens beside the chat, where the composer is a chat's:
+ * the web's starting view, the computer, and the apps to name in the words.
+ * Given these, the menu leads with them as tiles and keeps the skills behind
+ * a row of their own.
+ */
+export interface ComposerPlaces {
+  apps: ComposerApp[];
+  /** What this computer is called on its tile. */
+  computerName: string;
+  /** Names an app in the words, as a mention. */
+  onNameApp: (app: ComposerApp) => void;
+  /** Takes the window to Apps, where another app is connected. */
+  onOpenApps: () => void;
+  onOpenComputer: () => void;
+  onOpenWeb: () => void;
+}
+
+/** The actions a chat's plus draws as its two attach buttons rather than as rows. */
+const ATTACH_ACTIONS = new Set(["add-files", "work-in-folder"]);
 
 /**
  * The plus button and everything it offers: what the composer can be given,
@@ -74,6 +104,7 @@ export function ComposerAddMenu({
   onSelectProject,
   onSelectSkill,
   onViewChange,
+  places,
   projectId,
   skills,
   triggerClassName,
@@ -91,6 +122,8 @@ export function ComposerAddMenu({
   onSelectProject?: (projectId: null | ProjectId) => void;
   onSelectSkill: (skill: ComposerSkill) => void;
   onViewChange: (view: ComposerMenuView | null) => void;
+  /** A chat's places, which turn the menu into tiles over its rows. */
+  places?: ComposerPlaces;
   projectId?: null | ProjectId;
   skills: ComposerSkill[];
   /** The trigger's shape where the composer draws it differently: a pill's round button. */
@@ -105,6 +138,22 @@ export function ComposerAddMenu({
   // it was chosen. See `handsOff`.
   const handOff = useRef<(() => void) | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // An entry acting and leaving, turning the menu into something else, or
+  // handing off to a surface that opens once the menu has gone.
+  const choose = (action: ComposerAction, event: Event) => {
+    if (action.keepMenuOpen) {
+      event.preventDefault();
+      action.onSelect();
+      return;
+    }
+    if (action.handsOff) {
+      chose.current = "hand-off";
+      handOff.current = action.onSelect;
+      return;
+    }
+    chose.current = "prompt";
+    action.onSelect();
+  };
   const { alignOffset, side, sideOffset, width } = useComposerMenuPlacement({
     anchorRef: triggerRef,
     bounds,
@@ -191,49 +240,150 @@ export function ComposerAddMenu({
               }}
               projectId={projectId ?? null}
             />
-          ) : (
+          ) : view === "apps" && places ? (
             <>
-              {actions.map((action) => (
+              <BackItem
+                label="Apps"
+                onBack={() => {
+                  onViewChange("root");
+                }}
+              />
+              {places.apps.map((app) => (
                 <DropdownMenuItem
-                  key={action.id}
-                  onSelect={(event) => {
-                    if (action.keepMenuOpen) {
-                      event.preventDefault();
-                      action.onSelect();
-                      return;
-                    }
-                    if (action.handsOff) {
-                      chose.current = "hand-off";
-                      handOff.current = action.onSelect;
-                      return;
-                    }
+                  key={app.slug}
+                  onSelect={() => {
                     chose.current = "prompt";
-                    action.onSelect();
+                    places.onNameApp(app);
                   }}
                 >
-                  <action.icon className="size-4" />
-                  {action.label}
+                  <AppIcon name={app.name} site={app.site} size="sm" />
+                  {app.name}
                 </DropdownMenuItem>
               ))}
-              {skills.length > 0 && (
-                <MenuGroupHeader keyHint="/" label="Skills" />
-              )}
+              {places.apps.length > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuItem
+                onSelect={() => {
+                  places.onOpenApps();
+                }}
+              >
+                <PlusIcon className="size-4" />
+                Connect an app…
+              </DropdownMenuItem>
+            </>
+          ) : view === "skills" && places ? (
+            <>
+              <BackItem
+                label="Skills"
+                onBack={() => {
+                  onViewChange("root");
+                }}
+              />
               {skills.map((skill) => (
-                <DropdownMenuItem
+                <SkillItem
                   key={skill.id}
                   onSelect={() => {
                     chose.current = "prompt";
                     onSelectSkill(skill);
                   }}
+                  skill={skill}
+                />
+              ))}
+            </>
+          ) : places ? (
+            <>
+              <div className="grid grid-cols-3 gap-1 p-2">
+                {/* What opens takes the caret, so it opens once the menu has
+                    gone rather than as the menu hands focus back. */}
+                <PlaceTile
+                  icon={GlobeIcon}
+                  label="Web"
+                  onSelect={() => {
+                    chose.current = "hand-off";
+                    handOff.current = places.onOpenWeb;
+                  }}
+                />
+                <PlaceTile
+                  icon={DesktopIcon}
+                  label={places.computerName}
+                  onSelect={() => {
+                    chose.current = "hand-off";
+                    handOff.current = places.onOpenComputer;
+                  }}
+                />
+                <PlaceTile
+                  icon={SquaresFourIcon}
+                  label="Apps"
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    onViewChange("apps");
+                  }}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-1 px-2 pb-2">
+                {actions
+                  .filter((action) => ATTACH_ACTIONS.has(action.id))
+                  .map((action) => (
+                    <DropdownMenuItem
+                      className="justify-center rounded-lg border border-border bg-card shadow-xs"
+                      key={action.id}
+                      onSelect={() => {
+                        chose.current = "prompt";
+                        action.onSelect();
+                      }}
+                    >
+                      <action.icon className="size-4" />
+                      {action.label}
+                    </DropdownMenuItem>
+                  ))}
+              </div>
+              <DropdownMenuSeparator />
+              {skills.length > 0 && (
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    onViewChange("skills");
+                  }}
                 >
-                  <SkillMenuRow
-                    match={{
-                      descriptionRanges: null,
-                      nameRanges: null,
-                      skill,
+                  <GraduationCapIcon className="size-4" />
+                  <span className="min-w-0 flex-1">Skill</span>
+                  <CaretRightIcon className="size-3.5 text-muted-foreground" />
+                </DropdownMenuItem>
+              )}
+              {actions
+                .filter((action) => !ATTACH_ACTIONS.has(action.id))
+                .map((action) => (
+                  <ActionItem
+                    action={action}
+                    key={action.id}
+                    onSelect={(event) => {
+                      choose(action, event);
                     }}
                   />
-                </DropdownMenuItem>
+                ))}
+            </>
+          ) : (
+            <>
+              {actions.map((action) => (
+                <ActionItem
+                  action={action}
+                  key={action.id}
+                  onSelect={(event) => {
+                    choose(action, event);
+                  }}
+                />
+              ))}
+              {skills.length > 0 && (
+                <MenuGroupHeader keyHint="/" label="Skills" />
+              )}
+              {skills.map((skill) => (
+                <SkillItem
+                  key={skill.id}
+                  onSelect={() => {
+                    chose.current = "prompt";
+                    onSelectSkill(skill);
+                  }}
+                  skill={skill}
+                />
               ))}
             </>
           )}
@@ -270,6 +420,64 @@ export function MenuGroupHeader({
         </span>
       )}
     </div>
+  );
+}
+
+/** One of the menu's own entries, whose choosing the menu handles. */
+function ActionItem({
+  action,
+  onSelect,
+}: {
+  action: ComposerAction;
+  onSelect: (event: Event) => void;
+}) {
+  return (
+    <DropdownMenuItem onSelect={onSelect}>
+      <action.icon className="size-4" />
+      {action.label}
+    </DropdownMenuItem>
+  );
+}
+
+/** The first row of a menu turned into a list: its name, and the way back to the menu. */
+function BackItem({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <DropdownMenuItem
+      className="text-muted-foreground"
+      onSelect={(event) => {
+        event.preventDefault();
+        onBack();
+      }}
+    >
+      <ArrowLeftIcon className="size-4" />
+      {label}
+    </DropdownMenuItem>
+  );
+}
+
+/**
+ * A kind of thing the plus opens beside the chat, drawn as that kind: its
+ * mark in a pane of its own and the name under it, never anything real in it.
+ */
+function PlaceTile({
+  icon: TileIcon,
+  label,
+  onSelect,
+}: {
+  icon: Icon;
+  label: string;
+  onSelect: (event: Event) => void;
+}) {
+  return (
+    <DropdownMenuItem
+      className="group/tile flex-col gap-1.5 rounded-xl p-1.5 text-xs font-medium"
+      onSelect={onSelect}
+    >
+      <span className="grid aspect-[4/3] w-full place-items-center rounded-lg bg-card shadow-xs ring-1 ring-border/70 group-data-highlighted/tile:ring-border">
+        <TileIcon className="size-7 text-muted-foreground group-data-highlighted/tile:text-foreground" />
+      </span>
+      <span className="max-w-full truncate">{label}</span>
+    </DropdownMenuItem>
   );
 }
 
@@ -320,5 +528,25 @@ function ProjectItems({
         New project
       </DropdownMenuItem>
     </>
+  );
+}
+
+function SkillItem({
+  onSelect,
+  skill,
+}: {
+  onSelect: () => void;
+  skill: ComposerSkill;
+}) {
+  return (
+    <DropdownMenuItem onSelect={onSelect}>
+      <SkillMenuRow
+        match={{
+          descriptionRanges: null,
+          nameRanges: null,
+          skill,
+        }}
+      />
+    </DropdownMenuItem>
   );
 }

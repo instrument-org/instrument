@@ -130,6 +130,117 @@ export function ComposeZeroState({
 }
 
 /**
+ * The web's starting view: where to go, and the sites kept and lately seen.
+ * In a draft's band, which has no address bar of its own, the caret waits in
+ * an address field over them; beside a chat the tab's own bar is where an
+ * address goes, so the view is only the sites. Anywhere it goes arrives as a
+ * tab. Given a way back, it offers one, for the band that opened it from its
+ * tiles.
+ */
+export function WebStart({
+  hasAddressField = true,
+  onBack,
+  onOpenPage,
+}: {
+  /** Whether the view carries its own address field; off where the tab's bar already is one. */
+  hasAddressField?: boolean;
+  onBack?: () => void;
+  onOpenPage: (url: string) => void;
+}) {
+  const pins = useAtomValue(pinsAtom);
+  const visited = useAtomValue(visitedPagesAtom);
+  // The sites kept first, then the pages lately seen that are not among
+  // them, one per site on the line, so the line is the places a person goes
+  // back to; the whole list waits behind the clock at the line's end.
+  const bookmarks = pins.filter((pin) => pin.kind === "page");
+  const seen = visited.filter(
+    (page) => !bookmarks.some((pin) => pin.target === page.url),
+  );
+  const seenOrigins = new Set<string>();
+  const seenOnLine = seen
+    .filter((page) => {
+      const origin = originOf(page.url);
+      if (seenOrigins.has(origin)) {
+        return false;
+      }
+      seenOrigins.add(origin);
+      return true;
+    })
+    .slice(0, SITES_SHOWN);
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto px-4 pt-3 pb-4">
+      {onBack && (
+        <button
+          className="inline-flex h-7 w-fit items-center gap-1.5 rounded-lg px-1.5 text-[12px] font-medium text-muted-foreground hover:bg-black/4 hover:text-foreground dark:hover:bg-white/6"
+          onClick={onBack}
+          type="button"
+        >
+          <ArrowLeftIcon className="size-3.5" />
+          Web
+        </button>
+      )}
+      <Box>
+        {hasAddressField && (
+          <AddressField autoFocus onOpenPage={onOpenPage} pages={visited} />
+        )}
+        {bookmarks.length > 0 && (
+          <Line label="Bookmarks">
+            {bookmarks.slice(0, SITES_SHOWN).map((pin) => (
+              <Mark
+                icon={<SiteIcon favicon={pin.favicon} url={pin.target} />}
+                key={pin.id}
+                name={pin.title}
+                onOpen={() => {
+                  onOpenPage(pin.target);
+                }}
+              />
+            ))}
+          </Line>
+        )}
+        {seen.length > 0 && (
+          <Line
+            label="Recent"
+            trailing={
+              <MorePopover
+                label="All recent pages"
+                rows={seen.map((page) => ({
+                  icon: <SiteIcon favicon={page.favicon} url={page.url} />,
+                  key: page.url,
+                  line: hostOf(page.url),
+                  onOpen: () => {
+                    onOpenPage(page.url);
+                  },
+                  title: page.title || hostOf(page.url),
+                }))}
+              />
+            }
+          >
+            {seenOnLine.map((page) => (
+              <Mark
+                icon={<SiteIcon favicon={page.favicon} url={page.url} />}
+                key={page.url}
+                name={page.title || hostOf(page.url)}
+                onOpen={() => {
+                  onOpenPage(page.url);
+                }}
+                title={`${page.title || page.url}\n${page.url}`}
+              />
+            ))}
+          </Line>
+        )}
+        {bookmarks.length === 0 && seen.length === 0 && (
+          <Line label="Bookmarks">
+            <span className="text-[11px] text-muted-foreground">
+              Pin a tab, and the site is kept here.
+            </span>
+          </Line>
+        )}
+      </Box>
+    </div>
+  );
+}
+
+/**
  * The address field, the way the window's own box works: as it is typed
  * into, a list opens under it with what the words are first (a site to
  * open, or a search for them) and the pages lately seen whose title or site
@@ -540,105 +651,5 @@ function Tile({
       </span>
       <span className="max-w-full truncate">{name}</span>
     </button>
-  );
-}
-
-/**
- * The web's starting view: where to go, and the sites kept and lately seen.
- * The caret waits in the address field; anywhere it goes arrives as a tab.
- */
-function WebStart({
-  onBack,
-  onOpenPage,
-}: {
-  onBack: () => void;
-  onOpenPage: (url: string) => void;
-}) {
-  const pins = useAtomValue(pinsAtom);
-  const visited = useAtomValue(visitedPagesAtom);
-  // The sites kept first, then the pages lately seen that are not among
-  // them, one per site on the line, so the line is the places a person goes
-  // back to; the whole list waits behind the clock at the line's end.
-  const bookmarks = pins.filter((pin) => pin.kind === "page");
-  const seen = visited.filter(
-    (page) => !bookmarks.some((pin) => pin.target === page.url),
-  );
-  const seenOrigins = new Set<string>();
-  const seenOnLine = seen
-    .filter((page) => {
-      const origin = originOf(page.url);
-      if (seenOrigins.has(origin)) {
-        return false;
-      }
-      seenOrigins.add(origin);
-      return true;
-    })
-    .slice(0, SITES_SHOWN);
-  return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto px-4 pt-3 pb-4">
-      <button
-        className="inline-flex h-7 w-fit items-center gap-1.5 rounded-lg px-1.5 text-[12px] font-medium text-muted-foreground hover:bg-black/4 hover:text-foreground dark:hover:bg-white/6"
-        onClick={onBack}
-        type="button"
-      >
-        <ArrowLeftIcon className="size-3.5" />
-        Web
-      </button>
-      <Box>
-        <AddressField autoFocus onOpenPage={onOpenPage} pages={visited} />
-        {bookmarks.length > 0 && (
-          <Line label="Bookmarks">
-            {bookmarks.slice(0, SITES_SHOWN).map((pin) => (
-              <Mark
-                icon={<SiteIcon favicon={pin.favicon} url={pin.target} />}
-                key={pin.id}
-                name={pin.title}
-                onOpen={() => {
-                  onOpenPage(pin.target);
-                }}
-              />
-            ))}
-          </Line>
-        )}
-        {seen.length > 0 && (
-          <Line
-            label="Recent"
-            trailing={
-              <MorePopover
-                label="All recent pages"
-                rows={seen.map((page) => ({
-                  icon: <SiteIcon favicon={page.favicon} url={page.url} />,
-                  key: page.url,
-                  line: hostOf(page.url),
-                  onOpen: () => {
-                    onOpenPage(page.url);
-                  },
-                  title: page.title || hostOf(page.url),
-                }))}
-              />
-            }
-          >
-            {seenOnLine.map((page) => (
-              <Mark
-                icon={<SiteIcon favicon={page.favicon} url={page.url} />}
-                key={page.url}
-                name={page.title || hostOf(page.url)}
-                onOpen={() => {
-                  onOpenPage(page.url);
-                }}
-                title={`${page.title || page.url}\n${page.url}`}
-              />
-            ))}
-          </Line>
-        )}
-        {bookmarks.length === 0 && seen.length === 0 && (
-          <Line label="Bookmarks">
-            <span className="text-[11px] text-muted-foreground">
-              Pin a tab, and the site is kept here.
-            </span>
-          </Line>
-        )}
-      </Box>
-    </div>
   );
 }

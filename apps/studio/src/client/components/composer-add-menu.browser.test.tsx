@@ -7,13 +7,14 @@ import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { createStore } from "jotai";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 // Relative, not `@/tests/render-browser`: oxlint's type-aware pass does not
 // resolve the alias to this module and every access downstream then reads as an
 // error type.
 import { renderInBrowser } from "../../tests/render-browser";
 import { zoomAtom } from "../atoms/zoom";
-import { ComposerAddMenu } from "./composer-add-menu";
+import { ComposerAddMenu, type ComposerMenuView } from "./composer-add-menu";
 
 const noop = () => {
   // These tests assert on where the menu sits, not on what it chooses.
@@ -162,4 +163,105 @@ describe("ComposerAddMenu in a browser", () => {
       });
     },
   );
+});
+
+describe("a chat's plus", () => {
+  function ChatPlus(places: {
+    onNameApp: (slug: string) => void;
+    onOpenApps: () => void;
+    onOpenWeb: () => void;
+  }) {
+    const [view, setView] = useState<ComposerMenuView | null>(null);
+    return (
+      <ComposerAddMenu
+        actions={[
+          {
+            icon: PaperclipIcon,
+            id: "add-files",
+            label: "Attach files",
+            onSelect: noop,
+          },
+          {
+            icon: PaperclipIcon,
+            id: "work-in-folder",
+            label: "Add a folder",
+            onSelect: noop,
+          },
+        ]}
+        bounds={null}
+        onReturnFocus={noop}
+        onSelectSkill={noop}
+        onViewChange={setView}
+        places={{
+          apps: [{ name: "Gmail", slug: "gmail" }],
+          computerName: "This Mac",
+          onNameApp: (app) => {
+            places.onNameApp(app.slug);
+          },
+          onOpenApps: places.onOpenApps,
+          onOpenComputer: noop,
+          onOpenWeb: places.onOpenWeb,
+        }}
+        skills={[
+          {
+            aliases: [],
+            description: "Turns notes into a page",
+            id: "instrument:create-page",
+            name: "create-page",
+            path: "/skills/create-page",
+            qualifiedName: "create-page",
+            source: "instrument",
+            title: "Create page",
+          },
+        ]}
+        view={view}
+      />
+    );
+  }
+
+  const open = () =>
+    userEvent.click(page.getByRole("button", { name: "Add to this prompt" }));
+
+  it("leads with what it opens beside the chat, then attaching, then the skills behind a row", async () => {
+    const onOpenWeb = vi.fn();
+    await renderInBrowser(
+      <ChatPlus onNameApp={noop} onOpenApps={noop} onOpenWeb={onOpenWeb} />,
+    );
+    await open();
+    const items = page.getByRole("menuitem").elements();
+    expect(items.map((item) => item.textContent.trim())).toMatchInlineSnapshot(`
+      [
+        "Web",
+        "This Mac",
+        "Apps",
+        "Attach files",
+        "Add a folder",
+        "Skill",
+      ]
+    `);
+    await userEvent.click(page.getByRole("menuitem", { name: "Web" }));
+    expect(onOpenWeb).toHaveBeenCalledOnce();
+  });
+
+  it("names a connected app from Apps, or goes to connect another", async () => {
+    const onNameApp = vi.fn();
+    const onOpenApps = vi.fn();
+    await renderInBrowser(
+      <ChatPlus
+        onNameApp={onNameApp}
+        onOpenApps={onOpenApps}
+        onOpenWeb={noop}
+      />,
+    );
+    await open();
+    await userEvent.click(page.getByRole("menuitem", { name: "Apps" }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Gmail" }));
+    expect(onNameApp).toHaveBeenCalledWith("gmail");
+    await open();
+    await userEvent.click(page.getByRole("menuitem", { name: "Apps" }));
+    await userEvent.click(
+      page.getByRole("menuitem", { name: "Connect an app…" }),
+    );
+    expect(onOpenApps).toHaveBeenCalledOnce();
+  });
 });

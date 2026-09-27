@@ -1,4 +1,5 @@
 import { featuresAtom } from "@/client/atoms/features";
+import { APPS_HREF, WEB_HREF } from "@/client/atoms/orchestrator";
 import {
   type PromptDraftKey,
   promptDraftRefAtom,
@@ -13,6 +14,7 @@ import { usePromptQueue } from "@/client/hooks/use-prompt-queue";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -32,6 +34,7 @@ import { useAtomValue } from "jotai";
 import {
   type ComponentProps,
   type ReactNode,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -40,6 +43,8 @@ import {
 import { toast } from "sonner";
 
 import { ChatStream, TypingRow } from "../chat-stream";
+import { computerName } from "../orchestrator/computer-name";
+import { OrchestratorContext } from "../orchestrator/context";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { TranscriptScrollContext } from "../transcript-scroll-context";
 import { Alert, AlertDescription } from "../ui/alert";
@@ -156,6 +161,7 @@ export function TaskChat({
   /** Drawn under the transcript's last turn, inside the scroller: what is going on past the conversation. */
   transcriptTrailing?: ReactNode;
 }) {
+  const orchestrator = useContext(OrchestratorContext);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const id = task.id;
@@ -375,6 +381,24 @@ export function TaskChat({
     });
   };
 
+  // A chat's plus opens things beside the chat: the web's starting view and
+  // the computer each as a tab of their own, and Apps where one is connected.
+  const places =
+    presentation === "orchestrator" && orchestrator
+      ? {
+          computerName: computerName(),
+          onOpenApps: () => {
+            orchestrator.openScreen(APPS_HREF, { newTab: true });
+          },
+          onOpenComputer: () => {
+            orchestrator.openScreen(folderHref("~"), { newTab: true });
+          },
+          onOpenWeb: () => {
+            orchestrator.openScreen(WEB_HREF, { newTab: true });
+          },
+        }
+      : undefined;
+
   const promptInput = (
     <PromptInput
       // Beside the work, the row stays open: a tab switch moves the caret, and
@@ -478,6 +502,7 @@ export function TaskChat({
           ? "Queue a follow-up…"
           : (composerPlaceholder ?? `Talk to ${APP_NAME}`)
       }
+      places={places}
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
       variant={presentation === "orchestrator" ? "pill" : "block"}

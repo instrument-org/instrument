@@ -6,6 +6,7 @@ import {
   type ComposerAction,
   ComposerAddMenu,
   type ComposerMenuView,
+  type ComposerPlaces,
 } from "@/client/components/composer-add-menu";
 import { ComposerFolderTray } from "@/client/components/composer-folder-tray";
 import { ComposerFrame } from "@/client/components/composer-frame";
@@ -20,6 +21,7 @@ import {
   type DroppedFolder,
   useFileDropRegion,
 } from "@/client/hooks/use-file-drop-region";
+import { appMentionToken } from "@/client/lib/app-mention";
 import { BLOCK_CLOSE, BLOCK_OPEN, ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { folderLabel } from "@/client/lib/path-utils";
@@ -187,6 +189,11 @@ interface PromptInputProps {
     prompt: string;
   }) => void;
   placeholder?: string;
+  /**
+   * A chat's places, for its plus to open beside it (the web, the computer)
+   * and the apps to name. Given these, the plus leads with them as tiles.
+   */
+  places?: Omit<ComposerPlaces, "apps" | "onNameApp">;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
   // Whether the folder tray offers its own entry point. Off, the tray still
@@ -271,6 +278,7 @@ export const PromptInput = ({
   onStop,
   onSubmit,
   placeholder,
+  places,
   ref,
   selectedSessionId,
   showWorkInFolder = false,
@@ -635,7 +643,7 @@ export const PromptInput = ({
     {
       icon: PaperclipIcon,
       id: "add-files",
-      label: "Add files",
+      label: places ? "Attach files" : "Add files",
       onSelect: () => {
         fileInputRef.current?.click();
       },
@@ -643,7 +651,7 @@ export const PromptInput = ({
     {
       icon: FolderIcon,
       id: "work-in-folder",
-      label: "Work in a local folder",
+      label: places ? "Add a folder" : "Work in a local folder",
       onSelect: () => {
         void handleFolderPick();
       },
@@ -681,6 +689,14 @@ export const PromptInput = ({
         ]
       : []),
   ];
+
+  const composerPlaces: ComposerPlaces | undefined = places && {
+    ...places,
+    apps: composerApps,
+    onNameApp: (app) => {
+      promptEditorRef.current?.insertText(appMentionToken(app));
+    },
+  };
 
   const canSubmit =
     !disabled &&
@@ -976,6 +992,7 @@ export const PromptInput = ({
                     );
                   }}
                   onViewChange={setMenuView}
+                  places={composerPlaces}
                   projectId={selectedProjectId}
                   skills={userInvocableSkills}
                   view={menuView}
@@ -1163,6 +1180,7 @@ export const PromptInput = ({
                   );
                 }}
                 onViewChange={setMenuView}
+                places={composerPlaces}
                 projectId={selectedProjectId}
                 skills={userInvocableSkills}
                 triggerClassName="size-7 rounded-full [&_svg]:size-4"

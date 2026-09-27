@@ -1,4 +1,8 @@
-import { NEW_TAB_HREF, THREADS_HREF } from "@/client/atoms/orchestrator";
+import {
+  NEW_TAB_HREF,
+  THREADS_HREF,
+  WEB_HREF,
+} from "@/client/atoms/orchestrator";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -7,6 +11,7 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
@@ -97,6 +102,9 @@ export function screenPresentation(
       icon: <MagnifyingGlassIcon className="size-3.5" />,
       title: "New tab",
     };
+  }
+  if (pathname === WEB_HREF) {
+    return { icon: <GlobeIcon className="size-3.5" />, title: "Web" };
   }
   if (pathname === "/orchestrator/computer") {
     const file = search.get("file");

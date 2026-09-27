@@ -71,7 +71,7 @@ function drawFence(
 }
 
 /**
- * An asset origin that answers every probe the same way. The origin the tests
+ * A file channel that answers every probe the same way. The channel the tests
  * name does not exist, so left alone a probe fails as a network error, which
  * a card reads as "nothing known"; this is how a test says the file is gone.
  */

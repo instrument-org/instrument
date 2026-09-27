@@ -117,12 +117,12 @@ interface MarkdownProps {
    * Where an image in this markdown may point; see `lib/image-policy`.
    *
    * Defaults to everything markdown the agent wrote or the user did may reach,
-   * remote hosts and the task's own asset origin included. Markdown that
+   * remote hosts and the task's own files included. Markdown that
    * arrived inside a file someone else authored passes
    * `UNTRUSTED_FILE_IMAGE_KINDS` instead: an image is fetched the moment the
    * file is opened, with no click in between, which discloses an IP, confirms
-   * the file was read, and over the asset origin's loopback host reaches
-   * whatever else is listening on this machine. The notebook viewer passes it
+   * the file was read, and over a loopback host reaches whatever else is
+   * listening on this machine. The notebook viewer passes it
    * for that reason, and loses nothing by it -- a notebook's own images are
    * embedded.
    */
@@ -889,7 +889,7 @@ const MarkdownImage = ({
  * because the URL that comes out cannot say what went in. A path joined to the
  * document's own origin reaches only what the reader already opened the file
  * from; an origin the document named itself reaches whatever host its author
- * picked, which over the asset origin's loopback host is every port on this
+ * picked, which over a loopback host is every port on this
  * machine. In a file someone else wrote those are different questions, and they
  * resolve to the same shape.
  */

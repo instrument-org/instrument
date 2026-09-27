@@ -23,9 +23,7 @@ export type ImageSourceKind =
   | "rejected"
   /** A host on the network. Drawing one is a request that leaves the machine. */
   | "remote"
-  /** This machine's own per-task asset origin, which is local and unencrypted. */
-  | "task-asset"
-  /** A path inside the task, which the caller resolves against that origin. */
+  /** A path, which the caller resolves to a file on this computer. */
   | "task-relative";
 
 // Hosts an image may be fetched from over the network.
@@ -41,11 +39,6 @@ export const REMOTE_HOSTS = new Set(["github.com", "images.google.com"]);
 // `raw.githubusercontent.com` and never from the bare domain. Exported on the
 // same terms as `REMOTE_HOSTS`.
 export const REMOTE_HOST_SUFFIXES = [".github.com", ".githubusercontent.com"];
-
-// This machine's own asset server, which is per-task and local and so the one
-// host an image may be fetched from without TLS. A port is not part of
-// `hostname`, which is why none is named here.
-const LOCAL_HOST_SUFFIX = ".localhost";
 
 // An image type rather than the `data:` scheme whole, so the widest thing an
 // untrusted document can put in an `<img>` is bytes a decoder will either read
@@ -94,9 +87,6 @@ export function classifyImageSource(src: string | undefined): ImageSourceKind {
   if (!url) {
     return "rejected";
   }
-  if (url.protocol === "http:" && url.hostname.endsWith(LOCAL_HOST_SUFFIX)) {
-    return "task-asset";
-  }
   if (url.protocol === "https:" && isRemoteHost(url.hostname)) {
     return "remote";
   }
@@ -134,13 +124,12 @@ export function isImageSourceAllowed(
  * Markdown the agent wrote, or the user did.
  *
  * Every kind, because such a document is written for this reader: a host it
- * names is one the allow-list already knows, and the asset origin it addresses
- * holds the files of the task the markdown belongs to.
+ * names is one the allow-list already knows, and a path it names is a file the
+ * task can reach.
  */
 export const MARKDOWN_IMAGE_KINDS = [
   "embedded",
   "remote",
-  "task-asset",
   "task-relative",
 ] as const satisfies readonly ImageSourceKind[];
 

@@ -155,7 +155,7 @@ async function inflateBounded({
  * a fraction of it, and for a large one that is a gigabyte spent on bytes
  * nothing is going to render.
  *
- * This depends on the asset server naming `Accept-Ranges` and `Content-Range`
+ * This depends on the file channel naming `Accept-Ranges` and `Content-Range`
  * in `Access-Control-Expose-Headers`, since the renderer reads them from
  * another origin. Without that the reader cannot see that partial reads are
  * available and gives up on them.

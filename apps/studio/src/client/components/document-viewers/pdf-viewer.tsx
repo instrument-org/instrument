@@ -226,8 +226,8 @@ function PdfDocument({ url }: { url: string }) {
 
     documentManager
       .openDocumentUrl({
-        // "auto" streams the document with HTTP range requests, which the local
-        // asset server supports. Blob URLs cannot be ranged.
+        // "auto" streams the document with range requests, which the file
+        // channel answers. Blob URLs cannot be ranged.
         mode: url.startsWith("blob:") ? "full-fetch" : "auto",
         url,
       })

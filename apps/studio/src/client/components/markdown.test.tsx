@@ -848,10 +848,9 @@ describe("Markdown image sources", () => {
         "a host the agent would be trusted with",
         "https://github.com/o/r/p.png",
       ],
-      // Plain http on a `.localhost` host is the task asset origin, which is
-      // every port on this machine as far as the host tells. A file that
-      // belongs to no task has nothing to address there, so what such a source
-      // reaches is whatever else is listening.
+      // Plain http on a `.localhost` host is every port on this machine as
+      // far as the host tells, so what such a source reaches is whatever is
+      // listening.
       ["a loopback service", "http://x.localhost:11434/api/pull?name=evil"],
       ["a path inside a task", "./output/plot.png"],
     ])("drops %s", (_case, src) => {
@@ -996,8 +995,8 @@ describe("Markdown images in a task's own file", () => {
   });
 
   // The file is still prose someone else may have written, and an absolute
-  // source in it is a host of that author's choosing. Over the asset origin's
-  // loopback host that is every port on this machine, which resolves to the
+  // source in it is a host of that author's choosing. Over a loopback host
+  // that is every port on this machine, which resolves to the
   // same shape a relative path does and is not the same question.
   it.each([
     ["a loopback service", "http://x.localhost:11434/probe", /x\.localhost/],

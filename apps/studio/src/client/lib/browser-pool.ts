@@ -97,6 +97,7 @@ interface WebviewElement extends HTMLElement {
   getZoomFactor(): number;
   goBack(): void;
   goForward(): void;
+  isLoading(): boolean;
   loadURL(url: string): Promise<void>;
   reload(): void;
   reloadIgnoringCache(): void;

@@ -53,7 +53,10 @@ import { TabLocationRow } from "@/client/components/orchestrator/tab-location-ro
 import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
 import { threadListOptions } from "@/client/components/orchestrator/thread-list-query";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
-import { ThreadRail } from "@/client/components/orchestrator/thread-rail";
+import {
+  ThreadRail,
+  usePageThumbnailHousekeeping,
+} from "@/client/components/orchestrator/thread-rail";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
 import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-view";
 import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-view";
@@ -698,6 +701,7 @@ function OrchestratorLayout() {
   };
 
   useRecordRecents();
+  usePageThumbnailHousekeeping();
 
   // The default first, since it is what the draft's picker edits: every send
   // stores its model on the orchestrator's own state, so once any thread has

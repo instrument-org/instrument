@@ -1,4 +1,4 @@
-import { type WindowTab } from "@/client/atoms/orchestrator";
+import { everyTabIdAtom, type WindowTab } from "@/client/atoms/orchestrator";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
@@ -19,12 +20,46 @@ import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
+import { safe } from "@orpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useState } from "react";
+import { useAtomValue } from "jotai";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { computerName } from "./computer-name";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { SiteIcon } from "./sidebar";
+
+/**
+ * Keeps the pages' pictures to the tabs the window holds: at startup, every
+ * picture but those of the restored tabs is thrown away, and from then on a
+ * picture goes with its tab, whether the tab was closed or its chat trashed.
+ */
+export function usePageThumbnailHousekeeping() {
+  const queryClient = useQueryClient();
+  const ids = useAtomValue(everyTabIdAtom);
+  const previous = useRef<ReadonlySet<string>>(undefined);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = ids;
+    if (before === undefined) {
+      // An empty window keeps everything: it may not be the window's tabs yet.
+      if (ids.size > 0) {
+        void safe(
+          rpcClient.browser.thumbnails.keepOnly.call({ keys: [...ids] }),
+        );
+      }
+      return;
+    }
+    const gone = [...before].filter((id) => !ids.has(id));
+    if (gone.length === 0) {
+      return;
+    }
+    for (const id of gone) {
+      queryClient.removeQueries({ queryKey: thumbnailKey(id) });
+    }
+    void safe(rpcClient.browser.thumbnails.forget.call({ keys: gone }));
+  }, [ids, queryClient]);
+}
 
 /** How long a page on screen is left to settle before its picture is taken. */
 const SETTLE_MS = 1500;
@@ -167,40 +202,71 @@ function PagePicture({
     queryKey: thumbnailKey(tab.id),
     staleTime: Infinity,
   });
-  const url = tab.url;
-  useEffect(() => {
-    if (!isOnScreen) {
+  const isAttached = useBrowserTargets().has(targetId);
+  // Each request numbered, so a picture that finishes after a newer one was
+  // asked for never replaces it.
+  const requested = useRef(0);
+  const capture = () => {
+    const webview = getWebviewElement(targetId);
+    let webContentsId: number | undefined;
+    try {
+      webContentsId = webview?.getWebContentsId();
+    } catch {
+      // Not attached yet: there is nothing drawn to take.
       return;
     }
-    const capture = () => {
-      const webview = getWebviewElement(targetId);
-      let webContentsId: number | undefined;
-      try {
-        webContentsId = webview?.getWebContentsId();
-      } catch {
-        // Not attached yet: there is nothing drawn to take.
-        return;
-      }
-      if (webContentsId === undefined) {
-        return;
-      }
-      void rpcClient.browser.thumbnails.capture
-        .call({ key: tab.id, webContentsId })
-        .then((result) => {
-          if (result.url) {
-            queryClient.setQueryData(thumbnailKey(tab.id), result);
-          }
-        })
-        .catch(() => {
-          // A missed picture keeps the last one; the next visit takes another.
-        });
-    };
-    const timer = setTimeout(capture, SETTLE_MS);
-    return () => {
-      clearTimeout(timer);
+    if (webContentsId === undefined) {
+      return;
+    }
+    requested.current += 1;
+    const mine = requested.current;
+    void rpcClient.browser.thumbnails.capture
+      .call({ key: tab.id, webContentsId })
+      .then((result) => {
+        if (result.url && mine === requested.current) {
+          queryClient.setQueryData(thumbnailKey(tab.id), result);
+        }
+      })
+      .catch(() => {
+        // A missed picture keeps the last one; the next visit takes another.
+      });
+  };
+  // While on screen: a picture each time the page finishes loading, and one
+  // once it has settled if it was already loaded when it came up.
+  useEffect(() => {
+    const webview = isOnScreen ? getWebviewElement(targetId) : null;
+    if (!webview) {
+      return;
+    }
+    const onLoaded = () => {
       capture();
     };
-  }, [isOnScreen, queryClient, tab.id, targetId, url]);
+    webview.addEventListener("did-stop-loading", onLoaded);
+    let settled: ReturnType<typeof setTimeout> | undefined;
+    try {
+      if (!webview.isLoading()) {
+        settled = setTimeout(capture, SETTLE_MS);
+      }
+    } catch {
+      // Not attached yet: its first load will say when it is ready.
+    }
+    return () => {
+      webview.removeEventListener("did-stop-loading", onLoaded);
+      clearTimeout(settled);
+    };
+    // Re-armed when the page comes on screen and when its guest attaches.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnScreen, isAttached, targetId]);
+  // Leaving the screen: one more, of the page as it was last seen. Not when
+  // the tile goes, which is the tab closing.
+  const wasOnScreen = useRef(isOnScreen);
+  useEffect(() => {
+    if (wasOnScreen.current && !isOnScreen) {
+      capture();
+    }
+    wasOnScreen.current = isOnScreen;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnScreen]);
 
   if (picture.data?.url) {
     return (

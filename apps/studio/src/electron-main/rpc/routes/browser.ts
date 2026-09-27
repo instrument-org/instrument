@@ -6,6 +6,8 @@ import {
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import {
   capturePageThumbnail,
+  forgetPageThumbnails,
+  keepOnlyPageThumbnails,
   readPageThumbnail,
 } from "@/electron-main/browser-view/page-thumbnails";
 import { siteIconDeps } from "@/electron-main/lib/app-protocol";
@@ -169,6 +171,18 @@ const thumbnails = {
     .handler(async ({ input }) => ({
       url: await readPageThumbnail(input.key),
     })),
+  /** The pictures of tabs that are gone, a closed tab's or a trashed chat's. */
+  forget: base
+    .input(z.object({ keys: z.array(z.string()) }))
+    .handler(async ({ input }) => {
+      await forgetPageThumbnails(input.keys);
+    }),
+  /** Every picture but those of the tabs the window holds, at startup. */
+  keepOnly: base
+    .input(z.object({ keys: z.array(z.string()) }))
+    .handler(async ({ input }) => {
+      await keepOnlyPageThumbnails(input.keys);
+    }),
 };
 
 export const browser = {

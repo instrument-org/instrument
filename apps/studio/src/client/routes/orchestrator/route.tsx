@@ -1148,7 +1148,11 @@ function OrchestratorLayout() {
                             {...(hasRail
                               ? {
                                   onClose: () => {
-                                    if (windowTabs.group !== undefined) {
+                                    if (active) {
+                                      requestClose(active.id);
+                                    } else if (isTasksViewUp) {
+                                      setTasksFace(undefined);
+                                    } else if (windowTabs.group !== undefined) {
                                       setPaneOpen(windowTabs.group, false);
                                     }
                                   },
@@ -1235,7 +1239,7 @@ function OrchestratorLayout() {
                       </div>
                     </RightPane>
                   </div>
-                  {hasRail && ids && (
+                  {hasRail && ids && tabs.length > 0 && (
                     <ThreadRail
                       activeId={isTasksViewUp ? undefined : active?.id}
                       appsBySlug={appsBySlug}

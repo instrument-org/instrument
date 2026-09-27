@@ -72,15 +72,16 @@ let cachedBundle: string | undefined;
 
 /**
  * The page file an editing guest shows, for the folder confinement of its
- * data-loaded copy: only for a frame at the stamped copy's own address.
+ * data-loaded copy: only for a frame whose document is the stamped copy
+ * loaded at its own address.
  */
 export function editedPageOf(
   webContentsId: number | undefined,
-  frameUrl: string | undefined,
+  documentUrl: string | undefined,
 ) {
   const session =
     webContentsId === undefined ? undefined : sessions.get(webContentsId);
-  return session && frameUrl === session.url ? session.path : undefined;
+  return session && documentUrl === session.url ? session.path : undefined;
 }
 
 /**

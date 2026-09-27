@@ -2,10 +2,12 @@ import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import { type OnBeforeRequestListenerDetails, type Session } from "electron";
 import path from "node:path";
 
-/** The file a guest's frame at `frameUrl` is a stamped copy of, when it is the one being edited. */
+import { committedDocumentOf, trackFrameDocumentsIn } from "./frame-documents";
+
+/** The file a guest's frame showing `documentUrl` is a stamped copy of, when it is the one being edited. */
 type EditedPageOf = (
   webContentsId: number | undefined,
-  frameUrl: string | undefined,
+  documentUrl: string | undefined,
 ) => string | undefined;
 
 /**
@@ -26,11 +28,16 @@ type EditedPageOf = (
  * agent's way of asking a guest for a `file://` address is refused before it
  * reaches the guest at all. The task's private directory is refused as a
  * segment anywhere, the way every other road to a file refuses it.
+ *
+ * The page is the document its frame loaded, never the address the frame
+ * shows now, which the page's own script can rewrite (see
+ * `frame-documents.ts`). Call this before the session's first guest exists.
  */
 export function confineLocalPagesToTheirFolder(
   guestSession: Session,
   editedPageOf?: EditedPageOf,
 ) {
+  trackFrameDocumentsIn(guestSession);
   guestSession.webRequest.onBeforeRequest(
     { urls: ["file:///*"] },
     (details, callback) => {
@@ -51,9 +58,9 @@ export function isAllowedLocalRequest(
     Pick<OnBeforeRequestListenerDetails, "frame" | "resourceType" | "url">,
   /**
    * The file a guest editing a page shows. That page is loaded as data with
-   * the file's address as its base, so its frame reports a `data:` address;
-   * the folder it may read is the file's, as it is in View, and only while
-   * the frame is at the exact address the edit loaded.
+   * the file's address as its base, so its frame's document is a `data:`
+   * address; the folder it may read is the file's, as it is in View, and only
+   * while the frame's document is the exact address the edit loaded.
    */
   editedPage?: EditedPageOf,
 ): boolean {
@@ -64,9 +71,9 @@ export function isAllowedLocalRequest(
   if (details.resourceType === "mainFrame") {
     return true;
   }
-  const frameUrl = details.frame?.url;
+  const loaded = committedDocumentOf(details.webContentsId, details.frame);
   const page =
-    editedPage?.(details.webContentsId, frameUrl) ?? hostPathOf(frameUrl);
+    editedPage?.(details.webContentsId, loaded) ?? hostPathOf(loaded);
   if (page === undefined) {
     return false;
   }

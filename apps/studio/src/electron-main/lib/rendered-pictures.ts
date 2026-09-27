@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { sleep } from "radashi";
 import { type BundledLanguage, bundledLanguages } from "shiki";
 
+import { trackFrameDocumentsIn } from "../browser-view/frame-documents";
 import { isAllowedLocalRequest } from "../browser-view/local-file-policy";
 import { createScopedLogger } from "./electron-logger";
 import { extensionOf, renderedKindOf } from "./rendered-kinds";
@@ -311,6 +312,7 @@ function drawingSession() {
       callback(false);
     });
     drawing.setPermissionCheckHandler(() => false);
+    trackFrameDocumentsIn(drawing);
     drawing.webRequest.onBeforeRequest((details, callback) => {
       const { hostname, protocol } = new URL(details.url);
       if (protocol === "file:") {

@@ -30,10 +30,12 @@ import {
 import { recordBrowserUse } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
+import { agentSpellingOfFileUrls } from "../local-page-address";
 import { browserHostForTask } from "../orchestrator/browser-host";
 import { windowTaskId } from "../orchestrator/ensure";
 import { isAtOrUnder } from "../path-containment";
 import { isChatId } from "../record-folders";
+import { taskFsLayout } from "../resolve-workspace-file-path";
 import {
   getBrowserSessionDir,
   getDownloadsDir,
@@ -52,7 +54,7 @@ import {
   agentBrowserFlagName,
   parseAgentBrowserArgs,
 } from "./agent-browser-args";
-import { rewriteNavigationArgToAssetUrl } from "./agent-browser-asset-url";
+import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 import {
   attachedMountLiteralError,
   privateDirLiteralError,
@@ -625,15 +627,23 @@ export function createAgentBrowserCommand({
 
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
+    const layout = await taskFsLayout(taskId);
     // Before resolvePathArgs, which would otherwise turn a `/task/...`
-    // navigation target into a host path the browser cannot load.
-    const navigationArgs = await rewriteNavigationArgToAssetUrl(
+    // navigation target into a quarantined host path.
+    const navigationArgs = await rewriteNavigationArgToFileUrl(
       strippedArgs,
-      taskId,
+      layout,
       ctx,
     );
+    if ("error" in navigationArgs) {
+      return {
+        exitCode: 1,
+        stderr: `agent-browser: ${navigationArgs.error}\n`,
+        stdout: "",
+      };
+    }
     const bridgedArgs = await resolveAgentBrowserPathArgs(
-      navigationArgs,
+      navigationArgs.args,
       taskId,
       ctx,
     );
@@ -702,8 +712,19 @@ export function createAgentBrowserCommand({
       // No window to drive, so leave the provider unregistered and let the CLI
       // start a browser of its own. It does that correctly, and it is the
       // difference between a task that can open the page it just wrote and one
-      // that gets a CDP deserialization error on every attempt.
-      commandArgs.push("--session", sessionId, ...resolvedArgs);
+      // that gets a CDP deserialization error on every attempt. A stock
+      // Chromium refuses a `file://` page its scripts, modules, and fetches of
+      // the files beside it, which the app's guest allows, so the flag keeps a
+      // page the agent opens here working the way it will for the person. It
+      // also lets such a page read any file on the machine, with none of the
+      // app's folder rules; only the eval harness runs without a window, on a
+      // machine holding nobody's files but its own.
+      commandArgs.push(
+        "--session",
+        sessionId,
+        "--allow-file-access",
+        ...resolvedArgs,
+      );
     } else {
       // A task handed a tab of the orchestrator window drives that tab rather
       // than a browser of its own; nothing is created and nothing recorded,
@@ -868,7 +889,7 @@ export function createAgentBrowserCommand({
     }
 
     const scrub = (text: string) =>
-      scrubHostPaths(text, {
+      scrubHostPaths(agentSpellingOfFileUrls(text, layout), {
         homeDir: os.homedir(),
         taskDirPath: taskDir(taskId),
       });

@@ -13,7 +13,6 @@ import { type ActorRefFrom, type AnyEventObject, fromCallback } from "xstate";
 
 import { type WorkspaceConfig } from "../../types";
 import { DEFAULT_APPS_SERVER_PORT, LOOPBACK_HOST } from "./constants";
-import { assetsRoute } from "./routes/assets";
 import { cdpBridgeRoute, setupCdpWebSocketBridge } from "./routes/cdp-bridge";
 import {
   type WorkspaceServerEnv,
@@ -22,11 +21,10 @@ import {
 import { setWorkspaceServerPort } from "./url";
 
 /**
- * The loopback server: the per-task asset origin the agent's browser opens a
- * task's files on, the CDP bridge agent-browser drives a guest through, and
- * the model proxy every in-process model call is pointed at, which is where
- * provider credentials are added. The person's own viewers read files by
- * another road entirely.
+ * The loopback server: the CDP bridge agent-browser drives a guest through,
+ * and the model proxy every in-process model call is pointed at, which is
+ * where provider credentials are added. It serves no files; a page on this
+ * computer opens at its `file://` address for the person and the agent alike.
  */
 export const workspaceServerLogic = fromCallback<
   AnyEventObject,
@@ -44,9 +42,6 @@ export const workspaceServerLogic = fromCallback<
     await next();
   });
 
-  // Asset origins own their entire root, so they are claimed before the
-  // infrastructure route inspects the request.
-  app.route("/", assetsRoute);
   app.route("/", cdpBridgeRoute);
   if (input.aiGatewayApp) {
     app.use<string, AIGatewayEnv>(

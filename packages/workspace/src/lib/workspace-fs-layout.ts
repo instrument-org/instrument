@@ -671,6 +671,45 @@ export function resolveReadOnlyHostPath(
   return hostPath;
 }
 
+/**
+ * The inverse of {@link resolveHostPath}: the virtual path a host path appears
+ * at, plus the mount that owns it. Null when no mount's host root holds the
+ * path. The deepest host root wins, so a folder attached from inside another
+ * mount is named by its own mount point. A path spelled through a symlink
+ * (`/tmp` for `/private/tmp`) is matched by where it really leads when its
+ * spelling matches no root.
+ *
+ * A caller about to hand the file's bytes to the agent still checks
+ * {@link isMaskedPrivatePath} and {@link hostPathEscapesMount}.
+ */
+export function virtualPathForHostPath(
+  layout: WorkspaceFsLayout,
+  hostPath: string,
+): null | { mount: WorkspaceFsMount; virtualPath: string } {
+  const mounts = allMounts(layout);
+  const lexical = deepestMountHolding(
+    mounts.map((mount) => ({ mount, root: mount.hostRoot })),
+    hostPath,
+  );
+  if (lexical) {
+    return lexical;
+  }
+  const canonical = canonicalizeThroughMissing(hostPath);
+  if (canonical === null) {
+    return null;
+  }
+  return deepestMountHolding(
+    mounts.flatMap((mount) => {
+      try {
+        return [{ mount, root: realpathSync(mount.hostRoot) }];
+      } catch {
+        return [];
+      }
+    }),
+    canonical,
+  );
+}
+
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [layout.task, ...nonTaskMounts(layout)];
@@ -737,6 +776,33 @@ function canonicalizeThroughMissing(hostPath: string): null | string {
     missing.push(nodePath.basename(current));
     current = parent;
   }
+}
+
+function deepestMountHolding(
+  roots: { mount: WorkspaceFsMount; root: string }[],
+  hostPath: string,
+): null | { mount: WorkspaceFsMount; virtualPath: string } {
+  let best: null | { mount: WorkspaceFsMount; relative: string; root: string } =
+    null;
+  for (const { mount, root } of roots) {
+    const relative = nodePath.relative(root, hostPath);
+    if (
+      relative.startsWith("..") ||
+      nodePath.isAbsolute(relative) ||
+      (best !== null && root.length <= best.root.length)
+    ) {
+      continue;
+    }
+    best = { mount, relative, root };
+  }
+  if (best === null) {
+    return null;
+  }
+  const segments = best.relative.split(nodePath.sep).filter(Boolean);
+  return {
+    mount: best.mount,
+    virtualPath: normalizePath([best.mount.mountPoint, ...segments].join("/")),
+  };
 }
 
 function isEnoent(error: unknown): boolean {

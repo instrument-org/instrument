@@ -357,7 +357,7 @@ export function BrowserTabs({
 
   // The tabs a launch restored, taken once: only these are sent back to the
   // page they held, and a tab opened later is navigated by its own open.
-  const bootTabIds = useRef<Set<string> | null>(null);
+  const bootTabIds = useRef<null | Set<string>>(null);
   bootTabIds.current ??= new Set(allTabs.map((tab) => tab.id));
   // Each restored tab is opened at most once, the first time it comes up.
   const restored = useRef(new Set<string>());

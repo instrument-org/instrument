@@ -51,17 +51,8 @@ import { AskTray } from "./ask-tray";
 import { useOrchestrator } from "./context";
 import { FileAskButton } from "./file-ask-button";
 import { segmentsOf } from "./host-path";
-import {
-  PageEditMenuItems,
-  PageEditPill,
-  PageEditSession,
-  PageEditToggle,
-} from "./page-edit";
-import {
-  pageEditPlacementAtom,
-  pageEditTabsAtom,
-  usePageEditToggleOnScreen,
-} from "./page-edit-state";
+import { PageEditSession, PageEditToggle } from "./page-edit";
+import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { strayWindowGuests } from "./stray-window-guests";
 import { stepTabVisit, visitInTab } from "./tab-history";
 import { isHomeTab, selectTab } from "./window-tabs";
@@ -992,7 +983,6 @@ export function BrowserTabs({
   // A page's file can be edited in place, from its tab.
   const editTabs = useAtomValue(pageEditTabsAtom);
   const setEditTabs = useSetAtom(pageEditTabsAtom);
-  const editPlacement = useAtomValue(pageEditPlacementAtom);
   const editableId = active && isEditablePage(active) ? active.id : undefined;
   // Edit lasts while its tab is open on an HTML file: a tab that closes, or
   // goes on to a picture, a PDF or a site, is out of it.
@@ -1057,14 +1047,11 @@ export function BrowserTabs({
           {...(editableId === undefined
             ? {}
             : {
-                menuItems: <PageEditMenuItems />,
                 // A page's file asks about itself the way every file tab
-                // does, beside the Edit control when it is here.
+                // does, beside the Edit control.
                 pageControls: (
                   <>
-                    {editPlacement === "row" && (
-                      <PageEditToggle tabId={editableId} />
-                    )}
+                    <PageEditToggle tabId={editableId} />
                     {activeFilePath !== undefined && (
                       <FileAskButton
                         name={
@@ -1094,7 +1081,6 @@ export function BrowserTabs({
           taskId={active.taskId ?? taskId}
         />
       ) : null}
-      {editableId !== undefined && <PageEditPill tabId={editableId} />}
       {/* A page's file keeps its asks at its foot while viewed; in Edit the
           page's own dock holds them. */}
       {activeFilePath !== undefined && !(active && editTabs[active.id]) && (

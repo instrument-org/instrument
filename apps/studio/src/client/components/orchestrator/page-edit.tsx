@@ -2,13 +2,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
@@ -32,11 +26,10 @@ import { CheckIcon } from "@phosphor-icons/react/Check";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { pageEditPlacementAtom, usePageEdit } from "./page-edit-state";
+import { usePageEdit } from "./page-edit-state";
 import {
   linesLabel,
   numbered,
@@ -72,61 +65,6 @@ const ATTACH_RETRIES = 40;
  */
 const tabChains = new Map<string, Promise<unknown>>();
 
-/** The page menu's switch between the two placements of the Edit control, while both are tried. */
-export function PageEditMenuItems() {
-  const [placement, setPlacement] = useAtom(pageEditPlacementAtom);
-  return (
-    <>
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <PencilSimpleIcon className="size-4" />
-          Edit control
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent>
-          <DropdownMenuRadioGroup
-            onValueChange={(value) => {
-              setPlacement(value === "pill" ? "pill" : "row");
-            }}
-            value={placement}
-          >
-            <DropdownMenuRadioItem value="row">
-              In the address row
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="pill">
-              Floating on the page
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-      <DropdownMenuSeparator />
-    </>
-  );
-}
-
-/** The floating way in: a pill at the page's foot, which the edit toolbar takes the place of. */
-export function PageEditPill({ tabId }: { tabId: string }) {
-  const { isEditing, setEditing } = usePageEdit(tabId);
-  const placement = useAtomValue(pageEditPlacementAtom);
-  if (placement !== "pill" || isEditing) {
-    return null;
-  }
-  return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-3.5 z-30 flex justify-center">
-      <button
-        className="pointer-events-auto flex h-9 items-center gap-2 rounded-xl border border-border bg-popover px-3.5 text-sm font-medium text-popover-foreground shadow-lg hover:bg-accent"
-        onClick={() => {
-          setEditing(true);
-        }}
-        type="button"
-      >
-        <PencilSimpleIcon className="size-4" />
-        Edit page
-        <span className="text-xs text-muted-foreground">⌘E</span>
-      </button>
-    </div>
-  );
-}
-
 /**
  * One page tab in Edit: shows the stamped page in its guest, and serves the
  * editor running there. Mounted for every tab in Edit, not only the one on
@@ -149,7 +87,9 @@ export function PageEditSession({
   // the page blank.
   const [cover, setCover] = useState<null | string>(null);
   const { setEditing } = usePageEdit(tabId);
-  const placement = useAtomValue(pageEditPlacementAtom);
+  // The Edit control lives in the address row; the guest draws its toolbar to
+  // match rather than floating it over the page.
+  const placement = "row" as const;
   const stageAsk = useStageAsk();
   const { remove: removeAsks } = useStagedAskActions();
   const { label: moveLabelFor, move } = useMoveAsks();

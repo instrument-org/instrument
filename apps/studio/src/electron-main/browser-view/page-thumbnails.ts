@@ -17,29 +17,6 @@ const pictures = new Map<string, string>();
 const latest = new Map<string, number>();
 let captures = 0;
 
-function folder() {
-  return path.join(app.getPath("userData"), "page-thumbnails");
-}
-
-function nameOf(key: string) {
-  return `${createHash("sha1").update(key).digest("hex")}.jpg`;
-}
-
-function asDataUrl(jpeg: Buffer) {
-  return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
-}
-
-function hold(key: string, url: string) {
-  pictures.delete(key);
-  pictures.set(key, url);
-  for (const oldest of pictures.keys()) {
-    if (pictures.size <= HELD) {
-      break;
-    }
-    pictures.delete(oldest);
-  }
-}
-
 /**
  * A picture of a browser guest's page as it is drawn now, kept under `key`
  * (the tab's id) in memory and on disk, so a rail reopened later, or after
@@ -72,22 +49,6 @@ export async function capturePageThumbnail({
   await fs.mkdir(folder(), { recursive: true });
   await fs.writeFile(path.join(folder(), nameOf(key)), jpeg);
   return url;
-}
-
-/** The last picture kept under `key`, or nothing when none was ever taken. */
-export async function readPageThumbnail(key: string): Promise<null | string> {
-  const kept = pictures.get(key);
-  if (kept) {
-    hold(key, kept);
-    return kept;
-  }
-  try {
-    const url = asDataUrl(await fs.readFile(path.join(folder(), nameOf(key))));
-    hold(key, url);
-    return url;
-  } catch {
-    return null;
-  }
 }
 
 /** Throws away the pictures of pages that are gone: a tab closed, or its chat trashed. */
@@ -123,4 +84,43 @@ export async function keepOnlyPageThumbnails(keys: string[]): Promise<void> {
       pictures.delete(key);
     }
   }
+}
+
+/** The last picture kept under `key`, or nothing when none was ever taken. */
+export async function readPageThumbnail(key: string): Promise<null | string> {
+  const kept = pictures.get(key);
+  if (kept) {
+    hold(key, kept);
+    return kept;
+  }
+  try {
+    const url = asDataUrl(await fs.readFile(path.join(folder(), nameOf(key))));
+    hold(key, url);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function asDataUrl(jpeg: Buffer) {
+  return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
+}
+
+function folder() {
+  return path.join(app.getPath("userData"), "page-thumbnails");
+}
+
+function hold(key: string, url: string) {
+  pictures.delete(key);
+  pictures.set(key, url);
+  for (const oldest of pictures.keys()) {
+    if (pictures.size <= HELD) {
+      break;
+    }
+    pictures.delete(oldest);
+  }
+}
+
+function nameOf(key: string) {
+  return `${createHash("sha1").update(key).digest("hex")}.jpg`;
 }

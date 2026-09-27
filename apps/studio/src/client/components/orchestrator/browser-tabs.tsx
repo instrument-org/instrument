@@ -364,15 +364,30 @@ export function BrowserTabs({
     });
   }, [activeTarget, taskId]);
 
-  // A tab that comes back after a launch opens where it was: the panel opens
-  // the guest itself, but at the page the workspace last recorded, which a
-  // page the user browsed to by hand may not be.
-  const activeAttached = activeTarget !== null && attached.has(activeTarget);
+  // The tabs a launch restored, taken once: only these are sent back to the
+  // page they held, and a tab opened later is navigated by its own open.
+  const bootTabIds = useRef<Set<string> | null>(null);
+  bootTabIds.current ??= new Set(allTabs.map((tab) => tab.id));
+  // Each restored tab is opened at most once, the first time it comes up.
+  const restored = useRef(new Set<string>());
   const activeUrl = active?.url;
+  // A tab that comes back after a launch opens where it was: the workspace
+  // recreates the guest blank and this sends it to the page it last held.
+  // Fired on the tab coming up rather than on its guest being absent, because
+  // a local file's guest attaches to about:blank so fast it is already there
+  // when this first runs, which the old guest-absent guard read as "showing
+  // its page" and skipped, leaving the tab blank.
   useEffect(() => {
-    if (!active || activeAttached || !activeUrl) {
+    if (
+      !active ||
+      !activeUrl ||
+      activeUrl === "about:blank" ||
+      !bootTabIds.current?.has(active.id) ||
+      restored.current.has(active.id)
+    ) {
       return;
     }
+    restored.current.add(active.id);
     // A recreated guest has no native history from the preceding launch.
     setAllTabs((current) => ({
       ...current,
@@ -386,9 +401,9 @@ export function BrowserTabs({
       sessionId: StoreId.SessionSchema.parse(active.id),
       url: activeUrl,
     });
-    // Once per tab coming back, not per render while it attaches.
+    // Fired once per restored tab, when it first comes up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active?.id, taskId]);
+  }, [active?.id, activeUrl, taskId]);
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.

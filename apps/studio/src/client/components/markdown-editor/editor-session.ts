@@ -53,6 +53,7 @@ import {
 import { splitFrontMatter } from "./front-matter";
 import { createHtmlView, htmlStructurePlugin } from "./html-render";
 import { icon, instrumentMark } from "./icons";
+import { fitSelectionToolbar } from "./toolbar-fit";
 
 export interface AskSelection {
   /** The kind of block the selection starts in, as a reader names it: "Heading", "Paragraph". */
@@ -733,6 +734,13 @@ export async function createEditorSession(options: EditorSessionOptions) {
   options.onStatus("saved");
 
   const stopFlushOnLeave = flushOnLeave(saves.flush, root);
+  const stopFittingToolbar = fitSelectionToolbar(root, () => {
+    const { from, to } = pmView.state.selection;
+    return {
+      bottom: pmView.coordsAtPos(to).bottom,
+      top: pmView.coordsAtPos(from).top,
+    };
+  });
 
   const handle = {
     /**
@@ -775,6 +783,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
       saves.cancel();
       code.destroy();
       removeBlockMenu();
+      stopFittingToolbar();
       await crepe?.destroy();
       crepe = null;
     },

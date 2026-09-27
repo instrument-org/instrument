@@ -266,7 +266,12 @@ textarea.md-input {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+/* Wraps onto a second row when the space it is held inside (toolbar-fit.ts)
+   is narrower than it, so Ask at the end stays reachable. Its width is its
+   content's, not what is left of the column right of where it was placed. */
 .md-editor .milkdown .milkdown-toolbar {
+  width: max-content;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
   padding: 4px;

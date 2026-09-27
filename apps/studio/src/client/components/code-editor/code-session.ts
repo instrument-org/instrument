@@ -57,6 +57,7 @@ import {
   lineNumbers,
   showTooltip,
   type Tooltip,
+  tooltips,
   WidgetType,
 } from "@codemirror/view";
 
@@ -640,7 +641,21 @@ function askTooltip(onAsk: (state: EditorState) => void): Extension {
     update: (value, tr) =>
       tr.docChanged || tr.selection ? tooltipsFor(tr.state) : value,
   });
-  return field;
+  // Held inside the editor's visible box rather than the whole window, so in
+  // a narrow pane it does not stand over the pane's edge or past the window's.
+  const space = tooltips({
+    tooltipSpace: (view) => {
+      const box = view.scrollDOM.getBoundingClientRect();
+      const pad = 8;
+      return {
+        bottom: Math.min(box.bottom, innerHeight) - pad,
+        left: Math.max(box.left, 0) + pad,
+        right: Math.min(box.right, document.documentElement.clientWidth) - pad,
+        top: Math.max(box.top, 0) + pad,
+      };
+    },
+  });
+  return [field, space];
 }
 
 /** The first line and the last a selection covers, 1-based; one ending at a line's start stops on the line before. */

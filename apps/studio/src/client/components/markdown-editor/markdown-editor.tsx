@@ -39,6 +39,7 @@ import {
 import { setFrontMatterField, splitFrontMatter } from "./front-matter";
 import { FrontMatterCard } from "./front-matter-card";
 import { openSourcePopover } from "./html-render";
+import { scrollParentOf } from "./toolbar-fit";
 
 /** The headings that are the document's, not the editor's own menus. */
 const HEADING_SELECTOR = ".ProseMirror > :is(h1, h2, h3, h4, h5, h6)";
@@ -587,14 +588,4 @@ function resolveImageSrc(src: string, folder: string): string {
     ? src
     : decodeURI(new URL(src, `file://${encodeURI(folder)}`).pathname);
   return getComputerFileUrl({ hostPath: path });
-}
-
-function scrollParentOf(element: HTMLElement): HTMLElement | null {
-  for (let at = element.parentElement; at; at = at.parentElement) {
-    const { overflowY } = getComputedStyle(at);
-    if (overflowY === "auto" || overflowY === "scroll") {
-      return at;
-    }
-  }
-  return null;
 }

@@ -33,14 +33,14 @@ It reads oddly beside `show`, which puts a file in front of the *user*. `render`
 
 ## Build it on the browser, not on more binaries
 
-The browser already spans SVG, HTML and PDF, is already wired, and already rewrites a task-relative path onto the per-task asset origin, so `render output/page.html` needs no path handling of its own:
+The browser already spans SVG, HTML and PDF, is already wired, and already opens a task-relative path at the file's own `file://` address, reporting it back in the agent's paths, so `render output/page.html` needs no path handling of its own:
 
 ```
 $ agent-browser open output/page.html
-✓ http://assets.<taskId>.localhost:48500/output/page.html
+✓ file:///task/output/page.html
 ```
 
-For Word, PowerPoint and Excel, render client-side in that same browser rather than bundling a converter. A small bundled viewer page takes the asset URL, renders the document with a JS library, and the existing screenshot path captures it. Bundling LibreOffice to convert to PDF is tens of megabytes in the installer, a separate binary per platform, and a notarization problem, to reach formats a page can already draw.
+For Word, PowerPoint and Excel, render client-side in that same browser rather than bundling a converter. A small bundled viewer page takes the file's address, renders the document with a JS library, and the existing screenshot path captures it. Bundling LibreOffice to convert to PDF is tens of megabytes in the installer, a separate binary per platform, and a notarization problem, to reach formats a page can already draw.
 
 It is worth knowing how bad the alternative is: nothing on a stock developer machine renders a workbook. There is no LibreOffice, and Quick Look returns a zoomed, clipped corner of sheet one. Comparing eight models' spreadsheets in the eval meant reading their XML. A task is in exactly the same position, and so is anyone who tries to check one by hand.
 

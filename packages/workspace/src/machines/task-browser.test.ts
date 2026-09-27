@@ -72,9 +72,11 @@ function makeBrowser(): BrowserConfig {
     closeTarget: vi.fn(asyncNoop),
     createTarget: vi.fn(createTargetMock),
     getTargetMeta: vi.fn(() => null),
+    getTargetUrl: vi.fn<() => string | undefined>(),
     listTargets: vi.fn(emptyTargets),
     onTargetDestroyed: vi.fn(makeDisposer),
     sendCommand: vi.fn(emptyResult),
+    setAgentFileRoots: vi.fn(noop),
     stopScreencast: vi.fn(noop),
     subscribeEvents: vi.fn(makeDisposer),
   };

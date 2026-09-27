@@ -74,7 +74,7 @@ What either buys, all of it landing on surfaces we own:
 - Browser-process crash and spurious preload `ENOENT` when `app.asar` is replaced on disk while running (42.6.2), which is the shape of the updater work in [auto-updater.md](../../architecture/auto-updater.md).
 - Downloads of files inside an asar, including saving a packed PDF from the built-in viewer (42.9.2).
 - Windows opened from a sandboxed frame not inheriting the opener's sandbox restrictions (42.5.2, 42.9.2), which feeds [browser-popups-as-agent-drivable-tabs.md](browser-popups-as-agent-drivable-tabs.md).
-- `ProtocolResponse.url` requests going through the default session rather than the registering session (42.5.1). We register per-task protocol handlers for the asset origin.
+- `ProtocolResponse.url` requests going through the default session rather than the registering session (42.5.1). We register protocol handlers per session (the file channel, the app scheme).
 - A use-after-free in `protocol.registerStreamProtocol` on a read error (42.8.1).
 - The primary instance being killed or receiving truncated arguments when a second instance passes a long command line to `requestSingleInstanceLock` (42.10.1). That is the deep-link path.
 - Reduced idle main-process wakeups (42.9.3), and renderer resource loads no longer waiting on main-process idle when no `webRequest` listeners are registered (42.10.1).

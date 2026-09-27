@@ -44,6 +44,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
 import { steppedZoom } from "@/shared/zoom";
+import { withoutPageEditParam } from "@instrument-org/shared";
 import {
   type BrowserTargetId,
   encodeBrowserTargetId,
@@ -86,7 +87,6 @@ interface DidFailLoadEvent extends Event {
  */
 export function TaskBrowserPanel({
   active,
-  address,
   chrome = true,
   className,
   focusAddress = true,
@@ -101,12 +101,6 @@ export function TaskBrowserPanel({
   taskId,
 }: {
   active: boolean;
-  /**
-   * The address the page stands for while the guest shows a copy of it
-   * loaded as data (a page's file in Edit): the bar, Copy URL and the way
-   * out to the user's browser all give this instead of the copy's.
-   */
-  address?: string;
   /**
    * Where the bar goes: over the page as its own row, nowhere, or into
    * elements the window keeps for it. Drawn there it loses the arrows and
@@ -150,10 +144,6 @@ export function TaskBrowserPanel({
 }) {
   const targetId = encodeBrowserTargetId(taskId, sessionId);
   const inputRef = useRef<HTMLInputElement>(null);
-  const addressRef = useRef(address);
-  useEffect(() => {
-    addressRef.current = address;
-  });
   const isVisible = useIsTaskPageVisible();
   const [draftUrl, setDraftUrl] = useState("");
   const [location, setLocation] = useState<null | {
@@ -261,7 +251,7 @@ export function TaskBrowserPanel({
       // getURL/canGoBack throw if the guest hasn't attached its WebContents yet;
       // the did-navigate events that also drive this only fire once it has.
       try {
-        const url = standIn(webview.getURL(), addressRef.current);
+        const url = withoutPageEditParam(webview.getURL());
         if (!editingUrlRef.current) {
           setDraftUrl(url === "about:blank" ? "" : url);
         }
@@ -398,7 +388,9 @@ export function TaskBrowserPanel({
       // getURL throws until the guest's WebContents is dom-ready; `active` can
       // lead that (it round-trips through main), so treat a throw as "no page".
       const url = webviewFor()?.getURL();
-      return url && url !== "about:blank" ? standIn(url, address) : undefined;
+      return url && url !== "about:blank"
+        ? withoutPageEditParam(url)
+        : undefined;
     } catch {
       return;
     }
@@ -798,9 +790,4 @@ export function TaskBrowserPanel({
       )}
     </div>
   );
-}
-
-/** A copy loaded as data stands for the address it was loaded in place of. */
-function standIn(url: string, address: string | undefined) {
-  return url.startsWith("data:") && address !== undefined ? address : url;
 }

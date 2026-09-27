@@ -34,8 +34,8 @@ import {
  *   its own location: a page's file is shown in a browser guest at its
  *   `file://` address instead. The check is unconditional so development
  *   exercises the same path the packaged build does.
- * - The task's private directory is refused as a segment anywhere, the way the
- *   asset origin refuses it, and only GET and HEAD are answered.
+ * - The task's private directory is refused as a segment anywhere, the way
+ *   every other road to a file refuses it, and only GET and HEAD are answered.
  */
 const HOST_PREFIX = "computer-";
 

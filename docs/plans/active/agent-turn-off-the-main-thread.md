@@ -34,7 +34,7 @@ The boundary is also worth more than the mitigations are. A pipeline stage buffe
 
 **The CDP path is already brokered over a socket.** The agent reaches the browser as `agent-browser` binary, then CDP over WebSocket, then the workspace server's CDP bridge, then main's command dispatch, then the guest's debugger. Only the last hop crosses the new boundary. That is one command-dispatch interface, not a port of the browser stack.
 
-**The asset origin becomes a direct renderer-to-child HTTP connection.** The renderer resolves the workspace server URL once at boot through a module that already documents itself as the single seam for injecting a different origin. When the server moves into the child, image and preview loading stops touching main at all. This is a real win that arrives early and is worth sequencing for that reason.
+**Previews do not move.** The renderer reads files over the file channel in main (`instrument://computer-<token>`), and the agent's browser opens a file at its `file://` address, so no file serving lives in the workspace server to move with it.
 
 ## What makes it expensive
 
@@ -46,7 +46,7 @@ The boundary is also worth more than the mitigations are. A pipeline stage buffe
 
 ### Moves into the child
 
-The workspace actor and its whole machine tree, the just-bash sandbox and every tool, the per-task runtimes, the session store and the task databases, the background process registry, the workspace HTTP server with the asset origin and the CDP bridge, the mounted ai-gateway app, and the orchestrator wake. These are pure Node today and need no adaptation beyond being started differently.
+The workspace actor and its whole machine tree, the just-bash sandbox and every tool, the per-task runtimes, the session store and the task databases, the background process registry, the workspace HTTP server with the CDP bridge, the mounted ai-gateway app, and the orchestrator wake. These are pure Node today and need no adaptation beyond being started differently.
 
 ### Stays in main, reached by the child through a proxy
 
@@ -88,8 +88,7 @@ Each step is meant to be shippable and reversible on its own.
 4. **The build guard.** Fail the build if the workspace package or anything it pulls in imports Electron. Cheap now, and it protects every step after this one.
 5. **Move the actor, proxying every callback.** The bulk of the work. Renderer still talks to main, which forwards workspace calls to the child. Behind a setting, defaulted off, as the survey's migration pattern suggests.
 6. **Direct renderer port.** Give the renderer its own port to the child for the workspace router, removing the main hop from streaming.
-7. **Point the asset origin at the child.** One resolution changes and previews decouple from main.
-8. **Flip the default, then delete the old path.**
+7. **Flip the default, then delete the old path.**
 
 ## Out of scope, but do not lose
 

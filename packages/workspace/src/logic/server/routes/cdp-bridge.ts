@@ -7,6 +7,16 @@ import { type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
 import { WebSocket, WebSocketServer } from "ws";
 
+import {
+  agentPathOfFileUrl,
+  agentSpellingOfFileUrls,
+  isLocalAddress,
+} from "../../../lib/local-page-address";
+import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
+import {
+  nonTaskMounts,
+  type WorkspaceFsLayout,
+} from "../../../lib/workspace-fs-layout";
 import { publisher } from "../../../rpc/publisher";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import {
@@ -65,6 +75,8 @@ cdpBridgeRoute.get("/json", async (c) => {
   const { browser } = c.get("workspaceConfig");
   const port = getWorkspaceServerPort();
   const targets = await browser.listTargets(subdomainResult.data);
+  // The listing is the agent's, so a local page is named by the agent's path.
+  const layout = await taskFsLayout(subdomainResult.data);
 
   return c.json(
     targets.map((t) => ({
@@ -73,7 +85,7 @@ cdpBridgeRoute.get("/json", async (c) => {
       id: t.id,
       title: t.title,
       type: t.type,
-      url: t.url,
+      url: agentSpellingOfFileUrls(t.url, layout),
       webSocketDebuggerUrl: `ws://127.0.0.1:${port}${CDP_PAGE_PATH_PREFIX}${t.id}`,
     })),
   );
@@ -210,7 +222,119 @@ function hasLoaderId(result: unknown): boolean {
 // counts, because from outside the pane they are all the same news.
 const SILENT_COMMANDS = new Set(["Page.screencastFrameAck"]);
 
-function handleCdpClient(
+/**
+ * Commands the agent may still send while its tab shows a file it could not
+ * read: leaving or reloading the page, switching on the event domains
+ * agent-browser opens a connection with, and undoing a pause it set up before
+ * the tab got there. Anything that reads the page, acts in it, or could hold
+ * or change it for the person (a request interception, a debugger, blocked
+ * addresses, emulation) is refused, and so is any `Target.*` command the
+ * bridge does not answer itself.
+ */
+const PASSES_CLOSED_FILE_GATE =
+  /^(?:(?:Page|Runtime|Network|DOM|CSS|Log|Accessibility|Inspector|Security|Performance)\.enable|Page\.(?:navigate|navigateToHistoryEntry|reload|stopLoading|stopScreencast|screencastFrameAck|setLifecycleEventsEnabled)|Fetch\.(?:disable|continueRequest|continueWithAuth|failRequest)|Debugger\.(?:disable|resume))$/;
+
+/**
+ * Events that carry a page's content or its addresses, held back while the
+ * gate is closed.
+ */
+const WITHHELD_EVENTS =
+  /^(?:Page\.screencastFrame|Runtime\.(?:consoleAPICalled|exceptionThrown|bindingCalled)|Log\..*|DOM\..*|CSS\..*|Accessibility\..*|Debugger\..*|Console\..*|Network\..*|Fetch\..*)$/;
+
+/**
+ * Events that name an address, held back whenever the address is a file the
+ * agent could not read: a navigation's own events arrive before the document
+ * it loads, so the gate has not closed yet.
+ */
+const ADDRESSED_EVENTS = /^(?:Network|Fetch|Page)\./;
+
+/** The overrides a closing connection puts back, each as its neutral value. */
+const TEARDOWN_RESETS: [string, Record<string, unknown>][] = [
+  ["Network.setBlockedURLs", { urls: [] }],
+  ["Network.setExtraHTTPHeaders", { headers: {} }],
+  ["Network.setCacheDisabled", { cacheDisabled: false }],
+  [
+    "Network.emulateNetworkConditions",
+    {
+      downloadThroughput: -1,
+      latency: 0,
+      offline: false,
+      uploadThroughput: -1,
+    },
+  ],
+  ["Emulation.setScriptExecutionDisabled", { value: false }],
+  ["Emulation.setCPUThrottlingRate", { rate: 1 }],
+  ["Emulation.setEmulatedMedia", { features: [], media: "" }],
+];
+
+/**
+ * Connections to each target, so the main process forgets an agent's folders
+ * only once no agent is connected to the tab.
+ */
+const connectionsByTarget = new Map<BrowserTargetId, number>();
+
+/**
+ * Whether the page in a tab is a local file the agent could not have read.
+ *
+ * Judged against the address the guest shows now, as the main process sees
+ * it, on every command and event; never against the last navigation event
+ * the bridge happened to hear, which a page can outrun and the agent can
+ * switch off. Closed until the task's layout has been read, so a command
+ * racing that first read is refused rather than answered. Every read of the
+ * layout is handed to `onLayout`, which is how the main process learns the
+ * folders a page in this tab may not take it out of.
+ */
+export function createLocalFileGate({
+  currentUrl,
+  onLayout,
+  readLayout,
+}: {
+  currentUrl: () => string | undefined;
+  onLayout?: (layout: WorkspaceFsLayout) => void;
+  readLayout: (() => Promise<WorkspaceFsLayout>) | undefined;
+}) {
+  let layout: undefined | WorkspaceFsLayout;
+  let loaded = false;
+
+  const read = async () => {
+    const next = await readLayout?.();
+    if (next) {
+      layout = next;
+      onLayout?.(next);
+    }
+    loaded = true;
+  };
+
+  return {
+    /** Whether an address is a file on this computer the agent could not read. */
+    hides(url: string | undefined) {
+      return (
+        url !== undefined &&
+        isLocalAddress(url) &&
+        (layout === undefined || agentPathOfFileUrl(layout, url) === null)
+      );
+    },
+    isClosed() {
+      if (!loaded) {
+        return true;
+      }
+      const url = currentUrl();
+      return (
+        url !== undefined &&
+        isLocalAddress(url) &&
+        (layout === undefined || agentPathOfFileUrl(layout, url) === null)
+      );
+    },
+    load: read,
+    /** Rereads the layout, since a folder may have been attached since. */
+    async mayOpen(url: string) {
+      await read();
+      return layout !== undefined && agentPathOfFileUrl(layout, url) !== null;
+    },
+  };
+}
+
+export function handleCdpClient(
   clientWs: WebSocket,
   targetId: BrowserTargetId,
   workspaceConfig: WorkspaceConfig,
@@ -246,7 +370,67 @@ function handleCdpClient(
   // command handler).
   const loadGate = createMainFrameLoadGate();
 
+  // Which local files this agent may look at: the ones its own tools reach.
+  // Commands are handled in arrival order behind `queue`, and the first one
+  // waits for the layout and the page's current address, so nothing is
+  // answered against a page the bridge has not yet judged.
+  // Set once the connection has closed, after which a layout read still in
+  // flight must not hand the main process folders nobody is connected for.
+  let ended = false;
+  const fileGate = createLocalFileGate({
+    currentUrl: () => workspaceConfig.browser.getTargetUrl(targetId),
+    onLayout: (layout) => {
+      if (!ended) {
+        workspaceConfig.browser.setAgentFileRoots(
+          targetId,
+          hostRootsOf(layout),
+        );
+      }
+    },
+    readLayout: initialMeta ? () => taskFsLayout(initialMeta.id) : undefined,
+  });
+  let queue = fileGate.load().catch(workspaceConfig.captureException);
+
+  connectionsByTarget.set(
+    targetId,
+    (connectionsByTarget.get(targetId) ?? 0) + 1,
+  );
+
   const onEvent = (method: string, params: unknown) => {
+    // A request's events come before the document it loads, so one taking the
+    // tab to a file the agent may not see is held back on its address alone.
+    // Every event still counts toward a held navigation's load, whether or not
+    // the agent hears it.
+    loadGate.observe(method, params);
+    if (
+      (WITHHELD_EVENTS.test(method) && fileGate.isClosed()) ||
+      (ADDRESSED_EVENTS.test(method) && fileGate.hides(addressOfEvent(params)))
+    ) {
+      // A pause the agent set up before the tab got here would hold a page
+      // it may not see; the bridge lets it go rather than the agent.
+      if (method === "Fetch.requestPaused") {
+        const { requestId } = params as Protocol.Fetch.RequestPausedEvent;
+        void workspaceConfig.browser
+          .sendCommand(targetId, "Fetch.continueRequest", { requestId })
+          .catch(noop);
+      }
+      if (method === "Network.requestIntercepted") {
+        const { interceptionId } =
+          params as Protocol.Network.RequestInterceptedEvent;
+        void workspaceConfig.browser
+          .sendCommand(targetId, "Network.continueInterceptedRequest", {
+            interceptionId,
+          })
+          .catch(noop);
+      }
+      if (method === "Debugger.paused") {
+        void workspaceConfig.browser
+          .sendCommand(targetId, "Debugger.resume", {})
+          .catch(noop);
+      }
+      return;
+    }
+
     // Inject the synthetic sessionId so agent-browser can match events to the
     // session it attached to via Target.attachToTarget. Electron emits events
     // without a sessionId since the debugger is browser-level, but agent-browser
@@ -256,8 +440,6 @@ function handleCdpClient(
       params: params as CdpEventParams<CdpEventName>,
       sessionId: `session-${targetId}`,
     });
-
-    loadGate.observe(method, params);
 
     // Synthesize Page.loadEventFired from Page.frameStoppedLoading.
     // Electron's debugger does not emit Page.loadEventFired natively; agent-
@@ -285,35 +467,45 @@ function handleCdpClient(
     onEvent,
   );
 
-  clientWs.on("message", (data) => {
-    let message: CdpRequest;
-    try {
-      const raw = Buffer.isBuffer(data)
-        ? data.toString("utf8")
-        : Array.isArray(data)
-          ? Buffer.concat(data).toString("utf8")
-          : Buffer.from(data).toString("utf8");
-      message = JSON.parse(raw) as CdpRequest;
-    } catch {
-      return;
-    }
-
+  const handleCommand = async (message: CdpRequest) => {
     const { id, method, params } = message;
     if (typeof method !== "string") {
       return;
     }
 
-    // A file on the computer is not a page the agent may point a guest at:
-    // the guest can show one, since the person's own files open there at
-    // their `file://` address, and that is exactly why the agent is refused
-    // the address. Its own files reach it through the asset origin.
+    // A local file opens at its `file://` address for the agent exactly as it
+    // does for the person, and only when the agent's own tools could read it:
+    // that address space is the whole computer.
     const navigatedTo = navigationTargetOf(method, params);
-    if (navigatedTo !== undefined && /^file:/i.test(navigatedTo)) {
+    if (
+      navigatedTo !== undefined &&
+      isLocalAddress(navigatedTo) &&
+      !(await fileGate.mayOpen(navigatedTo))
+    ) {
+      send({
+        error: {
+          code: -32_000,
+          message: `${navigatedTo} is not a file you can open. Open a file by the path you reach it at (agent-browser open work/page.html).`,
+        },
+        id,
+      });
+      return;
+    }
+
+    // A page can still take its tab to a file the agent could not have
+    // opened (a link, a script setting `location`), and the person can open
+    // one in a tab the agent drives. Until the tab leaves it, the agent may
+    // navigate away and nothing else.
+    if (
+      fileGate.isClosed() &&
+      !PASSES_CLOSED_FILE_GATE.test(method) &&
+      !INTERCEPTED_TARGET_COMMANDS.has(method)
+    ) {
       send({
         error: {
           code: -32_000,
           message:
-            "A file:// address is not a page the browser opens for you. Open a task file by its sandbox path (agent-browser open work/page.html) instead.",
+            "This tab is showing a file outside the folders you can read, so it cannot be read or used from here. Open one of your own pages, or ask the user.",
         },
         id,
       });
@@ -393,22 +585,87 @@ function handleCdpClient(
           id,
         });
       });
+  };
+
+  clientWs.on("message", (data) => {
+    let message: CdpRequest;
+    try {
+      const raw = Buffer.isBuffer(data)
+        ? data.toString("utf8")
+        : Array.isArray(data)
+          ? Buffer.concat(data).toString("utf8")
+          : Buffer.from(data).toString("utf8");
+      message = JSON.parse(raw) as CdpRequest;
+    } catch {
+      return;
+    }
+
+    queue = queue
+      .then(() => handleCommand(message))
+      .catch(workspaceConfig.captureException);
   });
 
-  clientWs.on("close", () => {
+  const end = () => {
     unsubscribe?.();
     unsubscribe = null;
     // Stop any in-progress screencast so the capturePage interval doesn't
     // keep firing into the void (or bleed into the next WS connection for
     // the same target before it sends its own Page.startScreencast).
     workspaceConfig.browser.stopScreencast(targetId);
-  });
+    if (ended) {
+      return;
+    }
+    ended = true;
+    // An interception or a debugger this connection set up would otherwise
+    // go on holding the person's page with nobody left to release it.
+    void workspaceConfig.browser
+      .sendCommand(targetId, "Fetch.disable", {})
+      .catch(noop);
+    void workspaceConfig.browser
+      .sendCommand(targetId, "Network.setRequestInterception", { patterns: [] })
+      .catch(noop);
+    void workspaceConfig.browser
+      .sendCommand(targetId, "Debugger.disable", {})
+      .catch(noop);
+    // Nor may anything it set up to change the page go on changing it for
+    // the person: blocked addresses, disabled scripts, a throttled CPU or
+    // network.
+    for (const [method, params] of TEARDOWN_RESETS) {
+      void workspaceConfig.browser
+        .sendCommand(targetId, method, params)
+        .catch(noop);
+    }
+    const remaining = (connectionsByTarget.get(targetId) ?? 1) - 1;
+    if (remaining > 0) {
+      connectionsByTarget.set(targetId, remaining);
+    } else {
+      connectionsByTarget.delete(targetId);
+      workspaceConfig.browser.setAgentFileRoots(targetId, null);
+    }
+  };
 
-  clientWs.on("error", () => {
-    unsubscribe?.();
-    unsubscribe = null;
-    workspaceConfig.browser.stopScreencast(targetId);
-  });
+  clientWs.on("close", end);
+  clientWs.on("error", end);
+}
+
+/** The address an event is about, when it names one. */
+function addressOfEvent(params: unknown) {
+  const event = params as
+    | undefined
+    | {
+        documentURL?: unknown;
+        frame?: { url?: unknown };
+        request?: { url?: unknown };
+        response?: { url?: unknown };
+        url?: unknown;
+      };
+  const url =
+    event?.request?.url ??
+    event?.response?.url ??
+    event?.documentURL ??
+    event?.frame?.url ??
+    event?.url;
+  return typeof url === "string" ? url : undefined;
 }
 
 function handleInterceptedTargetCommand(
@@ -537,6 +794,11 @@ function handleInterceptedTargetCommand(
   }
 }
 
+/** The host folders behind every mount of a layout. */
+function hostRootsOf(layout: WorkspaceFsLayout) {
+  return [layout.task, ...nonTaskMounts(layout)].map((mount) => mount.hostRoot);
+}
+
 /** The address a command asks the guest to load, for the commands that carry one. */
 function navigationTargetOf(method: string, params: unknown) {
   if (method !== "Page.navigate" && method !== "Target.createTarget") {
@@ -544,4 +806,8 @@ function navigationTargetOf(method: string, params: unknown) {
   }
   const url = (params as undefined | { url?: unknown })?.url;
   return typeof url === "string" ? url : undefined;
+}
+
+function noop() {
+  // A best-effort command on a guest that may already be gone.
 }

@@ -35,6 +35,7 @@ import {
 import { defaultTaskName } from "../default-task-name";
 import { getTask } from "../get-tasks";
 import { initializeTask } from "../initialize-task";
+import { isLocalAddress } from "../local-page-address";
 import { newMessage } from "../new-message";
 import { newTaskId } from "../new-task-id";
 import { isWorking, leftRunning } from "../orchestrator/activity";
@@ -1202,7 +1203,7 @@ async function resolveTab(tab: string): Promise<BrowserTargetId> {
   }
   const targets = await browser.listTargets(windowId);
   const target = targets.find((candidate) => candidate.id === targetId);
-  if (target && /^file:/i.test(target.url)) {
+  if (target && isLocalAddress(target.url)) {
     throw new Error(
       `Tab ${tab} shows a file on this computer, which a task is not handed; give the task the folder the file is in instead.`,
     );

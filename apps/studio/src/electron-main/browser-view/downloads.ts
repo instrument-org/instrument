@@ -10,6 +10,9 @@ import path from "node:path";
 
 import type { BrowserEntry } from "./entry";
 
+import { committedDocumentOf } from "./frame-documents";
+import { isAllowedLocalDownload } from "./local-file-policy";
+
 // Sessions that already carry the will-download listener. Every task guest
 // opens the one workspace profile, so they all share a Session, and a listener
 // added per guest would stack: each copy runs on every download, and any copy
@@ -54,6 +57,19 @@ export function attachDownloadHandler({
     const entry = findEntryByWebContents(entries, webContents);
     if (!entry) {
       item.cancel();
+      return;
+    }
+    if (
+      /^file:/i.test(item.getURL()) &&
+      !isAllowedLocalDownload(
+        item.getURL(),
+        committedDocumentOf(webContents.id, webContents.mainFrame),
+      )
+    ) {
+      item.cancel();
+      if (entry.authorizedDownloadPath) {
+        refuseForAgent(entry, item);
+      }
       return;
     }
     if (entry.authorizedDownloadPath) {
@@ -141,6 +157,32 @@ function personDownloadsDir(): null | string {
     }
   }
   return null;
+}
+
+// A download the agent asked for and the page may not make: told as begun and
+// canceled at once, so agent-browser's `download` errors now rather than
+// waiting out its timeout for an event that never comes.
+function refuseForAgent(entry: BrowserEntry, item: DownloadItem) {
+  const guid =
+    entry.pendingDownloadGuids.get(item.getURL()) ?? crypto.randomUUID();
+  entry.pendingDownloadGuids.delete(item.getURL());
+  entry.authorizedDownloadPath = null;
+  const willBegin: Protocol.Browser.DownloadWillBeginEvent = {
+    frameId: entry.targetId,
+    guid,
+    suggestedFilename: item.getFilename(),
+    url: item.getURL(),
+  };
+  const progress: Protocol.Browser.DownloadProgressEvent = {
+    guid,
+    receivedBytes: 0,
+    state: "canceled",
+    totalBytes: 0,
+  };
+  for (const listener of entry.eventListeners) {
+    listener("Page.downloadWillBegin", willBegin);
+    listener("Page.downloadProgress", progress);
+  }
 }
 
 function saveForAgent(

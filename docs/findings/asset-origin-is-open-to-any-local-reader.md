@@ -1,10 +1,10 @@
 # The asset origin is readable by anything that can name a task
 
-**Status:** open — no mitigation in place. Recorded because the exposure is bounded today and stops being bounded under [user-chosen-working-folder](../plans/active/user-chosen-working-folder.md).
+**Status:** resolved 2026-09-26 by removal. The asset origin no longer exists: the agent's browser opens a file at its own `file://` address, the same one the person's tab shows, and the workspace server serves no files ([in-app-browser.md](../architecture/in-app-browser.md#a-file-on-the-computer-has-one-address-for-the-person-and-the-agent)). What follows is the exposure as it stood, kept because any future local HTTP server for task files would reopen it.
 
 ## What is true
 
-The per-task asset origin ([asset-origin.md](../architecture/asset-origin.md)) serves files over plain HTTP with no authentication of any kind, and four properties compound:
+The per-task asset origin served files over plain HTTP with no authentication of any kind, and four properties compound:
 
 1. **Wildcard CORS.** [`assets.ts`](../../packages/workspace/src/logic/server/routes/assets.ts) applies `cors()` with only `exposeHeaders` set and no `origin`, so Hono's `origin: "*"` default still stands: every response carries `Access-Control-Allow-Origin: *` and any web origin can read the body, not merely issue the request. A `GET` needs no preflight.
 2. **Guessable task ids.** [`generate-task-folder-name.ts`](../../packages/workspace/src/lib/generate-task-folder-name.ts) derives the id from the date and a slug of the user's first prompt (`2026-06-23-add-a-dark-mode-toggle`). It is a human-readable name, not a secret, and it is the whole of the origin's identity.

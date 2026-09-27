@@ -31,7 +31,7 @@ Grouped by area; status is the short form of each file's own line.
 | [Private-dir masking is not a boundary](private-dir-masking-is-not-a-boundary.md) — the mask stops the shell, not native interpreters | open, known gap |
 | [The WASM Python aborts at exit on some install paths](the-wasm-python-aborts-at-exit-on-some-install-paths.md) — the worker's own path length decides whether finalization survives; pinned, offered upstream as #423 to #425 | contained, PRs open |
 | [The loopback block is curl-only](loopback-block-is-curl-only.md) — same shape, different command | open, working as designed |
-| [The asset origin is open to any local reader](asset-origin-is-open-to-any-local-reader.md) — bounded today, unbounded under a user-chosen folder | open, no mitigation |
+| [The asset origin was open to any local reader](asset-origin-is-open-to-any-local-reader.md) — unauthenticated, wildcard-CORS loopback origin keyed by a guessable task id | resolved, origin removed |
 | [macOS Command Line Tools dialog](macos-command-line-tools-dialog.md) — a Python skill popped the system installer | resolved |
 | [What the orchestrator can reach](orchestrator-file-access-model.md) — whether the conversation should read the whole disk, and why read and write have to come apart first | open question, nothing built |
 

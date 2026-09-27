@@ -37,6 +37,14 @@ export interface BrowserConfig {
     sessionId: StoreId.Session;
   };
   /**
+   * The address of the document in the guest's main frame, as the main process
+   * saw it arrive; undefined for a target with no live guest. What the CDP
+   * bridge judges a command against, rather than the last navigation event it
+   * happened to see, and never an address a page gave itself with
+   * `history.pushState`.
+   */
+  getTargetUrl: (targetId: BrowserTargetId) => string | undefined;
+  /**
    * True where there is no window behind this config, so a task should be left
    * to start a browser of its own rather than pointed at the CDP bridge.
    *
@@ -61,6 +69,17 @@ export interface BrowserConfig {
     method: string,
     params: unknown,
   ): Promise<unknown>;
+  /**
+   * The folders on this computer the agent driving a guest can read, or null
+   * once no agent is connected. While they are set, a page the agent can read
+   * may not take the tab to a file outside them (a link, a script setting
+   * `location`), so the agent cannot use a page of its own to open a file it
+   * could not open itself.
+   */
+  setAgentFileRoots: (
+    targetId: BrowserTargetId,
+    roots: null | readonly string[],
+  ) => void;
   stopScreencast: (targetId: BrowserTargetId) => void;
   subscribeEvents: (
     targetId: BrowserTargetId,

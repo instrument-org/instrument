@@ -41,6 +41,14 @@ const events = {
       yield event;
     }
   }),
+  navigationRefused: base.handler(async function* ({ signal }) {
+    for await (const event of publisher.subscribe(
+      "browser.navigation-refused",
+      { signal },
+    )) {
+      yield event;
+    }
+  }),
   restoreHostFocus: base.handler(async function* ({ signal }) {
     for await (const _ of publisher.subscribe("browser.restore-host-focus", {
       signal,

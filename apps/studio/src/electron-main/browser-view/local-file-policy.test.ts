@@ -4,12 +4,19 @@ import {
   type WebFrameMain,
 } from "electron";
 import { EventEmitter } from "node:events";
-import { describe, expect, it, vi } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { trackFrameDocuments } from "./frame-documents";
 import {
   isAllowedGuestRequest,
+  isAllowedLocalDownload,
   isAllowedLocalRequest,
+  leadsBesidePage,
+  mayPageNavigateTo,
 } from "./local-file-policy";
 
 const { liveFrames } = vi.hoisted(() => ({ liveFrames: new Set<string>() }));
@@ -80,17 +87,13 @@ function guest() {
       from: Frame | null,
       url: string,
       resourceType: OnBeforeRequestListenerDetails["resourceType"] = "xhr",
-      editedPage?: Parameters<typeof isAllowedLocalRequest>[1],
     ) =>
-      isAllowedLocalRequest(
-        {
-          frame: from as unknown as WebFrameMain,
-          resourceType,
-          url,
-          webContentsId: contents.id,
-        },
-        editedPage,
-      ),
+      isAllowedLocalRequest({
+        frame: from as unknown as WebFrameMain,
+        resourceType,
+        url,
+        webContentsId: contents.id,
+      }),
   };
 }
 
@@ -253,33 +256,22 @@ describe("isAllowedLocalRequest", () => {
     ).toBe(false);
   });
 
+  // A page in Edit is its own file with the Edit parameter added, so it
+  // reads its folder by the same rule as in View, and nothing beyond it.
   describe("a page being edited", () => {
-    const COPY = "data:text/html;charset=utf-8;base64,PHA+ZWRpdGVkPC9wPg==";
-
     const editing = () => {
       const g = guest();
       const main = g.frame();
-      g.load(main, COPY);
-      const editedPage = (id: number | undefined, url: string | undefined) =>
-        id === g.contents.id && url === COPY
-          ? "/Users/casey/Documents/Instrument/report/index.html"
-          : undefined;
-      const read = (url: string) => g.read(main, url, "image", editedPage);
-      return { ...g, main, read };
+      g.load(main, `${PAGE}?instrument-edit=nonce-1`);
+      return { ...g, main, read: (url: string) => g.read(main, url, "image") };
     };
 
-    it("reads the file's folder from the copy the edit loaded", () => {
+    it("reads the file's folder", () => {
       expect(editing().read(`${FOLDER}/chart.png`)).toBe(true);
     });
 
     it("reads nothing beyond the file's folder", () => {
       expect(editing().read("file:///Users/casey/.ssh/id_rsa")).toBe(false);
-    });
-
-    it("reads nothing from any other copy in the same guest", () => {
-      const { load, main, read } = editing();
-      load(main, "data:text/html;charset=utf-8;base64,PHA+b2xkZXI8L3A+");
-      expect(read(`${FOLDER}/chart.png`)).toBe(false);
     });
 
     it("keeps to the file's folder after the copy rewrites its address", () => {
@@ -331,5 +323,134 @@ describe("isAllowedGuestRequest", () => {
       });
     expect(read(`${FOLDER}/data.json`)).toBe(true);
     expect(read("file:///etc/hosts")).toBe(false);
+  });
+});
+
+describe("a symlink beside the page", () => {
+  let root: string;
+  const at = (...segments: string[]) =>
+    pathToFileURL(path.join(root, ...segments)).href;
+
+  beforeAll(async () => {
+    root = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "local-file-policy-")),
+    );
+    await fs.mkdir(path.join(root, "site"));
+    await fs.mkdir(path.join(root, "elsewhere"));
+    await fs.writeFile(path.join(root, "site/page.html"), "");
+    await fs.writeFile(path.join(root, "site/data.json"), "");
+    await fs.writeFile(path.join(root, "elsewhere/secret.txt"), "");
+    await fs.symlink(
+      path.join(root, "elsewhere"),
+      path.join(root, "site/leak"),
+    );
+  });
+
+  afterAll(async () => {
+    await fs.rm(root, { force: true, recursive: true });
+  });
+
+  it("reaches only where it really leads", async () => {
+    const page = at("site/page.html");
+    expect(await leadsBesidePage(at("site/data.json"), page)).toBe(true);
+    expect(await leadsBesidePage(at("site/leak/secret.txt"), page)).toBe(false);
+    expect(await leadsBesidePage(at("site/missing.json"), page)).toBe(true);
+  });
+
+  it.each([
+    { expected: true, file: "site/data.json" },
+    { expected: false, file: "site/leak/secret.txt" },
+    { expected: false, file: "elsewhere/secret.txt" },
+  ])("downloads $file: $expected", ({ expected, file }) => {
+    expect(isAllowedLocalDownload(at(file), at("site/page.html"))).toBe(
+      expected,
+    );
+  });
+
+  it("downloads no local file for a page that is not one", () => {
+    expect(
+      isAllowedLocalDownload(at("site/data.json"), "https://example.com/"),
+    ).toBe(false);
+  });
+});
+
+describe("mayPageNavigateTo", () => {
+  let root: string;
+  const at = (...segments: string[]) =>
+    pathToFileURL(path.join(root, ...segments)).href;
+
+  beforeAll(async () => {
+    root = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "page-navigation-")),
+    );
+    await fs.mkdir(path.join(root, "task/output"), { recursive: true });
+    await fs.mkdir(path.join(root, "other"));
+    await fs.mkdir(path.join(root, "person"));
+    await fs.writeFile(path.join(root, "task/output/confine.html"), "");
+    await fs.writeFile(path.join(root, "task/index.html"), "");
+    await fs.writeFile(path.join(root, "other/secret.txt"), "");
+    await fs.writeFile(path.join(root, "person/page.html"), "");
+    await fs.symlink(path.join(root, "other"), path.join(root, "task/leak"));
+  });
+
+  afterAll(async () => {
+    await fs.rm(root, { force: true, recursive: true });
+  });
+
+  const roots = () => [path.join(root, "task")];
+
+  it("leaves every navigation alone in a tab no agent has driven", () => {
+    expect(
+      mayPageNavigateTo(
+        null,
+        at("task/output/confine.html"),
+        at("other/secret.txt"),
+      ),
+    ).toBe(true);
+  });
+
+  it("lets the agent's page go to another of its files", () => {
+    expect(
+      mayPageNavigateTo(
+        roots(),
+        at("task/output/confine.html"),
+        at("task/index.html"),
+      ),
+    ).toBe(true);
+  });
+
+  it("lets the agent's page go anywhere that is not a file", () => {
+    expect(
+      mayPageNavigateTo(
+        roots(),
+        at("task/output/confine.html"),
+        "https://example.com/",
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["a file outside its folders", "other/secret.txt"],
+    ["a file through a symlink that leaves them", "task/leak/secret.txt"],
+  ])("keeps the agent's page from going to %s", (_label, target) => {
+    expect(
+      mayPageNavigateTo(roots(), at("task/output/confine.html"), at(target)),
+    ).toBe(false);
+  });
+
+  it("keeps a blank page the agent opened from going to a file", () => {
+    expect(
+      mayPageNavigateTo(roots(), "about:blank", at("other/secret.txt")),
+    ).toBe(false);
+  });
+
+  it("leaves the person's own page, which the agent cannot read, to the person", () => {
+    expect(
+      mayPageNavigateTo(
+        roots(),
+        at("person/page.html"),
+        at("other/secret.txt"),
+      ),
+    ).toBe(true);
   });
 });

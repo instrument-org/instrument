@@ -1,10 +1,24 @@
 import { InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { rewriteNavigationArgToAssetUrl } from "./agent-browser-asset-url";
+import { FolderAttachment } from "../../schemas/folder-attachment";
+import { AbsolutePathSchema, TaskDirSchema } from "../../schemas/paths";
+import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
+import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 
-const taskId = TaskIdSchema.parse("test-task");
+const layout = buildWorkspaceFsLayout({
+  attachedFolders: {
+    docs: {
+      access: "read-only",
+      createdAt: 0,
+      id: FolderAttachment.IdSchema.parse("docs"),
+      mountName: "Docs",
+      path: AbsolutePathSchema.parse("/Users/me/My Docs"),
+      source: "user",
+    },
+  },
+  taskHostRoot: TaskDirSchema.parse("/Users/me/Tasks/test-task"),
+});
 
 async function makeCtx() {
   const fs = new InMemoryFs();
@@ -17,10 +31,18 @@ async function makeCtx() {
 }
 
 async function rewrite(args: string[]) {
-  return await rewriteNavigationArgToAssetUrl(args, taskId, await makeCtx());
+  return await rewriteNavigationArgToFileUrl(args, layout, await makeCtx());
 }
 
-describe("rewriteNavigationArgToAssetUrl", () => {
+async function rewritten(args: string[]) {
+  const result = await rewrite(args);
+  if ("error" in result) {
+    throw new Error(result.error);
+  }
+  return result.args;
+}
+
+describe("rewriteNavigationArgToFileUrl", () => {
   it.each([
     {
       name: "file url under the task mount",
@@ -33,47 +55,66 @@ describe("rewriteNavigationArgToAssetUrl", () => {
     { name: "virtual absolute path", url: "/task/output/report.html" },
     { name: "task-relative path", url: "output/report.html" },
     { name: "dot-relative path", url: "./output/report.html" },
-  ])("rewrites a $name onto the asset origin", async ({ url }) => {
-    const result = await rewrite(["open", url]);
+  ])("opens a $name at the file's own address", async ({ url }) => {
+    const result = await rewritten(["open", url]);
 
     expect(result[1]).toMatchInlineSnapshot(
-      `"http://assets.test-task.localhost:48500/output/report.html"`,
+      `"file:///Users/me/Tasks/test-task/output/report.html"`,
     );
   });
 
   it("keeps query and hash from a file url", async () => {
-    const result = await rewrite([
+    const result = await rewritten([
       "open",
       "file:///task/output/report.html?tab=2#summary",
     ]);
 
     expect(result[1]).toMatchInlineSnapshot(
-      `"http://assets.test-task.localhost:48500/output/report.html?tab=2#summary"`,
+      `"file:///Users/me/Tasks/test-task/output/report.html?tab=2#summary"`,
     );
   });
 
-  it("percent-encodes path segments", async () => {
-    const result = await rewrite(["open", "output/quarterly report.html"]);
+  it("percent-encodes the path", async () => {
+    const result = await rewritten(["open", "output/quarterly report.html"]);
 
     expect(result[1]).toMatchInlineSnapshot(
-      `"http://assets.test-task.localhost:48500/output/quarterly%20report.html"`,
+      `"file:///Users/me/Tasks/test-task/output/quarterly%20report.html"`,
     );
   });
 
-  it("serves attached folders from their mount path", async () => {
-    const result = await rewrite(["open", "/mnt/Docs/notes.html"]);
+  it("opens an attached folder's file where it lives", async () => {
+    const result = await rewritten(["open", "/mnt/Docs/notes.html"]);
 
     expect(result[1]).toMatchInlineSnapshot(
-      `"http://assets.test-task.localhost:48500/mnt/Docs/notes.html"`,
+      `"file:///Users/me/My%20Docs/notes.html"`,
     );
   });
 
-  it("rewrites a missing task file so the agent gets a 404, not a host miss", async () => {
-    const result = await rewrite(["open", "file:///task/output/absent.html"]);
+  it("opens a missing task file so the agent sees the browser's not-found page", async () => {
+    const result = await rewritten(["open", "file:///task/output/absent.html"]);
 
     expect(result[1]).toMatchInlineSnapshot(
-      `"http://assets.test-task.localhost:48500/output/absent.html"`,
+      `"file:///Users/me/Tasks/test-task/output/absent.html"`,
     );
+  });
+
+  it.each([
+    { arg: "file:///etc/hosts", name: "file outside every mount" },
+    {
+      arg: "file:///task/.instrument/task.db",
+      name: "file in the task's private directory",
+    },
+    {
+      arg: "file:///Users/me/Tasks/test-task/output/report.html",
+      name: "host address, which the agent never has",
+    },
+    { arg: "/etc/hosts", name: "path outside every mount" },
+    {
+      arg: "/Users/me/Tasks/test-task/output/report.html",
+      name: "host path, which the CLI would read as a host name",
+    },
+  ])("refuses a $name", async ({ arg }) => {
+    expect(await rewrite(["open", arg])).toHaveProperty("error");
   });
 
   it.each([
@@ -83,15 +124,8 @@ describe("rewriteNavigationArgToAssetUrl", () => {
     { arg: "about:blank", name: "about page" },
     { arg: "data:text/html,<p>hi</p>", name: "data url" },
     { arg: "output/absent.html", name: "relative path with no matching file" },
-    { arg: "/etc/hosts", name: "path outside every mount" },
-    {
-      arg: "file://elsewhere/task/output/report.html",
-      name: "file url on another host",
-    },
   ])("leaves a $name untouched", async ({ arg }) => {
-    const result = await rewrite(["open", arg]);
-
-    expect(result).toEqual(["open", arg]);
+    expect(await rewritten(["open", arg])).toEqual(["open", arg]);
   });
 
   it.each([
@@ -99,9 +133,9 @@ describe("rewriteNavigationArgToAssetUrl", () => {
     { subcommand: "navigate" },
     { subcommand: "read" },
   ])("rewrites for the $subcommand subcommand", async ({ subcommand }) => {
-    const result = await rewrite([subcommand, "output/report.html"]);
+    const result = await rewritten([subcommand, "output/report.html"]);
 
-    expect(result[1]).toContain("http://assets.");
+    expect(result[1]).toContain("file:///Users/me/Tasks/");
   });
 
   it.each([
@@ -109,20 +143,20 @@ describe("rewriteNavigationArgToAssetUrl", () => {
     { args: ["pdf", "output/report.html"] },
     { args: ["download", "@e1", "output/report.html"] },
     { args: ["get", "text", "body"] },
-    // A same-origin history entry, not a document to fetch.
+    // A same-document history entry, not a document to load.
     { args: ["pushstate", "output/report.html"] },
   ])("leaves non-navigation subcommand $args.0 untouched", async ({ args }) => {
-    expect(await rewrite(args)).toEqual(args);
+    expect(await rewritten(args)).toEqual(args);
   });
 
   it("leaves read with no target untouched", async () => {
-    expect(await rewrite(["read"])).toEqual(["read"]);
+    expect(await rewritten(["read"])).toEqual(["read"]);
   });
 
   it("skips leading flags to reach the target", async () => {
-    const result = await rewrite(["open", "--raw", "output/report.html"]);
+    const result = await rewritten(["open", "--raw", "output/report.html"]);
 
-    expect(result[2]).toContain("http://assets.");
+    expect(result[2]).toContain("file:///Users/me/Tasks/");
     expect(result[1]).toBe("--raw");
   });
 
@@ -133,26 +167,26 @@ describe("rewriteNavigationArgToAssetUrl", () => {
   ])(
     "reaches the subcommand past the connection flags in $args",
     async ({ args }) => {
-      const result = await rewrite(args);
+      const result = await rewritten(args);
 
-      expect(result.at(-1)).toContain("http://assets.");
+      expect(result.at(-1)).toContain("file:///Users/me/Tasks/");
     },
   );
 
   it("rewrites the target, not a preceding global flag's value", async () => {
-    const result = await rewrite([
+    const result = await rewritten([
       "--headers",
       "{}",
       "open",
       "output/report.html",
     ]);
 
-    expect(result[3]).toContain("http://assets.");
+    expect(result[3]).toContain("file:///Users/me/Tasks/");
     expect(result.slice(0, 3)).toEqual(["--headers", "{}", "open"]);
   });
 
   it("preserves surrounding flags", async () => {
-    const result = await rewrite([
+    const result = await rewritten([
       "open",
       "output/report.html",
       "--timeout",

@@ -7,6 +7,8 @@ import {
   getBrowserState,
   takeBrowserClosed,
 } from "./browser-state";
+import { agentSpellingOfFileUrls } from "./local-page-address";
+import { taskFsLayout } from "./resolve-workspace-file-path";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createBrowserStatusPart({
@@ -21,6 +23,10 @@ export async function createBrowserStatusPart({
   taskId: TaskId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
+    // The model hears a page on this computer by its own path for it, never
+    // by where the file sits on the person's disk.
+    const layout = await taskFsLayout(taskId);
+    const spell = (url: string) => agentSpellingOfFileUrls(url, layout);
     const targets = await getWorkspaceConfig().browser.listTargets(taskId);
     const target = targets.find(
       ({ id }) => id === encodeBrowserTargetId(taskId, sessionId),
@@ -39,7 +45,7 @@ export async function createBrowserStatusPart({
     if (closed?.lastUrl) {
       const previousTarget = {
         ...(closed.lastTitle ? { title: closed.lastTitle } : {}),
-        url: closed.lastUrl,
+        url: spell(closed.lastUrl),
       };
       return createPart({
         createdAt,
@@ -77,7 +83,7 @@ export async function createBrowserStatusPart({
         createdAt,
         data: {
           status: "open",
-          target: { title: target.title, url: target.url },
+          target: { title: target.title, url: spell(target.url) },
         },
         messageId,
         sessionId,
@@ -106,7 +112,7 @@ export async function createBrowserStatusPart({
       data: {
         previousTarget: {
           ...(browserState?.lastTitle ? { title: browserState.lastTitle } : {}),
-          url: lastUrl,
+          url: spell(lastUrl),
         },
         status: "closed",
       },

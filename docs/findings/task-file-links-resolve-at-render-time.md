@@ -46,5 +46,4 @@ What replaced the existence check was not another lookup but a structural rule â
 ## Related
 
 - `71025d346`: `file:` links resolved and opened, and the per-link mount lookup this finding is about
-- [asset-origin.md](../architecture/asset-origin.md): the per-task origin whose path space is the same virtual path space these references use
 - [agent-sandbox.md](../architecture/agent-sandbox.md): why an agent-facing path is `/mnt/...` rather than a host path

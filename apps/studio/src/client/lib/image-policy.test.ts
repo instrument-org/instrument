@@ -20,7 +20,7 @@ describe("classifyImageSource", () => {
     ["/output/plot.png", "task-relative"],
     ["./output/plot.png", "task-relative"],
     ["../output/plot.png", "task-relative"],
-    ["http://assets.task-1.localhost:4321/output/plot.png", "task-asset"],
+    ["http://assets.task-1.localhost:4321/output/plot.png", "rejected"],
     ["https://github.com/o/r/p.png", "remote"],
     ["https://raw.githubusercontent.com/o/r/main/p.png", "remote"],
     ["https://images.google.com/p.png", "remote"],
@@ -42,8 +42,7 @@ describe("classifyImageSource", () => {
     ["https://evil.test?a=.githubusercontent.com/p.png"],
     // The allowed host as a prefix of the real one.
     ["https://x.githubusercontent.com.evil.test/p.png"],
-    // The asset origin is local, so it is the one host reachable without TLS.
-    // Any other host over plain http is not.
+    // A host over plain http.
     ["http://tracker.test/pixel.png"],
     // Bytes that are not a picture.
     ["data:text/html;base64,PGI+aGk8L2I+"],
@@ -61,7 +60,6 @@ describe("isImageSourceAllowed", () => {
     for (const src of [
       "data:image/png;base64,QUJD",
       "./output/plot.png",
-      "http://assets.task-1.localhost:4321/p.png",
       "https://raw.githubusercontent.com/o/r/main/p.png",
     ]) {
       expect(isImageSourceAllowed(src, MARKDOWN_IMAGE_KINDS)).toBe(true);
@@ -120,7 +118,6 @@ describe("isImageSourceAllowed", () => {
         "embedded",
         "rejected",
         "remote",
-        "task-asset",
         "task-relative",
       ]),
     ).toBe(false);

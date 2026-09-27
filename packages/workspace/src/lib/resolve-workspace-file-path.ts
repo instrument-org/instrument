@@ -6,7 +6,10 @@ import { taskDir } from "./task-dir-utils";
 import { resolveTaskProjectFolder } from "./task-project-folder";
 import { getTaskState } from "./task-record";
 import { getTaskSettings } from "./task-settings";
-import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
+import {
+  buildWorkspaceFsLayout,
+  type WorkspaceFsLayout,
+} from "./workspace-fs-layout";
 
 /**
  * Host path for a file a task can reach: task-relative, the mount path of a
@@ -46,10 +49,25 @@ export async function resolveWorkspaceFilePaths({
   filePaths: readonly WorkspaceFilePath[];
   taskId: TaskId;
 }): Promise<Map<WorkspaceFilePath, AbsolutePath | null>> {
+  const layout = await taskFsLayout(taskId);
+  return new Map(
+    filePaths.map((filePath) => {
+      const resolved = resolveExistingFilePath({ inputPath: filePath, layout });
+      return [filePath, resolved.isErr() ? null : resolved.value.absolutePath];
+    }),
+  );
+}
+
+/**
+ * The filesystem a task's agent sees, as it stands now: its own folder, the
+ * folders attached to it, its project's folder and, for an orchestrator, the
+ * tasks it created.
+ */
+export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
   const taskHostRoot = taskDir(taskId);
   const taskState = await getTaskState(taskHostRoot);
   const settings = await getTaskSettings(taskHostRoot);
-  const layout = buildWorkspaceFsLayout({
+  return buildWorkspaceFsLayout({
     attachedFolders: taskState.attachedFolders,
     extraMounts:
       settings?.kind === "orchestrator"
@@ -58,10 +76,4 @@ export async function resolveWorkspaceFilePaths({
     projectFolderName: await resolveTaskProjectFolder(taskId),
     taskHostRoot,
   });
-  return new Map(
-    filePaths.map((filePath) => {
-      const resolved = resolveExistingFilePath({ inputPath: filePath, layout });
-      return [filePath, resolved.isErr() ? null : resolved.value.absolutePath];
-    }),
-  );
 }

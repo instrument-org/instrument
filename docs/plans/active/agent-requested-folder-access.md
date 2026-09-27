@@ -142,7 +142,7 @@ The complete fix is OS-level containment of the native hatches, which we have [d
 
 ## Prerequisites
 
-**The asset origin.** It serves exactly what the agent can read, which is the right invariant and the reason this needs saying: a newly granted mount is immediately readable over an unauthenticated, wildcard-CORS loopback origin keyed by a guessable task id, and agent-authored HTML runs on that origin for real. The unguessable per-boot label and non-wildcard CORS in [asset-origin-is-open-to-any-local-reader](../../findings/asset-origin-is-open-to-any-local-reader.md) are prerequisites here, for the same reason the working-folder plan makes them prerequisites for `/work`.
+**The agent's browser.** It opens exactly what the agent can read, at each file's own `file://` address, and a page there reads only its own folder ([in-app-browser.md](../../architecture/in-app-browser.md#a-file-on-the-computer-has-one-address-for-the-person-and-the-agent)). A newly granted mount is therefore openable by the agent's browser the moment it is granted, and by nothing else: no server publishes it.
 
 **Info.plist usage descriptions.** Add `NSAppDataUsageDescription`, `NSDocumentsFolderUsageDescription`, `NSDesktopFolderUsageDescription`, `NSDownloadsFolderUsageDescription`, `NSRemovableVolumesUsageDescription`, and `NSNetworkVolumesUsageDescription` to `mac.extendInfo` in [electron-builder.ts](../../../apps/studio/electron-builder.ts), beside the local-network string already there. Without them the prompts still appear, with generic text instead of our reason. Worth doing whether or not the rest ships.
 

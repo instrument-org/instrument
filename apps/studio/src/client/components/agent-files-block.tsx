@@ -45,9 +45,9 @@ import { PreviewListItem } from "./preview-list-item";
  * without asking disk whether the file is there. A transcript is a record of
  * what a reply handed over, and whether those bytes still exist is a question
  * with a different answer every minute; the honest time to ask it is when
- * someone acts on the file. An image answers it for free -- the asset origin is
- * a static file server, so the thumbnail either loads or 404s onto the fallback
- * card.
+ * someone acts on the file. An image answers it for free -- the file channel it
+ * loads from is a static file server, so the thumbnail either loads or 404s onto
+ * the fallback card.
  *
  * The id rides in the URL because two replies naming one path that was
  * rewritten between them would otherwise ask for the same URL, and the renderer

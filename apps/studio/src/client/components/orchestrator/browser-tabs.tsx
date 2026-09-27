@@ -25,6 +25,7 @@ import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
+import { isPageEditAddress } from "@instrument-org/shared";
 import {
   type BrowserTargetId,
   decodeBrowserTargetId,
@@ -541,9 +542,9 @@ export function BrowserTabs({
             });
           }
           const url = webview.getURL();
-          // A page's file in Edit is loaded as data at the file's address;
-          // the tab is still at the file.
-          if (url.startsWith("data:")) {
+          // A page's file in Edit is loaded at the file's address with the
+          // Edit parameter added; the tab is still at the file.
+          if (isPageEditAddress(url)) {
             return;
           }
           const isHistoryStep = historySteps.current.delete(id);
@@ -637,6 +638,27 @@ export function BrowserTabs({
           // Not attached yet; the events that follow attachment re-run this.
         }
       };
+      // A local page's own `history.pushState` moves its address without
+      // loading anything, and every `file://` page shares one origin, so the
+      // address it names can be any file on the computer. The tab stays at
+      // the file the page loaded: the new address is never kept, shown as
+      // the file, or loaded for real, and Edit never opens the file it names.
+      const onNavigateInPage = () => {
+        try {
+          if (hostPathOfFileUrl(webview.getURL()) === undefined) {
+            onNavigate();
+            return;
+          }
+          if (latest.current.active?.id === id) {
+            setCanStep({
+              back: webview.canGoBack(),
+              forward: webview.canGoForward(),
+            });
+          }
+        } catch {
+          // Not attached yet; the events that follow attachment re-run this.
+        }
+      };
       const onTitle = (event: Event) => {
         const { title } = event as Event & { title?: string };
         if (title) {
@@ -690,12 +712,12 @@ export function BrowserTabs({
       };
       onNavigate();
       webview.addEventListener("did-navigate", onNavigate);
-      webview.addEventListener("did-navigate-in-page", onNavigate);
+      webview.addEventListener("did-navigate-in-page", onNavigateInPage);
       webview.addEventListener("page-title-updated", onTitle);
       webview.addEventListener("page-favicon-updated", onFavicon);
       return () => {
         webview.removeEventListener("did-navigate", onNavigate);
-        webview.removeEventListener("did-navigate-in-page", onNavigate);
+        webview.removeEventListener("did-navigate-in-page", onNavigateInPage);
         webview.removeEventListener("page-title-updated", onTitle);
         webview.removeEventListener("page-favicon-updated", onFavicon);
       };
@@ -1014,9 +1036,6 @@ export function BrowserTabs({
       {active ? (
         <TaskBrowserPanel
           active={attached.has(targetOf(active))}
-          {...(editTabs[active.id] && active.url
-            ? { address: active.url }
-            : {})}
           chrome={{ into: chromeInto ?? null, reloadInto: reloadInto ?? null }}
           className="h-full"
           key={active.id}
@@ -1259,19 +1278,12 @@ function FilePageReload({
  */
 /**
  * Whether the renderer's `img-src` lets it load an icon a page reported for
- * itself: embedded bytes, or a page served on this machine. A site's own icon
- * elsewhere on the web is refused there, so its tab is drawn from the proxy
- * rather than from a request that can only fail.
+ * itself: embedded bytes. A site's own icon on the web is refused there, so
+ * its tab is drawn from the proxy rather than from a request that can only
+ * fail.
  */
 function isDrawableHere(src: string): boolean {
-  if (/^(?:data|blob):/i.test(src)) {
-    return true;
-  }
-  if (!URL.canParse(src)) {
-    return false;
-  }
-  const { hostname, protocol } = new URL(src);
-  return /^https?:$/.test(protocol) && hostname.endsWith(".localhost");
+  return /^(?:data|blob):/i.test(src);
 }
 
 /** A page tab of the window's own on an HTML file, which Edit can change in place. */

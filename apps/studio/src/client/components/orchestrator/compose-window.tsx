@@ -541,7 +541,17 @@ export function ComposeWindow({
             openScreenIn(APPS_HREF);
           }}
           onOpenBrowser={() => {
-            openScreenIn(WEB_HREF);
+            // The caret goes to the new tab's address field, which takes it
+            // as it arrives only while nothing else holds it; the words give
+            // it up rather than taking it back.
+            if (document.activeElement instanceof HTMLElement) {
+              document.activeElement.blur();
+            }
+            windowTabs.openOrFocusScreen(WEB_HREF, {
+              activate: true,
+              group,
+              isOpened: true,
+            });
           }}
           onOpenFolder={openFolder}
         />

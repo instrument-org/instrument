@@ -81,7 +81,10 @@ export function MessageActions({
         {copied ? "Copied" : "Copy"}
       </Button>
       {kind === "email" ? (
-        <DropdownMenu>
+        // Not modal: a modal menu takes focus and the page from under it, and
+        // a card drawn inside the Markdown editor is redrawn when the editor
+        // loses them, taking the menu's trigger, and so the menu, with it.
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button disabled={disabled} size="xs" variant="brand">
               Send

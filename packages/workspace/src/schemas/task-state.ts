@@ -6,6 +6,18 @@ import { FolderAttachment } from "./folder-attachment";
 import { StoreId } from "./store-id";
 import { TaskPane } from "./task-pane";
 
+/**
+ * A tab of the window a task holds: one the conversation handed it, which is
+ * the user's and outlives the task, or one the task opened itself, which stays
+ * in the chat after the task is done.
+ */
+export const HeldTabSchema = z.object({
+  id: BrowserTargetIdSchema,
+  openedBy: z.enum(["handed", "task"]),
+});
+
+export type HeldTab = z.output<typeof HeldTabSchema>;
+
 // Where the user left off in a task: the draft they were typing, what the pane
 // has open, the model they picked, the folders attached. Per-task and read on
 // open, never queried across tasks -- which is what separates it from the
@@ -30,6 +42,7 @@ export const StoredTaskStateSchema = z
     // guide over once and then gets out of the way.
     appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
+    browserTabs: z.array(HeldTabSchema).optional(),
     browserTargetId: BrowserTargetIdSchema.optional(),
     /**
      * The orchestrator's topics, in the order they were made: the tags a
@@ -100,10 +113,13 @@ export const StoredTaskStateSchema = z
 export const TaskStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
   /**
-   * A browser tab this task drives instead of a browser of its own: one of
-   * the orchestrator window's, handed over by the orchestrator, or, for the
-   * orchestrator itself, the tab its user has on screen. `agent-browser`
-   * connects to it.
+   * The window's tabs a task drives, first one first: tabs the conversation
+   * handed it and tabs it opened itself. `agent-browser` connects to them.
+   */
+  browserTabs: z.array(HeldTabSchema).optional(),
+  /**
+   * On the window's own record, the tab its user has on screen, which the
+   * conversation's own `agent-browser` drives.
    */
   browserTargetId: BrowserTargetIdSchema.optional(),
   pane: TaskPane.Schema.optional(),

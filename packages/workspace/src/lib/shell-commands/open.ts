@@ -1,5 +1,4 @@
 import { defineCommand } from "just-bash";
-import { ulid } from "ulid";
 
 import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
@@ -8,6 +7,10 @@ import { type TaskId } from "../../schemas/task-id";
 import { encodeBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { windowTaskId } from "../orchestrator/ensure";
+import {
+  requestWindowTab,
+  WINDOW_TAB_TIMEOUT_MS,
+} from "../orchestrator/window-tab";
 import { isUnder } from "../path-containment";
 
 const OPEN_NAME = "open";
@@ -16,13 +19,6 @@ export const OPEN_COMMAND = {
   description: `Put a page, a file, or a folder on the user's screen, as a tab of the window: \`${OPEN_NAME} https://...\` opens the page in a tab of its own and prints the tab's id, which a task takes with --tab; \`${OPEN_NAME} ${MOUNT.attachedFolders}/<folder>/report.md\` or \`${OPEN_NAME} ${MOUNT.tasks}/<id>/work/report.md\` opens the file; \`${OPEN_NAME} ${MOUNT.attachedFolders}/<folder>\` opens the folder itself, the way it does in a terminal. Several arguments open several tabs. It opens nothing in the user's own applications and downloads nothing.`,
   name: OPEN_NAME,
 } as const;
-
-/**
- * How long a page waits for the window to name the tab it made. The window
- * answers in milliseconds; the wait is for a conversation with no window on
- * it (an eval), where nothing ever answers and the page is still "opened".
- */
-const TAB_ID_TIMEOUT_MS = 2000;
 
 /**
  * The conversation's way of putting something in front of the user: the
@@ -42,7 +38,7 @@ const TAB_ID_TIMEOUT_MS = 2000;
  */
 export function createOpenCommand({
   sessionId,
-  tabIdTimeoutMs = TAB_ID_TIMEOUT_MS,
+  tabIdTimeoutMs = WINDOW_TAB_TIMEOUT_MS,
   taskId,
 }: {
   sessionId?: StoreId.Session;
@@ -61,9 +57,10 @@ export function createOpenCommand({
     const failures: string[] = [];
     for (const arg of args) {
       if (isUrl(arg)) {
-        const tabId = await openPage({
-          sessionId,
-          taskId,
+        const tabId = await requestWindowTab({
+          askedBy: taskId,
+          group: sessionId,
+          show: true,
           timeoutMs: tabIdTimeoutMs,
           url: arg,
         });
@@ -121,49 +118,4 @@ export function createOpenCommand({
 
 function isUrl(arg: string): boolean {
   return arg.startsWith("http://") || arg.startsWith("https://");
-}
-
-/**
- * Ask the window for a tab at the page and wait for the tab's id, or for the
- * wait to run out. The answer is listened for before the ask goes out, so a
- * window that answers at once is not missed.
- */
-async function openPage({
-  sessionId,
-  taskId,
-  timeoutMs,
-  url,
-}: {
-  sessionId: StoreId.Session | undefined;
-  taskId: TaskId;
-  timeoutMs: number;
-  url: string;
-}): Promise<string | undefined> {
-  const requestId = ulid();
-  const controller = new AbortController();
-  const answers = publisher.subscribe("orchestrator.opened", {
-    signal: controller.signal,
-  });
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-  publisher.publish("orchestrator.open", {
-    id: taskId,
-    ...(sessionId ? { sessionId } : {}),
-    target: { kind: "page", requestId, url },
-  });
-  try {
-    for await (const answer of answers) {
-      if (answer.requestId === requestId) {
-        return answer.tabId;
-      }
-    }
-  } catch {
-    // The wait ran out: the page is open wherever a window is showing it,
-    // and only its id is missing.
-  } finally {
-    clearTimeout(timer);
-    controller.abort();
-  }
-  return undefined;
 }

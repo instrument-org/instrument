@@ -445,8 +445,8 @@ const setActiveTab = base
   });
 
 /**
- * What the conversation asks its window to open, as it asks, each with the
- * thread that asked when the command ran in one.
+ * What the conversation and its tasks ask the window to open, as they ask,
+ * each with the chat it belongs to when there is one.
  */
 const open = base
   .input(z.object({ id: TaskIdSchema }))
@@ -457,7 +457,8 @@ const open = base
           kind: z.literal("page"),
           requestId: z.string(),
           sessionId: StoreId.SessionSchema.optional(),
-          url: z.string(),
+          show: z.boolean(),
+          url: z.string().optional(),
         }),
         z.object({
           kind: z.literal("path"),
@@ -471,8 +472,13 @@ const open = base
     for await (const event of publisher.subscribe("orchestrator.open", {
       signal,
     })) {
-      // A chat's own asks, and the window record's, all open in the window.
-      if (event.id === input.id || isChatId(event.id)) {
+      // A chat's own asks, the window record's, and those of any task asking
+      // for a tab among a chat's all open in the window.
+      if (
+        event.id === input.id ||
+        isChatId(event.id) ||
+        event.sessionId !== undefined
+      ) {
         yield {
           ...event.target,
           ...(event.sessionId ? { sessionId: event.sessionId } : {}),

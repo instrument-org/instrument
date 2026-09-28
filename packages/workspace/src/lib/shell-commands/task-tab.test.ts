@@ -104,9 +104,9 @@ describe("task tab", () => {
 
     expect(result.stdout).toContain(`${CHILD_ID} now drives tab ${openTab}`);
     const state = await getTaskState(taskDir(CHILD_ID));
-    expect(state.browserTargetId).toBe(
-      encodeBrowserTargetId(WINDOW_ID, openTab),
-    );
+    expect(state.browserTabs).toEqual([
+      { id: encodeBrowserTargetId(WINDOW_ID, openTab), openedBy: "handed" },
+    ]);
   });
 
   it("takes the tab back with --none", async () => {
@@ -116,7 +116,7 @@ describe("task tab", () => {
 
     expect(result.stdout).toContain("Took the tab back");
     const state = await getTaskState(taskDir(CHILD_ID));
-    expect(state.browserTargetId).toBeUndefined();
+    expect(state.browserTabs).toBeUndefined();
   });
 
   it("says so when there was no tab to take back", async () => {

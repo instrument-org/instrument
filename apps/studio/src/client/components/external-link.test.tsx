@@ -44,6 +44,7 @@ function inOrchestrator(
       goForward: vi.fn(),
       navigate: vi.fn(),
       open: browserOpen,
+      openBehind: vi.fn(),
       openOrFocus: vi.fn(),
       readPage: vi.fn(),
     },

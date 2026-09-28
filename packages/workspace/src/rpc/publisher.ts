@@ -68,18 +68,19 @@ export const publisher = new EventPublisher<{
     sessionId: StoreId.Session;
   };
   /**
-   * The conversation asking its window to put something on screen: a page as
-   * a browser tab, or a path of the user's as a tab showing it -- a file in
-   * its viewer, a folder (which the path says with a trailing slash) as the
-   * folder view. A page carries a request id, which the tab the window makes
-   * for it is announced under.
+   * An agent asking the window for a tab: a page as a browser tab, or a path
+   * of the user's as a tab showing it -- a file in its viewer, a folder (which
+   * the path says with a trailing slash) as the folder view. A page carries a
+   * request id, which the tab the window makes for it is announced under, and
+   * says whether it goes on screen: the conversation showing the user
+   * something does, a task opening a page to work in never does.
    */
   "orchestrator.open": {
     id: TaskId;
-    /** The thread the command ran in, so the window can open the tab beside it; absent outside one. */
+    /** The chat the tab belongs to, so the window opens it among that chat's tabs; absent outside one. */
     sessionId?: StoreId.Session;
     target:
-      | { kind: "page"; requestId: string; url: string }
+      | { kind: "page"; requestId: string; show: boolean; url?: string }
       | { kind: "path"; mount: string };
   };
   /**

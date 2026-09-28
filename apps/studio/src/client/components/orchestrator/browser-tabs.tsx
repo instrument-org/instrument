@@ -4,7 +4,6 @@ import {
   NEW_TAB_HREF,
   orchestratorRecentsAtom,
   originOf,
-  paneOpenByGroupAtom,
   RECENTS_MAX,
   VISITED_MAX,
   visitedPagesAtom,
@@ -83,6 +82,13 @@ export interface BrowserTabsHandle {
    * screen.
    */
   open: (url?: string, options?: OpenOptions) => StoreId.Session;
+  /**
+   * Opens a page tab in a chat's group without showing it: the tab joins the
+   * group's list and nothing on screen changes, the pane included. What an
+   * agent's own work opens, which the user finds in the list when they want
+   * to watch. Returns the tab.
+   */
+  openBehind: (url: string | undefined, group: string) => StoreId.Session;
   /**
    * Opens a page in the group on screen or the group given, or shows the tab
    * already on it when the address is a file's. Given a tab to replace, a
@@ -443,14 +449,14 @@ export function BrowserTabs({
     latest.current = { active, activeByGroup, allTabs, group, tabs };
   });
 
-  // A task the conversation started browses here too: its guest is mounted
-  // in this window, and the moment one attaches it gets a tab in front of
-  // its thread's, with the pane up, so the user sees it work rather than
-  // finding it behind whatever they had open. Only a guest arriving is a
-  // tab to add: one the user closed is still attached until the close lands,
-  // and must not come straight back.
+  // A task browsing in a guest of its own (one filed outside any chat, since
+  // a chat's tasks browse in tabs of the chat) is mounted in this window, and
+  // the moment one attaches it gets a tab in its thread's list, behind
+  // whatever is up: the user finds it there when they want to watch, and
+  // nothing moves under them. Only a guest arriving is a tab to add: one the
+  // user closed is still attached until the close lands, and must not come
+  // straight back.
   const seenTargets = useRef(new Set<BrowserTargetId>());
-  const setPaneOpenByGroup = useSetAtom(paneOpenByGroupAtom);
   useEffect(() => {
     const arrived = [...attached].filter(
       (target) => !seenTargets.current.has(target),
@@ -495,46 +501,11 @@ export function BrowserTabs({
       group: threadOfTask.get(tab.taskId),
       kind: "page" as const,
     }));
-    setAllTabs((current) => {
-      // The last to arrive is the one in front: on screen when its group is
-      // up, and remembered for the group otherwise, so the thread comes
-      // back at the task's page.
-      const front = arriving.findLast(
-        (tab): tab is typeof tab & { group: string } => tab.group !== undefined,
-      );
-      if (!front) {
-        return { ...current, tabs: [...current.tabs, ...arriving] };
-      }
-      const isUp = front.group === current.group;
-      return {
-        ...current,
-        ...(isUp
-          ? { activeId: front.id }
-          : {
-              activeByGroup: {
-                ...current.activeByGroup,
-                [front.group]: front.id,
-              },
-            }),
-        tabs: [...current.tabs, ...arriving],
-      };
-    });
-    setPaneOpenByGroup((current) => ({
+    setAllTabs((current) => ({
       ...current,
-      ...Object.fromEntries(
-        arriving.flatMap((tab) =>
-          tab.group === undefined ? [] : [[tab.group, true]],
-        ),
-      ),
+      tabs: [...current.tabs, ...arriving],
     }));
-  }, [
-    attached,
-    everyTabId,
-    setAllTabs,
-    setPaneOpenByGroup,
-    taskId,
-    threadOfTask,
-  ]);
+  }, [attached, everyTabId, setAllTabs, taskId, threadOfTask]);
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the
@@ -899,6 +870,29 @@ export function BrowserTabs({
         }
       },
       open: (url, options) => openTab(url, options),
+      openBehind: (url, into) => {
+        const id = StoreId.newSessionId();
+        setAllTabs((current) => ({
+          ...current,
+          tabs: [
+            ...current.tabs,
+            {
+              group: into,
+              id,
+              kind: "page",
+              openedAt: Date.now(),
+              ...(url ? { openedUrl: url, url } : {}),
+            },
+          ],
+        }));
+        void rpcClient.workspace.browser.open.call({
+          host: WINDOW_BROWSER_HOST,
+          id: taskId,
+          sessionId: id,
+          ...(url ? { url } : {}),
+        });
+        return id;
+      },
       openOrFocus: (url, options) => {
         const key = options?.group ?? latest.current.group;
         // A file has one tab per place, the way it has one tab in Files; a

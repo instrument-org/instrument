@@ -16,6 +16,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type Task } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { type HeldTab } from "../../schemas/task-state";
 import {
   type BrowserTargetId,
   decodeBrowserTargetId,
@@ -155,8 +156,11 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       lands in the task's own attachments/ and the task is told it is there,
       so the brief calls it by that name. --app hands the task a
       connected app, by slug; it gets the \`app\` command for that app and no
-      other. --tab hands the task one of the user's browser tabs, by the id the
-      note on their message gives; its browser is then that tab, page and all.
+      other. --tab hands the task a tab already open, by the id the note on
+      their message gives; its browser is then that tab, page and all. A task
+      given no tab opens the pages it needs in tabs of its own in this chat,
+      behind whatever the user has up, so work on a new page needs no tab:
+      the brief names the page.
       --effort is how hard its model thinks, one of ${REASONING_EFFORTS.join(", ")};
       \`${TASK_COMMAND.name} models\` says which levels each model takes and its default. The same
       brief at two levels is two tasks, which is how a level is compared.
@@ -190,9 +194,9 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       rather than starting the work again from nothing. Only a connected app
       can be handed over.
   ${TASK_COMMAND.name} tab <id> <tab id>|--none
-      Hand a task one of the user's browser tabs after the fact, by the id the
-      note on their message gives, or take the tab back with --none, which
-      leaves the task a browser of its own again.
+      Hand a task a tab already open after the fact, by the id the note on
+      their message gives, or take the tab back with --none, which leaves the
+      task to open a tab of its own the next time it needs a page.
   ${TASK_COMMAND.name} list [--since <date>] [--until <date>] [--running] [--limit <n>] [--all]
       Your tasks, newest activity first: id, status, what it has running in the
       background when anything does, the day it was last active, how long ago
@@ -556,7 +560,7 @@ export async function runNew(
   ]);
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
   const tab = values.get("tab")?.[0];
-  const browserTargetId = tab === undefined ? undefined : await resolveTab(tab);
+  const handedTab = tab === undefined ? undefined : await resolveTab(tab);
   const apps = await resolveApps(values.get("app") ?? []);
   requireAppsNamedInBrief(prompt, apps);
 
@@ -590,8 +594,10 @@ export async function runNew(
   if (initialized.isErr()) {
     throw initialized.error;
   }
-  if (browserTargetId) {
-    await setTaskState(taskDir(taskId), { browserTargetId });
+  if (handedTab) {
+    await setTaskState(taskDir(taskId), {
+      browserTabs: [{ id: handedTab, openedBy: "handed" }],
+    });
   }
   const session = await latestOrNewSessionId(taskId);
   if (session.isErr()) {
@@ -766,19 +772,21 @@ export async function runTab(args: string[], context: TaskCommandContext) {
   }
   if (wanted === "--none") {
     const state = await getTaskState(taskDir(task.id));
-    if (!state.browserTargetId) {
+    if (!state.browserTabs?.some((held) => held.openedBy === "handed")) {
       return ok(
         `${task.id} has no tab of the user's; it browses on its own already.\n`,
       );
     }
-    await setTaskState(taskDir(task.id), { browserTargetId: undefined });
+    await setTaskState(taskDir(task.id), { browserTabs: undefined });
     publisher.publish("task.stateUpdated", { id: task.id });
     return ok(
-      `Took the tab back from ${task.id}. It opens a browser of its own from here.\n`,
+      `Took the tab back from ${task.id}. It opens a tab of its own from here.\n`,
     );
   }
-  const browserTargetId = await resolveTab(wanted);
-  await setTaskState(taskDir(task.id), { browserTargetId });
+  const handedTab = await resolveTab(wanted);
+  await setTaskState(taskDir(task.id), {
+    browserTabs: [{ id: handedTab, openedBy: "handed" }],
+  });
   publisher.publish("task.stateUpdated", { id: task.id });
   return ok(
     `${task.id} now drives tab ${wanted}, page and all. It acts on that tab from its next message.\n`,
@@ -837,17 +845,15 @@ export async function runWake(args: string[], context: TaskCommandContext) {
  * whether it is still open: a tab the user has since closed leaves the task
  * with nothing to act on, which is worth seeing before steering it at one.
  */
-function describeHandedTab(targetId: BrowserTargetId | undefined): string {
-  if (!targetId) {
-    return "none; it browses on its own";
+function describeHeldTab(held: HeldTab | undefined): string {
+  const decoded = held && decodeBrowserTargetId(held.id);
+  if (!held || !decoded) {
+    return "none; it opens one of its own when it needs a page";
   }
-  const decoded = decodeBrowserTargetId(targetId);
-  if (!decoded) {
-    return "none; it browses on its own";
-  }
-  return getWorkspaceConfig().browser.getTargetMeta(targetId)
-    ? decoded.sessionId
-    : `${decoded.sessionId} (closed since it was handed over)`;
+  const own = held.openedBy === "task" ? ", which it opened" : "";
+  return getWorkspaceConfig().browser.getTargetMeta(held.id)
+    ? `${decoded.sessionId}${own}`
+    : `${decoded.sessionId}${own} (closed since)`;
 }
 
 function fail(message: string) {
@@ -1501,7 +1507,7 @@ async function runShow(args: string[], context: TaskCommandContext) {
     `model: ${state.selectedModelURI ?? "(none yet)"}`,
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,
     `apps: ${handedApps.length > 0 ? handedApps.join(", ") : "none"}`,
-    `tab: ${describeHandedTab(state.browserTargetId)}`,
+    `tab: ${describeHeldTab(state.browserTabs?.[0])}`,
     `folder: ${MOUNT.tasks}/${task.id}, holding ${describeHoldings(holds)}`,
     `last said: ${lastSaid ? `\n  ${lastSaid.replaceAll("\n", "\n  ")}` : "nothing yet"}`,
   ];

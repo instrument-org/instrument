@@ -296,9 +296,9 @@ export function useOpeners({
     })();
   };
 
-  const openers = useRef({ openNamedPath, openPage, openScreen });
+  const openers = useRef({ browser, openNamedPath, openPage, openScreen });
   useEffect(() => {
-    openers.current = { openNamedPath, openPage, openScreen };
+    openers.current = { browser, openNamedPath, openPage, openScreen };
   });
   useEffect(() => {
     if (!ids) {
@@ -315,10 +315,18 @@ export function useOpeners({
           // Into the thread that asked, which may not be the one on screen.
           const group = target.sessionId;
           if (target.kind === "page") {
-            const tabId = openers.current.openPage(target.url, {
-              ...(group ? { group } : {}),
-              newTab: true,
-            });
+            // A page opened for an agent's own work joins its chat's tabs
+            // behind whatever is up; only one the conversation is showing
+            // the user comes on screen.
+            const tabId =
+              target.show || !group
+                ? target.url === undefined
+                  ? undefined
+                  : openers.current.openPage(target.url, {
+                      ...(group ? { group } : {}),
+                      newTab: true,
+                    })
+                : openers.current.browser?.openBehind(target.url, group);
             // The tab's id goes back to the command that asked, so the
             // conversation can hand the tab to a task without waiting for
             // the next message's note to name it.

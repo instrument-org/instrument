@@ -113,16 +113,16 @@ export function ThreadRail({
   return (
     <aside
       aria-label="What this chat has open"
-      className="flex h-full w-30 shrink-0 flex-col border-l border-border bg-background select-none"
+      className="flex h-full w-30 shrink-0 flex-col border-l border-border bg-background select-none @max-[56rem]/threadrow:w-14"
     >
       <motion.div
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3 @max-[56rem]/threadrow:px-1.5"
         layoutScroll
         ref={listRef}
       >
         <Reorder.Group
           axis="y"
-          className="flex flex-col gap-4"
+          className="flex flex-col gap-4 @max-[56rem]/threadrow:gap-2"
           onReorder={(keys: string[]) => {
             onReorder(keys);
           }}
@@ -166,11 +166,12 @@ export function ThreadRail({
             <DropdownMenuTrigger asChild>
               <button
                 aria-label="Open beside the chat"
-                className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+                className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground @max-[56rem]/threadrow:justify-center @max-[56rem]/threadrow:px-0"
+                title="New"
                 type="button"
               >
                 <PlusIcon className="size-4" />
-                New
+                <span className="@max-[56rem]/threadrow:sr-only">New</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56 p-2">
@@ -432,11 +433,24 @@ function RailTile({
       ? tab.title || hostOf(tab.url ?? tab.openedUrl ?? "")
       : screenPresentation(tab.href, { appsBySlug, taskTitles, threadTitles })
           .title;
+  // What the tile is by its mark: a page's site, a file's type, a folder,
+  // an app. Beside the name in a wide rail; the whole tile in a narrow one.
+  const mark =
+    tab.kind === "page" ? (
+      <SiteIcon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
+    ) : (
+      <ScreenMark
+        appsBySlug={appsBySlug}
+        href={tab.href}
+        threadTitles={threadTitles}
+      />
+    );
   const tile = (isWorking: boolean) => (
     <div className="group/tile relative flex flex-col gap-1.5">
       <button
         aria-label={title}
         className="flex flex-col gap-1.5 text-left outline-none"
+        title={title}
         // A middle click closes it, as it does a browser's tab.
         onAuxClick={(event) => {
           if (event.button === 1) {
@@ -451,9 +465,22 @@ function RailTile({
         }}
         type="button"
       >
+        {/* A narrow rail gives the pictures and names up first, and keeps
+            each thing as its mark, one column of them. */}
         <span
           className={cn(
-            "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition",
+            "hidden aspect-square w-full place-items-center rounded-lg bg-card shadow-xs ring-1 transition @max-[56rem]/threadrow:grid [&_img]:size-5 [&_svg]:size-5",
+            isChosen
+              ? "ring-2 ring-foreground/70"
+              : "ring-border/70 group-hover/tile:ring-border",
+            isWorking && "animate-pulse",
+          )}
+        >
+          {mark}
+        </span>
+        <span
+          className={cn(
+            "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition @max-[56rem]/threadrow:hidden",
             isChosen
               ? "ring-2 ring-foreground/70"
               : "ring-border/70 group-hover/tile:ring-border",
@@ -475,20 +502,9 @@ function RailTile({
         </span>
         {/* Every tile names what it is by its mark as well, which its
             picture hides: a page's site, a file's type, a folder, an app. */}
-        <span className="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground">
+        <span className="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground @max-[56rem]/threadrow:hidden">
           <span className="grid size-3 shrink-0 place-items-center [&_img]:size-3 [&_svg]:size-3">
-            {tab.kind === "page" ? (
-              <SiteIcon
-                favicon={tab.favicon}
-                url={tab.url ?? tab.openedUrl ?? ""}
-              />
-            ) : (
-              <ScreenMark
-                appsBySlug={appsBySlug}
-                href={tab.href}
-                threadTitles={threadTitles}
-              />
-            )}
+            {mark}
           </span>
           <span className={cn("truncate", isWorking && "brand-shiny-text")}>
             {title}
@@ -497,7 +513,7 @@ function RailTile({
       </button>
       <button
         aria-label={`Close ${title}`}
-        className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 hover:text-foreground focus-visible:opacity-100"
+        className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 hover:text-foreground focus-visible:opacity-100 @max-[56rem]/threadrow:-top-1 @max-[56rem]/threadrow:-right-1 @max-[56rem]/threadrow:size-4"
         onClick={onClose}
         type="button"
       >

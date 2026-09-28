@@ -982,7 +982,9 @@ function OrchestratorLayout() {
                 the edge between them, and the pane's state each group's
                 own. In a place the pane is the whole area: a place is its
                 tabs, with no conversation beside them. */}
-                <div className="flex min-h-0 flex-1">
+                {/* A container: the first thing to give way as the row
+                    narrows is the rail, which folds to its marks. */}
+                <div className="@container/threadrow flex min-h-0 flex-1">
                   <div className="relative min-w-0 flex-1">
                     <RightPane
                       conversation={

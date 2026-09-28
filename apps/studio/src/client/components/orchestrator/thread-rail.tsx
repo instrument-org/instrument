@@ -298,7 +298,7 @@ function PagePicture({
     return (
       <img
         alt=""
-        className="size-full object-cover object-top"
+        className="size-full object-contain"
         draggable={false}
         src={picture.data.url}
       />
@@ -377,13 +377,9 @@ function RailTile({
         <span
           className={cn(
             "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition",
-            // An agent at work in the page rings it in the brand's green,
-            // over the chosen ring, as the tab strip shimmers its tab.
-            isWorking
-              ? "ring-2 ring-brand-500"
-              : isChosen
-                ? "ring-2 ring-foreground/70"
-                : "ring-border/70 group-hover/tile:ring-border",
+            isChosen
+              ? "ring-2 ring-foreground/70"
+              : "ring-border/70 group-hover/tile:ring-border",
           )}
         >
           {tab.kind === "page" ? (
@@ -457,7 +453,7 @@ function ScreenPicture({
       return (
         <img
           alt=""
-          className="size-full object-cover object-top"
+          className="size-full object-contain"
           draggable={false}
           onError={() => {
             setFailed(true);

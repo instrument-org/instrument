@@ -282,6 +282,41 @@ describe("listThreads", () => {
     expect(thread?.title).toBe("plan a trip to lisbon");
   });
 
+  it("lists a thread started with only an ask marked on a file", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Make page 1 red");
+    const messageId = StoreId.newMessageId();
+    const file = { name: "digest.docx", path: "/Users/me/digest.docx" };
+    const saved = await Store.saveMessageWithParts(
+      {
+        id: messageId,
+        metadata: { createdAt: at(1), sessionId },
+        parts: [
+          {
+            data: {
+              asks: [
+                {
+                  excerpt: "Digest",
+                  file,
+                  instruction: "make this red",
+                  target: "page 1",
+                },
+              ],
+            },
+            metadata: partMetadata({ messageId, sessionId }),
+            type: "data-asks",
+          },
+        ],
+        role: "user",
+      },
+      chatFor(sessionId),
+    );
+    expect(saved.isOk()).toBe(true);
+
+    const [thread] = await listThreads();
+    expect(thread?.id).toBe(sessionId);
+  });
+
   it("reads what was said since the last list, and a part rewritten in place", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");

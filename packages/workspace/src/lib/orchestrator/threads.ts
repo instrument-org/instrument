@@ -474,7 +474,10 @@ function hasWords(message: SessionMessage.WithParts): boolean {
   );
 }
 
-/** Whether a user message opens a thread: it has words, or it brought files. */
+/**
+ * Whether a user message opens a thread: it has words, it brought files, or
+ * it carries asks marked on a file, which a chat can be started with alone.
+ */
 function isRoot(
   message: SessionMessage.WithParts,
 ): message is SessionMessage.UserWithParts {
@@ -485,8 +488,10 @@ function isRoot(
     hasWords(message) ||
     message.parts.some(
       (part) =>
-        part.type === "data-attachments" &&
-        (part.data.files.length > 0 || (part.data.folders?.length ?? 0) > 0),
+        (part.type === "data-attachments" &&
+          (part.data.files.length > 0 ||
+            (part.data.folders?.length ?? 0) > 0)) ||
+        (part.type === "data-asks" && part.data.asks.length > 0),
     )
   );
 }

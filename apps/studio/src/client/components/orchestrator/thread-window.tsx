@@ -242,6 +242,9 @@ export function ThreadWindow({
         openHere(WEB_HREF);
       }}
       onClose={closeTab}
+      onReorder={(keys) => {
+        windowTabs.reorder(keys, sessionId);
+      }}
       onSelect={select}
       tabs={tabs}
       targetOf={(tab) =>

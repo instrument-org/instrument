@@ -21,6 +21,7 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Reorder } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { computerName } from "./computer-name";
@@ -44,8 +45,9 @@ const ON_SCREEN_EVERY_MS = 5000;
  * itself, taken as it loads and changes and kept, so a chat reopened later, or
  * after a relaunch, shows its pages at once; a file is the picture the app
  * keeps of it; a folder is its mark. Pressing a tile brings the thing up
- * large beside the chat; its × takes it out of the chat. The + at the top
- * opens the web or this computer beside the chat.
+ * large beside the chat; its × takes it out of the chat; dragging one moves
+ * it among the others. The + at the top opens the web or this computer beside
+ * the chat.
  */
 export function ThreadRail({
   activeId,
@@ -54,6 +56,7 @@ export function ThreadRail({
   onAddComputer,
   onAddWeb,
   onClose,
+  onReorder,
   onSelect,
   tabs,
   targetOf,
@@ -66,6 +69,8 @@ export function ThreadRail({
   onAddComputer: () => void;
   onAddWeb: () => void;
   onClose: (id: string) => void;
+  /** The chat's tabs in a new order, by their strip keys, oldest first as the strip keeps them. */
+  onReorder: (keys: string[]) => void;
   onSelect: (id: string) => void;
   tabs: WindowTab[];
   /** The guest a page tab is drawn by, for taking its picture. */
@@ -105,25 +110,34 @@ export function ThreadRail({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-3">
+      <Reorder.Group
+        axis="y"
+        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-3"
+        layoutScroll
+        onReorder={(keys: string[]) => {
+          onReorder(keys.toReversed());
+        }}
+        values={newestFirst.map(keyOf)}
+      >
         {newestFirst.map((tab) => (
-          <RailTile
-            appsBySlug={appsBySlug}
-            isChosen={isViewOpen && tab.id === activeId}
-            isOnScreen={isViewOpen && tab.id === activeId}
-            key={tab.id}
-            onClose={() => {
-              onClose(tab.id);
-            }}
-            onSelect={() => {
-              onSelect(tab.id);
-            }}
-            tab={tab}
-            targetOf={targetOf}
-            threadTitles={threadTitles}
-          />
+          <Reorder.Item as="div" key={tab.id} value={keyOf(tab)}>
+            <RailTile
+              appsBySlug={appsBySlug}
+              isChosen={isViewOpen && tab.id === activeId}
+              isOnScreen={isViewOpen && tab.id === activeId}
+              onClose={() => {
+                onClose(tab.id);
+              }}
+              onSelect={() => {
+                onSelect(tab.id);
+              }}
+              tab={tab}
+              targetOf={targetOf}
+              threadTitles={threadTitles}
+            />
+          </Reorder.Item>
         ))}
-      </div>
+      </Reorder.Group>
     </aside>
   );
 }
@@ -155,6 +169,11 @@ function hostOf(url: string): string {
     return url;
   }
   return new URL(url).hostname.replace(/^www\./, "") || url;
+}
+
+/** A tab as the strip orders it. */
+function keyOf(tab: WindowTab): string {
+  return tab.stripKey ?? tab.id;
 }
 
 /**

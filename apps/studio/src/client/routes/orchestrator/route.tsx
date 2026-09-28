@@ -1283,6 +1283,7 @@ function OrchestratorLayout() {
                         revealPane();
                       }}
                       onClose={requestClose}
+                      onReorder={windowTabs.reorder}
                       onSelect={(id) => {
                         setTasksFace(undefined);
                         windowTabs.select(id);

@@ -62,6 +62,7 @@ import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
@@ -888,7 +889,11 @@ export function ComputerPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickLookKey, quickLookOpen, onQuickLookFollow]);
 
+  // In a narrow tab the places stand over the folder rather than beside it,
+  // put away until asked for and again once one is chosen.
+  const [isPlacesOpen, setPlacesOpen] = useState(false);
   const rootTo = (folder: string, prefix = "") => {
+    setPlacesOpen(false);
     if (onLocationChange) {
       onLocationChange({ path: prefix, root: folder });
       return;
@@ -931,9 +936,27 @@ export function ComputerPage({
     ? undefined
     : (currentListing?.path ?? hostPathOf(onScreen, rootHostPath ?? root));
   return (
-    <div className="flex h-full min-h-0">
+    // A container, so the places give the folder their room when the tab is
+    // narrow: below it they stand over the folder, behind a toggle at the
+    // head of its toolbar.
+    <div className="@container/finder relative flex h-full min-h-0">
+      {isPlacesOpen && (
+        <button
+          aria-label="Hide the places"
+          className="absolute inset-0 z-20 hidden cursor-default @max-xl/finder:block"
+          onClick={() => {
+            setPlacesOpen(false);
+          }}
+          tabIndex={-1}
+          type="button"
+        />
+      )}
       <nav
-        className="flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm select-none"
+        className={cn(
+          "flex w-44 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border px-2 py-2 text-sm select-none",
+          "@max-xl/finder:absolute @max-xl/finder:inset-y-0 @max-xl/finder:left-0 @max-xl/finder:z-30 @max-xl/finder:bg-background @max-xl/finder:shadow-xl-soft",
+          !isPlacesOpen && "@max-xl/finder:hidden",
+        )}
         onKeyDown={(event) => {
           if (event.key !== "ArrowRight") {
             return;
@@ -1139,6 +1162,19 @@ export function ComputerPage({
                 renderHeaderLead={() => (
                   <span className="flex items-center gap-0.5 pr-1">
                     <button
+                      aria-label={
+                        isPlacesOpen ? "Hide the places" : "Show the places"
+                      }
+                      aria-pressed={isPlacesOpen}
+                      className="hidden rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground @max-xl/finder:block"
+                      onClick={() => {
+                        setPlacesOpen((open) => !open);
+                      }}
+                      type="button"
+                    >
+                      <SidebarSimpleIcon className="size-4" />
+                    </button>
+                    <button
                       aria-label="Back"
                       className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
                       disabled={trail.current.at === 0}
@@ -1181,7 +1217,7 @@ export function ComputerPage({
                             size="sm"
                             title={`Ask about “${about}”`}
                           >
-                            Ask
+                            <span className="@max-lg/finder:sr-only">Ask</span>
                           </GlyphButton>
                         );
                       }

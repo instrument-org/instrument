@@ -90,9 +90,11 @@ import { ScreenTabContext } from "./screen-tab";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { type TabLocation } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
-import { TopicPill } from "./thread-row";
 import { draftTitle, type Topic } from "./threads";
+import { topicColor } from "./topic-colors";
+import { TopicMark } from "./topic-mark";
 import { AddTopicChip, TopicPicker } from "./topic-picker";
+import { topicTint } from "./topic-tint";
 import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
 import { useIdeas } from "./use-ideas";
 import { WindowTabStrip } from "./window-tab-strip";
@@ -187,7 +189,7 @@ export function ComposeBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 [clip-path:inset(-4rem_-4rem_0_-4rem)] items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft dark:bg-gray-700"
+      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-700"
       data-slot="compose-bar"
       exit={{ opacity: 0, y: 36 }}
       initial={{ opacity: 0, right, y: 36 }}
@@ -1511,15 +1513,37 @@ function TopicSlot({
   if (!topic) {
     return picker(<AddTopicChip />);
   }
-  const pill = picker(
-    // The pill keeps its width in a row; here it gives it up to the ×
-    // beside it, truncating its name, when the head runs out of room.
-    <button
-      className="flex min-w-0 [&>span]:min-w-0 [&>span]:shrink"
-      type="button"
+  // One pill in the topic's tint holding two controls: its name, which
+  // opens the picker, and the × at its end that takes the topic off. It
+  // gives up width to the head, truncating the name, when room runs out.
+  const pill = (
+    <span
+      className="inline-flex h-5 min-w-0 items-center rounded-full bg-(--topic-tint-surface) text-[11px] leading-4 text-foreground/90 topic-tint"
+      style={topicTint(topicColor(topic))}
     >
-      <TopicPill topic={topic} />
-    </button>,
+      {picker(
+        <button
+          className="flex h-full min-w-0 items-center gap-1 rounded-l-full pr-0.5 pl-1 hover:bg-(--topic-tint-edge)"
+          type="button"
+        >
+          {topic.emoji ? (
+            <span className="text-[10px]">{topic.emoji}</span>
+          ) : (
+            <TopicMark className="size-3.5 text-[10px]" topic={topic} />
+          )}
+          <span className="max-w-28 truncate">{topic.name}</span>
+        </button>,
+      )}
+      <button
+        aria-label={`Don't file under ${topic.name}`}
+        className="grid h-full w-5 shrink-0 place-items-center rounded-r-full text-foreground/60 hover:bg-(--topic-tint-edge) hover:text-foreground"
+        onClick={onClear}
+        title={`Don't file under ${topic.name}`}
+        type="button"
+      >
+        <XIcon className="size-2.5" weight="bold" />
+      </button>
+    </span>
   );
   return (
     <span className="flex min-w-0 animate-in items-center gap-1 duration-300 fade-in-0">
@@ -1540,15 +1564,6 @@ function TopicSlot({
       ) : (
         pill
       )}
-      <button
-        aria-label={`Don't file under ${topic.name}`}
-        className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-        onClick={onClear}
-        title={`Don't file under ${topic.name}`}
-        type="button"
-      >
-        <XIcon className="size-3" weight="bold" />
-      </button>
     </span>
   );
 }

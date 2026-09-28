@@ -47,7 +47,7 @@ import {
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { folderHref } from "@/shared/computer-href";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { type ComputerListing } from "@instrument-org/workspace/client";
 import { ORPCError } from "@orpc/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -1265,10 +1265,20 @@ export function ComputerPage({
               }
             }}
             onOpenInNewTab={() => {
-              const folder = hostPathOfItem(menuItem);
-              if (folder) {
-                openScreen(folderHref(folder), { newTab: true });
+              const hostPath = hostPathOfItem(menuItem);
+              if (!hostPath) {
+                return;
               }
+              // A file comes up with the folder it was chosen in as its
+              // tree, the way one opened in place does.
+              openScreen(
+                menuItem?.kind === "folder"
+                  ? folderHref(hostPath)
+                  : fileHref(hostPath, {
+                      tree: folderOnScreenPath ?? folderOf(hostPath),
+                    }),
+                { newTab: true },
+              );
             }}
             onQuickLook={
               onQuickLook &&
@@ -1389,17 +1399,16 @@ export function FolderMenu({
       ) : null}
       {item ? (
         <>
-          {item.kind === "folder" ? (
-            <ContextMenuItem onClick={onOpenInNewTab}>
-              <ArrowSquareOutIcon className="size-4" />
-              <span>Open in New Tab</span>
-            </ContextMenuItem>
-          ) : (
+          {item.kind === "file" && (
             <ContextMenuItem onClick={onOpen}>
               <FolderOpenIcon className="size-4" />
               <span>Open</span>
             </ContextMenuItem>
           )}
+          <ContextMenuItem onClick={onOpenInNewTab}>
+            <ArrowSquareOutIcon className="size-4" />
+            <span>Open in New Tab</span>
+          </ContextMenuItem>
           {/* The apps are listed where the Mac can be asked for them, and the
               submenu asks only once it is opened, so the row is there from
               the first frame rather than arriving under the pointer once a

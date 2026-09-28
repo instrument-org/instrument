@@ -51,7 +51,9 @@ Two OS processes matter: Electron **main** and the **renderer**. Almost all serv
 
 Rooted at the workspace folder ([`get-workspace-folder`](../../apps/studio/src/electron-main/lib/get-workspace-folder.ts)):
 
-- `tasks/<id>/` — one folder per task, with `.instrument/{task.db, settings.json}` (per-task SQLite plus one JSON record: what the app knows about the task at the top level, where the user left off under `state`). Legacy layouts are normalized on boot by `migrateWorkspaceLayout`.
+- `chats/<id>/` — one folder per chat, and the tasks it started inside it under `chats/<id>/tasks/<id>/`, so a chat and its work are one folder. `record-folders.ts` indexes where each one is.
+- `tasks/<id>/` — a task no chat owns.
+- Every chat and task folder holds `.instrument/{task.db, settings.json}` (per-task SQLite plus one JSON record: what the app knows about the task at the top level, where the user left off under `state`). Legacy layouts are normalized on boot by `migrateWorkspaceLayout`.
 - `projects/` — project folders tasks reference.
 - `memory/` — what the conversation's agent remembers about the user, one Markdown file per memory, written through its `memory` command and read back into every thread ([memory plan](../plans/active/memory.md)). Readable and editable in a file manager; Settings lists them.
 - `skills/` — user-authored and imported skills, mounted writable into the agent at `/skills`. Skills discovered elsewhere on the machine (co-installed agent homes like `~/.claude` and its peers, enumerated by `getSkillSources` in `packages/workspace/src/lib/skills.ts`) stay where they are.

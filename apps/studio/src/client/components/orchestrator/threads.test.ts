@@ -420,13 +420,7 @@ describe("the time at a row's end", () => {
   it.each([
     ["9:00 AM", new Date(2026, 8, 16, 9)],
     ["12:05 PM", new Date(2026, 8, 16, 12, 5)],
-    ["Tue", new Date(2026, 8, 15, 23)],
-    ["Mon", new Date(2026, 8, 14, 8)],
-    ["Sun", new Date(2026, 8, 13, 8)],
-    ["Sat", new Date(2026, 8, 12, 8)],
-    ["Fri", new Date(2026, 8, 11, 8)],
-    ["Thu", new Date(2026, 8, 10, 8)],
-    // A week back the weekday would name today, so it is a date.
+    ["Sep 15", new Date(2026, 8, 15, 23)],
     ["Sep 9", new Date(2026, 8, 9, 8)],
     ["Aug 14", new Date(2026, 7, 14, 8)],
     ["Dec 30, 2025", new Date(2025, 11, 30, 8)],

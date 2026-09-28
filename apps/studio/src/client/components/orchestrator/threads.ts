@@ -192,18 +192,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * When something last happened in a thread, the way a mailbox says it at a
- * row's end: the time of day while it is today, the weekday for the rest of
- * the week, and past that the date, since a weekday alone stops saying which
- * one it was.
+ * row's end: the time of day while it is today, and the date past that.
  */
 export function activityLabel(date: Date, now: Date): string {
   const startOfToday = new Date(now).setHours(0, 0, 0, 0);
   const days = Math.floor((startOfToday - date.getTime()) / DAY_MS);
   if (days < 0) {
     return format(date, "h:mm a");
-  }
-  if (days < 6) {
-    return format(date, "EEE");
   }
   return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
 }

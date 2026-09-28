@@ -763,7 +763,9 @@ export function ComposeWindow({
                 )}
               >
                 {showsStrip && (
-                  <div className="flex h-9 shrink-0 items-center pr-1 pl-1">
+                  // The tab on screen in the card's color, so it reads as
+                  // the top of the card under it rather than as the floor.
+                  <div className="flex h-9 shrink-0 items-center pr-1 pl-1 [--topic-tint-raised:var(--card)]">
                     <WindowTabStrip
                       childTitles={NO_TITLES}
                       groupKey={group}

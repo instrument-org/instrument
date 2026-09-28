@@ -26,6 +26,9 @@ import {
   type CdpRequest,
   type CdpResponse,
   createLocalFileGate,
+  createMainFrameLoadGate,
+  hasLoaderId,
+  NAVIGATE_HOLD_CAP_MS,
   notYourFile,
   openTargetSession,
   parseCdpMessage,
@@ -251,12 +254,11 @@ export function handleTaskCdpClient(
       getBrowserSessionDir(),
       "orchestrator",
     );
-    // Whichever of the two asks made the guest, it is sent to the page here:
-    // the answer comes back as the load starts, the way a browser's does.
+    // Whichever of the two asks made the guest, it is sent to the page here,
+    // and the answer waits for the page's load, the way a navigation's does on
+    // any tab: `tab new <url>` then reads the page it asked for.
     if (address !== undefined) {
-      void browser
-        .sendCommand(targetId, "Page.navigate", { url: address })
-        .catch(noop);
+      await loadInNewTab(browser, targetId, address);
     }
     await holdOpened(targetId);
     announce({ openedBy: "task", tabId, targetId });
@@ -299,7 +301,7 @@ export function handleTaskCdpClient(
       case "Target.attachToTarget": {
         const tabId = (params as undefined | { targetId?: unknown })?.targetId;
         const tabs = await held();
-    const tab = tabs.find((entry) => entry.tabId === tabId);
+        const tab = tabs.find((entry) => entry.tabId === tabId);
         if (!tab) {
           refuse(id, `Target ${String(tabId)} is not one of this task's tabs`);
           return;
@@ -442,6 +444,32 @@ export function handleTaskCdpClient(
   };
   clientWs.on("close", end);
   clientWs.on("error", end);
+}
+
+/** Sends a tab that was just made to its first page and waits for the load, capped. */
+async function loadInNewTab(
+  browser: WorkspaceConfig["browser"],
+  targetId: BrowserTargetId,
+  url: string,
+): Promise<void> {
+  const gate = createMainFrameLoadGate();
+  const stop = browser.subscribeEvents(targetId, noop, gate.observe);
+  try {
+    await browser.sendCommand(targetId, "Page.enable", {});
+    const load = gate.nextMainFrameLoad(NAVIGATE_HOLD_CAP_MS);
+    const result = await browser
+      .sendCommand(targetId, "Page.navigate", { url })
+      .catch(() => {});
+    if (hasLoaderId(result)) {
+      await load.promise;
+    } else {
+      load.cancel();
+    }
+  } catch {
+    // A guest that went away mid-load: the agent hears it as a closed tab.
+  } finally {
+    stop();
+  }
 }
 
 function noop() {

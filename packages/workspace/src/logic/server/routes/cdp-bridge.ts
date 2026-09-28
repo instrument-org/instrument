@@ -105,7 +105,7 @@ const INTERCEPTED_TARGET_COMMANDS = new Set([
 // it is released anyway. Under agent-browser's 30s per-command timeout with
 // margin; a page slower than this is better returned (the agent can `wait` or
 // re-read) than left to trip that timeout.
-const NAVIGATE_HOLD_CAP_MS = 20_000;
+export const NAVIGATE_HOLD_CAP_MS = 20_000;
 
 /** A wait for the main frame's load, resolvable early by `cancel`. */
 interface HeldNavigate {
@@ -172,7 +172,7 @@ export function createMainFrameLoadGate() {
   };
 }
 
-function hasLoaderId(result: unknown): boolean {
+export function hasLoaderId(result: unknown): boolean {
   return (
     typeof result === "object" &&
     result !== null &&

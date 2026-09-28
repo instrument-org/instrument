@@ -176,8 +176,8 @@ export const composeAtom = atomWithStorage<ComposeEntry[]>(
   { getOnInit: true },
 );
 
-/** The places the rail at the window's edge switches between: the chat, the files, the apps, and Discover. */
-export type AppPlace = "apps" | "chat" | "discover" | "files";
+/** The places the rail at the window's edge switches between: the chat, the files, the browser, the apps, and Discover. */
+export type AppPlace = "apps" | "browser" | "chat" | "discover" | "files";
 
 /**
  * The chat a tab last had open, so Chat in the rail takes a tab back to it.

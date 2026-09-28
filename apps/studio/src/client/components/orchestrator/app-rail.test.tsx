@@ -66,6 +66,7 @@ describe("AppRail", () => {
       ["New", null],
       ["Chat", "page"],
       ["Files", null],
+      ["Browser", null],
       ["Apps", null],
       ["Discover", null],
       ["Settings", null],

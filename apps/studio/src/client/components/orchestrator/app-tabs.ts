@@ -3,6 +3,7 @@ import {
   APPS_HREF,
   chatGroupAtom,
   THREADS_HREF,
+  WEB_HREF,
 } from "@/client/atoms/orchestrator";
 import { tabsAtomOf } from "@/client/atoms/tabs";
 import { freshTabId } from "@/client/lib/tab-actions";
@@ -87,6 +88,9 @@ export function placeOfHref(href: string): AppPlace | undefined {
   if (pathname === "/orchestrator/computer") {
     return "files";
   }
+  if (pathname === WEB_HREF || pathname === PAGE_HREF) {
+    return "browser";
+  }
   if (pathname === APPS_HREF || pathname.startsWith(`${APPS_HREF}/`)) {
     return "apps";
   }
@@ -106,6 +110,11 @@ export function useAppTabs() {
   const lastChat = useAtomValue(chatGroupAtom);
   const activeRouter = getTabRouter(model.selectedId);
 
+  /** Where the tab up stands. */
+  const hrefOfSelected = () =>
+    activeRouter?.history.location.href ??
+    model.tabs.find((tab) => tab.id === model.selectedId)?.pathname ??
+    CHAT_HREF;
   /** A tab of its own at an address, up at once unless asked to wait behind. */
   const open = (href: string, { select = true }: { select?: boolean } = {}) => {
     setModel((current) =>
@@ -150,9 +159,14 @@ export function useAppTabs() {
     goToPlace: (place: AppPlace, { newTab = false } = {}) => {
       go(placeHrefOf(place, lastChat), { newTab });
     },
+    /** A new tab of the place the tab up stands in, or of the chat outside any place. */
     model,
     navigate,
     open,
+    openNewTab: () => {
+      const href = hrefOfSelected();
+      open(placeHrefOf(placeOfHref(href) ?? "chat", null));
+    },
     reopen: () => {
       setModel((current) => reopenClosed(current, { id: freshTabId() }));
     },
@@ -178,12 +192,17 @@ export function useAppTabs() {
 
 /**
  * Where the rail takes a tab for a place: the chat at the one it last had
- * open, the computer at the Instrument folder, the apps, and Discover.
+ * open, the computer at the Instrument folder, the browser's start, the
+ * apps, and Discover. With no chat named, the chat is the inbox, which is
+ * where a new tab of the chat opens.
  */
 function placeHrefOf(place: AppPlace, lastChat: null | string): string {
   switch (place) {
     case "apps": {
       return APPS_HREF;
+    }
+    case "browser": {
+      return WEB_HREF;
     }
     case "chat": {
       const thread = StoreId.SessionSchema.safeParse(lastChat);

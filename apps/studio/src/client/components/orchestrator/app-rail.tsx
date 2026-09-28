@@ -14,6 +14,7 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { MapTrifoldIcon } from "@phosphor-icons/react/MapTrifold";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
@@ -43,6 +44,13 @@ const PLACES: {
     ),
     id: "files",
     label: "Files",
+  },
+  {
+    icon: (isOn) => (
+      <GlobeIcon className="size-7" weight={isOn ? "fill" : "regular"} />
+    ),
+    id: "browser",
+    label: "Browser",
   },
   { icon: () => <AppFan />, id: "apps", label: "Apps" },
   {

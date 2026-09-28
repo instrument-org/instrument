@@ -578,9 +578,7 @@ function WindowShell({
       forward: () => {
         appTabs.activeRouter?.history.forward();
       },
-      newTab: () => {
-        appTabs.open(CHAT_HREF);
-      },
+      newTab: appTabs.openNewTab,
       newThread: newDraft,
       // A file from outside the app is the person's own, in a tab of its own.
       openFile: (hostPath) => {
@@ -712,9 +710,7 @@ function WindowShell({
                   <AppTabStrip
                     childTitles={childTitles}
                     onClose={appTabs.close}
-                    onNew={() => {
-                      appTabs.open(CHAT_HREF);
-                    }}
+                    onNew={appTabs.openNewTab}
                     onReorder={appTabs.reorder}
                     onSelect={appTabs.select}
                     selectedId={appTabs.model.selectedId}

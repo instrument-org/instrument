@@ -75,6 +75,8 @@ export const ThreadSchema = z.object({
       text: z.string(),
     })
     .optional(),
+  /** The first line of the user's newest message: what a working thread is answering. Absent when that message has no words. */
+  lastAsk: z.string().optional(),
   /** When the last reply with words finished, in ms; absent until there is one. */
   lastReplyAt: z.number().optional(),
   /** The newest message that is done, which is what marking seen records. */
@@ -688,6 +690,8 @@ async function threadFor(
   ).length;
 
   const lastMessage = messages.at(-1);
+  const lastUser = messages.findLast((message) => message.role === "user");
+  const lastAsk = lastUser ? firstLine(textOf(lastUser)) : "";
   const latest = latestFor({
     ask,
     lastMessage,
@@ -715,6 +719,7 @@ async function threadFor(
     },
     id: session.id,
     starred: session.starredAt !== undefined,
+    ...(lastAsk ? { lastAsk } : {}),
     ...(latest ? { latest } : {}),
     ...(lastReply ? { lastReplyAt: lastReply.getTime() } : {}),
     ...(newestSettledMessageId ? { newestSettledMessageId } : {}),

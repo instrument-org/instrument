@@ -261,6 +261,32 @@ function RowSkeleton({
 }
 
 /**
+ * Which shape the rows take, from the list's own width: the pane is resized
+ * by hand and the column beside the list changes shape on its own, so the
+ * list is measured rather than told. Tall until measured, which is the shape
+ * that fits anywhere.
+ */
+function useDensity(ref: React.RefObject<HTMLDivElement | null>): RowDensity {
+  const [isSlim, setSlim] = useState(false);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    const measure = () => {
+      setSlim(element.clientWidth >= SLIM_FROM);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [ref]);
+  return isSlim ? "slim" : "tall";
+}
+
+/**
  * Whether the list runs past its own height, measured on every change of its
  * size or its rows. The fade has to be taken off a list that stops
  * scrolling, since its scroll timeline holds the last fade it drew once the
@@ -287,30 +313,4 @@ function useIsScrollable(
     };
   }, [ref, rowCount]);
   return isScrollable;
-}
-
-/**
- * Which shape the rows take, from the list's own width: the pane is resized
- * by hand and the column beside the list changes shape on its own, so the
- * list is measured rather than told. Tall until measured, which is the shape
- * that fits anywhere.
- */
-function useDensity(ref: React.RefObject<HTMLDivElement | null>): RowDensity {
-  const [isSlim, setSlim] = useState(false);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) {
-      return;
-    }
-    const measure = () => {
-      setSlim(element.clientWidth >= SLIM_FROM);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
-  }, [ref]);
-  return isSlim ? "slim" : "tall";
 }

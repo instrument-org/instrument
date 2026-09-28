@@ -137,13 +137,13 @@ export function createWorkspaceActor({
       aiGatewayApp,
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
-      ensureOutputFolderIcon,
       browser: browserViewManager.browser,
       captureEvent: captureServerEvent,
       captureException: captureServerException,
       defaultTaskTemplateDir: app.isPackaged
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
+      ensureOutputFolderIcon,
       getAIProviderConfigs,
       getUser: getSignedInUser,
       isActivityHeadingsEnabled: () => isFeatureEnabled("activity_headings"),

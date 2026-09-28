@@ -15,7 +15,7 @@ export async function applyWindowsFolderIcon(folder: string): Promise<void> {
   const desktopIni = path.join(folder, "desktop.ini");
   const existing = await fs.readFile(desktopIni).catch((error: unknown) => {
     if (error instanceof Error && "code" in error && error.code === "ENOENT")
-      return undefined;
+      return;
     throw error;
   });
   // Preserve all user customization, including unrelated desktop.ini settings.
@@ -27,7 +27,8 @@ export async function applyWindowsFolderIcon(folder: string): Promise<void> {
   } catch (error) {
     if (!(error instanceof Error && "code" in error && error.code === "EEXIST"))
       throw error;
-    if (!(await fs.readFile(target)).equals(icon)) return;
+    const existingIcon = await fs.readFile(target);
+    if (!existingIcon.equals(icon)) return;
   }
   if (!existing) {
     try {
@@ -51,6 +52,6 @@ export async function applyWindowsFolderIcon(folder: string): Promise<void> {
       "-EncodedCommand",
       Buffer.from(refresh, "utf16le").toString("base64"),
     ],
-    { timeout: 10000 },
+    { timeout: 10_000 },
   );
 }

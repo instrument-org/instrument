@@ -8,6 +8,13 @@ const KEPT = 256;
 /** When each guest last had an agent's command, oldest first. */
 const lastAt = new Map<BrowserTargetId, number>();
 
+/** When an agent last worked in a guest, in ms, or nothing when none has since launch. */
+export function lastBrowserAgentActivity(
+  targetId: BrowserTargetId,
+): number | undefined {
+  return lastAt.get(targetId);
+}
+
 /**
  * An agent sent a guest a command, or opened it: told to everyone listening,
  * and kept, so a listener that starts afterwards (a tile drawn once the tab
@@ -26,11 +33,4 @@ export function noteBrowserAgentActivity(
     lastAt.delete(oldest);
   }
   publisher.publish("browser.agentActivity", { id, targetId });
-}
-
-/** When an agent last worked in a guest, in ms, or nothing when none has since launch. */
-export function lastBrowserAgentActivity(
-  targetId: BrowserTargetId,
-): number | undefined {
-  return lastAt.get(targetId);
 }

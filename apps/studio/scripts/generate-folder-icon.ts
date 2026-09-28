@@ -29,5 +29,5 @@ try {
     path.join(resources, "instrument-folder-windows.ico"),
   ]);
 } finally {
-  fs.rmSync(temporary, { recursive: true, force: true });
+  fs.rmSync(temporary, { force: true, recursive: true });
 }

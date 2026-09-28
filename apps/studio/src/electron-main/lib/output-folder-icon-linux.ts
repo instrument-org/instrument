@@ -15,7 +15,7 @@ export async function applyLinuxFolderIcon(folder: string): Promise<void> {
     .readFile(directoryFile, "utf8")
     .catch((error: unknown) => {
       if (error instanceof Error && "code" in error && error.code === "ENOENT")
-        return undefined;
+        return;
       throw error;
     });
   if (existing !== undefined && existing !== directory) return;
@@ -25,7 +25,7 @@ export async function applyLinuxFolderIcon(folder: string): Promise<void> {
     "gio",
     ["info", "-a", "metadata::custom-icon,metadata::custom-icon-name", folder],
     { timeout: 5000 },
-  ).catch(() => undefined);
+  ).catch(() => {});
   const icon = path.join(folder, ".instrument-folder.svg");
   const uri = pathToFileURL(icon).href;
   if (

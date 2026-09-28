@@ -57,6 +57,7 @@ const config: KnipConfig = {
         "validate-env.ts!",
       ],
       ignoreBinaries: [
+        "magick", // System ImageMagick used to generate the Windows folder icon
         "tail",
         "op",
         "gh",

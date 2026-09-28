@@ -29,10 +29,10 @@ beforeEach(async () => {
   folder = await fs.mkdtemp(
     path.join(os.tmpdir(), "instrument-icon-platform-"),
   );
-  execute.mockReset().mockResolvedValue({ stdout: "", stderr: "" });
+  execute.mockReset().mockResolvedValue({ stderr: "", stdout: "" });
 });
 afterEach(async () => {
-  await fs.rm(folder, { recursive: true, force: true });
+  await fs.rm(folder, { force: true, recursive: true });
 });
 
 it("writes a Unicode Windows customization and sets Shell attributes", async () => {
@@ -97,8 +97,8 @@ it.each([
   "metadata::custom-icon-name: folder-red",
 ])("preserves GIO customization: %s", async (attribute) => {
   execute.mockResolvedValue({
-    stdout: `attributes:\n  ${attribute}\n`,
     stderr: "",
+    stdout: `attributes:\n  ${attribute}\n`,
   });
   await applyLinuxFolderIcon(folder);
   expect(await fs.readdir(folder)).toEqual([]);
@@ -126,12 +126,10 @@ it("supports KDE without GIO installed", async () => {
 
 it("does not rewrite GIO metadata that already points to the app's icon", async () => {
   await applyLinuxFolderIcon(folder);
-  execute
-    .mockClear()
-    .mockResolvedValue({
-      stdout: `metadata::custom-icon: ${pathToFileURL(path.join(folder, ".instrument-folder.svg")).href}`,
-      stderr: "",
-    });
+  execute.mockClear().mockResolvedValue({
+    stderr: "",
+    stdout: `metadata::custom-icon: ${pathToFileURL(path.join(folder, ".instrument-folder.svg")).href}`,
+  });
   await applyLinuxFolderIcon(folder);
   expect(execute).toHaveBeenCalledTimes(1);
 });

@@ -15,7 +15,6 @@ import {
   placeGroupOf,
   placeOfGroup,
   screenViewAtom,
-  SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
   THREADS_HREF,
@@ -188,7 +187,7 @@ function inboxBounds(rowWidth: number): RailBounds {
   return {
     collapse: INBOX_COLLAPSE_THRESHOLD,
     cover: max + INBOX_COVER_PAST,
-    initial: SIDEBAR_WIDTH_DEFAULT,
+    initial: SIDEBAR_WIDTH_MIN,
     max,
     min: SIDEBAR_WIDTH_MIN,
   };
@@ -394,8 +393,7 @@ function OrchestratorLayout() {
         entry.kind === "draft" ? [entry.draftId] : [],
       ),
     );
-    const isKept = (draft: Draft) =>
-      hasWords(draft) || floating.has(draft.id);
+    const isKept = (draft: Draft) => hasWords(draft) || floating.has(draft.id);
     for (const draft of drafts) {
       if (!isKept(draft)) {
         windowTabs.dropGroup(draftGroupOf(draft.id));

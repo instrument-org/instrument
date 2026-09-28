@@ -78,8 +78,8 @@ import {
   COMPOSE_WIDTH,
 } from "./compose-layout";
 import { ComposeZeroState, WebStart } from "./compose-zero-state";
-import { behindTabOf, isGroupShown } from "./draft-context";
 import { OrchestratorContext, useOrchestrator } from "./context";
+import { behindTabOf, isGroupShown } from "./draft-context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { IdeaSketch } from "./idea-sketch";
@@ -134,6 +134,36 @@ const COMPOSE_HEIGHT = 640;
 const WORDS_BASE_HEIGHT = 72;
 
 const NO_TITLES = new Map<never, never>();
+
+/**
+ * The marks of what a group holds, for a window put down to a bar: a site's
+ * icon, a file's type, a folder, the first few and a count of the rest.
+ */
+export function BarMarks({ group }: { group: string }) {
+  const { allTabs } = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
+  const held = allTabs.filter((tab) => tab.group === group && !isHomeTab(tab));
+  if (held.length === 0) {
+    return null;
+  }
+  return (
+    <span className="flex shrink-0 items-center gap-1 [&_img]:size-3.5 [&_svg]:size-3.5">
+      {held.slice(0, BAR_MARKS).map((tab) => (
+        <span
+          className="grid size-4 place-items-center rounded-sm bg-white/90 [&_img]:rounded-xs"
+          key={tab.id}
+        >
+          <HeldMark appsBySlug={appsBySlug} tab={tab} />
+        </span>
+      ))}
+      {held.length > BAR_MARKS && (
+        <span className="text-[10px] text-white/70">
+          +{held.length - BAR_MARKS}
+        </span>
+      )}
+    </span>
+  );
+}
 
 /**
  * The draft put down: a dark bar along the window's foot with its first words
@@ -1094,32 +1124,53 @@ export function GroupItem({
 }
 
 /**
- * The marks of what a group holds, for a window put down to a bar: a site's
- * icon, a file's type, a folder, the first few and a count of the rest.
+ * The chip at the head of the words naming what the screen already gives
+ * the draft: the thing it was opened over, in the row an attached file lands
+ * in, since it goes with the words as a file does. One quiet line, its mark
+ * and name in grey with an x that leaves it out, so it takes no room from
+ * the words and does not ask to be read; what it is for is in its tooltip.
+ * Nothing of the thing itself is drawn in the draft, which stands over it.
  */
-export function BarMarks({ group }: { group: string }) {
-  const { allTabs } = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
-  const held = allTabs.filter((tab) => tab.group === group && !isHomeTab(tab));
-  if (held.length === 0) {
-    return null;
-  }
+export function IncludedChip({
+  appsBySlug,
+  items,
+  onLeaveOut,
+  said = "On screen now, so it goes to Instrument with your message. It follows what you look at next.",
+  tab,
+}: {
+  appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  /** What the thing points at on this computer, which the chip names in place of the tab. */
+  items: ChosenItem[] | undefined;
+  onLeaveOut: () => void;
+  /** What the chip's tooltip says it is. */
+  said?: string;
+  tab: WindowTab;
+}) {
+  const [one] = items ?? [];
+  const name =
+    items !== undefined && items.length > 1
+      ? `${items.length} items`
+      : one === undefined
+        ? tab.kind === "page"
+          ? pageTabTitle(tab) || "Page"
+          : screenPresentation(tab.href, { appsBySlug }).title
+        : nameOfPath(one.path);
   return (
-    <span className="flex shrink-0 items-center gap-1 [&_img]:size-3.5 [&_svg]:size-3.5">
-      {held.slice(0, BAR_MARKS).map((tab) => (
-        <span
-          className="grid size-4 place-items-center rounded-sm bg-white/90 [&_img]:rounded-xs"
-          key={tab.id}
-        >
+    <ContextChip
+      label={
+        <ChipLabel paths={(items ?? []).map((item) => item.path)} said={said} />
+      }
+      mark={
+        items?.length === 1 && one !== undefined ? (
+          <ItemMark item={one} />
+        ) : (
           <HeldMark appsBySlug={appsBySlug} tab={tab} />
-        </span>
-      ))}
-      {held.length > BAR_MARKS && (
-        <span className="text-[10px] text-white/70">
-          +{held.length - BAR_MARKS}
-        </span>
-      )}
-    </span>
+        )
+      }
+      name={name}
+      onLeaveOut={onLeaveOut}
+      slot="included-chip"
+    />
   );
 }
 
@@ -1264,57 +1315,6 @@ function HeldMark({
     return <TabIcon favicon={tab.favicon} url={tab.url} />;
   }
   return screenPresentation(tab.href, { appsBySlug }).icon;
-}
-
-/**
- * The chip at the head of the words naming what the screen already gives
- * the draft: the thing it was opened over, in the row an attached file lands
- * in, since it goes with the words as a file does. One quiet line, its mark
- * and name in grey with an x that leaves it out, so it takes no room from
- * the words and does not ask to be read; what it is for is in its tooltip.
- * Nothing of the thing itself is drawn in the draft, which stands over it.
- */
-export function IncludedChip({
-  appsBySlug,
-  items,
-  onLeaveOut,
-  said = "On screen now, so it goes to Instrument with your message. It follows what you look at next.",
-  tab,
-}: {
-  appsBySlug: Map<string, { name: string; site: string | undefined }>;
-  /** What the thing points at on this computer, which the chip names in place of the tab. */
-  items: ChosenItem[] | undefined;
-  onLeaveOut: () => void;
-  /** What the chip's tooltip says it is. */
-  said?: string;
-  tab: WindowTab;
-}) {
-  const [one] = items ?? [];
-  const name =
-    items !== undefined && items.length > 1
-      ? `${items.length} items`
-      : one === undefined
-        ? tab.kind === "page"
-          ? pageTabTitle(tab) || "Page"
-          : screenPresentation(tab.href, { appsBySlug }).title
-        : nameOfPath(one.path);
-  return (
-    <ContextChip
-      label={
-        <ChipLabel paths={(items ?? []).map((item) => item.path)} said={said} />
-      }
-      mark={
-        items?.length === 1 && one !== undefined ? (
-          <ItemMark item={one} />
-        ) : (
-          <HeldMark appsBySlug={appsBySlug} tab={tab} />
-        )
-      }
-      name={name}
-      onLeaveOut={onLeaveOut}
-      slot="included-chip"
-    />
-  );
 }
 
 /**

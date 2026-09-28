@@ -36,11 +36,12 @@ describe.skipIf(process.platform !== "darwin")("output folder icon", () => {
       "com.apple.FinderInfo",
       folder,
     ]);
-    const info = Buffer.from(stdout.replace(/\s/g, ""), "hex");
-    expect(info.readUInt16BE(8) & 0x0400).toBe(0x0400);
+    const info = Buffer.from(stdout.replaceAll(/\s/g, ""), "hex");
+    expect(info.readUInt16BE(8) & 0x04_00).toBe(0x04_00);
     const icon = await fs.stat(iconFile);
     await ensureOutputFolderIcon(folder);
-    expect((await fs.stat(iconFile)).mtimeMs).toBe(icon.mtimeMs);
+    const updatedIcon = await fs.stat(iconFile);
+    expect(updatedIcon.mtimeMs).toBe(icon.mtimeMs);
     const resource = await fs.readFile(`${iconFile}/..namedfork/rsrc`);
     expect(resource.length).toBeGreaterThan(1000);
   });

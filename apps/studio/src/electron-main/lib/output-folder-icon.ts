@@ -28,7 +28,7 @@ export async function ensureOutputFolderIcon(
   folderPath: string,
 ): Promise<void> {
   if (
-    !["darwin", "win32", "linux"].includes(process.platform) ||
+    !["darwin", "linux", "win32"].includes(process.platform) ||
     folderPath !== path.join(os.homedir(), "Documents", "Instrument")
   ) {
     return;
@@ -47,7 +47,8 @@ export async function ensureOutputFolderIcon(
 }
 
 async function applyIcon(folderPath: string): Promise<void> {
-  if (!(await fs.lstat(folderPath)).isDirectory()) return;
+  const folder = await fs.lstat(folderPath);
+  if (!folder.isDirectory()) return;
   if (process.platform === "win32") return applyWindowsFolderIcon(folderPath);
   if (process.platform === "linux") return applyLinuxFolderIcon(folderPath);
   let finderInfo: Buffer;
@@ -57,7 +58,7 @@ async function applyIcon(folderPath: string): Promise<void> {
       ["-px", "com.apple.FinderInfo", folderPath],
       { timeout: 5000 },
     );
-    finderInfo = Buffer.from(stdout.replace(/\s/g, ""), "hex");
+    finderInfo = Buffer.from(stdout.replaceAll(/\s/g, ""), "hex");
   } catch (error) {
     // A folder without Finder metadata has no custom icon to preserve.
     if (!(error instanceof Error) || !error.message.includes("No such xattr")) {
@@ -66,7 +67,7 @@ async function applyIcon(folderPath: string): Promise<void> {
     finderInfo = Buffer.alloc(0);
   }
   // Finder's kHasCustomIcon flag is bit 10 of the big-endian flags at byte 8.
-  if (finderInfo.length >= 10 && (finderInfo.readUInt16BE(8) & 0x0400) !== 0) {
+  if (finderInfo.length >= 10 && (finderInfo.readUInt16BE(8) & 0x04_00) !== 0) {
     return;
   }
   await exec(

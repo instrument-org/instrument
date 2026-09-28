@@ -11,20 +11,16 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { XIcon } from "@phosphor-icons/react/X";
-import { atom, useAtom, useSetAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { COMPOSE_GUEST_LAYER } from "./compose-layout";
 import { useOrchestrator } from "./context";
+import { lookAtAtom, type LookTarget } from "./look-at";
 import { useWindowTabs } from "./window-tabs";
 
 /** The group a page looked at is kept under while the panel is up, off every strip. */
 const QUICK_LOOK_GROUP = "page:quick-look";
-
-/** What the large panel shows: a file, by where it is, or a page by its address. */
-export type LookTarget =
-  | { kind: "file"; tab: FileTab }
-  | { kind: "page"; title?: string; url: string };
 
 /**
  * Space on a selected file, showing it over the whole window the way the
@@ -84,12 +80,6 @@ export function useQuickLook({
     },
   };
 }
-
-/**
- * What the window's own panel shows, asked for from anywhere: a tab's Expand
- * puts what it has up here, to be seen at the size Quick Look gives a file.
- */
-export const lookAtAtom = atom<LookTarget | null>(null);
 
 /** The window's panel, for what `lookAtAtom` asks it to show. Mounted once. */
 export function WindowLook() {

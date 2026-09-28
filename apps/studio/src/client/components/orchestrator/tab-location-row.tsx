@@ -4,11 +4,11 @@ import {
 } from "@/client/components/extend/file-system";
 import { OpenInAppButton } from "@/client/components/open-in-app";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
-import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import {
   lookAtAtom,
   type LookTarget,
-} from "@/client/components/orchestrator/quick-look";
+} from "@/client/components/orchestrator/look-at";
+import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { InstrumentGlyph } from "@/client/components/wordmark";

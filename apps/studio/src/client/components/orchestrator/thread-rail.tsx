@@ -34,6 +34,9 @@ import { screenLocation, screenPresentation } from "./screen-presentation";
 import { SiteIcon } from "./sidebar";
 import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
 
+/** A layout change that lands at once, for tiles moved by anything but a drag. */
+const STILL = { layout: { duration: 0 } };
+
 /** How long a page on screen is left to settle before its picture is taken. */
 const SETTLE_MS = 1500;
 
@@ -83,7 +86,10 @@ export function ThreadRail({
   targetOf: (tab: Extract<WindowTab, { kind: "page" }>) => BrowserTargetId;
   threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
 }) {
-  const order = tabs.map(keyOf).join(" ");
+  // Tiles slide only while one is being dragged among them: laid out
+  // otherwise, they would slide every time the window around the rail grows,
+  // shrinks or moves.
+  const [isDragging, setDragging] = useState(false);
   // A tab added lands at the foot, so the list follows it there.
   const listRef = useRef<HTMLDivElement>(null);
   const count = useRef(tabs.length);
@@ -115,12 +121,16 @@ export function ThreadRail({
           values={tabs.map(keyOf)}
         >
           {tabs.map((tab) => (
-            // Laid out again only when the order moves: a window growing or
-            // shrinking around the rail is not a reason to slide its tiles.
             <Reorder.Item
               as="div"
               key={tab.id}
-              layoutDependency={order}
+              onDragEnd={() => {
+                setDragging(false);
+              }}
+              onDragStart={() => {
+                setDragging(true);
+              }}
+              transition={isDragging ? undefined : STILL}
               value={keyOf(tab)}
             >
               <RailTile

@@ -1187,9 +1187,9 @@ function nameOfPath(path: string) {
 
 /**
  * What the draft is, as the head's first words: "New chat" until a page type
- * is picked, then "Make a" and that type, with its × to go back to a chat.
- * The words open the catalog of page types, which is rare enough to live
- * behind them rather than beside the send.
+ * is picked, then "Make a" and that type. The words open the catalog of page
+ * types, which is rare enough to live behind them rather than beside the send,
+ * and whose Clear goes back to a chat.
  */
 function OutputHead({
   onChange,
@@ -1223,19 +1223,6 @@ function OutputHead({
           <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
         </button>
       </OutputPicker>
-      {output && (
-        <button
-          aria-label={`Don't make ${output.title}`}
-          className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-          onClick={() => {
-            onChange(undefined);
-          }}
-          title="Just a chat"
-          type="button"
-        >
-          <XIcon className="size-3" weight="bold" />
-        </button>
-      )}
     </span>
   );
 }
@@ -1284,7 +1271,12 @@ function TopicSlot({
     return picker(<AddTopicChip />);
   }
   const pill = picker(
-    <button className="flex min-w-0" type="button">
+    // The pill keeps its width in a row; here it gives it up to the ×
+    // beside it, truncating its name, when the head runs out of room.
+    <button
+      className="flex min-w-0 [&>span]:min-w-0 [&>span]:shrink"
+      type="button"
+    >
       <TopicPill topic={topic} />
     </button>,
   );
@@ -1309,7 +1301,7 @@ function TopicSlot({
       )}
       <button
         aria-label={`Don't file under ${topic.name}`}
-        className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+        className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
         onClick={onClear}
         title={`Don't file under ${topic.name}`}
         type="button"

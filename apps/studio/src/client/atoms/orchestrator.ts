@@ -164,11 +164,16 @@ export function composeKeyOf(entry: ComposeEntry): string {
  * The windows floating over the row, the way a mail client keeps several
  * compose windows along its foot, oldest first: the newest stands at the
  * right, and the ones there is no room for are not drawn. The drafts being
- * written and the threads in their small views share the row. In memory
- * only: a launch opens with nothing floating, and the drafts themselves are
- * in `draftsAtom`.
+ * written and the threads in their small views share the row. Kept across
+ * launches, so what was floating when the app quit floats again; the drafts
+ * themselves are in `draftsAtom`.
  */
-export const composeAtom = atom<ComposeEntry[]>([]);
+export const composeAtom = atomWithStorage<ComposeEntry[]>(
+  "orchestrator.compose.v1",
+  [],
+  undefined,
+  { getOnInit: true },
+);
 
 /** The places the rail at the window's edge switches between: the chat, the files, the apps, and Discover. */
 export type AppPlace = "apps" | "chat" | "discover" | "files";

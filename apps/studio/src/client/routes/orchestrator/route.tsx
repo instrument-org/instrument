@@ -382,18 +382,34 @@ function OrchestratorLayout() {
   );
   // A draft is written over the screen, never on it: a draft's group left
   // on screen by an earlier launch is put away, and a draft with no words
-  // is not kept past its window, so one left over from a launch goes too.
+  // is not kept past its window, so one left over from a launch goes too,
+  // unless its window came back with it. A window whose draft is gone goes.
   // Once, over what was restored.
   useEffect(() => {
     if (draftOfGroup(windowTabs.group) !== undefined) {
       windowTabs.leaveGroup();
     }
+    const floating = new Set(
+      compose.entries.flatMap((entry) =>
+        entry.kind === "draft" ? [entry.draftId] : [],
+      ),
+    );
+    const isKept = (draft: Draft) =>
+      hasWords(draft) || floating.has(draft.id);
     for (const draft of drafts) {
-      if (!hasWords(draft)) {
+      if (!isKept(draft)) {
         windowTabs.dropGroup(draftGroupOf(draft.id));
       }
     }
-    setDrafts((current) => current.filter(hasWords));
+    setDrafts((current) => current.filter(isKept));
+    for (const entry of compose.entries) {
+      if (
+        entry.kind === "draft" &&
+        !drafts.some((draft) => draft.id === entry.draftId)
+      ) {
+        compose.remove(draftGroupOf(entry.draftId));
+      }
+    }
     // Home was once a row of tabs; what an earlier launch kept under it has
     // nowhere to show.
     windowTabs.dropGroup("place:home");

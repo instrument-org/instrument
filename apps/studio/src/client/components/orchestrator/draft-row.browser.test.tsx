@@ -18,7 +18,6 @@ const WINDOW: OrchestratorWindow = {
   openPage: vi.fn(),
   openPath: vi.fn(),
   openScreen: vi.fn(),
-  opensNewTab: true,
   taskId: TaskIdSchema.parse("orchestrator"),
 };
 

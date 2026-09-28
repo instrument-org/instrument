@@ -12,7 +12,12 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
-import { sameHref, threadOfHrefPrefix, useWindowTabs } from "./window-tabs";
+import {
+  pageTakesOver,
+  sameHref,
+  threadOfHrefPrefix,
+  useWindowTabs,
+} from "./window-tabs";
 
 const THREAD_A = StoreId.newSessionId();
 const THREAD_B = StoreId.newSessionId();
@@ -401,5 +406,56 @@ describe("sameHref", () => {
     ],
   ])("compares %s", (_case, a, b, expected) => {
     expect(sameHref(a, b)).toBe(expected);
+  });
+});
+
+describe("pageTakesOver", () => {
+  const FOLDER = "/Users/casey/site";
+  const FILE = `${FOLDER}/a.html`;
+  const fileScreen = fileHref(FILE, { tree: FOLDER });
+  const folderScreen = `/orchestrator/computer?path=&root=${encodeURIComponent(FOLDER)}`;
+  const PAGE = StoreId.newSessionId();
+
+  // The page's own record still names the file when the page moves on: what
+  // the tab stands on is the address the page went to, and back from there
+  // is the file, not the folder the file was opened from.
+  it("puts the page in the tab's place at the address it went to, with the file behind it", () => {
+    const next = pageTakesOver(
+      {
+        activeByGroup: {},
+        activeId: "finder",
+        group: THREAD_A,
+        tabs: [
+          {
+            at: 1,
+            group: THREAD_A,
+            href: fileScreen,
+            id: "finder",
+            kind: "screen",
+            trail: [folderScreen, fileScreen],
+          },
+          {
+            group: "page:finder",
+            id: PAGE,
+            kind: "page",
+            openedAt: 0,
+            openedUrl: `file://${FILE}`,
+            url: `file://${FILE}`,
+          },
+        ],
+      },
+      { page: PAGE, tab: "finder", url: "https://example.com/" },
+    );
+    expect(next.activeId).toBe(PAGE);
+    expect(next.tabs).toHaveLength(1);
+    const [tab] = next.tabs;
+    expect(tab).toMatchObject({
+      group: THREAD_A,
+      id: PAGE,
+      kind: "page",
+      stripKey: "finder",
+      url: "https://example.com/",
+    });
+    expect(tab?.past?.at(-1)).toMatchObject({ at: 1, href: fileScreen });
   });
 });

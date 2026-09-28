@@ -1,5 +1,7 @@
 import { createContext } from "react";
 
+import { type OpenOptions } from "./orchestrator/context";
+
 /**
  * Where a surface other than the task page sends a web page a link offers to
  * open in the app. The task page opens pages in its own browser pane; a
@@ -12,5 +14,5 @@ import { createContext } from "react";
  * is the honest answer there rather than an error.
  */
 export const PageOpenContext = createContext<
-  ((url: string, options?: { newTab?: boolean }) => void) | null
+  ((url: string, options?: OpenOptions) => void) | null
 >(null);

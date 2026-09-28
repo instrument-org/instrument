@@ -1,8 +1,7 @@
 import type * as FaviconUrl from "@/client/lib/favicon-url";
 
-import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { renderInBrowser } from "@/tests/render-browser";
-import { StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -319,30 +318,6 @@ describe("An inline link in a browser", () => {
     await hoverLink((element) => {
       expect(element.scrollWidth).toBeLessThanOrEqual(element.clientWidth);
     });
-  });
-
-  // Inside a task the click has a menu of its own, hanging off the same anchor
-  // the tooltip does and drawn over the same sentence. Only one of the two was
-  // asked for.
-  it("clears the tooltip when the link's own menu opens", async () => {
-    await renderInBrowser(
-      <TaskSessionProvider
-        sessionId={StoreId.newSessionId()}
-        taskId={"task_1" as TaskId}
-      >
-        <div className={PROSE} style={{ width: 600 }}>
-          <Markdown markdown="Rotation is on [the docs](https://finalpoint.co/handbook)." />
-        </div>
-      </TaskSessionProvider>,
-    );
-
-    await hoverLink((element) => {
-      expect(element.textContent).toBe("https://finalpoint.co/handbook");
-    });
-    await userEvent.click(page.getByRole("link"));
-
-    expect(document.querySelector('[role="menu"]')).not.toBeNull();
-    expect(destination()).toBeNull();
   });
 
   // The icon a plain link carries is the same size as a chip's and sits in the

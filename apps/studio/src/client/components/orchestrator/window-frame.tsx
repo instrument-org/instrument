@@ -7,6 +7,8 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, type Ref, Suspense } from "react";
 
+import { LinkSurface } from "./link-surface";
+
 // A pasted file opened from a composer, at its full size: loaded the first
 // time one is opened, since most windows never open one.
 const LazyFilePreviewModal = lazy(() =>
@@ -67,7 +69,10 @@ export function WindowFrame({
               className="relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-background shadow-xs [--guest-bottom-radius:var(--radius-2xl)]"
               ref={rowRef}
             >
-              <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
+              <div className="flex min-h-0 min-w-0 flex-1">
+                {/* A plain link anywhere in the window stays in it. */}
+                <LinkSurface>{children}</LinkSurface>
+              </div>
             </div>
             {overlay}
           </div>

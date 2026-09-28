@@ -241,7 +241,6 @@ function paneWindow(openScreen = vi.fn()): OrchestratorWindow {
     openPage: vi.fn(),
     openPath: vi.fn(),
     openScreen,
-    opensNewTab: true,
     taskId: TaskIdSchema.parse("orchestrator"),
   };
 }
@@ -835,7 +834,7 @@ describe("ThreadRow", () => {
     expect(onOpen).not.toHaveBeenCalled();
     expect(window.openPath).toHaveBeenCalledWith("/task/out/report.md", {
       group: sessionId,
-      newTab: true,
+      ownTab: true,
       show: true,
     });
     file?.dispatchEvent(

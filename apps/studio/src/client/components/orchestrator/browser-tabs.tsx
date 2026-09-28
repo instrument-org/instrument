@@ -45,6 +45,7 @@ import {
 import { createPortal } from "react-dom";
 import { z } from "zod";
 
+import { isSiteGroup } from "./app-tabs";
 import { AskTray } from "./ask-tray";
 import { useOrchestrator } from "./context";
 import { FileAskButton } from "./file-ask-button";
@@ -586,13 +587,15 @@ export function BrowserTabs({
           // of the guest's history. Back arriving there, by whatever stepped
           // the guest (the row's arrow, a mouse's thumb button, the guest's
           // own menu), goes on to the visit before this page, keeping the
-          // site ready for Forward. A task's tab is the task's to step.
+          // site ready for Forward. A task's tab is the task's to step, and
+          // a site of the window's own steps the window's tab instead.
           if (
             url === "about:blank" &&
             !webview.canGoBack() &&
             webview.canGoForward() &&
             latest.current.active?.id === id &&
-            !latest.current.active.taskId
+            !latest.current.active.taskId &&
+            !isSiteGroup(latest.current.active.group)
           ) {
             webview.goForward();
             setAllTabs((current) => {

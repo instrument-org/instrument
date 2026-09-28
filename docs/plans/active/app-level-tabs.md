@@ -62,6 +62,5 @@ Choosing a chat in the inbox, a folder in the Finder, or an app on Apps navigate
 
 - Whether two app tabs on the same chat should share its tabs (they do, since a chat's tabs are the chat's) or collapse into one.
 - A site opened at app level walks its page's own history with the arrows in its row; the bar's arrows walk the tab. Whether the bar should walk the page first, as the classic window does while a guest has focus.
-- Open in New Tab on a file named in a chat opens a tab of the chat's, not an app tab; everything outside a chat opens an app tab.
 - A draft opened over a Files, Apps or Discover tab does not carry that screen as its included tab, since those screens are routes rather than a group's tab; the send context still names what is on screen.
 - The window's chords were not driven end to end: the menu accelerators do not reach a page driven over CDP.

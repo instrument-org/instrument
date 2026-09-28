@@ -1,6 +1,4 @@
-// Which of the two anchors a link becomes, which is a routing decision rather
-// than a measured one -- the menu's own placement is asserted in
-// `task-external-link.browser.test.tsx`, where there is a layout to measure.
+// Where each gesture over a link sends the page.
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
@@ -95,17 +93,18 @@ beforeEach(() => {
 afterEach(installWindowStubs);
 
 describe("ExternalLink", () => {
-  it("uses the surface opener for Open in Instrument instead of bypassing it", () => {
+  // No question in between: the click is the answer, and the app's own place
+  // for the page is the one it gives.
+  it("opens the page through the surface's opener on a plain click", () => {
     const { browserOpen, element } = inOrchestrator(
       <ExternalLink href="https://example.com/page">A page</ExternalLink>,
     );
     renderWithProviders(element);
     fireEvent.click(screen.getByText("A page"));
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Open in Instrument" }),
-    );
     expect(openInTaskBrowser).toHaveBeenCalledWith("https://example.com/page");
     expect(browserOpen).not.toHaveBeenCalled();
+    expect(openExternalLink).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   // One modifier, the one the platform means a tab by.
@@ -125,8 +124,8 @@ describe("ExternalLink", () => {
     expect(openInTaskBrowser).not.toHaveBeenCalled();
   });
 
-  // On macOS that chord is the secondary click, so it belongs to the menu.
-  it("still asks on a ctrl click on macOS", () => {
+  // On macOS that chord is the secondary click, so it is not asking for a tab.
+  it("opens no tab on a ctrl click on macOS", () => {
     onPlatform("darwin");
     const { element, openPage } = inOrchestrator(
       <ExternalLink href="https://example.com/page">A page</ExternalLink>,
@@ -134,9 +133,6 @@ describe("ExternalLink", () => {
     renderWithProviders(element);
     fireEvent.click(screen.getByText("A page"), { ctrlKey: true });
     expect(openPage).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("menuitem", { name: "Open in Instrument" }),
-    ).toBeTruthy();
   });
 
   // Left alone, Chromium answers this one by handing the address to the
@@ -177,48 +173,6 @@ describe("ExternalLink", () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
-  it("offers an explicit new-tab action", () => {
-    const { element, openPage } = inOrchestrator(
-      <ExternalLink href="https://example.com/page">A page</ExternalLink>,
-    );
-    renderWithProviders(element);
-    fireEvent.click(screen.getByText("A page"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Open in New Tab" }));
-    expect(openPage).toHaveBeenCalledWith("https://example.com/page", {
-      newTab: true,
-    });
-  });
-
-  // The click asks where the page should go. The clipboard is not a where, and
-  // the right-click menu is what takes that question.
-  it("asks about destinations alone, leaving the clipboard to the other menu", () => {
-    const { element } = inOrchestrator(
-      <ExternalLink href="https://example.com/page">A page</ExternalLink>,
-    );
-    renderWithProviders(element);
-    fireEvent.click(screen.getByText("A page"));
-    expect(
-      screen.getByRole("menuitem", { name: "Open in your browser" }),
-    ).toBeTruthy();
-    expect(screen.queryByRole("menuitem", { name: "Copy Link" })).toBeNull();
-  });
-
-  // Where the first row already makes a tab, a second one offering a tab is
-  // the same destination written twice.
-  it("offers no new-tab action where the surface opens one anyway", () => {
-    const { element } = inOrchestrator(
-      <ExternalLink href="https://example.com/page">A page</ExternalLink>,
-      { opensNewTab: true },
-    );
-    renderWithProviders(element);
-    fireEvent.click(screen.getByText("A page"));
-    expect(
-      screen.getByRole("menuitem", { name: "Open in Instrument" }),
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("menuitem", { name: "Open in New Tab" }),
-    ).toBeNull();
-  });
   it("leaves for the OS browser outside a task, where there is nowhere else", () => {
     renderWithProviders(
       <ExternalLink href="https://example.com/page">A page</ExternalLink>,
@@ -231,10 +185,7 @@ describe("ExternalLink", () => {
     });
   });
 
-  // The click raises the menu instead of answering it, so nothing has been sent
-  // anywhere by the time it returns. That is the whole behavior: a destination
-  // chosen for the user is exactly what this replaces.
-  it("asks rather than answers inside a task", () => {
+  it("keeps the page in the app inside a task", () => {
     renderWithProviders(
       inTask(
         <ExternalLink href="https://example.com/page">A page</ExternalLink>,
@@ -243,8 +194,8 @@ describe("ExternalLink", () => {
 
     fireEvent.click(screen.getByText("A page"));
 
+    expect(openInTaskBrowser).toHaveBeenCalledWith("https://example.com/page");
     expect(openExternalLink).not.toHaveBeenCalled();
-    expect(openInTaskBrowser).not.toHaveBeenCalled();
   });
 
   // A scheme the OS hands to an application has one destination wherever it is

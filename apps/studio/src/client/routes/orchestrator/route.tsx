@@ -59,6 +59,7 @@ import {
 import {
   createFileRoute,
   Outlet,
+  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -239,19 +240,17 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
         <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
           {/* A plain click on a row opens in this tab, and a middle or
             modified click asks for a tab of its own. */}
-          <OrchestratorContext value={{ ...orchestrator, opensNewTab: false }}>
-            <ThreadPane
-              arrivedId={shell.arrivedId}
-              drafts={shell.drafts}
-              onDeleteDraft={shell.deleteDraft}
-              onListed={isActive ? shell.onListed : undefined}
-              onOpenDraft={shell.showDraft}
-              onOpenThread={(entry) => {
-                orchestrator.openScreen(`${THREADS_HREF}/${entry.id}`);
-              }}
-              openThreadId={thread}
-            />
-          </OrchestratorContext>
+          <ThreadPane
+            arrivedId={shell.arrivedId}
+            drafts={shell.drafts}
+            onDeleteDraft={shell.deleteDraft}
+            onListed={isActive ? shell.onListed : undefined}
+            onOpenDraft={shell.showDraft}
+            onOpenThread={(entry) => {
+              orchestrator.openScreen(`${THREADS_HREF}/${entry.id}`);
+            }}
+            openThreadId={thread}
+          />
         </div>
       </ChatColumn>
       {thread !== undefined && (
@@ -280,7 +279,7 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
                         }}
                         onViewTasks={() => {
                           orchestrator.openScreen(tasksHref(thread), {
-                            newTab: true,
+                            ownTab: true,
                           });
                         }}
                         popOut={{
@@ -497,8 +496,8 @@ function RouteScreen({ href }: { href: string }) {
           }}
         >
           <PageOpenContext
-            value={(url) => {
-              orchestrator.openPage(url);
+            value={(url, options) => {
+              orchestrator.openPage(url, options);
             }}
           >
             <div className="relative min-h-0 flex-1">
@@ -524,6 +523,9 @@ function SiteView({ group }: { group: string }) {
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   usePageSlot(up?.kind === "page" ? pageHost : null, pageChrome, true);
   const reportView = useScreenViewOfTab();
+  // Back from the page's start is the window tab's own back, to where the
+  // site was opened from.
+  const router = useRouter();
   if (!up) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -534,6 +536,12 @@ function SiteView({ group }: { group: string }) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <GroupItem
+        before={{
+          back: () => {
+            router.history.back();
+          },
+          canGoBack: router.history.canGoBack(),
+        }}
         closeTab={shell.requestClose}
         group={group}
         isFramed={false}

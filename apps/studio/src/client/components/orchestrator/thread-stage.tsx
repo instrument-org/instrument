@@ -209,7 +209,10 @@ function ChatScreen({
   // Into this thread's own group, shown: an open from a thread's chat is the
   // thread's whatever the window has up at that moment, and never a silent
   // nothing because the group on screen was another's.
-  const into = { group: sessionId, newTab: true, show: true };
+  // A new-tab gesture over any of it asks for a tab of the window's own.
+  const into = { group: sessionId, ownTab: true, show: true };
+  const intoOr = (options?: { newTab?: boolean }) =>
+    options?.newTab ? { newTab: true } : into;
   return (
     // The thread is the drop region, so a file let go anywhere over it lands
     // in the reply, and the pane beside it stays outside.
@@ -232,24 +235,23 @@ function ChatScreen({
                 sessionId,
               });
             },
-            openPage: (url) => {
-              orchestrator.openPage(url, into);
+            openPage: (url, options) => {
+              orchestrator.openPage(url, intoOr(options));
             },
-            openScreen: (href) => {
-              orchestrator.openScreen(href, into);
+            openScreen: (href, options) => {
+              orchestrator.openScreen(href, intoOr(options));
             },
-            opensNewTab: true,
             sessionId,
           }}
         >
           <FileOpenContext
-            value={(path) => {
-              openFile?.(path, into);
+            value={(path, options) => {
+              openFile?.(path, intoOr(options));
             }}
           >
             <PageOpenContext
-              value={(url) => {
-                orchestrator.openPage(url, into);
+              value={(url, options) => {
+                orchestrator.openPage(url, intoOr(options));
               }}
             >
               <TaskSessionProvider sessionId={sessionId} taskId={taskId}>

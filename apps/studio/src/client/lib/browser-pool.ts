@@ -86,6 +86,8 @@ interface WebviewElement extends HTMLElement {
   canGoForward(): boolean;
   /** The page as it looks now, for a surface that holds a picture of it over a reload. */
   capturePage(): Promise<{ toDataURL: () => string }>;
+  /** Forgets every entry but the one the guest is at. */
+  clearHistory(): void;
   executeJavaScript(code: string): Promise<unknown>;
   findInPage(
     text: string,

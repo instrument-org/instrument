@@ -31,6 +31,11 @@ export const CHAT_HREF = "/orchestrator";
 /** The route of a site opened at the window's own level, which draws the page group its address names. */
 export const PAGE_HREF = "/orchestrator/page";
 
+/** Whether a group is a site opened at the window's own level, whose back past its page is the window tab's. */
+export function isSiteGroup(group: string | undefined): boolean {
+  return group?.startsWith("site:") ?? false;
+}
+
 /** A fresh group for a site opened at the window's own level. */
 export function newSiteGroup(): string {
   return siteGroupOf(crypto.randomUUID());
@@ -68,7 +73,6 @@ export function groupOfHref(href: string): string | undefined {
     ? (search.get("group") ?? undefined)
     : undefined;
 }
-
 
 /** Whether an address is the chat: the inbox alone, or beside a chat. */
 export function isChatHref(href: string): boolean {

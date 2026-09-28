@@ -449,28 +449,30 @@ function HoldsInThread({
   threadId: StoreId.Session;
 }) {
   const orchestrator = useOrchestrator();
-  const options = { group: threadId, newTab: true, show: true };
+  const inThread = { group: threadId, ownTab: true, show: true };
+  // A new-tab gesture asks for a tab of the window's own instead.
+  const options = (asked?: { newTab?: boolean }) =>
+    asked?.newTab ? { newTab: true } : inThread;
   return (
     <OrchestratorContext
       value={{
         ...orchestrator,
-        openPage: (url) => {
-          orchestrator.openPage(url, options);
+        openPage: (url, asked) => {
+          orchestrator.openPage(url, options(asked));
         },
-        openScreen: (href) => {
-          orchestrator.openScreen(href, options);
+        openScreen: (href, asked) => {
+          orchestrator.openScreen(href, options(asked));
         },
-        opensNewTab: true,
       }}
     >
       <FileOpenContext
-        value={(path) => {
-          orchestrator.openPath(path, options);
+        value={(path, asked) => {
+          orchestrator.openPath(path, options(asked));
         }}
       >
         <PageOpenContext
-          value={(url) => {
-            orchestrator.openPage(url, options);
+          value={(url, asked) => {
+            orchestrator.openPage(url, options(asked));
           }}
         >
           {children}

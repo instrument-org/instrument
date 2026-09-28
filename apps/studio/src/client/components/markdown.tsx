@@ -4,6 +4,7 @@ import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
+import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
 import {
   filePathOfInstrumentLink,
@@ -85,9 +86,12 @@ import { MarkdownTable } from "./markdown-table";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
+import { OrchestratorContext } from "./orchestrator/context";
 import {
   ContextMenu,
   ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
@@ -411,6 +415,9 @@ const TaskFileLink = ({
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
   const showTaskFile = useShowTaskFile(taskId);
+  // A window with tabs gives the file a tab of its own on a middle or
+  // modified click, and offers one in the menu.
+  const hasTabs = useContext(OrchestratorContext) !== null;
   const appendToPrompt = useSetAtom(appendToPromptAtom);
   // Where the file is on the computer, which the drag and the menu act on.
   // Before the guard below, so the chip that turns out not to name a task file
@@ -428,8 +435,14 @@ const TaskFileLink = ({
   const chip = (
     <button
       className={cn(INLINE_CHIP_CLASS_NAME, className)}
-      onClick={() => {
-        showTaskFile(filePath);
+      onAuxClick={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+          showTaskFile(filePath, { newTab: hasTabs });
+        }
+      }}
+      onClick={(event) => {
+        showTaskFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
       }}
       title={filePath}
       type="button"
@@ -462,6 +475,25 @@ const TaskFileLink = ({
     <ContextMenu>
       <ContextMenuTrigger asChild>{chip}</ContextMenuTrigger>
       <ContextMenuContent>
+        {hasTabs && (
+          <>
+            <ContextMenuItem
+              onSelect={() => {
+                showTaskFile(filePath);
+              }}
+            >
+              Open
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() => {
+                showTaskFile(filePath, { newTab: true });
+              }}
+            >
+              Open in New Tab
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
         <FileActionsMenuItems
           file={viewerFile}
           menuComponents={contextMenuComponents}

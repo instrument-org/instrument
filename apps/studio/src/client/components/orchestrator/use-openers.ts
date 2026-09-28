@@ -1,5 +1,6 @@
 import { APPS_HREF, THREADS_HREF } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
@@ -76,11 +77,22 @@ export function useOpeners({
     url: string,
     {
       activate = false,
+      behind = false,
       group: into,
       newTab = false,
+      ownTab = false,
+      replace = false,
       show = false,
     }: OpenOptions = {},
   ) => {
+    if (newTab) {
+      // A tab of the window's own, wherever it was asked for from: the site
+      // is that tab's page.
+      const group = newSiteGroup();
+      const id = browser?.open(url, { group });
+      appTabs.open(pageHrefOf(group), { select: !behind });
+      return id;
+    }
     if (into !== undefined && into !== windowTabs.group) {
       const id = browser?.openOrFocus(url, { group: into, show });
       if (show) {
@@ -91,26 +103,27 @@ export function useOpeners({
       return id;
     }
     if (windowTabs.group === undefined) {
-      // A screen that is its tab's own route: the site is a tab's page of its
-      // own, in this tab or a new one, and back from it returns here.
+      // A screen that is its tab's own route: the site is the tab's page,
+      // and back from it returns here, unless the screen was only handing
+      // its file over, in which case the page takes its place.
       const group = newSiteGroup();
       const id = browser?.open(url, { group });
-      appTabs.go(pageHrefOf(group), { newTab });
+      appTabs.navigate(pageHrefOf(group), { replace });
       return id;
     }
     revealPane();
-    if (!newTab && active?.kind === "page" && !active.taskId) {
+    if (!ownTab && active?.kind === "page" && !active.taskId) {
       browser?.navigate(url);
       return active.id;
     }
     // A tab of its own: a website opens again however many tabs are on it,
     // and a file already open in this group comes forward.
-    if (newTab && !isFreshNewTab) {
+    if (ownTab && !isFreshNewTab) {
       return browser?.openOrFocus(url);
     }
     return browser?.open(
       url,
-      active && !isTaskTab && (!newTab || isFreshNewTab)
+      active && !isTaskTab && (!ownTab || isFreshNewTab)
         ? { replacing: active }
         : undefined,
     );
@@ -121,6 +134,7 @@ export function useOpeners({
       activate = false,
       group: into,
       newTab = false,
+      ownTab = false,
       show = false,
     }: OpenOptions = {},
   ) => {
@@ -146,6 +160,14 @@ export function useOpeners({
       });
       return;
     }
+    // A memory is shown where all of them are, in Settings, brought to the
+    // one named; a screen of its own would be one memory with nothing to do
+    // to it.
+    const memory = memoryOfHref(href);
+    if (memory) {
+      openSettings({ memory, tab: "Memory" });
+      return;
+    }
     // A chat's tasks, or one task, are a tab in the chat's group, a task in
     // the chat it was filed from, with the chat on screen and its pane open.
     // A tasks tab already up in that chat walks there in place, the way its
@@ -166,6 +188,7 @@ export function useOpeners({
       const up = windowTabs.tabUpIn(chat);
       const walksInPlace =
         !newTab &&
+        !ownTab &&
         chat === windowTabs.group &&
         up?.kind === "screen" &&
         tasksOfHref(up.href) !== undefined;
@@ -174,7 +197,8 @@ export function useOpeners({
         windowTabs.navigateScreen(at);
         return;
       }
-      if (chat !== windowTabs.group) {
+      // In a tab of the window's own, the chat comes up there at its tasks.
+      if (newTab || chat !== windowTabs.group) {
         appTabs.go(`${THREADS_HREF}/${chat}`, { newTab });
       }
       windowTabs.openOrFocusScreen(at, {
@@ -185,17 +209,15 @@ export function useOpeners({
       setPaneOpen(chat, true);
       return;
     }
-    // A memory is shown where all of them are, in Settings, brought to the
-    // one named; a screen of its own would be one memory with nothing to do
-    // to it.
-    const memory = memoryOfHref(href);
-    if (memory) {
-      openSettings({ memory, tab: "Memory" });
+    // Anything else in a tab of the window's own, wherever it was asked
+    // for from.
+    if (newTab) {
+      appTabs.open(href);
       return;
     }
     // An app is a place a tab stands, wherever it was asked for from.
     if (parseHref(href).pathname.startsWith(`${APPS_HREF}/`)) {
-      appTabs.go(href, { newTab });
+      appTabs.navigate(href);
       return;
     }
     if (into !== undefined && into !== windowTabs.group) {
@@ -213,7 +235,7 @@ export function useOpeners({
     // Outside a chat, a screen is the tab's own: the tab up goes there, or a
     // tab of its own does.
     if (!StoreId.SessionSchema.safeParse(windowTabs.group).success) {
-      appTabs.go(href, { newTab });
+      appTabs.navigate(href);
       return;
     }
     revealPane();
@@ -222,7 +244,7 @@ export function useOpeners({
     if (!active) {
       // Nothing in the pane to open it in place of.
       windowTabs.openScreen(href);
-    } else if (newTab && !isFreshNewTab) {
+    } else if (ownTab && !isFreshNewTab) {
       windowTabs.openOrFocusScreen(href);
     } else {
       windowTabs.navigateScreen(href);
@@ -316,7 +338,7 @@ export function useOpeners({
           : {
               tabId: openPage(target.url, {
                 ...(group ? { group } : {}),
-                newTab: true,
+                ownTab: true,
               }),
             };
       }
@@ -393,10 +415,37 @@ export function useOpeners({
     }
   };
 
-  const openers = useRef({ actOnTab });
+  const openers = useRef({ actOnTab, openPage });
   useEffect(() => {
-    openers.current = { actOnTab };
+    openers.current = { actOnTab, openPage };
   });
+  // A link a person asked a page for in a tab of its own (a middle- or
+  // Cmd-click, a link that targets a new window, the page's menu) gets a tab
+  // of the window's own, whichever page it was on.
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const asks = await rpcClient.browser.events.openInNewTab.call(
+          undefined,
+          { signal: controller.signal },
+        );
+        for await (const ask of asks) {
+          if (ask.host === WINDOW_BROWSER_HOST) {
+            openers.current.openPage(ask.url, {
+              behind: ask.background,
+              newTab: true,
+            });
+          }
+        }
+      } catch {
+        // The window closing ends the stream.
+      }
+    })();
+    return () => {
+      controller.abort();
+    };
+  }, []);
   useEffect(() => {
     if (!ids) {
       return;

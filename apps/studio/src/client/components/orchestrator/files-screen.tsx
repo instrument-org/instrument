@@ -21,6 +21,10 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import {
+  encodeBrowserTargetId,
+  StoreId,
+} from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
@@ -29,6 +33,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
+import { newSiteGroup, pageHrefOf } from "./app-tabs";
 import { AskTray } from "./ask-tray";
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
 import { useOrchestrator } from "./context";
@@ -36,6 +41,8 @@ import { FileAskButton } from "./file-ask-button";
 import { mountOfHostPath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { folderOf, segmentsOf } from "./host-path";
+import { useHostedPageNavigation } from "./hosted-page";
+import { LinkSurface } from "./link-surface";
 import { useOnScreen } from "./on-screen";
 import { PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
@@ -92,7 +99,7 @@ export function FilesScreen({
 }) {
   const { browser, openPage, openScreen, rowLead, rowTail, taskId } =
     useOrchestrator();
-  const { allTabs, close } = useWindowTabs();
+  const { allTabs, close, moveToGroup, pageTakesOver } = useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
   const appTabId = useTabId();
@@ -176,7 +183,9 @@ export function FilesScreen({
   const hasBrowser = browser !== null;
   useEffect(() => {
     if (pageFile !== undefined && hasBrowser) {
-      openPage(fileUrlOf(pageFile));
+      // The page takes this screen's place, so back from it skips a screen
+      // that would only hand the file over again.
+      openPage(fileUrlOf(pageFile), { replace: true });
     }
     // Once per file the tab arrives at; the page takes the tab over from here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,6 +226,48 @@ export function FilesScreen({
     hostedFile === undefined
       ? undefined
       : allTabs.find((tab) => tab.group === hostGroup)?.id;
+  // The hosted tabs as they stand now, for the way out: the cleanup below
+  // runs once, long after the render that set it up.
+  const hostedTabIdsNow = useRef(hostedTabIds);
+  useEffect(() => {
+    hostedTabIdsNow.current = hostedTabIds;
+  });
+  // A link the page follows moves the tab: to another file, which the tab
+  // shows in this one's place, or off the computer, where the tab becomes
+  // the page at that address and back returns here. A step back past the
+  // file is the tab's own back.
+  useHostedPageNavigation(
+    hostedTabId === undefined
+      ? undefined
+      : encodeBrowserTargetId(taskId, StoreId.SessionSchema.parse(hostedTabId)),
+    hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
+    (step) => {
+      if (step.kind === "back") {
+        leaveFile();
+        return;
+      }
+      if (step.kind === "file") {
+        showFile(step.path);
+        return;
+      }
+      if (hostedTabId === undefined) {
+        return;
+      }
+      // The page goes on as the tab's, so leaving this screen must not
+      // close it with the rest of the pages drawn here.
+      hostedTabIdsNow.current = hostedTabIdsNow.current
+        .split("\n")
+        .filter((id) => id !== hostedTabId)
+        .join("\n");
+      if (screenTab) {
+        pageTakesOver(hostedTabId, screenTab.id, step.url);
+        return;
+      }
+      const group = newSiteGroup();
+      moveToGroup(hostedTabId, group);
+      router.history.push(pageHrefOf(group));
+    },
+  );
   const [editTabs, setEditTabs] = useAtom(pageEditTabsAtom);
   usePageEditToggleOnScreen(
     hostedTabId === undefined
@@ -252,12 +303,6 @@ export function FilesScreen({
     // re-read of the list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hostedFile, hostedTabIds]);
-  // The hosted tabs as they stand now, for the way out: the cleanup below
-  // runs once, long after the render that set it up.
-  const hostedTabIdsNow = useRef(hostedTabIds);
-  useEffect(() => {
-    hostedTabIdsNow.current = hostedTabIds;
-  });
   useEffect(
     () => () => {
       for (const id of hostedTabIdsNow.current.split("\n").filter(Boolean)) {
@@ -384,95 +429,102 @@ export function FilesScreen({
   );
 
   if (activeFile && viewerFile && tree !== undefined) {
+    // What the document links to opens where the tree's rows do: in this
+    // tab, unless a tab of its own is asked for; a folder opens as the
+    // Finder standing in it.
+    const openLinkedFile = (
+      hostPath: string,
+      options?: { newTab?: boolean },
+    ) => {
+      if (hostPath.endsWith("/")) {
+        openScreen(folderHref(hostPath.slice(0, -1)), options);
+      } else if (options?.newTab) {
+        openScreen(fileHref(hostPath, { tree }), options);
+      } else {
+        showFile(hostPath);
+      }
+    };
     return (
-      // What the document links to opens where the tree's rows do: in this
-      // tab, unless a tab of its own is asked for; a folder opens as the
-      // Finder standing in it.
-      <FileOpenContext
-        value={(hostPath, options) => {
-          if (hostPath.endsWith("/")) {
-            openScreen(folderHref(hostPath.slice(0, -1)), options);
-          } else if (options?.newTab) {
-            openScreen(fileHref(hostPath, { tree }), options);
-          } else {
-            showFile(hostPath);
-          }
-        }}
-      >
-        <div className="flex h-full min-h-0">
-          {/* Beside the document the way the window's own rail is: its edge
+      <FileOpenContext value={openLinkedFile}>
+        <LinkSurface
+          base={folderOf(activeFile.hostPath)}
+          openFile={openLinkedFile}
+        >
+          <div className="flex h-full min-h-0">
+            {/* Beside the document the way the window's own rail is: its edge
               drags, an over-drag closes it, and it slides at its width. It
               stays mounted while closed, so what it had open is still open
               when it returns. The Finder's own ground rather than a tinted
               panel, so the tree reads as the list it was opened from. */}
-          <StudioSidebarRail
-            bounds={TREE_BOUNDS}
-            isOpen={isTreeOpen}
-            label="Resize the tree"
-            onCollapse={() => {
-              setTreeOpen(false);
-            }}
-            panelClassName="bg-background"
-            widthAtom={fileTreeWidthAtom}
-          >
-            <FileTree
-              onOpen={showFile}
-              root={tree}
-              selected={activeFile.hostPath}
-            />
-          </StudioSidebarRail>
-          {/* At the row's far left, over the tree it puts away. */}
-          {rowLead &&
-            createPortal(
-              <TreeToggle
-                isOpen={isTreeOpen}
-                onToggle={() => {
-                  setTreeOpen((open) => !open);
-                }}
-              />,
-              rowLead,
-            )}
-          <div className="relative min-h-0 min-w-0 flex-1">
-            <FileViewer
-              actionsInto={rowTail}
-              actionsLead={
-                hostedTabId === undefined ? (
-                  askButton
-                ) : (
-                  <>
-                    <PageEditToggle tabId={hostedTabId} />
-                    {askButton}
-                  </>
-                )
-              }
-              className={FULL_BLEED}
-              editable
-              file={viewerFile}
-              key={activeFile.hostPath}
-              {...(hostedFile === undefined
-                ? {}
-                : {
-                    page: (
-                      // Square at the bottom left while the tree stands
-                      // against it, and at the right whatever the pane's own
-                      // corner is; the pane's corners when the tree is away.
-                      <div
-                        className={
-                          isTreeOpen
-                            ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,var(--radius-2xl))]"
-                            : "h-full"
-                        }
-                        ref={setSlot}
-                      />
-                    ),
-                  })}
-            />
-            {/* A page in Edit keeps its asks in its own dock instead. */}
-            {!(hostedTabId !== undefined && editTabs[hostedTabId]) && (
-              <AskTray path={activeFile.hostPath} />
-            )}
+            <StudioSidebarRail
+              bounds={TREE_BOUNDS}
+              isOpen={isTreeOpen}
+              label="Resize the tree"
+              onCollapse={() => {
+                setTreeOpen(false);
+              }}
+              panelClassName="bg-background"
+              widthAtom={fileTreeWidthAtom}
+            >
+              <FileTree
+                onOpen={showFile}
+                root={tree}
+                selected={activeFile.hostPath}
+              />
+            </StudioSidebarRail>
+            {/* At the row's far left, over the tree it puts away. */}
+            {rowLead &&
+              createPortal(
+                <TreeToggle
+                  isOpen={isTreeOpen}
+                  onToggle={() => {
+                    setTreeOpen((open) => !open);
+                  }}
+                />,
+                rowLead,
+              )}
+            <div className="relative min-h-0 min-w-0 flex-1">
+              <FileViewer
+                actionsInto={rowTail}
+                actionsLead={
+                  hostedTabId === undefined ? (
+                    askButton
+                  ) : (
+                    <>
+                      <PageEditToggle tabId={hostedTabId} />
+                      {askButton}
+                    </>
+                  )
+                }
+                className={FULL_BLEED}
+                editable
+                file={viewerFile}
+                key={activeFile.hostPath}
+                {...(hostedFile === undefined
+                  ? {}
+                  : {
+                      page: (
+                        // Square at the bottom left while the tree stands
+                        // against it, and at the right whatever the pane's own
+                        // corner is; the pane's corners when the tree is away.
+                        <div
+                          className={
+                            isTreeOpen
+                              ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,var(--radius-2xl))]"
+                              : "h-full"
+                          }
+                          ref={setSlot}
+                        />
+                      ),
+                    })}
+              />
+              {/* A page in Edit keeps its asks in its own dock instead. */}
+              {!(hostedTabId !== undefined && editTabs[hostedTabId]) && (
+                <AskTray path={activeFile.hostPath} />
+              )}
+            </div>
           </div>
-        </div>
+        </LinkSurface>
       </FileOpenContext>
     );
   }
@@ -483,28 +535,30 @@ export function FilesScreen({
         {activeFile && viewerFile ? (
           // Where the file sits on the Mac is the row above, which every tab
           // wears, so the viewer is the whole of the tab.
-          <FileViewer
-            actionsInto={rowTail}
-            actionsLead={askButton}
-            className={FULL_BLEED}
-            editable
-            file={viewerFile}
-            key={activeFile.hostPath}
-            {...(source
-              ? {
-                  // The tab turns back into the page, the way it arrives
-                  // at a page's file from anywhere.
-                  onLeaveSource: () => {
-                    const href = fileHref(activeFile.hostPath);
-                    if (screenTab) {
-                      screenTab.visit(href);
-                    } else {
-                      router.history.push(href);
-                    }
-                  },
-                }
-              : {})}
-          />
+          <LinkSurface base={folderOf(activeFile.hostPath)}>
+            <FileViewer
+              actionsInto={rowTail}
+              actionsLead={askButton}
+              className={FULL_BLEED}
+              editable
+              file={viewerFile}
+              key={activeFile.hostPath}
+              {...(source
+                ? {
+                    // The tab turns back into the page, the way it arrives
+                    // at a page's file from anywhere.
+                    onLeaveSource: () => {
+                      const href = fileHref(activeFile.hostPath);
+                      if (screenTab) {
+                        screenTab.visit(href);
+                      } else {
+                        router.history.push(href);
+                      }
+                    },
+                  }
+                : {})}
+            />
+          </LinkSurface>
         ) : (
           <ComputerPage
             onFolderChange={(next) => {

@@ -36,6 +36,46 @@ export function isHomeTab(tab: WindowTab): boolean {
   );
 }
 
+/**
+ * The tabs with a page drawn inside another tab (a file tab's page beside its
+ * tree) taking that tab over: the page, guest and all, stands where the tab
+ * stood, in its place in the strip and its group, and back from it returns
+ * to what the tab showed. The page's own entry, in the group of pages drawn
+ * inside tabs, goes.
+ */
+export function pageTakesOver(
+  current: WindowTabs,
+  { page: pageId, tab: tabId, url }: { page: string; tab: string; url: string },
+): WindowTabs {
+  const tab = current.tabs.find((entry) => entry.id === tabId);
+  const page = current.tabs.find((entry) => entry.id === pageId);
+  if (!tab || page?.kind !== "page") {
+    return current;
+  }
+  const {
+    future: _future,
+    group: _group,
+    isOpened: _opened,
+    past: _past,
+    stripKey: _key,
+    ...visit
+  } = page;
+  // At the address the page went on to, which the page's own record may not
+  // have caught up with yet.
+  const next = visitInTab(tab, { ...visit, pageBackSteps: 0, url });
+  return {
+    ...current,
+    activeByGroup:
+      tab.group !== undefined && current.activeByGroup?.[tab.group] === tabId
+        ? { ...current.activeByGroup, [tab.group]: pageId }
+        : current.activeByGroup,
+    activeId: current.activeId === tabId ? pageId : current.activeId,
+    tabs: current.tabs.flatMap((entry) =>
+      entry.id === pageId ? [] : entry.id === tabId ? [next] : [entry],
+    ),
+  };
+}
+
 /** A screen tab's address, taken apart: the route and its search. */
 export function parseHref(href: string) {
   const url = new URL(href, "http://tabs");
@@ -112,7 +152,6 @@ export function threadOfHrefPrefix(
 export function trailOf(tab: undefined | WindowTab) {
   return tab?.kind === "screen" ? (tab.trail ?? [tab.href]) : [];
 }
-
 
 /**
  * The window's tabs, in groups: every thread has a group of its own, keyed
@@ -432,6 +471,17 @@ export function useWindowTabs() {
   };
 
   /**
+   * A step between what a tab has shown (a page, a screen) rather than
+   * inside one, for the tab named, whether or not it is on screen.
+   */
+  const stepVisitOf = (id: string, direction: -1 | 1) => {
+    const tab = allTabs.find((entry) => entry.id === id);
+    const next = tab && stepTabVisit(tab, direction);
+    if (next) replace(id, next);
+    return next;
+  };
+
+  /**
    * A step along a screen tab's own trail, or nothing when it has none left:
    * the address it steps to, which the tab now stands on. A tab drawn by
    * another host (the draft window) is stepped this way, since the router
@@ -646,9 +696,22 @@ export function useWindowTabs() {
     forgetGroup,
     group,
     leaveGroup,
+    /** A tab into a group of its own, standing there alone: a page drawn inside a tab becoming a site of the window's own. */
+    moveToGroup: (id: string, key: string) => {
+      setTabs((current) => ({
+        ...current,
+        tabs: current.tabs.map((tab) =>
+          tab.id === id ? { ...tab, group: key } : tab,
+        ),
+      }));
+    },
     navigateScreen,
     openOrFocusScreen,
     openScreen,
+    /** A page drawn inside a tab takes that tab over; see `pageTakesOver`. */
+    pageTakesOver: (page: string, tab: string, url: string) => {
+      setTabs((current) => pageTakesOver(current, { page, tab, url }));
+    },
     /** The group the one on screen took over from, for going back to it when the draft is put away. */
     previousGroup: state.previousGroup,
     /** A group's tabs in a new order: the group on screen's, or the group named. */
@@ -696,6 +759,7 @@ export function useWindowTabs() {
     showThread,
     step,
     stepVisit,
+    stepVisitOf,
     /** The tab a group has up, or would come on screen at. */
     tabUpIn,
     /** The tabs of the group on screen, in strip order. */

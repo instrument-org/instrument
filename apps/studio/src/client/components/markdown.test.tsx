@@ -270,7 +270,6 @@ describe("Markdown links", () => {
       openPage: vi.fn(),
       openPath: vi.fn(),
       openScreen,
-      opensNewTab: true,
       taskId: TASK_ID,
     } satisfies OrchestratorWindow;
     renderWithProviders(

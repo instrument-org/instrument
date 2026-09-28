@@ -37,6 +37,7 @@ import { OrchestratorContext, useOrchestrator } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { isGroupShown, isIncludable } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
+import { LinkSurface } from "./link-surface";
 import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { useTaskTitles } from "./task-titles";
 import { ThreadMenu } from "./thread-header";
@@ -459,18 +460,18 @@ export function ThreadWindow({
             value={{
               ...orchestrator,
               openPage: (url, options) => {
-                if (options?.show) {
+                if (options?.show && !options.newTab) {
                   openPage(url);
                   return;
                 }
                 orchestrator.openPage(url, options);
               },
               openPath: (path, options) => {
-                if (options?.show) {
+                if (options?.show && !options.newTab) {
                   orchestrator.openPath(path, {
                     activate: true,
                     group: sessionId,
-                    newTab: true,
+                    ownTab: true,
                   });
                   showUp();
                   return;
@@ -478,6 +479,10 @@ export function ThreadWindow({
                 orchestrator.openPath(path, options);
               },
               openScreen: (href, options) => {
+                if (options?.newTab) {
+                  orchestrator.openScreen(href, options);
+                  return;
+                }
                 if (options?.show && computerTabOf(href)) {
                   openHere(href);
                   return;
@@ -498,36 +503,42 @@ export function ThreadWindow({
             {/* A file the conversation offers is asked for to be seen, so
                 it is shown the same way. */}
             <FileOpenContext
-              value={(path) => {
+              value={(path, options) => {
+                if (options?.newTab) {
+                  orchestrator.openPath(path, options);
+                  return;
+                }
                 orchestrator.openPath(path, {
                   activate: true,
                   group: sessionId,
-                  newTab: true,
+                  ownTab: true,
                 });
                 showUp();
               }}
             >
-              <ActiveTabProvider isActive>
-                <ThreadScreen
-                  composerLead={
-                    isComposing && behind && !isBehindLeftOut ? (
-                      <IncludedChip
-                        appsBySlug={appsBySlug}
-                        items={undefined}
-                        onLeaveOut={() => {
-                          setLeftOutId(behind.id);
-                        }}
-                        said="In view behind the chat, so it goes to Instrument with your message."
-                        tab={behind}
-                      />
-                    ) : undefined
-                  }
-                  isUp
-                  sendContext={contextToSend}
-                  sentPrompt={sentWords}
-                  sessionId={sessionId}
-                />
-              </ActiveTabProvider>
+              <LinkSurface>
+                <ActiveTabProvider isActive>
+                  <ThreadScreen
+                    composerLead={
+                      isComposing && behind && !isBehindLeftOut ? (
+                        <IncludedChip
+                          appsBySlug={appsBySlug}
+                          items={undefined}
+                          onLeaveOut={() => {
+                            setLeftOutId(behind.id);
+                          }}
+                          said="In view behind the chat, so it goes to Instrument with your message."
+                          tab={behind}
+                        />
+                      ) : undefined
+                    }
+                    isUp
+                    sendContext={contextToSend}
+                    sentPrompt={sentWords}
+                    sessionId={sessionId}
+                  />
+                </ActiveTabProvider>
+              </LinkSurface>
             </FileOpenContext>
           </OrchestratorContext>
         </div>

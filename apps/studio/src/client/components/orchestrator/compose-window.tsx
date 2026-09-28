@@ -86,6 +86,7 @@ import { FilesScreen } from "./files-screen";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { IdeaSketch } from "./idea-sketch";
 import { type Idea } from "./ideas";
+import { LinkSurface } from "./link-surface";
 import { OutputPicker } from "./output-picker";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { ScreenTabContext } from "./screen-tab";
@@ -668,24 +669,53 @@ export function ComposeWindow({
           moveAsksToDraft: (ids) => {
             moveAsks(ids, { draftId: draft.id, kind: "draft" });
           },
-          openPage,
-          openPath: (path, options) => {
-            orchestrator.openPath(path, { ...options, group });
+          openPage: (url, options) => {
+            if (options?.newTab) {
+              orchestrator.openPage(url, options);
+            } else {
+              openPage(url);
+            }
           },
-          openScreen,
-          opensNewTab: true,
+          openPath: (path, options) => {
+            orchestrator.openPath(
+              path,
+              options?.newTab ? options : { ...options, group },
+            );
+          },
+          openScreen: (href, options) => {
+            if (options?.newTab) {
+              orchestrator.openScreen(href, options);
+            } else {
+              openScreen(href);
+            }
+          },
         }}
       >
         <FileOpenContext
-          value={(path) => {
-            if (path.endsWith("/")) {
+          value={(path, options) => {
+            if (options?.newTab) {
+              orchestrator.openScreen(
+                path.endsWith("/")
+                  ? folderHref(path.slice(0, -1))
+                  : fileHref(path),
+                options,
+              );
+            } else if (path.endsWith("/")) {
               openFolder(path.slice(0, -1));
             } else {
               openFile(path);
             }
           }}
         >
-          <PageOpenContext value={openPage}>
+          <PageOpenContext
+            value={(url, options) => {
+              if (options?.newTab) {
+                orchestrator.openPage(url, options);
+              } else {
+                openPage(url);
+              }
+            }}
+          >
             <FileDropRegion className="flex h-full min-h-0 flex-col">
               <div className="flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
                 <FeatherIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -844,7 +874,12 @@ export function ComposeWindow({
                     onStart({
                       ...send,
                       ...(output
-                        ? { output: { name: output.name, title: output.title } }
+                        ? {
+                            output: {
+                              name: output.name,
+                              title: output.title,
+                            },
+                          }
                         : {}),
                     });
                   }}
@@ -887,7 +922,9 @@ export function ComposeWindow({
                     />
                   </div>
                 )}
-                <div className="min-h-0 flex-1">{content}</div>
+                <div className="min-h-0 flex-1">
+                  <LinkSurface>{content}</LinkSurface>
+                </div>
               </div>
             </FileDropRegion>
           </PageOpenContext>
@@ -905,6 +942,7 @@ export function ComposeWindow({
  * cannot draw, with the way to where it can be.
  */
 export function GroupItem({
+  before,
   closeTab,
   group,
   isFramed = true,
@@ -915,6 +953,8 @@ export function GroupItem({
   outside,
   up,
 }: {
+  /** Where back goes from the start of the tab: the window's own tab history, for a site standing at the window's level. */
+  before?: { back: () => void; canGoBack: boolean };
   closeTab: (id: string) => void;
   group: string;
   /** Whether it stands on a card inset in its band, as in a draft; a grown popped-out chat draws it edge to edge, as the pane beside a chat does. */
@@ -975,6 +1015,41 @@ export function GroupItem({
         )
       : undefined;
   const guest = useGuestSteps(targetId);
+  // A site of the window's own stepping back past its first page, to the
+  // blank start every guest has, is the window's tab going back.
+  const beforeNow = useRef(before);
+  useEffect(() => {
+    beforeNow.current = before;
+  });
+  const targets = useBrowserTargets();
+  const isAttached = targetId !== undefined && targets.has(targetId);
+  useEffect(() => {
+    const webview =
+      targetId && isAttached && beforeNow.current
+        ? getWebviewElement(targetId)
+        : null;
+    if (!webview) {
+      return;
+    }
+    const onNavigate = () => {
+      try {
+        if (
+          webview.getURL() === "about:blank" &&
+          !webview.canGoBack() &&
+          webview.canGoForward()
+        ) {
+          webview.goForward();
+          beforeNow.current?.back();
+        }
+      } catch {
+        // Not attached yet.
+      }
+    };
+    webview.addEventListener("did-navigate", onNavigate);
+    return () => {
+      webview.removeEventListener("did-navigate", onNavigate);
+    };
+  }, [isAttached, targetId]);
 
   /**
    * The row over what is up, the one the pane beside a chat draws: its
@@ -984,26 +1059,43 @@ export function GroupItem({
   const row = (location: TabLocation, { isFileScreen = false } = {}) => {
     const webview = targetId ? getWebviewElement(targetId) : null;
     const at = atOf(up);
+    // Back walks what is up (the page's own history, the screen's trail),
+    // then what the tab showed before it, then, for a tab that is a site of
+    // the window's own, where the window's tab was before the site.
+    const withinBack = up.kind === "page" ? guest.back : at > 0;
+    const withinForward =
+      up.kind === "page" ? guest.forward : at < trailOf(up).length - 1;
+    // A site of the window's own has nothing of its own before its page.
+    const hasPast = !before && Boolean(up.past?.length);
+    const hasFuture = Boolean(up.future?.length);
     return (
       <TabLocationRow
-        canGoBack={up.kind === "page" ? guest.back : at > 0}
-        canGoForward={
-          up.kind === "page" ? guest.forward : at < trailOf(up).length - 1
-        }
+        canGoBack={withinBack || hasPast || Boolean(before?.canGoBack)}
+        canGoForward={withinForward || hasFuture}
         location={location}
         {...(onClose ? { onClose } : {})}
         onBack={() => {
-          if (up.kind === "page") {
-            webview?.goBack();
+          if (withinBack) {
+            if (up.kind === "page") {
+              webview?.goBack();
+            } else {
+              windowTabs.stepTab(up.id, -1);
+            }
+          } else if (hasPast) {
+            windowTabs.stepVisitOf(up.id, -1);
           } else {
-            windowTabs.stepTab(up.id, -1);
+            before?.back();
           }
         }}
         onForward={() => {
-          if (up.kind === "page") {
-            webview?.goForward();
-          } else {
-            windowTabs.stepTab(up.id, 1);
+          if (withinForward) {
+            if (up.kind === "page") {
+              webview?.goForward();
+            } else {
+              windowTabs.stepTab(up.id, 1);
+            }
+          } else if (hasFuture) {
+            windowTabs.stepVisitOf(up.id, 1);
           }
         }}
         onSite={(url) => {

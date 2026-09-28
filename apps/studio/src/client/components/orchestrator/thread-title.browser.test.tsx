@@ -54,7 +54,6 @@ async function renderTitle() {
         openPage: vi.fn(),
         openPath: vi.fn(),
         openScreen: vi.fn(),
-        opensNewTab: true,
         taskId,
       }}
     >

@@ -1,5 +1,7 @@
 import { createContext } from "react";
 
+import { type OpenOptions } from "./orchestrator/context";
+
 /**
  * Where a surface other than the task page sends a file the transcript
  * offers. The task page opens files in its pane; a window without one says
@@ -17,5 +19,5 @@ import { createContext } from "react";
  * is the honest answer there rather than an error.
  */
 export const FileOpenContext = createContext<
-  ((filePath: string, options?: { newTab?: boolean }) => void) | null
+  ((filePath: string, options?: OpenOptions) => void) | null
 >(null);

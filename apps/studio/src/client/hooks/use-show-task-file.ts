@@ -29,9 +29,9 @@ export function useShowTaskFile(taskId: TaskId | undefined) {
   const openElsewhere = useContext(FileOpenContext);
   const { openFiles } = useTaskPaneActions(taskId);
 
-  return (filePath: string) => {
+  return (filePath: string, options?: { newTab?: boolean }) => {
     if (openElsewhere) {
-      openElsewhere(filePath);
+      openElsewhere(filePath, options);
       return;
     }
     if (isFolderPath(filePath)) {

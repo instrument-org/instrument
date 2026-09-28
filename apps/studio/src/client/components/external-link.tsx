@@ -1,42 +1,26 @@
-import { useOpenDestinations } from "@/client/hooks/use-open-target";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 
-import { TaskExternalLink } from "./task-external-link";
-
+/**
+ * A link to a page, answering the gestures every openable thing answers.
+ *
+ * A click opens the page in the app wherever the surface has a place for it
+ * (the tab or the chat it was clicked in), and in the OS browser only where
+ * nothing in the app is; a middle or Cmd-click opens a tab of its own; a right
+ * click offers the rest, the OS browser included. The anchor keeps its href so
+ * the URL is inspectable and copyable; the navigation it would do belongs to
+ * the gestures.
+ */
 export function ExternalLink(
   props: React.ComponentProps<"a"> & {
     addReferral?: boolean;
   },
 ) {
   const { addReferral = true, className, href, onClick, ...rest } = props;
-  const destinations = useOpenDestinations(
+  const gestures = useOpenGestures(
     { kind: "page", url: href ?? "" },
     { addReferral },
   );
-  // Somewhere in the app this page could go, as opposed to the OS browser
-  // being the whole of the answer. What decides it is the surface -- a window
-  // with tabs, a task with a browser -- rather than which provider happens to
-  // be overhead, which is what left a link in a Markdown file leaving the app
-  // while the same link in a reply asked.
-  const opensInApp = destinations.some(
-    (destination) =>
-      destination.id !== "copy" && destination.id !== "openBrowser",
-  );
-
-  // Where a page has two places it could go, which one is wanted follows from
-  // what the reader is doing at that moment rather than from a setting picked
-  // once, so the click asks. Where it has one, the click is the answer.
-  if (href && opensInApp) {
-    return (
-      <TaskExternalLink
-        {...rest}
-        addReferral={addReferral}
-        className={className}
-        href={href}
-        onClick={onClick}
-      />
-    );
-  }
 
   return (
     // eslint-disable-next-line no-restricted-syntax
@@ -44,11 +28,12 @@ export function ExternalLink(
       {...rest}
       className={cn("cursor-pointer!", className)}
       href={href}
+      onAuxClick={gestures.onAuxClick}
       onClick={(event) => {
-        event.preventDefault();
-        destinations[0]?.run();
+        gestures.onClick(event);
         onClick?.(event);
       }}
+      onContextMenu={gestures.onContextMenu}
     />
   );
 }

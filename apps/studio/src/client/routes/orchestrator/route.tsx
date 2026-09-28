@@ -930,7 +930,6 @@ function OrchestratorLayout() {
             overlay={
               <ComposeLayer
                 browser={browser}
-                childTitles={childTitles}
                 compose={compose}
                 drafts={drafts}
                 modelURI={modelURI}

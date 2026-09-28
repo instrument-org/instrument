@@ -71,7 +71,6 @@ import {
   type PageChromeSlots,
   TabIcon,
 } from "./browser-tabs";
-import { ComposeFiles } from "./compose-files";
 import {
   COMPOSE_BAR_WIDTH,
   COMPOSE_MOTION,
@@ -81,11 +80,13 @@ import { ComposeZeroState, WebStart } from "./compose-zero-state";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { behindTabOf, isGroupShown } from "./draft-context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
+import { FilesScreen } from "./files-screen";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { IdeaSketch } from "./idea-sketch";
 import { type Idea } from "./ideas";
 import { OutputPicker } from "./output-picker";
 import { screenLocation, screenPresentation } from "./screen-presentation";
+import { ScreenTabContext } from "./screen-tab";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { type TabLocation } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
@@ -186,7 +187,7 @@ export function ComposeBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft dark:bg-gray-700"
+      className="pointer-events-auto absolute bottom-px z-40 flex h-9 [clip-path:inset(-4rem_-4rem_0_-4rem)] items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft dark:bg-gray-700"
       data-slot="compose-bar"
       exit={{ opacity: 0, y: 36 }}
       initial={{ opacity: 0, right, y: 36 }}
@@ -598,7 +599,6 @@ export function ComposeWindow({
         onFilesView={setFilesView}
         onPageChrome={onPageChrome}
         onPageHost={setPageHost}
-        openPage={openPage}
         outside={{
           label: "Open beside the chat",
           note: "Opens beside the chat, not in a draft.",
@@ -628,9 +628,14 @@ export function ComposeWindow({
         // Docked, the window grows with the words up to the row's height, so
         // the band keeps its room under them for as long as there is room to
         // give; only then do the words scroll.
+        // A pixel off the foot, so the ring stops short of the edge the
+        // system draws along the window's bottom rather than doubling it, and
+        // clipped at its own foot, so the ring's bottom side and the shadow
+        // under it never reach that edge either. The bars along the foot
+        // stand on the same line.
         isExpanded
           ? "inset-3 rounded-2xl"
-          : "bottom-0 max-h-[calc(100%-1rem)] rounded-t-2xl",
+          : "bottom-px max-h-[calc(100%-1rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
       )}
       data-slot="compose-window"
       exit={{ opacity: 0, y: 24 }}
@@ -890,23 +895,26 @@ export function ComposeWindow({
 export function GroupItem({
   closeTab,
   group,
+  isFramed = true,
+  onClose,
   onFilesView,
   onPageChrome,
   onPageHost,
-  openPage,
   outside,
   up,
 }: {
   closeTab: (id: string) => void;
   group: string;
+  /** Whether it stands on a card inset in its band, as in a draft; a grown popped-out chat draws it edge to edge, as the pane beside a chat does. */
+  isFramed?: boolean;
+  /** Puts the view away, from the × at the end of its address row, for a surface that shows it beside a chat. */
+  onClose?: () => void;
   /** What the Finder has up, in the terms the conversation is told it. */
   onFilesView?: (view: null | ScreenView) => void;
   /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   /** The element the page is drawn into, while a page is up. */
   onPageHost: (element: HTMLDivElement | null) => void;
-  /** Opens a page in the group and puts it up. */
-  openPage: (url: string) => void;
   /** A screen the window cannot draw: what to say, and the way to where it can be. */
   outside: {
     label: string;
@@ -917,7 +925,14 @@ export function GroupItem({
 }) {
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  const { browser, taskId } = useOrchestrator();
+  const orchestrator = useOrchestrator();
+  const { browser, taskId } = orchestrator;
+  // A file screen's own controls go into the row as well: the tree's toggle
+  // at its head, the viewer's actions at its end.
+  const [screenLead, setScreenLead] = useState<HTMLDivElement | null>(null);
+  const [screenTail, setScreenTail] = useState<HTMLDivElement | null>(null);
+  const Frame = isFramed ? Card : Bare;
+  const [filesView, setFilesView] = useState<null | ScreenView>(null);
 
   // The page's reload and controls go into the address row, the way they do
   // in the pane beside a chat, rather than into a bar of the page's own.
@@ -953,7 +968,7 @@ export function GroupItem({
    * arrows walk the page's own history or the screen's trail, and its field
    * sends a page somewhere else, or takes a screen's tab to a site.
    */
-  const row = (location: TabLocation) => {
+  const row = (location: TabLocation, { isFileScreen = false } = {}) => {
     const webview = targetId ? getWebviewElement(targetId) : null;
     const at = atOf(up);
     return (
@@ -963,6 +978,7 @@ export function GroupItem({
           up.kind === "page" ? guest.forward : at < trailOf(up).length - 1
         }
         location={location}
+        {...(onClose ? { onClose } : {})}
         onBack={() => {
           if (up.kind === "page") {
             webview?.goBack();
@@ -999,7 +1015,22 @@ export function GroupItem({
                 />
               ),
             }
-          : {})}
+          : isFileScreen
+            ? {
+                leading: (
+                  <div
+                    className="flex shrink-0 items-center empty:hidden"
+                    ref={setScreenLead}
+                  />
+                ),
+                trailing: (
+                  <div
+                    className="flex shrink-0 items-center gap-0.5"
+                    ref={setScreenTail}
+                  />
+                ),
+              }
+            : {})}
       />
     );
   };
@@ -1007,7 +1038,7 @@ export function GroupItem({
   if (up.kind === "page") {
     const filePath = hostPathOfFileUrl(up.url);
     return (
-      <Card
+      <Frame
         head={row(
           filePath === undefined
             ? { kind: "page", url: up.url ?? "" }
@@ -1020,73 +1051,90 @@ export function GroupItem({
         )}
       >
         <div className="h-full" ref={onPageHost} />
-      </Card>
+      </Frame>
     );
   }
   const screenRow = row(screenLocation(up.href, { appsBySlug }));
   const computer = computerTabOf(up.href);
   if (computer) {
+    const search = parseHref(up.href).search;
+    const tree = search.get("tree") ?? undefined;
+    // The folder says where it stands, as the pane beside a chat reads it.
+    const location = screenLocation(up.href, { appsBySlug });
+    const shown =
+      location.kind === "folder" && filesView?.folder
+        ? { ...location, path: filesView.folder.display }
+        : location;
     return (
-      <Card>
-        <ComposeFiles
-          file={computer.file}
-          key={up.id}
-          // Leaving a file opened from the Finder steps the tab back to its
-          // folder; a tab that opened on the file has nowhere to go back to.
-          onLeaveFile={() => {
-            if (windowTabs.stepTab(up.id, -1) === undefined) {
-              closeTab(up.id);
-            }
+      <Frame head={row(shown, { isFileScreen: true })}>
+        {/* The Finder and the file viewer the pane beside a chat draws,
+            moving this tab rather than following the window's router. */}
+        <ScreenTabContext
+          value={{
+            id: up.id,
+            // Leaving a file opened from the Finder steps the tab back to its
+            // folder; a tab that opened on the file has nowhere to go back to.
+            leave: () => {
+              if (windowTabs.stepTab(up.id, -1) === undefined) {
+                closeTab(up.id);
+              }
+            },
+            report: (view) => {
+              setFilesView(view);
+              onFilesView?.(view);
+            },
+            visit: (href) => {
+              windowTabs.visitHref(up.id, href);
+            },
           }}
-          onLocationChange={(location) => {
-            windowTabs.visitHref(up.id, computerHref(location));
-          }}
-          // A file opened from the Finder takes the Finder's place in its
-          // tab; a page's file still opens as a page of its own.
-          onOpenFile={(hostPath) => {
-            const name = segmentsOf(hostPath).at(-1) ?? hostPath;
-            if (getFileType({ filename: name }) === "html") {
-              openPage(fileUrlOf(hostPath));
-            } else {
-              windowTabs.visitHref(up.id, fileHref(hostPath));
-            }
-          }}
-          onViewChange={(view) => {
-            onFilesView?.(view);
-          }}
-          path={computer.path}
-          root={computer.root}
-        />
-      </Card>
+        >
+          <OrchestratorContext
+            value={{
+              ...orchestrator,
+              rowLead: screenLead,
+              rowTail: screenTail,
+            }}
+          >
+            <FilesScreen
+              file={computer.file}
+              key={up.id}
+              path={computer.path}
+              root={computer.root}
+              source={search.get("source") === "true"}
+              tree={tree}
+            />
+          </OrchestratorContext>
+        </ScreenTabContext>
+      </Frame>
     );
   }
   const { pathname } = parseHref(up.href);
   if (pathname === WEB_HREF) {
     return (
-      <Card head={screenRow}>
+      <Frame head={screenRow}>
         <WebStart
           onOpenPage={(url) => {
             browser?.open(url, { group, replacing: up });
           }}
         />
-      </Card>
+      </Frame>
     );
   }
   if (pathname === APPS_HREF) {
     return (
-      <Card head={screenRow}>
+      <Frame head={screenRow}>
         <AppsHome
           onOpenApp={(slug) => {
             windowTabs.visitHref(up.id, `${APPS_HREF}/${slug}`);
           }}
           showsConnect={false}
         />
-      </Card>
+      </Frame>
     );
   }
   if (pathname.startsWith(`${APPS_HREF}/`)) {
     return (
-      <Card head={screenRow}>
+      <Frame head={screenRow}>
         <AppFront
           onToApps={() => {
             if (windowTabs.stepTab(up.id, -1) === undefined) {
@@ -1096,12 +1144,12 @@ export function GroupItem({
           reportsScreen={false}
           slug={pathname.slice(APPS_HREF.length + 1)}
         />
-      </Card>
+      </Frame>
     );
   }
   const { icon, title } = screenPresentation(up.href, { appsBySlug });
   return (
-    <Card>
+    <Frame>
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
         <span className="flex items-center gap-2 text-foreground">
           <span className="[&_svg]:size-4">{icon}</span>
@@ -1118,7 +1166,7 @@ export function GroupItem({
           {outside.label}
         </Button>
       </div>
-    </Card>
+    </Frame>
   );
 }
 
@@ -1198,6 +1246,16 @@ export function WindowButton({
   );
 }
 
+/** What a card holds, edge to edge with nothing around it: the pane's own look. */
+function Bare({ children, head }: { children: ReactNode; head?: ReactNode }) {
+  return (
+    <div className="flex h-full flex-col bg-background">
+      {head}
+      <div className="min-h-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
 /** The band's white card, for a thing drawn large in it. */
 function Card({ children, head }: { children: ReactNode; head?: ReactNode }) {
   return (
@@ -1252,10 +1310,6 @@ function ChosenChip({
  * The address of the computer screen standing in a folder, as the computer
  * route reads it, for a tab whose folder browser has walked somewhere.
  */
-function computerHref({ path, root }: { path: string; root: string }) {
-  return `/orchestrator/computer?path=${encodeURIComponent(path)}&root=${encodeURIComponent(root)}`;
-}
-
 /**
  * One quiet line at the head of the words: a mark and a name in grey with an
  * x that leaves the thing out, so it takes no room from the words and does

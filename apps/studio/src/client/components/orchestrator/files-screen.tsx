@@ -39,6 +39,7 @@ import { useOnScreen } from "./on-screen";
 import { PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useQuickLook } from "./quick-look";
+import { useScreenTab } from "./screen-tab";
 import { useWindowTabs } from "./window-tabs";
 
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
@@ -96,7 +97,14 @@ export function FilesScreen({
   const setPageSlots = useSetAtom(pageSlotsAtom);
   const router = useRouter();
   const navigate = useNavigate();
+  // A tab of a draft or a popped-out chat, which the router does not follow:
+  // moved and left through its host instead.
+  const screenTab = useScreenTab();
   const leaveFile = () => {
+    if (screenTab) {
+      screenTab.leave();
+      return;
+    }
     const href = step(-1);
     if (href !== undefined) {
       router.history.push(href);
@@ -112,15 +120,29 @@ export function FilesScreen({
   // which is where its tab's tree is rooted; the recents stand in no folder,
   // so a file opened there is rooted at its own.
   const openFile = (tab: FileTab) => {
-    openScreen(
-      fileHref(tab.hostPath, {
-        tree: folder?.hostPath ?? folderOf(tab.hostPath),
-      }),
-    );
+    const href = fileHref(tab.hostPath, {
+      tree: folder?.hostPath ?? folderOf(tab.hostPath),
+    });
+    if (screenTab) {
+      screenTab.visit(href);
+    } else {
+      openScreen(href);
+    }
   };
   const quickLook = useQuickLook({ openFile });
   /** Another file in this tab's place: the tree and the crumbs follow it. */
   const showFile = (hostPath: string) => {
+    if (screenTab) {
+      screenTab.visit(
+        `/orchestrator/computer?${new URLSearchParams({
+          file: hostPath,
+          path,
+          root,
+          ...(tree === undefined ? {} : { tree }),
+        }).toString()}`,
+      );
+      return;
+    }
     void navigate({
       search: {
         file: hostPath,
@@ -158,7 +180,8 @@ export function FilesScreen({
   // group named for the tab so no strip lists it, sent to the file the tab
   // shows and closed when the tab moves off a page's file or goes. The
   // browser draws it into the slot the viewer gives it below.
-  const hostGroup = active === undefined ? undefined : `page:${active.id}`;
+  const tabId = screenTab?.id ?? active?.id;
+  const hostGroup = tabId === undefined ? undefined : `page:${tabId}`;
   const hostedFile =
     isPageFile && tree !== undefined ? activeFile.hostPath : undefined;
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
@@ -290,7 +313,8 @@ export function FilesScreen({
   // The same folder and selection by host path, for a draft's chip. The
   // folder is only replaced when it changes, so it stands for its own value.
   const setFinderOnScreen = useSetAtom(finderOnScreenAtom);
-  const finderFolder = activeFile ? null : folder;
+  // Only for the window's own Finder: a draft's chip reads the one on screen.
+  const finderFolder = activeFile || screenTab ? null : folder;
   useEffect(() => {
     if (finderFolder === null) {
       return;
@@ -464,7 +488,12 @@ export function FilesScreen({
                   // The tab turns back into the page, the way it arrives
                   // at a page's file from anywhere.
                   onLeaveSource: () => {
-                    router.history.push(fileHref(activeFile.hostPath));
+                    const href = fileHref(activeFile.hostPath);
+                    if (screenTab) {
+                      screenTab.visit(href);
+                    } else {
+                      router.history.push(href);
+                    }
                   },
                 }
               : {})}
@@ -478,6 +507,18 @@ export function FilesScreen({
                   : next,
               );
             }}
+            {...(screenTab
+              ? {
+                  onLocationChange: (location: {
+                    path: string;
+                    root: string;
+                  }) => {
+                    screenTab.visit(
+                      `/orchestrator/computer?${new URLSearchParams(location).toString()}`,
+                    );
+                  },
+                }
+              : {})}
             onOpenFile={openFile}
             path={path}
             root={root}

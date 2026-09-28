@@ -3,7 +3,6 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type SessionMessageDataPart,
   type StoreId,
-  type TaskId,
 } from "@instrument-org/workspace/client";
 import { AnimatePresence } from "motion/react";
 import { useEffect } from "react";
@@ -26,7 +25,6 @@ import { type useCompose } from "./use-compose";
  */
 export function ComposeLayer({
   browser,
-  childTitles,
   compose,
   drafts,
   modelURI,
@@ -48,7 +46,6 @@ export function ComposeLayer({
   topics,
 }: {
   browser: BrowserTabsHandle | null;
-  childTitles: Map<TaskId, string>;
   compose: ReturnType<typeof useCompose>;
   drafts: Draft[];
   modelURI: AIGatewayModelURI.Type | undefined;
@@ -127,7 +124,6 @@ export function ComposeLayer({
             return (
               <ThreadWindow
                 arrives={entry.fromDraft === undefined}
-                childTitles={childTitles}
                 // The draft's key, for a thread that grew from one: the same
                 // element, so the window is not seen to leave and arrive.
                 key={entry.fromDraft ?? sessionId}

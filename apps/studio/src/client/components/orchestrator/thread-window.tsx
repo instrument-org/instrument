@@ -1,8 +1,4 @@
-import {
-  paneOpenByGroupAtom,
-  WEB_HREF,
-  type WindowTab,
-} from "@/client/atoms/orchestrator";
+import { paneOpenByGroupAtom, WEB_HREF } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
@@ -12,7 +8,6 @@ import {
   encodeBrowserTargetId,
   type SessionMessageDataPart,
   StoreId,
-  type TaskId,
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -24,7 +19,6 @@ import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { TabIcon } from "./browser-tabs";
 import { type PageChromeSlots } from "./browser-tabs";
 import {
   COMPOSE_BAR_WIDTH,
@@ -41,8 +35,7 @@ import {
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { isGroupShown, isIncludable } from "./draft-context";
-import { computerTabOf, pageTabTitle } from "./file-tabs";
-import { screenPresentation } from "./screen-presentation";
+import { computerTabOf } from "./file-tabs";
 import { ThreadMenu } from "./thread-header";
 import { ThreadRail } from "./thread-rail";
 import { ThreadScreen } from "./thread-stage";
@@ -75,7 +68,7 @@ export function ThreadBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft dark:bg-gray-700"
+      className="pointer-events-auto absolute bottom-px z-40 flex h-9 [clip-path:inset(-4rem_-4rem_0_-4rem)] items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft dark:bg-gray-700"
       data-slot="thread-bar"
       exit={{ opacity: 0, y: 36 }}
       initial={{ opacity: 0, right, y: 36 }}
@@ -125,7 +118,6 @@ export function ThreadBar({
  */
 export function ThreadWindow({
   arrives,
-  childTitles,
   onClose,
   onCloseTab,
   onLandOnTab,
@@ -145,7 +137,6 @@ export function ThreadWindow({
 }: {
   /** Whether the window arrives with a motion: a draft becoming the thread is the same window, so it does not. */
   arrives: boolean;
-  childTitles: Map<TaskId, string>;
   onClose: () => void;
   /** Closes one of the chat's tabs, the way the window's strip does: asking first while a task is working in it. */
   onCloseTab: (id: string) => void;
@@ -310,9 +301,14 @@ export function ThreadWindow({
       // lands on and doubles wherever two of them cross.
       className={cn(
         "pointer-events-auto absolute z-40 flex flex-col overflow-hidden bg-background text-foreground shadow-xl-soft ring-1 ring-gray-300 dark:ring-gray-600",
+        // A pixel off the foot, so the ring stops short of the edge the
+        // system draws along the window's bottom rather than doubling it, and
+        // clipped at its own foot, so the ring's bottom side and the shadow
+        // under it never reach that edge either. The bars along the foot
+        // stand on the same line.
         isExpanded
           ? "inset-3 rounded-2xl"
-          : "bottom-0 max-h-[calc(100%-1rem)] rounded-t-2xl",
+          : "bottom-px max-h-[calc(100%-1rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
       )}
       data-slot="thread-window"
       exit={{ opacity: 0, y: 24 }}
@@ -498,20 +494,18 @@ export function ThreadWindow({
         </div>
         {showsItem && (
           <div className="flex min-w-0 flex-1 flex-col bg-sidebar">
-            <ItemHead
-              childTitles={childTitles}
-              onClose={() => {
-                setViewOpen(false);
-              }}
-              tab={up}
-            />
             <div className="min-h-0 flex-1">
               <GroupItem
                 closeTab={closeTab}
                 group={sessionId}
+                isFramed={false}
+                // The row's × puts the view away; the thing stays in the
+                // chat, on the rail, as it does beside a chat in the window.
+                onClose={() => {
+                  setViewOpen(false);
+                }}
                 onPageChrome={onPageChrome}
                 onPageHost={setPageHost}
-                openPage={openPage}
                 outside={{
                   label: "Open in Chats",
                   note: "Opens in Chats, beside the chat.",
@@ -527,43 +521,5 @@ export function ThreadWindow({
         {rail}
       </div>
     </motion.div>
-  );
-}
-
-/**
- * The name of the thing drawn large in a grown window, and the cross that
- * puts it away again: it stays in the chat, on the rail.
- */
-function ItemHead({
-  childTitles,
-  onClose,
-  tab,
-}: {
-  childTitles: Map<TaskId, string>;
-  onClose: () => void;
-  tab: WindowTab;
-}) {
-  const appsBySlug = useAppsBySlug();
-  const { icon, title } =
-    tab.kind === "page"
-      ? {
-          icon: <TabIcon favicon={tab.favicon} url={tab.url} />,
-          title:
-            tab.title ||
-            (tab.taskId && childTitles.get(tab.taskId)) ||
-            pageTabTitle(tab) ||
-            "Page",
-        }
-      : screenPresentation(tab.href, { appsBySlug });
-  return (
-    <div className="flex h-9 shrink-0 items-center gap-2 px-3 text-[12px] font-medium text-muted-foreground select-none">
-      <span className="grid size-4 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1 truncate">{title}</span>
-      <WindowButton label="Put away" onClick={onClose}>
-        <XIcon className="size-3.5" />
-      </WindowButton>
-    </div>
   );
 }

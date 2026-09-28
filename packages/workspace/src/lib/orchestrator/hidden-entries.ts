@@ -6,6 +6,9 @@ const run = promisify(execFile);
 
 const NOTHING: ReadonlySet<string> = new Set();
 
+/** The file holding a folder's custom icon, which Finder never shows. */
+const MAC_HIDDEN: ReadonlySet<string> = new Set(["Icon\r"]);
+
 /** How many folders' answers are kept at once. */
 const CACHE_MAX = 64;
 
@@ -15,8 +18,9 @@ const cache = new Map<string, { names: ReadonlySet<string>; token: number }>();
 /**
  * The entries of a folder the system hides, by name.
  *
- * A leading dot is the whole of it on a Mac and on a Linux desktop, and the
- * browser applies that rule to the names it already has. Windows keeps
+ * A leading dot is the whole of it on a Linux desktop and nearly so on a Mac,
+ * and the browser applies that rule to the names it already has. A Mac folder
+ * with a custom icon also holds `Icon\r`, which Finder never shows. Windows keeps
  * hidden-ness as a file attribute instead: `desktop.ini` sits in every folder a
  * person has ever arranged, and a home folder holds `AppData`, `NTUSER.DAT` and
  * a dozen junctions left for programs written for Windows XP. Explorer shows
@@ -31,6 +35,9 @@ const cache = new Map<string, { names: ReadonlySet<string>; token: number }>();
 export async function hiddenEntryNames(
   folder: string,
 ): Promise<ReadonlySet<string>> {
+  if (process.platform === "darwin") {
+    return MAC_HIDDEN;
+  }
   if (process.platform !== "win32") {
     return NOTHING;
   }

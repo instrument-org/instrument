@@ -46,11 +46,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { type Tab } from "@/shared/tabs";
-import {
-  type SessionMessageDataPart,
-  StoreId,
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
   QueryClientProvider,
@@ -287,9 +283,9 @@ function WindowShell({
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const setInboxOpen = useSetAtom(inboxOpenAtom);
-  const sendContextRef = useRef<
-    () => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>
-  >(() => Promise.resolve(undefined));
+  const sendContextRef = useRef<Shell["sendContext"]>(() =>
+    Promise.resolve(undefined),
+  );
   // The card the tabs are drawn in, measured in layout px, which the inbox
   // and the floating windows size themselves against.
   const [rowElement, setRowElement] = useState<HTMLDivElement | null>(null);
@@ -685,7 +681,7 @@ function WindowShell({
     reportPageSlot: setPageSlot,
     requestClose,
     rowWidth,
-    sendContext: () => sendContextRef.current(),
+    sendContext: (options) => sendContextRef.current(options),
     setPaneOpen,
     setThreadTopics,
     showDraft,
@@ -758,7 +754,7 @@ function WindowShell({
                 openOutside={(href) => {
                   appTabs.open(href);
                 }}
-                sendContext={() => sendContextRef.current()}
+                sendContext={(options) => sendContextRef.current(options)}
                 sentWords={sentWords}
                 threads={threads.data ?? []}
                 topics={topics}

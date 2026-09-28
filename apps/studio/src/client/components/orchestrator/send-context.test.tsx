@@ -52,7 +52,7 @@ function tabsOf(
   return {
     active: tabs[0],
     allTabs,
-    tabs,
+    group,
     tabUpIn: (key) => allTabs.find((tab) => tab.group === key),
   };
 }
@@ -92,11 +92,66 @@ afterEach(() => {
 });
 
 describe("sendContext", () => {
-  it("sends nothing before the screen has said what it shows", async () => {
+  it("describes the chat's page though no screen has said what it shows", async () => {
     const { sendContext } = contextReaders(
       windowOf({ windowTabs: tabsOf([SITE], THREAD) }),
     );
-    await expect(sendContext()).resolves.toBeUndefined();
+    await expect(
+      sendContext({ isViewOpen: true, sessionId: THREAD }),
+    ).resolves.toMatchObject({
+      page: { text: "Words on the page" },
+      screen: "browser",
+      url: "https://example.com/",
+    });
+  });
+
+  it("names only the chat's tabs while its view is put away and nothing else is up", async () => {
+    const { sendContext } = contextReaders(
+      windowOf({ windowTabs: tabsOf([SITE], THREAD) }),
+    );
+    await expect(sendContext({ isViewOpen: false, sessionId: THREAD })).resolves
+      .toMatchInlineSnapshot(`
+      {
+        "screen": "home",
+        "tabs": [
+          {
+            "at": "https://example.com/",
+            "id": "guest",
+            "title": "Example",
+          },
+        ],
+        "url": "/orchestrator/browser",
+      }
+    `);
+  });
+
+  it("tells a popped-out chat about the page up in the chat on screen", async () => {
+    const other = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAW");
+    const { sendContext } = contextReaders(
+      windowOf({
+        paneOpenByGroup: { [THREAD]: true },
+        windowTabs: tabsOf([SITE], THREAD),
+      }),
+    );
+    await expect(sendContext({ isViewOpen: false, sessionId: other })).resolves
+      .toMatchInlineSnapshot(`
+      {
+        "page": {
+          "text": "Words on the page",
+          "title": "Example",
+          "url": "https://example.com/",
+        },
+        "screen": "browser",
+        "tabs": [
+          {
+            "at": "https://example.com/",
+            "id": "guest",
+            "title": "Example",
+          },
+        ],
+        "url": "https://example.com/",
+      }
+    `);
   });
 
   it("sends nothing before the orchestrator's state is read", async () => {
@@ -107,7 +162,9 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE], THREAD),
       }),
     );
-    await expect(sendContext()).resolves.toBeUndefined();
+    await expect(
+      sendContext({ isViewOpen: true, sessionId: THREAD }),
+    ).resolves.toBeUndefined();
   });
 
   it("sends the page's words with the tabs the conversation can name", async () => {
@@ -123,16 +180,10 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE, thread], THREAD),
       }),
     );
-    await expect(sendContext()).resolves.toMatchInlineSnapshot(`
+    await expect(sendContext({ isViewOpen: true, sessionId: THREAD })).resolves
+      .toMatchInlineSnapshot(`
       {
         "page": {
-          "tabs": [
-            {
-              "id": "other",
-              "title": "Other",
-              "url": "https://other.example/",
-            },
-          ],
           "text": "Words on the page",
           "title": "Example",
           "url": "https://example.com/",
@@ -150,7 +201,7 @@ describe("sendContext", () => {
             "title": "Lisbon",
           },
         ],
-        "url": "/orchestrator/browser",
+        "url": "https://example.com/",
       }
     `);
   });
@@ -171,7 +222,8 @@ describe("sendContext", () => {
         windowTabs: tabsOf([file], THREAD),
       }),
     );
-    await expect(sendContext()).resolves.toMatchInlineSnapshot(`
+    await expect(sendContext({ isViewOpen: true, sessionId: THREAD })).resolves
+      .toMatchInlineSnapshot(`
       {
         "file": {
           "mount": "/mnt/Home/Downloads/receipt.pdf",
@@ -186,7 +238,7 @@ describe("sendContext", () => {
             "title": "receipt.pdf",
           },
         ],
-        "url": "/orchestrator/browser",
+        "url": "file:///Users/casey/Downloads/receipt.pdf",
       }
     `);
     expect(readPage).not.toHaveBeenCalled();
@@ -201,7 +253,7 @@ describe("sendContext", () => {
         windowTabs: tabsOf([SITE], THREAD),
       }),
     );
-    const sent = sendContext();
+    const sent = sendContext({ isViewOpen: true, sessionId: THREAD });
     await vi.advanceTimersByTimeAsync(5000);
     await expect(sent).resolves.toMatchInlineSnapshot(`
       {
@@ -213,7 +265,7 @@ describe("sendContext", () => {
             "title": "Example",
           },
         ],
-        "url": "/orchestrator/browser",
+        "url": "https://example.com/",
       }
     `);
   });
@@ -242,7 +294,8 @@ describe("sendContext", () => {
         windowTabs: tabsOf([tasksTab, SITE], THREAD),
       }),
     );
-    await expect(sendContext()).resolves.toMatchInlineSnapshot(`
+    await expect(sendContext({ isViewOpen: true, sessionId: THREAD })).resolves
+      .toMatchInlineSnapshot(`
       {
         "screen": "tasks",
         "tabs": [

@@ -79,10 +79,10 @@ export function ThreadStage({
   sendContext,
   sessionId,
 }: {
-  /** What the tab under the thread shows, read as a reply is sent, so the reply carries it. */
-  sendContext: () => Promise<
-    SessionMessageDataPart.ViewContextDataPart | undefined
-  >;
+  /** What a thread's tab up shows, read as a reply is sent in that thread, so the reply carries it. */
+  sendContext: (
+    sessionId: StoreId.Session,
+  ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** The thread whose group is up, or nothing while a draft's is. */
   sessionId: StoreId.Session | undefined;
 }) {
@@ -126,7 +126,7 @@ export function ThreadStage({
             <ActiveTabProvider isActive={isUp}>
               <ThreadScreen
                 isUp={isUp}
-                sendContext={sendContext}
+                sendContext={() => sendContext(id)}
                 sessionId={id}
               />
             </ActiveTabProvider>

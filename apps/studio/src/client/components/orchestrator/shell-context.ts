@@ -50,9 +50,11 @@ export interface WindowShell {
   requestClose: (id: string) => void;
   /** The width of the card the tabs are drawn in, in layout px. */
   rowWidth: number;
-  sendContext: () => Promise<
-    SessionMessageDataPart.ViewContextDataPart | undefined
-  >;
+  /** What goes with a message in a chat; see `contextReaders`. */
+  sendContext: (options: {
+    isViewOpen: boolean;
+    sessionId: StoreId.Session;
+  }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   setPaneOpen: (group: string, isOpen: boolean) => void;
   setThreadTopics: (id: StoreId.Session, topics: string[]) => void;
   showDraft: (id: string) => void;

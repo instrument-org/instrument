@@ -161,9 +161,10 @@ export function ThreadWindow({
   placement: "docked" | "expanded";
   /** Where the window stands along the foot, in layout px from the right edge. */
   right: number;
-  sendContext: () => Promise<
-    SessionMessageDataPart.ViewContextDataPart | undefined
-  >;
+  /** What goes with a reply: the chat's own tab up while the window shows it, what is behind the window otherwise. */
+  sendContext: (options: {
+    isViewOpen: boolean;
+  }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** The words the draft this window was sent, while the thread they start is on its way. */
   sentWords?: string;
   sessionId: StoreId.Session;
@@ -223,11 +224,19 @@ export function ThreadWindow({
       : undefined;
   const isBehindLeftOut = behind !== undefined && behind.id === leftOutId;
   const isBehindLeftOutRef = useRef(isBehindLeftOut);
+  const showsItemRef = useRef(false);
   useEffect(() => {
     isBehindLeftOutRef.current = isBehindLeftOut;
+    showsItemRef.current = showsItem;
   });
+  // The chat's own tab while the window shows it; what is behind the window
+  // otherwise, unless that was left out.
   const contextToSend = () =>
-    isBehindLeftOutRef.current ? Promise.resolve(undefined) : sendContext();
+    showsItemRef.current
+      ? sendContext({ isViewOpen: true })
+      : isBehindLeftOutRef.current
+        ? Promise.resolve(undefined)
+        : sendContext({ isViewOpen: false });
 
   /** Grows the window with what is up in the chat drawn large. */
   const showUp = () => {

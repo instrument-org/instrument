@@ -301,7 +301,12 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
                       />
                       <div className="relative min-h-0 flex-1">
                         <ThreadStage
-                          sendContext={shell.sendContext}
+                          sendContext={(id) =>
+                            shell.sendContext({
+                              isViewOpen: id === thread && showsPane,
+                              sessionId: id,
+                            })
+                          }
                           sessionId={thread}
                         />
                       </div>

@@ -66,10 +66,11 @@ export function ComposeLayer({
   onPressThreadTab: (sessionId: StoreId.Session, tabId: string) => void;
   onStart: (id: string, send: DraftSend) => void;
   openOutside: (href: string) => void;
-  /** What the window has on screen as a reply is sent from a small view. */
-  sendContext: () => Promise<
-    SessionMessageDataPart.ViewContextDataPart | undefined
-  >;
+  /** What goes with a reply sent from a chat's small view: its own tab up while its view is open, what the window has up behind it otherwise. */
+  sendContext: (options: {
+    isViewOpen: boolean;
+    sessionId: StoreId.Session;
+  }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** What each draft being started sent, by the draft: its thread's window shows the words until its transcript has them. */
   sentWords: ReadonlyMap<string, string>;
   threads: Thread[];
@@ -151,7 +152,9 @@ export function ComposeLayer({
                 }}
                 placement={entry.placement}
                 right={entry.right}
-                sendContext={sendContext}
+                sendContext={(options) =>
+                  sendContext({ ...options, sessionId })
+                }
                 sentWords={
                   entry.fromDraft === undefined
                     ? undefined

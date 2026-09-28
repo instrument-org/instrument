@@ -48,7 +48,7 @@ export interface SendContextWindow {
   viewsById: ReturnType<typeof useCompose>["viewsById"];
   windowTabs: Pick<
     ReturnType<typeof useWindowTabs>,
-    "active" | "allTabs" | "tabs" | "tabUpIn"
+    "active" | "allTabs" | "group" | "tabUpIn"
   >;
 }
 
@@ -70,7 +70,7 @@ export function contextReaders({
   viewsById,
   windowTabs,
 }: SendContextWindow) {
-  const { active, tabs } = windowTabs;
+  const { active } = windowTabs;
   /** A group's tabs as the conversation is told them, in the strip's order, each by the id `tab` and "--tab" name it by. */
   const describeTabs = (
     listed: WindowTab[],
@@ -142,7 +142,10 @@ export function contextReaders({
         return { file: fileOf(filePath), screen: "file", url };
       }
       const read = await readPage(tab.id);
-      const { tab: _own, tabs: _others, ...page } = read ?? { title: "", url };
+      if (!read) {
+        return { screen: "browser", url };
+      }
+      const { tab: _own, tabs: _others, ...page } = read;
       return { page, screen: "browser", url };
     }
     if (view && view.screen !== "home") {
@@ -308,52 +311,62 @@ export function contextReaders({
     };
   };
   /**
-   * What the tab on screen says it shows, plus the page's words when that
-   * tab is a page, read at the moment of sending; a screen that registered
-   * nothing sends nothing, and so does a group with no tab under its head.
+   * What the window has up for a chat other than the one on screen to be
+   * told: the tab up in the chat on screen while its pane is open, or the
+   * screen the window's tab is at, as that screen says it. Nothing while the
+   * chat asking is the one on screen, which says its own.
    */
-  const sendContext = async (): Promise<
-    SessionMessageDataPart.ViewContextDataPart | undefined
-  > => {
-    if (!screenView || !state || !active) {
+  const windowShown = async (
+    sessionId: StoreId.Session,
+  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
+    if (windowTabs.group === sessionId) {
       return;
     }
-    // A file shown as a page is the file to the conversation: where it is,
-    // and how the agent reaches it when a granted folder covers it, rather
-    // than an address only this window can open.
-    const activeFilePath =
-      screenView.screen === "browser" && active.kind === "page"
-        ? hostPathOfFileUrl(active.url)
-        : undefined;
-    const page =
-      screenView.screen === "browser" && activeFilePath === undefined
-        ? await readPage()
-        : undefined;
-    const activeMount =
-      activeFilePath === undefined
-        ? undefined
-        : mountOfHostPath(activeFilePath, state.attachedFolders ?? {});
+    if (active && isGroupShown(active.group, paneOpenByGroup)) {
+      const shown = await tabContext(active);
+      return shown && { ...shown, tabs: describeTabs([active]) };
+    }
+    if (!screenView || screenView.screen === "home") {
+      return;
+    }
     // The record open in an app's inspector goes only to a thread a draft
     // starts over it, never into a reply to one already going.
     const app = screenView.app
       ? { ...screenView.app, reading: undefined }
       : undefined;
+    return { ...screenView, ...(app ? { app } : {}), tabs: [], url: href };
+  };
+  /**
+   * What goes with a message in a chat, read at the moment of sending: the
+   * tab the chat has up while its view of it is open, a page with its words,
+   * a file by where it is and how the agent reaches it, a folder or an app
+   * as its screen says; with the chat's view put away, what the window has
+   * up behind it. Either way the chat's own tabs are named, by the ids a
+   * task can be handed.
+   */
+  const sendContext = async ({
+    isViewOpen,
+    sessionId,
+  }: {
+    /** Whether the chat's view of its tab up is open where the message is written. */
+    isViewOpen: boolean;
+    sessionId: StoreId.Session;
+  }): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
+    if (!state) {
+      return;
+    }
+    const own = windowTabs.allTabs.filter((tab) => tab.group === sessionId);
+    const up = windowTabs.tabUpIn(sessionId);
     const shown =
-      activeFilePath === undefined
-        ? { ...screenView, ...(app ? { app } : {}) }
-        : {
-            file: {
-              ...(activeMount === undefined ? {} : { mount: activeMount }),
-              name: segmentsOf(activeFilePath).at(-1) ?? activeFilePath,
-              path: activeFilePath,
-            },
-            screen: "file" as const,
-          };
+      isViewOpen && up
+        ? await tabContext(up)
+        : await windowShown(sessionId);
+    if (!shown && own.length === 0) {
+      return;
+    }
     return {
-      ...shown,
-      ...(page ? { page } : {}),
-      tabs: describeTabs(tabs),
-      url: href,
+      ...(shown ?? { screen: "home" as const, url: href }),
+      tabs: [...describeTabs(own), ...(shown?.tabs ?? [])],
     };
   };
   return { draftContext, sendContext };

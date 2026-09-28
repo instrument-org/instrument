@@ -18,6 +18,7 @@ import {
   type FileSystemSortKey,
   type FileSystemSortState,
 } from "@/client/components/extend/file-system";
+import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenInMenu } from "@/client/components/open-with-menu";
@@ -37,7 +38,7 @@ import {
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
-import { InstrumentGlyph } from "@/client/components/wordmark";
+
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import {
@@ -232,6 +233,9 @@ export function ComputerPage({
   const homePath = places.data?.favorites.find(
     (place) => place.name === "Home",
   )?.path;
+  const instrumentPath = places.data?.favorites.find(
+    (place) => place.name === "Instrument",
+  )?.path;
   // Folder prefixes under the root whose listings are held, root first. The
   // browser asks for a folder's children only once the folder is in its
   // index, so the folder it opens on needs every folder above it listed. The
@@ -380,6 +384,9 @@ export function ComputerPage({
           if (entry.kind === "folder") {
             return {
               ...stamps,
+              ...(entry.path === instrumentPath
+                ? { glyphSrc: INSTRUMENT_FOLDER_GLYPH_URL }
+                : {}),
               hasChildren: true,
               kind: "folder",
               metadata: { hostPath: entry.path },
@@ -950,13 +957,14 @@ export function ComputerPage({
             rootTo(folder === homePath ? "~" : folder);
           }}
           places={places.data.favorites.map((place) => ({
-            icon:
-              place.name === "Instrument" ? (
-                // Everything made here, under the mark of what made it.
-                <InstrumentGlyph className="size-4 text-muted-foreground" />
-              ) : (
-                <FileSystemFolderGlyph className="h-3.5 w-auto" />
-              ),
+            icon: (
+              <FileSystemFolderGlyph
+                className="h-3.5 w-auto"
+                {...(place.name === "Instrument"
+                  ? { src: INSTRUMENT_FOLDER_GLYPH_URL }
+                  : {})}
+              />
+            ),
             isActive: folderHostPath === place.path,
             name: place.name,
             path: place.path,

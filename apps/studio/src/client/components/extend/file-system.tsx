@@ -274,6 +274,8 @@ type FileEntry = FileSystemFileItem & {
 type FileSystemEntry = FileEntry | FolderEntry;
 type FileSystemFolderItem = {
   createdAt?: string;
+  /** A picture drawn in place of the folder glyph, for a folder with its own icon. */
+  glyphSrc?: string;
   /** Set when children exist but are not in `items` yet; enables `loadChildren`. */
   hasChildren?: boolean;
   kind: "folder";
@@ -928,7 +930,13 @@ function isCustomDateRangeValue(value: string[]) {
 // is.
 const FOLDER_GLYPH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs><linearGradient id="fs-folder-back" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3dabf5"/><stop offset="1" stop-color="#1d84dd"/></linearGradient><linearGradient id="fs-folder-front" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7accfb"/><stop offset="1" stop-color="#37a0ef"/></linearGradient></defs><path d="M5 10c0-3.31 2.69-6 6-6h10.9c1.6 0 3.13.7 4.18 1.9l1.5 1.73a3.5 3.5 0 0 0 2.64 1.22H54c2.76 0 5 2.24 5 5V40c0 3.87-3.13 7-7 7H12c-3.87 0-7-3.13-7-7V10Z" fill="url(#fs-folder-back)"/><path d="M5 15.5h54V40c0 3.87-3.13 7-7 7H12c-3.87 0-7-3.13-7-7V15.5Z" fill="url(#fs-folder-front)"/></svg>`;
 const FOLDER_GLYPH_DATA_URL = `data:image/svg+xml,${encodeURIComponent(FOLDER_GLYPH_SVG)}`;
-export function FileSystemFolderGlyph({ className }: { className?: string }) {
+export function FileSystemFolderGlyph({
+  className,
+  src = FOLDER_GLYPH_DATA_URL,
+}: {
+  className?: string;
+  src?: string;
+}) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- The folder glyph is an inline SVG data URL.
     <img
@@ -936,7 +944,7 @@ export function FileSystemFolderGlyph({ className }: { className?: string }) {
       aria-hidden="true"
       className={className}
       draggable={false}
-      src={FOLDER_GLYPH_DATA_URL}
+      src={src}
     />
   );
 }
@@ -3889,7 +3897,10 @@ function FileSystemIconsView({
                 )}
               >
                 {entry.kind === "folder" ? (
-                  <FileSystemFolderGlyph className="h-13 w-auto drop-shadow-sm" />
+                  <FileSystemFolderGlyph
+                    className="h-13 w-auto drop-shadow-sm"
+                    src={entry.glyphSrc}
+                  />
                 ) : (
                   <FittedFileVisual
                     // The glyph box: as tall as it is, and as wide as a
@@ -4661,7 +4672,7 @@ export function FileSystemRowGlyph({
   entry,
 }: {
   entry:
-    | { kind: "folder" }
+    | { glyphSrc?: string; kind: "folder" }
     | (Pick<
         FileSystemFileItem,
         "contentType" | "previewImageUrl" | "previewImageUrls"
@@ -4669,7 +4680,12 @@ export function FileSystemRowGlyph({
 }) {
   const [, setFailed] = React.useState(false);
   if (entry.kind === "folder") {
-    return <FileSystemFolderGlyph className="h-3.5 w-auto shrink-0" />;
+    return (
+      <FileSystemFolderGlyph
+        className="h-3.5 w-auto shrink-0"
+        src={entry.glyphSrc}
+      />
+    );
   }
   const coverUrl = mimeTypeForFile(entry).startsWith("image/")
     ? filePreviewUrls(entry)[0]
@@ -5519,7 +5535,10 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                   type="button"
                 >
                   {entry.kind === "folder" ? (
-                    <FileSystemFolderGlyph className="h-9 w-auto" />
+                    <FileSystemFolderGlyph
+                      className="h-9 w-auto"
+                      src={entry.glyphSrc}
+                    />
                   ) : (
                     <FittedFileVisual
                       // The tile inside its border and padding.
@@ -5539,7 +5558,10 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
       <div className="flex min-h-0 flex-1">
         <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center p-3">
           {activeEntry?.kind === "folder" ? (
-            <FileSystemFolderGlyph className="h-40 max-h-full w-auto drop-shadow-md" />
+            <FileSystemFolderGlyph
+              className="h-40 max-h-full w-auto drop-shadow-md"
+              src={activeEntry.glyphSrc}
+            />
           ) : activeFile && !attachedStagePaths.includes(activeFile.path) ? (
             (fileStage ?? (
               <InlineSpinner className="size-6 text-muted-foreground" />
@@ -5589,7 +5611,14 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                   renderFilePreview={renderFilePreview}
                 />
               ) : (
-                <FileSystemFolderGlyph className="h-8 w-auto shrink-0" />
+                <FileSystemFolderGlyph
+                  className="h-8 w-auto shrink-0"
+                  src={
+                    activeEntry.kind === "folder"
+                      ? activeEntry.glyphSrc
+                      : undefined
+                  }
+                />
               )}
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold break-words">

@@ -51,10 +51,7 @@ Wireframes are working artifacts drawn with `create-page`'s wireframe template a
 
 | Plan | Status |
 | --- | --- |
-| [One browser abstraction, many tabs](active/one-browser-many-tabs.md), the product-level frame over the two plans below | proposal |
 | [External browsers behind a flag](active/external-browser-behind-a-flag.md) — built; the checklist for turning it on | landed, flag off |
-| [Lazy browser targets, and multiple tabs](active/lazy-browser-targets-and-multiple-tabs.md) | proposal |
-| [Browser popups as agent-drivable tabs](active/browser-popups-as-agent-drivable-tabs.md) | proposal |
 | [Agent browser ad blocking](active/agent-browser-ad-blocking.md) | draft |
 
 ### Platform and product
@@ -84,6 +81,10 @@ Wireframes are working artifacts drawn with `create-page`'s wireframe template a
 
 | Plan | Outcome |
 | --- | --- |
+| [Agent browsing across several tabs](completed/agent-browser-multiple-tabs.md) — a chat's task holds several of the chat's tabs; the conversation's `tab` command | landed, cursor dropped |
+| [One browser abstraction, many tabs](completed/one-browser-many-tabs.md) | superseded |
+| [Lazy browser targets, and multiple tabs](completed/lazy-browser-targets-and-multiple-tabs.md) | superseded |
+| [Browser popups as agent-drivable tabs](completed/browser-popups-as-agent-drivable-tabs.md) | not built; the starting point for popups |
 | [Sandboxed script runtimes as the default](completed/sandboxed-script-runtimes.md) — `python` reads attached folders in place, `python-native` is the escape hatch, `js-exec` beside `node` | landed |
 | [Pane tabs and the `show` command](completed/pane-tabs-and-the-show-command.md) | landed |
 | [File references without a watcher](completed/file-references-without-a-watcher.md) | landed |

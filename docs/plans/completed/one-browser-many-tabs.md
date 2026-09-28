@@ -1,9 +1,6 @@
 # One browser abstraction, many tabs
 
-Status: proposal. Supersedes the framing of
-[lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md)
-and [browser-popups-as-agent-drivable-tabs.md](./browser-popups-as-agent-drivable-tabs.md),
-which stay as the detailed substrate and consumer respectively. Read this first.
+Status: superseded by [agent-browser-multiple-tabs](./agent-browser-multiple-tabs.md), which built the tabs on the 2.0 window's own tab ids instead of a per-page id migration.
 
 ## The idea
 

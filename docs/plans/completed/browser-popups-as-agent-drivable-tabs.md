@@ -1,6 +1,6 @@
 # Browser popups as agent-drivable tabs
 
-Status: proposal / not started. Depends on the multiple-browser-tabs-per-task substrate in [lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md). Framed by [one-browser-many-tabs.md](./one-browser-many-tabs.md), which is the product-level plan; this one is the detail.
+Status: not built. Its substrate, several tabs per task, landed in [agent-browser-multiple-tabs](./agent-browser-multiple-tabs.md); a page's own `window.open` becoming a tab is still open and would start from here.
 
 ## Goal
 
@@ -109,4 +109,4 @@ Even with tabs, some opens should still be denied (over the tab cap, non-http(s)
 
 - Builds on the FP-1201 popup policy ([window-open-policy.ts](../../../apps/studio/src/electron-main/browser-view/window-open-policy.ts)), which becomes the shape gate; the `isGuarded` deny becomes a cap instead.
 - Consumes the multiple-browser-tabs-per-task substrate ([lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md)), which also owns the per-tab `targetId` change noted above.
-- Distinct from [multi-window-support.md](./multi-window-support.md) (OS windows), though both touch window/target lifecycle.
+- Distinct from [multi-window-support.md](../active/multi-window-support.md) (OS windows), though both touch window/target lifecycle.

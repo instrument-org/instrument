@@ -70,7 +70,7 @@ export function ThreadRail({
   return (
     <aside
       aria-label="What this chat has open"
-      className="flex h-full w-30 shrink-0 flex-col border-l border-border bg-background"
+      className="flex h-full w-30 shrink-0 flex-col border-l border-border bg-background select-none"
     >
       <div className="flex h-10 shrink-0 items-center justify-end px-2">
         <DropdownMenu>

@@ -493,7 +493,16 @@ textarea.md-input {
 .md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6) {
   margin-top: 2em;
 }
-.md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6):first-child {
+/* A widget at the start of the document is not content: Crepe's virtual
+   cursor stands there while the selection is a caret and is gone while it is a
+   range, so counting it would move the whole page by a heading's margin each
+   time a selection is made or cleared. */
+.md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6):first-child,
+.md-editor
+  .milkdown
+  .ProseMirror
+  > :is(.prosemirror-virtual-cursor, .ProseMirror-widget):first-child
+  + :is(h1, h2, h3, h4, h5, h6) {
   margin-top: 0;
 }
 .md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + * {

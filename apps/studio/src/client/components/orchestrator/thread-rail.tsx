@@ -307,8 +307,17 @@ function RailTile({
             />
           )}
         </span>
-        <span className="truncate px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground">
-          {title}
+        {/* A page names its site by its mark too, which its picture hides. */}
+        <span className="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground">
+          {tab.kind === "page" && (
+            <span className="shrink-0 [&_img]:size-3 [&_svg]:size-3">
+              <SiteIcon
+                favicon={tab.favicon}
+                url={tab.url ?? tab.openedUrl ?? ""}
+              />
+            </span>
+          )}
+          <span className="truncate">{title}</span>
         </span>
       </button>
       <button

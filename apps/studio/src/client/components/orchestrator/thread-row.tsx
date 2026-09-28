@@ -273,18 +273,10 @@ export function ThreadRow({
                 row with nothing held takes no line for nothing. */}
               {hasHolds ? (
                 <>
-                  {/* Two lines' room while the thread works, since its
-                    step changes with every call and would otherwise move
-                    the row between one line and two; it settles to the
-                    reply's own height once. */}
-                  <Peek
-                    className={cn(
-                      "mt-0.5",
-                      thread.state === "working" && "min-h-10",
-                    )}
-                    lines={2}
-                    thread={thread}
-                  />
+                  {/* Two lines' room whatever the latest line takes, so
+                    the row keeps one height as its thread starts work,
+                    starts a task, and settles on a reply of one line. */}
+                  <Peek className="mt-0.5 min-h-10" lines={2} thread={thread} />
                   <div className="mt-1 flex items-end gap-2">
                     <HoldsInThread threadId={thread.id}>
                       <HoldMarks

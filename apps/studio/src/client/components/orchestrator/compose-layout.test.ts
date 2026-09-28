@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   COMPOSE_BAR_WIDTH,
+  COMPOSE_EDGE_GAP,
   COMPOSE_GAP,
   COMPOSE_WIDTH,
   layoutCompose,
@@ -37,15 +38,15 @@ describe("layoutCompose", () => {
   it("stands the newest draft at the right edge and the older beside it", () => {
     const placed = layoutCompose([draft("a"), draft("b")], 2000);
     expect(placed.map((entry) => [idOf(entry), entry.right])).toEqual([
-      ["b", COMPOSE_GAP],
-      ["a", COMPOSE_GAP + COMPOSE_WIDTH + COMPOSE_GAP],
+      ["b", COMPOSE_EDGE_GAP],
+      ["a", COMPOSE_EDGE_GAP + COMPOSE_WIDTH + COMPOSE_GAP],
     ]);
   });
 
   it("leaves out the drafts there is no room for, from the left", () => {
     const placed = layoutCompose(
       [draft("a", "bar"), draft("b"), draft("c")],
-      COMPOSE_WIDTH + COMPOSE_GAP * 2 + COMPOSE_BAR_WIDTH,
+      COMPOSE_EDGE_GAP + COMPOSE_WIDTH + COMPOSE_GAP * 2 + COMPOSE_BAR_WIDTH,
     );
     // The bar after the window would have fit; the window before it ends the
     // row, so the drafts stay in their order.
@@ -55,8 +56,8 @@ describe("layoutCompose", () => {
   it("lays a bar beside a window at its own width", () => {
     const placed = layoutCompose([draft("a"), draft("b", "bar")], 2000);
     expect(placed.map((entry) => [idOf(entry), entry.right])).toEqual([
-      ["b", COMPOSE_GAP],
-      ["a", COMPOSE_GAP + COMPOSE_BAR_WIDTH + COMPOSE_GAP],
+      ["b", COMPOSE_EDGE_GAP],
+      ["a", COMPOSE_EDGE_GAP + COMPOSE_BAR_WIDTH + COMPOSE_GAP],
     ]);
   });
 
@@ -77,14 +78,14 @@ describe("layoutCompose", () => {
       2000,
     );
     expect(placed.map((entry) => [idOf(entry), entry.right])).toEqual([
-      ["b", COMPOSE_GAP],
+      ["b", COMPOSE_EDGE_GAP],
       [
         "ses_01J8ZZZZZZZZZZZZZZZZZZZZZ1",
-        COMPOSE_GAP + COMPOSE_BAR_WIDTH + COMPOSE_GAP,
+        COMPOSE_EDGE_GAP + COMPOSE_BAR_WIDTH + COMPOSE_GAP,
       ],
       [
         "a",
-        COMPOSE_GAP +
+        COMPOSE_EDGE_GAP +
           COMPOSE_BAR_WIDTH +
           COMPOSE_GAP +
           THREAD_WINDOW_WIDTH +
@@ -102,12 +103,17 @@ describe("layoutCompose", () => {
       2000,
     );
     expect(placed.map((entry) => [idOf(entry), entry.right])).toEqual([
-      ["ses_01J8ZZZZZZZZZZZZZZZZZZZZZ3", COMPOSE_GAP],
+      ["ses_01J8ZZZZZZZZZZZZZZZZZZZZZ3", COMPOSE_EDGE_GAP],
       [
         "ses_01J8ZZZZZZZZZZZZZZZZZZZZZ2",
-        COMPOSE_GAP + COMPOSE_BAR_WIDTH + COMPOSE_GAP,
+        COMPOSE_EDGE_GAP + COMPOSE_BAR_WIDTH + COMPOSE_GAP,
       ],
     ]);
+  });
+
+  it("keeps the right edge's room the same on screen at any zoom", () => {
+    const placed = layoutCompose([draft("a")], 2000, undefined, 2);
+    expect(placed.map((entry) => entry.right)).toEqual([COMPOSE_EDGE_GAP / 2]);
   });
 
   it("draws nothing before the row has a width", () => {
@@ -117,7 +123,7 @@ describe("layoutCompose", () => {
   // 1.5x zoom at the window's 900px minimum leaves a row of 524 layout px.
   it("narrows the newest window to a row too small for it, and drops the rest", () => {
     expect(layoutCompose([draft("a"), draft("b")], 524)).toEqual([
-      { ...draft("b"), right: 12, width: 500 },
+      { ...draft("b"), right: 20, width: 492 },
     ]);
   });
 });

@@ -16,8 +16,17 @@ export const THREAD_RAIL_WIDTH = 120;
  */
 export const COMPOSE_GUEST_LAYER = 41;
 
-/** The room between two windows along the foot, and between the last and the edge, in layout px. */
+/** The room between two windows along the foot, and between the leftmost and the row's left end, in layout px. */
 export const COMPOSE_GAP = 12;
+
+/**
+ * The room between the rightmost window and the window's right edge, in
+ * screen px rather than layout px: wider than the gap between windows, so a
+ * window standing on the foot clears the curve of the window's rounded
+ * bottom-right corner and the edge the system draws along it, which do not
+ * grow with the UI's zoom.
+ */
+export const COMPOSE_EDGE_GAP = 20;
 
 /** How a window or a bar comes and goes: quick, and settling rather than bouncing. */
 export const COMPOSE_MOTION = {
@@ -42,10 +51,12 @@ export function layoutCompose(
   width: number,
   /** Whether a thread's small view carries its rail, which it does while the chat holds anything. */
   hasRail: (entry: ComposeEntry) => boolean = () => false,
+  /** The UI's zoom, which the row is laid out in and the window's edge is not. */
+  zoom = 1,
 ): PlacedCompose[] {
   const isOneExpanded = entries.some((entry) => entry.placement === "expanded");
   const placed: PlacedCompose[] = [];
-  let right = COMPOSE_GAP;
+  let right = COMPOSE_EDGE_GAP / zoom;
   for (const [index, entry] of entries.toReversed().entries()) {
     if (entry.placement === "expanded") {
       placed.push({ ...entry, right: 0 });

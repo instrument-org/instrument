@@ -6,8 +6,9 @@ import {
   draftGroupOf,
   type ScreenView,
 } from "@/client/atoms/orchestrator";
+import { zoomAtom } from "@/client/atoms/zoom";
 import { type StoreId } from "@instrument-org/workspace/client";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useState } from "react";
 
 import { type ComposeHost, type PageChromeSlots } from "./browser-tabs";
@@ -40,10 +41,12 @@ export function useCompose(
   const [chromeById, setChromeById] = useState<
     Record<string, PageChromeSlots | undefined>
   >({});
+  const zoom = useAtomValue(zoomAtom);
   const placed = layoutCompose(
     entries,
     width,
     (entry) => entry.kind === "thread" && holdsAnything(entry.sessionId),
+    zoom,
   );
   const windows = placed.filter((entry) => entry.placement !== "bar");
   // A thread's small view draws no page; grown to fill the row it does.

@@ -187,7 +187,7 @@ export function ComposeBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-px z-40 flex h-9 [clip-path:inset(-4rem_-4rem_0_-4rem)] items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft dark:bg-gray-700"
+      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 [clip-path:inset(-4rem_-4rem_0_-4rem)] items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft dark:bg-gray-700"
       data-slot="compose-bar"
       exit={{ opacity: 0, y: 36 }}
       initial={{ opacity: 0, right, y: 36 }}
@@ -628,14 +628,14 @@ export function ComposeWindow({
         // Docked, the window grows with the words up to the row's height, so
         // the band keeps its room under them for as long as there is room to
         // give; only then do the words scroll.
-        // A pixel off the foot, so the ring stops short of the edge the
-        // system draws along the window's bottom rather than doubling it, and
-        // clipped at its own foot, so the ring's bottom side and the shadow
-        // under it never reach that edge either. The bars along the foot
-        // stand on the same line.
+        // A screen pixel off the foot at any zoom, so the ring stops short of
+        // the edge the system draws along the window's bottom rather than
+        // doubling it, and clipped at its own foot, so the ring's bottom side
+        // and the shadow under it never reach that edge either. The bars
+        // along the foot stand on the same line.
         isExpanded
           ? "inset-3 rounded-2xl"
-          : "bottom-px max-h-[calc(100%-1rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
+          : "bottom-[calc(1px/var(--app-zoom))] max-h-[calc(100%-1rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
       )}
       data-slot="compose-window"
       exit={{ opacity: 0, y: 24 }}

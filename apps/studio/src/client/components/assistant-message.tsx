@@ -9,6 +9,7 @@ import {
 import { memo } from "react";
 
 import { AgentFilesBlock } from "./agent-files-block";
+import { BubbleActions } from "./bubble-actions";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MessageCard } from "./message-card";
 import { SessionMarkdown } from "./session-markdown";
@@ -97,13 +98,23 @@ export const AssistantMessage = memo(function AssistantMessage({
       <div className="flex flex-col items-start gap-2">
         {segments.map((segment, index) =>
           segment.kind === "words" ? (
-            <div className={ASSISTANT_BUBBLE} key={index}>
-              <SessionMarkdown
-                assetVersion={part.metadata.id}
-                className="text-sm/[1.5]"
-                isStreaming={isStreaming}
-                markdown={segment.text}
-                taskId={taskId}
+            <div
+              className="group/bubble-row flex w-full items-end gap-1"
+              key={index}
+            >
+              <div className={ASSISTANT_BUBBLE}>
+                <SessionMarkdown
+                  assetVersion={part.metadata.id}
+                  className="text-sm/[1.5]"
+                  isStreaming={isStreaming}
+                  markdown={segment.text}
+                  taskId={taskId}
+                />
+              </div>
+              <BubbleActions
+                date={part.metadata.createdAt}
+                onCopy={() => navigator.clipboard.writeText(segment.text)}
+                side="right"
               />
             </div>
           ) : (

@@ -73,6 +73,7 @@ test("a reply's message fence stands under the bubble as a card", async () => {
     .toBeVisible();
   await expect(ariaSnapshot(screen.locator)).resolves.toMatchInlineSnapshot(`
     "- paragraph: Here's a note for Marcy.
+    - button "Copy message"
     - text: Email to Marcy <
     - button "marcy@example.com"
     - text: ">"

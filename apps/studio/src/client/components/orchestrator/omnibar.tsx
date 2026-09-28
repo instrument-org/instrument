@@ -1,4 +1,5 @@
 import {
+  bookmarksAtom,
   orchestratorRecentsAtom,
   visitedPagesAtom,
 } from "@/client/atoms/orchestrator";
@@ -70,7 +71,7 @@ export type OmnibarScope = "files" | "web";
 
 /**
  * A tab's address field. On the web it opens a typed address, searches for
- * typed words, and finds recently seen pages; on the computer it
+ * typed words, and finds bookmarked and recently seen pages; on the computer it
  * opens a typed path and finds recent files and folders. It lives in the row
  * above a new tab, where a browser keeps its address field, so a new tab is
  * the field with nothing in it yet rather than a page with a second field
@@ -103,6 +104,7 @@ export function Omnibar({
   });
   const recents = useAtomValue(orchestratorRecentsAtom);
   const visited = useAtomValue(visitedPagesAtom);
+  const bookmarks = useAtomValue(bookmarksAtom);
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
@@ -268,6 +270,23 @@ export function Omnibar({
   const recentRows = wasAt
     .filter((entry) => matches(entry.title))
     .slice(0, words ? RECENTS_SHOWN : 0);
+  // The pages kept as bookmarks, ahead of those merely seen.
+  const bookmarkRows: OmniRow[] =
+    scope === "web"
+      ? bookmarks
+          .filter((bookmark) => matches(bookmark.title))
+          .map((bookmark) => ({
+            group: "Bookmarks",
+            icon: <SiteIcon url={bookmark.url} />,
+            id: `bookmark:${bookmark.id}`,
+            line: hostOf(bookmark.url),
+            name: bookmark.title,
+            note: "Page",
+            run: () => {
+              (onSite ?? openPage)(bookmark.url);
+            },
+          }))
+      : [];
   const recentOmniRows: OmniRow[] = recentRows.map((entry) => ({
     group: "Recent",
     icon: entry.icon,
@@ -342,7 +361,7 @@ export function Omnibar({
         input.current?.blur();
       },
     }));
-  const matched = recentOmniRows;
+  const matched = [...bookmarkRows, ...recentOmniRows];
   const rows: OmniRow[] = [
     // What the words are, when they are a place: a path on the computer, an
     // address, or the whole name of something the box knows. Each opens on

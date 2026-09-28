@@ -206,14 +206,14 @@ function barOf(row: HTMLElement) {
   };
 }
 
-/** The state dot in front of the title, if the thread wears one. */
+/** A state dot in front of the title, which no row wears. */
 function dotOf(row: HTMLElement) {
   return row.querySelector<HTMLElement>(
     '[aria-label="Unread"], [aria-label="Working"], [aria-label="Needs you"]',
   );
 }
 
-/** The first line of a tall row: the dot, the title, and the pills at its end. */
+/** The first line of a tall row: the title and the pills at its end. */
 function firstLineOf(row: HTMLElement) {
   const line = row.firstElementChild?.firstElementChild;
   if (!(line instanceof HTMLElement)) {
@@ -358,19 +358,12 @@ function titleOf(row: HTMLElement) {
 }
 
 describe("ThreadRow", () => {
-  it("lies down to one line across a wide list, the star first, the pills and the time at the far right, no ask on it", async () => {
+  it("lies down to one line across a wide list, the pills and the time at the far right, no ask on it", async () => {
     const { row } = await renderRow(thread({ topics: ["house"] }), {
       density: "slim",
     });
     expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(40);
     expect(row.textContent).toBe(`${TITLE}${REPLY}🏠House9:11 AM`);
-    // The star in front of the title, the way mail keeps it.
-    const star = row
-      .querySelector('[aria-label="Star"]')
-      ?.getBoundingClientRect();
-    expect(star?.right).toBeLessThanOrEqual(
-      titleOf(row).getBoundingClientRect().left,
-    );
     // The time past the pill, at the row's end.
     const pill = pillOf(row)?.getBoundingClientRect();
     const time = [...row.querySelectorAll("span")]
@@ -387,7 +380,7 @@ describe("ThreadRow", () => {
     );
   });
 
-  it("stacks when the list is narrow: the title with the pill at its end on one line, the latest under it, the files under that", async () => {
+  it("stacks when the list is narrow: the title with the pill at its end on one line, the latest under it, the files and the time under that", async () => {
     const { row } = await renderRow(
       thread({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
@@ -413,6 +406,15 @@ describe("ThreadRow", () => {
     expect(chip?.getBoundingClientRect().top).toBeGreaterThanOrEqual(
       peek?.getBoundingClientRect().bottom ?? 0,
     );
+    // The time in the bottom corner. The innermost span with its words,
+    // since the corner around it has them too.
+    const time = [...row.querySelectorAll("span")]
+      .findLast((span) => span.textContent === "9:11 AM")
+      ?.getBoundingClientRect();
+    expect(time?.top).toBeGreaterThanOrEqual(
+      peek?.getBoundingClientRect().bottom ?? 0,
+    );
+    expect(time?.right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
   });
 
   it("gives the latest line two lines when tall and one when slim", async () => {
@@ -436,7 +438,7 @@ describe("ThreadRow", () => {
     expect(slim.scrollWidth).toBe(slim.clientWidth);
   });
 
-  it("carries no reply count, and a time only when slim", async () => {
+  it("carries no reply count, and the time at either width", async () => {
     const { rows } = await renderRows([
       { density: "tall", thread: thread({ replyCount: 3 }) },
       { density: "slim", thread: thread({ replyCount: 3 }) },
@@ -447,37 +449,22 @@ describe("ThreadRow", () => {
     }
     expect(tall.querySelector('[aria-label="3 replies"]')).toBeNull();
     expect(firstLineOf(tall).textContent).toBe(TITLE);
+    expect(tall.textContent).toContain("9:11 AM");
     expect(slim.textContent).toBe(`${TITLE}${REPLY}9:11 AM`);
   });
 
-  it.each<[string, Partial<Thread>, null | { color: string; label: string }]>([
-    ["quiet", {}, null],
-    ["unseen", { unread: 2 }, null],
-    [
-      "working",
-      { state: "working" },
-      { color: "bg-brand-500", label: "Working" },
-    ],
-    [
-      "waiting",
-      { state: "waiting" },
-      { color: "bg-warning-500", label: "Needs you" },
-    ],
-    [
-      "waiting with unseen replies",
-      { state: "waiting", unread: 2 },
-      { color: "bg-warning-500", label: "Needs you" },
-    ],
-  ])("wears the state as a dot when %s", async (_, overrides, dot) => {
-    const { row } = await renderRow(thread(overrides));
-    const worn = dotOf(row);
-    if (dot === null) {
-      expect(worn).toBeNull();
-      return;
-    }
-    expect(worn?.getAttribute("aria-label")).toBe(dot.label);
-    expect(worn?.className).toContain(dot.color);
-  });
+  it.each<[string, Partial<Thread>]>([
+    ["quiet", {}],
+    ["unseen", { unread: 2 }],
+    ["working", { state: "working" }],
+    ["waiting", { state: "waiting" }],
+  ])(
+    "wears no dot when %s: the latest line says where it stands",
+    async (_, overrides) => {
+      const { row } = await renderRow(thread(overrides));
+      expect(dotOf(row)).toBeNull();
+    },
+  );
 
   it("sets the title in semibold only while something in it is unseen", async () => {
     const { rows } = await renderRows([
@@ -577,12 +564,45 @@ describe("ThreadRow", () => {
     expect(peek?.querySelector("svg.text-warning-700")).not.toBeNull();
   });
 
+  it("says what it is answering under Instrument is working until a task starts, in two lines only", async () => {
+    const working = thread({
+      lastAsk: "Check the Nest schedule",
+      latest: undefined,
+      state: "working",
+    });
+    const { rows } = await renderRows([
+      { density: "tall", thread: working },
+      { density: "slim", thread: working },
+    ]);
+    const [tall, slim] = rows;
+    if (!tall || !slim) {
+      throw new Error("no rows");
+    }
+    expect(peekOf(tall)?.textContent).toBe(
+      "Instrument is workingYou: Check the Nest schedule",
+    );
+    expect(peekOf(slim)?.textContent).toBe("Instrument is working");
+  });
+
+  it("says Instrument is working under a task's title until its first step lands", async () => {
+    const { row } = await renderRow(
+      thread({
+        latest: undefined,
+        runningTasks: [
+          { id: TaskIdSchema.parse("nest-guard"), title: "Nest guard" },
+        ],
+        state: "working",
+      }),
+    );
+    expect(peekOf(row)?.textContent).toBe("Nest guardInstrument is working");
+  });
+
   it("has no latest line for an idle thread with nothing to say", async () => {
     const { row } = await renderRow(
       thread({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
     );
     expect(peekOf(row)).toBeNull();
-    expect(row.textContent).toBe(TITLE);
+    expect(row.textContent).toBe(`${TITLE}9:11 AM`);
   });
 
   it("opens the thread from a click anywhere on it, and from Enter", async () => {
@@ -885,7 +905,7 @@ describe("the row's actions", () => {
     async (density) => {
       const { row } = await renderRow(thread(), { density });
       const { bar, labels } = barOf(row);
-      expect(labels).toEqual(["Archive", "Mark as unread"]);
+      expect(labels).toEqual(["Archive", "Mark as unread", "Star"]);
       // The pointer is wherever the last test left it, which may be here.
       await userEvent.unhover(row);
       expect(bar.getClientRects().length).toBe(0);
@@ -924,7 +944,7 @@ describe("the row's actions", () => {
 
   it("offers a thread put away the way back", async () => {
     const { row } = await renderRow(thread({ archived: true }));
-    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as unread"]);
+    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as unread", "Star"]);
     await userEvent.hover(titleOf(row));
     await userEvent.click(actionOf(row, "Unarchive"));
     expect(calls.unarchive).toHaveBeenCalledWith(INPUT);
@@ -951,7 +971,7 @@ describe("the row's actions", () => {
 
   it("offers no read or unread mark on a thread with no replies to have read", async () => {
     const { row } = await renderRow(thread({ replyCount: 0, unread: 0 }));
-    expect(barOf(row).labels).toEqual(["Archive"]);
+    expect(barOf(row).labels).toEqual(["Archive", "Star"]);
   });
 
   it("raises the row's menu on a right click: the way in, the actions, and the topics", async () => {
@@ -1038,56 +1058,26 @@ describe("the row's actions", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("keeps the star in front of the wide row and at the narrow row's end, out of the actions and clear of the words, and turns it on a click", async () => {
+  it("marks a starred row with a star past its topics, not a control, at either width", async () => {
+    const starred = thread({ starred: true, topics: ["house"] });
     const { rows } = await renderRows([
-      { density: "slim", thread: thread() },
-      {
-        density: "tall",
-        thread: thread({
-          holds: {
-            apps: [],
-            files: ["/task/out/a.md", "/task/out/b.md", "/task/out/c.md"],
-            sites: [],
-          },
-          latest: { at: MOVED_AT.getTime(), kind: "reply", text: LONG_REPLY },
-          starred: true,
-        }),
-      },
+      { density: "slim", thread: starred },
+      { density: "tall", thread: starred },
+      { density: "tall", thread: thread() },
     ]);
-    const [slim, tall] = rows;
-    if (!slim || !tall) {
+    const [slim, tall, plain] = rows;
+    if (!slim || !tall || !plain) {
       throw new Error("no rows");
     }
-    // At the wide row's front, before the title.
-    const control = slim.querySelector<HTMLButtonElement>(
-      '[aria-label="Star"]',
-    );
-    expect(control).not.toBeNull();
-    expect(control?.getBoundingClientRect().right).toBeLessThanOrEqual(
-      titleOf(slim).getBoundingClientRect().left,
-    );
-    control?.click();
-    await vi.waitFor(() => {
-      expect(calls.star).toHaveBeenCalledWith({ ...INPUT, starred: true });
-    });
-    // At the lower right of the narrow row, under the first line, filled
-    // once given.
-    const given = tall.querySelector<HTMLButtonElement>(
-      '[aria-label="Unstar"]',
-    );
-    expect(given?.getAttribute("aria-pressed")).toBe("true");
-    expect(given?.getBoundingClientRect().top).toBeGreaterThan(
-      firstLineOf(tall).getBoundingClientRect().bottom,
-    );
-    expect(given?.getBoundingClientRect().right).toBeLessThanOrEqual(
-      tall.getBoundingClientRect().right,
-    );
-    // The holds on its line stop short of it.
-    const starLeft = given?.getBoundingClientRect().left ?? 0;
-    for (const mark of marksOf(tall)) {
-      expect(mark.getBoundingClientRect().left).toBeLessThan(starLeft);
+    for (const row of [slim, tall]) {
+      const mark = row.querySelector('[aria-label="Starred"]');
+      expect(mark?.closest("button")).toBeNull();
+      expect(mark?.getBoundingClientRect().left).toBeGreaterThanOrEqual(
+        pillOf(row)?.getBoundingClientRect().right ?? 0,
+      );
     }
-    // The star is the row's own control, not one of the actions on hover.
-    expect([...tall.querySelectorAll('[aria-label="Unstar"]')].length).toBe(1);
+    expect(plain.querySelector('[aria-label="Starred"]')).toBeNull();
+    // Taking the star back ends the corner's bar, over where the star stood.
+    expect(barOf(tall).labels.at(-1)).toBe("Unstar");
   });
 });

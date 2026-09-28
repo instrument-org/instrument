@@ -13,13 +13,11 @@ import {
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { TagIcon } from "@phosphor-icons/react/Tag";
-import { useMutation } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 
@@ -48,26 +46,28 @@ const PICKER_LEAVE_MS = 250;
  * One thread in the inbox, and the door into it: a click anywhere on it
  * opens the thread beside the list (a thread is never a tab, so no gesture
  * asks for one), a right click raises its menu, and the keyboard opens it
- * with Enter. Its
- * state as a dot in front of the title: brand while it works, amber while it
- * waits on the user, nothing otherwise. Then the title in semibold while
- * there is something unseen in it, which is the only mark unread wears,
+ * with Enter. The title in semibold while there is something unseen in it,
+ * which is the only mark unread wears,
  * the word Draft after it in red while a reply sits typed and unsent in the
  * thread's composer, the way mail marks a thread with a draft in it,
  * the topics it is filed under as pills in the row's corner, the agent's
  * latest line (the step it is on, the question it is waiting on, or its last
  * reply's first words), and the marks of what it holds. Slim, all of that is
- * one line, the way a mailbox lists mail: the star first, the title held to
- * a narrow column so the latest line gets the room, the holds held to a share
- * of it, and when something last happened at the far end; tall, the title has the first line with the
+ * one line, the way a mailbox lists mail: the title held to a narrow column
+ * so the latest line gets the room, the holds held to a share of it, and
+ * when something last happened at the far end; tall, the title has the first line with the
  * topics at its end, the latest line gets two, and what it holds sits on a
  * third line that never wraps: the files it made as chips with their names,
  * the apps and sites as marks beside them, fading out at the row's edge,
- * with the star at that line's end in the row's bottom corner. No avatar,
- * no name: every row here is the user's. The marks, the star, the tag
+ * with the time in the row's bottom corner. A starred thread wears a filled
+ * star past its topics, at either width. Where the thread
+ * stands is said by the latest line alone: shimmering while it works, behind
+ * an amber glyph while it waits on the user. No avatar,
+ * no name: every row here is the user's. The marks, the tag
  * control that stands in front of the title while the pointer is on the
  * row, and the actions that stand over the corner then (putting the thread
- * away or back, marking it read or unread) are the row's own controls, and a
+ * away or back, marking it read or unread, and starring it last, where the
+ * star stands) are the row's own controls, and a
  * click on one stops short of the door. The menu offers the same, with the
  * way to open the thread and its topics.
  */
@@ -172,6 +172,30 @@ export function ThreadRow({
       )}
     </>
   );
+  // When something last happened: at the far end of a slim row, and in a
+  // tall row's bottom corner, in a column of one width so the times line up
+  // down the list.
+  const time = (
+    <span
+      className={cn(
+        "w-14 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums",
+        isUnseen && "font-semibold text-foreground",
+      )}
+    >
+      {activityLabel(new Date(thread.updatedAt), now)}
+    </span>
+  );
+  // A starred thread's star, past its topics in the row's corner and a mark
+  // rather than a control: starring and unstarring end the corner's bar,
+  // which stands over the same spot.
+  const starMark = thread.starred && (
+    <StarIcon
+      aria-label="Starred"
+      className="size-3.5 shrink-0 text-warning-500"
+      role="img"
+      weight="fill"
+    />
+  );
   // The same groups, in the same order, as the menu in the chat's head.
   const groups = threadMenuGroups(actions);
   const item = (action: RowAction) => (
@@ -209,14 +233,7 @@ export function ThreadRow({
         >
           {density === "slim" ? (
             <>
-              {/* The star first, where mail keeps it on a wide list: a
-                mark of the user's own, apart from the row's actions. */}
-              <StarControl thread={thread} />
-              {/* The state sits in front of the title as a dot. */}
-              <span className={SLIM_NAME_COLUMN}>
-                <StateDot thread={thread} />
-                {title}
-              </span>
+              <span className={SLIM_NAME_COLUMN}>{title}</span>
               <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
               {/* No more than a share of the row, clipped with a fade past
                 it, so a thread with many files never pushes into the title's
@@ -238,6 +255,7 @@ export function ThreadRow({
                 date's place. */}
               <span className="flex shrink-0 items-center gap-1 group-hover/row:hidden">
                 {pills}
+                {starMark}
               </span>
               <RowActionBar
                 actions={actions}
@@ -245,32 +263,26 @@ export function ThreadRow({
                 isHeld={isPickerLeaving}
                 leading={tagControl}
               />
-              <span
-                className={cn(
-                  "w-14 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums group-hover/row:hidden",
-                  isUnseen && "font-semibold text-foreground",
-                )}
-              >
-                {activityLabel(new Date(thread.updatedAt), now)}
+              <span className="flex shrink-0 group-hover/row:hidden">
+                {time}
               </span>
             </>
           ) : (
             <div className="min-w-0 flex-1">
-              {/* The state as a dot in front of the title, and the topics
-                at the line's end in the row's corner. */}
+              {/* The topics at the line's end in the row's corner. */}
               <div className="flex h-5 items-center gap-1.5">
-                <StateDot thread={thread} />
                 {title}
                 {/* Stepping aside for the corner's bar while the pointer is
                   on the row. */}
                 <span className="ml-auto flex shrink-0 items-center gap-1 group-hover/row:invisible">
                   {pills}
+                  {starMark}
                 </span>
               </div>
-              {/* The star in the row's bottom corner, where mail keeps it:
-                at the end of the holds' line when the thread holds
-                anything, and otherwise at the end of the latest line, so a
-                row with nothing held takes no line for nothing. */}
+              {/* The time in the row's bottom corner: at the end of the
+                holds' line when the thread holds anything, and otherwise at
+                the end of the latest line, so a row with nothing held takes
+                no line for nothing. */}
               {hasHolds ? (
                 <>
                   {/* Two lines' room whatever the latest line takes, so
@@ -287,22 +299,18 @@ export function ThreadRow({
                         wrap={false}
                       />
                     </HoldsInThread>
-                    <span className="-mr-1 -mb-0.5 shrink-0">
-                      <StarControl thread={thread} />
-                    </span>
+                    {time}
                   </div>
                 </>
               ) : (
                 // Two lines' room whatever the latest line takes, so the
-                // star sits under the corner's bar rather than beneath it
+                // time sits under the corner's bar rather than beneath it
                 // while the pointer is on the row, and the row keeps one
                 // height as the line changes. The line starts under the
                 // title, as it does in a row that holds something.
                 <div className="mt-0.5 flex min-h-10 items-start gap-2">
                   <Peek className="min-w-0 flex-1" lines={2} thread={thread} />
-                  <span className="-mr-1 -mb-0.5 ml-auto shrink-0 self-end">
-                    <StarControl thread={thread} />
-                  </span>
+                  <span className="ml-auto flex shrink-0 self-end">{time}</span>
                 </div>
               )}
             </div>
@@ -522,67 +530,6 @@ function Peek({
 }
 
 /**
- * The star as a control in the row: faint until the pointer is on the row
- * or the star is given, filled in amber once it is. A click turns it and
- * stops short of the door.
- */
-function StarControl({ thread }: { thread: Thread }) {
-  const star = useMutation(
-    rpcClient.workspace.orchestrator.threads.star.mutationOptions(),
-  );
-  return (
-    <button
-      aria-label={thread.starred ? "Unstar" : "Star"}
-      aria-pressed={thread.starred}
-      className={cn(
-        "grid size-5 shrink-0 place-items-center rounded-sm",
-        thread.starred
-          ? "hover:text-warning-600 text-warning-500"
-          : "text-muted-foreground/40 group-hover/row:text-muted-foreground hover:text-warning-500",
-      )}
-      onAuxClick={stopHere}
-      onClick={(event) => {
-        stopHere(event);
-        star.mutate({ sessionId: thread.id, starred: !thread.starred });
-      }}
-      type="button"
-    >
-      <StarIcon
-        className="size-3.5"
-        weight={thread.starred ? "fill" : "bold"}
-      />
-    </button>
-  );
-}
-
-/**
- * Where the thread stands, as a dot: amber while it waits on the user, brand
- * and breathing while it works, and nothing at all otherwise. Replies not yet
- * seen wear no dot, since the title's weight already says so and a dot on
- * some rows and not others leaves the titles a ragged left edge.
- */
-function StateDot({ thread }: { thread: Thread }) {
-  if (thread.state === "waiting") {
-    return (
-      <span
-        aria-label="Needs you"
-        className="size-2 shrink-0 rounded-full bg-warning-500"
-      />
-    );
-  }
-  if (thread.state === "working") {
-    // Breathing, the way the agent's own dot breathes while it plans.
-    return (
-      <span
-        aria-label="Working"
-        className="planning-dot-core size-2 shrink-0 rounded-full bg-brand-500 motion-reduce:animate-none"
-      />
-    );
-  }
-  return null;
-}
-
-/**
  * The control that files the thread, first in the corner's bar: the topic
  * picker every filing shares. The row keeps its open state, so the bar stays
  * in the flow while the list is up and the list keeps its anchor as it
@@ -634,9 +581,10 @@ function TagControl({
 /**
  * What a working thread is doing. In two lines, the task at work by its title
  * and under it the step it is on, each held to one line, so the row keeps its
- * height as the step changes with every call; the step line is empty until
- * the task's first call lands. In one line, the step, or the task's title
- * before it has one. With no task at work, the thread's own agent is.
+ * height as the step changes with every call; the step line says Instrument
+ * is working until the task's first call lands. In one line, the step, or the task's title
+ * before it has one. With no task at work, the thread's own agent is, and
+ * in two lines the user's message it is answering goes under it.
  */
 function WorkingPeek({ lines, thread }: { lines: 1 | 2; thread: Thread }) {
   const working = thread.runningTasks.filter((task) => !task.waiting);
@@ -644,9 +592,22 @@ function WorkingPeek({ lines, thread }: { lines: 1 | 2; thread: Thread }) {
   // `brand-shiny-text` is an inline-block, which a parent's truncate cannot
   // shrink, so each line carries its own.
   if (!lead) {
-    return (
+    const status = (
       <span className="brand-shiny-text min-w-0 truncate">
         Instrument is working
+      </span>
+    );
+    // In two lines, what it is answering under it, so the second line says
+    // what the wait is for rather than standing empty until a task starts.
+    if (lines === 1 || !thread.lastAsk) {
+      return status;
+    }
+    return (
+      <span className="flex min-w-0 flex-col">
+        {status}
+        <span className="min-w-0 truncate text-muted-foreground">
+          You: {thread.lastAsk}
+        </span>
       </span>
     );
   }
@@ -668,9 +629,9 @@ function WorkingPeek({ lines, thread }: { lines: 1 | 2; thread: Thread }) {
           </span>
         )}
       </span>
-      {lead.step && (
-        <span className="brand-shiny-text min-w-0 truncate">{lead.step}</span>
-      )}
+      <span className="brand-shiny-text min-w-0 truncate">
+        {lead.step ?? "Instrument is working"}
+      </span>
     </span>
   );
 }

@@ -50,8 +50,9 @@ export function useThreadActions(thread: Thread): RowAction[] {
  * edge and its menu list them: putting it away, or back in the inbox, with
  * an undo in the toast either way; marking it read while something in it
  * is unseen, or unread again once it has replies to be unread, with no
- * toast at all, since the row itself says which it is; and, in the menu
- * alone, starring it, saving its transcript, and showing its folder.
+ * toast at all, since the row itself says which it is; starring it or
+ * taking the star back, last, where a starred row wears its star; and, in
+ * the menu alone, saving its transcript and showing its folder.
  *
  * Answered for any thread by one set of mutations, so a list asks once and
  * hands each row its actions, rather than every row registering its own ten
@@ -196,7 +197,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
         reveal({ id: thread.chatId, type: "show-in-folder" });
       },
     };
-    return [put, ...mark, { ...starred, menuOnly: true }, save, show];
+    return [put, ...mark, starred, save, show];
   };
 }
 

@@ -437,13 +437,13 @@ export function TaskChat({
       ? {
           computerName: computerName(),
           onOpenApps: () => {
-            orchestrator.openScreen(APPS_HREF, { newTab: true });
+            orchestrator.openScreen(APPS_HREF, { ownTab: true });
           },
           onOpenComputer: () => {
-            orchestrator.openScreen(instrumentFolderHref(), { newTab: true });
+            orchestrator.openScreen(instrumentFolderHref(), { ownTab: true });
           },
           onOpenWeb: () => {
-            orchestrator.openScreen(WEB_HREF, { newTab: true });
+            orchestrator.openScreen(WEB_HREF, { ownTab: true });
           },
         }
       : undefined;

@@ -35,6 +35,7 @@ import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type ProjectId } from "../src/schemas/project-id";
+import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
 import { type TaskId } from "../src/schemas/task-id";
@@ -43,6 +44,7 @@ import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
+import { createStandInWindow } from "./lib/stand-in-window";
 import {
   buildProviderConfigs,
   c,
@@ -234,6 +236,13 @@ export interface EvalCase {
     part: SessionMessagePart.Type,
     taskId: TaskId,
   ) => boolean | Promise<boolean>;
+  /**
+   * What the window showed as the case's message was sent, as the note on it:
+   * the tabs open, by their ids, and the page or screen up. The tabs it names
+   * are open in a stand-in window for the run, which answers `tab` and makes
+   * `--tab` accept a page tab's id.
+   */
+  viewing?: SessionMessageDataPart.ViewContextDataPart;
 }
 
 interface AssertionContext {
@@ -313,12 +322,19 @@ export async function runEvals(
   }
 
   const appsConfig = createMemoryAppsConfig();
+  const standInWindow = createStandInWindow();
+  const stopStandInWindow = standInWindow.listen();
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
       apps: appsConfig,
       appVersion: "0.0.0-test",
-      browser: createStubBrowserConfig(),
+      // No window, so a task starts a browser of its own; the stand-in
+      // answers for the window's tabs the conversation names.
+      browser: standInWindow.browser({
+        ...createStubBrowserConfig(),
+        hasNoWindow: true,
+      }),
       captureEvent: () => {
         return;
       },
@@ -414,6 +430,7 @@ export async function runEvals(
       // case name, because the project name reaches the agent as "this task
       // belongs to the X project" -- a case named for what it is checking would
       // be telling the model the answer.
+      standInWindow.seed(evalCase.viewing);
       const created = creating.then(async () => {
         let projectId: ProjectId | undefined;
         if (evalCase.project) {
@@ -440,6 +457,7 @@ export async function runEvals(
             name: evalCase.name,
             projectId,
             prompt: evalCase.prompt,
+            viewing: evalCase.viewing,
           },
           { context },
         );
@@ -704,6 +722,7 @@ export async function runEvals(
   );
 
   await appFixtures.close();
+  stopStandInWindow();
   actor.stop();
 
   return { runs: completed, workspaceRootDir };

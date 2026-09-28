@@ -166,6 +166,8 @@ const create = base
       name: z.string().trim().min(1).optional(),
       projectId: ProjectIdSchema.nullish(),
       prompt: z.string(),
+      /** What the window had on screen, as the note on the first message: the eval harness's stand-in for a window. */
+      viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
     }),
   )
   .output(
@@ -187,6 +189,7 @@ const create = base
         name,
         projectId,
         prompt,
+        viewing,
       },
       signal,
     }) => {
@@ -319,6 +322,7 @@ const create = base
         prompt,
         sessionId: sessionResult.value.id,
         taskId,
+        ...(viewing ? { viewing } : {}),
       });
 
       if (messageResult.isErr()) {

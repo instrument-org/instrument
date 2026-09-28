@@ -78,13 +78,7 @@ export const UserMessage = memo(function UserMessage({
       {/* The bubble's row, full width so the bubble's share is of the column,
           and the room beside it where the conversation puts its controls. */}
       <div className="group/bubble-row flex w-full items-end justify-end gap-1">
-        {compact && (
-          <BubbleActions
-            date={part.metadata.createdAt}
-            onCopy={handleCopy}
-            side="left"
-          />
-        )}
+        {compact && <BubbleActions onCopy={handleCopy} />}
         <div
           className={cn(
             "relative max-w-[80%] text-foreground",

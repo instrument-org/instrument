@@ -112,9 +112,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                 />
               </div>
               <BubbleActions
-                date={part.metadata.createdAt}
                 onCopy={() => navigator.clipboard.writeText(segment.text)}
-                side="right"
               />
             </div>
           ) : (

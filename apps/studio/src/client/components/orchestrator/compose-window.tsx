@@ -1013,6 +1013,9 @@ export function GroupItem({
             browser?.open(url, { group, replacing: up });
           }
         }}
+        onVisit={(href) => {
+          windowTabs.visitHref(up.id, href);
+        }}
         {...(up.kind === "page"
           ? {
               reload: (

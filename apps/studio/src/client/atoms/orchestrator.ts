@@ -3,13 +3,11 @@ import {
   type FileSystemListColumn,
   type FileSystemSortState,
 } from "@/client/components/extend/file-system";
-import { IDEAS_HREF } from "@/client/components/orchestrator/ideas";
 import {
   NO_FILTERS,
   type ThreadFilters,
 } from "@/client/components/orchestrator/threads";
 import { type PromptInputDraft } from "@/client/components/prompt-input";
-import { instrumentFolderHref } from "@/shared/computer-href";
 import {
   type SessionMessageDataPart,
   type StoreId,
@@ -182,34 +180,8 @@ export const composeAtom = atomWithStorage<ComposeEntry[]>(
 export type AppPlace = "apps" | "chat" | "discover" | "files";
 
 /**
- * A place that is a row of tabs: everything but the chat. Each keeps a tab
- * group of its own, the way a thread does, and opens on a tab of its own
- * kind: Apps on the apps, Files on the computer, Discover on the ideas.
- */
-export type TabbedPlace = Exclude<AppPlace, "chat">;
-
-/**
- * The place the window stands in, chosen in the rail. The chat is the inbox
- * beside a thread and its tabs; every other place is a row of tabs filling
- * the area. The window opens on the chat.
- */
-export const appPlaceAtom = atomWithStorage<AppPlace>(
-  "orchestrator.place.v2",
-  "chat",
-  undefined,
-  { getOnInit: true },
-);
-
-/**
- * Set by New pressed in the rail over a screen outside the window's own, so
- * the window opens a draft once it is back on screen.
- */
-export const newThreadOnArrivalAtom = atom(false);
-
-/**
- * The group the chat had on screen when the window last stood in it, so
- * coming back from another place lands on the same thread. Null for the
- * inbox alone.
+ * The chat a tab last had open, so Chat in the rail takes a tab back to it.
+ * Null for the inbox alone.
  */
 export const chatGroupAtom = atomWithStorage<null | string>(
   "orchestrator.chat-group.v1",
@@ -217,24 +189,6 @@ export const chatGroupAtom = atomWithStorage<null | string>(
   undefined,
   { getOnInit: true },
 );
-
-/** The group key a place's tabs are kept under. */
-export function placeGroupOf(place: TabbedPlace): string {
-  return `place:${place}`;
-}
-
-/** The place a group key names, if it names one. */
-export function placeOfGroup(
-  group: string | undefined,
-): TabbedPlace | undefined {
-  if (!group?.startsWith("place:")) {
-    return undefined;
-  }
-  const place = group.slice("place:".length);
-  return place === "apps" || place === "discover" || place === "files"
-    ? place
-    : undefined;
-}
 
 /**
  * Whether the inbox column is shown. Put away, a thread and its tabs have
@@ -376,35 +330,13 @@ export const WEB_HREF = "/orchestrator/web";
 /** The address of the apps: the tab the Apps place opens on. */
 export const APPS_HREF = "/orchestrator/apps";
 
-/** The address of the computer at the Instrument folder: the tab the Files place opens on. */
-const COMPUTER_HREF = instrumentFolderHref();
-
 /**
- * The address a group's new tab opens at: a place's own kind of tab, the
- * page that reaches everything for a draft, and the web's starting view for
- * a chat, whose tabs are its browsers.
+ * The address a group's new tab opens at: the page that reaches everything
+ * for a draft, and the web's starting view for a chat, whose tabs are its
+ * browsers.
  */
 export function newTabHrefOf(group: string | undefined): string {
-  const place = placeOfGroup(group);
-  if (place !== undefined) {
-    return placeHomeHref(place);
-  }
   return draftOfGroup(group) === undefined ? WEB_HREF : NEW_TAB_HREF;
-}
-
-/** The address a place's new tab opens at, which is what its last tab closing leaves behind. */
-export function placeHomeHref(place: TabbedPlace): string {
-  switch (place) {
-    case "apps": {
-      return APPS_HREF;
-    }
-    case "discover": {
-      return IDEAS_HREF;
-    }
-    case "files": {
-      return COMPUTER_HREF;
-    }
-  }
 }
 
 /** The route a thread's screen is at, followed by the thread's session id. */
@@ -438,8 +370,6 @@ export const windowTabsAtom = atomWithStorage<WindowTabs>(
   { getOnInit: true },
 );
 
-/** Tabs closed this launch, newest last, for Shift+Cmd+T. A page comes back at its last address. */
-export const closedTabsAtom = atom<WindowTab[]>([]);
 
 export const SIDEBAR_WIDTH_MIN = 320;
 /** Wide enough for the inbox to lay its rows down to one line each beside the column. */

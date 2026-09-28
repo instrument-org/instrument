@@ -1,9 +1,9 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
-/** The window opens on Home. */
+/**
+ * The chat with no chat open: the inbox across the tab. Drawn by the layout,
+ * which draws every chat; the route itself has nothing to draw.
+ */
 export const Route = createFileRoute("/orchestrator/")({
-  beforeLoad: () => {
-    // oxlint-disable-next-line typescript/only-throw-error
-    throw redirect({ to: "/orchestrator/home" });
-  },
+  component: () => null,
 });

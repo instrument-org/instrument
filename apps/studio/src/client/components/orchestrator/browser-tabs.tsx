@@ -34,7 +34,6 @@ import {
 } from "@instrument-org/workspace/client";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   type Ref,
@@ -54,7 +53,7 @@ import { PageEditSession, PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { strayWindowGuests } from "./stray-window-guests";
 import { stepTabVisit, visitInTab } from "./tab-history";
-import { isHomeTab, selectTab } from "./window-tabs";
+import { isHomeTab, selectTab, useWindowTabs } from "./window-tabs";
 
 export interface BrowserPage {
   favicon?: string;
@@ -276,7 +275,7 @@ export function BrowserTabs({
   threadOfTask: ReadonlyMap<TaskId, string | undefined>;
 }) {
   const { taskId } = useOrchestrator();
-  const router = useRouter();
+  const { navigateScreen } = useWindowTabs();
   const [{ activeByGroup, activeId, group, tabs: allTabs }, setAllTabs] =
     useAtom(windowTabsAtom);
   const everyTabId = useAtomValue(everyTabIdAtom);
@@ -1197,9 +1196,7 @@ export function BrowserTabs({
                 // written what it holds.
                 onEditSource: () => {
                   void flushFileWrites(activeFilePath).then(() => {
-                    router.history.push(
-                      fileHref(activeFilePath, { source: true }),
-                    );
+                    navigateScreen(fileHref(activeFilePath, { source: true }));
                   });
                 },
               })}

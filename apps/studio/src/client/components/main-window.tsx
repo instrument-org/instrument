@@ -13,21 +13,12 @@ import { useMouseBackForward } from "@/client/hooks/use-mouse-back-forward";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
 import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
 import { useSyncZoom } from "@/client/hooks/use-sync-zoom";
+import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { useTabsController } from "@/client/hooks/use-tabs-controller";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import { readRouterTabMeta } from "@/client/lib/router-tab-meta";
-import {
-  createTabRouter,
-  sharedQueryClient,
-  type TabRouter,
-} from "@/client/lib/tab-router";
+import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
-import {
-  getTabRouter,
-  getTabRouters,
-  pruneTabRouters,
-  setTabRouter,
-} from "@/client/lib/tab-router-registry";
 import { setTabMeta, setTabPathname } from "@/client/lib/tabs-model";
 import { captureComponentError, capturePageView } from "@/client/lib/telemetry";
 import { cn } from "@/client/lib/utils";
@@ -192,31 +183,4 @@ function TabView({
       </PortalContainerProvider>
     </div>
   );
-}
-
-/**
- * Backs each open tab with a router from the shared registry: created lazily on
- * first appearance (synchronously, so MainWindow can hand the active tab's
- * router to the chrome on first paint) and pruned when the tab closes. The
- * registry is the single owner, so the chrome and the app-command bus read the
- * same routers via `getTabRouter`.
- */
-function useTabRouters(tabs: Tab[]) {
-  for (const tab of tabs) {
-    if (!getTabRouter(tab.id)) {
-      setTabRouter(
-        tab.id,
-        createTabRouter({ history: tab.history, pathname: tab.pathname }),
-      );
-    }
-  }
-
-  // `tabs` changes reference only when the tab set changes (add/remove/reorder),
-  // so this prunes exactly then -- including speculative routers left by an
-  // abandoned transition render, since effects run only on commit.
-  useEffect(() => {
-    pruneTabRouters(new Set(tabs.map((tab) => tab.id)));
-  }, [tabs]);
-
-  return getTabRouters();
 }

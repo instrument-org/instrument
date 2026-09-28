@@ -22,7 +22,7 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
+import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { unique } from "radashi";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -80,6 +80,7 @@ interface OmniRow {
 export function Omnibar({
   initial = "",
   onSite,
+  onVisit,
   resting,
   scope,
 }: {
@@ -87,6 +88,8 @@ export function Omnibar({
   initial?: string;
   /** Where a site goes when one is asked for: the tab's own guest, on a page. Absent, a new tab. */
   onSite?: (url: string) => void;
+  /** Where a screen the field names goes: the tab this row is over, when that tab is not the router's. */
+  onVisit?: (href: string) => void;
   /**
    * What the field shows until it is pressed: the place, in its own marks.
    * Absent on a new tab, which has nowhere to show and takes the caret at once.
@@ -96,8 +99,15 @@ export function Omnibar({
   scope: OmnibarScope;
 }) {
   const { openPage, taskId } = useOrchestrator();
-  const navigate = useNavigate();
   const router = useRouter();
+  /** Takes the tab this field is over to a screen: its own when it keeps one, the router's otherwise. */
+  const visit = (href: string) => {
+    if (onVisit) {
+      onVisit(href);
+    } else {
+      router.history.push(href);
+    }
+  };
   const queryClient = useQueryClient();
   const location = useRouterState({
     select: (routerState) => routerState.location,
@@ -182,7 +192,7 @@ export function Omnibar({
       // since opening a tab on nothing would close the tab this field sits in
       // once the viewer found the file missing.
       if (await fileExists(host)) {
-        router.history.push(fileHref(host));
+        visit(fileHref(host));
         arrived();
         return;
       }
@@ -204,18 +214,20 @@ export function Omnibar({
       currentRoot !== undefined &&
       currentRootHost !== undefined &&
       (host === currentRootHost || host.startsWith(`${currentRootHost}/`));
-    void navigate({
-      search: under
-        ? {
-            path:
-              host === currentRootHost
-                ? ""
-                : `${host.slice(currentRootHost.length + 1)}/`,
-            root: currentRoot,
-          }
-        : { path: "", root: host === home ? "~" : host },
-      to: "/orchestrator/computer",
-    });
+    visit(
+      router.buildLocation({
+        search: under
+          ? {
+              path:
+                host === currentRootHost
+                  ? ""
+                  : `${host.slice(currentRootHost.length + 1)}/`,
+              root: currentRoot,
+            }
+          : { path: "", root: host === home ? "~" : host },
+        to: "/orchestrator/computer",
+      }).href,
+    );
     arrived();
   };
 
@@ -247,7 +259,7 @@ export function Omnibar({
             task: "Task",
           }[entry.kind],
           run: () => {
-            router.history.push(entry.href);
+            visit(entry.href);
           },
           title: entry.title,
         })),

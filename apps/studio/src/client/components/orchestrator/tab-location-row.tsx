@@ -70,23 +70,27 @@ export function TabLocationRow({
   onClose,
   onForward,
   onSite,
+  onVisit,
   ref,
   reload,
   trailing,
 }: {
-  canGoBack: boolean;
-  canGoForward: boolean;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
   /** What stands in for the field: a page's own address bar and controls. */
   field?: ReactNode;
   /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
   leading?: ReactNode;
   location: TabLocation;
-  onBack: () => void;
+  /** Back through what the thing up has been at, drawn with forward; a row over a screen that is the tab's own route leaves both to the window's bar. */
+  onBack?: () => void;
   /** Puts the view away, for a row over something shown large beside a chat; the thing stays with the chat. */
   onClose?: () => void;
-  onForward: () => void;
+  onForward?: () => void;
   /** Where a site typed into the field goes on this tab, when not a new tab of its own. */
   onSite?: (url: string) => void;
+  /** Where a screen typed into the field goes, for a row over a tab the router does not follow. */
+  onVisit?: (href: string) => void;
   /** The row itself, so the window can put the caret in the field it holds. */
   ref?: Ref<HTMLDivElement>;
   /** A page's reload, beside the arrows where a browser keeps it. */
@@ -110,23 +114,28 @@ export function TabLocationRow({
       // A container, so what a screen or a page draws into the row can give
       // up its words for its mark when the row is narrow.
       className="@container/tabrow flex h-9 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
+      data-tab-location=""
       ref={ref}
     >
       {leading}
-      <TabRowControl
-        chord="back"
-        disabled={!canGoBack}
-        icon={<CaretLeftIcon className="size-4" />}
-        label="Back"
-        onClick={onBack}
-      />
-      <TabRowControl
-        chord="forward"
-        disabled={!canGoForward}
-        icon={<CaretRightIcon className="size-4" />}
-        label="Forward"
-        onClick={onForward}
-      />
+      {onBack && onForward && (
+        <>
+          <TabRowControl
+            chord="back"
+            disabled={!canGoBack}
+            icon={<CaretLeftIcon className="size-4" />}
+            label="Back"
+            onClick={onBack}
+          />
+          <TabRowControl
+            chord="forward"
+            disabled={!canGoForward}
+            icon={<CaretRightIcon className="size-4" />}
+            label="Forward"
+            onClick={onForward}
+          />
+        </>
+      )}
       {reload}
       {field ?? (
         // The box is the field everywhere the place itself is not: a press on
@@ -158,6 +167,7 @@ export function TabLocationRow({
             initial={locationText(location)}
             key={locationText(location)}
             {...(onSite ? { onSite } : {})}
+            {...(onVisit ? { onVisit } : {})}
             resting={
               location.kind === "newTab" ? undefined : (
                 <Field location={location} />

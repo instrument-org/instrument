@@ -77,11 +77,24 @@ describe("AppRail", () => {
     fireEvent.click(rail.getByRole("button", { name: "New" }));
     expect(onNew).toHaveBeenCalledOnce();
     fireEvent.click(rail.getByRole("button", { name: "Files" }));
-    expect(onChoose).toHaveBeenLastCalledWith("files");
+    expect(onChoose).toHaveBeenLastCalledWith("files", { newTab: false });
     fireEvent.click(rail.getByRole("button", { name: "Apps" }));
-    expect(onChoose).toHaveBeenLastCalledWith("apps");
+    expect(onChoose).toHaveBeenLastCalledWith("apps", { newTab: false });
     fireEvent.click(rail.getByRole("button", { name: "Discover" }));
-    expect(onChoose).toHaveBeenLastCalledWith("discover");
+    expect(onChoose).toHaveBeenLastCalledWith("discover", { newTab: false });
+  });
+
+  it("asks for a tab of its own on a middle click or a click with Command", () => {
+    const { onChoose, rail } = renderRail("chat");
+    fireEvent(
+      rail.getByRole("button", { name: "Files" }),
+      new MouseEvent("auxclick", { bubbles: true, button: 1 }),
+    );
+    expect(onChoose).toHaveBeenLastCalledWith("files", { newTab: true });
+    fireEvent.click(rail.getByRole("button", { name: "Apps" }), {
+      metaKey: true,
+    });
+    expect(onChoose).toHaveBeenLastCalledWith("apps", { newTab: true });
   });
 
   it("fans the workspace's apps out on the Apps mark, connected ones in front, three at most", async () => {

@@ -5,6 +5,7 @@ import ReactDOM, { type Root } from "react-dom/client";
 import { App } from "./app";
 import { FileSystemIconSpriteSheet } from "./components/extend/file-system";
 import { MainWindow } from "./components/main-window";
+import { OrchestratorWindow } from "./components/orchestrator/orchestrator-window";
 import { initBrowserDownloadNotices } from "./lib/browser-download-notices";
 import { initBrowserNavigationNotices } from "./lib/browser-navigation-notices";
 import { initBrowserPool } from "./lib/browser-pool";
@@ -29,7 +30,8 @@ if (rootElement) {
   }
 
   // The main window hosts the whole tabbed app in this one web contents
-  // (MainWindow). The onboarding web contents keeps using the single-router App.
+  // (MainWindow), and the 2.0 window its own (OrchestratorWindow). The
+  // onboarding web contents keeps using the single-router App.
   const isMainWindow = window.api.windowType === "main";
   // Beside either root, the file browser's own type icons, drawn by
   // reference: a file named anywhere in any window (a reply's file chips, a
@@ -37,7 +39,13 @@ if (rootElement) {
   root.render(
     <>
       <FileSystemIconSpriteSheet />
-      {isMainWindow ? <MainWindow /> : <App />}
+      {isMainWindow ? (
+        <MainWindow />
+      ) : window.api.windowType === "orchestrator" ? (
+        <OrchestratorWindow />
+      ) : (
+        <App />
+      )}
     </>,
   );
 

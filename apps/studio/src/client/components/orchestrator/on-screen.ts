@@ -1,4 +1,5 @@
 import { type ScreenView, screenViewAtom } from "@/client/atoms/orchestrator";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 
@@ -25,10 +26,12 @@ export function useOnScreen(view: null | ScreenView) {
     screenTabRef.current = screenTab;
   });
   const screenTabId = screenTab?.id;
+  // A screen in a tab of the window's behind the one up is not on screen.
+  const isActiveTab = useIsActiveTab();
   // By value: the screens build a fresh object each render.
   const key = JSON.stringify(view);
   useEffect(() => {
-    if (view === null) {
+    if (view === null || !isActiveTab) {
       return;
     }
     const tab = screenTabRef.current;
@@ -45,5 +48,5 @@ export function useOnScreen(view: null | ScreenView) {
       setView((current) => (current === view ? null : current));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, setView, screenTabId]);
+  }, [key, setView, screenTabId, isActiveTab]);
 }

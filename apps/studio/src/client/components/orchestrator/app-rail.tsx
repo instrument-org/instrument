@@ -82,7 +82,8 @@ export function AppRail({
   onNew,
   place,
 }: {
-  onChoose: (place: AppPlace) => void;
+  /** A place asked for: in the tab up, or in a tab of its own for a middle or modified click or the menu's ask. */
+  onChoose: (place: AppPlace, options: { newTab: boolean }) => void;
   /** Opens a draft of a new thread. */
   onNew: () => void;
   /** The place the window stands in; none while a screen outside its places is up. */
@@ -113,8 +114,8 @@ export function AppRail({
             isOn={place === entry.id}
             key={entry.id}
             label={entry.label}
-            onChoose={() => {
-              onChoose(entry.id);
+            onChoose={(newTab) => {
+              onChoose(entry.id, { newTab });
             }}
           >
             {entry.icon(place === entry.id)}
@@ -127,10 +128,15 @@ export function AppRail({
   );
 }
 
+/** The middle button, which asks for a tab of its own. */
+const MIDDLE_BUTTON = 1;
+
 /**
  * One entry of the rail: its mark in a slot of one height, and its word
  * close under it, the two together in a well that fills while it is the
- * place stood in and tints under the pointer. Never the mark alone.
+ * place stood in and tints under the pointer. Never the mark alone. A click
+ * takes the tab up there; the middle button, a click with Command or
+ * Control, or the menu's Open in New Tab opens a tab there.
  */
 function RailEntry({
   children,
@@ -141,7 +147,7 @@ function RailEntry({
   children: ReactNode;
   isOn: boolean;
   label: string;
-  onChoose: () => void;
+  onChoose: (newTab: boolean) => void;
 }) {
   return (
     <button
@@ -152,7 +158,30 @@ function RailEntry({
           ? "bg-foreground/8 text-brand-600 dark:text-brand-400"
           : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
       )}
-      onClick={onChoose}
+      onAuxClick={(event) => {
+        if (event.button === MIDDLE_BUTTON) {
+          event.preventDefault();
+          onChoose(true);
+        }
+      }}
+      onClick={(event) => {
+        onChoose(event.metaKey || event.ctrlKey);
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        void rpcClient.utils.showContextMenu
+          .call({
+            items: [
+              { id: "open", label: "Open" },
+              { id: "newTab", label: "Open in New Tab" },
+            ],
+          })
+          .then((picked) => {
+            if (picked.id === "open" || picked.id === "newTab") {
+              onChoose(picked.id === "newTab");
+            }
+          });
+      }}
       type="button"
     >
       <span className="grid h-7 place-items-center">{children}</span>

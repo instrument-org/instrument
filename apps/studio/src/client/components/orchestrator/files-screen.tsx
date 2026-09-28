@@ -14,6 +14,7 @@ import {
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
+import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
@@ -91,8 +92,11 @@ export function FilesScreen({
 }) {
   const { browser, openPage, openScreen, rowLead, rowTail, taskId } =
     useOrchestrator();
-  const { active, allTabs, close, closeActive, step, stepVisit } =
-    useWindowTabs();
+  const { allTabs, close } = useWindowTabs();
+  // The window's tab this screen is in, when it is the tab's own route, and
+  // whether that tab is the one up.
+  const appTabId = useTabId();
+  const isActiveTab = useIsActiveTab();
   const [isTreeOpen, setTreeOpen] = useAtom(fileTreeOpenAtom);
   const setPageSlots = useSetAtom(pageSlotsAtom);
   const router = useRouter();
@@ -105,11 +109,12 @@ export function FilesScreen({
       screenTab.leave();
       return;
     }
-    const href = step(-1);
-    if (href !== undefined) {
-      router.history.push(href);
-    } else if (!stepVisit(-1)) {
-      closeActive();
+    // The tab's own history, or the folder the file is in when the tab
+    // opened on it.
+    if (router.history.canGoBack()) {
+      router.history.back();
+    } else if (file !== undefined) {
+      router.history.push(folderHref(folderOf(file)));
     }
   };
   const state = useQuery(
@@ -180,8 +185,8 @@ export function FilesScreen({
   // group named for the tab so no strip lists it, sent to the file the tab
   // shows and closed when the tab moves off a page's file or goes. The
   // browser draws it into the slot the viewer gives it below.
-  const tabId = screenTab?.id ?? active?.id;
-  const hostGroup = tabId === undefined ? undefined : `page:${tabId}`;
+  const tabId = screenTab?.id ?? appTabId;
+  const hostGroup = `page:${tabId}`;
   const hostedFile =
     isPageFile && tree !== undefined ? activeFile.hostPath : undefined;
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
@@ -190,7 +195,7 @@ export function FilesScreen({
     .map((tab) => tab.id)
     .join("\n");
   useEffect(() => {
-    if (hostedFile === undefined || hostGroup === undefined || !browser) {
+    if (hostedFile === undefined || !browser) {
       return;
     }
     const id = browser.openOrFocus(fileUrlOf(hostedFile), {
@@ -264,7 +269,9 @@ export function FilesScreen({
     [],
   );
   useEffect(() => {
-    if (hostGroup === undefined) {
+    // Drawn only while this screen's tab is the one up: a tab behind keeps
+    // its page parked rather than over the tab in front.
+    if (!isActiveTab) {
       return;
     }
     setPageSlots((current) =>
@@ -278,7 +285,7 @@ export function FilesScreen({
         return rest;
       });
     };
-  }, [hostGroup, slot, setPageSlots]);
+  }, [hostGroup, isActiveTab, slot, setPageSlots]);
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile

@@ -1,5 +1,4 @@
 import {
-  type AppPlace,
   type ChosenItem,
   type Draft,
   draftGroupOf,
@@ -7,7 +6,6 @@ import {
   draftSnapshotsAtom,
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
-  placeGroupOf,
   threadFiltersAtom,
 } from "@/client/atoms/orchestrator";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
@@ -46,7 +44,7 @@ export function useDrafts({
   compose,
   draftContext,
   ids,
-  place,
+  isChat,
   saveDefaultModelURI,
   topics,
   windowTabs,
@@ -61,15 +59,14 @@ export function useDrafts({
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** The orchestrator, once it exists; no thread starts before it does. */
   ids: RPCOutput["workspace"]["orchestrator"]["ensure"] | undefined;
-  /** Where the rail has the window standing: what a draft is opened over, and where its thread lands. */
-  place: AppPlace;
+  /** Whether the tab up is the chat, whose inbox's topic a new draft is filed under. */
+  isChat: boolean;
   /** Keeps the model a thread was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
   /** The orchestrator's topics, for the one the inbox stands in. */
   topics: Topic[];
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
-  const isChat = place === "chat";
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const threadFilters = useAtomValue(threadFiltersAtom);
@@ -126,10 +123,9 @@ export function useDrafts({
   ) => {
     const now = Date.now();
     // What the draft is opened over: the tab in view, when it is something
-    // the conversation can be told about. In a place, the tab the place has
-    // up; in the chat, the tab open in the chat's pane beside it. A place's
-    // own fresh tab is the place, not a thing.
-    const overGroup = place === "chat" ? windowTabs.group : placeGroupOf(place);
+    // the conversation can be told about: the tab open in the chat's pane
+    // beside it, or a site the tab up shows.
+    const overGroup = windowTabs.group;
     const over =
       overGroup !== undefined && isGroupShown(overGroup, paneOpenByGroup)
         ? windowTabs.tabUpIn(overGroup)

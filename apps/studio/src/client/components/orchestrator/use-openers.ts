@@ -1,8 +1,4 @@
-import {
-  APPS_HREF,
-  placeGroupOf,
-  THREADS_HREF,
-} from "@/client/atoms/orchestrator";
+import { APPS_HREF, THREADS_HREF } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -14,10 +10,10 @@ import {
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+import { newSiteGroup, pageHrefOf, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type OpenOptions } from "./context";
 import { visitInTab } from "./tab-history";
@@ -37,6 +33,7 @@ import {
  * of each ask, since they close over the tabs as they are then.
  */
 export function useOpeners({
+  appTabs,
   browser,
   ids,
   revealPane,
@@ -44,10 +41,10 @@ export function useOpeners({
   threadOfTask,
   threads,
   threadTitles,
-  toApps,
-  toChat,
   windowTabs,
 }: {
+  /** The window's tabs: what is not a chat's opens by moving the tab up, or in a tab of its own. */
+  appTabs: ReturnType<typeof useAppTabs>;
   /** The window's browser; null until it is mounted. */
   browser: BrowserTabsHandle | null;
   /** The orchestrator, once it exists; a path is resolved against it, and nothing it asks for is opened before then. */
@@ -60,13 +57,8 @@ export function useOpeners({
   /** The threads the window has, once the list has been read. */
   threads: Thread[] | undefined;
   threadTitles: Map<StoreId.Session, string>;
-  /** Puts the window on Apps, for an app opened from wherever it stands. */
-  toApps: () => void;
-  /** Puts the window on the chat, for a thread coming on screen from wherever it stands. */
-  toChat: () => void;
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { active } = windowTabs;
   const isFreshNewTab = active !== undefined && isFreshTab(active);
@@ -99,9 +91,12 @@ export function useOpeners({
       return id;
     }
     if (windowTabs.group === undefined) {
-      // Nothing is on screen to open it in: a page belongs to a thread or a
-      // draft, never to the window on its own.
-      return;
+      // A screen that is its tab's own route: the site is a tab's page of its
+      // own, in this tab or a new one, and back from it returns here.
+      const group = newSiteGroup();
+      const id = browser?.open(url, { group });
+      appTabs.go(pageHrefOf(group), { newTab });
+      return id;
     }
     revealPane();
     if (!newTab && active?.kind === "page" && !active.taskId) {
@@ -137,12 +132,9 @@ export function useOpeners({
       ? threadOfHrefPrefix(href, threadTitles.keys())
       : threadOfHref(href);
     if (thread) {
-      // The thread's group comes up at the tab it last had up, and the
-      // address follows that tab; pushing the thread's own address here
-      // would send the tab on screen there. A thread is on the chat,
-      // wherever the window stood when it was asked for.
-      windowTabs.showThread(thread);
-      toChat();
+      // A chat is a place a tab stands: the tab up goes there, a step on in
+      // its history, and the chat comes up at the tab it last had up.
+      appTabs.go(`${THREADS_HREF}/${thread}`, { newTab });
       return;
     }
     if (parseHref(href).pathname.startsWith(`${THREADS_HREF}/`)) {
@@ -180,11 +172,11 @@ export function useOpeners({
       if (walksInPlace) {
         revealPane();
         windowTabs.navigateScreen(at);
-        router.history.push(at);
         return;
       }
-      windowTabs.showThread(chat);
-      toChat();
+      if (chat !== windowTabs.group) {
+        appTabs.go(`${THREADS_HREF}/${chat}`, { newTab });
+      }
       windowTabs.openOrFocusScreen(at, {
         group: chat,
         isOpened: true,
@@ -201,17 +193,9 @@ export function useOpeners({
       openSettings({ memory, tab: "Memory" });
       return;
     }
-    // An app lives in Apps: the window stands there, on the tab already at
-    // the app or a new one beside what Apps had up, wherever it was asked
-    // for from.
+    // An app is a place a tab stands, wherever it was asked for from.
     if (parseHref(href).pathname.startsWith(`${APPS_HREF}/`)) {
-      windowTabs.showPlace("apps");
-      windowTabs.openOrFocusScreen(href, {
-        group: placeGroupOf("apps"),
-        isOpened: true,
-        show: true,
-      });
-      toApps();
+      appTabs.go(href, { newTab });
       return;
     }
     if (into !== undefined && into !== windowTabs.group) {
@@ -226,9 +210,10 @@ export function useOpeners({
       }
       return;
     }
-    if (windowTabs.group === undefined) {
-      // Nothing is on screen to open it in: a screen belongs to a thread, a
-      // draft or a place, never to the window on its own.
+    // Outside a chat, a screen is the tab's own: the tab up goes there, or a
+    // tab of its own does.
+    if (!StoreId.SessionSchema.safeParse(windowTabs.group).success) {
+      appTabs.go(href, { newTab });
       return;
     }
     revealPane();
@@ -241,7 +226,6 @@ export function useOpeners({
       windowTabs.openOrFocusScreen(href);
     } else {
       windowTabs.navigateScreen(href);
-      router.history.push(href);
     }
   };
   /**
@@ -398,12 +382,11 @@ export function useOpeners({
           : { error: `tab ${tab.id} is not a page.` };
       }
       case "show": {
-        windowTabs.select(tab.id);
+        // In front in its chat, with the chat's pane open; the window's own
+        // tabs are the person's, so the tab up stays where it is.
         if (tab.group !== undefined) {
+          windowTabs.selectIn(tab.group, tab.id);
           setPaneOpen(tab.group, true);
-          if (StoreId.SessionSchema.safeParse(tab.group).success) {
-            toChat();
-          }
         }
         return { tabId: tab.id };
       }

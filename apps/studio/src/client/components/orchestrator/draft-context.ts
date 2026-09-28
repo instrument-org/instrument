@@ -1,8 +1,5 @@
-import {
-  type Draft,
-  placeOfGroup,
-  type WindowTab,
-} from "@/client/atoms/orchestrator";
+import { type Draft, type WindowTab } from "@/client/atoms/orchestrator";
+import { StoreId } from "@instrument-org/workspace/client";
 
 import { computerTabOf } from "./file-tabs";
 import { isFreshTab, parseHref } from "./window-tabs";
@@ -31,8 +28,9 @@ export function behindTabOf(
 }
 
 /**
- * Whether a group's tab is in view in the window: a place always shows its
- * tab up, and a chat shows one only while its pane is open beside it.
+ * Whether a group's tab is in view in the window: a site opened at the
+ * window's level always shows its page, and a chat shows its tab up only
+ * while its pane is open beside it.
  */
 export function isGroupShown(
   group: string | undefined,
@@ -41,7 +39,10 @@ export function isGroupShown(
   if (group === undefined) {
     return false;
   }
-  return placeOfGroup(group) !== undefined || paneOpenByGroup[group] === true;
+  return (
+    !StoreId.SessionSchema.safeParse(group).success ||
+    paneOpenByGroup[group] === true
+  );
 }
 
 /**

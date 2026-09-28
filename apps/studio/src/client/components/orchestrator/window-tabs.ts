@@ -1,13 +1,8 @@
 import {
-  closedTabsAtom,
   draftGroupOf,
   draftOfGroup,
   NEW_TAB_HREF,
   newTabHrefOf,
-  placeGroupOf,
-  placeHomeHref,
-  placeOfGroup,
-  type TabbedPlace,
   THREADS_HREF,
   type WindowTab,
   type WindowTabs,
@@ -15,12 +10,9 @@ import {
 } from "@/client/atoms/orchestrator";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { StoreId } from "@instrument-org/workspace/client";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 
 import { stepTabVisit, visitInTab } from "./tab-history";
-
-/** The route that shows nothing of its own: what the router is at while a page is on screen. */
-export const PAGE_ROUTE = "/orchestrator/browser";
 
 export function atOf(tab: undefined | WindowTab) {
   return tab?.kind === "screen" ? (tab.at ?? trailOf(tab).length - 1) : 0;
@@ -42,15 +34,6 @@ export function isHomeTab(tab: WindowTab): boolean {
     tab.kind === "screen" &&
     parseHref(tab.href).pathname === parseHref(NEW_TAB_HREF).pathname
   );
-}
-
-/**
- * Whether an address is one of the window's own screens. The window can also
- * stand on a screen outside them (a debug page), which no tab keeps.
- */
-export function isWindowHref(href: string): boolean {
-  const { pathname } = parseHref(href);
-  return pathname === "/orchestrator" || pathname.startsWith("/orchestrator/");
 }
 
 /** A screen tab's address, taken apart: the route and its search. */
@@ -130,17 +113,6 @@ export function trailOf(tab: undefined | WindowTab) {
   return tab?.kind === "screen" ? (tab.trail ?? [tab.href]) : [];
 }
 
-/** Takes the tab closed last off the pile, for whoever can bring it back. */
-export function usePopClosedTab() {
-  const [closed, setClosed] = useAtom(closedTabsAtom);
-  return (): undefined | WindowTab => {
-    const tab = closed.at(-1);
-    if (tab) {
-      setClosed((current) => current.slice(0, -1));
-    }
-    return tab;
-  };
-}
 
 /**
  * The window's tabs, in groups: every thread has a group of its own, keyed
@@ -155,7 +127,6 @@ export function usePopClosedTab() {
 export function useWindowTabs() {
   const [state, setTabs] = useAtom(windowTabsAtom);
   const { activeId, group, tabs: allTabs } = state;
-  const setClosed = useSetAtom(closedTabsAtom);
   const tabs =
     group === undefined ? [] : allTabs.filter((tab) => tab.group === group);
   const active =
@@ -263,19 +234,6 @@ export function useWindowTabs() {
       };
     });
     return id;
-  };
-
-  /**
-   * Shows a place: its group comes on screen at the tab it last had up, and
-   * a place with nothing in it yet opens on its own kind of new tab, since a
-   * place is its tabs and has nothing to stand over them.
-   */
-  const showPlace = (place: TabbedPlace) => {
-    const key = placeGroupOf(place);
-    showGroup(key);
-    if (!allTabs.some((tab) => tab.group === key)) {
-      openScreen(placeHomeHref(place), { group: key });
-    }
   };
 
   /**
@@ -516,9 +474,6 @@ export function useWindowTabs() {
     if (!closing) {
       return;
     }
-    if (closing.kind === "screen" || closing.url) {
-      setClosed((current) => [...current, closing]);
-    }
     // Off the list as it is at that moment, so a tab opened since is kept.
     setTabs((current) => {
       const index = current.tabs.findIndex((tab) => tab.id === id);
@@ -526,9 +481,7 @@ export function useWindowTabs() {
         return current;
       }
       const remaining = current.tabs.filter((tab) => tab.id !== id);
-      const keepsOne =
-        draftOfGroup(closing.group) !== undefined ||
-        placeOfGroup(closing.group) !== undefined;
+      const keepsOne = draftOfGroup(closing.group) !== undefined;
       if (keepsOne && !remaining.some((tab) => tab.group === closing.group)) {
         const href = newTabHrefOf(closing.group);
         const home: WindowTab = {
@@ -740,7 +693,6 @@ export function useWindowTabs() {
     setActiveHref,
     showDraft,
     showGroup,
-    showPlace,
     showThread,
     step,
     stepVisit,

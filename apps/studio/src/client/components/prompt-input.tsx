@@ -48,7 +48,9 @@ import { safe } from "@orpc/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
+import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
@@ -688,6 +690,26 @@ export const PromptInput = ({
       : []),
   ];
 
+  // A typed slash offers what the plus does: in a chat, the places it opens
+  // beside the chat lead the list.
+  const slashActions: ComposerAction[] = places
+    ? [
+        {
+          icon: GlobeIcon,
+          id: "open-browser",
+          label: "Browser",
+          onSelect: places.onOpenWeb,
+        },
+        {
+          icon: DesktopIcon,
+          id: "open-computer",
+          label: places.computerName,
+          onSelect: places.onOpenComputer,
+        },
+        ...actions,
+      ]
+    : actions;
+
   const composerPlaces: ComposerPlaces | undefined = places && {
     ...places,
     apps: composerApps,
@@ -1295,7 +1317,7 @@ export const PromptInput = ({
             surface that swaps which draft it is composing (one skill page to
             the next) needs a new editor rather than a new prop. */}
         <PromptEditor
-          actions={actions}
+          actions={slashActions}
           apps={composerApps}
           autoFocus={autoFocus}
           bounds={composerBounds}

@@ -41,6 +41,19 @@ export function createTabRouter({
   // bricks every boot. Fall back to the tab's pathname otherwise.
   const restored = history && history.entries.length > 0 ? history : undefined;
   const entries = restored ? [...restored.entries] : [pathname];
+  const index = restored
+    ? Math.min(Math.max(restored.index, 0), entries.length - 1)
+    : undefined;
+  const memoryHistory = createMemoryHistory({
+    initialEntries: entries,
+    initialIndex: index,
+  });
+  // The memory history reads an initial index of 0 as none given and starts
+  // at the last entry, so a tab restored at the start of its history is
+  // walked back there before anything subscribes to it.
+  if (index === 0 && entries.length > 1) {
+    memoryHistory.go(-(entries.length - 1));
+  }
   const router = createTanStackRouter({
     context: { queryClient: sharedQueryClient },
     defaultErrorComponent: DefaultErrorComponent,
@@ -49,12 +62,7 @@ export function createTabRouter({
       captureException(error, { componentStack: errorInfo.componentStack });
     },
     defaultPreload: false,
-    history: createMemoryHistory({
-      initialEntries: entries,
-      initialIndex: restored
-        ? Math.min(Math.max(restored.index, 0), entries.length - 1)
-        : undefined,
-    }),
+    history: memoryHistory,
     routeTree,
     scrollRestoration: shouldRestoreScroll,
   });

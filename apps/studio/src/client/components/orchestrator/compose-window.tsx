@@ -7,6 +7,7 @@ import {
   draftSnapshotsAtom,
   finderOnScreenAtom,
   NEW_TAB_HREF,
+  paneOpenByGroupAtom,
   type ScreenView,
   WEB_HREF,
   type WindowTab,
@@ -77,6 +78,7 @@ import {
   COMPOSE_WIDTH,
 } from "./compose-layout";
 import { ComposeZeroState, WebStart } from "./compose-zero-state";
+import { behindTabOf, isGroupShown } from "./draft-context";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
@@ -280,6 +282,25 @@ export function ComposeWindow({
   const showsIncluded =
     included !== undefined &&
     (includedItems === undefined || includedItems.length > 0);
+
+  // What the window has up behind the draft now, when that is something
+  // else: it goes with the message too, in a pill of its own the person can
+  // leave out, so the draft says everything the thread will be told.
+  const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
+  const behind = behindTabOf(
+    draft,
+    windowTabs.active,
+    isGroupShown(windowTabs.group, paneOpenByGroup),
+  );
+  const behindItems = behind
+    ? includedItemsOf(behind, finderOnScreen, [
+        ...chosen,
+        ...(includedItems ?? []),
+      ])
+    : undefined;
+  const showsBehind =
+    behind !== undefined &&
+    (behindItems === undefined || behindItems.length > 0);
 
   // The words the box opens with: what was kept of it when it was put away,
   // or, after a relaunch, the record's own words. Seeded once, since the
@@ -718,7 +739,7 @@ export function ComposeWindow({
                   // box is never left waiting on a send.
                   isLoading={false}
                   lead={
-                    chosen.length > 0 || showsIncluded ? (
+                    chosen.length > 0 || showsIncluded || showsBehind ? (
                       <>
                         {chosen.map((item) => (
                           <ChosenChip
@@ -748,6 +769,23 @@ export function ComposeWindow({
                               });
                             }}
                             tab={included}
+                          />
+                        )}
+                        {showsBehind && (
+                          <IncludedChip
+                            appsBySlug={appsBySlug}
+                            items={behindItems}
+                            onLeaveOut={() => {
+                              onChange((current) => ({
+                                ...current,
+                                leftBehind: [
+                                  ...(current.leftBehind ?? []),
+                                  behind.id,
+                                ],
+                              }));
+                            }}
+                            said="In view behind the draft now, so it goes to Instrument with your message too."
+                            tab={behind}
                           />
                         )}
                       </>
@@ -1240,12 +1278,15 @@ function IncludedChip({
   appsBySlug,
   items,
   onLeaveOut,
+  said = "On screen now, so it goes to Instrument with your message. It follows what you look at next.",
   tab,
 }: {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
   /** What the thing points at on this computer, which the chip names in place of the tab. */
   items: ChosenItem[] | undefined;
   onLeaveOut: () => void;
+  /** What the chip's tooltip says it is. */
+  said?: string;
   tab: WindowTab;
 }) {
   const [one] = items ?? [];
@@ -1260,10 +1301,7 @@ function IncludedChip({
   return (
     <ContextChip
       label={
-        <ChipLabel
-          paths={(items ?? []).map((item) => item.path)}
-          said="On screen now, so it goes to Instrument with your message. It follows what you look at next."
-        />
+        <ChipLabel paths={(items ?? []).map((item) => item.path)} said={said} />
       }
       mark={
         items?.length === 1 && one !== undefined ? (

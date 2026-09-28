@@ -6,9 +6,9 @@ import {
   draftsAtom,
   draftSnapshotsAtom,
   NEW_TAB_HREF,
+  paneOpenByGroupAtom,
   placeGroupOf,
   threadFiltersAtom,
-  type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -25,16 +25,11 @@ import { toast } from "sonner";
 import { ulid } from "ulid";
 
 import { type DraftSend } from "./compose-window";
-import { computerTabOf } from "./file-tabs";
+import { isGroupShown, isIncludable } from "./draft-context";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type Topic } from "./threads";
 import { type useCompose } from "./use-compose";
-import {
-  isFreshTab,
-  isHomeTab,
-  parseHref,
-  type useWindowTabs,
-} from "./window-tabs";
+import { isHomeTab, type useWindowTabs } from "./window-tabs";
 
 /** How long a thread just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
 const THREAD_ARRIVAL_MS = ms("3 seconds");
@@ -78,6 +73,7 @@ export function useDrafts({
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const threadFilters = useAtomValue(threadFiltersAtom);
+  const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
@@ -129,12 +125,15 @@ export function useDrafts({
     chosen: ChosenItem[] = [],
   ) => {
     const now = Date.now();
-    // What the draft is opened over: the tab the place has up, when the
-    // window stands in a place and that tab is something the conversation
-    // can be told about. A place's own fresh tab is the place, not a thing.
-    const overGroup = place === "chat" ? undefined : placeGroupOf(place);
+    // What the draft is opened over: the tab in view, when it is something
+    // the conversation can be told about. In a place, the tab the place has
+    // up; in the chat, the tab open in the chat's pane beside it. A place's
+    // own fresh tab is the place, not a thing.
+    const overGroup = place === "chat" ? windowTabs.group : placeGroupOf(place);
     const over =
-      overGroup === undefined ? undefined : windowTabs.tabUpIn(overGroup);
+      overGroup !== undefined && isGroupShown(overGroup, paneOpenByGroup)
+        ? windowTabs.tabUpIn(overGroup)
+        : undefined;
     const included =
       overGroup !== undefined && over !== undefined && isIncludable(over)
         ? { group: overGroup, tabId: over.id }
@@ -321,25 +320,6 @@ export function useDrafts({
     startingIds,
     startThread,
   };
-}
-
-/**
- * Whether a tab is something a draft opened over it can carry to its thread:
- * a page, a file or folder on the computer, or an app's front. A place's own
- * fresh tab is the place rather than a thing in it, and the screens with no
- * words for the conversation are left out.
- */
-function isIncludable(tab: WindowTab): boolean {
-  if (isFreshTab(tab)) {
-    return false;
-  }
-  if (tab.kind === "page") {
-    return true;
-  }
-  return (
-    computerTabOf(tab.href) !== undefined ||
-    parseHref(tab.href).pathname.startsWith("/orchestrator/apps/")
-  );
 }
 
 function withoutId(ids: ReadonlySet<string>, id: string): ReadonlySet<string> {

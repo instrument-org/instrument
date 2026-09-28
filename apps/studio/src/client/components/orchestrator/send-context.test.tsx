@@ -98,6 +98,7 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     children: undefined,
     drafts: [],
     href: "/orchestrator/browser",
+    paneOpenByGroup: {},
     screenView: null,
     state: { attachedFolders: { home: HOME } },
     tasksFace: undefined,
@@ -529,5 +530,85 @@ describe("draftContext", () => {
         "tabs": [],
       }
     `);
+  });
+
+  it("sends what is in view behind the draft, and nothing the person left out", async () => {
+    const PLACE = "place:files";
+    const file: WindowTab = {
+      group: PLACE,
+      href: "/orchestrator/computer?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
+      id: "file",
+      kind: "screen",
+    };
+    const page: WindowTab = {
+      group: THREAD,
+      id: "page",
+      kind: "page",
+      openedAt: 1,
+      title: "Hotels",
+      url: "https://hotels.example/",
+    };
+    const behindFile = contextReaders(
+      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([file], PLACE) }),
+    );
+    await expect(behindFile.draftContext(DRAFT.id)).resolves
+      .toMatchInlineSnapshot(`
+      {
+        "file": {
+          "mount": "/mnt/Home/Notes/plan.md",
+          "name": "plan.md",
+          "path": "/Users/casey/Notes/plan.md",
+        },
+        "screen": "file",
+        "tabs": [
+          {
+            "at": "/orchestrator/computer?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
+            "title": "plan.md",
+          },
+        ],
+        "url": "/orchestrator/computer?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
+      }
+    `);
+
+    const behindPage = contextReaders(
+      windowOf({
+        drafts: [DRAFT],
+        paneOpenByGroup: { [THREAD]: true },
+        windowTabs: tabsOf([page], THREAD),
+      }),
+    );
+    await expect(behindPage.draftContext(DRAFT.id)).resolves
+      .toMatchInlineSnapshot(`
+      {
+        "page": {
+          "text": "Words on the page",
+          "title": "Example",
+          "url": "https://example.com/",
+        },
+        "screen": "browser",
+        "tabs": [
+          {
+            "at": "https://hotels.example/",
+            "id": "page",
+            "title": "Hotels",
+          },
+        ],
+        "url": "https://hotels.example/",
+      }
+    `);
+
+    const leftOut = contextReaders(
+      windowOf({
+        drafts: [{ ...DRAFT, leftBehind: ["page"] }],
+        paneOpenByGroup: { [THREAD]: true },
+        windowTabs: tabsOf([page], THREAD),
+      }),
+    );
+    await expect(leftOut.draftContext(DRAFT.id)).resolves.toBeUndefined();
+
+    const paneShut = contextReaders(
+      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([page], THREAD) }),
+    );
+    await expect(paneShut.draftContext(DRAFT.id)).resolves.toBeUndefined();
   });
 });

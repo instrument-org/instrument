@@ -753,6 +753,7 @@ function OrchestratorLayout() {
     children: children.data,
     drafts,
     href: location.href,
+    paneOpenByGroup,
     screenView,
     state: state.data,
     tasksFace: isTasksViewUp ? tasksFace : undefined,

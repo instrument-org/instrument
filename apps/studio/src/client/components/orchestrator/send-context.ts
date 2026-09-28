@@ -14,6 +14,7 @@ import ms from "ms";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { type BrowserTabsHandle } from "./browser-tabs";
+import { behindTabOf, isGroupShown } from "./draft-context";
 import { computerTabOf, mountOfHostPath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
@@ -39,6 +40,8 @@ export interface SendContextWindow {
   drafts: Draft[];
   /** The router's address, which is the screen's own. */
   href: string;
+  /** Which chats have their pane open, which is whether the tab up in one is in view. */
+  paneOpenByGroup: Record<string, boolean>;
   /** What the screen that is up says it shows, or nothing while none has said. */
   screenView: null | ScreenView;
   /** The orchestrator's state, whose folder grants say how the conversation reaches a file. */
@@ -66,6 +69,7 @@ export function contextReaders({
   children,
   drafts,
   href,
+  paneOpenByGroup,
   screenView,
   state,
   tasksFace,
@@ -137,10 +141,14 @@ export function contextReaders({
    * page's own tabs are left out, since they are the place's to hand over
    * and not the thread's.
    */
-  const includedContext = async (
+  const includedContext = (
     draft: Draft,
+  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> =>
+    tabContext(includedTabOf(draft, windowTabs.allTabs));
+  /** What one tab says about itself, for a thread a draft starts: see includedContext. */
+  const tabContext = async (
+    tab: undefined | WindowTab,
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
-    const tab = includedTabOf(draft, windowTabs.allTabs);
     if (!tab || !state) {
       return;
     }
@@ -263,17 +271,48 @@ export function contextReaders({
     draftId: string,
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
     const draft = drafts.find((entry) => entry.id === draftId);
-    const shown = await draftShown(draftId);
-    const chosen = (draft?.chosen ?? []).map((item) => ({
+    const behind = draft
+      ? behindTabOf(draft, active, isGroupShown(active?.group, paneOpenByGroup))
+      : undefined;
+    // With nothing else to say, what is behind the draft is the view itself,
+    // a page by its words; beside something else it is named, below.
+    const ownShown = await draftShown(draftId);
+    const behindShown =
+      ownShown === undefined ? await tabContext(behind) : undefined;
+    const shown =
+      ownShown ??
+      (behindShown && behind
+        ? { ...behindShown, tabs: describeTabs([behind]) }
+        : undefined);
+    const picked = (draft?.chosen ?? []).map((item) => ({
       ...fileOf(item.path),
       kind: item.kind,
     }));
-    if (chosen.length === 0 || !state) {
+    // What the window has up behind the draft, when it is something else and
+    // was not left out: a file or folder goes as though it were picked, and
+    // a page or an app is named among the tabs, a page by the id a task can
+    // be handed.
+    const named = ownShown === undefined ? undefined : behind;
+    const behindPath = named ? hostPathOf(named) : undefined;
+    const chosen = [
+      ...picked,
+      ...(behindPath && !picked.some((item) => item.path === behindPath.path)
+        ? [{ ...fileOf(behindPath.path), kind: behindPath.kind }]
+        : []),
+    ];
+    const behindTabs =
+      named && behindPath === undefined ? describeTabs([named]) : [];
+    if ((chosen.length === 0 && behindTabs.length === 0) || !state) {
       return shown;
     }
     // What was picked goes whatever the window shows, with nothing on screen
     // to say beside it as well.
-    return { ...(shown ?? { screen: "home", tabs: [] }), chosen };
+    const base = shown ?? { screen: "home" as const, tabs: [] };
+    return {
+      ...base,
+      ...(chosen.length > 0 ? { chosen } : {}),
+      tabs: [...(base.tabs ?? []), ...behindTabs],
+    };
   };
   /**
    * What the face has on it, in the terms a screen reports: one task and
@@ -358,6 +397,23 @@ export function contextReaders({
     };
   };
   return { draftContext, sendContext };
+}
+
+/** Where a tab stands on this computer: a file shown as a page, a file tab's file, or a folder tab's folder; nothing for a web page or an app. */
+function hostPathOf(
+  tab: WindowTab,
+): undefined | { kind: "file" | "folder"; path: string } {
+  if (tab.kind === "page") {
+    const path = hostPathOfFileUrl(tab.url);
+    return path === undefined ? undefined : { kind: "file", path };
+  }
+  const computer = computerTabOf(tab.href);
+  if (!computer) {
+    return;
+  }
+  return computer.file === undefined
+    ? { kind: "folder", path: joinHostPath(computer.root, computer.path) }
+    : { kind: "file", path: computer.file };
 }
 
 /** The tab a draft was opened over, while it is still among the window's. */

@@ -419,12 +419,10 @@ export function ComposeWindow({
     }
     inputRef.current?.focus();
   };
+  // A screen asked for is a new tab each time, even of a kind the draft
+  // already has open; a file already open is brought up instead.
   const openScreenIn = (href: string) => {
-    windowTabs.openOrFocusScreen(href, {
-      activate: true,
-      group,
-      isOpened: true,
-    });
+    windowTabs.openScreen(href, { activate: true, group, isOpened: true });
     inputRef.current?.focus();
   };
   const openFolder = (hostPath: string) => {
@@ -437,7 +435,12 @@ export function ComposeWindow({
     if (getFileType({ filename: name }) === "html") {
       openPage(fileUrlOf(hostPath));
     } else {
-      openScreenIn(fileHref(hostPath));
+      windowTabs.openOrFocusScreen(fileHref(hostPath), {
+        activate: true,
+        group,
+        isOpened: true,
+      });
+      inputRef.current?.focus();
     }
   };
   // A screen asked for from inside the band: the apps and the computer open
@@ -547,7 +550,7 @@ export function ComposeWindow({
             if (document.activeElement instanceof HTMLElement) {
               document.activeElement.blur();
             }
-            windowTabs.openOrFocusScreen(WEB_HREF, {
+            windowTabs.openScreen(WEB_HREF, {
               activate: true,
               group,
               isOpened: true,

@@ -46,10 +46,11 @@ const ON_SCREEN_EVERY_MS = 5000;
 /**
  * What a chat holds, down its right edge: a tile for each thing it has open
  * (the pages its agent browses and the person opened, files, folders), the
- * newest at the top, scrolling when there are many. A page is a picture of
- * itself, taken as it loads and changes and kept, so a chat reopened later, or
- * after a relaunch, shows its pages at once; a file is the picture the app
- * keeps of it; a folder is its mark. Pressing a tile brings the thing up
+ * oldest at the top and the newest at the foot beside New, scrolling when
+ * there are many. A page is a picture of itself, taken as it loads and
+ * changes and kept, so a chat reopened later, or after a relaunch, shows
+ * its pages at once; a file is the picture the app keeps of it; a folder is
+ * its mark. Pressing a tile brings the thing up
  * large beside the chat; its × takes it out of the chat; dragging one moves
  * it among the others. New, under the last tile, opens the web or this
  * computer beside the chat.
@@ -74,7 +75,7 @@ export function ThreadRail({
   onAddComputer: () => void;
   onAddWeb: () => void;
   onClose: (id: string) => void;
-  /** The chat's tabs in a new order, by their strip keys, oldest first as the strip keeps them. */
+  /** The chat's tabs in a new order, by their strip keys, oldest first. */
   onReorder: (keys: string[]) => void;
   onSelect: (id: string) => void;
   tabs: WindowTab[];
@@ -82,8 +83,19 @@ export function ThreadRail({
   targetOf: (tab: Extract<WindowTab, { kind: "page" }>) => BrowserTargetId;
   threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
 }) {
-  const newestFirst = tabs.toReversed();
-  const order = newestFirst.map(keyOf).join(" ");
+  const order = tabs.map(keyOf).join(" ");
+  // A tab added lands at the foot, so the list follows it there.
+  const listRef = useRef<HTMLDivElement>(null);
+  const count = useRef(tabs.length);
+  useEffect(() => {
+    if (tabs.length > count.current) {
+      listRef.current?.scrollTo({
+        behavior: "smooth",
+        top: listRef.current.scrollHeight,
+      });
+    }
+    count.current = tabs.length;
+  }, [tabs.length]);
   return (
     <aside
       aria-label="What this chat has open"
@@ -92,16 +104,17 @@ export function ThreadRail({
       <motion.div
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3"
         layoutScroll
+        ref={listRef}
       >
         <Reorder.Group
           axis="y"
           className="flex flex-col gap-4"
           onReorder={(keys: string[]) => {
-            onReorder(keys.toReversed());
+            onReorder(keys);
           }}
-          values={newestFirst.map(keyOf)}
+          values={tabs.map(keyOf)}
         >
-          {newestFirst.map((tab) => (
+          {tabs.map((tab) => (
             // Laid out again only when the order moves: a window growing or
             // shrinking around the rail is not a reason to slide its tiles.
             <Reorder.Item

@@ -219,8 +219,10 @@ export function ThreadWindow({
       }
     }
   };
+  // A new tab each time: the person asked for another, even of a kind the
+  // chat already has open.
   const openHere = (href: string) => {
-    windowTabs.openOrFocusScreen(href, {
+    windowTabs.openScreen(href, {
       activate: true,
       group: sessionId,
       isOpened: true,

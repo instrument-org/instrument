@@ -1,4 +1,4 @@
-import { pinsAtom, type WindowTab } from "@/client/atoms/orchestrator";
+import { type WindowTab } from "@/client/atoms/orchestrator";
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
 import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
@@ -8,7 +8,6 @@ import {
   StoreId,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -18,22 +17,11 @@ import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { TabStrip } from "./tab-strip";
 
-/** A screen's icon on its own, by its address: for a pin's row. */
-export function ScreenIcon({
-  appsBySlug,
-  href,
-}: {
-  appsBySlug: Map<string, { name: string; site: string | undefined }>;
-  href: string;
-}) {
-  return screenPresentation(href, { appsBySlug }).icon;
-}
-
 /**
  * The strip along the top of the window: every tab, whatever it holds, drawn
  * the way the task page draws its pane tabs. A page carries its site's icon
  * and title; a screen is named for what it is at. A right click on any tab
- * offers to pin it to the sidebar or close it.
+ * offers to close it.
  */
 export function WindowTabStrip({
   childTitles,
@@ -62,7 +50,6 @@ export function WindowTabStrip({
   trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
-  const setPins = useSetAtom(pinsAtom);
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
 
@@ -81,30 +68,6 @@ export function WindowTabStrip({
       window.removeEventListener("keydown", onKey);
     };
   }, [menu]);
-
-  const pin = (tab: WindowTab) => {
-    // A page with no address yet has nothing to come back to.
-    const target = tab.kind === "page" ? tab.url : tab.href;
-    if (!target) return;
-    const title =
-      tab.kind === "page"
-        ? pageTabTitle(tab) || target
-        : screenPresentation(tab.href, { appsBySlug, threadTitles }).title;
-    setPins((pins) =>
-      pins.some((pinned) => pinned.target === target)
-        ? pins
-        : [
-            ...pins,
-            {
-              favicon: tab.kind === "page" ? tab.favicon : undefined,
-              id: crypto.randomUUID(),
-              kind: tab.kind,
-              target,
-              title,
-            },
-          ],
-    );
-  };
 
   // The strip names a tab by the place it keeps, which is the key of the tab
   // that first opened there; the tab itself is found from that.
@@ -214,17 +177,6 @@ export function WindowTabStrip({
           role="menu"
           style={menuStyle}
         >
-          <button
-            className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"
-            onClick={() => {
-              pin(menuTab);
-              setMenu(undefined);
-            }}
-            role="menuitem"
-            type="button"
-          >
-            Pin to new tab
-          </button>
           <button
             className="flex w-full rounded-sm px-2 py-1.5 text-left hover:bg-accent"
             onClick={() => {

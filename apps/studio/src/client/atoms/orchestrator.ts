@@ -553,18 +553,15 @@ export const computerColumnWidthAtom = atomWithStorage<number>(
   { getOnInit: true },
 );
 
-/** A thing the user pinned to the sidebar: a page by its address, or a screen by its route. */
-export interface Pin {
-  favicon?: string;
+/** A page the user kept, shown on the browser's starting view. */
+export interface Bookmark {
   id: string;
-  kind: "page" | "screen";
-  /** A page's address or a screen's route. */
-  target: string;
   title: string;
+  url: string;
 }
 
-export const pinsAtom = atomWithStorage<Pin[]>(
-  "orchestrator.pins.v1",
+export const bookmarksAtom = atomWithStorage<Bookmark[]>(
+  "orchestrator.bookmarks.v1",
   [],
   undefined,
   { getOnInit: true },

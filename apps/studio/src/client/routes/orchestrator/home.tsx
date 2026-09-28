@@ -1,13 +1,11 @@
-import { type FileTab, pinsAtom } from "@/client/atoms/orchestrator";
+import { type FileTab } from "@/client/atoms/orchestrator";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
 import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
-import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
-import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOpenFileTab } from "@/client/components/orchestrator/file-tabs";
 import {
   folderOf,
@@ -16,9 +14,7 @@ import {
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { PageSection } from "@/client/components/orchestrator/page-section";
 import { useQuickLook } from "@/client/components/orchestrator/quick-look";
-import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { SKILLS_HREF } from "@/client/components/orchestrator/tab-location";
-import { ScreenIcon } from "@/client/components/orchestrator/window-tab-strip";
 import { RelativeTime } from "@/client/components/relative-time";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import {
@@ -34,14 +30,13 @@ import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
 import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
 import ms from "ms";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /**
- * A new tab: the places the user kept, the computer and the folders a
- * person keeps things in, the kinds of page Instrument can make, and under
- * them the files the conversation has shown.
+ * A new tab: the computer and the folders a person keeps things in, the
+ * kinds of page Instrument can make, and under them the files the
+ * conversation has shown.
  * Each section is a head with a way to the rest of it and a grid of tiles,
  * one gesture for everything on the page; whatever is picked, this tab
  * becomes it. Tasks are reached from the thread that started them.
@@ -57,7 +52,6 @@ type RecentFile = RPCOutput["workspace"]["computer"]["recents"][number];
  * its head. Enough to find the one from this morning, few enough that the
  * page stays a page: every section can grow, and only the head's button does.
  */
-const PINS_SHOWN = 6;
 const PLACES_SHOWN = 6;
 const RECENTS_SHOWN = 5;
 
@@ -85,14 +79,11 @@ function focusRow(list: HTMLElement, index: number) {
 }
 
 function HomeRoute() {
-  const { openPage, openScreen } = useOrchestrator();
   const navigate = useNavigate();
   const openFileTab = useOpenFileTab();
   const quickLook = useQuickLook({ openFile: openFileTab });
-  const pins = useAtomValue(pinsAtom);
   useOnScreen({ screen: "home" });
 
-  const appsBySlug = useAppsBySlug();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const recents = useQuery(
     rpcClient.workspace.computer.recents.queryOptions({
@@ -119,48 +110,6 @@ function HomeRoute() {
   return (
     <div className="@container/home flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
       <div className="mx-auto w-full max-w-3xl space-y-8">
-        {/* The places the user kept, which is what a bookmark is: their own
-            choice, before anything the app has to offer. */}
-        <PageSection title="Bookmarks">
-          {pins.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Right-click a tab to pin it here.
-            </p>
-          ) : (
-            <Tiles>
-              {pins.slice(0, PINS_SHOWN).map((pin) => (
-                <Tile
-                  icon={
-                    <span
-                      className={cn(MARK_CARD, "[&_img]:size-6 [&_svg]:size-6")}
-                    >
-                      {pin.kind === "page" ? (
-                        <SiteIcon favicon={pin.favicon} url={pin.target} />
-                      ) : (
-                        <ScreenIcon appsBySlug={appsBySlug} href={pin.target} />
-                      )}
-                    </span>
-                  }
-                  key={pin.id}
-                  name={pin.title}
-                  onOpen={() => {
-                    if (pin.kind === "page") {
-                      openPage(pin.target);
-                    } else {
-                      openScreen(pin.target);
-                    }
-                  }}
-                  target={
-                    pin.kind === "page"
-                      ? { kind: "page", url: pin.target }
-                      : { href: pin.target, kind: "screen" }
-                  }
-                />
-              ))}
-            </Tiles>
-          )}
-        </PageSection>
-
         {/* The computer, and the folders a person keeps things in. The
             computer is the door that opens on everything, the Finder whole
             in this tab; the folders beside it are the same door already

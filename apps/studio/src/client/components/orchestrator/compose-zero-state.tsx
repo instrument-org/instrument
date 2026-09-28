@@ -1,5 +1,10 @@
-import { pinsAtom, visitedPagesAtom } from "@/client/atoms/orchestrator";
-import { rpcClient } from "@/client/rpc/client";
+import {
+  type Bookmark,
+  bookmarksAtom,
+  visitedPagesAtom,
+} from "@/client/atoms/orchestrator";
+import { useGesturesFor } from "@/client/hooks/use-open-target";
+import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import { type Icon } from "@phosphor-icons/react";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
@@ -7,7 +12,7 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useQuery } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
@@ -80,23 +85,48 @@ export function ComposeZeroState({
  * as large marks with their names under them, the way apps are, and the
  * pages lately seen under those as a list. The tab's own address row, over
  * it wherever it is drawn, is where an address goes. Anywhere it goes
- * arrives as a tab.
+ * arrives as a tab. A page is bookmarked from its own menu, and a right
+ * click on its mark here offers to remove it.
  */
 export function WebStart({
   onOpenPage,
 }: {
   onOpenPage: (url: string) => void;
 }) {
-  const pins = useAtomValue(pinsAtom);
+  const [bookmarks, setBookmarks] = useAtom(bookmarksAtom);
   const visited = useAtomValue(visitedPagesAtom);
-  const bookmarks = pins.filter((pin) => pin.kind === "page");
+  const gesturesFor = useGesturesFor();
   const recent = visited
-    .filter((page) => !bookmarks.some((pin) => pin.target === page.url))
+    .filter((page) => !bookmarks.some((bookmark) => bookmark.url === page.url))
     .slice(0, RECENT_SHOWN)
     .map((page) => ({
       app: { name: hostOf(page.url), site: originOf(page.url) },
       page,
     }));
+
+  /** The OS's menu over a bookmark: everywhere it opens, then removing it. */
+  const showBookmarkMenu = async (bookmark: Bookmark) => {
+    const { destinations } = gesturesFor({ kind: "page", url: bookmark.url });
+    const items: RPCInput["utils"]["showContextMenu"]["items"] = [
+      ...destinations.flatMap((destination, index) => [
+        // The places it opens, then the clipboard, are two groups.
+        ...(destination.id === "copy" && index > 0
+          ? [{ separator: true }]
+          : []),
+        { id: destination.id, label: destination.label },
+      ]),
+      { separator: true },
+      { id: "remove", label: "Remove from bookmarks" },
+    ];
+    const picked = await rpcClient.utils.showContextMenu.call({ items });
+    if (picked.id === "remove") {
+      setBookmarks((current) =>
+        current.filter((kept) => kept.id !== bookmark.id),
+      );
+      return;
+    }
+    destinations.find((destination) => destination.id === picked.id)?.run();
+  };
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
       <div className="mx-auto w-full max-w-3xl space-y-8">
@@ -105,33 +135,37 @@ export function WebStart({
             // Pulled in by the gap between a mark's box and its icon, so the
             // icons line up under the heading.
             <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-4">
-              {bookmarks.map((pin) => (
+              {bookmarks.map((bookmark) => (
                 <button
                   className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
-                  key={pin.id}
+                  key={bookmark.id}
                   onClick={() => {
-                    onOpenPage(pin.target);
+                    onOpenPage(bookmark.url);
                   }}
-                  title={`${pin.title}\n${pin.target}`}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    void showBookmarkMenu(bookmark);
+                  }}
+                  title={`${bookmark.title}\n${bookmark.url}`}
                   type="button"
                 >
                   {/* The site's own mark, bare: no plate around it, the way a
                       browser's new tab shows its shortcuts. */}
                   <AppIcon
                     className="size-14 bg-transparent p-0 shadow-none ring-0"
-                    name={pin.title}
-                    site={originOf(pin.target)}
+                    name={bookmark.title}
+                    site={originOf(bookmark.url)}
                     size="xl"
                   />
                   <span className="w-full truncate text-[13px] leading-4 font-medium">
-                    {pin.title || hostOf(pin.target)}
+                    {bookmark.title || hostOf(bookmark.url)}
                   </span>
                 </button>
               ))}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Pin a tab, and the site is kept here.
+              Add a page to your bookmarks from its menu, and it shows here.
             </p>
           )}
         </PageSection>

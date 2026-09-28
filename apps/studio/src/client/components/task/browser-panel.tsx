@@ -1,4 +1,6 @@
+import { bookmarksAtom } from "@/client/atoms/orchestrator";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
+import { OrchestratorContext } from "@/client/components/orchestrator/context";
 import { TabRowControl } from "@/client/components/orchestrator/tab-location-row";
 import { BrowserFindBar } from "@/client/components/task/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -56,6 +58,7 @@ import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClo
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
+import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
@@ -63,7 +66,14 @@ import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useAtom } from "jotai";
+import {
+  type ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 // Shape of the `<webview>` `did-fail-load` DOM event (Electron adds these
@@ -402,6 +412,33 @@ export function TaskBrowserPanel({
   const pageUrl = active ? currentUrl() : undefined;
   const openInTarget = openInAppTargetOfUrl(pageUrl);
 
+  // Bookmarks are the window's, shown on its browser's starting view; a
+  // task's own browser has no such view to keep them on.
+  const inWindow = useContext(OrchestratorContext) !== null;
+  const [bookmarks, setBookmarks] = useAtom(bookmarksAtom);
+  const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
+  const toggleBookmark = () => {
+    if (!pageUrl) {
+      return;
+    }
+    if (isBookmarked) {
+      setBookmarks((current) =>
+        current.filter((bookmark) => bookmark.url !== pageUrl),
+      );
+      return;
+    }
+    let title = "";
+    try {
+      title = webviewFor()?.getTitle() ?? "";
+    } catch {
+      // Not dom-ready yet; the start view names it by its site instead.
+    }
+    setBookmarks((current) => [
+      ...current,
+      { id: crypto.randomUUID(), title, url: pageUrl },
+    ]);
+  };
+
   return (
     <div
       className={cn(
@@ -546,6 +583,12 @@ export function TaskBrowserPanel({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
+              {inWindow && (
+                <DropdownMenuItem onSelect={toggleBookmark}>
+                  <BookmarkSimpleIcon className="size-4" />
+                  {isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onSelect={() => {
                   const url = currentUrl();

@@ -1,6 +1,5 @@
 import { paneOpenByGroupAtom, WEB_HREF } from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { instrumentFolderHref } from "@/shared/computer-href";
@@ -84,13 +83,19 @@ export function ThreadBar({
         onClick={onOpen}
         type="button"
       >
-        {isWorking ? (
-          <PlanningDotIcon className="size-3.5" />
-        ) : (
-          <ChatsCircleIcon className="size-3.5 shrink-0" />
-        )}
-        <span className="min-w-0 flex-1 truncate">
-          {thread?.title ?? "Chat"}
+        <ChatsCircleIcon className="size-3.5 shrink-0" />
+        {/* The title shimmers while the chat works, the way a tab's does. The
+          bar is dark in either theme, so the shimmer takes the dark theme's
+          brighter green, which the `dark` around it selects. */}
+        <span className="dark contents">
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate",
+              isWorking && "brand-shiny-text",
+            )}
+          >
+            {thread?.title ?? "Chat"}
+          </span>
         </span>
         {thread && <BarMarks group={thread.id} />}
       </button>
@@ -351,11 +356,9 @@ export function ThreadWindow({
         />
       )}
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 select-none">
-        {isWorking ? (
-          <PlanningDotIcon className="size-4" />
-        ) : (
-          <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
-        )}
+        {/* No mark of work here: the line at the conversation's end says
+          the chat is working, where its reply will land. */}
+        <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
         {thread ? (
           // The title and its menu side by side, taking their own width:
           // the title reads as a title rather than a button, and opening

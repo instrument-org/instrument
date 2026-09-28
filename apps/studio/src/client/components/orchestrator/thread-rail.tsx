@@ -51,7 +51,7 @@ const ON_SCREEN_EVERY_MS = 5000;
  * after a relaunch, shows its pages at once; a file is the picture the app
  * keeps of it; a folder is its mark. Pressing a tile brings the thing up
  * large beside the chat; its × takes it out of the chat; dragging one moves
- * it among the others. The + at the top opens the web or this computer beside
+ * it among the others. New, at the foot, opens the web or this computer beside
  * the chat.
  */
 export function ThreadRail({
@@ -88,33 +88,6 @@ export function ThreadRail({
       aria-label="What this chat has open"
       className="flex h-full w-30 shrink-0 flex-col border-l border-border bg-background select-none"
     >
-      <div className="flex h-10 shrink-0 items-center justify-end px-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              aria-label="Open beside the chat"
-              className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-              type="button"
-            >
-              <PlusIcon className="size-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 p-2">
-            <div className="grid grid-cols-2 gap-1">
-              <AddTile
-                icon={<GlobeIcon />}
-                label="Browser"
-                onSelect={onAddWeb}
-              />
-              <AddTile
-                icon={<DesktopIcon />}
-                label={computerName()}
-                onSelect={onAddComputer}
-              />
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
       <Reorder.Group
         axis="y"
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-3"
@@ -143,6 +116,34 @@ export function ThreadRail({
           </Reorder.Item>
         ))}
       </Reorder.Group>
+      <div className="shrink-0 p-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label="Open beside the chat"
+              className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+              type="button"
+            >
+              <PlusIcon className="size-4" />
+              New
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56 p-2" side="top">
+            <div className="grid grid-cols-2 gap-1">
+              <AddTile
+                icon={<GlobeIcon />}
+                label="Browser"
+                onSelect={onAddWeb}
+              />
+              <AddTile
+                icon={<DesktopIcon />}
+                label={computerName()}
+                onSelect={onAddComputer}
+              />
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </aside>
   );
 }

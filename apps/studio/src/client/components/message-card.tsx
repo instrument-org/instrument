@@ -12,6 +12,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import { useOpenInApp } from "@/client/hooks/use-open-in-app";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -56,6 +57,10 @@ export function MessageActions({
       enabled: kind === "email",
       staleTime: Infinity,
     }),
+  );
+  // Named and marked the way every "Open in" names the browser.
+  const browser = useOpenInApp(
+    kind === "email" ? { url: GMAIL_HOME } : undefined,
   );
   const { active: copied, trigger: showCopied } = useTimedFlag();
   const canShare = isMacOS();
@@ -108,12 +113,9 @@ export function MessageActions({
                 openExternal(gmailOf(getMessage()), { addReferral: false });
               }}
             >
-              <AppIcon
-                fallback={<ArrowUpRightIcon />}
-                target={targets?.browser}
-              />
-              {targets?.browser
-                ? `Open Gmail in ${targets.browser.name}`
+              <AppIcon fallback={<ArrowUpRightIcon />} target={browser} />
+              {browser.appName
+                ? `Open Gmail in ${browser.appName}`
                 : "Open in Gmail"}
             </DropdownMenuItem>
             {canShare && (
@@ -292,6 +294,9 @@ function CopyablePart({
     </div>
   );
 }
+
+/** Gmail's own address, which is all the browser row needs to name the browser. */
+const GMAIL_HOME = "https://mail.google.com/";
 
 function gmailOf(message: MessageDraft): string {
   const to = (message.to?.match(ADDRESS) ?? []).join(",");

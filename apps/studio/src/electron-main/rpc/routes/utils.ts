@@ -15,6 +15,7 @@ import {
   getFileOpenCandidates,
   getFileOpenTarget,
 } from "@/electron-main/lib/file-open-target";
+import { resolveDarwinTarget } from "@/electron-main/lib/file-open-target/resolve-darwin";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
   effectiveDisplayProtocol,
@@ -261,25 +262,25 @@ const SendTargetSchema = z.object({
 });
 
 /**
- * The apps a message card's Send menu opens: the one that takes `mailto:`
- * links and the default browser, each with its name and icon, so the menu says
- * where a draft will land. Null where the platform cannot say (Linux).
+ * The app a message card's Send menu hands a `mailto:` link to, with its name
+ * and icon, so the menu says where a draft will land. On macOS it is found the
+ * way the default browser is for "Open in", so the two read alike; null where
+ * the platform cannot say (Linux). The browser row asks for the browser the
+ * way every "Open in" does.
  */
 const sendTargets = base
-  .output(
-    z.object({
-      browser: SendTargetSchema.nullable(),
-      mail: SendTargetSchema.nullable(),
-    }),
-  )
-  .handler(async () => ({
-    browser: await appForProtocol("https://"),
-    mail: await appForProtocol("mailto:"),
-  }));
+  .output(z.object({ mail: SendTargetSchema.nullable() }))
+  .handler(async () => ({ mail: await mailTarget() }));
 
-async function appForProtocol(url: string) {
+async function mailTarget() {
+  if (process.platform === "darwin") {
+    const resolved = await resolveDarwinTarget("mailto:someone@example.com");
+    return resolved
+      ? { iconUrl: resolved.iconUrl, name: resolved.appName }
+      : null;
+  }
   try {
-    const info = await app.getApplicationInfoForProtocol(url);
+    const info = await app.getApplicationInfoForProtocol("mailto:");
     return {
       iconUrl: await storeFileOpenNativeImage(info.icon),
       name: info.name,

@@ -134,12 +134,23 @@ export function RightPane({
   }, [fills, isOpen, isShown, paneKey, paneWidth, reservedWidth]);
 
   // The share measured against the row again whenever either changes: the
-  // window resized, the zoom changed, or the handle was moved.
+  // window resized, the zoom changed, or the handle was moved. Between those,
+  // a window being resized keeps the conversation at the width it had and
+  // hands the difference to the pane, so only one side moves under the
+  // pointer; once the pane is at its floor, the conversation gives way.
   useEffect(() => {
     const row = rowRef.current;
     if (!row) {
       return;
     }
+    let keptConversation: number | undefined;
+    const widthFor = (width: number) => {
+      keptConversation ??= width - taskPaneWidth(shareRef.current, width);
+      return Math.min(
+        Math.max(width - keptConversation, TASK_PANE_WIDTH_MIN),
+        taskPaneWidth(1, width),
+      );
+    };
     const measure = () => {
       setRowWidth(row.offsetWidth);
       if (draggingRef.current || !isShown) {
@@ -153,9 +164,7 @@ export function RightPane({
       if (row.offsetWidth === 0) {
         return;
       }
-      const width = fills
-        ? row.offsetWidth
-        : taskPaneWidth(shareRef.current, row.offsetWidth);
+      const width = fills ? row.offsetWidth : widthFor(row.offsetWidth);
       unmeasuredRef.current = false;
       if (width !== paneWidth.get()) {
         reservedWidth.set(width);

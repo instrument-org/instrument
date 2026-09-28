@@ -7,7 +7,7 @@ export const TASK_PANE_WIDTH_MIN = 300;
  * The chat's own floor. It is expressed here rather than on the chat because it
  * is the pane that gets capped by it: the chat takes whatever the pane leaves.
  */
-const TASK_CHAT_WIDTH_MIN = 350;
+export const TASK_CHAT_WIDTH_MIN = 350;
 
 /**
  * Dragging the handle past this closes the pane instead of pinning it to the

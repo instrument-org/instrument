@@ -9,6 +9,10 @@ import {
   THREADS_HREF,
   WEB_HREF,
 } from "@/client/atoms/orchestrator";
+import {
+  TASK_CHAT_WIDTH_MIN,
+  TASK_PANE_WIDTH_MIN,
+} from "@/client/atoms/task-pane";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import {
   CHAT_HREF,
@@ -58,16 +62,22 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
 const INBOX_COLLAPSE_THRESHOLD = 240;
 /** How far past its widest the inbox is dragged before it takes the row and the thread beside it goes. */
 const INBOX_COVER_PAST = 80;
-/** The least the conversation and its pane keep beside the inbox. */
+/** The least the conversation and its pane keep beside the inbox while the inbox is dragged wider. */
 const MAIN_WIDTH_MIN = 560;
-/** Narrower than this beside the inbox, the conversation and its pane are crowded and the inbox steps aside. */
-const MAIN_WIDTH_CROWDED = 720;
+/** The rail's width with its pictures, `w-30`. */
+const RAIL_WIDTH = 120;
+/**
+ * How much more room than it needs a row must have before what gave way for
+ * it comes back, so a window held near the edge does not flicker between the
+ * two.
+ */
+const ROOM_MARGIN = 48;
 
 export const Route = createFileRoute("/orchestrator")({
   component: OrchestratorTab,
@@ -130,64 +140,11 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
-  const [sidebarWidth, setSidebarWidth] = useAtom(orchestratorSidebarWidthAtom);
+  const sidebarWidth = useAtomValue(orchestratorSidebarWidthAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const isActive = useIsActiveTab();
   const showsRightArea = thread !== undefined;
   const bounds = inboxBounds(rowWidth);
-  // An inbox left at the row's whole width, or a window grown narrower,
-  // gives the conversation its least back as soon as something is beside it.
-  useEffect(() => {
-    if (!isActive) {
-      return;
-    }
-    if (showsRightArea && rowWidth > 0 && sidebarWidth > bounds.max) {
-      setSidebarWidth(bounds.max);
-    }
-  }, [
-    isActive,
-    showsRightArea,
-    rowWidth,
-    sidebarWidth,
-    bounds.max,
-    setSidebarWidth,
-  ]);
-  // A row too narrow for the inbox and a chat beside it gives the chat the
-  // row: the inbox steps aside as the row crosses into crowded, and comes
-  // back as it crosses out, unless someone put it away or brought it back
-  // in between. Only the crossing acts, so either choice holds at any width.
-  const isCrowded =
-    isActive &&
-    showsRightArea &&
-    rowWidth > 0 &&
-    rowWidth - sidebarWidth < MAIN_WIDTH_CROWDED;
-  const steppedAsideRef = useRef(false);
-  useEffect(() => {
-    if (isCrowded) {
-      if (isInboxOpen) {
-        steppedAsideRef.current = true;
-        setInboxOpen(false);
-      }
-      return;
-    }
-    if (steppedAsideRef.current && !isInboxOpen) {
-      setInboxOpen(true);
-    }
-    steppedAsideRef.current = false;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCrowded]);
-  // Brought back by hand, the inbox is someone's choice from then on.
-  useEffect(() => {
-    if (isInboxOpen) {
-      steppedAsideRef.current = false;
-    }
-  }, [isInboxOpen]);
-
-  /** Puts the chat away: the inbox takes the width, shown again if it was hidden. */
-  const leaveChat = () => {
-    appTabs.navigate(CHAT_HREF);
-    setInboxOpen(true);
-  };
 
   // The chat's tabs, and the one it has up.
   const tabs =
@@ -198,12 +155,64 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
   const isPaneWanted =
     thread === undefined || (paneOpenByGroup[thread] ?? true);
   const showsPane = up !== undefined && isPaneWanted;
-  const isFloating = shell.compose.entries.some(
-    (entry) => entry.kind === "thread" && entry.sessionId === thread,
-  );
   // Drawn only once there is something in it.
   const showsRail = thread !== undefined && tabs.length > 0;
 
+  // What gives way as the window narrows, one thing at a time and in one
+  // order: the pane down to its floor, then the conversation down to its own
+  // (both inside the pane's row), then the inbox steps aside, and only then
+  // does the rail fold to its marks. Widening brings them back in the other
+  // order, each a margin past the width it left at.
+  const needs =
+    TASK_CHAT_WIDTH_MIN +
+    (showsPane ? TASK_PANE_WIDTH_MIN : 0) +
+    (showsRail ? RAIL_WIDTH : 0);
+  // The inbox steps aside as the row crosses into too narrow, and comes back
+  // as it crosses out, unless someone put it away or brought it back in
+  // between. Only the crossing acts, so either choice holds at any width.
+  const [isSteppedAside, setSteppedAside] = useState(false);
+  const isCrowded =
+    isActive &&
+    showsRightArea &&
+    rowWidth > 0 &&
+    rowWidth - sidebarWidth < needs + (isSteppedAside ? ROOM_MARGIN : 0);
+  useEffect(() => {
+    if (isCrowded) {
+      if (isInboxOpen) {
+        setSteppedAside(true);
+        setInboxOpen(false);
+      }
+      return;
+    }
+    if (isSteppedAside && !isInboxOpen) {
+      setInboxOpen(true);
+    }
+    setSteppedAside(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCrowded]);
+  // Brought back by hand, the inbox is someone's choice from then on.
+  useEffect(() => {
+    if (isInboxOpen) {
+      setSteppedAside(false);
+    }
+  }, [isInboxOpen]);
+  const beside = rowWidth - (isInboxOpen && showsRightArea ? sidebarWidth : 0);
+  const [isRailCompact, setRailCompact] = useState(false);
+  const railFolds =
+    rowWidth > 0 && beside < needs + (isRailCompact ? ROOM_MARGIN : 0);
+  useEffect(() => {
+    setRailCompact(railFolds);
+  }, [railFolds]);
+
+  /** Puts the chat away: the inbox takes the width, shown again if it was hidden. */
+  const leaveChat = () => {
+    appTabs.navigate(CHAT_HREF);
+    setInboxOpen(true);
+  };
+
+  const isFloating = shell.compose.entries.some(
+    (entry) => entry.kind === "thread" && entry.sessionId === thread,
+  );
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   usePageSlot(
@@ -247,9 +256,7 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
       </ChatColumn>
       {thread !== undefined && (
         <main className="relative flex min-w-0 flex-1 flex-col">
-          {/* A container: the first thing to give way as the row narrows
-            is the rail, which folds to its marks. */}
-          <div className="@container/threadrow flex min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1">
             <div className="relative min-w-0 flex-1">
               <RightPane
                 conversation={
@@ -350,6 +357,7 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
               <ThreadRail
                 activeId={up?.id}
                 appsBySlug={appsBySlug}
+                isCompact={railFolds}
                 isThreadWorking={threadRecord?.state === "working"}
                 isViewOpen={showsPane}
                 onAddComputer={() => {

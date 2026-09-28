@@ -64,6 +64,7 @@ const AGENT_SETTLE_MS = 1000;
 export function ThreadRail({
   activeId,
   appsBySlug,
+  isCompact = false,
   isThreadWorking,
   isViewOpen,
   onAddComputer,
@@ -78,6 +79,8 @@ export function ThreadRail({
 }: {
   activeId: string | undefined;
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
+  /** Whether it stands as a column of marks, for a row with no room left for its pictures. */
+  isCompact?: boolean;
   /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
   isThreadWorking: boolean;
   /** Whether the thing up is shown large, which is when its tile reads as chosen and its page is on screen. */
@@ -113,16 +116,17 @@ export function ThreadRail({
   return (
     <aside
       aria-label="What this chat has open"
-      className="flex h-full w-30 shrink-0 flex-col border-l border-border bg-background select-none @max-[56rem]/threadrow:w-14"
+      className="group/rail flex h-full w-30 shrink-0 flex-col border-l border-border bg-background select-none data-compact:w-14"
+      data-compact={isCompact ? "" : undefined}
     >
       <motion.div
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3 @max-[56rem]/threadrow:px-1.5"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3 group-data-compact/rail:px-1.5"
         layoutScroll
         ref={listRef}
       >
         <Reorder.Group
           axis="y"
-          className="flex flex-col gap-4 @max-[56rem]/threadrow:gap-2"
+          className="flex flex-col gap-4 group-data-compact/rail:gap-2"
           onReorder={(keys: string[]) => {
             onReorder(keys);
           }}
@@ -166,12 +170,12 @@ export function ThreadRail({
             <DropdownMenuTrigger asChild>
               <button
                 aria-label="Open beside the chat"
-                className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground @max-[56rem]/threadrow:justify-center @max-[56rem]/threadrow:px-0"
+                className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-muted-foreground group-data-compact/rail:justify-center group-data-compact/rail:px-0 hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
                 title="New"
                 type="button"
               >
                 <PlusIcon className="size-4" />
-                <span className="@max-[56rem]/threadrow:sr-only">New</span>
+                <span className="group-data-compact/rail:sr-only">New</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56 p-2">
@@ -469,7 +473,7 @@ function RailTile({
             each thing as its mark, one column of them. */}
         <span
           className={cn(
-            "hidden aspect-square w-full place-items-center rounded-lg bg-card shadow-xs ring-1 transition @max-[56rem]/threadrow:grid [&_img]:size-5 [&_svg]:size-5",
+            "hidden aspect-square w-full place-items-center rounded-lg bg-card shadow-xs ring-1 transition group-data-compact/rail:grid [&_img]:size-5 [&_svg]:size-5",
             isChosen
               ? "ring-2 ring-foreground/70"
               : "ring-border/70 group-hover/tile:ring-border",
@@ -480,7 +484,7 @@ function RailTile({
         </span>
         <span
           className={cn(
-            "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition @max-[56rem]/threadrow:hidden",
+            "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition group-data-compact/rail:hidden",
             isChosen
               ? "ring-2 ring-foreground/70"
               : "ring-border/70 group-hover/tile:ring-border",
@@ -502,7 +506,7 @@ function RailTile({
         </span>
         {/* Every tile names what it is by its mark as well, which its
             picture hides: a page's site, a file's type, a folder, an app. */}
-        <span className="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground @max-[56rem]/threadrow:hidden">
+        <span className="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground group-data-compact/rail:hidden">
           <span className="grid size-3 shrink-0 place-items-center [&_img]:size-3 [&_svg]:size-3">
             {mark}
           </span>
@@ -513,7 +517,7 @@ function RailTile({
       </button>
       <button
         aria-label={`Close ${title}`}
-        className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 hover:text-foreground focus-visible:opacity-100 @max-[56rem]/threadrow:-top-1 @max-[56rem]/threadrow:-right-1 @max-[56rem]/threadrow:size-4"
+        className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-xs ring-1 ring-border transition group-hover/tile:opacity-100 group-data-compact/rail:-top-1 group-data-compact/rail:-right-1 group-data-compact/rail:size-4 hover:text-foreground focus-visible:opacity-100"
         onClick={onClose}
         type="button"
       >

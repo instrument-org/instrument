@@ -459,8 +459,14 @@ export function ComposeWindow({
   };
   // A screen asked for is a new tab each time, even of a kind the draft
   // already has open; a file already open is brought up instead.
+  // Into the draft's new tab while that is what it has up, rather than a
+  // tab beside it.
   const openScreenIn = (href: string) => {
-    windowTabs.openScreen(href, { activate: true, group, isOpened: true });
+    windowTabs.openOrFocusScreen(href, {
+      activate: true,
+      group,
+      isOpened: true,
+    });
     inputRef.current?.focus();
   };
   const openFolder = (hostPath: string) => {
@@ -588,7 +594,7 @@ export function ComposeWindow({
             if (document.activeElement instanceof HTMLElement) {
               document.activeElement.blur();
             }
-            windowTabs.openScreen(WEB_HREF, {
+            windowTabs.openOrFocusScreen(WEB_HREF, {
               activate: true,
               group,
               isOpened: true,

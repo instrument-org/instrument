@@ -15,7 +15,7 @@ import {
 import { runAfterPack } from "./electron-builder/after-pack";
 import {
   macFileAssociations,
-  writeWindowsFileAssociationsScript,
+  writeWindowsInstallerScript,
 } from "./electron-builder/file-associations";
 
 if (process.env.CI !== "true") {
@@ -236,9 +236,10 @@ const config: Configuration = {
   nsis: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     createDesktopShortcut: "always",
-    // Open With for the types Instrument shows. Not `win.fileAssociations`,
-    // whose macro makes the app each extension's default.
-    include: writeWindowsFileAssociationsScript(),
+    // The installer drawn at the display's scale, and Open With for the
+    // types Instrument shows. Not `win.fileAssociations`, whose macro makes
+    // the app each extension's default.
+    include: writeWindowsInstallerScript(),
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
   },

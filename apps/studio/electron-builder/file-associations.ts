@@ -106,12 +106,21 @@ export function windowsFileAssociationsScript(extensions: string[]) {
 }
 
 /**
- * The hooks written where NSIS can include them. electron-builder takes the
- * include as a path, and the script is derived from the viewer tables rather
- * than kept beside them.
+ * The installer's one include, written where NSIS can read it: the installer
+ * marked DPI aware, so Windows draws its window at the display's own scale
+ * rather than stretching a 96 DPI one blurry, and the file association
+ * hooks. electron-builder takes the include as a path, and the hooks are
+ * derived from the viewer tables rather than kept beside them.
  */
-export function writeWindowsFileAssociationsScript() {
-  const file = path.join(tmpdir(), `${APP_NAME}-file-associations.nsh`);
-  writeFileSync(file, windowsFileAssociationsScript(WINDOWS_EXTENSIONS));
+export function writeWindowsInstallerScript() {
+  const file = path.join(tmpdir(), `${APP_NAME}-installer.nsh`);
+  writeFileSync(
+    file,
+    [
+      "ManifestDPIAware true",
+      "",
+      windowsFileAssociationsScript(WINDOWS_EXTENSIONS),
+    ].join("\n"),
+  );
   return file;
 }

@@ -415,9 +415,10 @@ export function ThreadWindow({
           </WindowButton>
         </div>
       </div>
-      {/* A container, so the rail folds to its marks when the window is
-          narrow, as it does beside a chat in the window. */}
-      <div className="@container/threadrow flex min-h-0 flex-1">
+      {/* Not a container for the rail: here it keeps its pictures however
+          small the window, since they are most of what the window shows of
+          the chat's tabs. */}
+      <div className="flex min-h-0 flex-1">
         {/* `select-text`: the window's shell is chrome and turns selection off; the chat is text. The sizes are the chat column's. */}
         <div
           className={cn(

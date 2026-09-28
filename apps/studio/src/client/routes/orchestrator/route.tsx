@@ -129,6 +129,8 @@ const INBOX_COLLAPSE_THRESHOLD = 240;
 const INBOX_COVER_PAST = 80;
 /** The least the conversation and its pane keep beside the inbox. */
 const MAIN_WIDTH_MIN = 560;
+/** Narrower than this beside the inbox, the conversation and its pane are crowded and the inbox steps aside. */
+const MAIN_WIDTH_CROWDED = 720;
 
 /**
  * The column the inbox stands in: beside the right area, the resizable rail
@@ -329,6 +331,11 @@ function OrchestratorLayout() {
    * any other place comes up on its own tabs.
    */
   const choosePlace = (next: AppPlace) => {
+    // Chat asked for is the inbox asked for too, even where the row is
+    // narrow enough that it stepped aside.
+    if (next === "chat") {
+      setInboxOpen(true);
+    }
     if (next === place) {
       return;
     }
@@ -374,6 +381,36 @@ function OrchestratorLayout() {
       setSidebarWidth(bounds.max);
     }
   }, [showsRightArea, rowWidth, sidebarWidth, bounds.max, setSidebarWidth]);
+  // A row too narrow for the inbox and a chat beside it gives the chat the
+  // row: the inbox steps aside as the row crosses into crowded, and comes
+  // back as it crosses out, unless someone put it away or brought it back
+  // in between. Only the crossing acts, so either choice holds at any width.
+  const isCrowded =
+    isChat &&
+    showsRightArea &&
+    rowWidth > 0 &&
+    rowWidth - sidebarWidth < MAIN_WIDTH_CROWDED;
+  const steppedAsideRef = useRef(false);
+  useEffect(() => {
+    if (isCrowded) {
+      if (isInboxOpen) {
+        steppedAsideRef.current = true;
+        setInboxOpen(false);
+      }
+      return;
+    }
+    if (steppedAsideRef.current && !isInboxOpen) {
+      setInboxOpen(true);
+    }
+    steppedAsideRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCrowded]);
+  // Brought back by hand, the inbox is someone's choice from then on.
+  useEffect(() => {
+    if (isInboxOpen) {
+      steppedAsideRef.current = false;
+    }
+  }, [isInboxOpen]);
   // The drafts being written, in windows along the row's foot.
   const compose = useCompose(rowWidth, (group) =>
     windowTabs.allTabs.some((tab) => tab.group === group),

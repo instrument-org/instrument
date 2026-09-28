@@ -1302,8 +1302,10 @@ textarea.md-input {
 
 /* The source popover. */
 .md-html-popover {
-  position: absolute;
+  position: fixed;
   z-index: 60;
+  display: flex;
+  flex-direction: column;
   width: min(560px, calc(100vw - 32px));
   box-sizing: border-box;
   padding: 8px;
@@ -1331,6 +1333,7 @@ textarea.md-input {
   display: block;
   width: 100%;
   min-height: 64px;
+  flex: 0 1 auto;
   box-sizing: border-box;
   resize: vertical;
   padding: 8px 10px;

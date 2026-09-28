@@ -17,7 +17,14 @@
 // - A source popover: clicking a rendered node (or its "HTML" tab) edits that
 //   node's source, and only that node's.
 import { logger } from "@/client/lib/logger";
-import { computePosition, flip, offset, shift } from "@floating-ui/dom";
+import {
+  autoUpdate,
+  computePosition,
+  flip,
+  offset,
+  shift,
+  size,
+} from "@floating-ui/dom";
 import { type Node as PMNode } from "@milkdown/kit/prose/model";
 import {
   type EditorState,
@@ -531,6 +538,7 @@ export function htmlStructurePlugin() {
 let popover: null | {
   box: HTMLElement;
   outside: (e: MouseEvent) => void;
+  stopPlacing: () => void;
 } = null;
 
 interface Role {
@@ -572,14 +580,29 @@ export function openSourcePopover(
     area.style.height = `${Math.min(area.scrollHeight + 2, window.innerHeight * 0.5)}px`;
   };
   fit();
-  void computePosition(anchor, box, {
-    middleware: [offset(6), flip(), shift({ padding: 8 })],
-    placement: "bottom-start",
-    strategy: "fixed",
-  }).then(({ x, y }) => {
-    box.style.left = `${x}px`;
-    box.style.top = `${y}px`;
-  });
+  // Kept inside the window as it opens and as the source grows: on the side
+  // with more room, never taller than that side, the text scrolling within.
+  const place = () => {
+    void computePosition(anchor, box, {
+      middleware: [
+        offset(6),
+        flip({ padding: 8 }),
+        shift({ crossAxis: true, padding: 8 }),
+        size({
+          apply({ availableHeight }) {
+            box.style.maxHeight = `${Math.max(availableHeight, 120)}px`;
+          },
+          padding: 8,
+        }),
+      ],
+      placement: "bottom-start",
+      strategy: "fixed",
+    }).then(({ x, y }) => {
+      box.style.left = `${x}px`;
+      box.style.top = `${y}px`;
+    });
+  };
+  const stopPlacing = autoUpdate(anchor, box, place);
   const commit = () => {
     const next = area.value;
     closeSourcePopover();
@@ -607,7 +630,7 @@ export function openSourcePopover(
   setTimeout(() => {
     document.addEventListener("mousedown", outside, true);
   });
-  popover = { box, outside };
+  popover = { box, outside, stopPlacing };
   area.focus();
 }
 
@@ -618,6 +641,7 @@ function closeSourcePopover() {
     return;
   }
   document.removeEventListener("mousedown", popover.outside, true);
+  popover.stopPlacing();
   popover.box.remove();
   popover = null;
 }

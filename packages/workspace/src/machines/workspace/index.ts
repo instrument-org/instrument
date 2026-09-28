@@ -382,6 +382,7 @@ export const workspaceMachine = setup({
       captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
       defaultTaskTemplateDir: string;
+      ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       isActivityHeadingsEnabled: () => boolean;
@@ -414,6 +415,9 @@ export const workspaceMachine = setup({
         input.defaultTaskTemplateDir,
       ),
       getAIProviderConfigs: input.getAIProviderConfigs,
+      ...(input.ensureOutputFolderIcon
+        ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
+        : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isActivityHeadingsEnabled: input.isActivityHeadingsEnabled,
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,

@@ -28,6 +28,7 @@ import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
 import {
   ensureHomeFolder,
   ensureOutputFolder,
+  outputFolderPath,
 } from "../../lib/orchestrator/output-folder";
 import { retitleThread } from "../../lib/orchestrator/retitle";
 import { taskStanding } from "../../lib/orchestrator/standing";
@@ -160,6 +161,14 @@ const ensure = base
     }
     await ensureHomeFolder(result.value.taskId);
     await ensureOutputFolder(result.value.taskId);
+    // Folder decoration must not prevent a conversation from opening.
+    void context.workspaceConfig
+      .ensureOutputFolderIcon?.(outputFolderPath())
+      .catch((error: unknown) => {
+        context.workspaceConfig.captureException(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      });
     return result.value;
   });
 

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="back" x2="0" y2="1">
+      <stop stop-color="#36b5ad"/>
+      <stop offset="1" stop-color="#0b625b"/>
+    </linearGradient>
+    <linearGradient id="front" x2="0.2" y2="1">
+      <stop stop-color="#249f98"/>
+      <stop offset="0.48" stop-color="#14817b"/>
+      <stop offset="1" stop-color="#0c6059"/>
+    </linearGradient>
+    <linearGradient id="edge" x2="0" y2="1">
+      <stop stop-color="#89ddd4" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#064e49" stop-opacity="0.6"/>
+    </linearGradient>
+    <path id="mark" d="M-47-17A50 50 0 0 1 47-17Z M-49-10H-14A10 10 0 0 1-14 10H-49A50 50 0 0 1-49-10Z M49-10H14A10 10 0 0 0 14 10H49A50 50 0 0 0 49-10Z M-47 17H47A50 50 0 0 1-47 17Z"/>
+  </defs>
+  <path d="M24 146V90Q24 66 48 66H145Q156 66 163 75L175 90Q180 96 190 96H464Q488 96 488 120V414Q488 442 460 442H52Q24 442 24 414Z" fill="url(#back)" stroke="#126f68" stroke-width="2"/>
+  <rect x="31" y="113" width="450" height="304" rx="21" fill="#c9e9e3"/>
+  <rect x="35" y="119" width="442" height="306" rx="19" fill="#f4faf8"/>
+  <path d="M44 143H468Q490 143 490 165V416Q490 441 465 441H47Q22 441 22 416V165Q22 143 44 143Z" fill="#053f3b" opacity="0.18" transform="translate(0 3)"/>
+  <rect x="22" y="140" width="468" height="302" rx="23" fill="url(#front)" stroke="url(#edge)" stroke-width="2"/>
+  <path d="M45 143H467" fill="none" stroke="#85d8cf" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round"/>
+  <use href="#mark" transform="translate(256 297)" fill="#67c1b6" opacity="0.4"/>
+  <use href="#mark" transform="translate(256 295)" fill="#075b55" opacity="0.85"/>
+</svg>

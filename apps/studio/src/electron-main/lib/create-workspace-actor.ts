@@ -42,6 +42,7 @@ import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
+import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { getRegistryDir } from "./registry-dir";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
@@ -136,6 +137,7 @@ export function createWorkspaceActor({
       aiGatewayApp,
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
+      ensureOutputFolderIcon,
       browser: browserViewManager.browser,
       captureEvent: captureServerEvent,
       captureException: captureServerException,

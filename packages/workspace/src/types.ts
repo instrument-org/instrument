@@ -173,6 +173,8 @@ export interface WorkspaceConfig {
   captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
   defaultTaskTemplateDir: AbsolutePath;
+  /** Desktop decoration after the default output folder exists. */
+  ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's

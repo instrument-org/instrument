@@ -1,10 +1,13 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
+import { type ReactNode, useState } from "react";
 import { tv } from "tailwind-variants";
 
-import { FileIcon } from "./file-icon";
+import { FileTypeIcon } from "./extend/file-system";
 import { ImageWithFallback } from "./image-with-fallback";
+import { useTheme } from "./theme-provider";
 
 // Which types are drawn as ruled lines standing in for text, rather than their
 // file icon. Exhaustive so a new `FileType` has to choose: as a list of
@@ -79,10 +82,9 @@ export function FileThumbnail({
           draggable={false}
           fallback={
             <div className="flex size-full items-center justify-center">
-              <FileIcon
+              <FileTypeIcon
                 className={thumbnailIcon({ isActive, variant })}
-                filename={file.filename}
-                mimeType={file.mimeType}
+                fileName={file.filename}
               />
             </div>
           }
@@ -94,43 +96,57 @@ export function FileThumbnail({
     );
   }
 
-  if (HAS_LINE_THUMBNAIL[kind]) {
-    return (
-      <ThumbnailFrame
-        className="flex flex-col p-1"
-        isActive={isActive}
-        variant={variant}
-      >
-        <div className="flex flex-1 flex-col justify-center gap-px">
-          {[0.85, 0.72, 0.9, 0.55].map((w) => (
-            <div
-              className={cn(
-                "h-px min-w-0 rounded-full bg-muted-foreground/20",
-                isActive &&
-                  variant === "sidebar" &&
-                  "bg-sidebar-accent-foreground/35",
-              )}
-              key={w}
-              style={{ width: `${w * 100}%` }}
-            />
-          ))}
-        </div>
-      </ThumbnailFrame>
-    );
-  }
-
-  return (
+  const drawn = HAS_LINE_THUMBNAIL[kind] ? (
+    <ThumbnailFrame
+      className="flex flex-col p-1"
+      isActive={isActive}
+      variant={variant}
+    >
+      <div className="flex flex-1 flex-col justify-center gap-px">
+        {[0.85, 0.72, 0.9, 0.55].map((w) => (
+          <div
+            className={cn(
+              "h-px min-w-0 rounded-full bg-muted-foreground/20",
+              isActive &&
+                variant === "sidebar" &&
+                "bg-sidebar-accent-foreground/35",
+            )}
+            key={w}
+            style={{ width: `${w * 100}%` }}
+          />
+        ))}
+      </div>
+    </ThumbnailFrame>
+  ) : (
     <ThumbnailFrame
       className="flex items-center justify-center"
       isActive={isActive}
       variant={variant}
     >
-      <FileIcon
+      <FileTypeIcon
         className={thumbnailIcon({ isActive, variant })}
-        filename={file.filename}
-        mimeType={file.mimeType}
+        fileName={file.filename}
       />
     </ThumbnailFrame>
+  );
+
+  // A card in a reply is drawn as the file itself where the app keeps a
+  // picture of it, the way the Finder's tiles are. The sidebar's rows stay
+  // marks: a list of every file a task touched reads by name, not by page.
+  // Only once the file channel is known, since a URL is all there is to ask
+  // it with; before that there is no picture to wait for.
+  if (variant === "primary" && hasFileChannel(file.hostPath)) {
+    return (
+      <ThumbnailPicture fallback={drawn} file={file} isActive={isActive} />
+    );
+  }
+
+  return drawn;
+}
+
+function hasFileChannel(hostPath: string) {
+  return (
+    getComputerThumbnailUrl({ hostPath, size: 512, theme: "light" }) !== ""
   );
 }
 
@@ -160,5 +176,49 @@ function ThumbnailFrame({
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * The picture the app keeps of a file, in the thumbnail's frame, or
+ * `fallback` where there is none: a 404 from the channel is how it says so.
+ *
+ * At the version the card's own URL carries, so a reply that named a file
+ * later rewritten still draws the file it handed over.
+ */
+function ThumbnailPicture({
+  fallback,
+  file,
+  isActive,
+}: {
+  fallback: ReactNode;
+  file: ViewerFile;
+  isActive: boolean;
+}) {
+  const { resolvedTheme } = useTheme();
+  const picture = getComputerThumbnailUrl({
+    hostPath: file.hostPath,
+    // The frame is under fifty pixels tall, and the smallest size drawn is
+    // sixty-four: blurred at twice the density a Mac draws at.
+    size: 512,
+    theme: resolvedTheme,
+    version: URL.parse(file.url)?.searchParams.get("version") ?? undefined,
+  });
+  const [failed, setFailed] = useState<string>();
+  if (!picture || failed === picture) {
+    return fallback;
+  }
+  return (
+    <ThumbnailFrame isActive={isActive} variant="primary">
+      <img
+        alt=""
+        className="size-full object-cover object-top"
+        draggable={false}
+        onError={() => {
+          setFailed(picture);
+        }}
+        src={picture}
+      />
+    </ThumbnailFrame>
   );
 }

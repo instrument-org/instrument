@@ -21,6 +21,7 @@ vi.mock("@/client/hooks/use-host-paths", () => ({
 vi.mock("@/client/lib/computer-file-url", () => ({
   getComputerFileUrl: ({ hostPath }: { hostPath: string }) =>
     `http://files.example.test${hostPath}`,
+  getComputerThumbnailUrl: () => "",
 }));
 
 /**

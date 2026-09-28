@@ -10,6 +10,7 @@ import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatStream } from "./chat-stream";
+import { ReplyContext } from "./reply-context";
 import { TranscriptScrollContext } from "./transcript-scroll-context";
 import {
   MessageScroller,
@@ -1182,5 +1183,63 @@ describe("ChatStream in the conversation, and a line said twice in one turn", ()
 
     expect(screen.getByText("Rechecking the listing now.")).toBeTruthy();
     expect(screen.getByText("It is out of stock.")).toBeTruthy();
+  });
+});
+
+describe("ChatStream in the conversation, and a reply", () => {
+  it("draws what a reply answers over the user's words", () => {
+    const replied = prose("Want me to book the 7:30 or the 8:15?");
+    renderMessages(
+      [
+        assistantMessage([replied], { finishedAt: new Date(1) }),
+        {
+          ...userMessage("The 8:15"),
+          parts: [
+            prose("The 8:15"),
+            {
+              data: {
+                messageId,
+                partId: replied.metadata.id,
+                text: "Want me to book the 7:30 or the 8:15?",
+              },
+              metadata: metadata(),
+              type: "data-reply",
+            },
+          ],
+        },
+      ],
+      { presentation: "orchestrator" },
+    );
+
+    const quote = screen.getByRole("button", {
+      name: "Want me to book the 7:30 or the 8:15?",
+    });
+    const words = screen.getByText("The 8:15");
+    expect(
+      quote.compareDocumentPosition(words) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("offers a bubble's reply with its ids and the start of its words", () => {
+    const startReply = vi.fn();
+    const replied = prose("Want me to book the 7:30 or the 8:15?");
+    renderWithProviders(
+      <ReplyContext value={startReply}>
+        {chatStream(
+          [assistantMessage([replied], { finishedAt: new Date(1) })],
+          {
+            presentation: "orchestrator",
+          },
+        )}
+      </ReplyContext>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(startReply).toHaveBeenCalledWith({
+      messageId,
+      partId: replied.metadata.id,
+      text: "Want me to book the 7:30 or the 8:15?",
+    });
   });
 });

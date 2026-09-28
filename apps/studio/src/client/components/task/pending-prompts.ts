@@ -1,4 +1,9 @@
-import { type SessionMessage, StoreId } from "@instrument-org/workspace/client";
+import {
+  type SessionMessage,
+  type SessionMessageDataPart,
+  type SessionMessagePart,
+  StoreId,
+} from "@instrument-org/workspace/client";
 
 /**
  * Words the user sent that the workspace has not handed back yet: drawn as
@@ -14,10 +19,13 @@ export interface PendingPrompt {
 export function pendingPrompt({
   messages,
   prompt,
+  reply,
   sessionId,
 }: {
   messages: SessionMessage.WithParts[];
   prompt: string;
+  /** The earlier message it answers, drawn over it the way the stored one will be. */
+  reply?: SessionMessageDataPart.ReplyDataPart;
   sessionId: StoreId.Session;
 }): PendingPrompt | undefined {
   // Stored trimmed, and a message with no words is not stored as a text part.
@@ -27,24 +35,20 @@ export function pendingPrompt({
   }
   const createdAt = new Date();
   const id = StoreId.newMessageId();
+  const metadata = () => ({
+    createdAt,
+    id: StoreId.newPartId(),
+    messageId: id,
+    sessionId,
+  });
+  const parts: SessionMessagePart.Type[] = [
+    { metadata: metadata(), text, type: "text" },
+  ];
+  if (reply) {
+    parts.push({ data: reply, metadata: metadata(), type: "data-reply" });
+  }
   return {
-    message: {
-      id,
-      metadata: { createdAt, sessionId },
-      parts: [
-        {
-          metadata: {
-            createdAt,
-            id: StoreId.newPartId(),
-            messageId: id,
-            sessionId,
-          },
-          text,
-          type: "text",
-        },
-      ],
-      role: "user",
-    },
+    message: { id, metadata: { createdAt, sessionId }, parts, role: "user" },
     seen: new Set(messages.map((message) => message.id)),
   };
 }

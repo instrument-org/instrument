@@ -3,15 +3,17 @@ import {
   FILES_FENCE,
   MESSAGE_FENCE,
   parseMessage,
+  replyExcerpt,
   type SessionMessagePart,
   type TaskId,
 } from "@instrument-org/workspace/client";
-import { memo } from "react";
+import { memo, useContext } from "react";
 
 import { AgentFilesBlock } from "./agent-files-block";
 import { BubbleActions } from "./bubble-actions";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MessageCard } from "./message-card";
+import { ReplyContext } from "./reply-context";
 import { SessionMarkdown } from "./session-markdown";
 
 interface AssistantMessageProps {
@@ -80,6 +82,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   taskId,
 }: AssistantMessageProps) {
   const messageText = part.text;
+  const startReply = useContext(ReplyContext);
 
   if (bubble) {
     // The bubble is for the words. The files a reply hands over stand under
@@ -100,6 +103,8 @@ export const AssistantMessage = memo(function AssistantMessage({
           segment.kind === "words" ? (
             <div
               className="group/bubble-row flex w-full items-end gap-1"
+              // What a reply to this bubble scrolls back to.
+              data-reply-target={part.metadata.id}
               key={index}
             >
               <div className={ASSISTANT_BUBBLE}>
@@ -113,6 +118,16 @@ export const AssistantMessage = memo(function AssistantMessage({
               </div>
               <BubbleActions
                 onCopy={() => navigator.clipboard.writeText(segment.text)}
+                onReply={
+                  startReply &&
+                  (() => {
+                    startReply({
+                      messageId: part.metadata.messageId,
+                      partId: part.metadata.id,
+                      text: replyExcerpt(segment.text),
+                    });
+                  })
+                }
               />
             </div>
           ) : (

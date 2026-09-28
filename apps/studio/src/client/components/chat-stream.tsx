@@ -3,6 +3,7 @@ import {
   browserStatusModelNote,
   isToolPart,
   type SessionMessage,
+  type SessionMessageDataPart,
   type SessionMessagePart,
   type StoreId,
   type Task,
@@ -34,6 +35,7 @@ import {
   TranscriptGroupHead,
 } from "./message-part/transcript-group";
 import { ProjectContextNote } from "./project-context-note";
+import { SentReplyQuote } from "./reply-quote";
 import {
   type TranscriptExpansion,
   TranscriptExpansionContext,
@@ -496,6 +498,7 @@ export function ChatStream({
       // Attachments are hoisted into per-message chrome below.
       const fileAttachments: SessionMessagePart.Type[] = [];
       let projectContextPart: SessionMessagePart.DataPart | undefined;
+      let replyPart: SessionMessageDataPart.ReplyDataPart | undefined;
       const seenSourceIds = new Set<string>();
 
       // The conversation's own replies land whole: while a step is still
@@ -560,6 +563,11 @@ export function ChatStream({
 
         if (message.role === "user" && part.type === "data-projectContext") {
           projectContextPart = part;
+          continue;
+        }
+
+        if (message.role === "user" && part.type === "data-reply") {
+          replyPart = part.data;
           continue;
         }
 
@@ -684,6 +692,14 @@ export function ChatStream({
               folders={projectFolders}
               key={`project-context-${message.id}`}
             />,
+          );
+        }
+
+        // Over everything the message carries, the way a reply reads in any
+        // messaging app: what it answers first.
+        if (replyPart && messageElements.length > 0) {
+          messageElements.unshift(
+            <SentReplyQuote key={`reply-${message.id}`} reply={replyPart} />,
           );
         }
 

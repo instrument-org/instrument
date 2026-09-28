@@ -80,6 +80,9 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-paneTabs": "dev",
   "data-projectChanges": "always",
   "data-projectContext": "hidden",
+  // Drawn by the chat stream over the user's bubble, not in the part's place
+  // under it.
+  "data-reply": "hidden",
   "data-skillChanges": "always",
   "data-skillMentions": "dev",
   // Shown for the same reason the folder note is: the change was made in a
@@ -158,7 +161,8 @@ export function renderDataPart({
       );
     }
     case "data-attachments":
-    case "data-projectContext": {
+    case "data-projectContext":
+    case "data-reply": {
       return null;
     }
     case "data-backgroundProcesses": {

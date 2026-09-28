@@ -31,11 +31,17 @@ import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
 /** How long a page on screen is left to settle before its picture is taken. */
 const SETTLE_MS = 1500;
 
+/** How long after a page loads, moves, or renames itself its picture is taken. */
+const CHANGE_SETTLE_MS = 500;
+
+/** How often a page on screen is pictured again, for changes that are not navigations. */
+const ON_SCREEN_EVERY_MS = 5000;
+
 /**
  * What a chat holds, down its right edge: a tile for each thing it has open
  * (the pages its agent browses and the person opened, files, folders), the
  * newest at the top, scrolling when there are many. A page is a picture of
- * itself, taken while it is on screen and kept, so a chat reopened later, or
+ * itself, taken as it loads and changes and kept, so a chat reopened later, or
  * after a relaunch, shows its pages at once; a file is the picture the app
  * keeps of it; a folder is its mark. Pressing a tile brings the thing up
  * large beside the chat; its × takes it out of the chat. The + at the top
@@ -153,8 +159,9 @@ function hostOf(url: string): string {
 
 /**
  * A page as its last picture, or, until it has one, its site's mark. The
- * picture is taken while the page is on screen: once it has settled, again
- * when it moves somewhere else, and once more as it leaves the screen.
+ * picture is taken each time the page loads, moves, or renames itself, on
+ * screen or not; while on screen once it has settled and every few seconds
+ * after; and once more as it leaves the screen.
  */
 function PagePicture({
   isOnScreen,
@@ -200,32 +207,58 @@ function PagePicture({
         // A missed picture keeps the last one; the next visit takes another.
       });
   };
-  // While on screen: a picture each time the page finishes loading, and one
-  // once it has settled if it was already loaded when it came up.
+  // A picture shortly after the page loads, moves, or renames itself,
+  // whether or not it is on screen, since the agent browses in tabs the
+  // person is not looking at; and one once it has settled if it was already
+  // loaded when it came up. A guest off screen that draws nothing leaves
+  // the last picture in place.
   useEffect(() => {
-    const webview = isOnScreen ? getWebviewElement(targetId) : null;
+    const webview = getWebviewElement(targetId);
     if (!webview) {
       return;
     }
-    const onLoaded = () => {
-      capture();
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const soon = () => {
+      clearTimeout(pending);
+      pending = setTimeout(capture, CHANGE_SETTLE_MS);
     };
-    webview.addEventListener("did-stop-loading", onLoaded);
-    let settled: ReturnType<typeof setTimeout> | undefined;
+    const events = [
+      "did-stop-loading",
+      "did-navigate",
+      "did-navigate-in-page",
+      "page-title-updated",
+    ] as const;
+    for (const event of events) {
+      webview.addEventListener(event, soon);
+    }
     try {
-      if (!webview.isLoading()) {
-        settled = setTimeout(capture, SETTLE_MS);
+      if (isOnScreen && !webview.isLoading()) {
+        pending = setTimeout(capture, SETTLE_MS);
       }
     } catch {
       // Not attached yet: its first load will say when it is ready.
     }
     return () => {
-      webview.removeEventListener("did-stop-loading", onLoaded);
-      clearTimeout(settled);
+      for (const event of events) {
+        webview.removeEventListener(event, soon);
+      }
+      clearTimeout(pending);
     };
     // Re-armed when the page comes on screen and when its guest attaches.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnScreen, isAttached, targetId]);
+  // While on screen, again every so often: the agent changes a page by
+  // clicking and typing in it without ever navigating.
+  useEffect(() => {
+    if (!isOnScreen) {
+      return;
+    }
+    const timer = setInterval(capture, ON_SCREEN_EVERY_MS);
+    return () => {
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnScreen, targetId]);
   // Leaving the screen: one more, of the page as it was last seen. Not when
   // the tile goes, which is the tab closing.
   const wasOnScreen = useRef(isOnScreen);

@@ -171,7 +171,7 @@ export function ThreadPane({
       />
       {/* Under the line rather than on it, the way mail puts it: the search
         is about the rows, and it narrows whatever the line has chosen. */}
-      <div className="shrink-0 px-3 pt-2 pb-1">
+      <div className="shrink-0 px-3 pt-2">
         <SearchField
           onChange={(search) => {
             changeFilters({ ...filters, search });

@@ -169,9 +169,16 @@ export function ThreadList({
           topics={topics}
         />
       ));
+  const isScrollable = useIsScrollable(ref, rows.length);
   return (
+    // Fading into the search over it once there is anything scrolled under
+    // it, and at its foot while there is more below. The top pad is the
+    // list's own, so the fade starts right at the search's edge.
     <div
-      className="min-h-0 flex-1 overflow-y-auto pb-4"
+      className={cn(
+        "min-h-0 flex-1 overflow-y-auto pt-1 pb-4",
+        isScrollable && "scroll-fade-y",
+      )}
       data-density={density}
       ref={ref}
     >
@@ -251,6 +258,35 @@ function RowSkeleton({
       )}
     </div>
   );
+}
+
+/**
+ * Whether the list runs past its own height, measured on every change of its
+ * size or its rows. The fade has to be taken off a list that stops
+ * scrolling, since its scroll timeline holds the last fade it drew once the
+ * list fits, and a filter narrows the list that far all the time.
+ */
+function useIsScrollable(
+  ref: React.RefObject<HTMLDivElement | null>,
+  rowCount: number,
+): boolean {
+  const [isScrollable, setScrollable] = useState(false);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    const measure = () => {
+      setScrollable(element.scrollHeight > element.clientHeight);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [ref, rowCount]);
+  return isScrollable;
 }
 
 /**

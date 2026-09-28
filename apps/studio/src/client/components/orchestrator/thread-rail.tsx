@@ -450,7 +450,6 @@ function RailTile({
       <button
         aria-label={title}
         className="flex flex-col gap-1.5 text-left outline-none"
-        title={title}
         // A middle click closes it, as it does a browser's tab.
         onAuxClick={(event) => {
           if (event.button === 1) {
@@ -463,6 +462,7 @@ function RailTile({
             event.preventDefault();
           }
         }}
+        title={title}
         type="button"
       >
         {/* A narrow rail gives the pictures and names up first, and keeps

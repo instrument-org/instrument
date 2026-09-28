@@ -73,10 +73,10 @@ import {
 } from "./browser-tabs";
 import {
   COMPOSE_BAR_WIDTH,
-  GROWN,
-  GROWN_RIGHT,
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
+  GROWN,
+  GROWN_RIGHT,
 } from "./compose-layout";
 import { ComposeZeroState, WebStart } from "./compose-zero-state";
 import { OrchestratorContext, useOrchestrator } from "./context";

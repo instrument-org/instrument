@@ -11,7 +11,7 @@ import { TaskPane } from "./task-pane";
  * the user's and outlives the task, or one the task opened itself, which stays
  * in the chat after the task is done.
  */
-export const HeldTabSchema = z.object({
+const HeldTabSchema = z.object({
   id: BrowserTargetIdSchema,
   openedBy: z.enum(["handed", "task"]),
 });

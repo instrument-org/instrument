@@ -32,6 +32,12 @@ const RECENTS_SHOWN = 6;
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
 
+/**
+ * What a tab's field reaches, decided by the kind of tab it is in: the web
+ * from a browser tab, the computer from a Finder or file tab.
+ */
+export type OmnibarScope = "files" | "web";
+
 /** Something the window can be asked to do, as opposed to somewhere it can go. */
 interface OmniCommand {
   icon: ReactNode;
@@ -62,12 +68,6 @@ interface OmniRow {
   note: string;
   run: () => void;
 }
-
-/**
- * What a tab's field reaches, decided by the kind of tab it is in: the web
- * from a browser tab, the computer from a Finder or file tab.
- */
-export type OmnibarScope = "files" | "web";
 
 /**
  * A tab's address field. On the web it opens a typed address, searches for

@@ -245,23 +245,6 @@ export function useOpeners({
     }
   };
   /**
-   * Opens a path a reply named: a file in its viewer, a folder as the folder
-   * view standing in it.
-   *
-   * A reply names a path the way the conversation reaches it, and both tabs
-   * are addressed by where the thing sits on the computer, so the translation
-   * happens here, against the conversation's own layout. A path under nothing
-   * the conversation has is one this window cannot stand in, and saying so
-   * beats a tab rooted nowhere.
-   */
-  const openNamedPath = (path: string, options?: OpenOptions) => {
-    void hrefOfNamedPath(path, options?.group).then((href) => {
-      if (href !== undefined) {
-        openScreen(href, options);
-      }
-    });
-  };
-  /**
    * Where a path a reply or the conversation named is on the computer, as the
    * address of the tab that shows it, or undefined, said to the user, when it
    * names nothing this window can reach.
@@ -308,6 +291,23 @@ export function useOpeners({
       return;
     }
     return isFolder ? folderHref(hostPath) : fileHref(hostPath);
+  };
+  /**
+   * Opens a path a reply named: a file in its viewer, a folder as the folder
+   * view standing in it.
+   *
+   * A reply names a path the way the conversation reaches it, and both tabs
+   * are addressed by where the thing sits on the computer, so the translation
+   * happens here, against the conversation's own layout. A path under nothing
+   * the conversation has is one this window cannot stand in, and saying so
+   * beats a tab rooted nowhere.
+   */
+  const openNamedPath = (path: string, options?: OpenOptions) => {
+    void hrefOfNamedPath(path, options?.group).then((href) => {
+      if (href !== undefined) {
+        openScreen(href, options);
+      }
+    });
   };
   /**
    * Does what an agent asked of the tabs, and says what came of it: the tab

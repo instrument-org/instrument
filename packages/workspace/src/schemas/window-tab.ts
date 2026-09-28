@@ -3,7 +3,7 @@ import { z } from "zod";
 import { StoreId } from "./store-id";
 
 /** What a tab is asked to show: a page by its address, or a file or folder of the user's by its path. */
-export const WindowTabTargetSchema = z.discriminatedUnion("kind", [
+const WindowTabTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("page"), url: z.string().optional() }),
   z.object({
     kind: z.literal("path"),
@@ -18,7 +18,7 @@ export type WindowTabTarget = z.output<typeof WindowTabTargetSchema>;
  * An agent's ask of the window's tabs. Opening makes a tab, on screen or
  * behind; the rest act on a tab already open, by its id.
  */
-export const WindowTabActionSchema = z.discriminatedUnion("kind", [
+const WindowTabActionSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("open"),
     show: z.boolean(),

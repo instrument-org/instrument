@@ -22,9 +22,9 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
 import {
   COMPOSE_BAR_WIDTH,
+  COMPOSE_MOTION,
   GROWN,
   GROWN_RIGHT,
-  COMPOSE_MOTION,
   THREAD_RAIL_WIDTH,
   THREAD_WINDOW_WIDTH,
 } from "./compose-layout";

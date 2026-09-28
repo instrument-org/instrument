@@ -18,7 +18,7 @@ export interface LocationCrumb {
 }
 
 /** The route a chat's tasks are at: the list, and each task's page under it. */
-export const TASKS_HREF = "/orchestrator/tasks";
+const TASKS_HREF = "/orchestrator/tasks";
 
 /** The address of one task's page, carrying the chat whose list it was opened from. */
 export function taskHref(id: TaskId, thread?: StoreId.Session): string {

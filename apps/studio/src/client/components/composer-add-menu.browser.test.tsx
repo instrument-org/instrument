@@ -222,7 +222,7 @@ describe("a chat's plus", () => {
   const open = () =>
     userEvent.click(page.getByRole("button", { name: "Add to this prompt" }));
 
-  it("leads with what it opens beside the chat, then attaching, then the skills behind a row", async () => {
+  it("lists what it opens beside the chat, then attaching, then the apps and skills behind rows", async () => {
     const onOpenWeb = vi.fn();
     await renderInBrowser(
       <ChatPlus onNameApp={noop} onOpenApps={noop} onOpenWeb={onOpenWeb} />,
@@ -231,15 +231,15 @@ describe("a chat's plus", () => {
     const items = page.getByRole("menuitem").elements();
     expect(items.map((item) => item.textContent.trim())).toMatchInlineSnapshot(`
       [
-        "Web",
+        "Browser",
         "This Mac",
-        "Apps",
         "Attach files",
         "Add a folder",
+        "Apps",
         "Skill",
       ]
     `);
-    await userEvent.click(page.getByRole("menuitem", { name: "Web" }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Browser" }));
     expect(onOpenWeb).toHaveBeenCalledOnce();
   });
 

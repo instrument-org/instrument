@@ -68,8 +68,8 @@ export type ComposerMenuView = "apps" | "projects" | "root" | "skills";
 /**
  * What a chat's plus opens beside the chat, where the composer is a chat's:
  * the web's starting view, the computer, and the apps to name in the words.
- * Given these, the menu leads with them as tiles and keeps the skills behind
- * a row of their own.
+ * Given these, the menu leads with them as rows and keeps the apps and the
+ * skills behind rows of their own.
  */
 export interface ComposerPlaces {
   apps: ComposerApp[];
@@ -228,7 +228,9 @@ export function ComposerAddMenu({
         }}
         side={side}
         sideOffset={sideOffset}
-        style={{ width }}
+        // A chat's menu is a list of rows, sized to them rather than to the
+        // box it hangs off, which would stretch a row across a wide window.
+        style={places ? { width: "16rem" } : { width }}
       >
         <MenuScrollArea>
           {view === "projects" && onSelectProject ? (
@@ -290,53 +292,53 @@ export function ComposerAddMenu({
               ))}
             </>
           ) : places ? (
+            // One list, the way the rest of the menu reads, so every entry
+            // is reached by the keyboard: where to look, what to attach, then
+            // the apps and skills to name in the words and the rest.
             <>
-              <div className="grid grid-cols-3 gap-1 p-2">
-                {/* What opens takes the caret, so it opens once the menu has
-                    gone rather than as the menu hands focus back. */}
-                <PlaceTile
-                  icon={GlobeIcon}
-                  label="Browser"
-                  onSelect={() => {
-                    chose.current = "hand-off";
-                    handOff.current = places.onOpenWeb;
-                  }}
-                />
-                <PlaceTile
-                  icon={DesktopIcon}
-                  label={places.computerName}
-                  onSelect={() => {
-                    chose.current = "hand-off";
-                    handOff.current = places.onOpenComputer;
-                  }}
-                />
-                <PlaceTile
-                  icon={SquaresFourIcon}
-                  label="Apps"
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    onViewChange("apps");
-                  }}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-1 px-2 pb-2">
-                {actions
-                  .filter((action) => ATTACH_ACTIONS.has(action.id))
-                  .map((action) => (
-                    <DropdownMenuItem
-                      className="justify-center rounded-lg border border-border bg-card shadow-xs"
-                      key={action.id}
-                      onSelect={() => {
-                        chose.current = "prompt";
-                        action.onSelect();
-                      }}
-                    >
-                      <action.icon className="size-4" />
-                      {action.label}
-                    </DropdownMenuItem>
-                  ))}
-              </div>
+              {/* What opens takes the caret, so it opens once the menu has
+                  gone rather than as the menu hands focus back. */}
+              <DropdownMenuItem
+                onSelect={() => {
+                  chose.current = "hand-off";
+                  handOff.current = places.onOpenWeb;
+                }}
+              >
+                <GlobeIcon className="size-4" />
+                Browser
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  chose.current = "hand-off";
+                  handOff.current = places.onOpenComputer;
+                }}
+              >
+                <DesktopIcon className="size-4" />
+                {places.computerName}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
+              {actions
+                .filter((action) => ATTACH_ACTIONS.has(action.id))
+                .map((action) => (
+                  <ActionItem
+                    action={action}
+                    key={action.id}
+                    onSelect={(event) => {
+                      choose(action, event);
+                    }}
+                  />
+                ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  onViewChange("apps");
+                }}
+              >
+                <SquaresFourIcon className="size-4" />
+                <span className="min-w-0 flex-1">Apps</span>
+                <CaretRightIcon className="size-3.5 text-muted-foreground" />
+              </DropdownMenuItem>
               {skills.length > 0 && (
                 <DropdownMenuItem
                   onSelect={(event) => {
@@ -451,32 +453,6 @@ function BackItem({ label, onBack }: { label: string; onBack: () => void }) {
     >
       <ArrowLeftIcon className="size-4" />
       {label}
-    </DropdownMenuItem>
-  );
-}
-
-/**
- * A kind of thing the plus opens beside the chat, as a compact tile: its mark
- * over its name in a card of its own, sized to sit beside the attach buttons
- * and leave room for the skills and the model below rather than tower over
- * them.
- */
-function PlaceTile({
-  icon: TileIcon,
-  label,
-  onSelect,
-}: {
-  icon: Icon;
-  label: string;
-  onSelect: (event: Event) => void;
-}) {
-  return (
-    <DropdownMenuItem
-      className="group/tile flex-col justify-center gap-1 rounded-lg border border-border bg-card p-2 text-xs font-medium shadow-xs"
-      onSelect={onSelect}
-    >
-      <TileIcon className="size-5 text-muted-foreground group-data-highlighted/tile:text-foreground" />
-      <span className="max-w-full truncate">{label}</span>
     </DropdownMenuItem>
   );
 }

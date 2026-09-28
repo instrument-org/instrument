@@ -13,7 +13,7 @@ node .agents/skills/transcript-digest/scripts/digest.mjs <thread>-transcript.md 
 node .agents/skills/transcript-digest/scripts/digest.mjs <file> --json                       # the same, structured
 ```
 
-No dependencies. It reads only the Markdown, so it works on a transcript from anyone's machine. `--children` is the one part that needs this Mac: it finds `tasks/<id>` folders the thread mentions, next to the thread's own `taskDir`, and exports each through `script:dump-session-transcript` (the `session-transcript` skill). A child whose folder is not here is reported as not found rather than failing the run.
+No dependencies. It reads only the Markdown, so it works on a transcript from anyone's machine. `--children` is the one part that needs this Mac: it finds the `tasks/<id>` folders the thread mentions inside the thread's chat folder (`chats/<chat>/tasks/<id>`), falling back to flat `tasks/<id>` and the workspace's other chats, and exports each through `script:dump-session-transcript` (the `session-transcript` skill). A child whose folder is not here is reported as not found rather than failing the run.
 
 ## How to use it
 

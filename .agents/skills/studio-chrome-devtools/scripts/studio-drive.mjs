@@ -238,7 +238,7 @@ function prepareWorkspace(name, { fresh }) {
   // seeder had nothing to do and the app writes nothing before it is killed.
   utimesSync(userDataDir, new Date(), new Date());
 
-  reapWorkArtifacts(path.join(userDataDir, "workspace", "tasks"));
+  reapWorkArtifacts(path.join(userDataDir, "workspace"));
 
   return { tasks: result.tasks, userDataDir };
 }
@@ -272,20 +272,10 @@ function reapStaleWorkspaces() {
  * never creates these, so a workspace only used for driving stays in the low
  * megabytes and this finds nothing.
  */
-function reapWorkArtifacts(tasksDir) {
-  let tasks;
-  try {
-    tasks = readdirSync(tasksDir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-
-  for (const task of tasks) {
-    if (!task.isDirectory()) {
-      continue;
-    }
+function reapWorkArtifacts(workspaceDir) {
+  for (const taskDir of recordDirs(workspaceDir)) {
     for (const name of WORK_ARTIFACT_NAMES) {
-      const dir = path.join(tasksDir, task.name, "work", name);
+      const dir = path.join(taskDir, "work", name);
       try {
         if (Date.now() - statSync(dir).mtimeMs > WORK_ARTIFACT_MAX_AGE_MS) {
           rmSync(dir, { force: true, recursive: true });
@@ -295,6 +285,29 @@ function reapWorkArtifacts(tasksDir) {
       }
     }
   }
+}
+
+/**
+ * Every task and chat folder of a workspace: tasks no chat owns under
+ * `tasks/`, chats under `chats/`, and each chat's tasks under its own
+ * `tasks/`.
+ */
+function recordDirs(workspaceDir) {
+  const children = (dir) => {
+    try {
+      return readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => path.join(dir, entry.name));
+    } catch {
+      return [];
+    }
+  };
+  const chats = children(path.join(workspaceDir, "chats"));
+  return [
+    ...children(path.join(workspaceDir, "tasks")),
+    ...chats,
+    ...chats.flatMap((chat) => children(path.join(chat, "tasks"))),
+  ];
 }
 
 // --- lifecycle ---------------------------------------------------------

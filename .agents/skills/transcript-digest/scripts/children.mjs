@@ -12,8 +12,25 @@ const REPO = path.resolve(
   "../../../..",
 );
 
+// Where a task the thread named can be: inside the thread's own chat folder
+// (`chats/<chat>/tasks/<id>`), flat beside it for a thread with no chat
+// folder (`tasks/<id>`), or inside another chat of the same workspace.
+function candidateDirs(taskDir, id) {
+  const parent = path.dirname(taskDir);
+  const dirs = [path.join(taskDir, "tasks", id), path.join(parent, id)];
+  const kind = path.basename(parent);
+  if (kind === "chats" || kind === "tasks") {
+    const workspace = path.dirname(parent);
+    dirs.push(path.join(workspace, "tasks", id));
+    const chats = path.join(workspace, "chats");
+    for (const chat of fs.existsSync(chats) ? fs.readdirSync(chats) : [])
+      dirs.push(path.join(chats, chat, "tasks", id));
+  }
+  return dirs;
+}
+
 export function loadChildren(root) {
-  const tasksDir = path.dirname(root.p.meta.taskDir ?? "");
+  const taskDir = root.p.meta.taskDir ?? "";
   const ids = new Set();
   for (const e of root.p.events)
     for (const m of e.body
@@ -26,9 +43,11 @@ export function loadChildren(root) {
   const cache = path.join(process.env.TMPDIR ?? "/tmp", "transcript-digest");
   fs.mkdirSync(cache, { recursive: true });
   return [...ids].map((id) => {
-    const dir = path.join(tasksDir, id);
-    if (!fs.existsSync(path.join(dir, ".instrument", "task.db")))
-      return { id, missing: dir };
+    const tried = candidateDirs(taskDir, id);
+    const dir = tried.find((candidate) =>
+      fs.existsSync(path.join(candidate, ".instrument", "task.db")),
+    );
+    if (!dir) return { id, missing: tried[0] };
     const md = path.join(cache, `${id}.md`);
     execFileSync(
       "pnpm",

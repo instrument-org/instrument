@@ -305,12 +305,15 @@ $profile | ConvertTo-Json -Depth 8 -Compress`;
 function reapFunction() {
   return `function Remove-StaleWorkArtifacts([string] $dir) {
   $removed = @()
-  $tasksDir = Join-Path $dir 'workspace\\tasks'
-  if (-not (Test-Path -LiteralPath $tasksDir)) {
-    return $removed
+  $workspace = Join-Path $dir 'workspace'
+  # Tasks no chat owns, chats, and each chat's own tasks.
+  $chats = @(Get-ChildItem -LiteralPath (Join-Path $workspace 'chats') -Directory -ErrorAction SilentlyContinue)
+  $records = @(Get-ChildItem -LiteralPath (Join-Path $workspace 'tasks') -Directory -ErrorAction SilentlyContinue) + $chats
+  foreach ($chat in $chats) {
+    $records += @(Get-ChildItem -LiteralPath (Join-Path $chat.FullName 'tasks') -Directory -ErrorAction SilentlyContinue)
   }
   $cutoff = (Get-Date).AddDays(-${WORK_ARTIFACT_MAX_AGE_DAYS})
-  foreach ($task in @(Get-ChildItem -LiteralPath $tasksDir -Directory)) {
+  foreach ($task in $records) {
     foreach ($name in @('.venv', 'node_modules')) {
       $artifact = Join-Path $task.FullName (Join-Path 'work' $name)
       if ((Test-Path -LiteralPath $artifact) -and (Get-Item -LiteralPath $artifact -Force).LastWriteTime -lt $cutoff) {

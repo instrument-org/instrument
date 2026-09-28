@@ -1,9 +1,10 @@
 // Block menu: "Turn into", Duplicate, Delete and friends, opened by clicking
-// the drag handle (a drag still drags) or by right-clicking a block.
+// the drag handle (a drag still drags). Right-clicking in the text is left to
+// the window's native menu (Cut, Copy, Paste, spelling), which keeps the
+// caret and selection where the person put them.
 //
 // The target is the block the handle belongs to: Crepe's handle selects it as
-// a node on mousedown, so the click reads `view.state.selection`. A right-click
-// targets the list item, or else the top-level block, under the pointer.
+// a node on mousedown, so the click reads `view.state.selection`.
 import { computePosition, flip, offset, shift } from "@floating-ui/dom";
 import {
   Fragment,
@@ -352,14 +353,13 @@ function turnInto(view: EditorView, target: Target, kind: Kind) {
 
 let current: (() => void) | null = null;
 
-type Anchor =
-  | { getBoundingClientRect: () => DOMRect }
-  | { x: number; y: number };
+interface Anchor {
+  getBoundingClientRect: () => DOMRect;
+}
 
 /** `serializeNode(node)` gives Markdown for a node (tables copy as Markdown). Returns a cleanup. */
 export function installBlockMenu(
   view: EditorView,
-  root: HTMLElement,
   { serializeNode }: { serializeNode: (node: PMNode) => string },
 ) {
   function itemsFor(target: Target): MenuItem[] {
@@ -488,56 +488,14 @@ export function installBlockMenu(
       }
     });
   };
-  // Right-click on a block. Inside a list, the item; otherwise the top-level block.
-  const onContextMenu = (e: MouseEvent) => {
-    if (
-      e.target instanceof Element &&
-      e.target.closest("input, textarea, .cm-editor, .md-fence")
-    ) {
-      return;
-    }
-    const hit = view.posAtCoords({ left: e.clientX, top: e.clientY });
-    if (!hit) {
-      return;
-    }
-    const $pos = view.state.doc.resolve(hit.inside >= 0 ? hit.inside : hit.pos);
-    let pos: null | number = null;
-    for (let d = $pos.depth; d >= 1; d--) {
-      const name = $pos.node(d).type.name;
-      if (name === "list_item" || name === "table") {
-        pos = $pos.before(d);
-        break;
-      }
-    }
-    if (pos === null) {
-      if ($pos.depth >= 1) {
-        pos = $pos.before(1);
-      } else if (hit.inside >= 0) {
-        pos = hit.inside;
-      } else {
-        return;
-      }
-    }
-    const target = resolveTarget(view.state, pos);
-    if (!target) {
-      return;
-    }
-    e.preventDefault();
-    view.dispatch(
-      view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos)),
-    );
-    open(itemsFor(target), { x: e.clientX, y: e.clientY });
-  };
   document.addEventListener("pointerdown", onPointerDown, true);
   document.addEventListener("dragstart", onDragStart, true);
   document.addEventListener("pointerup", onPointerUp, true);
-  root.addEventListener("contextmenu", onContextMenu);
   return () => {
     current?.();
     document.removeEventListener("pointerdown", onPointerDown, true);
     document.removeEventListener("dragstart", onDragStart, true);
     document.removeEventListener("pointerup", onPointerUp, true);
-    root.removeEventListener("contextmenu", onContextMenu);
   };
 }
 
@@ -714,14 +672,10 @@ function open(items: MenuItem[], anchor: Anchor) {
   }
   current = close;
   document.body.append(menu);
-  // An element-like anchor (the gripper) opens below it; a point (right-click) opens at the pointer.
-  const isPoint = "x" in anchor;
-  const ref = isPoint
-    ? { getBoundingClientRect: () => new DOMRect(anchor.x, anchor.y, 0, 0) }
-    : anchor;
-  void computePosition(ref, menu, {
-    middleware: [offset(isPoint ? 2 : 4), flip(), shift({ padding: 8 })],
-    placement: isPoint ? "right-start" : "bottom-start",
+  // Opens below the anchor (the gripper).
+  void computePosition(anchor, menu, {
+    middleware: [offset(4), flip(), shift({ padding: 8 })],
+    placement: "bottom-start",
     strategy: "fixed",
   }).then(({ x, y }) =>
     Object.assign(menu.style, { left: `${x}px`, top: `${y}px` }),

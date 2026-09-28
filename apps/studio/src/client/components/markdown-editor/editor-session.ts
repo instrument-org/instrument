@@ -723,7 +723,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
   const pmView = view();
   guardListItemRestore(pmView);
   const code = decorateCodeBlocks(pmView, root);
-  const removeBlockMenu = installBlockMenu(pmView, root, {
+  const removeBlockMenu = installBlockMenu(pmView, {
     serializeNode: (node) =>
       serializer
         ? serializer(pmView.state.schema.topNodeType.create(null, [node]))

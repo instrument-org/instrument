@@ -115,8 +115,10 @@ export function WebStart({
                   title={`${pin.title}\n${pin.target}`}
                   type="button"
                 >
+                  {/* The site's own mark, bare: no plate around it, the way a
+                      browser's new tab shows its shortcuts. */}
                   <AppIcon
-                    className="transition-shadow group-hover:shadow-md"
+                    className="size-14 bg-transparent p-0 shadow-none ring-0"
                     name={pin.title}
                     site={originOf(pin.target)}
                     size="xl"

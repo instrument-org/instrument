@@ -149,9 +149,9 @@ export function TabLocationRow({
         <div
           className={cn(
             "group/field relative mx-1 flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-sm focus-within:border-foreground/30",
-            // The app's icon sits in the field's round end, as close to it
-            // as the curve allows.
-            openIn && "pr-0.5",
+            // The app's icon sits in the field's round end, with room to
+            // breathe inside the curve.
+            openIn && "pr-1.5",
           )}
           onPointerDown={(event) => {
             if (

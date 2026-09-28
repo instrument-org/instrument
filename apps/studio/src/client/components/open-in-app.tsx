@@ -47,7 +47,7 @@ export function OpenInAppButton({
           </span>
           <span className="relative grid size-5.5 shrink-0 place-items-center">
             <IconWithFallback
-              className="size-4.5"
+              className="size-4"
               fallback={
                 <ArrowSquareOutIcon className="size-3.5 text-muted-foreground group-hover/openin:text-foreground" />
               }

@@ -27,7 +27,7 @@ import {
   THREAD_RAIL_WIDTH,
   THREAD_WINDOW_WIDTH,
 } from "./compose-layout";
-import { GroupItem, WindowButton } from "./compose-window";
+import { BarMarks, GroupItem, WindowButton } from "./compose-window";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
@@ -44,9 +44,9 @@ import { useWindowTabs } from "./window-tabs";
 const THREAD_WINDOW_HEIGHT = 560;
 
 /**
- * A thread put down: a dark bar along the window's foot with its title and
- * the pulse while it works, brought back up by a press, taken down by its
- * cross. The thread itself is untouched by either.
+ * A thread put down: a dark bar along the window's foot with its title, the
+ * pulse while it works, and the marks of what it holds, as a draft's bar
+ * has, brought back up by a press, taken down by its cross. The thread itself is untouched by either.
  */
 export function ThreadBar({
   onClose,
@@ -84,6 +84,7 @@ export function ThreadBar({
         <span className="min-w-0 flex-1 truncate">
           {thread?.title ?? "Chat"}
         </span>
+        {thread && <BarMarks group={thread.id} />}
       </button>
       <button
         aria-label="Close"

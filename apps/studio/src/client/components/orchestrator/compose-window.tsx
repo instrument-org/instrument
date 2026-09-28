@@ -151,10 +151,6 @@ export function ComposeBar({
   /** Where the bar stands along the foot, in layout px from the right edge. */
   right: number;
 }) {
-  const { allTabs } = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
-  const group = draftGroupOf(draft.id);
-  const held = allTabs.filter((tab) => tab.group === group && !isHomeTab(tab));
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
@@ -174,23 +170,7 @@ export function ComposeBar({
         <span className="min-w-0 flex-1 truncate">
           {draftTitle(draft.words)}
         </span>
-        {held.length > 0 && (
-          <span className="flex shrink-0 items-center gap-1 [&_img]:size-3.5 [&_svg]:size-3.5">
-            {held.slice(0, BAR_MARKS).map((tab) => (
-              <span
-                className="grid size-4 place-items-center rounded-sm bg-white/90 [&_img]:rounded-xs"
-                key={tab.id}
-              >
-                <HeldMark appsBySlug={appsBySlug} tab={tab} />
-              </span>
-            ))}
-            {held.length > BAR_MARKS && (
-              <span className="text-[10px] text-white/70">
-                +{held.length - BAR_MARKS}
-              </span>
-            )}
-          </span>
-        )}
+        <BarMarks group={draftGroupOf(draft.id)} />
       </button>
       <button
         aria-label="Close draft"
@@ -1072,6 +1052,36 @@ export function GroupItem({
         </Button>
       </div>
     </Card>
+  );
+}
+
+/**
+ * The marks of what a group holds, for a window put down to a bar: a site's
+ * icon, a file's type, a folder, the first few and a count of the rest.
+ */
+export function BarMarks({ group }: { group: string }) {
+  const { allTabs } = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
+  const held = allTabs.filter((tab) => tab.group === group && !isHomeTab(tab));
+  if (held.length === 0) {
+    return null;
+  }
+  return (
+    <span className="flex shrink-0 items-center gap-1 [&_img]:size-3.5 [&_svg]:size-3.5">
+      {held.slice(0, BAR_MARKS).map((tab) => (
+        <span
+          className="grid size-4 place-items-center rounded-sm bg-white/90 [&_img]:rounded-xs"
+          key={tab.id}
+        >
+          <HeldMark appsBySlug={appsBySlug} tab={tab} />
+        </span>
+      ))}
+      {held.length > BAR_MARKS && (
+        <span className="text-[10px] text-white/70">
+          +{held.length - BAR_MARKS}
+        </span>
+      )}
+    </span>
   );
 }
 

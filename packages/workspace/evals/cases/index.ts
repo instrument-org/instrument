@@ -15,6 +15,7 @@ import { PROJECT_INSTRUCTIONS_EVALS } from "./project-instructions";
 import { QUESTIONS_EVALS } from "./questions";
 import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
 import { SOURCE_LINKS_EVALS } from "./source-links";
+import { TASK_TABS_EVALS } from "./task-tabs";
 import { UNREADABLE_MEDIA_EVALS } from "./unreadable-media";
 import { WEB_SEARCH_EVALS } from "./web-search";
 import { WINDOW_TABS_EVALS } from "./window-tabs";
@@ -38,6 +39,7 @@ export const EVALS = [
   ...QUESTIONS_EVALS,
   ...SANDBOXED_PYTHON_EVALS,
   ...SOURCE_LINKS_EVALS,
+  ...TASK_TABS_EVALS,
   ...UNREADABLE_MEDIA_EVALS,
   ...WEB_SEARCH_EVALS,
   ...WINDOW_TABS_EVALS,

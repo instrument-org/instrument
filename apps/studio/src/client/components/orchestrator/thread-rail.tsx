@@ -267,12 +267,12 @@ function keyOf(tab: WindowTab): string {
 
 /**
  * A page as its last picture, or, until it has one, its site's mark. The
- * picture is taken each time a page off screen loads, moves, renames
- * itself, or has an agent's command, since the agent browses in tabs the
- * person is not looking at, and once more as a page leaves the screen. The
- * page on screen shows its mark instead and takes none: it is drawn large
- * beside the chat already, and picturing it as it is used would cost for
- * nothing.
+ * picture is taken each time the page loads, moves, renames itself, or has
+ * an agent's command, since the agent browses in tabs the person is not
+ * looking at. The page on screen keeps the picture it came up with rather
+ * than one that changes under the person as they use it, and shows what it
+ * came to once it is put away; its pictures are taken while it is drawn,
+ * which is when a guest has something to take.
  */
 function PagePicture({
   isOnScreen,
@@ -322,7 +322,7 @@ function PagePicture({
   // itself. A guest off screen that draws nothing leaves the last picture in
   // place.
   useEffect(() => {
-    const webview = isOnScreen ? null : getWebviewElement(targetId);
+    const webview = getWebviewElement(targetId);
     if (!webview) {
       return;
     }
@@ -346,15 +346,14 @@ function PagePicture({
       }
       clearTimeout(pending);
     };
-    // Re-armed when the page leaves or comes on screen and when its guest
-    // attaches.
+    // Re-armed when its guest attaches.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnScreen, isAttached, targetId]);
+  }, [isAttached, targetId]);
   // A picture shortly after an agent works in a page off screen, since
   // clicking, typing, and scripts change a page without moving it.
   const agentAt = useTargetAgentLastAt(targetId);
   useEffect(() => {
-    if (isOnScreen || agentAt === undefined) {
+    if (agentAt === undefined) {
       return;
     }
     const pending = setTimeout(capture, AGENT_SETTLE_MS);
@@ -362,20 +361,21 @@ function PagePicture({
       clearTimeout(pending);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentAt, isOnScreen]);
-  // Leaving the screen: one more, of the page as it was last seen. Not when
-  // the tile goes, which is the tab closing.
-  const wasOnScreen = useRef(isOnScreen);
+  }, [agentAt]);
+  // The picture the page came on screen with, held while it is up.
+  const [heldUrl, setHeldUrl] = useState<string>();
+  const latestUrl = picture.data?.url ?? undefined;
   useEffect(() => {
-    if (wasOnScreen.current && !isOnScreen) {
-      capture();
+    if (!isOnScreen) {
+      setHeldUrl(undefined);
+    } else if (latestUrl !== undefined) {
+      setHeldUrl((held) => held ?? latestUrl);
     }
-    wasOnScreen.current = isOnScreen;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnScreen]);
+  }, [isOnScreen, latestUrl]);
+  const shownUrl = isOnScreen ? (heldUrl ?? latestUrl) : latestUrl;
 
-  if (picture.data?.url && !isOnScreen) {
-    return <FittedPicture src={picture.data.url} />;
+  if (shownUrl) {
+    return <FittedPicture src={shownUrl} />;
   }
   return (
     <span className="[&_img]:size-6 [&_svg]:size-6">

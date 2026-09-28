@@ -10,7 +10,7 @@ import { type StoreId } from "@instrument-org/workspace/client";
 import { useAtom } from "jotai";
 import { useState } from "react";
 
-import { type ComposeHost } from "./browser-tabs";
+import { type ComposeHost, type PageChromeSlots } from "./browser-tabs";
 import { COMPOSE_GUEST_LAYER, layoutCompose } from "./compose-layout";
 
 /**
@@ -35,6 +35,11 @@ export function useCompose(
   const [viewsById, setViewsById] = useState<Record<string, null | ScreenView>>(
     {},
   );
+  // Where each window's address row takes its page's reload and controls,
+  // while a page is up under it.
+  const [chromeById, setChromeById] = useState<
+    Record<string, PageChromeSlots | undefined>
+  >({});
   const placed = layoutCompose(
     entries,
     width,
@@ -46,6 +51,7 @@ export function useCompose(
     entry.kind === "draft" || entry.placement === "expanded"
       ? [
           {
+            chrome: chromeById[composeKeyOf(entry)] ?? true,
             group: composeKeyOf(entry),
             into: hostsById[composeKeyOf(entry)] ?? null,
             isActive: true,
@@ -91,6 +97,10 @@ export function useCompose(
       return rest;
     });
     setViewsById((current) => {
+      const { [key]: _gone, ...rest } = current;
+      return rest;
+    });
+    setChromeById((current) => {
       const { [key]: _gone, ...rest } = current;
       return rest;
     });
@@ -150,6 +160,14 @@ export function useCompose(
       current[key] === element ? current : { ...current, [key]: element },
     );
   };
+  const setChrome = (key: string, slots: PageChromeSlots | undefined) => {
+    setChromeById((current) =>
+      current[key]?.into === slots?.into &&
+      current[key]?.reloadInto === slots?.reloadInto
+        ? current
+        : { ...current, [key]: slots },
+    );
+  };
   const setView = (key: string, view: null | ScreenView) => {
     // By value: a window reports the same view again as it re-renders, and
     // a fresh object each time would re-render the layout on every report.
@@ -169,6 +187,7 @@ export function useCompose(
     open,
     placed,
     remove,
+    setChrome,
     setHost,
     setPlacement,
     setView,

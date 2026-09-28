@@ -144,6 +144,9 @@ export function ComposeLayer({
                 onOpenInChats={() => {
                   onOpenThread(sessionId);
                 }}
+                onPageChrome={(slots) => {
+                  compose.setChrome(sessionId, slots);
+                }}
                 onPageHost={(element) => {
                   compose.setHost(sessionId, element);
                 }}
@@ -207,6 +210,9 @@ export function ComposeLayer({
               onModelChange={onModelChange}
               onNewTopic={(name) => {
                 onNewTopic(draft.id, name);
+              }}
+              onPageChrome={(slots) => {
+                compose.setChrome(key, slots);
               }}
               onPageHost={(element) => {
                 compose.setHost(key, element);

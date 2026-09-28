@@ -102,8 +102,13 @@ export interface BrowserTabsHandle {
  * shown while `isActive`.
  */
 export interface ComposeHost {
-  /** Whether the page's own bar is drawn over it; a surface with a head of its own says no. */
-  chrome?: boolean;
+  /**
+   * Whether the page's own bar is drawn over it, or, for a surface that draws
+   * the window's address row over the page, the elements in that row the
+   * page's reload and controls go into; a surface with a head of its own and
+   * no row says no.
+   */
+  chrome?: boolean | PageChromeSlots;
   group: string;
   /** Drawn inside an overlay, whose own cover does not park the page; see TaskBrowserPanel. */
   insideOverlay?: boolean;
@@ -113,6 +118,12 @@ export interface ComposeHost {
   layer?: number;
   /** Where the host stands, so a page is placed again when the host moves without resizing. */
   place: string;
+}
+
+/** Where a page's reload and its controls go in an address row drawn over it. */
+export interface PageChromeSlots {
+  into: HTMLElement | null;
+  reloadInto: HTMLElement | null;
 }
 
 /** What the page had on it that the words in a message can refer to. */

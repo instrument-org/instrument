@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
+import { type PageChromeSlots } from "./browser-tabs";
 import {
   COMPOSE_BAR_WIDTH,
   COMPOSE_MOTION,
@@ -118,6 +119,7 @@ export function ThreadWindow({
   onLandOnTab,
   onMinimize,
   onOpenInChats,
+  onPageChrome,
   onPageHost,
   onPlacementChange,
   onViewTasks,
@@ -141,6 +143,8 @@ export function ThreadWindow({
   /** Takes the window to its chat in Chats: the window goes and the chat is selected. */
   onOpenInChats: () => void;
   /** The element the chat's page is drawn into while the window is grown with a page up, null while none is. */
+  /** Where the address row takes the page's reload and controls, while a page is up. */
+  onPageChrome: (slots: PageChromeSlots | undefined) => void;
   onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
   /** Opens the chat's tasks: the window goes and the tasks face comes up in Chats. */
@@ -442,6 +446,7 @@ export function ThreadWindow({
               <GroupItem
                 closeTab={closeTab}
                 group={sessionId}
+                onPageChrome={onPageChrome}
                 onPageHost={setPageHost}
                 openPage={openPage}
                 outside={{

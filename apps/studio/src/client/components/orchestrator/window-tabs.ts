@@ -22,6 +22,10 @@ import { stepTabVisit, visitInTab } from "./tab-history";
 /** The route that shows nothing of its own: what the router is at while a page is on screen. */
 export const PAGE_ROUTE = "/orchestrator/browser";
 
+export function atOf(tab: undefined | WindowTab) {
+  return tab?.kind === "screen" ? (tab.at ?? trailOf(tab).length - 1) : 0;
+}
+
 /**
  * Whether a tab is still its group's own new tab, standing where it opened:
  * the page that reaches everything, a place's apps, or the computer at the
@@ -119,6 +123,11 @@ export function threadOfHrefPrefix(
     id.toLowerCase().startsWith(prefix),
   );
   return matches.length === 1 ? matches[0] : undefined;
+}
+
+/** Where a screen tab has been, and where along it the tab is standing. */
+export function trailOf(tab: undefined | WindowTab) {
+  return tab?.kind === "screen" ? (tab.trail ?? [tab.href]) : [];
 }
 
 /** Takes the tab closed last off the pile, for whoever can bring it back. */
@@ -744,10 +753,6 @@ export function useWindowTabs() {
   };
 }
 
-function atOf(tab: undefined | WindowTab) {
-  return tab?.kind === "screen" ? (tab.at ?? trailOf(tab).length - 1) : 0;
-}
-
 /**
  * What changes when another group comes on screen: the group being left
  * remembers the tab it had up, so coming back lands where it left off, and
@@ -778,9 +783,4 @@ function movingTo(
 
 function searchEntries(search: URLSearchParams) {
   return [...search.entries()].sort().join("&");
-}
-
-/** Where a screen tab has been, and where along it the tab is standing. */
-function trailOf(tab: undefined | WindowTab) {
-  return tab?.kind === "screen" ? (tab.trail ?? [tab.href]) : [];
 }

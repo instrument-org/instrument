@@ -30,14 +30,19 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { getWebviewElement } from "@/client/lib/browser-pool";
 import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
+  type BrowserTargetId,
+  encodeBrowserTargetId,
   type FileUpload,
   type FolderAttachment,
+  StoreId,
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -60,7 +65,11 @@ import { AppFront } from "./app-front";
 import { useAppsBySlug } from "./apps-by-slug";
 import { AppsHome } from "./apps-home";
 import { AskPills } from "./ask-pills";
-import { type BrowserTabsHandle, TabIcon } from "./browser-tabs";
+import {
+  type BrowserTabsHandle,
+  type PageChromeSlots,
+  TabIcon,
+} from "./browser-tabs";
 import { ComposeFiles } from "./compose-files";
 import {
   COMPOSE_BAR_WIDTH,
@@ -74,15 +83,23 @@ import { joinHostPath, segmentsOf } from "./host-path";
 import { IdeaSketch } from "./idea-sketch";
 import { type Idea } from "./ideas";
 import { OutputPicker } from "./output-picker";
-import { screenPresentation } from "./screen-presentation";
+import { screenLocation, screenPresentation } from "./screen-presentation";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
+import { type TabLocation } from "./tab-location";
+import { TabLocationRow } from "./tab-location-row";
 import { TopicPill } from "./thread-row";
 import { draftTitle, type Topic } from "./threads";
 import { AddTopicChip, TopicPicker } from "./topic-picker";
 import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
 import { useIdeas } from "./use-ideas";
 import { WindowTabStrip } from "./window-tab-strip";
-import { isHomeTab, parseHref, useWindowTabs } from "./window-tabs";
+import {
+  atOf,
+  isHomeTab,
+  parseHref,
+  trailOf,
+  useWindowTabs,
+} from "./window-tabs";
 
 /** What the composer hands over to start the thread. */
 export interface DraftSend {
@@ -212,6 +229,7 @@ export function ComposeWindow({
   onClose,
   onModelChange,
   onNewTopic,
+  onPageChrome,
   onPageHost,
   onPlacementChange,
   onStart,
@@ -232,6 +250,8 @@ export function ComposeWindow({
   /** Makes a topic named for what was typed in the head's topic picker, and files the draft under it. */
   onNewTopic: (name: string) => void;
   /** The element the draft's page is drawn into while a page is up, null while none is. */
+  /** Where the address row takes the page's reload and controls, while a page is up. */
+  onPageChrome: (slots: PageChromeSlots | undefined) => void;
   onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
   onStart: (send: DraftSend) => void;
@@ -532,6 +552,7 @@ export function ComposeWindow({
         closeTab={closeTab}
         group={group}
         onFilesView={setFilesView}
+        onPageChrome={onPageChrome}
         onPageHost={setPageHost}
         openPage={openPage}
         outside={{
@@ -809,6 +830,7 @@ export function GroupItem({
   closeTab,
   group,
   onFilesView,
+  onPageChrome,
   onPageHost,
   openPage,
   outside,
@@ -818,6 +840,8 @@ export function GroupItem({
   group: string;
   /** What the Finder has up, in the terms the conversation is told it. */
   onFilesView?: (view: null | ScreenView) => void;
+  /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
+  onPageChrome: (slots: PageChromeSlots | undefined) => void;
   /** The element the page is drawn into, while a page is up. */
   onPageHost: (element: HTMLDivElement | null) => void;
   /** Opens a page in the group and puts it up. */
@@ -832,14 +856,114 @@ export function GroupItem({
 }) {
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  const { browser } = useOrchestrator();
-  if (up.kind === "page") {
+  const { browser, taskId } = useOrchestrator();
+
+  // The page's reload and controls go into the address row, the way they do
+  // in the pane beside a chat, rather than into a bar of the page's own.
+  const [reloadSlot, setReloadSlot] = useState<HTMLDivElement | null>(null);
+  const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
+  const onPageChromeRef = useRef(onPageChrome);
+  useEffect(() => {
+    onPageChromeRef.current = onPageChrome;
+  });
+  const isPage = up.kind === "page";
+  useEffect(() => {
+    onPageChromeRef.current(
+      isPage ? { into: controlsSlot, reloadInto: reloadSlot } : undefined,
+    );
+  }, [isPage, controlsSlot, reloadSlot]);
+  useEffect(
+    () => () => {
+      onPageChromeRef.current(undefined);
+    },
+    [],
+  );
+  const targetId =
+    up.kind === "page"
+      ? encodeBrowserTargetId(
+          up.taskId ?? taskId,
+          StoreId.SessionSchema.parse(up.id),
+        )
+      : undefined;
+  const guest = useGuestSteps(targetId);
+
+  /**
+   * The row over what is up, the one the pane beside a chat draws: its
+   * arrows walk the page's own history or the screen's trail, and its field
+   * sends a page somewhere else, or takes a screen's tab to a site.
+   */
+  const row = (location: TabLocation) => {
+    const webview = targetId ? getWebviewElement(targetId) : null;
+    const at = atOf(up);
     return (
-      <Card>
+      <TabLocationRow
+        canGoBack={up.kind === "page" ? guest.back : at > 0}
+        canGoForward={
+          up.kind === "page" ? guest.forward : at < trailOf(up).length - 1
+        }
+        hasHome={false}
+        location={location}
+        onBack={() => {
+          if (up.kind === "page") {
+            webview?.goBack();
+          } else {
+            windowTabs.stepTab(up.id, -1);
+          }
+        }}
+        onForward={() => {
+          if (up.kind === "page") {
+            webview?.goForward();
+          } else {
+            windowTabs.stepTab(up.id, 1);
+          }
+        }}
+        onSite={(url) => {
+          if (up.kind === "page" && webview) {
+            void webview.loadURL(url);
+          } else {
+            browser?.open(url, { group, replacing: up });
+          }
+        }}
+        {...(up.kind === "page"
+          ? {
+              reload: (
+                <div
+                  className="flex shrink-0 items-center empty:hidden"
+                  ref={setReloadSlot}
+                />
+              ),
+              trailing: (
+                <div
+                  className="flex shrink-0 items-center gap-0.5"
+                  ref={setControlsSlot}
+                />
+              ),
+            }
+          : {})}
+      />
+    );
+  };
+
+  if (up.kind === "page") {
+    const filePath = hostPathOfFileUrl(up.url);
+    return (
+      <Card
+        head={row(
+          filePath === undefined
+            ? { kind: "page", url: up.url ?? "" }
+            : {
+                asPage: true,
+                kind: "file",
+                name: segmentsOf(filePath).at(-1) ?? filePath,
+                path: filePath,
+              },
+        )}
+      >
         <div className="h-full" ref={onPageHost} />
       </Card>
     );
   }
+  const screenRow = row(screenLocation(up.href, { appsBySlug }));
   const computer = computerTabOf(up.href);
   if (computer) {
     return (
@@ -879,8 +1003,9 @@ export function GroupItem({
   const { pathname } = parseHref(up.href);
   if (pathname === WEB_HREF) {
     return (
-      <Card>
+      <Card head={screenRow}>
         <WebStart
+          hasAddressField={false}
           onOpenPage={(url) => {
             browser?.open(url, { group, replacing: up });
           }}
@@ -890,7 +1015,7 @@ export function GroupItem({
   }
   if (pathname === APPS_HREF) {
     return (
-      <Card>
+      <Card head={screenRow}>
         <AppsHome
           onOpenApp={(slug) => {
             windowTabs.visitHref(up.id, `${APPS_HREF}/${slug}`);
@@ -902,7 +1027,7 @@ export function GroupItem({
   }
   if (pathname.startsWith(`${APPS_HREF}/`)) {
     return (
-      <Card>
+      <Card head={screenRow}>
         <AppFront
           onToApps={() => {
             if (windowTabs.stepTab(up.id, -1) === undefined) {
@@ -964,11 +1089,12 @@ export function WindowButton({
 }
 
 /** The band's white card, for a thing drawn large in it. */
-function Card({ children }: { children: ReactNode }) {
+function Card({ children, head }: { children: ReactNode; head?: ReactNode }) {
   return (
     <div className="h-full px-2 pb-2">
-      <div className="h-full overflow-hidden rounded-lg bg-card">
-        {children}
+      <div className="flex h-full flex-col overflow-hidden rounded-lg bg-card">
+        {head}
+        <div className="min-h-0 flex-1">{children}</div>
       </div>
     </div>
   );
@@ -1312,6 +1438,44 @@ function TopicSlot({
       </button>
     </span>
   );
+}
+
+/** Whether a page's guest has anywhere of its own to go back or forward to, kept as it moves. */
+function useGuestSteps(targetId: BrowserTargetId | undefined) {
+  const [steps, setSteps] = useState({ back: false, forward: false });
+  const targets = useBrowserTargets();
+  const isAttached = targetId !== undefined && targets.has(targetId);
+  useEffect(() => {
+    const webview = targetId ? getWebviewElement(targetId) : null;
+    if (!webview) {
+      return;
+    }
+    const read = () => {
+      try {
+        setSteps({
+          back: webview.canGoBack(),
+          forward: webview.canGoForward(),
+        });
+      } catch {
+        // Not attached yet: its first navigation reads it again.
+      }
+    };
+    const events = [
+      "did-navigate",
+      "did-navigate-in-page",
+      "did-stop-loading",
+    ] as const;
+    for (const event of events) {
+      webview.addEventListener(event, read);
+    }
+    read();
+    return () => {
+      for (const event of events) {
+        webview.removeEventListener(event, read);
+      }
+    };
+  }, [targetId, isAttached]);
+  return steps;
 }
 
 function withoutSlash(path: string) {

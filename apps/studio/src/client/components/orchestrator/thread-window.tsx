@@ -304,41 +304,40 @@ export function ThreadWindow({
           <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
         )}
         {thread ? (
-          <h2 className="flex min-w-0 flex-1">
-            {rename.isEditing ? (
-              <ThreadTitle
-                className="text-[13px] font-semibold"
-                grow
-                rename={rename}
-                title={thread.title}
-              />
-            ) : (
-              <button
-                className="-mx-1.5 flex h-8 min-w-0 flex-1 items-center rounded-lg px-1.5 text-left text-[13px] font-semibold outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
-                onClick={onOpenInChats}
-                title="Open in Chats"
-                type="button"
-              >
-                <span className="min-w-0 truncate">{thread.title}</span>
-              </button>
-            )}
-          </h2>
+          // The title and its menu side by side, taking their own width:
+          // the title reads as a title rather than a button, and opening
+          // the chat in Chats is in the menu.
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <h2 className={cn("flex min-w-0", rename.isEditing && "flex-1")}>
+              {rename.isEditing ? (
+                <ThreadTitle
+                  className="text-[13px] font-semibold"
+                  grow
+                  rename={rename}
+                  title={thread.title}
+                />
+              ) : (
+                <span className="min-w-0 truncate text-[13px] font-semibold">
+                  {thread.title}
+                </span>
+              )}
+            </h2>
+            <ThreadMenu
+              onDelete={() => {
+                setDeleting(true);
+              }}
+              onOpenInChats={onOpenInChats}
+              onViewTasks={onViewTasks}
+              rename={rename}
+              thread={thread}
+            />
+          </div>
         ) : (
           <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
             {sentWords === undefined ? "Chat" : draftTitle(sentWords)}
           </h2>
         )}
         <div className="flex shrink-0 items-center gap-0.5">
-          {thread && (
-            <ThreadMenu
-              onDelete={() => {
-                setDeleting(true);
-              }}
-              onViewTasks={onViewTasks}
-              rename={rename}
-              thread={thread}
-            />
-          )}
           <WindowButton label="Minimize" onClick={onMinimize}>
             <MinusIcon className="size-4" />
           </WindowButton>

@@ -9,6 +9,7 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
+import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -179,6 +180,7 @@ export function ThreadHeader({
 export function ThreadMenu({
   onDelete,
   onEditTopics,
+  onOpenInChats,
   onViewTasks,
   rename,
   thread,
@@ -186,6 +188,8 @@ export function ThreadMenu({
   onDelete: () => void;
   /** Opens the topic picker, when the head that owns the menu has one. */
   onEditTopics?: () => void;
+  /** Opens the chat in Chats, for a head that is not already there. */
+  onOpenInChats?: () => void;
   /** Opens the chat's tasks, when the head can reach them. */
   onViewTasks?: () => void;
   rename: ThreadRename;
@@ -238,6 +242,15 @@ export function ThreadMenu({
           }
         }}
       >
+        {onOpenInChats && (
+          <>
+            <DropdownMenuItem onSelect={onOpenInChats}>
+              <ChatsCircleIcon className="size-3.5" />
+              Open in Chats
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {groups.marks.map(item)}
         <DropdownMenuSeparator />
         <DropdownMenuItem

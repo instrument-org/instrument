@@ -141,6 +141,13 @@ export function TabLocationRow({
             initial={locationText(location)}
             key={locationText(location)}
             {...(onSite ? { onSite } : {})}
+            // A Finder or file tab reaches the computer; every other tab is
+            // a browser tab or stands where one would, and reaches the web.
+            scope={
+              location.kind === "file" || location.kind === "folder"
+                ? "files"
+                : "web"
+            }
             resting={
               location.kind === "newTab" ? undefined : (
                 <Field location={location} />

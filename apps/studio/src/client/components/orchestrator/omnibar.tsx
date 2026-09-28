@@ -4,12 +4,10 @@ import {
 } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { RecentIcon, SiteIcon } from "@/client/components/orchestrator/sidebar";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { siteFromWords } from "@/client/lib/site-from-words";
@@ -17,61 +15,19 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import uFuzzy from "@leeoniya/ufuzzy";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
-import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GearIcon } from "@phosphor-icons/react/Gear";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
-import { LaptopIcon } from "@phosphor-icons/react/Laptop";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { unique } from "radashi";
-import {
-  type ComponentType,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-const SCREENS: {
-  icon: ComponentType<{ className?: string }>;
-  name: string;
-  open: (navigate: ReturnType<typeof useNavigate>) => void;
-}[] = [
-  {
-    icon: LaptopIcon,
-    name: computerName(),
-    open: (navigate) =>
-      void navigate({
-        search: { path: "", root: "~" },
-        to: "/orchestrator/computer",
-      }),
-  },
-  {
-    icon: AppWindowIcon,
-    name: "Apps",
-    open: (navigate) => void navigate({ to: "/orchestrator/apps" }),
-  },
-  {
-    icon: CompassIcon,
-    name: "Ideas",
-    open: (navigate) => void navigate({ to: "/orchestrator/ideas" }),
-  },
-  {
-    icon: GraduationCapIcon,
-    name: "Skills",
-    open: (navigate) => void navigate({ to: "/orchestrator/skills" }),
-  },
-];
-
 const RECENTS_SHOWN = 6;
-const SCREENS_SHOWN = 4;
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
 
@@ -107,16 +63,24 @@ interface OmniRow {
 }
 
 /**
- * The one box that reaches everything: every screen, every app, any site, a
- * task or a place the window has been, and failing those, the conversation.
- * It lives in the row above a new tab, where a browser keeps its address
- * field, so a new tab is the field with nothing in it yet rather than a page
- * with a second field drawn on it.
+ * What a tab's field reaches, decided by the kind of tab it is in: the web
+ * from a browser tab, the computer from a Finder or file tab.
+ */
+export type OmnibarScope = "files" | "web";
+
+/**
+ * A tab's address field. On the web it opens a typed address, searches for
+ * typed words, and finds recently seen pages; on the computer it
+ * opens a typed path and finds recent files and folders. It lives in the row
+ * above a new tab, where a browser keeps its address field, so a new tab is
+ * the field with nothing in it yet rather than a page with a second field
+ * drawn on it.
  */
 export function Omnibar({
   initial = "",
   onSite,
   resting,
+  scope,
 }: {
   /** What the field says when it is edited: the place, ready to be typed over. */
   initial?: string;
@@ -127,8 +91,10 @@ export function Omnibar({
    * Absent on a new tab, which has nowhere to show and takes the caret at once.
    */
   resting?: ReactNode;
+  /** What the field reaches, which is what the tab it sits in holds. */
+  scope: OmnibarScope;
 }) {
-  const { ask, openPage, taskId } = useOrchestrator();
+  const { openPage, taskId } = useOrchestrator();
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -173,8 +139,6 @@ export function Omnibar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   // The matcher the model picker uses: typed letters in order, close
   // together, so "lsbn" finds lisbon.md and "pel news" the pelican task.
   const matches = (name: string) =>
@@ -183,8 +147,8 @@ export function Omnibar({
   // whole is: it opens on Enter rather than being searched for.
   const isNamed = (name: string) =>
     words !== "" && name.toLowerCase() === words;
-  const typedSite = siteFromWords(typed);
-  const typedPath = pathFromWords(typed);
+  const typedSite = scope === "web" ? siteFromWords(typed) : undefined;
+  const typedPath = scope === "files" ? pathFromWords(typed) : undefined;
 
   // Done with: the field goes back to showing the place, which is also what
   // answers a path typed again for where the tab already is.
@@ -253,53 +217,19 @@ export function Omnibar({
     arrived();
   };
 
-  const screens = SCREENS.filter((screen) => matches(screen.name)).slice(
-    0,
-    words ? SCREENS_SHOWN : SCREENS.length,
-  );
-  // The apps this workspace has, each opening its page; then what the
-  // directory knows, each a request to connect it.
-  const known = new Set((appList.data?.apps ?? []).map((app) => app.slug));
-  const apps = [
-    ...(appList.data?.apps ?? []).map((app) => ({
-      id: `app:${app.slug}`,
-      name: app.name,
-      note: app.standing === "connected" ? "App" : "Setting up",
-      run: () => {
-        void navigate({
-          params: { slug: app.slug },
-          to: "/orchestrator/apps/$slug",
-        });
-      },
-      site: app.site,
-    })),
-    ...(catalog.data ?? [])
-      .filter((entry) => !known.has(entry.slug))
-      .map((entry) => ({
-        id: `catalog:${entry.slug}`,
-        name: entry.name,
-        note: "Directory",
-        // Its page, the same as an app the workspace has: what it is and how
-        // it is reached, with connecting it the one thing to do there.
-        run: () => {
-          void navigate({
-            params: { slug: entry.slug },
-            to: "/orchestrator/apps/$slug",
-          });
-        },
-        site: `https://${entry.domain}`,
-      })),
-  ].filter((app) => matches(app.name));
-  // Where the window has been: the screens it landed on and the pages the
-  // browser showed, newest first, as one list.
-  // The work is not in here: a task looks like a place and is not one, and
-  // the Tasks bookmark is the way to it.
+  // Where the window has been, newest first, as one list: the pages the
+  // browser showed on the web, the files and folders it opened on the
+  // computer.
   // One row per place: a page the browser showed is also a recent screen when
   // the window landed on it, and the two are the same place.
   const wasAt = unique(
     [
       ...recents
-        .filter((entry) => entry.kind !== "task")
+        .filter((entry) =>
+          scope === "web"
+            ? entry.kind === "browser"
+            : entry.kind === "file" || entry.kind === "folder",
+        )
         .map((entry) => ({
           at: entry.at,
           icon: <RecentIcon recent={entry} />,
@@ -321,7 +251,7 @@ export function Omnibar({
         })),
       // A page it has been to goes where a typed site goes: this tab's own
       // guest on a page, a tab of its own anywhere else.
-      ...visited.map((page) => ({
+      ...(scope === "web" ? visited : []).map((page) => ({
         at: page.at,
         icon: <SiteIcon favicon={page.favicon} url={page.url} />,
         id: `page:${page.url}`,
@@ -338,16 +268,6 @@ export function Omnibar({
   const recentRows = wasAt
     .filter((entry) => matches(entry.title))
     .slice(0, words ? RECENTS_SHOWN : 0);
-  const screenRows: OmniRow[] = screens.map((screen) => ({
-    group: "Screens",
-    icon: <screen.icon className="size-4" />,
-    id: `screen:${screen.name}`,
-    name: screen.name,
-    note: "Screen",
-    run: () => {
-      screen.open(navigate);
-    },
-  }));
   const recentOmniRows: OmniRow[] = recentRows.map((entry) => ({
     group: "Recent",
     icon: entry.icon,
@@ -356,14 +276,6 @@ export function Omnibar({
     name: entry.title,
     note: entry.note,
     run: entry.run,
-  }));
-  const appRows: OmniRow[] = apps.map((app) => ({
-    group: "Apps",
-    icon: <AppIcon name={app.name} site={app.site} size="sm" />,
-    id: app.id,
-    name: app.name,
-    note: app.note,
-    run: app.run,
   }));
   // The switches this window keeps nowhere else, developer mode among them, so
   // turning one on is a thing you type rather than a build you restart.
@@ -430,7 +342,7 @@ export function Omnibar({
         input.current?.blur();
       },
     }));
-  const matched = [...screenRows, ...recentOmniRows, ...appRows];
+  const matched = recentOmniRows;
   const rows: OmniRow[] = [
     // What the words are, when they are a place: a path on the computer, an
     // address, or the whole name of something the box knows. Each opens on
@@ -469,10 +381,9 @@ export function Omnibar({
     // Then what the words ask the window to do, which is as plain a reading of
     // them as a place is.
     ...commandRows,
-    // What the words can be used with, next: searching the web and asking
-    // the conversation are what typed words most often mean, and the rows
-    // that matched them follow.
-    ...(words
+    // On the web, a search for the words next: what typed words most often
+    // mean there, and the rows that matched them follow.
+    ...(words && scope === "web"
       ? [
           {
             group: `Use “${typed}” with`,
@@ -487,17 +398,6 @@ export function Omnibar({
               setQuery("");
             },
           },
-          {
-            group: `Use “${typed}” with`,
-            icon: <InstrumentGlyph className="size-4" />,
-            id: "ask",
-            name: "Ask Instrument",
-            note: "Agent",
-            run: () => {
-              ask(typed);
-              setQuery("");
-            },
-          },
         ]
       : []),
     ...matched.filter((row) => !isNamed(row.name)),
@@ -508,7 +408,9 @@ export function Omnibar({
     <>
       {!isEditing && resting !== undefined && resting}
       <input
-        aria-label="Search or ask"
+        aria-label={
+          scope === "web" ? "Search or enter address" : "Go to a file or folder"
+        }
         className={cn(
           "h-full min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground",
           // A new tab's empty box rests with its placeholder centered, the
@@ -586,7 +488,11 @@ export function Omnibar({
             // No default
           }
         }}
-        placeholder="Search, open a file, or ask Instrument"
+        placeholder={
+          scope === "web"
+            ? "Search or enter address"
+            : "Type a path or a recent file’s name"
+        }
         ref={input}
         spellCheck={false}
         type="text"

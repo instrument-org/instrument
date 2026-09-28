@@ -453,13 +453,15 @@ async function loadInNewTab(
   url: string,
 ): Promise<void> {
   const gate = createMainFrameLoadGate();
-  const stop = browser.subscribeEvents(targetId, noop, gate.observe);
+  const stop = browser.subscribeEvents(targetId, noop, (method, params) => {
+    gate.observe(method, params);
+  });
   try {
     await browser.sendCommand(targetId, "Page.enable", {});
     const load = gate.nextMainFrameLoad(NAVIGATE_HOLD_CAP_MS);
-    const result = await browser
+    const result: unknown = await browser
       .sendCommand(targetId, "Page.navigate", { url })
-      .catch(() => {});
+      .catch(noop);
     if (hasLoaderId(result)) {
       await load.promise;
     } else {

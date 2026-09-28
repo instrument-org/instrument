@@ -1005,7 +1005,6 @@ export function GroupItem({
     return (
       <Card head={screenRow}>
         <WebStart
-          hasAddressField={false}
           onOpenPage={(url) => {
             browser?.open(url, { group, replacing: up });
           }}

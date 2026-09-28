@@ -17,7 +17,6 @@ function WebRoute() {
   useOnScreen({ screen: "home" });
   return (
     <WebStart
-      hasAddressField={false}
       onOpenPage={(url) => {
         openPage(url);
       }}

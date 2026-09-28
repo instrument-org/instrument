@@ -1265,17 +1265,17 @@ export function ComputerPage({
               }
             }}
             onOpenInNewTab={() => {
-              const hostPath = hostPathOfItem(menuItem);
-              if (!hostPath) {
+              const itemPath = hostPathOfItem(menuItem);
+              if (!itemPath) {
                 return;
               }
               // A file comes up with the folder it was chosen in as its
               // tree, the way one opened in place does.
               openScreen(
                 menuItem?.kind === "folder"
-                  ? folderHref(hostPath)
-                  : fileHref(hostPath, {
-                      tree: folderOnScreenPath ?? folderOf(hostPath),
+                  ? folderHref(itemPath)
+                  : fileHref(itemPath, {
+                      tree: folderOnScreenPath ?? folderOf(itemPath),
                     }),
                 { newTab: true },
               );

@@ -94,10 +94,10 @@ interface FilterProps {
  * beside it the places as marks (Needs you while something waits, Starred,
  * Drafts, and All, which is every thread, put away or not). One view at a
  * time: a topic is not narrowed to a place or a place to a topic, and
- * choosing the view already on steps back to the chats. The one figure is
- * how many threads hold replies not yet seen, on the chats and on Starred
- * while there are any. The search under the line adds to whatever is
- * chosen.
+ * choosing the view already on steps back to the chats. The marks carry no
+ * figures; the one figure is how many threads hold replies not yet seen, on
+ * the chats in the open picker. The search under the line adds to whatever
+ * is chosen.
  */
 export function FilterHead(props: FilterProps) {
   const { chats, onNewTopic, onTopicDetails, places, topics } =
@@ -125,7 +125,6 @@ export function FilterHead(props: FilterProps) {
             key={place.id}
             label={place.label}
             onChoose={place.choose}
-            unread={place.unread}
           >
             {place.icon(place.isOn)}
           </PlaceMark>
@@ -179,14 +178,11 @@ function PlaceMark({
   isOn,
   label,
   onChoose,
-  unread,
 }: {
   children: ReactNode;
   isOn: boolean;
   label: string;
   onChoose: () => void;
-  /** How many threads in the place hold replies not yet seen. */
-  unread?: number;
 }) {
   return (
     <Tooltip>
@@ -198,7 +194,7 @@ function PlaceMark({
             "flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl",
             isOn
               ? cn(CHOSEN, "pr-3 pl-2.5 text-[15px] font-semibold")
-              : cn(UNCHOSEN, unread === undefined ? "w-10" : "px-2"),
+              : cn(UNCHOSEN, "w-10"),
           )}
           data-chosen={isOn || undefined}
           onClick={onChoose}
@@ -206,9 +202,6 @@ function PlaceMark({
         >
           {children}
           {isOn && <span>{label}</span>}
-          {unread !== undefined && (
-            <span className="text-xs font-medium tabular-nums">{unread}</span>
-          )}
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
@@ -260,7 +253,6 @@ function useFilterModel({
   const needsYou = kept.some((thread) => thread.state === "waiting");
   const chosenTopics = new Set(filters.topics);
   const keptUnread = unreadIn(kept);
-  const starredUnread = unreadIn(threads.filter((thread) => thread.starred));
   // Needs you stays a mark while it is the place stood in, whether or not
   // anything still waits: the mark is how the place is stepped out of, and a
   // filter with no mark is one nothing on screen accounts for.
@@ -273,9 +265,6 @@ function useFilterModel({
       onFiltersChange(choose(filters, { group: "place", id: place.id }));
     },
     isOn: filters.place === place.id,
-    ...(place.id === "starred" && starredUnread
-      ? { unread: starredUnread }
-      : {}),
   }));
   return {
     chats: {

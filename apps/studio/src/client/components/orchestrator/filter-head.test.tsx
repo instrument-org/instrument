@@ -103,7 +103,7 @@ describe("FilterHead", () => {
     ).toEqual(["Starred", "Drafts", "All"]);
   });
 
-  it("counts the unread among the starred, keeps a thread put away out of the chats' count, and offers Needs you only while something waits", () => {
+  it("counts nothing on the places, keeps a thread put away out of the chats' count, and offers Needs you only while something waits", () => {
     const { head, places } = renderHead({
       threads: [
         thread({ starred: true, unread: 1 }),
@@ -117,7 +117,7 @@ describe("FilterHead", () => {
         ?.textContent,
     ).toBe("Chats1");
     expect(places.getByRole("button", { name: "Starred" }).textContent).toBe(
-      "1",
+      "",
     );
     expect(places.getByRole("button", { name: "Needs you" })).toBeTruthy();
   });

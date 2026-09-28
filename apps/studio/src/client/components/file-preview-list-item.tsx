@@ -9,8 +9,8 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { useState } from "react";
 
+import { FileTypeIcon } from "./extend/file-system";
 import { FileActionsMenuItems } from "./file-actions-menu";
-import { FileIcon } from "./file-icon";
 import { ImageWithFallback } from "./image-with-fallback";
 import { PreviewListItem } from "./preview-list-item";
 import {
@@ -30,7 +30,7 @@ export function FilePreviewListItem({
   isSelected?: boolean;
   onClick: () => void;
 }) {
-  const { filename, hostPath, mimeType } = file;
+  const { filename, hostPath } = file;
   const fileType = getFileType(file);
   const { url } = file;
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -92,13 +92,7 @@ export function FilePreviewListItem({
         className={cn(isMissing && "opacity-60")}
         disabled={isMissing}
         dragProps={dragProps}
-        icon={
-          <FileIcon
-            className="size-5 shrink-0 text-muted-foreground"
-            filename={filename}
-            mimeType={mimeType}
-          />
-        }
+        icon={<FileTypeIcon className="size-5" fileName={filename} />}
         isSelected={isSelected}
         label={filename}
         onClick={onClick}

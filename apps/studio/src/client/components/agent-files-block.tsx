@@ -23,7 +23,7 @@ import { useQueries } from "@tanstack/react-query";
 import { fork } from "radashi";
 import { useContext } from "react";
 
-import { FileIcon } from "./file-icon";
+import { FileTypeIcon } from "./extend/file-system";
 import { FilesGrid } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
 import { MacFolderIcon } from "./icons/mac-folder";
@@ -259,7 +259,7 @@ function FileLine({
       ref={ref}
       type="button"
     >
-      <FileIcon className="size-4 shrink-0" filename={filename} />
+      <FileTypeIcon className="size-4" fileName={filename} />
       <span className="min-w-0 flex-1 truncate">{filename}</span>
       <span className="shrink-0 text-[10px] text-muted-foreground">
         {isMissing ? FILE_MISSING_LABEL : getFileKindLabel({ filename })}

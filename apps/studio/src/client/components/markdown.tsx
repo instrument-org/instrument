@@ -73,8 +73,8 @@ import { splitMarkdownBlocks } from "../lib/split-markdown-blocks";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
 import { MarkdownCodeBlock } from "./code-block";
+import { FileTypeIcon } from "./extend/file-system";
 import { FileActionsMenuItems } from "./file-actions-menu";
-import { FileIcon } from "./file-icon";
 import { FrontMatter } from "./front-matter";
 import {
   INLINE_CHIP_CLASS_NAME,
@@ -435,7 +435,10 @@ const TaskFileLink = ({
       type="button"
       {...dragProps}
     >
-      <FileIcon className={INLINE_CHIP_ICON_CLASS_NAME} filename={filename} />
+      <FileTypeIcon
+        className={INLINE_CHIP_ICON_CLASS_NAME}
+        fileName={filename}
+      />
       <span className="truncate">{children}</span>
     </button>
   );

@@ -1,5 +1,4 @@
 import { filePreviewAtom } from "@/client/atoms/file-preview";
-import { FileSystemIconSpriteSheet } from "@/client/components/extend/file-system";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { Toaster } from "@/client/components/ui/sonner";
 import { UpdatedToast } from "@/client/components/updated-toast";
@@ -46,10 +45,6 @@ export function WindowFrame({
         which is already the real window scaled to the zoom the UI is laid out
         at, so a viewport height would apply that zoom a second time. */}
       <div className="relative flex h-full flex-col bg-ground">
-        {/* The file browser's own type icons, drawn by reference, so a file
-          named anywhere in the window (a thread's marks, say) wears the same
-          colored mark it has in the computer view. */}
-        <FileSystemIconSpriteSheet />
         {/* The bar is the window's own row and reserves the band the traffic
           lights are drawn in, so no column below has to leave a gap for them. */}
         {bar ?? (

@@ -3,6 +3,7 @@ import "./styles/globals.css";
 import ReactDOM, { type Root } from "react-dom/client";
 
 import { App } from "./app";
+import { FileSystemIconSpriteSheet } from "./components/extend/file-system";
 import { MainWindow } from "./components/main-window";
 import { initBrowserDownloadNotices } from "./lib/browser-download-notices";
 import { initBrowserNavigationNotices } from "./lib/browser-navigation-notices";
@@ -30,7 +31,15 @@ if (rootElement) {
   // The main window hosts the whole tabbed app in this one web contents
   // (MainWindow). The onboarding web contents keeps using the single-router App.
   const isMainWindow = window.api.windowType === "main";
-  root.render(isMainWindow ? <MainWindow /> : <App />);
+  // Beside either root, the file browser's own type icons, drawn by
+  // reference: a file named anywhere in any window (a reply's file chips, a
+  // thread's marks) wears the same colored mark it has in the computer view.
+  root.render(
+    <>
+      <FileSystemIconSpriteSheet />
+      {isMainWindow ? <MainWindow /> : <App />}
+    </>,
+  );
 
   if (isMainWindow || window.api.windowType === "orchestrator") {
     // Subscribe the browser webview pool to main-process mount/unmount

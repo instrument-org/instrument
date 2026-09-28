@@ -282,7 +282,18 @@ function RailTile({
       <button
         aria-label={title}
         className="flex flex-col gap-1.5 text-left outline-none"
+        // A middle click closes it, as it does a browser's tab.
+        onAuxClick={(event) => {
+          if (event.button === 1) {
+            onClose();
+          }
+        }}
         onClick={onSelect}
+        onMouseDown={(event) => {
+          if (event.button === 1) {
+            event.preventDefault();
+          }
+        }}
         type="button"
       >
         <span

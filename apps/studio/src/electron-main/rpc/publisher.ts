@@ -43,6 +43,16 @@ interface PublisherEvents {
     host: BrowserHost;
     targetId: BrowserTargetId;
   };
+  // A person asked for a link on a page to open in a tab of its own: a
+  // middle- or Cmd-click, a `target=_blank` link, or the page's menu. The
+  // window hosting the guest opens it in a tab of the window's own, behind
+  // the one up when `background`.
+  "browser.open-in-new-tab": {
+    background: boolean;
+    host: BrowserHost;
+    targetId: BrowserTargetId;
+    url: string;
+  };
   // Agent-driven browser input can move Chromium keyboard focus into a guest.
   // The renderer owns the exact Studio element that must be restored.
   "browser.restore-host-focus": null;

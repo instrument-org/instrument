@@ -49,6 +49,13 @@ const events = {
       yield event;
     }
   }),
+  openInNewTab: base.handler(async function* ({ signal }) {
+    for await (const event of publisher.subscribe("browser.open-in-new-tab", {
+      signal,
+    })) {
+      yield event;
+    }
+  }),
   restoreHostFocus: base.handler(async function* ({ signal }) {
     for await (const _ of publisher.subscribe("browser.restore-host-focus", {
       signal,

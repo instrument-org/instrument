@@ -61,6 +61,8 @@ import { log } from "./log";
 import { stopScreencast } from "./screencast";
 import {
   guestWindowOpenHandler,
+  isFileUrl,
+  newTabOpenOf,
   sameTabNavigationUrl,
 } from "./window-open-policy";
 
@@ -232,6 +234,17 @@ export function createBrowserViewManager(): BrowserViewManager {
     entry.webContents = guest;
     const { targetId } = entry;
 
+    // Where a link on the page may take a tab: a file only from a page on
+    // the computer, as Chromium itself allows, and within what an agent
+    // driving the tab may reach.
+    const mayOpenFromPage = (url: string) => {
+      const from = committedDocumentOf(guest.id, guest.mainFrame);
+      return (
+        (!isFileUrl(url) || (from !== undefined && isFileUrl(from))) &&
+        mayPageNavigateTo(entry.agentFileRoots, from, url)
+      );
+    };
+
     // A page the agent can read may not take its tab to a file the agent
     // cannot; see `mayPageNavigateTo`. Fires only for navigations the page
     // starts, never for the address bar or the agent's own `Page.navigate`.
@@ -268,6 +281,23 @@ export function createBrowserViewManager(): BrowserViewManager {
         ? { action: "deny" }
         : guestWindowOpenHandler(details);
       if (response.action === "deny") {
+        // A window with tabs gives a tab-open a tab of its own, as a browser
+        // does, while a person rather than an agent is driving the page.
+        const newTab =
+          entry.host === "orchestrator" && !focusGuard.isGuarded(targetId)
+            ? newTabOpenOf(
+                details,
+                committedDocumentOf(guest.id, guest.mainFrame),
+              )
+            : null;
+        if (newTab && mayOpenFromPage(newTab.url)) {
+          publisher.publish("browser.open-in-new-tab", {
+            ...newTab,
+            host: entry.host,
+            targetId,
+          });
+          return response;
+        }
         // A denied open leaves the click with nowhere to go, so send the ones
         // that mean "show me this page" to the page it came from. This runs
         // even while the guest is agent-guarded, where it is the only way a
@@ -304,7 +334,21 @@ export function createBrowserViewManager(): BrowserViewManager {
     guest.setBackgroundThrottling(false);
 
     // Mouse thumb-button navigation + right-click menu so the user can drive it.
-    attachGuestInteractions(guest);
+    attachGuestInteractions(guest, {
+      mayOpen: mayOpenFromPage,
+      ...(entry.host === "orchestrator"
+        ? {
+            openInNewTab: (url: string) => {
+              publisher.publish("browser.open-in-new-tab", {
+                background: false,
+                host: entry.host,
+                targetId,
+                url,
+              });
+            },
+          }
+        : {}),
+    });
 
     attachDownloadHandler({ entries, session: guest.session });
 

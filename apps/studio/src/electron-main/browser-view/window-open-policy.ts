@@ -27,6 +27,10 @@ export function guestWindowOpenHandler(
   };
 }
 
+export function isFileUrl(value: string): boolean {
+  return value.startsWith("file:");
+}
+
 // The one protocol test for anything the guest may be sent to by a link: an
 // open the policy allows, an open it turns into a same-tab navigation, and the
 // context menu's own "Open Link".
@@ -38,6 +42,30 @@ export function isHttpUrl(value: string): boolean {
     return false;
   }
   return url.protocol === "http:" || url.protocol === "https:";
+}
+
+// Where a tab-open should open in a tab of the window's own, for a window
+// that has tabs: a `target=_blank` link (`foreground-tab`) or a middle- or
+// Cmd-click (`background-tab`), to the web or, from a page on the computer,
+// to another file on it. A web page cannot reach a file, so a file address
+// from one is no tab. Null for every other open.
+export function newTabOpenOf(
+  details: HandlerDetails,
+  fromUrl: string | undefined,
+): null | { background: boolean; url: string } {
+  const opensATab =
+    details.disposition === "foreground-tab" ||
+    details.disposition === "background-tab";
+  const reachable =
+    isHttpUrl(details.url) ||
+    (isFileUrl(details.url) && fromUrl !== undefined && isFileUrl(fromUrl));
+  if (!opensATab || !reachable) {
+    return null;
+  }
+  return {
+    background: details.disposition === "background-tab",
+    url: details.url,
+  };
 }
 
 // Where a denied open should navigate the guest that asked for it, or null to

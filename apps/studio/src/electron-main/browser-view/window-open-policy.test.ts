@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   guestWindowOpenHandler,
+  newTabOpenOf,
   sameTabNavigationUrl,
 } from "./window-open-policy";
 
@@ -134,5 +135,52 @@ describe("sameTabNavigationUrl", () => {
 
   it.each(ignoredCases)("leaves $name alone", ({ overrides }) => {
     expect(sameTabNavigationUrl(details(overrides))).toBeNull();
+  });
+});
+
+describe("newTabOpenOf", () => {
+  const FILE_PAGE = "file:///Users/me/site/a.html";
+
+  it.each([
+    {
+      expected: { background: false, url: "https://example.com/" },
+      from: "https://example.org/",
+      name: "a target=_blank link, in front",
+      overrides: { disposition: "foreground-tab", url: "https://example.com/" },
+    },
+    {
+      expected: { background: true, url: "https://example.com/" },
+      from: FILE_PAGE,
+      name: "a middle click, behind",
+      overrides: { disposition: "background-tab", url: "https://example.com/" },
+    },
+    {
+      expected: { background: true, url: "file:///Users/me/site/b.html" },
+      from: FILE_PAGE,
+      name: "a file a page on the computer links to",
+      overrides: {
+        disposition: "background-tab",
+        url: "file:///Users/me/site/b.html",
+      },
+    },
+    {
+      expected: null,
+      from: "https://example.org/",
+      name: "a file a web page links to",
+      overrides: { disposition: "foreground-tab", url: "file:///etc/hosts" },
+    },
+    {
+      expected: null,
+      from: FILE_PAGE,
+      name: "a sign-in popup",
+      overrides: { disposition: "new-window" },
+    },
+  ] satisfies {
+    expected: null | { background: boolean; url: string };
+    from: string;
+    name: string;
+    overrides: Partial<HandlerDetails>;
+  }[])("reads $name", ({ expected, from, overrides }) => {
+    expect(newTabOpenOf(details(overrides), from)).toEqual(expected);
   });
 });

@@ -49,6 +49,7 @@ function inOrchestrator(
       openOrFocus: vi.fn(),
       pageInPlaceOf: vi.fn(),
       readPage: vi.fn(),
+      restore: vi.fn(),
     },
     focusComposer: vi.fn(),
     openPage,

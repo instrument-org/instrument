@@ -24,6 +24,8 @@ const CHAT_SESSION = StoreId.SessionSchema.parse(
 );
 const CHAT_ID = TaskIdSchema.parse("2026-09-26-conversation");
 const TASK_ID = TaskIdSchema.parse("read-the-page");
+// A task no chat owns, which still browses in a guest of its own.
+const LONE_TASK_ID = TaskIdSchema.parse("lone-task");
 const WINDOW_ID = TaskIdSchema.parse("instrument");
 
 let rootDir: string;
@@ -80,7 +82,7 @@ function browserOfLiveTargets() {
   });
 }
 
-async function run(args: string[]) {
+async function run(args: string[], taskId = TASK_ID) {
   const { execa } = await import("execa");
   vi.mocked(execa).mockResolvedValue({
     exitCode: 0,
@@ -89,7 +91,7 @@ async function run(args: string[]) {
   } as never);
   return createAgentBrowserCommand({
     sessionId: StoreId.newSessionId(),
-    taskId: TASK_ID,
+    taskId,
   }).execute(args, ctx);
 }
 
@@ -107,7 +109,7 @@ async function spawnedCdpUrl() {
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "agent-browser-tabs-"));
-  for (const id of [WINDOW_ID, TASK_ID]) {
+  for (const id of [WINDOW_ID, TASK_ID, LONE_TASK_ID]) {
     createMockTaskConfigForDir(path.join(rootDir, "tasks", id));
   }
   setWorkspaceConfig({
@@ -121,6 +123,7 @@ beforeEach(async () => {
   for (const [taskId, initialSettings] of [
     [WINDOW_ID, { kind: "orchestrator", name: "Instrument" }],
     [TASK_ID, { name: "Read the page", parentTaskId: CHAT_ID }],
+    [LONE_TASK_ID, { name: "Lone task" }],
   ] as const) {
     const made = await initializeTask(
       { initialSettings, taskId, workspaceConfig: getWorkspaceConfig() },
@@ -143,35 +146,47 @@ afterEach(async () => {
 });
 
 describe("a task's tab", () => {
-  it("opens behind in the task's chat the first time the task needs a page", async () => {
+  it("connects a task with no tab yet to its browser, which opens one on demand", async () => {
     const result = await run(["open", "https://example.com"]);
 
     expect(result.exitCode).toBe(0);
-    expect(asks).toEqual([{ group: CHAT_SESSION, show: false }]);
-    const state = await getTaskState(taskDir(TASK_ID));
-    const held = state.browserTabs?.[0];
-    expect(held?.openedBy).toBe("task");
-    expect(held?.id.startsWith(`${WINDOW_ID}/`)).toBe(true);
-    expect(await spawnedCdpUrl()).toContain(held?.id ?? "no tab");
+    // The task's whole browser, not one page of it.
+    expect(await spawnedCdpUrl()).toContain(`/devtools/task/${TASK_ID}`);
+    // Nothing is opened before agent-browser asks the browser for a page.
+    expect(asks).toEqual([]);
   });
 
-  it("stays the task's page from one command to the next", async () => {
-    await run(["open", "https://example.com"]);
-    await run(["snapshot", "-i"]);
+  it("connects a task to the tabs it holds", async () => {
+    const own = encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId());
+    live.add(own);
+    await setTaskState(taskDir(TASK_ID), {
+      browserTabs: [{ id: own, openedBy: "task" }],
+    });
 
-    expect(asks).toHaveLength(1);
+    const result = await run(["snapshot", "-i"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(await spawnedCdpUrl()).toContain(`/devtools/task/${TASK_ID}`);
   });
 
-  it("says so once when its own tab was closed, then opens another", async () => {
-    await run(["open", "https://example.com"]);
-    live.clear();
+  it("says so once when its own tabs were closed, then goes on", async () => {
+    await setTaskState(taskDir(TASK_ID), {
+      browserTabs: [
+        {
+          id: encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId()),
+          openedBy: "task",
+        },
+      ],
+    });
 
     const told = await run(["snapshot", "-i"]);
-    await run(["open", "https://example.com"]);
+    const next = await run(["open", "https://example.com"]);
 
     expect(told.exitCode).toBe(1);
     expect(told.stderr).toContain("the tab this task opened was closed");
-    expect(asks).toHaveLength(2);
+    expect(next.exitCode).toBe(0);
+    const state = await getTaskState(taskDir(TASK_ID));
+    expect(state.browserTabs).toBeUndefined();
   });
 
   it("is never replaced when it was handed over and the user closed it", async () => {
@@ -194,13 +209,27 @@ describe("a task's tab", () => {
   it.each([
     { args: ["tab", "new", "https://example.com"] },
     { args: ["tab", "list"] },
-    { args: ["window", "new"] },
     { args: ["click", "@e1", "--new-tab"] },
-  ])("refuses $args, which would act on its one page", async ({ args }) => {
+  ])("passes $args through to the task's browser", async ({ args }) => {
     const result = await run(args);
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("this task has one tab");
-    expect(asks).toEqual([]);
+    expect(result.exitCode).toBe(0);
+    expect(await spawnedCdpUrl()).toContain(`/devtools/task/${TASK_ID}`);
   });
+
+  it.each([
+    { args: ["tab", "new", "https://example.com"] },
+    { args: ["tab", "list"] },
+    { args: ["window", "new"] },
+    { args: ["click", "@e1", "--new-tab"] },
+  ])(
+    "refuses $args to a task no chat owns, whose browser is one page",
+    async ({ args }) => {
+      const result = await run(args, LONE_TASK_ID);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("this browser has one tab");
+      expect(asks).toEqual([]);
+    },
+  );
 });

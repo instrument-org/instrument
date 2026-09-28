@@ -1,14 +1,17 @@
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { encodeBrowserTargetId } from "../types";
+import { decodeBrowserTargetId, encodeBrowserTargetId } from "../types";
 import {
   BLANK_PAGE_URL,
   getBrowserState,
   takeBrowserClosed,
 } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
+import { windowTaskId } from "./orchestrator/ensure";
 import { taskFsLayout } from "./resolve-workspace-file-path";
+import { taskDir } from "./task-dir-utils";
+import { getTaskState } from "./task-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createBrowserStatusPart({
@@ -27,6 +30,17 @@ export async function createBrowserStatusPart({
     // by where the file sits on the person's disk.
     const layout = await taskFsLayout(taskId);
     const spell = (url: string) => agentSpellingOfFileUrls(url, layout);
+    const held = await heldTabsStatus(taskId, spell);
+    if (held !== null) {
+      return held.length > 0
+        ? createPart({
+            createdAt,
+            data: { status: "tabs", tabs: held },
+            messageId,
+            sessionId,
+          })
+        : undefined;
+    }
     const targets = await getWorkspaceConfig().browser.listTargets(taskId);
     const target = targets.find(
       ({ id }) => id === encodeBrowserTargetId(taskId, sessionId),
@@ -149,4 +163,48 @@ function createPart({
     },
     type: "data-browserStatus",
   };
+}
+
+/**
+ * The tabs of its chat a task holds, open ones only, as the task names them;
+ * null for a task that holds none, whose browser is a guest of its own. Where
+ * there is no window (the eval harness) a task browses in a browser of its
+ * own whatever it holds, so there is nothing true to tell it.
+ */
+async function heldTabsStatus(
+  taskId: TaskId,
+  spell: (url: string) => string,
+): Promise<
+  | null
+  | { id: string; openedBy: "handed" | "task"; title?: string; url: string }[]
+> {
+  const { browser } = getWorkspaceConfig();
+  const state = await getTaskState(taskDir(taskId));
+  const heldTabs = state.browserTabs ?? [];
+  if (heldTabs.length === 0 || browser.hasNoWindow) {
+    return null;
+  }
+  const windowTargets = await browser.listTargets(await windowTaskId());
+  const titles = new Map(
+    windowTargets.map((target) => [
+      target.id,
+      target.title,
+    ]),
+  );
+  return heldTabs.flatMap((tab) => {
+    const decoded = decodeBrowserTargetId(tab.id);
+    const url = browser.getTargetUrl(tab.id);
+    if (!decoded || !browser.getTargetMeta(tab.id)) {
+      return [];
+    }
+    const title = titles.get(tab.id);
+    return [
+      {
+        id: decoded.sessionId,
+        openedBy: tab.openedBy,
+        ...(title ? { title } : {}),
+        url: spell(url ?? BLANK_PAGE_URL),
+      },
+    ];
+  });
 }

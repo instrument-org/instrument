@@ -1,11 +1,8 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
-import type { IncomingMessage } from "node:http";
-import type { Duplex } from "node:stream";
 
-import { type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
-import { WebSocket, WebSocketServer } from "ws";
+import { WebSocket } from "ws";
 
 import { noteBrowserAgentActivity } from "../../../lib/browser-agent-activity";
 import {
@@ -19,11 +16,7 @@ import {
   type WorkspaceFsLayout,
 } from "../../../lib/workspace-fs-layout";
 import { TaskIdSchema } from "../../../schemas/task-id";
-import {
-  type BrowserTargetId,
-  BrowserTargetIdSchema,
-  type WorkspaceConfig,
-} from "../../../types";
+import { type BrowserTargetId, type WorkspaceConfig } from "../../../types";
 import { CDP_BASE_PATH, CDP_PAGE_PATH_PREFIX } from "../constants";
 import {
   type WorkspaceServerEnv,
@@ -33,20 +26,21 @@ import { getWorkspaceServerPort } from "../url";
 
 // CDP wire envelopes. Inbound is from agent-browser (untrusted JSON), outbound
 // either has `result` (typed by command) or `error`, plus async event frames.
-interface CdpEventFrame<E extends CdpEventName = CdpEventName> {
+export interface CdpEventFrame<E extends CdpEventName = CdpEventName> {
   method: E;
   params: CdpEventParams<E>;
   sessionId: string;
 }
-type CdpEventName = keyof ProtocolMapping.Events;
-type CdpEventParams<E extends CdpEventName> = ProtocolMapping.Events[E][0];
-interface CdpRequest {
+export type CdpEventName = keyof ProtocolMapping.Events;
+export type CdpEventParams<E extends CdpEventName> =
+  ProtocolMapping.Events[E][0];
+export interface CdpRequest {
   id?: number;
   method?: string;
   params?: unknown;
   sessionId?: string;
 }
-type CdpResponse =
+export type CdpResponse =
   | { error: { code: number; message: string }; id?: number }
   | { id?: number; result: unknown };
 
@@ -90,35 +84,6 @@ cdpBridgeRoute.get("/json", async (c) => {
     })),
   );
 });
-
-export function setupCdpWebSocketBridge(
-  server: ServerType,
-  workspaceConfig: WorkspaceConfig,
-  workspaceRef: WorkspaceServerParentRef,
-) {
-  const wss = new WebSocketServer({ noServer: true });
-
-  server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-    if (!req.url?.startsWith(CDP_PAGE_PATH_PREFIX)) {
-      return;
-    }
-
-    // The path component IS the target id: `${id}/${sessionId}`.
-    // No query parameters; everything routing-relevant is in the path so
-    // the WS upgrade alone tells us which (id, sessionId) is wired.
-    const rawTargetId = req.url.slice(CDP_PAGE_PATH_PREFIX.length);
-    const parsed = BrowserTargetIdSchema.safeParse(rawTargetId.split("?")[0]);
-    if (!parsed.success) {
-      socket.destroy();
-      return;
-    }
-    const targetId = parsed.data;
-
-    wss.handleUpgrade(req, socket, head, (clientWs) => {
-      handleCdpClient(clientWs, targetId, workspaceConfig, workspaceRef);
-    });
-  });
-}
 
 // Commands that operate on the browser-level target tree. We intercept these
 // and return synthetic responses scoped to just the single WebContentsView
@@ -273,6 +238,16 @@ const TEARDOWN_RESETS: [string, Record<string, unknown>][] = [
  */
 const connectionsByTarget = new Map<BrowserTargetId, number>();
 
+/** One page an agent's connection drives, under the session id its frames carry. */
+export interface TargetSession {
+  /** Stops listening to the page and puts back what the agent changed on it. */
+  end: () => void;
+  /** Handles one of the agent's commands for this page, in arrival order. */
+  run: (message: CdpRequest) => void;
+  sessionId: string;
+  targetId: BrowserTargetId;
+}
+
 /**
  * Whether the page in a tab is a local file the agent could not have read.
  *
@@ -334,15 +309,95 @@ export function createLocalFileGate({
   };
 }
 
+/**
+ * A connection pinned to one page: the page endpoint, which a chat's
+ * conversation and a task no chat owns are handed. The `Target.*` domain is
+ * answered here with that one page, so the agent can never discover or attach
+ * to any other.
+ */
 export function handleCdpClient(
   clientWs: WebSocket,
   targetId: BrowserTargetId,
   workspaceConfig: WorkspaceConfig,
   workspaceRef: WorkspaceServerParentRef,
 ) {
+  const send = (payload: CdpEventFrame | CdpResponse) => {
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(JSON.stringify(payload));
+    }
+  };
+  const session = openTargetSession({
+    onDetach: () => {
+      clientWs.close(1001, "Target detached");
+    },
+    send,
+    sessionId: `session-${targetId}`,
+    targetId,
+    workspaceConfig,
+    workspaceRef,
+  });
+
+  clientWs.on("message", (data) => {
+    const message = parseCdpMessage(data);
+    if (!message) {
+      return;
+    }
+    // Intercept Target.* commands that would otherwise leak all Electron
+    // targets through the browser-level debugger.
+    if (
+      typeof message.method === "string" &&
+      INTERCEPTED_TARGET_COMMANDS.has(message.method)
+    ) {
+      handleInterceptedTargetCommand(
+        clientWs,
+        message.id,
+        message.method,
+        message.params,
+        targetId,
+        workspaceConfig,
+      );
+      return;
+    }
+    session.run(message);
+  });
+
+  clientWs.on("close", session.end);
+  clientWs.on("error", session.end);
+}
+
+/** The refusal of a local file the agent's own tools could not read. */
+export function notYourFile(url: string) {
+  return {
+    code: -32_000,
+    message: `${url} is not a file you can open. Open a file by the path you reach it at (agent-browser open work/page.html).`,
+  };
+}
+
+/**
+ * Wires one page to an agent's connection: its events go out tagged with
+ * `sessionId`, its commands go to the page's debugger behind the local-file
+ * gate, a navigation's answer waits for the main frame's load, and ending the
+ * session undoes what the agent set up on the page. `send` writes a frame to
+ * the connection; `onDetach` hears the page going away.
+ */
+export function openTargetSession({
+  onDetach,
+  send,
+  sessionId,
+  targetId,
+  workspaceConfig,
+  workspaceRef,
+}: {
+  onDetach: () => void;
+  send: (payload: CdpEventFrame | CdpResponse) => void;
+  sessionId: string;
+  targetId: BrowserTargetId;
+  workspaceConfig: WorkspaceConfig;
+  workspaceRef: WorkspaceServerParentRef;
+}): TargetSession {
   let unsubscribe: (() => void) | null = null;
 
-  // Surface this WS connection to the taskBrowser machine so it can fan
+  // Surface this page's connection to the taskBrowser machine so it can fan
   // out `agent-browser close --session <id>` at reap time. Lookup is cheap
   // and missing meta means the target was already destroyed; skip.
   const initialMeta = workspaceConfig.browser.getTargetMeta(targetId);
@@ -356,16 +411,6 @@ export function handleCdpClient(
     });
   }
 
-  const send = (payload: CdpEventFrame | CdpResponse) => {
-    if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(JSON.stringify(payload));
-    }
-  };
-
-  const onDetach = () => {
-    clientWs.close(1001, "Target detached");
-  };
-
   // Gates a held `Page.navigate` response on the main frame's load (see the
   // command handler).
   const loadGate = createMainFrameLoadGate();
@@ -374,7 +419,7 @@ export function handleCdpClient(
   // Commands are handled in arrival order behind `queue`, and the first one
   // waits for the layout and the page's current address, so nothing is
   // answered against a page the bridge has not yet judged.
-  // Set once the connection has closed, after which a layout read still in
+  // Set once the session has ended, after which a layout read still in
   // flight must not hand the main process folders nobody is connected for.
   let ended = false;
   const fileGate = createLocalFileGate({
@@ -431,14 +476,14 @@ export function handleCdpClient(
       return;
     }
 
-    // Inject the synthetic sessionId so agent-browser can match events to the
-    // session it attached to via Target.attachToTarget. Electron emits events
-    // without a sessionId since the debugger is browser-level, but agent-browser
+    // Tag the event with the session the agent attached under, so it can
+    // match events to the page they came from. Electron emits events without
+    // a sessionId since the debugger is browser-level, but agent-browser
     // filters events by sessionId when waiting for Page.loadEventFired etc.
     send({
       method: method as CdpEventName,
       params: params as CdpEventParams<CdpEventName>,
-      sessionId: `session-${targetId}`,
+      sessionId,
     });
 
     // Synthesize Page.loadEventFired from Page.frameStoppedLoading.
@@ -455,7 +500,7 @@ export function handleCdpClient(
           params: {
             timestamp: Date.now() / 1000,
           } satisfies Protocol.Page.LoadEventFiredEvent,
-          sessionId: `session-${targetId}`,
+          sessionId,
         });
       }
     }
@@ -482,13 +527,7 @@ export function handleCdpClient(
       isLocalAddress(navigatedTo) &&
       !(await fileGate.mayOpen(navigatedTo))
     ) {
-      send({
-        error: {
-          code: -32_000,
-          message: `${navigatedTo} is not a file you can open. Open a file by the path you reach it at (agent-browser open work/page.html).`,
-        },
-        id,
-      });
+      send({ error: notYourFile(navigatedTo), id });
       return;
     }
 
@@ -496,11 +535,7 @@ export function handleCdpClient(
     // opened (a link, a script setting `location`), and the person can open
     // one in a tab the agent drives. Until the tab leaves it, the agent may
     // navigate away and nothing else.
-    if (
-      fileGate.isClosed() &&
-      !PASSES_CLOSED_FILE_GATE.test(method) &&
-      !INTERCEPTED_TARGET_COMMANDS.has(method)
-    ) {
+    if (fileGate.isClosed() && !PASSES_CLOSED_FILE_GATE.test(method)) {
       send({
         error: {
           code: -32_000,
@@ -512,24 +547,10 @@ export function handleCdpClient(
       return;
     }
 
-    // Intercept Target.* commands that would otherwise leak all Electron
-    // targets through the browser-level debugger.
-    if (INTERCEPTED_TARGET_COMMANDS.has(method)) {
-      handleInterceptedTargetCommand(
-        clientWs,
-        id,
-        method,
-        params,
-        targetId,
-        workspaceConfig,
-      );
-      return;
-    }
-
-    // Real (non-intercepted) inbound command from agent-browser: count it as
-    // agent activity and forward target meta into the taskBrowser machine.
-    // The agent is the only writer on this WS so this matches real agent
-    // command rate without throttling.
+    // Real inbound command from agent-browser: count it as agent activity and
+    // forward target meta into the taskBrowser machine. The agent is the only
+    // writer on this page so this matches real agent command rate without
+    // throttling.
     const meta = workspaceConfig.browser.getTargetMeta(targetId);
     if (meta) {
       workspaceRef.send({
@@ -553,9 +574,8 @@ export function handleCdpClient(
         ? loadGate.nextMainFrameLoad(NAVIGATE_HOLD_CAP_MS)
         : undefined;
 
-    // sessionId is present when agent-browser uses flat session mode after
-    // Target.attachToTarget. We issued a synthetic sessionId so we just strip
-    // it and forward the command directly to the target's debugger.
+    // The session id the agent sent is ours, so the command goes straight to
+    // the page's own debugger without it.
     workspaceConfig.browser
       .sendCommand(targetId, method, params ?? {})
       .then(async (result) => {
@@ -587,30 +607,12 @@ export function handleCdpClient(
       });
   };
 
-  clientWs.on("message", (data) => {
-    let message: CdpRequest;
-    try {
-      const raw = Buffer.isBuffer(data)
-        ? data.toString("utf8")
-        : Array.isArray(data)
-          ? Buffer.concat(data).toString("utf8")
-          : Buffer.from(data).toString("utf8");
-      message = JSON.parse(raw) as CdpRequest;
-    } catch {
-      return;
-    }
-
-    queue = queue
-      .then(() => handleCommand(message))
-      .catch(workspaceConfig.captureException);
-  });
-
   const end = () => {
     unsubscribe?.();
     unsubscribe = null;
     // Stop any in-progress screencast so the capturePage interval doesn't
-    // keep firing into the void (or bleed into the next WS connection for
-    // the same target before it sends its own Page.startScreencast).
+    // keep firing into the void (or bleed into the next connection for the
+    // same target before it sends its own Page.startScreencast).
     workspaceConfig.browser.stopScreencast(targetId);
     if (ended) {
       return;
@@ -644,8 +646,32 @@ export function handleCdpClient(
     }
   };
 
-  clientWs.on("close", end);
-  clientWs.on("error", end);
+  return {
+    end,
+    run: (message) => {
+      queue = queue
+        .then(() => handleCommand(message))
+        .catch(workspaceConfig.captureException);
+    },
+    sessionId,
+    targetId,
+  };
+}
+
+/** A frame from the agent, or undefined for one that is not JSON. */
+export function parseCdpMessage(
+  data: ArrayBuffer | Buffer | Buffer[],
+): CdpRequest | undefined {
+  try {
+    const raw = Buffer.isBuffer(data)
+      ? data.toString("utf8")
+      : Array.isArray(data)
+        ? Buffer.concat(data).toString("utf8")
+        : Buffer.from(data).toString("utf8");
+    return JSON.parse(raw) as CdpRequest;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The address an event is about, when it names one. */

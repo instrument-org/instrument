@@ -3,15 +3,17 @@ import { ulid } from "ulid";
 import { publisher } from "../../rpc/publisher";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import { type HeldTab } from "../../schemas/task-state";
 import {
   type WindowTabAction,
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
 import { decodeBrowserTargetId } from "../../types";
 import { sessionOfChat } from "../record-folders";
-import { taskDir } from "../task-dir-utils";
+import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
+import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
 import { listChildTasks } from "./children";
 
@@ -92,6 +94,47 @@ export async function chatSessionOfTask(
 }
 
 /**
+ * The tabs a task holds with a live guest, after asking the window to bring
+ * back any that are still in its list but have not been shown since a
+ * launch. A tab the window no longer has stays out: it was closed.
+ */
+export async function liveHeldTabs(
+  taskId: TaskId,
+  heldTabs: HeldTab[],
+): Promise<HeldTab[]> {
+  const { browser } = getWorkspaceConfig();
+  const live: HeldTab[] = [];
+  for (const held of heldTabs) {
+    if (browser.getTargetMeta(held.id)) {
+      live.push(held);
+      continue;
+    }
+    const decoded = decodeBrowserTargetId(held.id);
+    if (!decoded) {
+      continue;
+    }
+    const answer = await askWindow({
+      action: { kind: "restore", tabId: decoded.sessionId },
+      askedBy: taskId,
+      group: await chatSessionOfTask(taskId),
+    });
+    if (answer?.tabId === undefined) {
+      continue;
+    }
+    // The window opens the guest; asking here as well waits for it to
+    // attach, and asking twice for one tab makes one guest.
+    await browser.createTarget(
+      decoded.id,
+      decoded.sessionId,
+      getBrowserSessionDir(),
+      "orchestrator",
+    );
+    live.push(held);
+  }
+  return live;
+}
+
+/**
  * Asks the window for a page tab and returns its id, or undefined when no
  * window answered. `show` puts the tab on screen; without it the tab joins
  * the chat's list behind whatever is up, which is how every tab an agent
@@ -134,7 +177,7 @@ export async function tabHolders(
 ): Promise<Map<string, { id: TaskId; title: string }>> {
   const holders = new Map<string, { id: TaskId; title: string }>();
   for (const task of await listChildTasks(chatId)) {
-    if (!isWorking(task.id)) {
+    if (!isWorkingNow(task.id)) {
       continue;
     }
     const state = await getTaskState(taskDir(task.id));
@@ -146,4 +189,13 @@ export async function tabHolders(
     }
   }
   return holders;
+}
+
+/** Whether a task is working, or false where no workspace is running to ask. */
+function isWorkingNow(taskId: TaskId): boolean {
+  try {
+    return isWorking(taskId);
+  } catch {
+    return false;
+  }
 }

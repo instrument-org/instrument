@@ -392,6 +392,11 @@ export function useOpeners({
         windowTabs.replace(tab.id, next);
         return { tabId: next.id };
       }
+      case "restore": {
+        return browser?.restore(tab.id)
+          ? { tabId: tab.id }
+          : { error: `tab ${tab.id} is not a page.` };
+      }
       case "show": {
         windowTabs.select(tab.id);
         if (tab.group !== undefined) {

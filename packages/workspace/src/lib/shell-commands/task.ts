@@ -67,6 +67,7 @@ import {
 import { outputFolderPath } from "../orchestrator/output-folder";
 import { renderSteps, sessionSteps } from "../orchestrator/steps";
 import { askWake, cancelAskedWake, expectStop } from "../orchestrator/wake";
+import { tabHolders } from "../orchestrator/window-tab";
 import { isChatId, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
@@ -140,7 +141,7 @@ const MAX_WAIT_MS = ms("10 minutes");
 
 const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
-  ${TASK_COMMAND.name} new --name '<title>' [--model <model>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--file <path>]... [--app <slug>]... [--tab <id>] <<'EOF'
+  ${TASK_COMMAND.name} new --name '<title>' [--model <model>] [--effort <level>] [--folder <mount>[/<folder>][:rw|:ro]]... [--file <path>]... [--app <slug>]... [--tab <id>]... <<'EOF'
   <prompt>
   EOF
       Create a task and start it. The prompt is its whole brief: it knows nothing
@@ -157,10 +158,11 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       so the brief calls it by that name. --app hands the task a
       connected app, by slug; it gets the \`app\` command for that app and no
       other. --tab hands the task a tab already open, by the id the note on
-      their message gives; its browser is then that tab, page and all. A task
-      given no tab opens the pages it needs in tabs of its own in this chat,
-      behind whatever the user has up, so work on a new page needs no tab:
-      the brief names the page.
+      their message gives, page and all; repeat it for several pages that
+      are one job (compare these, fill this form from that page), and the
+      task starts on the first. A task opens the pages it needs in tabs of
+      its own in this chat too, behind whatever the user has up, so work on
+      a new page needs no tab: the brief names the page.
       --effort is how hard its model thinks, one of ${REASONING_EFFORTS.join(", ")};
       \`${TASK_COMMAND.name} models\` says which levels each model takes and its default. The same
       brief at two levels is two tasks, which is how a level is compared.
@@ -193,10 +195,11 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       \`connect_app\`, hand it over here, and ${TASK_COMMAND.name} send tells it to carry on,
       rather than starting the work again from nothing. Only a connected app
       can be handed over.
-  ${TASK_COMMAND.name} tab <id> <tab id>|--none
-      Hand a task a tab already open after the fact, by the id the note on
-      their message gives, or take the tab back with --none, which leaves the
-      task to open a tab of its own the next time it needs a page.
+  ${TASK_COMMAND.name} tab <id> [<tab id>...] [--add <tab id>]... [--remove <tab id>]... [--none]
+      Change which tabs a task holds after the fact, by the ids the note on
+      their message gives. Tab ids on their own replace the tabs it was
+      handed; --add and --remove change one at a time; --none lets go of all
+      of them. Letting go of a tab never closes it.
   ${TASK_COMMAND.name} list [--since <date>] [--until <date>] [--running] [--limit <n>] [--all]
       Your tasks, newest activity first: id, status, what it has running in the
       background when anything does, the day it was last active, how long ago
@@ -516,7 +519,7 @@ export async function runNew(
 ) {
   const { positional, values } = parseFlags(args, {
     flags: ["app", "effort", "file", "folder", "model", "name", "tab"],
-    repeatable: ["app", "file", "folder"],
+    repeatable: ["app", "file", "folder", "tab"],
   });
   const prompt = promptFrom(positional.join(" "), stdin);
   if (!prompt) {
@@ -559,8 +562,11 @@ export async function runNew(
     ...files,
   ]);
   const name = values.get("name")?.[0]?.trim() || defaultTaskName(prompt);
-  const tab = values.get("tab")?.[0];
-  const handedTab = tab === undefined ? undefined : await resolveTab(tab);
+  const handedTabs = await resolveTabs(values.get("tab") ?? []);
+  const sharedTabs = await tabsHeldElsewhere(
+    handedTabs,
+    context.orchestratorTaskId,
+  );
   const apps = await resolveApps(values.get("app") ?? []);
   requireAppsNamedInBrief(prompt, apps);
 
@@ -594,9 +600,9 @@ export async function runNew(
   if (initialized.isErr()) {
     throw initialized.error;
   }
-  if (handedTab) {
+  if (handedTabs.length > 0) {
     await setTaskState(taskDir(taskId), {
-      browserTabs: [{ id: handedTab, openedBy: "handed" }],
+      browserTabs: handedTabs.map((id) => ({ id, openedBy: "handed" })),
     });
   }
   const session = await latestOrNewSessionId(taskId);
@@ -650,7 +656,7 @@ export async function runNew(
   await recordTaskActivity(taskId);
 
   return ok(
-    `Created ${taskId} ("${name}"). It is running now.\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\n${handedFiles(message.value)}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
+    `Created ${taskId} ("${name}"). It is running now.\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
   );
 }
 
@@ -755,41 +761,67 @@ export async function runStop(args: string[], context: TaskCommandContext) {
 }
 
 /**
- * Hands a task one of the user's browser tabs after it has started, or takes
- * the tab back.
+ * Changes which of the window's tabs a task holds after it has started.
  *
- * The tab is the user's and outlives the task, so this points the task's
- * browser at it rather than creating anything; `--none` leaves the task to open
- * a browser of its own the next time it needs a page.
+ * The tabs are the user's and outlive the task, so this points the task's
+ * browser at them rather than creating anything. Named on their own they
+ * replace the tabs it was handed, keeping any it opened itself; `--add` and
+ * `--remove` change the set one tab at a time; `--none` lets go of every tab,
+ * leaving the task to open one of its own the next time it needs a page.
+ * Letting go of a tab never closes it.
  */
 export async function runTab(args: string[], context: TaskCommandContext) {
-  const task = await requireOwnChild(args[0], context);
-  const wanted = args[1];
-  if (!wanted) {
+  const { positional, values } = parseFlags(args, {
+    boolean: ["none"],
+    flags: ["add", "remove"],
+    repeatable: ["add", "remove"],
+  });
+  const task = await requireOwnChild(positional[0], context);
+  const named = positional.slice(1);
+  const adds = values.get("add") ?? [];
+  const removes = values.get("remove") ?? [];
+  const none = values.has("none");
+  if (named.length === 0 && adds.length === 0 && removes.length === 0 && !none) {
     throw new Error(
-      "tab: a tab id is required, or --none to take the tab back. The note on the user's message lists the tabs open.",
+      "tab: name the tabs to hand over, or --add, --remove, or --none. The note on the user's message lists the tabs open.",
     );
   }
-  if (wanted === "--none") {
-    const state = await getTaskState(taskDir(task.id));
-    if (!state.browserTabs?.some((held) => held.openedBy === "handed")) {
-      return ok(
-        `${task.id} has no tab of the user's; it browses on its own already.\n`,
-      );
+  const state = await getTaskState(taskDir(task.id));
+  const current = state.browserTabs ?? [];
+  if (none) {
+    if (current.length === 0) {
+      return ok(`${task.id} holds no tabs; it opens one of its own already.\n`);
     }
     await setTaskState(taskDir(task.id), { browserTabs: undefined });
     publisher.publish("task.stateUpdated", { id: task.id });
     return ok(
-      `Took the tab back from ${task.id}. It opens a tab of its own from here.\n`,
+      `${task.id} let go of every tab it held; they stay open. It opens a tab of its own from here.\n`,
     );
   }
-  const handedTab = await resolveTab(wanted);
+  const handed = await resolveTabs([...named, ...adds]);
+  const letGo = await resolveTabs(removes, { closedIsFine: true });
+  const dropped = new Set<string>(letGo);
+  const kept =
+    named.length > 0
+      ? current.filter((held) => held.openedBy === "task")
+      : current;
+  const next = [
+    ...kept.filter((held) => !dropped.has(held.id)),
+    ...handed
+      .filter((id) => !kept.some((held) => held.id === id))
+      .map((id) => ({ id, openedBy: "handed" as const })),
+  ];
   await setTaskState(taskDir(task.id), {
-    browserTabs: [{ id: handedTab, openedBy: "handed" }],
+    browserTabs: next.length > 0 ? next : undefined,
   });
   publisher.publish("task.stateUpdated", { id: task.id });
+  const shared = await tabsHeldElsewhere(
+    handed,
+    context.orchestratorTaskId,
+    task.id,
+  );
   return ok(
-    `${task.id} now drives tab ${wanted}, page and all. It acts on that tab from its next message.\n`,
+    `${task.id} now holds ${next.length > 0 ? `tabs ${next.map((held) => tabIdOf(held.id)).join(", ")}` : "no tabs"}. It acts on them from its next browser command.\n${shared}`,
   );
 }
 
@@ -845,15 +877,19 @@ export async function runWake(args: string[], context: TaskCommandContext) {
  * whether it is still open: a tab the user has since closed leaves the task
  * with nothing to act on, which is worth seeing before steering it at one.
  */
-function describeHeldTab(held: HeldTab | undefined): string {
-  const decoded = held && decodeBrowserTargetId(held.id);
-  if (!held || !decoded) {
+function describeHeldTabs(tabs: HeldTab[]): string {
+  if (tabs.length === 0) {
     return "none; it opens one of its own when it needs a page";
   }
-  const own = held.openedBy === "task" ? ", which it opened" : "";
-  return getWorkspaceConfig().browser.getTargetMeta(held.id)
-    ? `${decoded.sessionId}${own}`
-    : `${decoded.sessionId}${own} (closed since)`;
+  return tabs
+    .map((held) => {
+      const own = held.openedBy === "task" ? ", which it opened" : "";
+      const closed = getWorkspaceConfig().browser.getTargetMeta(held.id)
+        ? ""
+        : " (closed since)";
+      return `${tabIdOf(held.id)}${own}${closed}`;
+    })
+    .join("; ");
 }
 
 function fail(message: string) {
@@ -893,6 +929,13 @@ function handedFolders(
         `${mountPathOf(folder.path, orchestratorFolders) ?? folder.path} (${folder.access})`,
     )
     .join(", ");
+}
+
+/** What a hand-over prints about the tabs it made, or nothing. */
+function handedTabsLine(tabs: BrowserTargetId[]): string {
+  return tabs.length > 0
+    ? `Its tabs: ${tabs.map((id) => tabIdOf(id)).join(", ")}.\n`
+    : "";
 }
 
 /**
@@ -1185,14 +1228,6 @@ async function resolveModel(rawName: string, context: TaskCommandContext) {
   return { model: result.value, modelURI };
 }
 
-/**
- * A tab id from the note on the user's message is the session half of one of
- * the orchestrator's own browser targets; the target has to exist, since the
- * task connects to it rather than creating anything. A tab showing a file on
- * the computer is not handed over: its address is a path only the window
- * opens, and a task reaches a file through its folders, never through a
- * browser standing on one.
- */
 async function resolveTab(tab: string): Promise<BrowserTargetId> {
   // The window's tabs are the window record's, whichever chat names one.
   const windowId = await windowTaskId();
@@ -1217,6 +1252,29 @@ async function resolveTab(tab: string): Promise<BrowserTargetId> {
   return targetId;
 }
 
+/**
+ * A tab id from the note on the user's message is the session half of one of
+ * the orchestrator's own browser targets; the target has to exist, since the
+ * task connects to it rather than creating anything. A tab showing a file on
+ * the computer is not handed over: its address is a path only the window
+ * opens, and a task reaches a file through its folders, never through a
+ * browser standing on one.
+ */
+/** Several tab ids, each resolved, without repeats; `closedIsFine` for ids only being let go of. */
+async function resolveTabs(
+  tabs: string[],
+  { closedIsFine = false }: { closedIsFine?: boolean } = {},
+): Promise<BrowserTargetId[]> {
+  const resolved: BrowserTargetId[] = [];
+  for (const tab of tabs) {
+    const id = closedIsFine ? await tabTargetOf(tab) : await resolveTab(tab);
+    if (!resolved.includes(id)) {
+      resolved.push(id);
+    }
+  }
+  return resolved;
+}
+
 async function runTrash(args: string[], context: TaskCommandContext) {
   const task = await requireOwnChild(args[0], context);
   const result = await trashTask({
@@ -1228,6 +1286,48 @@ async function runTrash(args: string[], context: TaskCommandContext) {
     throw result.error;
   }
   return ok(`Moved ${task.id} ("${task.title}") to the trash.\n`);
+}
+
+/** The id a tab goes by in the note and on `--tab`. */
+function tabIdOf(targetId: BrowserTargetId): string {
+  return decodeBrowserTargetId(targetId)?.sessionId ?? targetId;
+}
+
+/**
+ * A line for each tab just handed over that another working task holds too:
+ * both will act on the same page, which is sometimes the point and otherwise
+ * a mistake worth seeing.
+ */
+async function tabsHeldElsewhere(
+  tabs: BrowserTargetId[],
+  chatId: TaskId,
+  except?: TaskId,
+): Promise<string> {
+  if (tabs.length === 0) {
+    return "";
+  }
+  const holders = await tabHolders(chatId);
+  return tabs
+    .flatMap((id) => {
+      const holder = holders.get(tabIdOf(id));
+      return holder && holder.id !== except
+        ? [
+            `Tab ${tabIdOf(id)} is also held by ${holder.id} ("${holder.title}"), which is working in it now; both will act on the same page.\n`,
+          ]
+        : [];
+    })
+    .join("");
+}
+
+/** A tab id in the window's terms, open or not. */
+async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
+  const sessionId = StoreId.SessionSchema.safeParse(tab);
+  if (!sessionId.success) {
+    throw new Error(
+      `"${tab}" is not a tab id; the note on the user's message lists them.`,
+    );
+  }
+  return encodeBrowserTargetId(await windowTaskId(), sessionId.data);
 }
 
 /**
@@ -1507,7 +1607,7 @@ async function runShow(args: string[], context: TaskCommandContext) {
     `model: ${state.selectedModelURI ?? "(none yet)"}`,
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,
     `apps: ${handedApps.length > 0 ? handedApps.join(", ") : "none"}`,
-    `tab: ${describeHeldTab(state.browserTabs?.[0])}`,
+    `tabs: ${describeHeldTabs(state.browserTabs ?? [])}`,
     `folder: ${MOUNT.tasks}/${task.id}, holding ${describeHoldings(holds)}`,
     `last said: ${lastSaid ? `\n  ${lastSaid.replaceAll("\n", "\n  ")}` : "nothing yet"}`,
   ];

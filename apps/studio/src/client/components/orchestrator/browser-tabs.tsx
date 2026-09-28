@@ -114,6 +114,12 @@ export interface BrowserTabsHandle {
    * none.
    */
   readPage: (tabId?: string) => Promise<PageContext | undefined>;
+  /**
+   * Makes a page tab's guest again, at the page it last showed, without
+   * showing the tab: after a launch a guest comes back only when its tab is
+   * shown, and a task working in the tab needs it before then.
+   */
+  restore: (tabId: string) => boolean;
 }
 
 /**
@@ -1060,6 +1066,22 @@ export function BrowserTabs({
           ...(selection ? { selection } : {}),
           ...(text ? { text } : {}),
         };
+      },
+      restore: (tabId) => {
+        const tab = latest.current.allTabs.find(
+          (entry): entry is Extract<WindowTab, { kind: "page" }> =>
+            entry.kind === "page" && entry.id === tabId,
+        );
+        if (!tab) {
+          return false;
+        }
+        void rpcClient.workspace.browser.open.call({
+          host: WINDOW_BROWSER_HOST,
+          id: tab.taskId ?? taskId,
+          sessionId: StoreId.SessionSchema.parse(tab.id),
+          ...(tab.url && tab.url !== "about:blank" ? { url: tab.url } : {}),
+        });
+        return true;
       },
     }),
     // The handle reads the strip through `latest` at call time; the guest on

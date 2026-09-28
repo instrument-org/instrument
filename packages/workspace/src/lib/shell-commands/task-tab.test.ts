@@ -11,7 +11,7 @@ import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config"
 import { encodeBrowserTargetId } from "../../types";
 import { initializeTask } from "../initialize-task";
 import { taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
+import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { runTab, type TaskCommandContext } from "./task";
 
@@ -35,18 +35,25 @@ let openTab: StoreId.Session;
 
 /** A tab of the conversation's, open in the window the way the note lists it. */
 function tabIsOpen(sessionId: StoreId.Session) {
+  tabsAreOpen(sessionId);
+}
+
+/** Tabs of the conversation's, open in the window the way the note lists them. */
+function tabsAreOpen(...sessionIds: StoreId.Session[]) {
   const config = getWorkspaceConfig();
-  const targetId = encodeBrowserTargetId(WINDOW_ID, sessionId);
+  const targetIds = new Set(
+    sessionIds.map((sessionId) => encodeBrowserTargetId(WINDOW_ID, sessionId)),
+  );
   setWorkspaceConfig({
     ...config,
     browser: {
       ...config.browser,
       getTargetMeta: (asked) =>
-        asked === targetId
+        targetIds.has(asked)
           ? {
               id: WINDOW_ID,
               partitionDir: AbsolutePathSchema.parse(rootDir),
-              sessionId,
+              sessionId: StoreId.SessionSchema.parse(asked.split("/")[1]),
             }
           : null,
     },
@@ -102,27 +109,61 @@ describe("task tab", () => {
   it("hands a running task one of the user's tabs", async () => {
     const result = await runTab([CHILD_ID, openTab], context);
 
-    expect(result.stdout).toContain(`${CHILD_ID} now drives tab ${openTab}`);
+    expect(result.stdout).toContain(`${CHILD_ID} now holds tabs ${openTab}`);
     const state = await getTaskState(taskDir(CHILD_ID));
     expect(state.browserTabs).toEqual([
       { id: encodeBrowserTargetId(WINDOW_ID, openTab), openedBy: "handed" },
     ]);
   });
 
-  it("takes the tab back with --none", async () => {
+  it("lets go of every tab with --none", async () => {
     await runTab([CHILD_ID, openTab], context);
 
     const result = await runTab([CHILD_ID, "--none"], context);
 
-    expect(result.stdout).toContain("Took the tab back");
+    expect(result.stdout).toContain("let go of every tab it held");
     const state = await getTaskState(taskDir(CHILD_ID));
     expect(state.browserTabs).toBeUndefined();
   });
 
-  it("says so when there was no tab to take back", async () => {
+  it("says so when there was no tab to let go of", async () => {
     const result = await runTab([CHILD_ID, "--none"], context);
 
-    expect(result.stdout).toContain("browses on its own already");
+    expect(result.stdout).toContain("holds no tabs");
+  });
+
+  it("adds a tab to the ones it holds, and lets go of one", async () => {
+    const second = StoreId.newSessionId();
+    tabsAreOpen(openTab, second);
+    await runTab([CHILD_ID, openTab], context);
+
+    await runTab([CHILD_ID, "--add", second], context);
+    const { browserTabs: both } = await getTaskState(taskDir(CHILD_ID));
+    await runTab([CHILD_ID, "--remove", openTab], context);
+    const { browserTabs: left } = await getTaskState(taskDir(CHILD_ID));
+
+    expect(both?.map((held) => held.id)).toEqual([
+      encodeBrowserTargetId(WINDOW_ID, openTab),
+      encodeBrowserTargetId(WINDOW_ID, second),
+    ]);
+    expect(left).toEqual([
+      { id: encodeBrowserTargetId(WINDOW_ID, second), openedBy: "handed" },
+    ]);
+  });
+
+  it("keeps the tabs a task opened itself when it is handed others", async () => {
+    const own = encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId());
+    await setTaskState(taskDir(CHILD_ID), {
+      browserTabs: [{ id: own, openedBy: "task" }],
+    });
+
+    await runTab([CHILD_ID, openTab], context);
+
+    const state = await getTaskState(taskDir(CHILD_ID));
+    expect(state.browserTabs).toEqual([
+      { id: own, openedBy: "task" },
+      { id: encodeBrowserTargetId(WINDOW_ID, openTab), openedBy: "handed" },
+    ]);
   });
 
   it("refuses a tab that is not open any more", async () => {
@@ -137,9 +178,9 @@ describe("task tab", () => {
     );
   });
 
-  it("needs a tab id or --none", async () => {
+  it("needs a tab id, --add, --remove or --none", async () => {
     await expect(runTab([CHILD_ID], context)).rejects.toThrow(
-      /a tab id is required/,
+      /name the tabs to hand over/,
     );
   });
 

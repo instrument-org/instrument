@@ -31,6 +31,12 @@ export const WindowTabActionSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("close"), tabId: z.string() }),
   z.object({ kind: z.literal("show"), tabId: z.string() }),
+  /**
+   * Brings a page tab's guest back, at the page it last showed, without
+   * showing it: the window makes a tab's guest again only when the tab is
+   * next shown after a launch, and a task working in the tab needs it before.
+   */
+  z.object({ kind: z.literal("restore"), tabId: z.string() }),
 ]);
 
 export type WindowTabAction = z.output<typeof WindowTabActionSchema>;

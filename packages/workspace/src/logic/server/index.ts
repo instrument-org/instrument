@@ -13,7 +13,8 @@ import { type ActorRefFrom, type AnyEventObject, fromCallback } from "xstate";
 
 import { type WorkspaceConfig } from "../../types";
 import { DEFAULT_APPS_SERVER_PORT, LOOPBACK_HOST } from "./constants";
-import { cdpBridgeRoute, setupCdpWebSocketBridge } from "./routes/cdp-bridge";
+import { cdpBridgeRoute } from "./routes/cdp-bridge";
+import { setupCdpWebSocketBridge } from "./routes/cdp-sockets";
 import {
   type WorkspaceServerEnv,
   type WorkspaceServerParentRef,

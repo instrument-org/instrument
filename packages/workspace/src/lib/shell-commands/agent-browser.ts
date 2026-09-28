@@ -8,7 +8,10 @@ import path from "node:path";
 import { dedent, sleep } from "radashi";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
-import { CDP_PAGE_PATH_PREFIX } from "../../logic/server/constants";
+import {
+  CDP_PAGE_PATH_PREFIX,
+  CDP_TASK_PATH_PREFIX,
+} from "../../logic/server/constants";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
@@ -35,7 +38,7 @@ import { browserHostForTask } from "../orchestrator/browser-host";
 import { windowTaskId } from "../orchestrator/ensure";
 import {
   chatSessionOfTask,
-  requestWindowTab,
+  liveHeldTabs,
 } from "../orchestrator/window-tab";
 import { isAtOrUnder } from "../path-containment";
 import { isChatId } from "../record-folders";
@@ -161,8 +164,8 @@ const BLOCKED_SUBCOMMANDS = new Set([
   "upgrade", // Binary is bundled; agent shouldn't self-update.
 ]);
 
-// Subcommands that would open or switch to a second page. The bridge serves a
-// task one page, where they would quietly act on that page instead.
+// Subcommands that open or switch to another page: a task's browser has them,
+// and a connection pinned to one page would quietly act on that page instead.
 const SECOND_PAGE_SUBCOMMANDS = new Set(["tab", "window"]);
 
 // Flags silently stripped (with their value arg, including --flag=value form)
@@ -586,18 +589,10 @@ export function createAgentBrowserCommand({
     }
 
     const { subcommand } = parseAgentBrowserArgs(args);
-    if (
+    const asksForASecondPage =
       !isExternalBrowserInvocation(args) &&
-      ((subcommand && SECOND_PAGE_SUBCOMMANDS.has(subcommand)) ||
-        args.includes("--new-tab"))
-    ) {
-      return {
-        exitCode: 1,
-        stderr:
-          "agent-browser: this task has one tab. Open a page in it with `agent-browser open <url>`; the page it replaces stays in its history.\n",
-        stdout: "",
-      };
-    }
+      ((subcommand !== undefined && SECOND_PAGE_SUBCOMMANDS.has(subcommand)) ||
+        args.includes("--new-tab"));
     if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
       return {
         exitCode: 1,
@@ -750,9 +745,23 @@ export function createAgentBrowserCommand({
       if ("error" in resolved) {
         return { exitCode: 1, stderr: resolved.error, stdout: "" };
       }
-      targetId = resolved.targetId;
+      if (resolved.kind === "page" && asksForASecondPage) {
+        // A connection pinned to one page would quietly act on that page.
+        return {
+          exitCode: 1,
+          stderr:
+            "agent-browser: this browser has one tab. Open a page in it with `agent-browser open <url>`; the page it replaces stays in its history.\n",
+          stdout: "",
+        };
+      }
+      if (resolved.kind === "page" && resolved.isOwnGuest) {
+        targetId = resolved.targetId;
+      }
 
-      const cdpUrl = `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${targetId}`;
+      const cdpUrl =
+        resolved.kind === "task"
+          ? `ws://127.0.0.1:${serverPort}${CDP_TASK_PATH_PREFIX}${id}`
+          : `ws://127.0.0.1:${serverPort}${CDP_PAGE_PATH_PREFIX}${resolved.targetId}`;
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);
       pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
       commandArgs.push("--session", sessionId, ...resolvedArgs);
@@ -1016,13 +1025,13 @@ async function recordBrowserUseBestEffort({
 }
 
 /**
- * The page an invocation acts on.
+ * The browser an invocation acts on.
  *
  * A chat drives the tab on the window's screen, which the window records on
- * its own record rather than on any chat's. A task drives the tab it holds:
- * one the conversation handed it, which is the user's and outlives the task,
- * or one it opened itself. A task in a chat that holds none gets a tab of
- * that chat, opened behind whatever the user has up, so every page a task
+ * its own record rather than on any chat's: one page. A task in a chat drives
+ * the tabs it holds, through a browser of their own: tabs the conversation
+ * handed it, which are the user's and outlive the task, and tabs it opened
+ * itself, each opened behind whatever the user has up, so every page a task
  * works in is one the user can find in the chat's tabs and none is put in
  * front of them. Only a task no chat owns still browses in a guest of its
  * own, on its task page.
@@ -1033,90 +1042,75 @@ async function resolveBrowserTarget({
 }: {
   id: TaskId;
   sessionId: StoreId.Session;
-}): Promise<{ error: string } | { targetId: BrowserTargetId }> {
+}): Promise<
+  | { error: string }
+  | { isOwnGuest: boolean; kind: "page"; targetId: BrowserTargetId }
+  | { kind: "task" }
+> {
   const { browser } = getWorkspaceConfig();
+  const noTabUp = {
+    error:
+      "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
+  };
   if (isChatId(id)) {
     const windowState = await getTaskState(taskDir(await windowTaskId()));
     const onScreen = windowState.browserTargetId;
-    if (onScreen && browser.getTargetMeta(onScreen)) {
-      return { targetId: onScreen };
-    }
     // The conversation drives the tab on the user's screen and never a
     // browser of its own; with no tab up there is nothing to drive.
-    return {
-      error:
-        "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
-    };
+    return onScreen && browser.getTargetMeta(onScreen)
+      ? { isOwnGuest: false, kind: "page", targetId: onScreen }
+      : noTabUp;
   }
   const settings = await getTaskSettings(taskDir(id));
   if (settings?.kind === "orchestrator") {
-    return {
-      error:
-        "agent-browser: no tab is open in the browser. Open one, or hand the work to a task.\n",
-    };
+    return noTabUp;
+  }
+  const chatSession = await chatSessionOfTask(id);
+  if (!chatSession) {
+    // Idempotent: createTarget returns the existing view for this (id,
+    // sessionId) pair if one is already live, so sub-agents and repeat
+    // invocations within the same session reuse the same browsing surface
+    // (cookies, page, debugger).
+    const target = await browser.createTarget(
+      id,
+      sessionId,
+      getBrowserSessionDir(),
+      await browserHostForTask(id),
+    );
+    await recordBrowserUseBestEffort({ sessionId, taskId: id });
+    return { isOwnGuest: true, kind: "page", targetId: target.targetId };
   }
   const state = await getTaskState(taskDir(id));
-  const held = state.browserTabs?.[0];
-  if (held && browser.getTargetMeta(held.id)) {
-    return { targetId: held.id };
+  const heldTabs = state.browserTabs ?? [];
+  const live = await liveHeldTabs(id, heldTabs);
+  if (live.length > 0) {
+    if (live.length < heldTabs.length) {
+      // Tabs closed since: the browser already told the agent they are gone.
+      await setTaskState(taskDir(id), { browserTabs: live });
+    }
+    return { kind: "task" };
   }
-  if (held?.openedBy === "handed") {
-    // The user closed the tab, or the window it was in, since the task was
-    // handed it.
+  if (heldTabs.some((tab) => tab.openedBy === "handed")) {
+    // The user closed the tabs, or the window they were in, since the task
+    // was handed them.
     return {
       error:
         "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n",
     };
   }
-  if (held) {
-    // The task's own tab, closed by the user or by the conversation: said
-    // once, so the task knows the page it was on is gone rather than finding
-    // a blank one, and the next command opens a new tab.
+  if (heldTabs.length > 0) {
+    // The task's own tabs, closed by the user or by the conversation: said
+    // once, so the task knows the pages it was on are gone rather than
+    // finding a blank one, and the next command opens a new tab.
     await setTaskState(taskDir(id), { browserTabs: undefined });
     return {
       error:
         "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n",
     };
   }
-  const chatSession = await chatSessionOfTask(id);
-  if (chatSession) {
-    const tabId = await requestWindowTab({
-      askedBy: id,
-      group: chatSession,
-      show: false,
-    });
-    if (!tabId) {
-      return {
-        error:
-          "agent-browser: the window did not open a tab for this task. Try the command again.\n",
-      };
-    }
-    const windowId = await windowTaskId();
-    // The window opens the guest too; asking here as well waits for it to
-    // attach, and asking twice for one tab makes one guest.
-    const target = await browser.createTarget(
-      windowId,
-      tabId,
-      getBrowserSessionDir(),
-      "orchestrator",
-    );
-    await setTaskState(taskDir(id), {
-      browserTabs: [{ id: target.targetId, openedBy: "task" }],
-    });
-    return { targetId: target.targetId };
-  }
-  // Idempotent: createTarget returns the existing view for this (id,
-  // sessionId) pair if one is already live, so sub-agents and repeat
-  // invocations within the same session reuse the same browsing surface
-  // (cookies, page, debugger).
-  const target = await browser.createTarget(
-    id,
-    sessionId,
-    getBrowserSessionDir(),
-    await browserHostForTask(id),
-  );
-  await recordBrowserUseBestEffort({ sessionId, taskId: id });
-  return { targetId: target.targetId };
+  // None yet: agent-browser asks a browser with no pages for one, which the
+  // task's browser opens as a tab of the chat behind whatever is up.
+  return { kind: "task" };
 }
 
 async function runAgentBrowser(options: SpawnAgentBrowserOptions) {

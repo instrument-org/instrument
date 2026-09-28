@@ -211,6 +211,16 @@ export namespace SessionMessageDataPart {
       status: z.literal("reopened"),
       target: BrowserTargetSchema,
     }),
+    /** The tabs of the user's chat a task holds, each by the id `agent-browser tab` takes. */
+    z.object({
+      status: z.literal("tabs"),
+      tabs: z.array(
+        BrowserTargetSchema.extend({
+          id: z.string(),
+          openedBy: z.enum(["handed", "task"]),
+        }),
+      ),
+    }),
   ]);
 
   export type BrowserStatusDataPart = z.output<

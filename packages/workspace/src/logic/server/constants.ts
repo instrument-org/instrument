@@ -15,3 +15,5 @@ export const DEFAULT_APPS_SERVER_PORT = IS_DEVELOPMENT
     : PORTS.appsServer.prod;
 export const CDP_BASE_PATH = `${APPS_SERVER_API_PATH}/cdp`;
 export const CDP_PAGE_PATH_PREFIX = `${CDP_BASE_PATH}/devtools/page/`;
+/** A task's whole browser: every tab it holds, followed by the task id. */
+export const CDP_TASK_PATH_PREFIX = `${CDP_BASE_PATH}/devtools/task/`;

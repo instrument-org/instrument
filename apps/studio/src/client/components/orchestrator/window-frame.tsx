@@ -61,17 +61,19 @@ export function WindowFrame({
         <div className="flex min-h-0 flex-1">
           {rail}
           {/* Measured on its own, past the rail, so a column sized against
-            the row is sized against the width the columns actually share.
-            The overlay shares its width and its edges, so a draft window
-            stands against the row's own corner. */}
+            the row is sized against the width the columns actually share. */}
           {/* Two planes: the rail and the bar on the window's own ground,
             and everything else on one card inset from it, rounded, with room
-            left at its right and foot. */}
-          <div
-            className="relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-background shadow-xs [--guest-bottom-radius:var(--radius-2xl)]"
-            ref={rowRef}
-          >
-            <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
+            left at its right and foot. The overlay covers the card and that
+            room, so a draft or a popped-out chat stands on the window's own
+            foot and right edge rather than inside the card's margin. */}
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+            <div
+              className="relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-background shadow-xs [--guest-bottom-radius:var(--radius-2xl)]"
+              ref={rowRef}
+            >
+              <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
+            </div>
             {overlay}
           </div>
         </div>

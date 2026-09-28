@@ -111,6 +111,16 @@ export function AppsHome({
   return (
     <div className="@container/apps flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
       <div className="mx-auto w-full max-w-3xl space-y-8">
+        {/* Where the person was lately comes first, as a browser's new tab
+            puts it; the apps themselves under it. */}
+        {visits.length > 0 ? (
+          <PageSection title="Recent pages">
+            <div className="-mx-2">
+              <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
+            </div>
+          </PageSection>
+        ) : null}
+
         {list.data === undefined ? (
           <PageSection title="Your apps">
             <MarkSkeletons />
@@ -140,14 +150,6 @@ export function AppsHome({
           <p className="text-sm text-muted-foreground">
             Apps you connect show up here.
           </p>
-        ) : null}
-
-        {visits.length > 0 ? (
-          <PageSection title="Recent pages">
-            <div className="-mx-2">
-              <VisitedPageRows isCompact onOpen={openPage} visits={visits} />
-            </div>
-          </PageSection>
         ) : null}
 
         {/* The services still to connect, searchable: a dozen most people

@@ -39,8 +39,8 @@ import {
   segmentsOf,
 } from "@/client/components/orchestrator/host-path";
 import { InboxToggle } from "@/client/components/orchestrator/inbox-toggle";
+import { WindowLook } from "@/client/components/orchestrator/look-panel";
 import { NewTopicDialog } from "@/client/components/orchestrator/new-topic-dialog";
-import { WindowLook } from "@/client/components/orchestrator/quick-look";
 import { RightPane } from "@/client/components/orchestrator/right-pane";
 import { screenLocation } from "@/client/components/orchestrator/screen-presentation";
 import { contextReaders } from "@/client/components/orchestrator/send-context";

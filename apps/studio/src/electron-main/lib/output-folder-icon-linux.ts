@@ -25,7 +25,9 @@ export async function applyLinuxFolderIcon(folder: string): Promise<void> {
     "gio",
     ["info", "-a", "metadata::custom-icon,metadata::custom-icon-name", folder],
     { timeout: 5000 },
-  ).catch(() => {});
+  ).catch(() => {
+    // KDE folder icons can be installed without GIO metadata support.
+  });
   const icon = path.join(folder, ".instrument-folder.svg");
   const uri = pathToFileURL(icon).href;
   if (

@@ -35,6 +35,9 @@ import { messageKindOf } from "./message-kind";
 
 const ADDRESS = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 
+/** Gmail's own address, which is all the browser row needs to name the browser. */
+const GMAIL_HOME = "https://mail.google.com/";
+
 /**
  * The ways out of a message: Copy takes the whole, and Send opens an email
  * filled in, in the mail app or in Gmail, or shares anything else. The
@@ -294,9 +297,6 @@ function CopyablePart({
     </div>
   );
 }
-
-/** Gmail's own address, which is all the browser row needs to name the browser. */
-const GMAIL_HOME = "https://mail.google.com/";
 
 function gmailOf(message: MessageDraft): string {
   const to = (message.to?.match(ADDRESS) ?? []).join(",");

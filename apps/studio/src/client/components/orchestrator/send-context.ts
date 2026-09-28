@@ -133,18 +133,6 @@ export function contextReaders({
       window.clearTimeout(timer);
     }
   };
-  /**
-   * What the thing a draft was opened over says about itself, for the thread
-   * the draft starts: a file by its path, a page by its words read from the
-   * place's own guest, a folder or an app as its screen reports it while it
-   * is the one on screen, and otherwise as much as its address says. The
-   * page's own tabs are left out, since they are the place's to hand over
-   * and not the thread's.
-   */
-  const includedContext = (
-    draft: Draft,
-  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> =>
-    tabContext(includedTabOf(draft, windowTabs.allTabs));
   /** What one tab says about itself, for a thread a draft starts: see includedContext. */
   const tabContext = async (
     tab: undefined | WindowTab,
@@ -202,6 +190,18 @@ export function contextReaders({
     }
     return;
   };
+  /**
+   * What the thing a draft was opened over says about itself, for the thread
+   * the draft starts: a file by its path, a page by its words read from the
+   * place's own guest, a folder or an app as its screen reports it while it
+   * is the one on screen, and otherwise as much as its address says. The
+   * page's own tabs are left out, since they are the place's to hand over
+   * and not the thread's.
+   */
+  const includedContext = (
+    draft: Draft,
+  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> =>
+    tabContext(includedTabOf(draft, windowTabs.allTabs));
   /** What a draft's window and the thing it was opened over show, as its thread starts, before what was picked for it. */
   const draftShown = async (
     draftId: string,

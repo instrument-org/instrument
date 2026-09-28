@@ -4,7 +4,9 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-const execute = vi.hoisted(() => vi.fn());
+const execute = vi.hoisted(() =>
+  vi.fn<(...args: unknown[]) => Promise<{ stderr: string; stdout: string }>>(),
+);
 vi.mock("node:child_process", async () => {
   const { promisify } = await import("node:util");
   return { execFile: Object.assign(vi.fn(), { [promisify.custom]: execute }) };

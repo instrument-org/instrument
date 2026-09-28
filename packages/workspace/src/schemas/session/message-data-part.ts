@@ -555,6 +555,9 @@ export namespace SessionMessageDataPart {
    * Event cadence, written by the surface that sent the message and only when
    * it had a folder on screen.
    */
+  /** The task at work in a tab, stamped when the message is stored. */
+  const TabHolderSchema = z.object({ id: z.string(), title: z.string() });
+
   /** The page the window's browser shows: its address and title, what is selected on it, and how its text begins. */
   const ViewedPageSchema = z.object({
     /** Where the user's cursor is on the page: the focused control, described. */
@@ -564,7 +567,14 @@ export namespace SessionMessageDataPart {
     tab: z.string().optional(),
     /** Every tab open in the window's browser, on screen or not. */
     tabs: z
-      .array(z.object({ id: z.string(), title: z.string(), url: z.string() }))
+      .array(
+        z.object({
+          heldBy: TabHolderSchema.optional(),
+          id: z.string(),
+          title: z.string(),
+          url: z.string(),
+        }),
+      )
       .optional(),
     text: z.string().optional(),
     title: z.string(),
@@ -652,13 +662,14 @@ export namespace SessionMessageDataPart {
       })
       .optional(),
     page: ViewedPageSchema.optional(),
-    /** Every tab the window has open, on screen or not, for "open" and "--tab" to name; the strip's order. */
+    /** Every tab the window has open, on screen or not, for `tab` and "--tab" to name; the strip's order. */
     tabs: z
       .array(
         z.object({
-          /** A page's address, or a screen's route. */
+          /** A page's address, a file's path, or a screen's route. */
           at: z.string(),
-          /** The session id a page tab can be handed to a task by; absent for a screen. */
+          heldBy: TabHolderSchema.optional(),
+          /** The tab's id, which `tab` names it by and a page's tab is handed to a task by. */
           id: z.string().optional(),
           title: z.string(),
         }),

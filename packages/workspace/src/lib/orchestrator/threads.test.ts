@@ -678,7 +678,7 @@ describe("listThreads", () => {
       {
         commands: [
           'app call notion search \'{"query":"groceries"}\'',
-          "open https://www.instacart.com/store",
+          "tab open https://www.instacart.com/store",
         ],
         minute: 2,
       },

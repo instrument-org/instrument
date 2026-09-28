@@ -40,17 +40,17 @@ const ctx = createCommandContext({
 
 /** A window: answers each page it is asked for with a tab of its own. */
 function answeringWindow() {
-  return publisher.subscribe("orchestrator.open", (ask) => {
-    if (ask.target.kind !== "page") {
+  return publisher.subscribe("orchestrator.tab", (ask) => {
+    if (ask.action.kind !== "open" || ask.action.target.kind !== "page") {
       return;
     }
     asks.push({
-      show: ask.target.show,
+      show: ask.action.show,
       ...(ask.sessionId ? { group: ask.sessionId } : {}),
     });
-    publisher.publish("orchestrator.opened", {
+    publisher.publish("orchestrator.tabDone", {
       id: ask.id,
-      requestId: ask.target.requestId,
+      requestId: ask.requestId,
       tabId: StoreId.newSessionId(),
     });
   });
@@ -162,11 +162,15 @@ describe("a task's tab", () => {
     expect(asks).toHaveLength(1);
   });
 
-  it("opens again when the user closed the one the task opened", async () => {
+  it("says so once when its own tab was closed, then opens another", async () => {
     await run(["open", "https://example.com"]);
     live.clear();
-    await run(["snapshot", "-i"]);
 
+    const told = await run(["snapshot", "-i"]);
+    await run(["open", "https://example.com"]);
+
+    expect(told.exitCode).toBe(1);
+    expect(told.stderr).toContain("the tab this task opened was closed");
     expect(asks).toHaveLength(2);
   });
 

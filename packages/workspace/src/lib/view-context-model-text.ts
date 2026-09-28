@@ -110,11 +110,16 @@ function folderShown(data: ViewContext) {
   return `the folder \`${folder.display}\`${selected}`;
 }
 
+/** How a tab a task is working in says so, after its id. */
+function heldClause(holder: undefined | { id: string; title: string }) {
+  return holder ? `, task ${holder.id} is working in it` : "";
+}
+
 function pageNote(data: ViewContext) {
   const { page } = data;
   if (!page) {
     return systemNote`
-      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`open <url>\` opens one.
+      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`tab open <url>\` opens one.
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
@@ -124,11 +129,12 @@ function pageNote(data: ViewContext) {
       ? `It begins: "${page.text}".`
       : "It has no text yet.";
   const focus = page.focus ? ` Their cursor is in ${page.focus}.` : "";
-  const tab = page.tab ? ` (tab ${page.tab})` : "";
+  const shown = page.tabs?.find((other) => other.id === page.tab);
+  const tab = page.tab ? ` (tab ${page.tab}${heldClause(shown?.heldBy)})` : "";
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =
     others.length > 0
-      ? `Other tabs open but not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id})`).join("; ")}.`
+      ? `Other tabs open but not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id}${heldClause(other.heldBy)})`).join("; ")}.`
       : "No other tabs are open.";
   return systemNote`
     When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. ${words}${focus}
@@ -196,7 +202,7 @@ function screenNote(data: ViewContext) {
   }
 }
 
-/** The window's tabs, in a line, so "open" has something to build on and "--tab" something to name. */
+/** The window's tabs, in a line, so \`tab\` has something to act on and "--tab" something to name. */
 function tabsNote(data: ViewContext) {
   const tabs = (data.tabs ?? []).slice(0, TABS_NAMED_MAX);
   if (tabs.length === 0 || data.screen === "browser") {
@@ -204,7 +210,8 @@ function tabsNote(data: ViewContext) {
   }
   const named = tabs
     .map(
-      (tab) => `"${tab.title}" at ${tab.at}${tab.id ? ` (tab ${tab.id})` : ""}`,
+      (tab) =>
+        `"${tab.title}" at ${tab.at}${tab.id ? ` (tab ${tab.id}${heldClause(tab.heldBy)})` : ""}`,
     )
     .join("; ");
   const more =

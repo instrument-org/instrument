@@ -10,6 +10,7 @@ import {
   isFolderPath,
   StoreId,
   type TaskId,
+  type WindowTabRequest,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import { toast } from "sonner";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type OpenOptions } from "./context";
+import { visitInTab } from "./tab-history";
 import { memoryOfHref, taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { type Thread } from "./threads";
 import {
@@ -253,52 +255,159 @@ export function useOpeners({
    * beats a tab rooted nowhere.
    */
   const openNamedPath = (path: string, options?: OpenOptions) => {
+    void hrefOfNamedPath(path, options?.group).then((href) => {
+      if (href !== undefined) {
+        openScreen(href, options);
+      }
+    });
+  };
+  /**
+   * Where a path a reply or the conversation named is on the computer, as the
+   * address of the tab that shows it, or undefined, said to the user, when it
+   * names nothing this window can reach.
+   *
+   * A path a chat named is read against that chat's own record: its own
+   * folder and grants are what `/task` and `/mnt` mean to it. The window's
+   * record reads it where no chat is in view.
+   */
+  const hrefOfNamedPath = async (
+    path: string,
+    group: string | undefined,
+  ): Promise<string | undefined> => {
     if (!ids) {
       return;
     }
     const isFolder = isFolderPath(path);
     const filePath = isFolder ? path.slice(0, -1) : path;
-    // A path a chat named is read against that chat's own record: its own
-    // folder and grants are what `/task` and `/mnt` mean to it. The window's
-    // record reads it where no chat is in view.
-    const thread = StoreId.SessionSchema.safeParse(
-      options?.group ?? windowTabs.group,
+    const thread = StoreId.SessionSchema.safeParse(group ?? windowTabs.group);
+    const chat = thread.success
+      ? await queryClient
+          .fetchQuery(
+            rpcClient.workspace.orchestrator.chats.of.queryOptions({
+              input: { sessionId: thread.data },
+              staleTime: Number.POSITIVE_INFINITY,
+            }),
+          )
+          .catch(() => {
+            // No record for the chat: the path resolves against the task it names.
+          })
+      : undefined;
+    const [error, hostPaths] = await safe(
+      rpcClient.workspace.task.files.hostPaths.call({
+        filePaths: [filePath],
+        taskId: chat?.taskId ?? ids.taskId,
+      }),
     );
-    void (async () => {
-      const chat = thread.success
-        ? await queryClient
-            .fetchQuery(
-              rpcClient.workspace.orchestrator.chats.of.queryOptions({
-                input: { sessionId: thread.data },
-                staleTime: Number.POSITIVE_INFINITY,
+    const hostPath = hostPaths?.[filePath];
+    if (error || !hostPath) {
+      toast(`Nothing at “${path}”`, {
+        description: isFolder
+          ? "Not a folder Instrument can reach."
+          : "Not a file Instrument can reach.",
+      });
+      return;
+    }
+    return isFolder ? folderHref(hostPath) : fileHref(hostPath);
+  };
+  /**
+   * Does what an agent asked of the tabs, and says what came of it: the tab
+   * it made or acted on, or why it did nothing. An id is looked up among the
+   * tabs of the chat that asked, since those are the tabs its note named.
+   */
+  const actOnTab = async ({
+    action,
+    sessionId: group,
+  }: WindowTabRequest): Promise<{ error?: string; tabId?: string }> => {
+    if (action.kind === "open") {
+      const { target } = action;
+      if (target.kind === "page") {
+        // A page opened for an agent's own work joins its chat's tabs
+        // behind whatever is up; only one the conversation is showing the
+        // user comes on screen.
+        if (!action.show && group) {
+          return { tabId: browser?.openBehind(target.url, group) };
+        }
+        return target.url === undefined
+          ? { error: "a tab on screen needs an address." }
+          : {
+              tabId: openPage(target.url, {
+                ...(group ? { group } : {}),
+                newTab: true,
               }),
-            )
-            .catch(() => {
-              // No record for the chat: the path resolves against the task it names.
-            })
-        : undefined;
-      const [error, hostPaths] = await safe(
-        rpcClient.workspace.task.files.hostPaths.call({
-          filePaths: [filePath],
-          taskId: chat?.taskId ?? ids.taskId,
-        }),
-      );
-      const hostPath = hostPaths?.[filePath];
-      if (error || !hostPath) {
-        toast(`Nothing at “${path}”`, {
-          description: isFolder
-            ? "Not a folder Instrument can reach."
-            : "Not a file Instrument can reach.",
-        });
-        return;
+            };
       }
-      openScreen(isFolder ? folderHref(hostPath) : fileHref(hostPath), options);
-    })();
+      const href = await hrefOfNamedPath(target.mount, group);
+      if (href === undefined) {
+        return { error: `nothing this window can show is at ${target.mount}.` };
+      }
+      const into = group ?? windowTabs.group;
+      const tabId = windowTabs.openOrFocusScreen(href, {
+        ...(into ? { group: into } : {}),
+        isOpened: true,
+        show: true,
+      });
+      if (into) {
+        setPaneOpen(into, true);
+      }
+      return { tabId };
+    }
+    const tab = windowTabs.allTabs.find(
+      (entry) =>
+        entry.id === action.tabId &&
+        (group === undefined || entry.group === group),
+    );
+    if (!tab) {
+      return { error: `no tab ${action.tabId} is open in this chat.` };
+    }
+    switch (action.kind) {
+      case "close": {
+        windowTabs.close(tab.id);
+        return { tabId: tab.id };
+      }
+      case "replace": {
+        const { target } = action;
+        if (target.kind === "page") {
+          if (target.url === undefined) {
+            return { error: "replace needs an address or a path." };
+          }
+          if (tab.kind === "page") {
+            browser?.navigateTab(tab.id, target.url);
+            return { tabId: tab.id };
+          }
+          return { tabId: browser?.pageInPlaceOf(tab, target.url) };
+        }
+        const href = await hrefOfNamedPath(target.mount, group);
+        if (href === undefined) {
+          return {
+            error: `nothing this window can show is at ${target.mount}.`,
+          };
+        }
+        const next = visitInTab(tab, {
+          at: 0,
+          href,
+          id: `screen-${crypto.randomUUID()}`,
+          kind: "screen",
+          trail: [href],
+        });
+        windowTabs.replace(tab.id, next);
+        return { tabId: next.id };
+      }
+      case "show": {
+        windowTabs.select(tab.id);
+        if (tab.group !== undefined) {
+          setPaneOpen(tab.group, true);
+          if (StoreId.SessionSchema.safeParse(tab.group).success) {
+            toChat();
+          }
+        }
+        return { tabId: tab.id };
+      }
+    }
   };
 
-  const openers = useRef({ browser, openNamedPath, openPage, openScreen });
+  const openers = useRef({ actOnTab });
   useEffect(() => {
-    openers.current = { browser, openNamedPath, openPage, openScreen };
+    openers.current = { actOnTab };
   });
   useEffect(() => {
     if (!ids) {
@@ -307,42 +416,20 @@ export function useOpeners({
     const controller = new AbortController();
     void (async () => {
       try {
-        const asks = await rpcClient.workspace.orchestrator.events.open.call(
+        const asks = await rpcClient.workspace.orchestrator.events.tab.call(
           { id: ids.taskId },
           { signal: controller.signal },
         );
-        for await (const target of asks) {
-          // Into the thread that asked, which may not be the one on screen.
-          const group = target.sessionId;
-          if (target.kind === "page") {
-            // A page opened for an agent's own work joins its chat's tabs
-            // behind whatever is up; only one the conversation is showing
-            // the user comes on screen.
-            const tabId =
-              target.show || !group
-                ? target.url === undefined
-                  ? undefined
-                  : openers.current.openPage(target.url, {
-                      ...(group ? { group } : {}),
-                      newTab: true,
-                    })
-                : openers.current.browser?.openBehind(target.url, group);
-            // The tab's id goes back to the command that asked, so the
-            // conversation can hand the tab to a task without waiting for
-            // the next message's note to name it.
-            if (tabId) {
-              void rpcClient.workspace.orchestrator.opened.call({
-                id: ids.taskId,
-                requestId: target.requestId,
-                tabId,
-              });
-            }
-          } else {
-            openers.current.openNamedPath(target.mount, {
-              ...(group ? { group } : {}),
-              newTab: true,
-            });
-          }
+        for await (const request of asks) {
+          const answer = await openers.current.actOnTab(request);
+          // The answer goes back to the command that asked, so the
+          // conversation can hand a tab to a task, or say what went wrong,
+          // without waiting for the next message's note.
+          void rpcClient.workspace.orchestrator.tabDone.call({
+            id: ids.taskId,
+            requestId: request.requestId,
+            ...answer,
+          });
         }
       } catch {
         // The window closing ends the stream.

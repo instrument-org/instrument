@@ -75,6 +75,12 @@ export interface BrowserTabsHandle {
   /** Sends the guest on screen to an address, in the tab it is in. */
   navigate: (url: string) => void;
   /**
+   * Sends a page tab's guest to an address, whether or not the tab is up,
+   * keeping the tab and its history. A tab whose guest has not come back
+   * since a launch is opened there.
+   */
+  navigateTab: (tabId: string, url: string) => void;
+  /**
    * Opens a new page tab, at an address when given, and shows it. Given a
    * tab to replace, the page takes that tab's place in the strip: a new tab
    * becoming the page that was typed into it. Given a group, the page lands
@@ -96,6 +102,12 @@ export interface BrowserTabsHandle {
    * beside it. Returns the tab the page is in.
    */
   openOrFocus: (url: string, options?: OpenOptions) => string;
+  /**
+   * Puts a page in a tab's place, whatever the tab showed, keeping where it
+   * sits in the strip and whether it was up. Returns the page's tab, which
+   * has an id of its own.
+   */
+  pageInPlaceOf: (tab: WindowTab, url: string) => StoreId.Session;
   /**
    * Reads the page on screen as it is at that moment, or the page in the tab
    * named, for a host drawing a tab of its own; undefined while there is
@@ -869,6 +881,32 @@ export function BrowserTabs({
           void webview.loadURL(url);
         }
       },
+      navigateTab: (tabId, url) => {
+        const tab = latest.current.allTabs.find(
+          (entry): entry is Extract<WindowTab, { kind: "page" }> =>
+            entry.kind === "page" && entry.id === tabId,
+        );
+        if (!tab) {
+          return;
+        }
+        setAllTabs((current) => ({
+          ...current,
+          tabs: current.tabs.map((entry) =>
+            entry.id === tabId ? { ...entry, future: [], url } : entry,
+          ),
+        }));
+        const webview = getWebviewElement(targetOf(tab));
+        if (webview) {
+          void webview.loadURL(url);
+          return;
+        }
+        void rpcClient.workspace.browser.open.call({
+          host: WINDOW_BROWSER_HOST,
+          id: tab.taskId ?? taskId,
+          sessionId: StoreId.SessionSchema.parse(tab.id),
+          url,
+        });
+      },
       open: (url, options) => openTab(url, options),
       openBehind: (url, into) => {
         const id = StoreId.newSessionId();
@@ -928,6 +966,35 @@ export function BrowserTabs({
         if (options?.show) {
           setAllTabs((current) => selectTab(current, id));
         }
+        return id;
+      },
+      pageInPlaceOf: (tab, url) => {
+        const id = StoreId.newSessionId();
+        const page = visitInTab(tab, {
+          id,
+          kind: "page",
+          openedAt: Date.now(),
+          openedUrl: url,
+          url,
+        });
+        setAllTabs((current) => ({
+          ...current,
+          activeByGroup:
+            tab.group !== undefined &&
+            current.activeByGroup?.[tab.group] === tab.id
+              ? { ...current.activeByGroup, [tab.group]: id }
+              : current.activeByGroup,
+          activeId: current.activeId === tab.id ? id : current.activeId,
+          tabs: current.tabs.map((entry) =>
+            entry.id === tab.id ? page : entry,
+          ),
+        }));
+        void rpcClient.workspace.browser.open.call({
+          host: WINDOW_BROWSER_HOST,
+          id: taskId,
+          sessionId: id,
+          url,
+        });
         return id;
       },
       readPage: async (tabId) => {

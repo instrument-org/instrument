@@ -66,6 +66,10 @@ import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
 import { TaskSchema } from "../../schemas/task";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import {
+  WindowTabAnswerSchema,
+  WindowTabRequestSchema,
+} from "../../schemas/window-tab";
 import { BrowserTargetIdSchema } from "../../types";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
@@ -445,44 +449,25 @@ const setActiveTab = base
   });
 
 /**
- * What the conversation and its tasks ask the window to open, as they ask,
+ * What the conversation and its tasks ask of the window's tabs, as they ask,
  * each with the chat it belongs to when there is one.
  */
-const open = base
+const tab = base
   .input(z.object({ id: TaskIdSchema }))
-  .output(
-    eventIterator(
-      z.union([
-        z.object({
-          kind: z.literal("page"),
-          requestId: z.string(),
-          sessionId: StoreId.SessionSchema.optional(),
-          show: z.boolean(),
-          url: z.string().optional(),
-        }),
-        z.object({
-          kind: z.literal("path"),
-          mount: z.string(),
-          sessionId: StoreId.SessionSchema.optional(),
-        }),
-      ]),
-    ),
-  )
+  .output(eventIterator(WindowTabRequestSchema))
   .handler(async function* ({ input, signal }) {
-    for await (const event of publisher.subscribe("orchestrator.open", {
+    for await (const event of publisher.subscribe("orchestrator.tab", {
       signal,
     })) {
       // A chat's own asks, the window record's, and those of any task asking
-      // for a tab among a chat's all open in the window.
+      // among a chat's tabs all go to the window.
       if (
         event.id === input.id ||
         isChatId(event.id) ||
         event.sessionId !== undefined
       ) {
-        yield {
-          ...event.target,
-          ...(event.sessionId ? { sessionId: event.sessionId } : {}),
-        };
+        const { id: _asker, ...request } = event;
+        yield request;
       }
     }
   });
@@ -534,17 +519,11 @@ const forgetMemoryRoute = base
     await forgetMemories(memoryDir(), input.names);
   });
 
-/** The window's answer to an `open`: the tab it made for the page, by the id a task takes. */
-const opened = base
-  .input(
-    z.object({
-      id: TaskIdSchema,
-      requestId: z.string(),
-      tabId: StoreId.SessionSchema,
-    }),
-  )
+/** The window's answer to an ask of its tabs: the tab it acted on or made, or why it did nothing. */
+const tabDone = base
+  .input(WindowTabAnswerSchema.extend({ id: TaskIdSchema }))
   .handler(({ input }) => {
-    publisher.publish("orchestrator.opened", input);
+    publisher.publish("orchestrator.tabDone", input);
   });
 
 /**
@@ -624,15 +603,15 @@ export const orchestrator = {
   children,
   childStatus,
   ensure,
-  events: { open },
+  events: { tab },
   memory: {
     forget: forgetMemoryRoute,
     list: listMemoryRoute,
     live: { list: liveListMemoryRoute },
     sources: listMemorySourcesRoute,
   },
-  opened,
   setActiveTab,
+  tabDone,
   threads: {
     archive: archiveThreadRoute,
     list: listThreadsRoute,

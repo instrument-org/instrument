@@ -1,6 +1,6 @@
 # Agent browsing across several tabs
 
-Status: in progress. Phase 1 landed; 1b next. Supersedes [one-browser-many-tabs.md](./one-browser-many-tabs.md), [lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md) and [browser-popups-as-agent-drivable-tabs.md](./browser-popups-as-agent-drivable-tabs.md), which were written for the 1.x task page and its single browser panel. Their analysis of the CDP bridge and of popups still holds and is cited below; their identity migration and tab-strip phases are already done by the 2.0 window.
+Status: in progress. Phases 1 and 1b landed; 2 next. Supersedes [one-browser-many-tabs.md](./one-browser-many-tabs.md), [lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md) and [browser-popups-as-agent-drivable-tabs.md](./browser-popups-as-agent-drivable-tabs.md), which were written for the 1.x task page and its single browser panel. Their analysis of the CDP bridge and of popups still holds and is cited below; their identity migration and tab-strip phases are already done by the 2.0 window.
 
 ## Goal
 

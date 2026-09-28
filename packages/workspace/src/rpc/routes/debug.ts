@@ -8,8 +8,10 @@ import { z } from "zod";
 
 import { type AgentName } from "../../agents/types";
 import { ActiveReplays } from "../../lib/active-replays";
+import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { createBashEnv } from "../../lib/create-bash-env";
 import { getCurrentDate } from "../../lib/get-current-date";
+import { childTaskMounts } from "../../lib/orchestrator/children";
 import {
   createReplaySession,
   executeSessionReplay,
@@ -260,8 +262,19 @@ const runBash = base
   )
   .handler(async ({ input, signal }) => {
     const taskState = await getTaskState(taskDir(input.taskId));
+    // A chat's own shell, with the commands the conversation runs, for the
+    // conversation's agent; a task's otherwise, the way the bash tool builds it.
+    const isConversation =
+      (await agentNameForTask(input.taskId)) === "instrument";
     const bash = await createBashEnv({
       attachedFolders: taskState.attachedFolders,
+      ...(isConversation
+        ? {
+            orchestrator: {
+              childMounts: await childTaskMounts(input.taskId),
+            },
+          }
+        : {}),
       projectFolderName: await resolveTaskProjectFolder(input.taskId),
       sessionId: input.sessionId,
       taskId: input.taskId,

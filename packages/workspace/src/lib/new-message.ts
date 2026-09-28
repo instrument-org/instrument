@@ -22,6 +22,7 @@ import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectMessageGap } from "./message-gap";
 import { listTopics } from "./orchestrator/topics";
+import { tabHolders } from "./orchestrator/window-tab";
 import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
@@ -115,7 +116,7 @@ export async function newMessage({
 
   if (viewing) {
     parts.push({
-      data: viewing,
+      data: await withTabHolders(taskId, viewing),
       metadata: {
         createdAt,
         id: StoreId.newPartId(),
@@ -441,5 +442,39 @@ async function createThreadTopicsPart({
     data: { topics },
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
     type: "data-threadTopics",
+  };
+}
+
+/**
+ * The note on what the user had on screen, with each tab marked with the task
+ * at work in it: read when the message is stored, since the note is rendered
+ * from what is stored and must say the same thing every time it is read.
+ */
+async function withTabHolders(
+  taskId: TaskId,
+  viewing: SessionMessageDataPart.ViewContextDataPart,
+): Promise<SessionMessageDataPart.ViewContextDataPart> {
+  if (!viewing.tabs?.length && !viewing.page?.tabs?.length) {
+    return viewing;
+  }
+  const holders = await tabHolders(taskId);
+  if (holders.size === 0) {
+    return viewing;
+  }
+  const mark = <Tab extends { id?: string }>(tab: Tab) => {
+    const holder = tab.id === undefined ? undefined : holders.get(tab.id);
+    return holder ? { ...tab, heldBy: holder } : tab;
+  };
+  return {
+    ...viewing,
+    ...(viewing.tabs ? { tabs: viewing.tabs.map(mark) } : {}),
+    ...(viewing.page
+      ? {
+          page: {
+            ...viewing.page,
+            ...(viewing.page.tabs ? { tabs: viewing.page.tabs.map(mark) } : {}),
+          },
+        }
+      : {}),
   };
 }

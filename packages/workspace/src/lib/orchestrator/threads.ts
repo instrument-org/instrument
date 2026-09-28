@@ -561,11 +561,11 @@ function newestSettledIn(
   return alphabetical(settled, (message) => message.id).at(-1)?.id;
 }
 
-/** The hostnames a shell command opens for the user with `open <url>`. */
+/** The hostnames a shell command opens for the user with `tab open <url>`. */
 function openedHostsIn(command: string): string[] {
   const hosts: string[] = [];
   for (const match of command.matchAll(
-    /(?:^|[\n;&|])\s*open\s+['"]?(https?:\/\/[^\s'"]+)/g,
+    /(?:^|[\n;&|])\s*tab\s+(?:open|replace\s+\S+)\s+['"]?(https?:\/\/[^\s'"]+)/g,
   )) {
     try {
       hosts.push(new URL(match[1] ?? "").hostname);
@@ -610,7 +610,7 @@ async function saveMark(
 
 /**
  * The hostnames the thread's work touched: what its agent opened for the user
- * with `open <url>`, then every host the browsers of the tasks it filed have
+ * with `tab open <url>`, then every host the browsers of the tasks it filed have
  * been on, each task's newest last. A task's hosts come from its browser
  * state, one small read per task, rather than from its transcript.
  */

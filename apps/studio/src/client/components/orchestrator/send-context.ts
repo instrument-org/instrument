@@ -71,7 +71,7 @@ export function contextReaders({
   windowTabs,
 }: SendContextWindow) {
   const { active, tabs } = windowTabs;
-  /** A group's tabs as the conversation is told them, in the strip's order: what `open` and `--tab` can name. */
+  /** A group's tabs as the conversation is told them, in the strip's order, each by the id `tab` and "--tab" name it by. */
   const describeTabs = (
     listed: WindowTab[],
   ): NonNullable<SessionMessageDataPart.ViewContextDataPart["tabs"]> =>
@@ -79,12 +79,11 @@ export function contextReaders({
       if (tab.kind !== "page") {
         return {
           at: tab.href,
+          id: tab.id,
           title: screenPresentation(tab.href, { appsBySlug, threadTitles })
             .title,
         };
       }
-      // A file page has no id to hand a task: a task is pointed at sites,
-      // never at a file on this computer.
       const filePath = hostPathOfFileUrl(tab.url);
       return filePath === undefined
         ? {
@@ -94,6 +93,7 @@ export function contextReaders({
           }
         : {
             at: filePath,
+            id: tab.id,
             title: segmentsOf(filePath).at(-1) ?? filePath,
           };
     });

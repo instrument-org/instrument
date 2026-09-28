@@ -1068,6 +1068,16 @@ async function resolveBrowserTarget({
         "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n",
     };
   }
+  if (held) {
+    // The task's own tab, closed by the user or by the conversation: said
+    // once, so the task knows the page it was on is gone rather than finding
+    // a blank one, and the next command opens a new tab.
+    await setTaskState(taskDir(id), { browserTabs: undefined });
+    return {
+      error:
+        "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n",
+    };
+  }
   const chatSession = await chatSessionOfTask(id);
   if (chatSession) {
     const tabId = await requestWindowTab({

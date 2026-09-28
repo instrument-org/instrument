@@ -4,6 +4,10 @@ import { type WorkspaceSnapshot } from "../machines/workspace";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
+import {
+  type WindowTabAnswer,
+  type WindowTabRequest,
+} from "../schemas/window-tab";
 import { type BrowserTargetId } from "../types";
 
 export const publisher = new EventPublisher<{
@@ -68,31 +72,18 @@ export const publisher = new EventPublisher<{
     sessionId: StoreId.Session;
   };
   /**
-   * An agent asking the window for a tab: a page as a browser tab, or a path
-   * of the user's as a tab showing it -- a file in its viewer, a folder (which
-   * the path says with a trailing slash) as the folder view. A page carries a
-   * request id, which the tab the window makes for it is announced under, and
-   * says whether it goes on screen: the conversation showing the user
-   * something does, a task opening a page to work in never does.
+   * An agent asking the window to act on its tabs: open one (on screen, or
+   * behind whatever is up), point one at something else, close one, or bring
+   * one forward. Each ask carries a request id, which the window's answer
+   * comes back under.
    */
-  "orchestrator.open": {
-    id: TaskId;
-    /** The chat the tab belongs to, so the window opens it among that chat's tabs; absent outside one. */
-    sessionId?: StoreId.Session;
-    target:
-      | { kind: "page"; requestId: string; show: boolean; url?: string }
-      | { kind: "path"; mount: string };
-  };
+  "orchestrator.tab": WindowTabRequest & { id: TaskId };
   /**
-   * The window answering: the tab it opened for a page, by the id a task can
-   * be handed. What lets `open` print the tab rather than leave the
-   * conversation to wait for the next message's note to name it.
+   * The window answering an ask: the tab it acted on or made, by the id the
+   * conversation names it with and a task can be handed, or why it did
+   * nothing.
    */
-  "orchestrator.opened": {
-    id: TaskId;
-    requestId: string;
-    tabId: StoreId.Session;
-  };
+  "orchestrator.tabDone": WindowTabAnswer & { id: TaskId };
   "part.updated": {
     id: TaskId;
     part: SessionMessagePart.Type;

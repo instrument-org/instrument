@@ -146,6 +146,7 @@ describe("sendContext", () => {
           },
           {
             "at": "/orchestrator/threads/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "id": "thread",
             "title": "Lisbon",
           },
         ],
@@ -181,6 +182,7 @@ describe("sendContext", () => {
         "tabs": [
           {
             "at": "/Users/casey/Downloads/receipt.pdf",
+            "id": "file",
             "title": "receipt.pdf",
           },
         ],
@@ -246,6 +248,7 @@ describe("sendContext", () => {
         "tabs": [
           {
             "at": "/orchestrator/tasks?thread=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "id": "tasks",
             "title": "Tasks",
           },
           {
@@ -335,6 +338,7 @@ describe("draftContext", () => {
           },
           {
             "at": "/orchestrator/threads/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "id": "thread",
             "title": "Lisbon",
           },
         ],
@@ -347,7 +351,7 @@ describe("draftContext", () => {
   const FILE = fileHref("/Users/casey/Downloads/receipt.pdf");
   const APP = "/orchestrator/apps/notion";
   /** The band's face as the thread is told it, ahead of the thing included. */
-  const NEW_TAB = { at: NEW_TAB_HREF, title: "New tab" };
+  const NEW_TAB = { at: NEW_TAB_HREF, id: "home", title: "New tab" };
 
   it.each<[string, WindowTab, SessionMessageDataPart.ViewContextDataPart]>([
     [
@@ -446,6 +450,7 @@ describe("draftContext", () => {
         "tabs": [
           {
             "at": "/orchestrator/home",
+            "id": "home",
             "title": "New tab",
           },
         ],
@@ -520,6 +525,7 @@ describe("draftContext", () => {
         "tabs": [
           {
             "at": "/orchestrator/computer?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
+            "id": "file",
             "title": "plan.md",
           },
         ],

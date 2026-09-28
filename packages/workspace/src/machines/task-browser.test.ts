@@ -478,6 +478,38 @@ describe("taskBrowserMachine", () => {
     expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the other pages when one of several closes on its own", async () => {
+    const { actor, browser } = spawnHarness();
+    const sessionB = StoreId.newSessionId();
+    const targetB: BrowserTargetId = encodeBrowserTargetId(id, sessionB);
+
+    actor.send({
+      type: "registerTarget",
+      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
+    });
+    actor.send({
+      type: "registerTarget",
+      value: { partitionDir, sessionId: sessionB, targetId: targetB },
+    });
+    actor.send({
+      type: "targetDestroyedExternally",
+      value: { targetId: TARGET_A },
+    });
+
+    expect(actor.getSnapshot().status).toBe("active");
+    expect(browser.closeTarget).not.toHaveBeenCalled();
+
+    actor.send({ type: "forceReap" });
+    await waitFor(actor, (s) => s.status === "done");
+
+    expect(browser.closeTarget).toHaveBeenCalledTimes(1);
+    expect(browser.closeTarget).toHaveBeenCalledWith(targetB);
+    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledWith([
+      SESSION_A,
+      sessionB,
+    ]);
+  });
+
   it("closes one view per session for multi-session tasks", async () => {
     const { actor, browser } = spawnHarness();
     const sessionB = StoreId.newSessionId();

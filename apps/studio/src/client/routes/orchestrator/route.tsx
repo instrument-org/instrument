@@ -1186,8 +1186,6 @@ function OrchestratorLayout() {
                           <TabLocationRow
                             canGoBack={canGoBack}
                             canGoForward={canGoForward}
-                            hasHome={!hasRail}
-                            homeHref={newTabHrefOf(windowTabs.group)}
                             {...(hasRail
                               ? {
                                   onClose: () => {

@@ -962,7 +962,6 @@ export function GroupItem({
         canGoForward={
           up.kind === "page" ? guest.forward : at < trailOf(up).length - 1
         }
-        hasHome={false}
         location={location}
         onBack={() => {
           if (up.kind === "page") {

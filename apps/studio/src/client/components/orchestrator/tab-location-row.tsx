@@ -1,4 +1,3 @@
-import { NEW_TAB_HREF } from "@/client/atoms/orchestrator";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -13,10 +12,7 @@ import {
   type OpenInAppTarget,
   openInAppTargetOfUrl,
 } from "@/client/hooks/use-open-in-app";
-import {
-  useGesturesFor,
-  useOpenGestures,
-} from "@/client/hooks/use-open-target";
+import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type OrchestratorShortcutId } from "@/shared/orchestrator-shortcuts";
@@ -27,7 +23,6 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
-import { HouseIcon } from "@phosphor-icons/react/House";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -62,8 +57,6 @@ export function TabLocationRow({
   canGoBack,
   canGoForward,
   field,
-  hasHome = true,
-  homeHref = NEW_TAB_HREF,
   leading,
   location,
   onBack,
@@ -78,10 +71,6 @@ export function TabLocationRow({
   canGoForward: boolean;
   /** What stands in for the field: a page's own address bar and controls. */
   field?: ReactNode;
-  /** Whether the row offers its home; off beside a chat, whose things have no new tab to go back to. */
-  hasHome?: boolean;
-  /** Where the home button goes: the new tab of whatever the pane holds, a place's own kind included. */
-  homeHref?: string;
   /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
   leading?: ReactNode;
   location: TabLocation;
@@ -98,10 +87,6 @@ export function TabLocationRow({
   /** What this page can do with itself, held at the row's right edge. */
   trailing?: ReactNode;
 }) {
-  const home = useOpenGestures({ href: homeHref, kind: "screen" });
-  const openHome = home.destinations.find(
-    (destination) => destination.id === "open",
-  );
   const openIn = openInAppTargetOf(location);
   return (
     <div
@@ -126,21 +111,6 @@ export function TabLocationRow({
         onClick={onForward}
       />
       {reload}
-      {/* Where a browser keeps its home button, and what this window's home
-          is: the tab back to nothing in particular, ready to be told where
-          to go next. */}
-      {hasHome && (
-        <TabRowControl
-          disabled={false}
-          icon={<HouseIcon className="size-4" />}
-          label="Home"
-          onAuxClick={home.onAuxClick}
-          onClick={() => {
-            openHome?.run();
-          }}
-          onContextMenu={home.onContextMenu}
-        />
-      )}
       {field ?? (
         // The box is the field everywhere the place itself is not: a press on
         // one of the places you are under goes there, and a press anywhere

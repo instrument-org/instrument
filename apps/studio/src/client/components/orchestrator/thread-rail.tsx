@@ -434,16 +434,23 @@ function RailTile({
             />
           )}
         </span>
-        {/* A page names its site by its mark too, which its picture hides. */}
+        {/* Every tile names what it is by its mark as well, which its
+            picture hides: a page's site, a file's type, a folder, an app. */}
         <span className="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground group-hover/tile:text-foreground">
-          {tab.kind === "page" && (
-            <span className="shrink-0 [&_img]:size-3 [&_svg]:size-3">
+          <span className="grid size-3 shrink-0 place-items-center [&_img]:size-3 [&_svg]:size-3">
+            {tab.kind === "page" ? (
               <SiteIcon
                 favicon={tab.favicon}
                 url={tab.url ?? tab.openedUrl ?? ""}
               />
-            </span>
-          )}
+            ) : (
+              <ScreenMark
+                appsBySlug={appsBySlug}
+                href={tab.href}
+                threadTitles={threadTitles}
+              />
+            )}
+          </span>
           <span className={cn("truncate", isWorking && "brand-shiny-text")}>
             {title}
           </span>
@@ -466,6 +473,26 @@ function RailTile({
   ) : (
     tile(false)
   );
+}
+
+/** A screen's small mark beside its name: a file's type, a folder, or the screen's own icon. */
+function ScreenMark({
+  appsBySlug,
+  href,
+  threadTitles,
+}: {
+  appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
+  href: string;
+  threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
+}) {
+  const location = screenLocation(href, { appsBySlug, threadTitles });
+  if (location.kind === "file") {
+    return <FileTypeIcon className="size-3" fileName={location.name} />;
+  }
+  if (location.kind === "folder") {
+    return <FileSystemFolderGlyph className="h-2.5 w-auto" />;
+  }
+  return screenPresentation(href, { appsBySlug, threadTitles }).icon;
 }
 
 /** A screen as what it shows: a file as the picture the app keeps of it, a folder as its mark, anything else as its own mark. */

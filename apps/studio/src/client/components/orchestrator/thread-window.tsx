@@ -22,6 +22,8 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
 import {
   COMPOSE_BAR_WIDTH,
+  GROWN,
+  GROWN_RIGHT,
   COMPOSE_MOTION,
   THREAD_RAIL_WIDTH,
   THREAD_WINDOW_WIDTH,
@@ -302,7 +304,7 @@ export function ThreadWindow({
 
   return (
     <motion.div
-      animate={{ opacity: 1, ...(isExpanded ? {} : { right }), y: 0 }}
+      animate={{ opacity: 1, right: isExpanded ? GROWN_RIGHT : right, y: 0 }}
       // On the page's ground rather than the card's: the conversation is
       // drawn for that ground, its bubbles on the card's and its fades from
       // the page's, and on a card both go missing.
@@ -325,12 +327,12 @@ export function ThreadWindow({
       exit={{ opacity: 0, y: 24 }}
       initial={
         arrives
-          ? { opacity: 0, ...(isExpanded ? {} : { right }), y: 24 }
+          ? { opacity: 0, right: isExpanded ? GROWN_RIGHT : right, y: 24 }
           : false
       }
       style={
         isExpanded
-          ? undefined
+          ? GROWN
           : {
               height: THREAD_WINDOW_HEIGHT,
               width:

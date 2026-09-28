@@ -28,12 +28,30 @@ export const COMPOSE_GAP = 12;
  */
 export const COMPOSE_EDGE_GAP = 20;
 
-/** How a window or a bar comes and goes: quick, and settling rather than bouncing. */
+/** How a window or a bar comes, goes, and moves along the foot: quick, and easing to rest with no overshoot. */
 export const COMPOSE_MOTION = {
-  damping: 32,
-  stiffness: 420,
-  type: "spring",
+  duration: 0.2,
+  ease: [0.2, 0, 0, 1],
+  type: "tween",
 } as const;
+
+/**
+ * A grown window's box, stated rather than left to the classes: a docked
+ * window's width and height are motion values, and a style that merely stops
+ * naming them can leave the last ones standing. Its right edge is not here:
+ * that is animated, to GROWN_RIGHT, and a style naming it as well would fight
+ * the animation.
+ */
+export const GROWN = {
+  bottom: 12,
+  height: "auto",
+  left: 12,
+  top: 12,
+  width: "auto",
+} as const;
+
+/** A grown window's right edge, in layout px, as its other edges stand. */
+export const GROWN_RIGHT = 12;
 
 /** A window with its place along the foot: how far its right edge stands from the row's, and its width when the row is narrower than its own. */
 export type PlacedCompose = ComposeEntry & { right: number; width?: number };

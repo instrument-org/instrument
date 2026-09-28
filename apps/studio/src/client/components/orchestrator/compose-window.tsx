@@ -73,6 +73,8 @@ import {
 } from "./browser-tabs";
 import {
   COMPOSE_BAR_WIDTH,
+  GROWN,
+  GROWN_RIGHT,
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
 } from "./compose-layout";
@@ -622,7 +624,7 @@ export function ComposeWindow({
     // slides to its new place along the foot when a neighbor goes, and its
     // page is placed again as it moves (see the host's `place`).
     <motion.div
-      animate={{ opacity: 1, ...(isExpanded ? {} : { right }), y: 0 }}
+      animate={{ opacity: 1, right: isExpanded ? GROWN_RIGHT : right, y: 0 }}
       className={cn(
         // An opaque edge, and the shadow ramp without its own hairline: these
         // windows are drawn over the pane, over a page guest, and over each
@@ -643,8 +645,8 @@ export function ComposeWindow({
       )}
       data-slot="compose-window"
       exit={{ opacity: 0, y: 24 }}
-      initial={{ opacity: 0, ...(isExpanded ? {} : { right }), y: 24 }}
-      style={isExpanded ? undefined : { height: dockedHeight, width }}
+      initial={{ opacity: 0, right: isExpanded ? GROWN_RIGHT : right, y: 24 }}
+      style={isExpanded ? GROWN : { height: dockedHeight, width }}
       transition={COMPOSE_MOTION}
     >
       <OrchestratorContext

@@ -7,12 +7,14 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
-import { StoreId } from "@instrument-org/workspace/client";
+import { StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
+import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
+import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
 
@@ -21,7 +23,7 @@ import { computerName } from "./computer-name";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { IDEAS_HREF, ideaTitleOf } from "./ideas";
-import { SKILLS_HREF, type TabLocation } from "./tab-location";
+import { SKILLS_HREF, type TabLocation, tasksOfHref } from "./tab-location";
 import { parseHref } from "./window-tabs";
 
 /**
@@ -30,6 +32,8 @@ import { parseHref } from "./window-tabs";
  */
 interface ScreenNames {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
+  taskTitles?: Map<TaskId, string>;
   /** Each thread's title by its session, for a tab standing on one; a chat not in it is a "Chat". */
   threadTitles?: Map<StoreId.Session, string>;
 }
@@ -37,7 +41,7 @@ interface ScreenNames {
 /** Where a screen tab is, in the terms the row above it says a place in. */
 export function screenLocation(
   href: string,
-  { appsBySlug, threadTitles }: ScreenNames,
+  { appsBySlug, taskTitles, threadTitles }: ScreenNames,
 ): TabLocation {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -86,6 +90,17 @@ export function screenLocation(
   if (pathname.startsWith(`${THREADS_HREF}/`)) {
     return { kind: "thread", title: threadTitleOf(pathname, threadTitles) };
   }
+  const tasks = tasksOfHref(href);
+  if (tasks?.task !== undefined) {
+    return {
+      kind: "task",
+      ...(tasks.thread === undefined ? {} : { thread: tasks.thread }),
+      title: taskTitles?.get(tasks.task) ?? "Task",
+    };
+  }
+  if (tasks) {
+    return { kind: "tasks" };
+  }
   // A screen the window has no words for reads as the new tab: the place
   // with nothing in particular in it.
   return { kind: "newTab" };
@@ -94,7 +109,7 @@ export function screenLocation(
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(
   href: string,
-  { appsBySlug, threadTitles }: ScreenNames,
+  { appsBySlug, taskTitles, threadTitles }: ScreenNames,
 ): { icon: ReactNode; title: string } {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -161,6 +176,17 @@ export function screenPresentation(
       icon: <GraduationCapIcon className="size-3.5" />,
       title: "Skills",
     };
+  }
+  const tasks = tasksOfHref(href);
+  // The list wears the mark the chat's menu opens it with; one task, a single box of it.
+  if (tasks?.task !== undefined) {
+    return {
+      icon: <CheckSquareIcon className="size-3.5" />,
+      title: taskTitles?.get(tasks.task) ?? "Task",
+    };
+  }
+  if (tasks) {
+    return { icon: <ListChecksIcon className="size-3.5" />, title: "Tasks" };
   }
   return { icon: <MagnifyingGlassIcon className="size-3.5" />, title: "Tab" };
 }

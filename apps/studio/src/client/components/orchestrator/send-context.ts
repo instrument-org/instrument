@@ -18,7 +18,6 @@ import { behindTabOf, isGroupShown } from "./draft-context";
 import { computerTabOf, mountOfHostPath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
-import { type TasksFace } from "./thread-tasks-view";
 import { type useCompose } from "./use-compose";
 import { parseHref, type useWindowTabs } from "./window-tabs";
 
@@ -35,8 +34,6 @@ export interface SendContextWindow {
   appsBySlug: AppsBySlug;
   /** The window's browser, for a page's words; null until it is mounted. */
   browser: null | Pick<BrowserTabsHandle, "readPage">;
-  /** The orchestrator's tasks, for the face's account of them. */
-  children: RPCOutput["workspace"]["orchestrator"]["children"] | undefined;
   drafts: Draft[];
   /** The router's address, which is the screen's own. */
   href: string;
@@ -46,8 +43,6 @@ export interface SendContextWindow {
   screenView: null | ScreenView;
   /** The orchestrator's state, whose folder grants say how the conversation reaches a file. */
   state: RPCOutput["workspace"]["task"]["state"]["get"] | undefined;
-  /** The face over the tab, while one is up; nothing otherwise. */
-  tasksFace: TasksFace | undefined;
   threadTitles: Map<StoreId.Session, string>;
   /** What each draft window's band has up, by the draft's group. */
   viewsById: ReturnType<typeof useCompose>["viewsById"];
@@ -66,13 +61,11 @@ export interface SendContextWindow {
 export function contextReaders({
   appsBySlug,
   browser,
-  children,
   drafts,
   href,
   paneOpenByGroup,
   screenView,
   state,
-  tasksFace,
   threadTitles,
   viewsById,
   windowTabs,
@@ -315,33 +308,6 @@ export function contextReaders({
     };
   };
   /**
-   * What the face has on it, in the terms a screen reports: one task and
-   * where it stands, or the thread's tasks each with theirs.
-   */
-  const tasksFaceView = (
-    face: TasksFace,
-  ): SessionMessageDataPart.ViewContextDataPart | undefined => {
-    const own = (children ?? []).filter(
-      (child) => child.threadId === face.thread,
-    );
-    const describe = (child: (typeof own)[number]) => ({
-      id: child.id,
-      status:
-        child.standing.kind === "running"
-          ? ("working" as const)
-          : ("done" as const),
-      ...(child.standing.kind === "running"
-        ? { step: child.standing.line }
-        : {}),
-      title: child.title,
-    });
-    if (face.task === undefined) {
-      return { screen: "tasks", tasks: own.map(describe) };
-    }
-    const task = own.find((child) => child.id === face.task);
-    return task ? { screen: "task", task: describe(task) } : undefined;
-  };
-  /**
    * What the tab on screen says it shows, plus the page's words when that
    * tab is a page, read at the moment of sending; a screen that registered
    * nothing sends nothing, and so does a group with no tab under its head.
@@ -349,12 +315,6 @@ export function contextReaders({
   const sendContext = async (): Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   > => {
-    // The face over the tab is what the user is looking at while it is up,
-    // and it is the window's rather than any screen's to describe.
-    const faceView = tasksFace ? tasksFaceView(tasksFace) : undefined;
-    if (faceView && state) {
-      return { ...faceView, tabs: [], url: href };
-    }
     if (!screenView || !state || !active) {
       return;
     }

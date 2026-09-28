@@ -55,7 +55,7 @@ export function ThreadHeader({
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewTopic: (name?: string) => void;
   onSetTopics: (topics: string[]) => void;
-  /** Opens the chat's tasks as the pane's face, when the head can reach them. */
+  /** Opens the chat's tasks as a tab in its group, when the head can reach them. */
   onViewTasks?: () => void;
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
   popOut?: { isOut: boolean; onToggle: () => void };

@@ -1,5 +1,5 @@
 import { instrumentFolderHref } from "@/shared/computer-href";
-import { StoreId } from "@instrument-org/workspace/client";
+import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { screenLocation, screenPresentation } from "./screen-presentation";
@@ -16,6 +16,25 @@ describe("screenPresentation", () => {
       screenPresentation(THREAD_HREF, { ...CONTEXT, threadTitles }).title,
     ).toBe("Caffeine mixes, plus Zevia");
     expect(screenPresentation(THREAD_HREF, CONTEXT).title).toBe("Chat");
+  });
+
+  it("names a tasks tab, and a task's by its title once known", () => {
+    const task = TaskIdSchema.parse("book");
+    const taskTitles = new Map([[task, "Book the hotel"]]);
+    const href = `/orchestrator/tasks/${task}?thread=${THREAD_ID}`;
+    expect(
+      screenPresentation(`/orchestrator/tasks?thread=${THREAD_ID}`, CONTEXT)
+        .title,
+    ).toBe("Tasks");
+    expect(screenPresentation(href, { ...CONTEXT, taskTitles }).title).toBe(
+      "Book the hotel",
+    );
+    expect(screenPresentation(href, CONTEXT).title).toBe("Task");
+    expect(screenLocation(href, { ...CONTEXT, taskTitles })).toEqual({
+      kind: "task",
+      thread: THREAD_ID,
+      title: "Book the hotel",
+    });
   });
 
   it.each([

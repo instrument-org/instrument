@@ -73,6 +73,7 @@ export function ThreadRail({
   onSelect,
   tabs,
   targetOf,
+  taskTitles,
   threadTitles,
 }: {
   activeId: string | undefined;
@@ -90,6 +91,7 @@ export function ThreadRail({
   tabs: WindowTab[];
   /** The guest a page tab is drawn by, for taking its picture. */
   targetOf: (tab: Extract<WindowTab, { kind: "page" }>) => BrowserTargetId;
+  taskTitles?: Parameters<typeof screenPresentation>[1]["taskTitles"];
   threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
 }) {
   // Tiles slide only while one is being dragged among them: laid out
@@ -152,6 +154,7 @@ export function ThreadRail({
                 }}
                 tab={tab}
                 targetOf={targetOf}
+                taskTitles={taskTitles}
                 threadTitles={threadTitles}
               />
             </Reorder.Item>
@@ -410,6 +413,7 @@ function RailTile({
   onSelect,
   tab,
   targetOf,
+  taskTitles,
   threadTitles,
 }: {
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
@@ -420,12 +424,14 @@ function RailTile({
   onSelect: () => void;
   tab: WindowTab;
   targetOf: (tab: Extract<WindowTab, { kind: "page" }>) => BrowserTargetId;
+  taskTitles: Parameters<typeof screenPresentation>[1]["taskTitles"];
   threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
 }) {
   const title =
     tab.kind === "page"
       ? tab.title || hostOf(tab.url ?? tab.openedUrl ?? "")
-      : screenPresentation(tab.href, { appsBySlug, threadTitles }).title;
+      : screenPresentation(tab.href, { appsBySlug, taskTitles, threadTitles })
+          .title;
   const tile = (isWorking: boolean) => (
     <div className="group/tile relative flex flex-col gap-1.5">
       <button

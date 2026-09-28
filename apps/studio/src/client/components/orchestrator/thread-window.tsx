@@ -36,6 +36,8 @@ import { OrchestratorContext, useOrchestrator } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { isGroupShown, isIncludable } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
+import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
+import { useTaskTitles } from "./task-titles";
 import { ThreadMenu } from "./thread-header";
 import { ThreadRail } from "./thread-rail";
 import { ThreadScreen } from "./thread-stage";
@@ -126,7 +128,6 @@ export function ThreadWindow({
   onPageChrome,
   onPageHost,
   onPlacementChange,
-  onViewTasks,
   placement,
   right,
   sendContext,
@@ -150,8 +151,6 @@ export function ThreadWindow({
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
-  /** Opens the chat's tasks: the window goes and the tasks face comes up in Chats. */
-  onViewTasks: () => void;
   placement: "docked" | "expanded";
   /** Where the window stands along the foot, in layout px from the right edge. */
   right: number;
@@ -178,6 +177,7 @@ export function ThreadWindow({
     thread === undefined ? sentWords !== undefined : thread.state === "working";
   const rename = useThreadRename(thread);
   const [isDeleting, setDeleting] = useState(false);
+  const taskTitles = useTaskTitles();
   const threadTitles = new Map<StoreId.Session, string>(
     thread === undefined ? [] : [[thread.id, thread.title]],
   );
@@ -255,6 +255,15 @@ export function ThreadWindow({
     });
     showUp();
   };
+  /** The chat's tasks or one of them, up large in this window: the tab already at that address, or a new one. */
+  const openTasksHere = (href: string) => {
+    windowTabs.openOrFocusScreen(href, {
+      activate: true,
+      group: sessionId,
+      isOpened: true,
+    });
+    showUp();
+  };
   const openPage = (url: string) => {
     const id = orchestrator.browser?.openOrFocus(url, { group: sessionId });
     if (id !== undefined) {
@@ -286,6 +295,7 @@ export function ThreadWindow({
           StoreId.SessionSchema.parse(tab.id),
         )
       }
+      taskTitles={taskTitles}
       threadTitles={threadTitles}
     />
   );
@@ -370,7 +380,9 @@ export function ThreadWindow({
                 setDeleting(true);
               }}
               onOpenInChats={onOpenInChats}
-              onViewTasks={onViewTasks}
+              onViewTasks={() => {
+                openTasksHere(tasksHref(sessionId));
+              }}
               rename={rename}
               thread={thread}
             />
@@ -451,6 +463,15 @@ export function ThreadWindow({
               openScreen: (href, options) => {
                 if (options?.show && computerTabOf(href)) {
                   openHere(href);
+                  return;
+                }
+                const tasks = tasksOfHref(href);
+                if (options?.show && tasks) {
+                  openTasksHere(
+                    tasks.task === undefined
+                      ? tasksHref(sessionId)
+                      : taskHref(tasks.task, sessionId),
+                  );
                   return;
                 }
                 orchestrator.openScreen(href, options);

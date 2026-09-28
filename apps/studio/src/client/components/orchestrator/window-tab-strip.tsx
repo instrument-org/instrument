@@ -164,7 +164,11 @@ export function WindowTabStrip({
                   pageTabTitle(tab) ||
                   "New tab",
               }
-            : screenPresentation(tab.href, { appsBySlug, threadTitles })),
+            : screenPresentation(tab.href, {
+                appsBySlug,
+                taskTitles: childTitles,
+                threadTitles,
+              })),
         }))}
         trailing={trailing}
       />

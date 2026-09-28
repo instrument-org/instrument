@@ -18,9 +18,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { contextReaders, type SendContextWindow } from "./send-context";
 
 const THREAD = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
-const OTHER_THREAD = StoreId.SessionSchema.parse(
-  "ses_01JABBBBBBBBBBBBBBBBBBBBBB",
-);
 const HOME = FolderAttachment.Schema.parse({
   access: "read-write",
   createdAt: 0,
@@ -44,23 +41,6 @@ const SITE: WindowTab = {
   title: "Example",
   url: "https://example.com/",
 };
-
-function childOf(
-  id: string,
-  title: string,
-  standing: { kind: "done" | "running"; line: string },
-  threadId: StoreId.Session,
-): NonNullable<SendContextWindow["children"]>[number] {
-  return {
-    createdAt: new Date(0),
-    dir: `/tasks/${id}`,
-    id: TaskIdSchema.parse(id),
-    standing,
-    threadId,
-    title,
-    updatedAt: new Date(0),
-  };
-}
 
 /** The window's tabs, with the group named on screen and its first tab up. */
 function tabsOf(
@@ -95,13 +75,11 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
           url: "https://example.com/",
         }),
     },
-    children: undefined,
     drafts: [],
     href: "/orchestrator/browser",
     paneOpenByGroup: {},
     screenView: null,
     state: { attachedFolders: { home: HOME } },
-    tasksFace: undefined,
     threadTitles: new Map([[THREAD, "Lisbon"]]),
     viewsById: {},
     windowTabs: tabsOf([]),
@@ -238,32 +216,44 @@ describe("sendContext", () => {
     `);
   });
 
-  it("describes the face over the tab in place of the screen", async () => {
+  it("describes a chat's tasks tab as its screen reports it", async () => {
+    const tasksTab: WindowTab = {
+      group: THREAD,
+      href: `/orchestrator/tasks?thread=${THREAD}`,
+      id: "tasks",
+      kind: "screen",
+    };
     const { sendContext } = contextReaders(
       windowOf({
-        children: [
-          childOf(
-            "scan",
-            "Scan the receipts",
-            { kind: "running", line: "Reading Downloads" },
-            THREAD,
-          ),
-          childOf(
-            "book",
-            "Book the hotel",
-            { kind: "done", line: "Booked" },
-            OTHER_THREAD,
-          ),
-        ],
-        screenView: { screen: "browser" },
-        tasksFace: { overTab: SITE.id, thread: THREAD },
-        windowTabs: tabsOf([SITE], THREAD),
+        href: tasksTab.href,
+        screenView: {
+          screen: "tasks",
+          tasks: [
+            {
+              id: TaskIdSchema.parse("scan"),
+              status: "working",
+              step: "Reading Downloads",
+              title: "Scan the receipts",
+            },
+          ],
+        },
+        windowTabs: tabsOf([tasksTab, SITE], THREAD),
       }),
     );
     await expect(sendContext()).resolves.toMatchInlineSnapshot(`
       {
         "screen": "tasks",
-        "tabs": [],
+        "tabs": [
+          {
+            "at": "/orchestrator/tasks?thread=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "title": "Tasks",
+          },
+          {
+            "at": "https://example.com/",
+            "id": "guest",
+            "title": "Example",
+          },
+        ],
         "tasks": [
           {
             "id": "scan",
@@ -272,40 +262,7 @@ describe("sendContext", () => {
             "title": "Scan the receipts",
           },
         ],
-        "url": "/orchestrator/browser",
-      }
-    `);
-  });
-
-  it("describes the one task the face has up", async () => {
-    const { sendContext } = contextReaders(
-      windowOf({
-        children: [
-          childOf(
-            "scan",
-            "Scan the receipts",
-            { kind: "done", line: "Read" },
-            THREAD,
-          ),
-        ],
-        tasksFace: {
-          overTab: SITE.id,
-          task: TaskIdSchema.parse("scan"),
-          thread: THREAD,
-        },
-        windowTabs: tabsOf([SITE], THREAD),
-      }),
-    );
-    await expect(sendContext()).resolves.toMatchInlineSnapshot(`
-      {
-        "screen": "task",
-        "tabs": [],
-        "task": {
-          "id": "scan",
-          "status": "done",
-          "title": "Scan the receipts",
-        },
-        "url": "/orchestrator/browser",
+        "url": "/orchestrator/tasks?thread=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
       }
     `);
   });

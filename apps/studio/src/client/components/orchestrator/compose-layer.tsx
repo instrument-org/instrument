@@ -38,7 +38,6 @@ export function ComposeLayer({
   onOpenThread,
   onPressThreadTab,
   onStart,
-  onViewThreadTasks,
   openOutside,
   sendContext,
   sentWords,
@@ -66,8 +65,6 @@ export function ComposeLayer({
   /** A thing a grown window cannot draw, asked for: the chat lands in Chats with that tab in front. */
   onPressThreadTab: (sessionId: StoreId.Session, tabId: string) => void;
   onStart: (id: string, send: DraftSend) => void;
-  /** A popped-out chat asked to show its tasks, from its menu: the window goes and the tasks face comes up in Chats. */
-  onViewThreadTasks: (sessionId: StoreId.Session) => void;
   openOutside: (href: string) => void;
   /** What the window has on screen as a reply is sent from a small view. */
   sendContext: () => Promise<
@@ -151,9 +148,6 @@ export function ComposeLayer({
                     onExpandThread(sessionId);
                   }
                   compose.setPlacement(sessionId, placement);
-                }}
-                onViewTasks={() => {
-                  onViewThreadTasks(sessionId);
                 }}
                 placement={entry.placement}
                 right={entry.right}

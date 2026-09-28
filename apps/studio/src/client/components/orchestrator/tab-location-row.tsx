@@ -11,7 +11,6 @@ import {
 import { Omnibar } from "@/client/components/orchestrator/omnibar";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import {
   type OpenInAppTarget,
   openInAppTargetOfUrl,
@@ -26,8 +25,10 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
+import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CompassIcon } from "@phosphor-icons/react/Compass";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
+import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -431,11 +432,18 @@ function locationMark(location: TabLocation): ReactNode {
         <GraduationCapIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
-    // The work, and one of its tasks: a task is under the list it was opened
-    // from, the way an app page is under Apps.
-    case "task":
+    // A task is under the list it was opened from, the way an app page is
+    // under Apps: the list wears the mark the chat's menu opens it with, and
+    // one task a single box of it.
+    case "task": {
+      return (
+        <CheckSquareIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
     case "tasks": {
-      return <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600" />;
+      return (
+        <ListChecksIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
     }
     case "thread": {
       return (

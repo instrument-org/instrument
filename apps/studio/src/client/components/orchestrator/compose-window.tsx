@@ -88,8 +88,10 @@ import { OutputPicker } from "./output-picker";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { ScreenTabContext } from "./screen-tab";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
-import { type TabLocation } from "./tab-location";
+import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
+import { useTaskTitles } from "./task-titles";
+import { TaskScreen, ThreadTasksScreen } from "./thread-tasks-view";
 import { draftTitle, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
@@ -598,9 +600,9 @@ export function ComposeWindow({
       <GroupItem
         closeTab={closeTab}
         group={group}
-        onFilesView={setFilesView}
         onPageChrome={onPageChrome}
         onPageHost={setPageHost}
+        onScreenView={setFilesView}
         outside={{
           label: "Open beside the chat",
           note: "Opens beside the chat, not in a draft.",
@@ -899,9 +901,9 @@ export function GroupItem({
   group,
   isFramed = true,
   onClose,
-  onFilesView,
   onPageChrome,
   onPageHost,
+  onScreenView,
   outside,
   up,
 }: {
@@ -911,12 +913,12 @@ export function GroupItem({
   isFramed?: boolean;
   /** Puts the view away, from the × at the end of its address row, for a surface that shows it beside a chat. */
   onClose?: () => void;
-  /** What the Finder has up, in the terms the conversation is told it. */
-  onFilesView?: (view: null | ScreenView) => void;
   /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   /** The element the page is drawn into, while a page is up. */
   onPageHost: (element: HTMLDivElement | null) => void;
+  /** What a screen it draws has up (the Finder, a chat's tasks), in the terms the conversation is told it. */
+  onScreenView?: (view: null | ScreenView) => void;
   /** A screen the window cannot draw: what to say, and the way to where it can be. */
   outside: {
     label: string;
@@ -934,6 +936,7 @@ export function GroupItem({
   const [screenLead, setScreenLead] = useState<HTMLDivElement | null>(null);
   const [screenTail, setScreenTail] = useState<HTMLDivElement | null>(null);
   const Frame = isFramed ? Card : Bare;
+  const taskTitles = useTaskTitles();
   const [filesView, setFilesView] = useState<null | ScreenView>(null);
 
   // The page's reload and controls go into the address row, the way they do
@@ -1056,7 +1059,7 @@ export function GroupItem({
       </Frame>
     );
   }
-  const screenRow = row(screenLocation(up.href, { appsBySlug }));
+  const screenRow = row(screenLocation(up.href, { appsBySlug, taskTitles }));
   const computer = computerTabOf(up.href);
   if (computer) {
     const search = parseHref(up.href).search;
@@ -1083,7 +1086,7 @@ export function GroupItem({
             },
             report: (view) => {
               setFilesView(view);
-              onFilesView?.(view);
+              onScreenView?.(view);
             },
             visit: (href) => {
               windowTabs.visitHref(up.id, href);
@@ -1108,6 +1111,51 @@ export function GroupItem({
           </OrchestratorContext>
         </ScreenTabContext>
       </Frame>
+    );
+  }
+  const tasks = tasksOfHref(up.href);
+  if (tasks) {
+    return (
+      // A chat's tasks and each task's page, as the pane beside a chat draws
+      // them, moving this tab rather than following the window's router: a
+      // row pressed or the row's Tasks crumb walks the tab in place.
+      <OrchestratorContext
+        value={{
+          ...orchestrator,
+          openScreen: (href, options) => {
+            if (tasksOfHref(href) && !options?.newTab) {
+              windowTabs.visitHref(up.id, href);
+              return;
+            }
+            orchestrator.openScreen(href, options);
+          },
+        }}
+      >
+        <Frame head={screenRow}>
+          <ScreenTabContext
+            value={{
+              id: up.id,
+              leave: () => {
+                if (windowTabs.stepTab(up.id, -1) === undefined) {
+                  closeTab(up.id);
+                }
+              },
+              report: (view) => {
+                onScreenView?.(view);
+              },
+              visit: (href) => {
+                windowTabs.visitHref(up.id, href);
+              },
+            }}
+          >
+            {tasks.task === undefined ? (
+              <ThreadTasksScreen thread={tasks.thread} />
+            ) : (
+              <TaskScreen key={tasks.task} taskId={tasks.task} />
+            )}
+          </ScreenTabContext>
+        </Frame>
+      </OrchestratorContext>
     );
   }
   const { pathname } = parseHref(up.href);

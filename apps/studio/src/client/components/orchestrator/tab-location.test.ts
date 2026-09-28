@@ -1,6 +1,14 @@
+import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { locationCrumbs, memoryOfHref, type TabLocation } from "./tab-location";
+import {
+  locationCrumbs,
+  memoryOfHref,
+  type TabLocation,
+  tasksOfHref,
+} from "./tab-location";
+
+const THREAD = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 
 const HOME = "/Users/casey";
 
@@ -106,6 +114,17 @@ describe("locationCrumbs", () => {
     `);
   });
 
+  it("puts a task opened from a chat's list under that list", () => {
+    expect(
+      readable({ kind: "task", thread: THREAD, title: "Book the hotel" }),
+    ).toMatchInlineSnapshot(`
+      [
+        "Tasks -> /orchestrator/tasks?thread=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "Book the hotel",
+      ]
+    `);
+  });
+
   it("puts a skill under Skills, by its name", () => {
     expect(readable({ kind: "skill", name: "create-page" }))
       .toMatchInlineSnapshot(`
@@ -168,5 +187,22 @@ describe("memoryOfHref", () => {
     ["/orchestrator/tasks/no-stevia", undefined],
   ])("reads %s as %s", (href, name) => {
     expect(memoryOfHref(href)).toBe(name);
+  });
+});
+
+describe("tasksOfHref", () => {
+  it.each([
+    ["/orchestrator/tasks", {}],
+    [`/orchestrator/tasks?thread=${THREAD}`, { thread: THREAD }],
+    ["/orchestrator/tasks?thread=nonsense", {}],
+    ["/orchestrator/tasks/book", { task: "book" }],
+    [
+      `/orchestrator/tasks/book?thread=${THREAD}`,
+      { task: "book", thread: THREAD },
+    ],
+    ["/orchestrator/tasks/book/edit", undefined],
+    ["/orchestrator/memory/book", undefined],
+  ])("reads %s", (href, expected) => {
+    expect(tasksOfHref(href)).toEqual(expected);
   });
 });

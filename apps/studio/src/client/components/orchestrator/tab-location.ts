@@ -1,6 +1,10 @@
 import { type OpenTarget } from "@/client/lib/open-target";
 import { folderHref } from "@/shared/computer-href";
-import { type TaskId, TaskIdSchema } from "@instrument-org/workspace/client";
+import {
+  StoreId,
+  type TaskId,
+  TaskIdSchema,
+} from "@instrument-org/workspace/client";
 
 import { homeRelative, segmentsOf, separatorOf } from "./host-path";
 import { IDEAS_HREF } from "./ideas";
@@ -13,8 +17,20 @@ export interface LocationCrumb {
   to?: OpenTarget;
 }
 
-/** The address of a thread's tasks, which the pane shows as its face rather than as a screen. */
-const TASKS_HREF = "/orchestrator/tasks";
+/** The route a chat's tasks are at: the list, and each task's page under it. */
+export const TASKS_HREF = "/orchestrator/tasks";
+
+/** The address of one task's page, carrying the chat whose list it was opened from. */
+export function taskHref(id: TaskId, thread?: StoreId.Session): string {
+  return thread === undefined
+    ? `${TASKS_HREF}/${id}`
+    : `${TASKS_HREF}/${id}?thread=${thread}`;
+}
+
+/** The address of a chat's task list, or of every task with no chat named. */
+export function tasksHref(thread?: StoreId.Session): string {
+  return thread === undefined ? TASKS_HREF : `${TASKS_HREF}?thread=${thread}`;
+}
 
 /** The route the Skills screen is at: every skill a task can load, and each one's page under it. */
 export const SKILLS_HREF = "/orchestrator/skills";
@@ -38,7 +54,12 @@ export type TabLocation =
   | { kind: "page"; url: string }
   | { kind: "skill"; name: string }
   | { kind: "skills" }
-  | { kind: "task"; title: string }
+  | {
+      kind: "task";
+      /** The chat whose list the task was opened from, which is where its crumb goes back to. */
+      thread?: StoreId.Session;
+      title: string;
+    }
   | { kind: "tasks" }
   | { kind: "thread"; title: string };
 
@@ -96,7 +117,10 @@ export function locationCrumbs(
     }
     case "task": {
       return [
-        { label: "Tasks", to: { href: TASKS_HREF, kind: "screen" } },
+        {
+          label: "Tasks",
+          to: { href: tasksHref(location.thread), kind: "screen" },
+        },
         { label: location.title },
       ];
     }
@@ -112,19 +136,27 @@ export function locationCrumbs(
 }
 
 /**
- * What an address under the tasks names: the list, or one task by id.
- * Nothing for any other address, and nothing for an id that is not one.
+ * What an address under the tasks names: the list or one task by id, and
+ * the chat it is for when the address carries one. Nothing for any other
+ * address, and nothing for an id that is not one.
  */
-export function tasksFaceOfHref(href: string): undefined | { task?: TaskId } {
-  const pathname = new URL(href, "http://tabs").pathname;
-  if (pathname === TASKS_HREF) {
-    return {};
+export function tasksOfHref(
+  href: string,
+): undefined | { task?: TaskId; thread?: StoreId.Session } {
+  const url = new URL(href, "http://tabs");
+  const { pathname } = url;
+  const thread = StoreId.SessionSchema.safeParse(
+    url.searchParams.get("thread"),
+  );
+  const forThread = thread.success ? { thread: thread.data } : {};
+  if (pathname === TASKS_HREF || pathname === `${TASKS_HREF}/`) {
+    return forThread;
   }
   if (!pathname.startsWith(`${TASKS_HREF}/`)) {
     return undefined;
   }
   const parsed = TaskIdSchema.safeParse(pathname.slice(TASKS_HREF.length + 1));
-  return parsed.success ? { task: parsed.data } : undefined;
+  return parsed.success ? { task: parsed.data, ...forThread } : undefined;
 }
 
 /** The address of the memories, which the window shows in Settings rather than as a screen. */

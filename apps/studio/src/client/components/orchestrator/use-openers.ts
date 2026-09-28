@@ -19,7 +19,7 @@ import { toast } from "sonner";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type OpenOptions } from "./context";
-import { memoryOfHref, tasksFaceOfHref } from "./tab-location";
+import { memoryOfHref, taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { type Thread } from "./threads";
 import {
   isFreshTab,
@@ -39,7 +39,7 @@ export function useOpeners({
   ids,
   revealPane,
   setPaneOpen,
-  showTasksFace,
+  threadOfTask,
   threads,
   threadTitles,
   toApps,
@@ -53,8 +53,8 @@ export function useOpeners({
   /** Brings the pane up for the group on screen, for something opened into it. */
   revealPane: () => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;
-  /** Brings the tasks' face up over a thread, for an address that names a task or the tasks. */
-  showTasksFace: (task?: TaskId, group?: string) => void;
+  /** The chat a task was filed from, which is the group its tab lands in. */
+  threadOfTask: (id: TaskId) => string | undefined;
   /** The threads the window has, once the list has been read. */
   threads: Thread[] | undefined;
   threadTitles: Map<StoreId.Session, string>;
@@ -152,11 +152,43 @@ export function useOpeners({
       });
       return;
     }
-    // A task, or the tasks, are the face of their thread's pane rather than
-    // a screen of their own: every way of asking for one lands there.
-    const face = tasksFaceOfHref(href);
-    if (face) {
-      showTasksFace(face.task, into);
+    // A chat's tasks, or one task, are a tab in the chat's group, a task in
+    // the chat it was filed from, with the chat on screen and its pane open.
+    // A tasks tab already up in that chat walks there in place, the way its
+    // crumbs do; anything else gets the tab at that address, or a new one.
+    const tasks = tasksOfHref(href);
+    const tasksThread = tasks
+      ? StoreId.SessionSchema.safeParse(
+          (tasks.task === undefined ? undefined : threadOfTask(tasks.task)) ??
+            tasks.thread ??
+            into ??
+            windowTabs.group,
+        )
+      : undefined;
+    if (tasks && tasksThread?.success) {
+      const chat = tasksThread.data;
+      const at =
+        tasks.task === undefined ? tasksHref(chat) : taskHref(tasks.task, chat);
+      const up = windowTabs.tabUpIn(chat);
+      const walksInPlace =
+        !newTab &&
+        chat === windowTabs.group &&
+        up?.kind === "screen" &&
+        tasksOfHref(up.href) !== undefined;
+      if (walksInPlace) {
+        revealPane();
+        windowTabs.navigateScreen(at);
+        router.history.push(at);
+        return;
+      }
+      windowTabs.showThread(chat);
+      toChat();
+      windowTabs.openOrFocusScreen(at, {
+        group: chat,
+        isOpened: true,
+        show: true,
+      });
+      setPaneOpen(chat, true);
       return;
     }
     // A memory is shown where all of them are, in Settings, brought to the

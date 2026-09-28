@@ -47,7 +47,7 @@ import { contextReaders } from "@/client/components/orchestrator/send-context";
 import { useStagedAskActions } from "@/client/components/orchestrator/staged-asks";
 import {
   type TabLocation,
-  tasksFaceOfHref,
+  tasksHref,
 } from "@/client/components/orchestrator/tab-location";
 import { TabLocationRow } from "@/client/components/orchestrator/tab-location-row";
 import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
@@ -55,8 +55,6 @@ import { threadListOptions } from "@/client/components/orchestrator/thread-list-
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ThreadRail } from "@/client/components/orchestrator/thread-rail";
 import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
-import { ThreadTasksView } from "@/client/components/orchestrator/thread-tasks-view";
-import { type TasksFace } from "@/client/components/orchestrator/thread-tasks-view";
 import { useCompose } from "@/client/components/orchestrator/use-compose";
 import { useDrafts } from "@/client/components/orchestrator/use-drafts";
 import { useHistorySteps } from "@/client/components/orchestrator/use-history-steps";
@@ -438,29 +436,10 @@ function OrchestratorLayout() {
     return parsed.success ? parsed.data : undefined;
   })();
   const isPageOnScreen = active?.kind === "page";
-  // The thread's tasks as the pane's face, over whatever tab it has up: a
-  // fixed view rather than a tab, so it is never among the tabs to close or
-  // keep track of, holding the thread's list or one task's page. Put away by
-  // picking a tab or opening anything, which both change the tab under it,
-  // and by pressing its control again.
-  const [tasksFace, setTasksFace] = useState<TasksFace>();
-  const isTasksViewUp =
-    tasksFace !== undefined && tasksFace.thread === threadUp;
-  const activeTabId = active?.id;
-  useEffect(() => {
-    // Opened over the tab the thread had up then; a change under it is the
-    // user, or a task's browser arriving, asking for the tab.
-    setTasksFace((current) =>
-      current === undefined || current.overTab === activeTabId
-        ? current
-        : undefined,
-    );
-  }, [activeTabId]);
   // The pane beside the conversation: open unless this group put it away,
-  // and shown only while there are tabs to show in it or its tasks are its
-  // face. Closing the last tab closes the pane; the toggle brings it back
-  // with a new tab in it. A place is nothing but its pane, which fills the
-  // area and never closes.
+  // and shown only while there are tabs to show in it. Closing the last tab
+  // closes the pane; the toggle brings it back with a new tab in it. A place
+  // is nothing but its pane, which fills the area and never closes.
   const isPaneWanted =
     windowTabs.group === undefined ||
     (paneOpenByGroup[windowTabs.group] ?? true);
@@ -470,21 +449,18 @@ function OrchestratorLayout() {
       entry.kind === "thread" ? [entry.sessionId] : [],
     ),
   );
-  const showsPane =
-    !isChat || ((tabs.length > 0 || isTasksViewUp) && isPaneWanted);
+  const showsPane = !isChat || (tabs.length > 0 && isPaneWanted);
   // Whether the page in the pane is what is on screen: the tab a page, the
-  // pane open, and no screen over it. Off, the guest is parked. A window in
-  // the corner does not park it: the guest stands on the window's lowest
-  // layer, so a draft, a small view, and every menu draw over the page, and
-  // the page stays in view around them.
-  const isPageShown =
-    isPageOnScreen && showsRightArea && showsPane && !isTasksViewUp;
+  // pane open. Off, the guest is parked. A window in the corner does not park
+  // it: the guest stands on the window's lowest layer, so a draft, a small
+  // view, and every menu draw over the page, and the page stays in view
+  // around them.
+  const isPageShown = isPageOnScreen && showsRightArea && showsPane;
   const setPaneOpen = (group: string, isOpen: boolean) => {
     setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
   };
   // The pages screens draw into slots of their own (a page's file beside a
-  // file tab's tree), shown on the same terms as the pane's page: parked
-  // under the tasks' face, like it.
+  // file tab's tree), shown on the same terms as the pane's page.
   const pageSlots = useAtomValue(pageSlotsAtom);
   const slotHosts: ComposeHost[] = Object.entries(pageSlots).flatMap(
     ([group, { insideOverlay, into, layer }]) =>
@@ -495,9 +471,8 @@ function OrchestratorLayout() {
               group,
               into,
               // A slot on a floating surface is over whatever the window
-              // shows, the tasks' face and Home included.
-              isActive:
-                layer !== undefined || (showsRightArea && !isTasksViewUp),
+              // shows, Home included.
+              isActive: layer !== undefined || showsRightArea,
               ...(layer === undefined ? {} : { layer }),
               ...(insideOverlay ? { insideOverlay } : {}),
               place: `${group}:${rowWidth}`,
@@ -527,36 +502,6 @@ function OrchestratorLayout() {
   };
 
   /**
-   * Brings the face up over a thread: its list, or one of its tasks, with
-   * the thread on screen and its pane open. A task is shown in the thread it
-   * was filed from; one filed from none goes over the thread on screen.
-   */
-  const showTasksFace = (task?: TaskId, group?: string) => {
-    const filedFrom = task === undefined ? undefined : childThreads.get(task);
-    const parsed = StoreId.SessionSchema.safeParse(
-      filedFrom ?? group ?? windowTabs.group,
-    );
-    if (!parsed.success) {
-      return;
-    }
-    const thread = parsed.data;
-    windowTabs.showThread(thread);
-    toChat();
-    setPaneOpen(thread, true);
-    setTasksFace((current) => ({
-      // What was left behind stays forward of the list, so back and then
-      // forward lands where it was.
-      forward:
-        task === undefined && current?.thread === thread
-          ? current.task
-          : undefined,
-      overTab: windowTabs.tabUpIn(thread)?.id,
-      task,
-      thread,
-    }));
-  };
-
-  /**
    * Takes a thread out of the corner: the window goes and the thread lands
    * in Chat, whole, its row in the list and its pane as it was.
    */
@@ -570,21 +515,7 @@ function OrchestratorLayout() {
     landThread(sessionId);
     windowTabs.selectIn(sessionId, tabId);
     setPaneOpen(sessionId, true);
-    setTasksFace(undefined);
   };
-
-  // A tab at the tasks' address from before the tasks became the pane's
-  // face has no screen behind it: closed as the window opens, and opened
-  // again as the face if it is asked for back.
-  useEffect(() => {
-    for (const tab of windowTabs.allTabs) {
-      if (tab.kind === "screen" && tasksFaceOfHref(tab.href)) {
-        windowTabs.close(tab.id);
-      }
-    }
-    // Once, over the tabs as they were restored.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useRouterSync(windowTabs);
 
@@ -597,7 +528,7 @@ function OrchestratorLayout() {
     ids,
     revealPane,
     setPaneOpen,
-    showTasksFace,
+    threadOfTask: (id) => childThreads.get(id),
     threads: threads.data,
     threadTitles,
     toApps: () => {
@@ -609,8 +540,6 @@ function OrchestratorLayout() {
 
   const { canGoBack, canGoForward, goBack, goForward } = useHistorySteps({
     browser,
-    setTasksFace,
-    tasksFace: isTasksViewUp ? tasksFace : undefined,
     windowTabs,
   });
 
@@ -634,16 +563,12 @@ function OrchestratorLayout() {
               path: activeFilePath,
             }
         : active?.kind === "screen"
-          ? screenLocation(active.href, { appsBySlug, threadTitles })
+          ? screenLocation(active.href, {
+              appsBySlug,
+              taskTitles: childTitles,
+              threadTitles,
+            })
           : { kind: "newTab" };
-    if (isTasksViewUp) {
-      return tasksFace.task === undefined
-        ? { kind: "tasks" }
-        : {
-            kind: "task",
-            title: childTitles.get(tasksFace.task) ?? "Task",
-          };
-    }
     if (fromTab.kind === "folder" && screenView?.folder) {
       return { ...fromTab, path: screenView.folder.display };
     }
@@ -749,13 +674,11 @@ function OrchestratorLayout() {
   const { draftContext, sendContext } = contextReaders({
     appsBySlug,
     browser,
-    children: children.data,
     drafts,
     href: location.href,
     paneOpenByGroup,
     screenView,
     state: state.data,
-    tasksFace: isTasksViewUp ? tasksFace : undefined,
     threadTitles,
     viewsById: compose.viewsById,
     windowTabs,
@@ -962,10 +885,6 @@ function OrchestratorLayout() {
                 onOpenThread={landThread}
                 onPressThreadTab={landOnTab}
                 onStart={startThread}
-                onViewThreadTasks={(sessionId) => {
-                  compose.remove(sessionId);
-                  showTasksFace(undefined, sessionId);
-                }}
                 openOutside={(href) => {
                   openScreen(href, { newTab: true });
                 }}
@@ -1098,7 +1017,9 @@ function OrchestratorLayout() {
                                 threadUp === undefined
                                   ? undefined
                                   : () => {
-                                      showTasksFace(undefined, threadUp);
+                                      openScreen(tasksHref(threadUp), {
+                                        newTab: true,
+                                      });
                                     }
                               }
                               popOut={
@@ -1171,13 +1092,8 @@ function OrchestratorLayout() {
                                 onClose={requestClose}
                                 onNew={openNewTab}
                                 onReorder={windowTabs.reorder}
-                                onSelect={(id) => {
-                                  setTasksFace(undefined);
-                                  windowTabs.select(id);
-                                }}
-                                selectedId={
-                                  isTasksViewUp ? undefined : active?.id
-                                }
+                                onSelect={windowTabs.select}
+                                selectedId={active?.id}
                                 tabs={tabs}
                                 threadTitles={threadTitles}
                               />
@@ -1189,11 +1105,7 @@ function OrchestratorLayout() {
                             {...(hasRail
                               ? {
                                   onClose: () => {
-                                    // The tasks' face stands over the tab up,
-                                    // so it is what the cross puts away.
-                                    if (isTasksViewUp) {
-                                      setTasksFace(undefined);
-                                    } else if (active) {
+                                    if (active) {
                                       requestClose(active.id);
                                     } else if (windowTabs.group !== undefined) {
                                       setPaneOpen(windowTabs.group, false);
@@ -1264,19 +1176,6 @@ function OrchestratorLayout() {
                                 />
                               </ActiveTabProvider>
                             </div>
-                            {/* The thread's tasks as the pane's face, over the tab
-                        up: the list, or the task pressed in it. */}
-                            {isTasksViewUp && (
-                              <div className="absolute inset-0 bg-background">
-                                <ThreadTasksView
-                                  onOpen={(id) => {
-                                    showTasksFace(id, tasksFace.thread);
-                                  }}
-                                  sessionId={tasksFace.thread}
-                                  taskId={tasksFace.task}
-                                />
-                              </div>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -1284,7 +1183,7 @@ function OrchestratorLayout() {
                   </div>
                   {showsRail && ids && (
                     <ThreadRail
-                      activeId={isTasksViewUp ? undefined : active?.id}
+                      activeId={active?.id}
                       appsBySlug={appsBySlug}
                       isThreadWorking={
                         threads.data?.find((thread) => thread.id === threadUp)
@@ -1302,7 +1201,6 @@ function OrchestratorLayout() {
                       onClose={requestClose}
                       onReorder={windowTabs.reorder}
                       onSelect={(id) => {
-                        setTasksFace(undefined);
                         windowTabs.select(id);
                         revealPane();
                       }}
@@ -1313,6 +1211,7 @@ function OrchestratorLayout() {
                           StoreId.SessionSchema.parse(tab.id),
                         )
                       }
+                      taskTitles={childTitles}
                       threadTitles={threadTitles}
                     />
                   )}

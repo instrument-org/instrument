@@ -1274,7 +1274,7 @@ function HeldMark({
  * the words and does not ask to be read; what it is for is in its tooltip.
  * Nothing of the thing itself is drawn in the draft, which stands over it.
  */
-function IncludedChip({
+export function IncludedChip({
   appsBySlug,
   items,
   onLeaveOut,

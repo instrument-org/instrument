@@ -15,7 +15,7 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useContext, useEffect, useState } from "react";
+import { type ReactNode, useContext, useEffect, useState } from "react";
 
 import { AskPills } from "./ask-pills";
 import { OrchestratorContext, useOrchestrator } from "./context";
@@ -28,6 +28,8 @@ import { WorkingRow } from "./working-row";
 const KEPT = 4;
 
 interface ThreadScreenProps {
+  /** Drawn at the head of the composer: what goes with a message besides its words. */
+  composerLead?: ReactNode;
   /** Whether this is the thread on screen: only that one marks itself read or takes the caret. */
   isUp: boolean;
   sendContext: () => Promise<
@@ -136,6 +138,7 @@ export function ThreadStage({
 }
 
 function ChatScreen({
+  composerLead,
   isUp,
   sendContext,
   sentPrompt,
@@ -284,6 +287,7 @@ function ChatScreen({
                       tasks={thread?.runningTasks ?? []}
                     />
                   }
+                  composerLead={composerLead}
                   composerPlaceholder="Talk to Instrument"
                   // A key of the thread's own: the task's stored draft is the
                   // top-level field's, and a reply typed here is not that.

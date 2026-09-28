@@ -1,4 +1,8 @@
-import { WEB_HREF, type WindowTab } from "@/client/atoms/orchestrator";
+import {
+  paneOpenByGroupAtom,
+  WEB_HREF,
+  type WindowTab,
+} from "@/client/atoms/orchestrator";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
@@ -15,6 +19,7 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
+import { useAtomValue } from "jotai";
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 
@@ -27,9 +32,15 @@ import {
   THREAD_RAIL_WIDTH,
   THREAD_WINDOW_WIDTH,
 } from "./compose-layout";
-import { BarMarks, GroupItem, WindowButton } from "./compose-window";
+import {
+  BarMarks,
+  GroupItem,
+  IncludedChip,
+  WindowButton,
+} from "./compose-window";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import { isGroupShown, isIncludable } from "./draft-context";
 import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { ThreadMenu } from "./thread-header";
@@ -196,6 +207,29 @@ export function ThreadWindow({
     },
     [],
   );
+
+  // What the window has up behind the chat, which goes with each message:
+  // shown as a pill while the composer has the caret, so the person sees it
+  // before sending, and left out of every message after its × is pressed,
+  // until something else comes up behind.
+  const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
+  const [leftOutId, setLeftOutId] = useState<string>();
+  const [isComposing, setComposing] = useState(false);
+  const behindTab = windowTabs.active;
+  const behind =
+    behindTab !== undefined &&
+    windowTabs.group !== sessionId &&
+    isGroupShown(windowTabs.group, paneOpenByGroup) &&
+    isIncludable(behindTab)
+      ? behindTab
+      : undefined;
+  const isBehindLeftOut = behind !== undefined && behind.id === leftOutId;
+  const isBehindLeftOutRef = useRef(isBehindLeftOut);
+  useEffect(() => {
+    isBehindLeftOutRef.current = isBehindLeftOut;
+  });
+  const contextToSend = () =>
+    isBehindLeftOutRef.current ? Promise.resolve(undefined) : sendContext();
 
   /** Grows the window with what is up in the chat drawn large. */
   const showUp = () => {
@@ -377,6 +411,19 @@ export function ThreadWindow({
             "relative min-h-0 min-w-0 select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]",
             showsItem ? "w-105 shrink-0 border-r border-border" : "flex-1",
           )}
+          // The caret anywhere in the conversation column, the pill's own ×
+          // included, keeps the pill up.
+          onBlur={(event) => {
+            if (
+              !(event.relatedTarget instanceof Node) ||
+              !event.currentTarget.contains(event.relatedTarget)
+            ) {
+              setComposing(false);
+            }
+          }}
+          onFocus={() => {
+            setComposing(true);
+          }}
         >
           {/* What the conversation asks to have shown comes up large in
               this window; what it opens behind (an agent's page arriving)
@@ -427,8 +474,21 @@ export function ThreadWindow({
             >
               <ActiveTabProvider isActive>
                 <ThreadScreen
+                  composerLead={
+                    isComposing && behind && !isBehindLeftOut ? (
+                      <IncludedChip
+                        appsBySlug={appsBySlug}
+                        items={undefined}
+                        onLeaveOut={() => {
+                          setLeftOutId(behind.id);
+                        }}
+                        said="In view behind the chat, so it goes to Instrument with your message."
+                        tab={behind}
+                      />
+                    ) : undefined
+                  }
                   isUp
-                  sendContext={sendContext}
+                  sendContext={contextToSend}
                   sentPrompt={sentWords}
                   sessionId={sessionId}
                 />

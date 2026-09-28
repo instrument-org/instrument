@@ -1286,6 +1286,10 @@ function OrchestratorLayout() {
                     <ThreadRail
                       activeId={isTasksViewUp ? undefined : active?.id}
                       appsBySlug={appsBySlug}
+                      isThreadWorking={
+                        threads.data?.find((thread) => thread.id === threadUp)
+                          ?.state === "working"
+                      }
                       isViewOpen={showsPane}
                       onAddComputer={() => {
                         windowTabs.openScreen(instrumentFolderHref());

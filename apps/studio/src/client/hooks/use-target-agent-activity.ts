@@ -22,14 +22,7 @@ const QUIET_MS = 30_000;
  * opened the tab shows the mark from the start.
  */
 export function useTargetAgentActivity(targetId: BrowserTargetId): boolean {
-  const owner = decodeBrowserTargetId(targetId);
-  const { data } = useQuery(
-    rpcClient.workspace.browser.events.agentActivity.experimental_liveOptions({
-      enabled: owner !== null,
-      input: { id: owner?.id ?? ("" as never), targetId },
-    }),
-  );
-  const lastAt = data?.lastAt;
+  const lastAt = useTargetAgentLastAt(targetId);
 
   // A stretch ends when the quiet after its last command runs out with no
   // newer command having moved it: the time it ran out on is the one showing.
@@ -50,4 +43,21 @@ export function useTargetAgentActivity(targetId: BrowserTargetId): boolean {
   }, [lastAt]);
 
   return lastAt !== undefined && quietAt !== lastAt;
+}
+
+/**
+ * When an agent last sent one guest a command, in ms, moving with each new
+ * one; nothing while none has since launch.
+ */
+export function useTargetAgentLastAt(
+  targetId: BrowserTargetId,
+): number | undefined {
+  const owner = decodeBrowserTargetId(targetId);
+  const { data } = useQuery(
+    rpcClient.workspace.browser.events.agentActivity.experimental_liveOptions({
+      enabled: owner !== null,
+      input: { id: owner?.id ?? ("" as never), targetId },
+    }),
+  );
+  return data?.lastAt;
 }

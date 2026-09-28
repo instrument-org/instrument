@@ -12,7 +12,10 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
+import {
+  useTargetAgentActivity,
+  useTargetAgentLastAt,
+} from "@/client/hooks/use-target-agent-activity";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
@@ -41,6 +44,12 @@ const STILL = { layout: { duration: 0 } };
 const CHANGE_SETTLE_MS = 500;
 
 /**
+ * How long after an agent's last command in a page its picture is taken:
+ * one command of the agent's arrives as a burst, and the page redraws after.
+ */
+const AGENT_SETTLE_MS = 1000;
+
+/**
  * What a chat holds, down its right edge: a tile for each thing it has open
  * (the pages its agent browses and the person opened, files, folders), the
  * oldest at the top and the newest at the foot beside New, scrolling when
@@ -55,6 +64,7 @@ const CHANGE_SETTLE_MS = 500;
 export function ThreadRail({
   activeId,
   appsBySlug,
+  isThreadWorking,
   isViewOpen,
   onAddComputer,
   onAddWeb,
@@ -67,6 +77,8 @@ export function ThreadRail({
 }: {
   activeId: string | undefined;
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
+  /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
+  isThreadWorking: boolean;
   /** Whether the thing up is shown large, which is when its tile reads as chosen and its page is on screen. */
   isViewOpen: boolean;
   onAddComputer: () => void;
@@ -131,6 +143,7 @@ export function ThreadRail({
                 appsBySlug={appsBySlug}
                 isChosen={isViewOpen && tab.id === activeId}
                 isOnScreen={isViewOpen && tab.id === activeId}
+                isThreadWorking={isThreadWorking}
                 onClose={() => {
                   onClose(tab.id);
                 }}
@@ -200,6 +213,38 @@ function AddTile({
   );
 }
 
+/**
+ * A picture whole inside its tile, the room it leaves at its sides filled
+ * with a blurred, dimmed copy of itself rather than bars, so a dark page
+ * does not sit between two bands of the tile's own color.
+ */
+function FittedPicture({
+  onError,
+  src,
+}: {
+  onError?: () => void;
+  src: string;
+}) {
+  return (
+    <span className="relative size-full overflow-hidden">
+      <img
+        alt=""
+        aria-hidden
+        className="absolute inset-0 size-full scale-125 object-cover opacity-50 blur-md"
+        draggable={false}
+        src={src}
+      />
+      <img
+        alt=""
+        className="relative size-full object-contain"
+        draggable={false}
+        onError={onError}
+        src={src}
+      />
+    </span>
+  );
+}
+
 function hostOf(url: string): string {
   if (!URL.canParse(url)) {
     return url;
@@ -214,11 +259,12 @@ function keyOf(tab: WindowTab): string {
 
 /**
  * A page as its last picture, or, until it has one, its site's mark. The
- * picture is taken each time a page off screen loads, moves, or renames
- * itself, since the agent browses in tabs the person is not looking at, and
- * once more as a page leaves the screen. The page on screen shows its mark
- * instead and takes none: it is drawn large beside the chat already, and
- * picturing it as it is used would cost for nothing.
+ * picture is taken each time a page off screen loads, moves, renames
+ * itself, or has an agent's command, since the agent browses in tabs the
+ * person is not looking at, and once more as a page leaves the screen. The
+ * page on screen shows its mark instead and takes none: it is drawn large
+ * beside the chat already, and picturing it as it is used would cost for
+ * nothing.
  */
 function PagePicture({
   isOnScreen,
@@ -296,6 +342,19 @@ function PagePicture({
     // attaches.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnScreen, isAttached, targetId]);
+  // A picture shortly after an agent works in a page off screen, since
+  // clicking, typing, and scripts change a page without moving it.
+  const agentAt = useTargetAgentLastAt(targetId);
+  useEffect(() => {
+    if (isOnScreen || agentAt === undefined) {
+      return;
+    }
+    const pending = setTimeout(capture, AGENT_SETTLE_MS);
+    return () => {
+      clearTimeout(pending);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentAt, isOnScreen]);
   // Leaving the screen: one more, of the page as it was last seen. Not when
   // the tile goes, which is the tab closing.
   const wasOnScreen = useRef(isOnScreen);
@@ -318,55 +377,27 @@ function PagePicture({
 }
 
 /**
- * A picture whole inside its tile, the room it leaves at its sides filled
- * with a blurred, dimmed copy of itself rather than bars, so a dark page
- * does not sit between two bands of the tile's own color.
- */
-function FittedPicture({
-  onError,
-  src,
-}: {
-  onError?: () => void;
-  src: string;
-}) {
-  return (
-    <span className="relative size-full overflow-hidden">
-      <img
-        alt=""
-        aria-hidden
-        className="absolute inset-0 size-full scale-125 object-cover opacity-50 blur-md"
-        draggable={false}
-        src={src}
-      />
-      <img
-        alt=""
-        className="relative size-full object-contain"
-        draggable={false}
-        onError={onError}
-        src={src}
-      />
-    </span>
-  );
-}
-
-/**
  * Whether an agent is at work in a page, the way the tab strip asks it: a
  * task's own browser by the task, a page of the chat's handed to a task by
  * its guest.
  */
 function PageWorking({
   children,
+  isThreadWorking,
   tab,
   targetId,
 }: {
   children: (isWorking: boolean) => ReactNode;
+  isThreadWorking: boolean;
   tab: Extract<WindowTab, { kind: "page" }>;
   targetId: BrowserTargetId;
 }) {
   return tab.taskId ? (
     <TaskWorking taskId={tab.taskId}>{children}</TaskWorking>
   ) : (
-    <TargetWorking targetId={targetId}>{children}</TargetWorking>
+    <TargetWorking isThreadWorking={isThreadWorking} targetId={targetId}>
+      {children}
+    </TargetWorking>
   );
 }
 
@@ -374,6 +405,7 @@ function RailTile({
   appsBySlug,
   isChosen,
   isOnScreen,
+  isThreadWorking,
   onClose,
   onSelect,
   tab,
@@ -383,6 +415,7 @@ function RailTile({
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
   isChosen: boolean;
   isOnScreen: boolean;
+  isThreadWorking: boolean;
   onClose: () => void;
   onSelect: () => void;
   tab: WindowTab;
@@ -467,7 +500,11 @@ function RailTile({
     </div>
   );
   return tab.kind === "page" ? (
-    <PageWorking tab={tab} targetId={targetOf(tab)}>
+    <PageWorking
+      isThreadWorking={isThreadWorking}
+      tab={tab}
+      targetId={targetOf(tab)}
+    >
       {tile}
     </PageWorking>
   ) : (
@@ -545,14 +582,22 @@ function ScreenPicture({
   );
 }
 
+/**
+ * A page of the chat's handed to a task: worked in while an agent's commands
+ * keep arriving, and never once nothing in the chat is at work, so the mark
+ * does not outlast the work by the quiet it waits out.
+ */
 function TargetWorking({
   children,
+  isThreadWorking,
   targetId,
 }: {
   children: (isWorking: boolean) => ReactNode;
+  isThreadWorking: boolean;
   targetId: BrowserTargetId;
 }) {
-  return children(useTargetAgentActivity(targetId));
+  const isDriven = useTargetAgentActivity(targetId);
+  return children(isThreadWorking && isDriven);
 }
 
 function TaskWorking({

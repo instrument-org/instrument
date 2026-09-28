@@ -266,6 +266,7 @@ export function ThreadWindow({
     <ThreadRail
       activeId={up?.id}
       appsBySlug={appsBySlug}
+      isThreadWorking={isWorking}
       isViewOpen={showsItem}
       onAddComputer={() => {
         openHere(instrumentFolderHref());

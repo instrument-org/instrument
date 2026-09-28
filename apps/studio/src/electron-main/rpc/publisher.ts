@@ -91,6 +91,10 @@ interface PublisherEvents {
     | { hostPath: string; type: "openFile" }
     | { href: string; type: "openScreen" }
     | { index: number; type: "selectTab" };
+  // A link under the pointer in text being edited, which the window's native
+  // menu offers to open: the page that drew it opens it, in place or in a tab
+  // of the window's own.
+  "orchestrator.open-menu-link": { newTab: boolean };
   "preferences.updated": null;
   "provider-config.updated": null;
   "server-exception": {

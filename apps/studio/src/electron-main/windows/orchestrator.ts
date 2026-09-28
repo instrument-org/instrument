@@ -243,7 +243,12 @@ export function openOrchestratorWindow(): BrowserWindow {
 
   loadWindowURL(orchestratorWindow.webContents, studioURL("/orchestrator/"));
 
-  createContextMenu({ browserWindow: orchestratorWindow });
+  createContextMenu({
+    browserWindow: orchestratorWindow,
+    onOpenLink: (options) => {
+      publisher.publish("orchestrator.open-menu-link", options);
+    },
+  });
 
   return orchestratorWindow;
 }

@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { newSiteGroup, pageHrefOf, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { type OpenOptions } from "./context";
+import { openMenuLink } from "./menu-link";
 import { visitInTab } from "./tab-history";
 import { memoryOfHref, taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { type Thread } from "./threads";
@@ -419,6 +420,26 @@ export function useOpeners({
   useEffect(() => {
     openers.current = { actOnTab, openPage };
   });
+  // A link in text being edited, opened from the window's native menu.
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const asks = await rpcClient.orchestrator.events.openMenuLink.call(
+          undefined,
+          { signal: controller.signal },
+        );
+        for await (const ask of asks) {
+          openMenuLink(ask);
+        }
+      } catch {
+        // The window closing ends the stream.
+      }
+    })();
+    return () => {
+      controller.abort();
+    };
+  }, []);
   // A link a person asked a page for in a tab of its own (a middle- or
   // Cmd-click, a link that targets a new window, the page's menu) gets a tab
   // of the window's own, whichever page it was on.

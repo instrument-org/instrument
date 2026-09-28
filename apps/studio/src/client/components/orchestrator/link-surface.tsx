@@ -9,7 +9,8 @@ import { type ReactNode, useContext } from "react";
 import { toast } from "sonner";
 
 import { OrchestratorContext } from "./context";
-import { linkTargetOf } from "./link-address";
+import { type LinkTarget, linkTargetOf } from "./link-address";
+import { setMenuLink } from "./menu-link";
 
 /** The middle button, which asks for a place of its own. */
 const MIDDLE_BUTTON = 1;
@@ -81,33 +82,8 @@ export function LinkSurface({
     },
   ];
 
-  const answer = (
-    event: React.MouseEvent,
-    gesture: "menu" | "newTab" | "open",
-  ) => {
-    if (
-      !orchestrator ||
-      event.defaultPrevented ||
-      !(event.target instanceof Element)
-    ) {
-      return;
-    }
-    const anchor = event.target.closest("a[href]");
-    if (!anchor) {
-      return;
-    }
-    const isEditing = anchor.closest("[contenteditable=true]") !== null;
-    if (isEditing && gesture !== "newTab") {
-      return;
-    }
-    const target = linkTargetOf(anchor.getAttribute("href") ?? "", {
-      ...(base === undefined ? {} : { base }),
-    });
-    if (target.kind === "stay") {
-      return;
-    }
-    event.preventDefault();
-    if (target.kind === "none") {
+  const follow = (target: LinkTarget, gesture: "menu" | "newTab" | "open") => {
+    if (target.kind === "none" || target.kind === "stay") {
       return;
     }
     if (target.kind === "file") {
@@ -131,6 +107,47 @@ export function LinkSurface({
       return;
     }
     (gesture === "newTab" ? gestures.separate : gestures.primary)?.run();
+  };
+
+  const answer = (
+    event: React.MouseEvent,
+    gesture: "menu" | "newTab" | "open",
+  ) => {
+    if (
+      !orchestrator ||
+      event.defaultPrevented ||
+      !(event.target instanceof Element)
+    ) {
+      return;
+    }
+    const anchor = event.target.closest("a[href]");
+    if (!anchor) {
+      return;
+    }
+    const target = linkTargetOf(anchor.getAttribute("href") ?? "", {
+      ...(base === undefined ? {} : { base }),
+    });
+    const isEditing = anchor.closest("[contenteditable=true]") !== null;
+    if (isEditing && gesture === "menu") {
+      // The editor's menu is the native one, which offers the link's rows
+      // and hands the pick back here.
+      setMenuLink(
+        target.kind === "stay" || target.kind === "none"
+          ? null
+          : ({ newTab }) => {
+              follow(target, newTab ? "newTab" : "open");
+            },
+      );
+      return;
+    }
+    if (isEditing && gesture !== "newTab") {
+      return;
+    }
+    if (target.kind === "stay") {
+      return;
+    }
+    event.preventDefault();
+    follow(target, gesture);
   };
 
   return (

@@ -12,6 +12,14 @@ const events = {
       yield command;
     }
   }),
+  /** Open Link or Open Link in New Tab, picked from the window's native menu over a link in text being edited. */
+  openMenuLink: base.handler(async function* ({ signal }) {
+    for await (const ask of publisher.subscribe("orchestrator.open-menu-link", {
+      signal,
+    })) {
+      yield ask;
+    }
+  }),
 };
 
 /**

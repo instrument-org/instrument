@@ -16,9 +16,17 @@ type InspectMode = "bottom" | "default" | "detach";
 export function createContextMenu({
   browserWindow,
   inspectMode = "default",
+  onOpenLink,
 }: {
   browserWindow: BrowserWindow;
   inspectMode?: InspectMode;
+  /**
+   * Opens the link under the pointer where the page says, for a window that
+   * keeps links in the app. The menu raised over a link at all is the one
+   * over text being edited: everywhere else the page answers the right click
+   * with a menu of its own.
+   */
+  onOpenLink?: (options: { newTab: boolean }) => void;
 }) {
   // Keep the library's native default template (spellcheck suggestions, Learn
   // Spelling, Look Up, cut/copy/paste, image/link/video actions) and shape it
@@ -55,6 +63,22 @@ export function createContextMenu({
     // Offer "Copy Link" for links that lead somewhere outside the app; see
     // `isCopyableLink`.
     prepend: (defaultActions, parameters) => [
+      ...(onOpenLink && parameters.linkURL
+        ? [
+            {
+              click: () => {
+                onOpenLink({ newTab: false });
+              },
+              label: "Open Link",
+            },
+            {
+              click: () => {
+                onOpenLink({ newTab: true });
+              },
+              label: "Open Link in New Tab",
+            },
+          ]
+        : []),
       ...(isCopyableLink(parameters) ? [defaultActions.copyLink({})] : []),
       ...getSaveMediaAsItems({ browserWindow, parameters }),
     ],

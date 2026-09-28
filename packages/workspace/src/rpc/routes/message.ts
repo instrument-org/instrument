@@ -74,6 +74,8 @@ const create = base
       /** The kind of page the user asked to receive the response as. */
       output: SessionMessageDataPart.OutputFormatDataPartSchema.optional(),
       prompt: z.string(),
+      /** The earlier message this one answers. */
+      replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
       sessionId: StoreId.SessionSchema.optional(),
       /** Topic ids for the thread this message opens, when it opens one. */
       topics: z.array(z.string()).optional(),
@@ -94,6 +96,7 @@ const create = base
         newSessionId,
         output,
         prompt,
+        replyTo,
         sessionId,
         topics,
         viewing,
@@ -165,6 +168,7 @@ const create = base
         modelURI,
         output,
         prompt,
+        replyTo,
         sessionId: finalSessionId,
         taskId,
         threadContext,

@@ -32,6 +32,7 @@ export {
 } from "./lib/parse-message";
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { projectChangesModelNote } from "./lib/project-changes-model-text";
+export { replyExcerpt, replyModelNote } from "./lib/reply-model-text";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
 export { isTaskFileHref, taskFilePathFromHref } from "./lib/task-file-href";

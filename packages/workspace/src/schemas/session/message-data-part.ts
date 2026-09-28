@@ -3,6 +3,7 @@ import { z } from "zod";
 import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
 import { ProjectIdSchema } from "../project-id";
+import { StoreId } from "../store-id";
 import { TaskIdSchema } from "../task-id";
 import { TaskPane } from "../task-pane";
 
@@ -13,7 +14,7 @@ export namespace SessionMessageDataPart {
    *
    * - **Event**: something that happened on this turn -- `asks`,
    *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `outputFormat`,
-   *   `skillChanges`, `skillMentions`, and `projectContext` and
+   *   `reply`, `skillChanges`, `skillMentions`, and `projectContext` and
    *   `threadContext`, which are written once at creation. A repeat is
    *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
@@ -54,6 +55,7 @@ export namespace SessionMessageDataPart {
     "paneTabs",
     "projectChanges",
     "projectContext",
+    "reply",
     "taskAppChanges",
     "taskEvent",
     "threadContext",
@@ -350,6 +352,21 @@ export namespace SessionMessageDataPart {
   });
 
   export type AsksDataPart = z.output<typeof AsksDataPartSchema>;
+
+  /**
+   * The earlier message the user is replying to: which bubble, by its message
+   * and part, so the transcript can draw the quote and find the original, and
+   * the start of its words, which is all the model is shown. The model already
+   * has the whole message in its history and knows it by no id, so the words
+   * are how it tells which one is meant.
+   */
+  export const ReplyDataPartSchema = z.object({
+    messageId: StoreId.MessageSchema,
+    partId: StoreId.PartSchema,
+    text: z.string().trim().min(1).max(1000),
+  });
+
+  export type ReplyDataPart = z.output<typeof ReplyDataPartSchema>;
 
   /**
    * The kind of page the user asked to receive the response as, picked on
@@ -917,6 +934,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.paneTabs]: PaneTabsDataPartSchema,
     [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
     [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
+    [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
     [NameSchema.enum.taskAppChanges]: TaskAppChangesDataPartSchema,

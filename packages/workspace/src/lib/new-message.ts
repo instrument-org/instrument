@@ -40,6 +40,7 @@ export async function newMessage({
   output,
   projectContext,
   prompt,
+  replyTo,
   sessionId,
   taskId,
   threadContext,
@@ -60,6 +61,8 @@ export async function newMessage({
   output?: SessionMessageDataPart.OutputFormatDataPart;
   projectContext?: SessionMessageDataPart.ProjectContextDataPart;
   prompt: string;
+  /** The earlier message this one answers; see the reply part. */
+  replyTo?: SessionMessageDataPart.ReplyDataPart;
   sessionId: StoreId.Session;
   taskId: TaskId;
   /** The user's other threads, on the message that opens a new one; see the thread-context part. */
@@ -133,6 +136,19 @@ export async function newMessage({
         sessionId,
       },
       type: "data-asks",
+    });
+  }
+
+  if (replyTo) {
+    parts.push({
+      data: replyTo,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-reply",
     });
   }
 

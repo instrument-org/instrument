@@ -34,6 +34,7 @@ import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { outputFormatModelNote } from "../../lib/output-format-model-text";
 import { paneTabsModelNote } from "../../lib/pane-tabs-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
+import { replyModelNote } from "../../lib/reply-model-text";
 import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { taskAppChangesModelNote } from "../../lib/task-app-changes-model-text";
@@ -663,6 +664,20 @@ export namespace SessionMessage {
         if (asksPart) {
           injectedParts.push({
             text: asksModelNote(asksPart.data),
+            type: "text",
+          });
+        }
+
+        const replyPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-reply";
+          } => part.type === "data-reply",
+        );
+        if (replyPart) {
+          injectedParts.push({
+            text: replyModelNote(replyPart.data),
             type: "text",
           });
         }

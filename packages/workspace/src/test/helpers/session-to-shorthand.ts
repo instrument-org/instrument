@@ -192,6 +192,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
       const instructions = part.data.instructions ? ` instructions` : "";
       return `<data-projectContext${projectName}${instructions} />`;
     }
+    case "data-reply": {
+      return `<data-reply>${part.data.text}</data-reply>`;
+    }
     case "data-skillChanges": {
       const created =
         part.data.created.length > 0

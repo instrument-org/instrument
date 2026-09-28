@@ -157,7 +157,7 @@ export function BarMarks({ group }: { group: string }) {
     <span className="flex shrink-0 items-center gap-1 [&_img]:size-3.5 [&_svg]:size-3.5">
       {held.slice(0, BAR_MARKS).map((tab) => (
         <span
-          className="grid size-4 place-items-center rounded-sm bg-white/90 [&_img]:rounded-xs"
+          className="grid size-4 place-items-center rounded-sm bg-white/90 dark:bg-white/10 [&_img]:rounded-xs"
           key={tab.id}
         >
           <HeldMark appsBySlug={appsBySlug} tab={tab} />
@@ -193,7 +193,7 @@ export function ComposeBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-700"
+      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-800 dark:ring-1 dark:ring-white/10"
       data-slot="compose-bar"
       exit={{ opacity: 0, y: 36 }}
       initial={{ opacity: 0, right, y: 36 }}

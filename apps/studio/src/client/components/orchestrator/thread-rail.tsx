@@ -10,12 +10,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { getWebviewElement } from "@/client/lib/browser-pool";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import {
+  type BrowserTargetId,
+  type TaskId,
+} from "@instrument-org/workspace/client";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -306,6 +311,27 @@ function PagePicture({
   );
 }
 
+/**
+ * Whether an agent is at work in a page, the way the tab strip asks it: a
+ * task's own browser by the task, a page of the chat's handed to a task by
+ * its guest.
+ */
+function PageWorking({
+  children,
+  tab,
+  targetId,
+}: {
+  children: (isWorking: boolean) => ReactNode;
+  tab: Extract<WindowTab, { kind: "page" }>;
+  targetId: BrowserTargetId;
+}) {
+  return tab.taskId ? (
+    <TaskWorking taskId={tab.taskId}>{children}</TaskWorking>
+  ) : (
+    <TargetWorking targetId={targetId}>{children}</TargetWorking>
+  );
+}
+
 function RailTile({
   appsBySlug,
   isChosen,
@@ -329,7 +355,7 @@ function RailTile({
     tab.kind === "page"
       ? tab.title || hostOf(tab.url ?? tab.openedUrl ?? "")
       : screenPresentation(tab.href, { appsBySlug, threadTitles }).title;
-  return (
+  const tile = (isWorking: boolean) => (
     <div className="group/tile relative flex flex-col gap-1.5">
       <button
         aria-label={title}
@@ -351,9 +377,13 @@ function RailTile({
         <span
           className={cn(
             "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition",
-            isChosen
-              ? "ring-2 ring-foreground/70"
-              : "ring-border/70 group-hover/tile:ring-border",
+            // An agent at work in the page rings it in the brand's green,
+            // over the chosen ring, as the tab strip shimmers its tab.
+            isWorking
+              ? "ring-2 ring-brand-500"
+              : isChosen
+                ? "ring-2 ring-foreground/70"
+                : "ring-border/70 group-hover/tile:ring-border",
           )}
         >
           {tab.kind === "page" ? (
@@ -380,7 +410,9 @@ function RailTile({
               />
             </span>
           )}
-          <span className="truncate">{title}</span>
+          <span className={cn("truncate", isWorking && "brand-shiny-text")}>
+            {title}
+          </span>
         </span>
       </button>
       <button
@@ -392,6 +424,13 @@ function RailTile({
         <XIcon className="size-3" weight="bold" />
       </button>
     </div>
+  );
+  return tab.kind === "page" ? (
+    <PageWorking tab={tab} targetId={targetOf(tab)}>
+      {tile}
+    </PageWorking>
+  ) : (
+    tile(false)
   );
 }
 
@@ -437,4 +476,24 @@ function ScreenPicture({
       {screenPresentation(href, { appsBySlug, threadTitles }).icon}
     </span>
   );
+}
+
+function TargetWorking({
+  children,
+  targetId,
+}: {
+  children: (isWorking: boolean) => ReactNode;
+  targetId: BrowserTargetId;
+}) {
+  return children(useTargetAgentActivity(targetId));
+}
+
+function TaskWorking({
+  children,
+  taskId,
+}: {
+  children: (isWorking: boolean) => ReactNode;
+  taskId: TaskId;
+}) {
+  return children(useBrowserAgentActivity(taskId));
 }

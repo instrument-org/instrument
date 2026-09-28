@@ -503,7 +503,11 @@ function OrchestratorLayout() {
   // Drawn only once there is something in it.
   const showsRail = hasRail && tabs.length > 0;
   /** Opens the new tab of whatever the pane holds: a place's own kind, or the page that reaches everything. */
+  // A place's own new tab only: a chat has no new tab screen to open.
   const openNewTab = () => {
+    if (placeOfGroup(windowTabs.group) === undefined) {
+      return;
+    }
     windowTabs.openScreen(newTabHrefOf(windowTabs.group));
   };
 

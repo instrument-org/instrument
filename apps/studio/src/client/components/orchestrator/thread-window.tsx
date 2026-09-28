@@ -323,6 +323,8 @@ export function ThreadWindow({
               )}
             </h2>
             <ThreadMenu
+              // An archived chat is put away, so its window goes with it.
+              onArchived={onClose}
               onDelete={() => {
                 setDeleting(true);
               }}

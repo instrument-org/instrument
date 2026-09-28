@@ -178,6 +178,7 @@ export function ThreadHeader({
  * deleting it at the foot. Its topics are the pills beside the title.
  */
 export function ThreadMenu({
+  onArchived,
   onDelete,
   onEditTopics,
   onOpenInChats,
@@ -185,6 +186,8 @@ export function ThreadMenu({
   rename,
   thread,
 }: {
+  /** After the chat is archived from this menu, for a head that should go with it. */
+  onArchived?: () => void;
   onDelete: () => void;
   /** Opens the topic picker, when the head that owns the menu has one. */
   onEditTopics?: () => void;
@@ -285,7 +288,17 @@ export function ThreadMenu({
         <DropdownMenuSeparator />
         {groups.files.map(item)}
         <DropdownMenuSeparator />
-        {groups.put.map(item)}
+        {groups.put.map((action) =>
+          action.id === "archive"
+            ? item({
+                ...action,
+                run: () => {
+                  action.run();
+                  onArchived?.();
+                },
+              })
+            : item(action),
+        )}
         <DropdownMenuSeparator />
         {/* Only here, where one chat is all there is: a row in the inbox is
             one of many, and a press there should not be able to end one. */}

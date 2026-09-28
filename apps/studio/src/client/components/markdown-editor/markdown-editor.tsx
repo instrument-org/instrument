@@ -421,8 +421,11 @@ function LiveDocument({
   return (
     <MarkdownDocument headingSelector={HEADING_SELECTOR}>
       <div
+        // The left gutter holds each block's + and drag handle, which sit
+        // outside the text; any narrower and they spill over whatever is
+        // beside the document, such as a file tree.
         className={cn(
-          "px-8 pt-8 pb-24",
+          "pt-8 pr-8 pb-24 pl-14",
           isMessage && "mx-auto w-full max-w-2xl",
         )}
       >

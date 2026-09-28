@@ -614,6 +614,8 @@ export async function createEditorSession(options: EditorSessionOptions) {
           math: { icon: icon("sigma", 16) },
           table: { icon: icon("table", 16) },
         },
+        // Close to the text, so the handle fits in the document's gutter.
+        blockHandle: { getOffset: () => 4 },
         handleAddIcon: icon("plus", 14),
         handleDragIcon: icon("dotsSixVertical", 14),
         listGroup: {

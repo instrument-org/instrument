@@ -63,6 +63,9 @@ export interface BrowserPage {
   url: string;
 }
 
+/** How long a tab on screen is given to attach its guest before it is taken for one whose page is gone. */
+const ORPHAN_GRACE_MS = 1500;
+
 export interface BrowserTabsHandle {
   /** Whether the guest on screen has anywhere of its own to go. */
   canGoBack: boolean;
@@ -381,11 +384,14 @@ export function BrowserTabs({
   // without ever being the window's active tab. Keyed on the tab coming up
   // rather than on its guest being absent, because a local file's guest
   // attaches to about:blank so fast it is already there when this runs.
-  const restoreOnce = (tab: { id: string; taskId?: TaskId; url?: string }) => {
+  const restoreOnce = (
+    tab: { id: string; taskId?: TaskId; url?: string },
+    { orphaned = false }: { orphaned?: boolean } = {},
+  ) => {
     if (
       !tab.url ||
       tab.url === "about:blank" ||
-      !bootTabIds.current?.has(tab.id) ||
+      !(orphaned || bootTabIds.current?.has(tab.id)) ||
       restored.current.has(tab.id)
     ) {
       return;
@@ -412,6 +418,23 @@ export function BrowserTabs({
     // Fired once per restored tab, when it first comes up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, activeUrl, taskId]);
+  // A tab whose page is gone while the tab stays, such as a task's page after
+  // the task's browser closed, comes up with nothing to draw it, and reload
+  // and the address field have nothing to act on. Given a moment to attach,
+  // one still without a guest is opened again where it was, once.
+  const isActiveAttached = active ? attached.has(targetOf(active)) : false;
+  useEffect(() => {
+    if (!active || isActiveAttached) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      restoreOnce(active, { orphaned: true });
+    }, ORPHAN_GRACE_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id, isActiveAttached, taskId]);
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.

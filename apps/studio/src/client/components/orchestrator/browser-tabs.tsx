@@ -1060,7 +1060,9 @@ export function BrowserTabs({
         <TaskBrowserPanel
           active={attached.has(targetOf(active))}
           chrome={{ into: chromeInto ?? null, reloadInto: reloadInto ?? null }}
-          className="h-full"
+          // Square and flat, like the pane it fills: a page not drawn yet
+          // shows the panel, and a card inset in the pane reads as a frame.
+          className="h-full rounded-none shadow-none"
           key={active.id}
           {...(editableId === undefined
             ? {}

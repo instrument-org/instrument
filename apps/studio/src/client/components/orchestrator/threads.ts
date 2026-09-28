@@ -41,7 +41,7 @@ export interface Filterable {
   archived: boolean;
   holds: { apps: string[]; files: string[]; sites: string[] };
   latest?: { text: string };
-  root: { parts: { text?: string; type: string }[] };
+  root?: { parts: { text?: string; type: string }[] } | undefined;
   /** Whether the user starred it: a mark of the user's own, kept wherever the thread is. */
   starred: boolean;
   state: "idle" | "waiting" | "working";
@@ -210,9 +210,9 @@ export function activityLabel(date: Date, now: Date): string {
 
 /** The words of a thread's first message: what the row shows as the ask. */
 export function askOf(thread: {
-  root: { parts: { text?: string; type: string }[] };
+  root?: { parts: { text?: string; type: string }[] } | undefined;
 }): string {
-  return thread.root.parts
+  return (thread.root?.parts ?? [])
     .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
     .join("\n");
 }

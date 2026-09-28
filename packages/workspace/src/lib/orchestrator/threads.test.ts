@@ -232,8 +232,6 @@ describe("listThreads", () => {
     await agentSays(taskId, groceries, "", { minute: 3 });
     const trip = await session(taskId, "Trip to Lisbon", 4);
     await userSays(taskId, trip, "plan a trip to lisbon", 4);
-    // A session nobody has typed in is not a thread.
-    await session(taskId, "Untitled chat", 5);
 
     const threads = await listThreads();
 
@@ -242,7 +240,7 @@ describe("listThreads", () => {
         createdAt: thread.createdAt,
         latest: thread.latest,
         replyCount: thread.replyCount,
-        root: thread.root.parts.find((part) => part.type === "text")?.text,
+        root: thread.root?.parts.find((part) => part.type === "text")?.text,
         state: thread.state,
         title: thread.title,
         unread: thread.unread,
@@ -280,6 +278,15 @@ describe("listThreads", () => {
 
     const [thread] = await listThreads();
     expect(thread?.title).toBe("plan a trip to lisbon");
+  });
+
+  it("lists a chat whose first message has not been saved yet", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "Untitled chat 4", 2);
+
+    const [thread] = await listThreads();
+    expect(thread?.id).toBe(sessionId);
+    expect(thread?.createdAt).toBe(at(2).getTime());
   });
 
   it("lists a thread started with only an ask marked on a file", async () => {

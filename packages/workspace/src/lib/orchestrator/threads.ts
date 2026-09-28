@@ -48,7 +48,7 @@ export const ThreadSchema = z.object({
   starred: z.boolean(),
   /** The chat's own record, which its transcript and its tasks are under. */
   chatId: TaskIdSchema,
-  /** When the root was sent, in ms. */
+  /** When the chat began: its first message, or the session itself before one. */
   createdAt: z.number(),
   /**
    * What the thread has made and used, read out of what was said in it and
@@ -81,8 +81,8 @@ export const ThreadSchema = z.object({
   newestSettledMessageId: StoreId.MessageSchema.optional(),
   /** Replies that finished with visible words. */
   replyCount: z.number(),
-  /** The message that opened the thread: the user's first with words or attachments. */
-  root: SessionMessage.UserSchemaWithParts,
+  /** The user's first message, whatever it carried; absent only before one is saved. */
+  root: SessionMessage.UserSchemaWithParts.optional(),
   /** The tasks filed from this thread that are at work right now. */
   runningTasks: z.array(
     z.object({
@@ -474,28 +474,6 @@ function hasWords(message: SessionMessage.WithParts): boolean {
   );
 }
 
-/**
- * Whether a user message opens a thread: it has words, it brought files, or
- * it carries asks marked on a file, which a chat can be started with alone.
- */
-function isRoot(
-  message: SessionMessage.WithParts,
-): message is SessionMessage.UserWithParts {
-  if (message.role !== "user") {
-    return false;
-  }
-  return (
-    hasWords(message) ||
-    message.parts.some(
-      (part) =>
-        (part.type === "data-attachments" &&
-          (part.data.files.length > 0 ||
-            (part.data.folders?.length ?? 0) > 0)) ||
-        (part.type === "data-asks" && part.data.asks.length > 0),
-    )
-  );
-}
-
 /** The slugs among `slugs` that name an app the workspace has, when it has any. */
 function knownAmong(slugs: string[], known: Set<string>): string[] {
   return known.size === 0 ? slugs : slugs.filter((slug) => known.has(slug));
@@ -669,10 +647,12 @@ async function threadFor(
   if (!taskId || !messages) {
     return undefined;
   }
-  const root = messages.find(isRoot);
-  if (!root) {
-    return undefined;
-  }
+  // Every chat is listed: the first thing the user sent opens it, whether
+  // words, files, or an ask marked on a file.
+  const root = messages.find(
+    (message): message is SessionMessage.UserWithParts =>
+      message.role === "user",
+  );
 
   const filedTasks = chatTaskIds(taskId);
   const filed = shared.activity.running.filter(
@@ -727,7 +707,7 @@ async function threadFor(
   return {
     archived: session.archivedAt !== undefined,
     chatId: taskId,
-    createdAt: root.metadata.createdAt.getTime(),
+    createdAt: (root?.metadata.createdAt ?? session.createdAt).getTime(),
     holds: {
       apps: await appsHeld(messages, filedTasks, shared.knownApps),
       files: filesHeld(messages),
@@ -739,13 +719,13 @@ async function threadFor(
     ...(lastReply ? { lastReplyAt: lastReply.getTime() } : {}),
     ...(newestSettledMessageId ? { newestSettledMessageId } : {}),
     replyCount: replies.length,
-    root,
+    ...(root ? { root } : {}),
     runningTasks,
     state,
     // Until the agent names the thread, the ask's own first words stand for it
     // rather than the placeholder a session is born with.
     title: isUntitledChatSessionTitle(session.title)
-      ? firstLine(textOf(root)) || session.title
+      ? firstLine(root ? textOf(root) : "") || session.title
       : session.title,
     titled: !isUntitledChatSessionTitle(session.title),
     topics: session.topics ?? [],

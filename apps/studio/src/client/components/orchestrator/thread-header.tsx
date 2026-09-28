@@ -1,4 +1,3 @@
-import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -9,20 +8,18 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { cn } from "@/client/lib/utils";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
-import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import { DeleteChatDialog } from "./delete-chat-dialog";
-import { useThreadActions } from "./thread-actions";
+import { type RowAction } from "./row-shell";
+import { threadMenuGroups, useThreadActions } from "./thread-actions";
 import { TopicPill } from "./thread-row";
 import { ThreadTitle } from "./thread-title";
 import { type Thread, type Topic } from "./threads";
@@ -174,10 +171,10 @@ export function ThreadHeader({
 }
 
 /**
- * The thread's own menu, beside its title: what the inbox row offers from
- * its edge and its menu (putting it away, marking it read, starring it,
- * saving its transcript), renaming it, which opens the title's field, and
- * deleting it. Its topics are the pills beside the title.
+ * The thread's own menu, beside its title: the inbox row's menu in the same
+ * groups and order (see `threadMenuGroups`), with renaming it, which opens
+ * the title's field, and its tasks among the ways to organize it, and
+ * deleting it at the foot. Its topics are the pills beside the title.
  */
 export function ThreadMenu({
   onDelete,
@@ -194,15 +191,12 @@ export function ThreadMenu({
   rename: ThreadRename;
   thread: Thread;
 }) {
-  const actions = useThreadActions(thread);
-  const reveal = useMutation(
-    rpcClient.utils.openTaskIn.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to open the chat's folder", {
-          description: error.message,
-        });
-      },
-    }),
+  const groups = threadMenuGroups(useThreadActions(thread));
+  const item = (action: RowAction) => (
+    <DropdownMenuItem key={action.id} onSelect={action.run}>
+      {action.icon}
+      {action.label}
+    </DropdownMenuItem>
   );
   // The menu hands focus back to its trigger as it closes, which would land
   // after the field took it and blur the rename shut.
@@ -244,22 +238,8 @@ export function ThreadMenu({
           }
         }}
       >
-        {actions.map((action) => (
-          <DropdownMenuItem key={action.id} onSelect={action.run}>
-            {action.icon}
-            {action.label}
-          </DropdownMenuItem>
-        ))}
-        {onViewTasks && (
-          <DropdownMenuItem
-            onSelect={() => {
-              onViewTasks();
-            }}
-          >
-            <ListChecksIcon className="size-3.5" />
-            View tasks
-          </DropdownMenuItem>
-        )}
+        {groups.marks.map(item)}
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => {
             renaming.current = true;
@@ -279,14 +259,20 @@ export function ThreadMenu({
             Topics
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          onSelect={() => {
-            reveal.mutate({ id: thread.chatId, type: "show-in-folder" });
-          }}
-        >
-          <RevealInFolderIcon className="size-4" />
-          {getRevealInFolderLabel()}
-        </DropdownMenuItem>
+        {onViewTasks && (
+          <DropdownMenuItem
+            onSelect={() => {
+              onViewTasks();
+            }}
+          >
+            <ListChecksIcon className="size-3.5" />
+            View tasks
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        {groups.files.map(item)}
+        <DropdownMenuSeparator />
+        {groups.put.map(item)}
         <DropdownMenuSeparator />
         {/* Only here, where one chat is all there is: a row in the inbox is
             one of many, and a press there should not be able to end one. */}

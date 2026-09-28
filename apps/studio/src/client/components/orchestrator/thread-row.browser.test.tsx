@@ -1,6 +1,7 @@
 import type * as FaviconUrl from "@/client/lib/favicon-url";
 
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
+import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
@@ -71,6 +72,7 @@ vi.mock("@/client/rpc/client", () => {
       },
       utils: {
         openExternalLink: routeOf(vi.fn()),
+        openTaskIn: routeOf(vi.fn()),
         showFileInFolder: routeOf(vi.fn()),
       },
       workspace: {
@@ -948,11 +950,12 @@ describe("the row's actions", () => {
       ),
     ).toEqual([
       "Open",
-      "Archive",
       "Mark as read",
       "Star",
-      "Save transcript",
       "Topics",
+      "Save transcript",
+      getRevealInFolderLabel(),
+      "Archive",
     ]);
     expect(onOpen).not.toHaveBeenCalled();
 

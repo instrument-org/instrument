@@ -1,4 +1,6 @@
+import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
+import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
@@ -23,6 +25,21 @@ interface ThreadInput {
   sessionId: string;
 }
 
+/**
+ * A thread's actions as every menu of one lists them, each group set off by a
+ * separator: its marks first, then what it keeps on disk, then putting it
+ * away. A menu adds its own entries between these, never reorders them.
+ */
+export function threadMenuGroups(actions: RowAction[]) {
+  const of = (ids: string[]) =>
+    actions.filter((action) => ids.includes(action.id));
+  return {
+    files: of(["transcript", "reveal"]),
+    marks: of(["read", "unread", "star", "unstar"]),
+    put: of(["archive", "unarchive"]),
+  };
+}
+
 /** The actions of one thread, where one thread is all there is: the head of its pane. */
 export function useThreadActions(thread: Thread): RowAction[] {
   return useThreadActionsFor()(thread);
@@ -34,7 +51,7 @@ export function useThreadActions(thread: Thread): RowAction[] {
  * an undo in the toast either way; marking it read while something in it
  * is unseen, or unread again once it has replies to be unread, with no
  * toast at all, since the row itself says which it is; and, in the menu
- * alone, starring it and saving its transcript.
+ * alone, starring it, saving its transcript, and showing its folder.
  *
  * Answered for any thread by one set of mutations, so a list asks once and
  * hands each row its actions, rather than every row registering its own ten
@@ -83,6 +100,15 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           ...thread,
           starred: input.starred,
         }));
+      },
+    }),
+  );
+  const { mutate: reveal } = useMutation(
+    rpcClient.utils.openTaskIn.mutationOptions({
+      onError: (error) => {
+        toast.error("Failed to open the chat's folder", {
+          description: error.message,
+        });
       },
     }),
   );
@@ -161,7 +187,16 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
         });
       },
     };
-    return [put, ...mark, { ...starred, menuOnly: true }, save];
+    const show: RowAction = {
+      icon: <RevealInFolderIcon className="size-4" />,
+      id: "reveal",
+      label: getRevealInFolderLabel(),
+      menuOnly: true,
+      run: () => {
+        reveal({ id: thread.chatId, type: "show-in-folder" });
+      },
+    };
+    return [put, ...mark, { ...starred, menuOnly: true }, save, show];
   };
 }
 

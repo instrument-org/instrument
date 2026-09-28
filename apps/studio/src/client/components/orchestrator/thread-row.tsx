@@ -33,6 +33,7 @@ import {
   type RowDensity,
   stopHere,
 } from "./row-shell";
+import { threadMenuGroups } from "./thread-actions";
 import { type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
@@ -165,6 +166,14 @@ export function ThreadRow({
         </span>
       )}
     </>
+  );
+  // The same groups, in the same order, as the menu in the chat's head.
+  const groups = threadMenuGroups(actions);
+  const item = (action: RowAction) => (
+    <ContextMenuItem key={action.id} onSelect={action.run}>
+      {action.icon}
+      {action.label}
+    </ContextMenuItem>
   );
   return (
     // Not modal: a modal menu takes the pointer from the whole page while it
@@ -306,12 +315,7 @@ export function ThreadRow({
       <ContextMenuContent>
         <ContextMenuItem onSelect={onOpen}>Open</ContextMenuItem>
         <ContextMenuSeparator />
-        {actions.map((action) => (
-          <ContextMenuItem key={action.id} onSelect={action.run}>
-            {action.icon}
-            {action.label}
-          </ContextMenuItem>
-        ))}
+        {groups.marks.map(item)}
         <ContextMenuSeparator />
         <ContextMenuSub>
           <ContextMenuSubTrigger>
@@ -344,6 +348,10 @@ export function ThreadRow({
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
+        <ContextMenuSeparator />
+        {groups.files.map(item)}
+        <ContextMenuSeparator />
+        {groups.put.map(item)}
       </ContextMenuContent>
     </ContextMenu>
   );

@@ -212,9 +212,14 @@ function FileRowCard({
           {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
         </span>
       </div>
+      {/* No width until the row is hovered or has focus, so a name in a
+          narrow grid cell has the whole row to itself until the menu is
+          wanted. Collapsed rather than removed: it stays in the tab order,
+          and focus reaching it is what opens it back up. Held open while
+          its menu is, which the pointer has left the row to reach. */}
       {!hideActionsMenu && hasFileActions && !isMissing && (
         <div
-          className="relative z-10 flex shrink-0 items-center opacity-0 group-hover:opacity-100"
+          className="relative z-10 -ml-3 flex w-0 shrink-0 items-center overflow-hidden opacity-0 group-focus-within:ml-0 group-focus-within:w-auto group-focus-within:overflow-visible group-focus-within:opacity-100 group-hover:ml-0 group-hover:w-auto group-hover:opacity-100 has-data-[state=open]:ml-0 has-data-[state=open]:w-auto has-data-[state=open]:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
           }}

@@ -129,3 +129,35 @@ test("draws a document as its type's mark where there is no picture of it", asyn
     .toMatch(/^#/);
   expect(container.querySelector("img")).toBeNull();
 });
+
+test("gives the name the row until the pointer or focus asks for the menu", async () => {
+  // A grid cell is narrow, and a menu nobody has asked for yet is the room a
+  // long name would otherwise be cut short in.
+  const { container } = await renderRow(vi.fn());
+  // By its name rather than its role: collapsed, it has no box for a role
+  // query to count as shown.
+  const menu = () =>
+    container.querySelector<HTMLElement>("[aria-label='Actions for notes.md']");
+  const menuWidth = () =>
+    Math.round(menu()?.parentElement?.getBoundingClientRect().width ?? -1);
+
+  const row = container.firstElementChild?.firstElementChild;
+  if (!(row instanceof HTMLElement)) {
+    throw new TypeError("the row did not render");
+  }
+  // The pointer is wherever the last test left it, which may be this row.
+  await userEvent.unhover(row);
+  await expect.poll(menuWidth).toBe(0);
+
+  await userEvent.hover(row);
+  await expect.poll(menuWidth).toBeGreaterThan(0);
+
+  await userEvent.unhover(row);
+  await expect.poll(menuWidth).toBe(0);
+
+  // From the keyboard too: the menu is the next stop after the row.
+  await userEvent.tab();
+  await userEvent.tab();
+  expect(document.activeElement).toBe(menu());
+  expect(menuWidth()).toBeGreaterThan(0);
+});

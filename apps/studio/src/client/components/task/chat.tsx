@@ -62,6 +62,11 @@ import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { UserMessage } from "../user-message";
 import { ChatZeroState } from "./chat-zero-state";
+import {
+  type PendingPrompt,
+  pendingPrompt,
+  unsettledPrompts,
+} from "./pending-prompts";
 import { QueuedPrompts } from "./queued-prompts";
 import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 import { TutorialPromptCard } from "./tutorial-prompt-card";
@@ -239,6 +244,30 @@ export function TaskChat({
   );
 
   const messages = messagesQuery.data ?? [];
+  // What was sent and is not stored yet, drawn after what is: see PendingPrompt.
+  const [pending, setPending] = useState<PendingPrompt[]>([]);
+  const unsettled = unsettledPrompts(pending, messages);
+  if (unsettled.length !== pending.length) {
+    setPending(unsettled);
+  }
+  const shownMessages = [
+    ...messages,
+    ...unsettled
+      .filter((entry) => entry.message.metadata.sessionId === selectedSessionId)
+      .map((entry) => entry.message),
+  ];
+  /** Draws the prompt at once, and hands back how to take it away again should the send fail. */
+  const showPending = (prompt: string) => {
+    const entry = selectedSessionId
+      ? pendingPrompt({ messages, prompt, sessionId: selectedSessionId })
+      : undefined;
+    if (entry) {
+      setPending((current) => [...current, entry]);
+    }
+    return () => {
+      setPending((current) => current.filter((other) => other !== entry));
+    };
+  };
   const messageError = messagesQuery.error;
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
@@ -335,16 +364,20 @@ export function TaskChat({
       if (!selectedSessionId) {
         return;
       }
+      const dropPending = showPending(queued.prompt);
       void Promise.resolve(sendContext?.()).then((viewing) => {
-        createMessage.mutate({
-          files: queued.files,
-          folders: queued.folders,
-          id,
-          modelURI: queued.modelURI,
-          prompt: queued.prompt,
-          sessionId: selectedSessionId,
-          viewing,
-        });
+        createMessage.mutate(
+          {
+            files: queued.files,
+            folders: queued.folders,
+            id,
+            modelURI: queued.modelURI,
+            prompt: queued.prompt,
+            sessionId: selectedSessionId,
+            viewing,
+          },
+          { onError: dropPending },
+        );
       });
     },
   });
@@ -460,6 +493,9 @@ export function TaskChat({
           return;
         }
         const taken = asks?.take();
+        // Drawn before what goes with it is read: reading a page can take a
+        // moment, and the send is only stored once that is in.
+        const dropPending = showPending(prompt);
         void Promise.resolve(sendContext?.()).then((viewing) => {
           createMessage.mutate(
             {
@@ -474,6 +510,7 @@ export function TaskChat({
             },
             {
               onError: () => {
+                dropPending();
                 if (draft) {
                   promptInputRef.current?.restore(draft);
                 }
@@ -602,7 +639,7 @@ export function TaskChat({
                       </div>
                     </AlertDescription>
                   </Alert>
-                ) : !isAgentRunning && messages.length === 0 ? (
+                ) : !isAgentRunning && shownMessages.length === 0 ? (
                   <ChatZeroState
                     id={id}
                     selectedSessionId={selectedSessionId}
@@ -612,7 +649,7 @@ export function TaskChat({
                   <TranscriptStream
                     isAgentRunning={isAgentRunning}
                     isDeveloperMode={isDeveloperMode}
-                    messages={messages}
+                    messages={shownMessages}
                     onContinue={handleContinue}
                     onModelChange={setSelectedModelURI}
                     onRetry={handleRetry}

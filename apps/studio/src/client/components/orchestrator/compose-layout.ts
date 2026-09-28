@@ -83,7 +83,11 @@ export function layoutCompose(
     if (isOneExpanded && entry.placement === "docked") {
       continue;
     }
-    const own = widthOf(entry) + (hasRail(entry) ? THREAD_RAIL_WIDTH : 0);
+    // A bar is a bar's width whatever the chat holds: the rail is drawn
+    // only by a window.
+    const own =
+      widthOf(entry) +
+      (entry.placement !== "bar" && hasRail(entry) ? THREAD_RAIL_WIDTH : 0);
     // The first that does not fit ends the row, and everything older with
     // it: a bar squeezed in past a window would put the windows out of order.
     if (right + own + COMPOSE_GAP > width) {

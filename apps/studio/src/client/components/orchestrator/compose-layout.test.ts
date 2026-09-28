@@ -53,6 +53,21 @@ describe("layoutCompose", () => {
     expect(placed.map(idOf)).toEqual(["c"]);
   });
 
+  it("lays a minimized chat that holds tabs at a bar's width, with no room for a rail", () => {
+    const placed = layoutCompose(
+      [
+        thread("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV", "bar"),
+        thread("ses_01ARZ3NDEKTSV4RRFFQ69G5FAW", "bar"),
+      ],
+      2000,
+      () => true,
+    );
+    expect(placed.map((entry) => entry.right)).toEqual([
+      COMPOSE_EDGE_GAP,
+      COMPOSE_EDGE_GAP + COMPOSE_BAR_WIDTH + COMPOSE_GAP,
+    ]);
+  });
+
   it("lays a bar beside a window at its own width", () => {
     const placed = layoutCompose([draft("a"), draft("b", "bar")], 2000);
     expect(placed.map((entry) => [idOf(entry), entry.right])).toEqual([

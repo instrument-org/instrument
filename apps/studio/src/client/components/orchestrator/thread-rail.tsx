@@ -25,7 +25,7 @@ import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, Reorder } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
@@ -507,18 +507,27 @@ function ScreenPicture({
 }) {
   const { resolvedTheme } = useTheme();
   const location = screenLocation(href, { appsBySlug, threadTitles });
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string>();
+  // Watched while the tile is up, so a file written to, by the agent or
+  // anyone, is pictured again as it now is rather than as it first was.
+  const { data: info } = useQuery(
+    rpcClient.files.live.info.experimental_liveOptions({
+      input: location.kind === "file" ? { path: location.path } : skipToken,
+    }),
+  );
   if (location.kind === "file") {
     const picture = getComputerThumbnailUrl({
       hostPath: location.path,
       size: 512,
       theme: resolvedTheme,
+      ...(info ? { version: info.modifiedAt } : {}),
     });
-    if (picture && !failed) {
+    // A picture that failed is tried again once the file changes.
+    if (picture && failed !== picture) {
       return (
         <FittedPicture
           onError={() => {
-            setFailed(true);
+            setFailed(picture);
           }}
           src={picture}
         />

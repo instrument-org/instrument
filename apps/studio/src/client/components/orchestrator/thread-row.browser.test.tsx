@@ -452,7 +452,7 @@ describe("ThreadRow", () => {
 
   it.each<[string, Partial<Thread>, null | { color: string; label: string }]>([
     ["quiet", {}, null],
-    ["unseen", { unread: 2 }, { color: "bg-brand-500", label: "Unread" }],
+    ["unseen", { unread: 2 }, null],
     [
       "working",
       { state: "working" },

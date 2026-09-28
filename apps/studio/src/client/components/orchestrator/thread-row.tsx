@@ -49,9 +49,9 @@ const PICKER_LEAVE_MS = 250;
  * opens the thread beside the list (a thread is never a tab, so no gesture
  * asks for one), a right click raises its menu, and the keyboard opens it
  * with Enter. Its
- * state as a dot in front of the title: brand while it works or holds
- * replies not yet seen, amber while it waits on the user, nothing while it is
- * quiet. Then the title in semibold while there is something unseen in it,
+ * state as a dot in front of the title: brand while it works, amber while it
+ * waits on the user, nothing otherwise. Then the title in semibold while
+ * there is something unseen in it, which is the only mark unread wears,
  * the word Draft after it in red while a reply sits typed and unsent in the
  * thread's composer, the way mail marks a thread with a draft in it,
  * the topics it is filed under as pills in the row's corner, the agent's
@@ -565,9 +565,9 @@ function StarControl({ thread }: { thread: Thread }) {
 
 /**
  * Where the thread stands, as a dot: amber while it waits on the user, brand
- * and breathing while it works, brand and still while it holds replies not
- * yet seen, and nothing at all while it is quiet, so the gutter is empty down
- * a list with nothing new in it.
+ * and breathing while it works, and nothing at all otherwise. Replies not yet
+ * seen wear no dot, since the title's weight already says so and a dot on
+ * some rows and not others leaves the titles a ragged left edge.
  */
 function StateDot({ thread }: { thread: Thread }) {
   if (thread.state === "waiting") {
@@ -579,20 +579,11 @@ function StateDot({ thread }: { thread: Thread }) {
     );
   }
   if (thread.state === "working") {
-    // Breathing, the way the agent's own dot breathes while it plans, so a
-    // thread at work reads apart from one merely holding something unread.
+    // Breathing, the way the agent's own dot breathes while it plans.
     return (
       <span
         aria-label="Working"
         className="planning-dot-core size-2 shrink-0 rounded-full bg-brand-500 motion-reduce:animate-none"
-      />
-    );
-  }
-  if (thread.unread > 0) {
-    return (
-      <span
-        aria-label="Unread"
-        className="size-2 shrink-0 rounded-full bg-brand-500"
       />
     );
   }

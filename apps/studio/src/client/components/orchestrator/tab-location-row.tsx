@@ -5,6 +5,10 @@ import {
 import { OpenInAppButton } from "@/client/components/open-in-app";
 import { AppIcon } from "@/client/components/orchestrator/app-icon";
 import { Omnibar } from "@/client/components/orchestrator/omnibar";
+import {
+  lookAtAtom,
+  type LookTarget,
+} from "@/client/components/orchestrator/quick-look";
 import { SiteIcon } from "@/client/components/orchestrator/sidebar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { InstrumentGlyph } from "@/client/components/wordmark";
@@ -18,6 +22,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type OrchestratorShortcutId } from "@/shared/orchestrator-shortcuts";
 import { type ShortcutId } from "@/shared/shortcuts";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
@@ -27,6 +32,7 @@ import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
+import { useSetAtom } from "jotai";
 import {
   Fragment,
   type MouseEventHandler,
@@ -88,6 +94,16 @@ export function TabLocationRow({
   trailing?: ReactNode;
 }) {
   const openIn = openInAppTargetOf(location);
+  const setLookAt = useSetAtom(lookAtAtom);
+  const lookTarget: LookTarget | undefined =
+    location.kind === "page" && location.url
+      ? { kind: "page", url: location.url }
+      : location.kind === "file"
+        ? {
+            kind: "file",
+            tab: { hostPath: location.path, name: location.name },
+          }
+        : undefined;
   return (
     <div
       // A container, so what a screen or a page draws into the row can give
@@ -141,6 +157,11 @@ export function TabLocationRow({
             initial={locationText(location)}
             key={locationText(location)}
             {...(onSite ? { onSite } : {})}
+            resting={
+              location.kind === "newTab" ? undefined : (
+                <Field location={location} />
+              )
+            }
             // A Finder or file tab reaches the computer; every other tab is
             // a browser tab or stands where one would, and reaches the web.
             scope={
@@ -148,16 +169,23 @@ export function TabLocationRow({
                 ? "files"
                 : "web"
             }
-            resting={
-              location.kind === "newTab" ? undefined : (
-                <Field location={location} />
-              )
-            }
           />
           {openIn && <OpenInAppButton target={openIn} />}
         </div>
       )}
       {trailing}
+      {/* The thing up at the size Quick Look gives a file, over the window:
+          a file by its viewer, a page drawn live. */}
+      {lookTarget && (
+        <TabRowControl
+          disabled={false}
+          icon={<ArrowsOutSimpleIcon className="size-4" />}
+          label="Expand"
+          onClick={() => {
+            setLookAt(lookTarget);
+          }}
+        />
+      )}
       {onClose && (
         <TabRowControl
           disabled={false}

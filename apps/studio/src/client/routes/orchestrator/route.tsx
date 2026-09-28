@@ -1143,10 +1143,11 @@ function OrchestratorLayout() {
                             canGoForward={canGoForward}
                             {...(hasRail
                               ? {
+                                  // Puts the view away; what it showed stays
+                                  // on the rail, whose tiles are where a tab
+                                  // is closed.
                                   onClose: () => {
-                                    if (active) {
-                                      requestClose(active.id);
-                                    } else if (windowTabs.group !== undefined) {
+                                    if (windowTabs.group !== undefined) {
                                       setPaneOpen(windowTabs.group, false);
                                     }
                                   },

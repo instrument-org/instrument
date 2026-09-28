@@ -38,7 +38,6 @@ import {
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
-
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import {
@@ -550,7 +549,15 @@ export function ComputerPage({
   // written to history for the back button to return to.
   const settled = loaded.root === root;
   // The recents are rooted nowhere, so no place in the list is the one open.
-  const rootHostPath = isRecents ? undefined : root === "~" ? homePath : root;
+  // A root under `~` (the Instrument folder a fresh Finder opens at) is the
+  // same folder spelled out below the home folder.
+  const rootHostPath = isRecents
+    ? undefined
+    : root === "~"
+      ? homePath
+      : root.startsWith("~/")
+        ? homePath && joinHostPath(homePath, root.slice(2))
+        : root;
 
   // Each folder in the layout and order it was last left in, the way a Finder
   // window shows one: walking into a folder with a look of its own takes that

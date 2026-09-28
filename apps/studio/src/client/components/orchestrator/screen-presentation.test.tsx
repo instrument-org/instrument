@@ -1,3 +1,4 @@
+import { instrumentFolderHref } from "@/shared/computer-href";
 import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
@@ -19,6 +20,11 @@ describe("screenPresentation", () => {
 
   it.each([
     ["the home folder", "/orchestrator/computer?path=&root=~", "Home"],
+    [
+      "the Instrument folder a Finder opens at",
+      instrumentFolderHref(),
+      "Instrument",
+    ],
     [
       "a folder walked into under the home folder",
       "/orchestrator/computer?path=Documents%2FInstrument%2F&root=~",
@@ -58,6 +64,11 @@ describe("screenPresentation", () => {
 describe("screenLocation", () => {
   it.each([
     ["the home folder", "/orchestrator/computer?path=&root=~", "~"],
+    [
+      "the Instrument folder a Finder opens at",
+      instrumentFolderHref(),
+      "~/Documents/Instrument",
+    ],
     [
       "a folder walked into under the home folder",
       "/orchestrator/computer?path=Documents%2FInstrument%2F&root=~",

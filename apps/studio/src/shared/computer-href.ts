@@ -24,3 +24,15 @@ export function fileHref(
 export function folderHref(hostPath: string) {
   return `/orchestrator/computer?path=&root=${encodeURIComponent(hostPath)}`;
 }
+
+/**
+ * The Instrument folder, where what the app makes lands, as the workspace
+ * places it (`outputFolderPath`): written under `~` so the address is the
+ * same on every computer and the workspace expands it where it lists.
+ */
+export const INSTRUMENT_FOLDER = "~/Documents/Instrument";
+
+/** The address a fresh Finder opens at: standing in the Instrument folder. */
+export function instrumentFolderHref() {
+  return folderHref(INSTRUMENT_FOLDER);
+}

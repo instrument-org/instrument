@@ -9,6 +9,7 @@ import {
   type ThreadFilters,
 } from "@/client/components/orchestrator/threads";
 import { type PromptInputDraft } from "@/client/components/prompt-input";
+import { instrumentFolderHref } from "@/shared/computer-href";
 import {
   type SessionMessageDataPart,
   type StoreId,
@@ -375,8 +376,8 @@ export const WEB_HREF = "/orchestrator/web";
 /** The address of the apps: the tab the Apps place opens on. */
 export const APPS_HREF = "/orchestrator/apps";
 
-/** The address of the computer at the home folder: the tab the Files place opens on. */
-const COMPUTER_HREF = "/orchestrator/computer?path=&root=~";
+/** The address of the computer at the Instrument folder: the tab the Files place opens on. */
+const COMPUTER_HREF = instrumentFolderHref();
 
 /**
  * The address a group's new tab opens at: a place's own kind of tab, and

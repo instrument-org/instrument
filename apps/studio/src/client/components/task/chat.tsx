@@ -14,7 +14,7 @@ import { usePromptQueue } from "@/client/hooks/use-prompt-queue";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { folderHref } from "@/shared/computer-href";
+import { instrumentFolderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
@@ -424,7 +424,7 @@ export function TaskChat({
             orchestrator.openScreen(APPS_HREF, { newTab: true });
           },
           onOpenComputer: () => {
-            orchestrator.openScreen(folderHref("~"), { newTab: true });
+            orchestrator.openScreen(instrumentFolderHref(), { newTab: true });
           },
           onOpenWeb: () => {
             orchestrator.openScreen(WEB_HREF, { newTab: true });

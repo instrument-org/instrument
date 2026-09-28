@@ -99,7 +99,7 @@ import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { fileHref, folderHref } from "@/shared/computer-href";
+import { fileHref, instrumentFolderHref } from "@/shared/computer-href";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   encodeBrowserTargetId,
@@ -1288,7 +1288,7 @@ function OrchestratorLayout() {
                       appsBySlug={appsBySlug}
                       isViewOpen={showsPane}
                       onAddComputer={() => {
-                        windowTabs.openScreen(folderHref("~"));
+                        windowTabs.openScreen(instrumentFolderHref());
                         revealPane();
                       }}
                       onAddWeb={() => {

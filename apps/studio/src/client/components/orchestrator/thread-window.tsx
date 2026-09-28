@@ -3,7 +3,7 @@ import { FileOpenContext } from "@/client/components/file-open-context";
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
-import { folderHref } from "@/shared/computer-href";
+import { instrumentFolderHref } from "@/shared/computer-href";
 import {
   encodeBrowserTargetId,
   type SessionMessageDataPart,
@@ -268,7 +268,7 @@ export function ThreadWindow({
       appsBySlug={appsBySlug}
       isViewOpen={showsItem}
       onAddComputer={() => {
-        openHere(folderHref("~"));
+        openHere(instrumentFolderHref());
       }}
       onAddWeb={() => {
         openHere(WEB_HREF);

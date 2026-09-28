@@ -5,13 +5,13 @@ import {
 } from "@/client/atoms/orchestrator";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
+import { INSTRUMENT_FOLDER } from "@/shared/computer-href";
 import { type Icon } from "@phosphor-icons/react";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
-import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode } from "react";
 
@@ -31,8 +31,8 @@ const RECENT_SHOWN = 12;
  * above; the strip sits at the band's foot.
  *
  * The web opens as a tab of the draft's own, at the browser's starting view;
- * This Mac opens the Finder at home the same way; Apps goes to where apps
- * live.
+ * This Mac opens the Finder at the Instrument folder the same way; Apps goes
+ * to where apps live.
  */
 export function ComposeZeroState({
   onAttachFiles,
@@ -51,9 +51,6 @@ export function ComposeZeroState({
   onOpenBrowser: () => void;
   onOpenFolder: (hostPath: string) => void;
 }) {
-  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
-  const home = places.data?.favorites.find((place) => place.name === "Home");
-
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-4 pt-4 pb-4">
       <div className="grid shrink-0 grid-cols-3 gap-3">
@@ -62,7 +59,7 @@ export function ComposeZeroState({
           icon={DesktopIcon}
           name={computerName()}
           onOpen={() => {
-            onOpenFolder(home?.path ?? "~");
+            onOpenFolder(INSTRUMENT_FOLDER);
           }}
         />
         <Tile icon={SquaresFourIcon} name="Apps" onOpen={onOpenApps} />

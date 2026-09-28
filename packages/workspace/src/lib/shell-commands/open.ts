@@ -3,8 +3,11 @@ import { ulid } from "ulid";
 
 import { MOUNT } from "../../mount-points";
 import { publisher } from "../../rpc/publisher";
-import { type StoreId } from "../../schemas/store-id";
+import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import { encodeBrowserTargetId } from "../../types";
+import { noteBrowserAgentActivity } from "../browser-agent-activity";
+import { windowTaskId } from "../orchestrator/ensure";
 import { isUnder } from "../path-containment";
 
 const OPEN_NAME = "open";
@@ -64,6 +67,16 @@ export function createOpenCommand({
           timeoutMs: tabIdTimeoutMs,
           url: arg,
         });
+        // The agent opening a page is its first work in it, which the tab's
+        // working mark shows from the start.
+        const session = StoreId.SessionSchema.safeParse(tabId);
+        if (session.success) {
+          const windowId = await windowTaskId();
+          noteBrowserAgentActivity(
+            windowId,
+            encodeBrowserTargetId(windowId, session.data),
+          );
+        }
         opened.push(tabId === undefined ? arg : `${arg} (tab ${tabId})`);
         continue;
       }

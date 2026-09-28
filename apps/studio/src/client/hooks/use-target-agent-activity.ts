@@ -6,15 +6,20 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-/** How long after the last command a guest still counts as being driven. */
-const QUIET_MS = 8000;
+/**
+ * How long after the agent's last command a guest still counts as being
+ * driven. An agent thinks between commands, sometimes for many seconds, and
+ * a mark that drops in a pause reads as the work being done.
+ */
+const QUIET_MS = 30_000;
 
 /**
  * Whether an agent is driving one guest, whoever the agent is: a tab of the
  * window's handed to a task is driven by that task, not by the window's own
- * conversation, so no run to latch to is known here. The commands arrive
- * seconds apart, so the mark holds through a short quiet and drops after a
- * longer one.
+ * conversation, so no run to latch to is known here. The mark holds through a
+ * pause and drops after a longer one. The stream says when the guest was
+ * last worked in as it is subscribed to, so a tile drawn after the agent
+ * opened the tab shows the mark from the start.
  */
 export function useTargetAgentActivity(targetId: BrowserTargetId): boolean {
   const owner = decodeBrowserTargetId(targetId);
@@ -24,24 +29,25 @@ export function useTargetAgentActivity(targetId: BrowserTargetId): boolean {
       input: { id: owner?.id ?? ("" as never), targetId },
     }),
   );
-  const revision = data?.revision ?? 0;
+  const lastAt = data?.lastAt;
 
-  // A stretch ends when the clock started by the last command runs out with
-  // no newer one having restarted it: the revision the clock ran out on is
-  // the one now showing. Revision 0 is the subscription starting, not a
-  // command.
-  const [quietRevision, setQuietRevision] = useState(0);
+  // A stretch ends when the quiet after its last command runs out with no
+  // newer command having moved it: the time it ran out on is the one showing.
+  const [quietAt, setQuietAt] = useState<number>();
   useEffect(() => {
-    if (revision === 0) {
+    if (lastAt === undefined) {
       return;
     }
-    const timeout = window.setTimeout(() => {
-      setQuietRevision(revision);
-    }, QUIET_MS);
+    const timeout = window.setTimeout(
+      () => {
+        setQuietAt(lastAt);
+      },
+      Math.max(0, lastAt + QUIET_MS - Date.now()),
+    );
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [revision]);
+  }, [lastAt]);
 
-  return revision !== 0 && quietRevision !== revision;
+  return lastAt !== undefined && quietAt !== lastAt;
 }

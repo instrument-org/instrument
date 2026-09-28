@@ -1,5 +1,5 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
 import { StoreId } from "../../schemas/store-id";
@@ -7,6 +7,12 @@ import { TaskIdSchema } from "../../schemas/task-id";
 import { createOpenCommand } from "./open";
 
 const taskId = TaskIdSchema.parse("open-command-task");
+
+// The window's own task holds the tabs the window makes; finding it for real
+// would make one.
+vi.mock(import("../orchestrator/ensure"), () => ({
+  windowTaskId: () => Promise.resolve(TaskIdSchema.parse("window-task")),
+}));
 
 /** A window: answers each page it is asked to open with the tab it made. */
 function answeringWindow() {

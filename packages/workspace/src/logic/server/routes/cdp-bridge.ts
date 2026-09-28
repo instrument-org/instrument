@@ -7,6 +7,7 @@ import { type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
 import { WebSocket, WebSocketServer } from "ws";
 
+import { noteBrowserAgentActivity } from "../../../lib/browser-agent-activity";
 import {
   agentPathOfFileUrl,
   agentSpellingOfFileUrls,
@@ -17,7 +18,6 @@ import {
   nonTaskMounts,
   type WorkspaceFsLayout,
 } from "../../../lib/workspace-fs-layout";
-import { publisher } from "../../../rpc/publisher";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import {
   type BrowserTargetId,
@@ -542,7 +542,7 @@ export function handleCdpClient(
         },
       });
       if (!SILENT_COMMANDS.has(method)) {
-        publisher.publish("browser.agentActivity", { id: meta.id, targetId });
+        noteBrowserAgentActivity(meta.id, targetId);
       }
     }
 

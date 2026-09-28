@@ -2,6 +2,7 @@ import { eventIterator } from "@orpc/server";
 import invariant from "tiny-invariant";
 import { z } from "zod";
 
+import { lastBrowserAgentActivity } from "../../lib/browser-agent-activity";
 import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { browserHostForTask } from "../../lib/orchestrator/browser-host";
@@ -160,10 +161,22 @@ const agentActivity = base
       targetId: BrowserTargetIdSchema.optional(),
     }),
   )
-  .output(eventIterator(z.object({ revision: z.number() })))
+  .output(
+    eventIterator(
+      z.object({
+        /** When an agent last worked in the one guest asked about, in ms; absent when none has, or when the whole task is asked about. */
+        lastAt: z.number().optional(),
+        revision: z.number(),
+      }),
+    ),
+  )
   .handler(async function* ({ input, signal }) {
     let revision = 0;
-    yield { revision };
+    const lastAt =
+      input.targetId === undefined
+        ? undefined
+        : lastBrowserAgentActivity(input.targetId);
+    yield { revision, ...(lastAt === undefined ? {} : { lastAt }) };
     for await (const event of publisher.subscribe("browser.agentActivity", {
       signal,
     })) {
@@ -172,7 +185,10 @@ const agentActivity = base
         (input.targetId === undefined || event.targetId === input.targetId)
       ) {
         revision += 1;
-        yield { revision };
+        yield {
+          revision,
+          ...(input.targetId === undefined ? {} : { lastAt: Date.now() }),
+        };
       }
     }
   });

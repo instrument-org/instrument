@@ -1,6 +1,6 @@
 # Agent browsing across several tabs
 
-Status: in progress. Phases 1 and 1b landed; 2 next. Supersedes [one-browser-many-tabs.md](./one-browser-many-tabs.md), [lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md) and [browser-popups-as-agent-drivable-tabs.md](./browser-popups-as-agent-drivable-tabs.md), which were written for the 1.x task page and its single browser panel. Their analysis of the CDP bridge and of popups still holds and is cited below; their identity migration and tab-strip phases are already done by the 2.0 window.
+Status: in progress. Phases 1 through 3 landed; the visible cursor (4) is next. Supersedes [one-browser-many-tabs.md](./one-browser-many-tabs.md), [lazy-browser-targets-and-multiple-tabs.md](./lazy-browser-targets-and-multiple-tabs.md) and [browser-popups-as-agent-drivable-tabs.md](./browser-popups-as-agent-drivable-tabs.md), which were written for the 1.x task page and its single browser panel. Their analysis of the CDP bridge and of popups still holds and is cited below; their identity migration and tab-strip phases are already done by the 2.0 window.
 
 ## Goal
 
@@ -55,7 +55,9 @@ This is the real work. agent-browser's tab machinery (`Target.setDiscoverTargets
   - `closeTarget` closes a tab the task opened, and releases a tab it was handed without closing it: the user's tab is not the agent's to close.
   - `activateTarget` changes only which tab agent-browser treats as active. It never selects the tab in the window.
 - **A tab cap per task** (8 to start). `createTarget` past it is refused with a CDP error that names the cap and says to close a tab first.
-- **Pin-tab semantics always on.** The wrapper passes `--pin-tab`, so the user switching the visible tab, or another task's activity, never moves a task's active tab. A held tab the user closes gives agent-browser's `tab_gone` error rather than silently acting on another page.
+- **No `--pin-tab`.** A pinned session with no saved binding opens a fresh tab on its first connect instead of adopting the tab it was handed, so the wrapper leaves pinning off. The user switching the visible tab never moves a task's active tab anyway, since nothing here selects a tab for the agent. The cost: agent-browser makes a tab it discovers mid-run the active one, so a tab handed over while the task is connected becomes where its next command lands. The hand-over is always the conversation's deliberate act, with a message saying why, and `tab list` shows the change.
+- **Restoring before calling a tab closed.** After a launch the window makes a tab's guest again only when the tab is next shown. A task's held tab without a guest is asked back through the window (`restore`) before the task is told it is closed, so a restart does not lose the task its pages.
+- **A task with no tab yet is connected all the same.** agent-browser asks a browser with no pages for one, which the endpoint opens as a tab of the chat; the wrapper opens nothing ahead of it.
 
 ### 3. Every agent page is a listed tab
 

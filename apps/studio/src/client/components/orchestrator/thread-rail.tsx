@@ -26,7 +26,7 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Reorder } from "motion/react";
+import { motion, Reorder } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { computerName } from "./computer-name";
@@ -51,8 +51,8 @@ const ON_SCREEN_EVERY_MS = 5000;
  * after a relaunch, shows its pages at once; a file is the picture the app
  * keeps of it; a folder is its mark. Pressing a tile brings the thing up
  * large beside the chat; its × takes it out of the chat; dragging one moves
- * it among the others. New, at the foot, opens the web or this computer beside
- * the chat.
+ * it among the others. New, under the last tile, opens the web or this
+ * computer beside the chat.
  */
 export function ThreadRail({
   activeId,
@@ -83,67 +83,80 @@ export function ThreadRail({
   threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
 }) {
   const newestFirst = tabs.toReversed();
+  const order = newestFirst.map(keyOf).join(" ");
   return (
     <aside
       aria-label="What this chat has open"
       className="flex h-full w-30 shrink-0 flex-col border-l border-border bg-background select-none"
     >
-      <Reorder.Group
-        axis="y"
-        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-3"
+      <motion.div
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3"
         layoutScroll
-        onReorder={(keys: string[]) => {
-          onReorder(keys.toReversed());
-        }}
-        values={newestFirst.map(keyOf)}
       >
-        {newestFirst.map((tab) => (
-          <Reorder.Item as="div" key={tab.id} value={keyOf(tab)}>
-            <RailTile
-              appsBySlug={appsBySlug}
-              isChosen={isViewOpen && tab.id === activeId}
-              isOnScreen={isViewOpen && tab.id === activeId}
-              onClose={() => {
-                onClose(tab.id);
-              }}
-              onSelect={() => {
-                onSelect(tab.id);
-              }}
-              tab={tab}
-              targetOf={targetOf}
-              threadTitles={threadTitles}
-            />
-          </Reorder.Item>
-        ))}
-      </Reorder.Group>
-      <div className="shrink-0 p-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              aria-label="Open beside the chat"
-              className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
-              type="button"
+        <Reorder.Group
+          axis="y"
+          className="flex flex-col gap-4"
+          onReorder={(keys: string[]) => {
+            onReorder(keys.toReversed());
+          }}
+          values={newestFirst.map(keyOf)}
+        >
+          {newestFirst.map((tab) => (
+            // Laid out again only when the order moves: a window growing or
+            // shrinking around the rail is not a reason to slide its tiles.
+            <Reorder.Item
+              as="div"
+              key={tab.id}
+              layoutDependency={order}
+              value={keyOf(tab)}
             >
-              <PlusIcon className="size-4" />
-              New
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56 p-2" side="top">
-            <div className="grid grid-cols-2 gap-1">
-              <AddTile
-                icon={<GlobeIcon />}
-                label="Browser"
-                onSelect={onAddWeb}
+              <RailTile
+                appsBySlug={appsBySlug}
+                isChosen={isViewOpen && tab.id === activeId}
+                isOnScreen={isViewOpen && tab.id === activeId}
+                onClose={() => {
+                  onClose(tab.id);
+                }}
+                onSelect={() => {
+                  onSelect(tab.id);
+                }}
+                tab={tab}
+                targetOf={targetOf}
+                threadTitles={threadTitles}
               />
-              <AddTile
-                icon={<DesktopIcon />}
-                label={computerName()}
-                onSelect={onAddComputer}
-              />
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
+        {/* Right under the last tile, the way a list's add row follows it. */}
+        <div className="shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="Open beside the chat"
+                className="flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-[12px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+                type="button"
+              >
+                <PlusIcon className="size-4" />
+                New
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56 p-2">
+              <div className="grid grid-cols-2 gap-1">
+                <AddTile
+                  icon={<GlobeIcon />}
+                  label="Browser"
+                  onSelect={onAddWeb}
+                />
+                <AddTile
+                  icon={<DesktopIcon />}
+                  label={computerName()}
+                  onSelect={onAddComputer}
+                />
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </motion.div>
     </aside>
   );
 }

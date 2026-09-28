@@ -520,8 +520,10 @@ export function ComposeWindow({
           onOpenApps={() => {
             openScreenIn(APPS_HREF);
           }}
+          onOpenBrowser={() => {
+            openScreenIn(WEB_HREF);
+          }}
           onOpenFolder={openFolder}
-          onOpenPage={openPage}
         />
       );
     }
@@ -876,13 +878,11 @@ export function GroupItem({
   if (pathname === WEB_HREF) {
     return (
       <Card>
-        <div className="mx-auto h-full w-full max-w-2xl">
-          <WebStart
-            onOpenPage={(url) => {
-              browser?.open(url, { group, replacing: up });
-            }}
-          />
-        </div>
+        <WebStart
+          onOpenPage={(url) => {
+            browser?.open(url, { group, replacing: up });
+          }}
+        />
       </Card>
     );
   }

@@ -7,7 +7,6 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
@@ -15,8 +14,6 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import uFuzzy from "@leeoniya/ufuzzy";
 import { type Icon } from "@phosphor-icons/react";
-import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -27,11 +24,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 
+import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
+import { PageSection } from "./page-section";
 import { SiteIcon } from "./sidebar";
+import { VisitedPageRows } from "./visited-page-rows";
 
-/** How many sites a line shows: enough to find this morning's, few enough to stay one line. */
-const SITES_SHOWN = 8;
+/** How many pages lately seen the view lists. */
+const RECENT_SHOWN = 12;
 
 /** How many pages the address field offers as it is typed into. */
 const SUGGESTIONS_SHOWN = 6;
@@ -62,17 +62,16 @@ interface AddressRow {
  * attaching, which is also where files are dropped. The words keep the room
  * above; the strip sits at the band's foot.
  *
- * The web opens here, in its own starting view: the address field over the
- * sites kept and lately seen, and going anywhere from it arrives as a tab in
- * this tab's place. This Mac opens the Finder at home the same way; Apps
- * goes to where apps live.
+ * The web opens as a tab of the draft's own, at the browser's starting view;
+ * This Mac opens the Finder at home the same way; Apps goes to where apps
+ * live.
  */
 export function ComposeZeroState({
   onAttachFiles,
   onAttachFolder,
   onOpenApps,
+  onOpenBrowser,
   onOpenFolder,
-  onOpenPage,
 }: {
   /** The file chooser, for the strip's button. */
   onAttachFiles: () => void;
@@ -80,33 +79,17 @@ export function ComposeZeroState({
   onAttachFolder: () => void;
   /** Takes the window to the Apps place. */
   onOpenApps: () => void;
+  /** Opens the browser's starting view as a tab of the draft's. */
+  onOpenBrowser: () => void;
   onOpenFolder: (hostPath: string) => void;
-  onOpenPage: (url: string) => void;
 }) {
-  const [isBrowsing, setBrowsing] = useState(false);
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const home = places.data?.favorites.find((place) => place.name === "Home");
 
-  if (isBrowsing) {
-    return (
-      <WebStart
-        onBack={() => {
-          setBrowsing(false);
-        }}
-        onOpenPage={onOpenPage}
-      />
-    );
-  }
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-4 pt-4 pb-4">
       <div className="grid shrink-0 grid-cols-3 gap-3">
-        <Tile
-          icon={GlobeIcon}
-          name="Browser"
-          onOpen={() => {
-            setBrowsing(true);
-          }}
-        />
+        <Tile icon={GlobeIcon} name="Browser" onOpen={onOpenBrowser} />
         <Tile
           icon={DesktopIcon}
           name={computerName()}
@@ -130,112 +113,78 @@ export function ComposeZeroState({
 }
 
 /**
- * The web's starting view: where to go, and the sites kept and lately seen.
- * In a draft's band, which has no address bar of its own, the caret waits in
- * an address field over them; beside a chat the tab's own bar is where an
+ * The web's starting view, laid out as a browser's new tab: the sites kept
+ * as large marks with their names under them, the way apps are, and the
+ * pages lately seen under those as a list. In a draft's band the caret waits
+ * in an address field over them; beside a chat the tab's own bar is where an
  * address goes, so the view is only the sites. Anywhere it goes arrives as a
- * tab. Given a way back, it offers one, for the band that opened it from its
- * tiles.
+ * tab.
  */
 export function WebStart({
   hasAddressField = true,
-  onBack,
   onOpenPage,
 }: {
   /** Whether the view carries its own address field; off where the tab's bar already is one. */
   hasAddressField?: boolean;
-  onBack?: () => void;
   onOpenPage: (url: string) => void;
 }) {
   const pins = useAtomValue(pinsAtom);
   const visited = useAtomValue(visitedPagesAtom);
-  // The sites kept first, then the pages lately seen that are not among
-  // them, one per site on the line, so the line is the places a person goes
-  // back to; the whole list waits behind the clock at the line's end.
   const bookmarks = pins.filter((pin) => pin.kind === "page");
-  const seen = visited.filter(
-    (page) => !bookmarks.some((pin) => pin.target === page.url),
-  );
-  const seenOrigins = new Set<string>();
-  const seenOnLine = seen
-    .filter((page) => {
-      const origin = originOf(page.url);
-      if (seenOrigins.has(origin)) {
-        return false;
-      }
-      seenOrigins.add(origin);
-      return true;
-    })
-    .slice(0, SITES_SHOWN);
+  const recent = visited
+    .filter((page) => !bookmarks.some((pin) => pin.target === page.url))
+    .slice(0, RECENT_SHOWN)
+    .map((page) => ({
+      app: { name: hostOf(page.url), site: originOf(page.url) },
+      page,
+    }));
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto px-4 pt-3 pb-4">
-      {onBack && (
-        <button
-          className="inline-flex h-7 w-fit items-center gap-1.5 rounded-lg px-1.5 text-[12px] font-medium text-muted-foreground hover:bg-black/4 hover:text-foreground dark:hover:bg-white/6"
-          onClick={onBack}
-          type="button"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Browser
-        </button>
-      )}
-      <Box>
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-7 pb-10">
+      <div className="mx-auto w-full max-w-3xl space-y-8">
         {hasAddressField && (
           <AddressField autoFocus onOpenPage={onOpenPage} pages={visited} />
         )}
-        {bookmarks.length > 0 && (
-          <Line label="Bookmarks">
-            {bookmarks.slice(0, SITES_SHOWN).map((pin) => (
-              <Mark
-                icon={<SiteIcon favicon={pin.favicon} url={pin.target} />}
-                key={pin.id}
-                name={pin.title}
-                onOpen={() => {
-                  onOpenPage(pin.target);
-                }}
-              />
-            ))}
-          </Line>
-        )}
-        {seen.length > 0 && (
-          <Line
-            label="Recent"
-            trailing={
-              <MorePopover
-                label="All recent pages"
-                rows={seen.map((page) => ({
-                  icon: <SiteIcon favicon={page.favicon} url={page.url} />,
-                  key: page.url,
-                  line: hostOf(page.url),
-                  onOpen: () => {
-                    onOpenPage(page.url);
-                  },
-                  title: page.title || hostOf(page.url),
-                }))}
-              />
-            }
-          >
-            {seenOnLine.map((page) => (
-              <Mark
-                icon={<SiteIcon favicon={page.favicon} url={page.url} />}
-                key={page.url}
-                name={page.title || hostOf(page.url)}
-                onOpen={() => {
-                  onOpenPage(page.url);
-                }}
-                title={`${page.title || page.url}\n${page.url}`}
-              />
-            ))}
-          </Line>
-        )}
-        {bookmarks.length === 0 && seen.length === 0 && (
-          <Line label="Bookmarks">
-            <span className="text-[11px] text-muted-foreground">
+        <PageSection title="Bookmarks">
+          {bookmarks.length > 0 ? (
+            // Pulled in by the gap between a mark's box and its icon, so the
+            // icons line up under the heading.
+            <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-4">
+              {bookmarks.map((pin) => (
+                <button
+                  className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
+                  key={pin.id}
+                  onClick={() => {
+                    onOpenPage(pin.target);
+                  }}
+                  title={`${pin.title}\n${pin.target}`}
+                  type="button"
+                >
+                  <AppIcon
+                    className="transition-shadow group-hover:shadow-md"
+                    name={pin.title}
+                    site={originOf(pin.target)}
+                    size="xl"
+                  />
+                  <span className="w-full truncate text-[13px] leading-4 font-medium">
+                    {pin.title || hostOf(pin.target)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
               Pin a tab, and the site is kept here.
-            </span>
-          </Line>
+            </p>
+          )}
+        </PageSection>
+        {recent.length > 0 && (
+          <PageSection title="Recent pages">
+            <div className="-mx-2">
+              <VisitedPageRows isCompact onOpen={onOpenPage} visits={recent} />
+            </div>
+          </PageSection>
         )}
-      </Box>
+      </div>
     </div>
   );
 }
@@ -448,15 +397,6 @@ function AddressField({
   );
 }
 
-/** A door's white box, its lines divided. */
-function Box({ children }: { children: ReactNode }) {
-  return (
-    <div className="divide-y divide-border rounded-lg bg-card shadow-xs">
-      {children}
-    </div>
-  );
-}
-
 /** One of the two choosers on the Attach strip: its own mark, so files and a folder read as the two things they are. */
 function Chooser({
   children,
@@ -485,141 +425,6 @@ function hostOf(url: string): string {
     return url;
   }
   return new URL(url).hostname.replace(/^www\./, "") || url;
-}
-
-/**
- * A line inside a box, with a small name at its left saying what the line
- * is, when it needs one. One row of whole things: what does not fit wraps
- * out of sight rather than being cut mid-name, and the room at the end is
- * for a way to the rest.
- */
-function Line({
-  children,
-  label,
-  trailing,
-}: {
-  children: ReactNode;
-  label?: string;
-  trailing?: ReactNode;
-}) {
-  return (
-    <div className="flex min-h-9 items-center gap-3 px-3 py-1">
-      {label !== undefined && (
-        <span className="w-16 shrink-0 text-[11px] text-muted-foreground">
-          {label}
-        </span>
-      )}
-      <div className="flex max-h-6 min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-6 overflow-hidden">
-        {children}
-      </div>
-      {trailing}
-    </div>
-  );
-}
-
-/** One thing to open on a line: its mark and its name, the whole of it the button. */
-function Mark({
-  className,
-  icon,
-  name,
-  onOpen,
-  title = name,
-}: {
-  className?: string;
-  icon: ReactNode;
-  name: string;
-  onOpen: () => void;
-  /** What the hover says, when it says more than the name. */
-  title?: string;
-}) {
-  return (
-    <button
-      className={cn(
-        "inline-flex h-6 max-w-40 min-w-0 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-[11px] text-gray-700 hover:bg-muted dark:text-gray-300",
-        className,
-      )}
-      onClick={onOpen}
-      title={title}
-      type="button"
-    >
-      <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
-        {icon}
-      </span>
-      <span className="truncate">{name}</span>
-    </button>
-  );
-}
-
-/**
- * The rest of a line, behind the clock at its end: every thing the line had
- * no room for, each by its name with where it is under it, newest first,
- * in a list that scrolls.
- */
-function MorePopover({
-  label,
-  rows,
-}: {
-  label: string;
-  rows: {
-    icon: ReactNode;
-    key: string;
-    line: string;
-    onOpen: () => void;
-    title: string;
-  }[];
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger asChild>
-        <button
-          aria-label={label}
-          className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
-          title={label}
-          type="button"
-        >
-          <ClockCounterClockwiseIcon className="size-3.5" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="flex w-80 flex-col p-0"
-        maxHeight="20rem"
-        side="bottom"
-        sideOffset={4}
-      >
-        <ul
-          aria-label={label}
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto p-1"
-        >
-          {rows.map((row) => (
-            <li key={row.key}>
-              <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent"
-                onClick={() => {
-                  setOpen(false);
-                  row.onOpen();
-                }}
-                type="button"
-              >
-                <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
-                  {row.icon}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] text-foreground">
-                    {row.title}
-                  </span>
-                  <span className="block truncate text-[11px] text-muted-foreground">
-                    {row.line}
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </PopoverContent>
-    </Popover>
-  );
 }
 
 function originOf(url: string): string {

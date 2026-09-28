@@ -16,13 +16,11 @@ function WebRoute() {
   const { openPage } = useOrchestrator();
   useOnScreen({ screen: "home" });
   return (
-    <div className="mx-auto h-full w-full max-w-2xl">
-      <WebStart
-        hasAddressField={false}
-        onOpenPage={(url) => {
-          openPage(url);
-        }}
-      />
-    </div>
+    <WebStart
+      hasAddressField={false}
+      onOpenPage={(url) => {
+        openPage(url);
+      }}
+    />
   );
 }

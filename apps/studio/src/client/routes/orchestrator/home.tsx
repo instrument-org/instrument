@@ -3,6 +3,7 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
+import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import { computerName } from "@/client/components/orchestrator/computer-name";
 import { RECENTS_ROOT } from "@/client/components/orchestrator/computer-page";
@@ -181,7 +182,14 @@ function HomeRoute() {
             <Tiles>
               {folders.slice(0, PLACES_SHOWN).map((place) => (
                 <Tile
-                  icon={<FileSystemFolderGlyph className="h-9 w-auto" />}
+                  icon={
+                    <FileSystemFolderGlyph
+                      className="h-9 w-auto"
+                      {...(place.name === "Instrument"
+                        ? { src: INSTRUMENT_FOLDER_GLYPH_URL }
+                        : {})}
+                    />
+                  }
                   key={place.path}
                   name={place.name}
                   onOpen={() => {

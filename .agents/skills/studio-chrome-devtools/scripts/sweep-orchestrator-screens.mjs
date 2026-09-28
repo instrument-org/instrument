@@ -94,7 +94,6 @@ export default async (app, args = {}) => {
   const routes = [
     "/orchestrator/home",
     "/orchestrator/computer",
-    "/orchestrator/browser",
     "/orchestrator/apps",
     slug && `/orchestrator/apps/${slug}`,
     "/orchestrator/tasks",

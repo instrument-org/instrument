@@ -11,6 +11,7 @@ import { initBrowserNavigationNotices } from "./lib/browser-navigation-notices";
 import { initBrowserPool } from "./lib/browser-pool";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { initRendererLogForwarding } from "./lib/forward-renderer-logs";
+import { initOrchestratorDrive } from "./lib/orchestrator-drive";
 import { initStudioDrive } from "./lib/studio-drive";
 
 declare global {
@@ -59,7 +60,10 @@ if (rootElement) {
     initBrowserNavigationNotices();
   }
   if (isMainWindow) {
-    // Only the main window has tabs and app-wide modals to drive.
+    // The main window's tabs and app-wide modals, for driving scripts.
     initStudioDrive();
+  } else if (window.api.windowType === "orchestrator") {
+    // The 2.0 window's tabs, for the same scripts.
+    initOrchestratorDrive();
   }
 }

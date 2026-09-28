@@ -210,9 +210,9 @@ studio-drive.mjs shot two-oh.png --window orchestrator
 
 It defaults to `main`, and it belongs on every command meant for the 2.0 window — a missing flag drives whichever window the debug endpoint listed first, and answers confidently about the wrong one.
 
-`window.__studioDrive` does not exist in this window: the renderer entry gates it on `isMainWindow`, because tabs and app-wide modals are classic-window things. Three consequences:
+`window.__studioDrive` does not exist in this window: the renderer entry gates it on `isMainWindow`, because app-wide modals are classic-window things. This window has `window.__orchestratorDrive` instead, for its tabs, which are each a router of their own across its bar. Three consequences:
 
-- `goto` sets `location.hash`, which is how this window routes. `state` reports `path` and `dialog` but **no tab list** — its tabs are a channel-keyed model of its own, and reproducing that storage key out here would rot. Read them with `snapshot` or `eval`.
+- `goto` sends the tab up to the route, or a new tab with `--new-tab`. `state` reports the tab up's `path`, the `tabs`, and `dialog`. A chat's own tabs (its browsers and files down its rail) are not routes; read them with `snapshot` or `eval`.
 - `modal` / `openModal` / `closeModal` refuse, rather than reporting the absent handle as a broken dev build. Click the control that opens one, or `press Escape` to close it.
 - **Reload detection is off here.** The load id every step compares against is the handle's, so a run against this window is not told when the renderer reloaded under it. Re-read `state` after anything that might have triggered HMR.
 

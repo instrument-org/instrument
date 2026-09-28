@@ -89,11 +89,12 @@
 //   node studio-drive.mjs rpc features.setEnabled '{"feature":"instrument_2","enabled":true}'
 //   node studio-drive.mjs stop && node studio-drive.mjs boot --purpose "2.0"
 //
-// It routes through the URL hash and keeps its own tab model, so `goto` there
-// sets the hash and `state` reports a route and a dialog but no tabs. It has no
-// `window.__studioDrive` at all -- the renderer entry gates that on the main
-// window -- so `modal` refuses instead of reporting the absent handle as a
-// broken build, and reload detection is off. Everything else -- click, type,
+// Each of its tabs is a router of its own, reached through
+// `window.__orchestratorDrive`: `goto` sends the tab up (or, with --new-tab, a
+// new tab) to the route, and `state` reports the tab up's route, the tabs and
+// a dialog. It has no `window.__studioDrive` -- the renderer entry gates that
+// on the main window -- so `modal` refuses instead of reporting the absent
+// handle as a broken build, and reload detection is off. Everything else -- click, type,
 // press, wait, rpc, shot, snapshot -- works the same in both, because it works
 // on the DOM rather than on the classic window's atoms.
 

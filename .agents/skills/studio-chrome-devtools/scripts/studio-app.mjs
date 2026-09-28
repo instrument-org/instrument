@@ -656,7 +656,10 @@ export async function connect({
             dialog?.getAttribute("aria-label") ??
             dialog?.querySelector("h1, h2, [data-slot=dialog-title]")?.textContent?.trim() ??
             null,
-          path: location.hash.replace(/^#/, "") || null,
+          path:
+            window.__orchestratorDrive?.state().path ??
+            (location.hash.replace(/^#/, "") || null),
+          tabs: window.__orchestratorDrive?.state().tabs ?? null,
           window: "orchestrator",
         };
       })()`,
@@ -741,13 +744,12 @@ export async function connect({
     goto: (route, { label, newTab = false } = {}) =>
       step(label ?? `goto ${route}`, async () => {
         if (isOrchestrator) {
-          if (newTab) {
-            fail(
-              "The 2.0 window opens tabs through its own UI or the `orchestrator.open` route, not through this handle.",
-            );
-          }
-          const hash = route.startsWith("#") ? route : `#${route}`;
-          await evaluate(cdp, `location.hash = ${JSON.stringify(hash)}`);
+          // Each of the window's tabs is a router of its own: the address
+          // goes to the tab up, or to a tab of its own.
+          await evaluate(
+            cdp,
+            `window.__orchestratorDrive.goto(${JSON.stringify(route.replace(/^#/, ""))}, ${JSON.stringify({ newTab })})`,
+          );
           await settle();
           return orchestratorState();
         }

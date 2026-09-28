@@ -10,7 +10,12 @@ import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 
 import { RowActionBar } from "./row-action-bar";
-import { type RowAction, rowClassName, type RowDensity } from "./row-shell";
+import {
+  type RowAction,
+  rowClassName,
+  type RowDensity,
+  SLIM_NAME_COLUMN,
+} from "./row-shell";
 import { TopicPill } from "./thread-row";
 import { activityLabel, draftTitle, type Topic } from "./threads";
 
@@ -80,21 +85,18 @@ export function DraftRow({
           role="button"
           tabIndex={0}
         >
-          <span className="flex h-5 w-4 shrink-0 items-center justify-center">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center">
             <span aria-label="Draft" className="flex text-muted-foreground">
               <FeatherIcon className="size-3.5" />
             </span>
           </span>
           {density === "slim" ? (
             <>
-              <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
+              <span className={SLIM_NAME_COLUMN}>
                 {pill}
                 {title}
               </span>
               <span className="flex min-w-0 flex-1">{standing}</span>
-              {/* The slot a thread's reply count takes, empty, so the times
-                line up with the threads' down a mixed list. */}
-              <span className="w-9 shrink-0" />
               <span className="w-14 shrink-0 text-right">{time}</span>
             </>
           ) : (

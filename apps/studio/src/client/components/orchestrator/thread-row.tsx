@@ -31,10 +31,11 @@ import {
   type RowAction,
   rowClassName,
   type RowDensity,
+  SLIM_NAME_COLUMN,
   stopHere,
 } from "./row-shell";
 import { threadMenuGroups } from "./thread-actions";
-import { type Thread, type Topic } from "./threads";
+import { activityLabel, type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicPicker } from "./topic-picker";
@@ -55,9 +56,10 @@ const PICKER_LEAVE_MS = 250;
  * thread's composer, the way mail marks a thread with a draft in it,
  * the topics it is filed under as pills in the row's corner, the agent's
  * latest line (the step it is on, the question it is waiting on, or its last
- * reply's first words), and the marks of what it holds. No time on the row.
- * Slim, all of that is one line, the way a mailbox lists mail, with the
- * holds held to a share of it; tall, the title has the first line with the
+ * reply's first words), and the marks of what it holds. Slim, all of that is
+ * one line, the way a mailbox lists mail: the star first, the title held to
+ * a narrow column so the latest line gets the room, the holds held to a share
+ * of it, and when something last happened at the far end; tall, the title has the first line with the
  * topics at its end, the latest line gets two, and what it holds sits on a
  * third line that never wraps: the files it made as chips with their names,
  * the apps and sites as marks beside them, fading out at the row's edge,
@@ -77,6 +79,7 @@ export function ThreadRow({
   isOpen,
   onNewTopic,
   onOpen,
+  now,
   onSetTopics,
   thread,
   topics,
@@ -89,6 +92,8 @@ export function ThreadRow({
   isArriving?: boolean;
   /** Whether this thread is the one open beside the list. */
   isOpen: boolean;
+  /** The moment the slim row's time is read against. */
+  now: Date;
   /** Opens the new-topic dialog for this thread, with the name typed in the picker when anything was. */
   onNewTopic: (name?: string) => void;
   /** A plain click: the thread in place of whatever the window shows. */
@@ -204,10 +209,11 @@ export function ThreadRow({
         >
           {density === "slim" ? (
             <>
-              {/* The title's column is fixed, so every row's latest line
-                starts at one edge and the column reads down as a list of
-                names. The state sits in front of the title as a dot. */}
-              <span className="flex min-w-0 basis-[38%] items-center gap-1.5">
+              {/* The star first, where mail keeps it on a wide list: a
+                mark of the user's own, apart from the row's actions. */}
+              <StarControl thread={thread} />
+              {/* The state sits in front of the title as a dot. */}
+              <span className={SLIM_NAME_COLUMN}>
                 <StateDot thread={thread} />
                 {title}
               </span>
@@ -226,10 +232,10 @@ export function ThreadRow({
                   />
                 </HoldsInThread>
               )}
-              {/* The topics at the row's end, stepping aside for the corner's
-                bar while the pointer is on the row, then the star past them,
-                in view, where mail keeps its star: a mark of the user's own,
-                apart from the row's actions. */}
+              {/* The topics and the time at the row's end, both stepping
+                aside for the corner's bar while the pointer is on the row,
+                so the bar takes the far end the way mail's actions take the
+                date's place. */}
               <span className="flex shrink-0 items-center gap-1 group-hover/row:hidden">
                 {pills}
               </span>
@@ -239,7 +245,14 @@ export function ThreadRow({
                 isHeld={isPickerLeaving}
                 leading={tagControl}
               />
-              <StarControl thread={thread} />
+              <span
+                className={cn(
+                  "w-14 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums group-hover/row:hidden",
+                  isUnseen && "font-semibold text-foreground",
+                )}
+              >
+                {activityLabel(new Date(thread.updatedAt), now)}
+              </span>
             </>
           ) : (
             <div className="min-w-0 flex-1">

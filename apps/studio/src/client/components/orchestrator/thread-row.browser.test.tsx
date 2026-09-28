@@ -106,6 +106,9 @@ const INPUT = { sessionId };
 /** When the fixture's thread last moved, earlier the same day. */
 const MOVED_AT = new Date(2026, 8, 16, 9, 11);
 
+/** The afternoon the rows are read in: the same day the thread last moved. */
+const NOW = new Date(2026, 8, 16, 14, 30);
+
 /** The morning the fixture's thread began. */
 const STARTED_AT = new Date(2026, 8, 16, 8, 46);
 
@@ -318,6 +321,7 @@ async function renderRows(
           }
           density={spec.density}
           isOpen={false}
+          now={NOW}
           onNewTopic={vi.fn()}
           onOpen={onOpen}
           onSetTopics={onSetTopics}
@@ -354,18 +358,29 @@ function titleOf(row: HTMLElement) {
 }
 
 describe("ThreadRow", () => {
-  it("lies down to one line across a wide list, the pills and the star at the far right, no ask and no time on it", async () => {
+  it("lies down to one line across a wide list, the star first, the pills and the time at the far right, no ask on it", async () => {
     const { row } = await renderRow(thread({ topics: ["house"] }), {
       density: "slim",
     });
     expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(40);
-    expect(row.textContent).toBe(`${TITLE}${REPLY}🏠House`);
-    // Nothing past the pill but the star, which is the row's own mark.
-    const pill = pillOf(row)?.getBoundingClientRect();
+    expect(row.textContent).toBe(`${TITLE}${REPLY}🏠House9:11 AM`);
+    // The star in front of the title, the way mail keeps it.
     const star = row
       .querySelector('[aria-label="Star"]')
       ?.getBoundingClientRect();
-    expect(star?.left).toBeGreaterThanOrEqual(pill?.right ?? 0);
+    expect(star?.right).toBeLessThanOrEqual(
+      titleOf(row).getBoundingClientRect().left,
+    );
+    // The time past the pill, at the row's end.
+    const pill = pillOf(row)?.getBoundingClientRect();
+    const time = [...row.querySelectorAll("span")]
+      .find((span) => span.textContent === "9:11 AM")
+      ?.getBoundingClientRect();
+    expect(time?.left).toBeGreaterThanOrEqual(pill?.right ?? 0);
+    // The latest line gets more of the row than the title's column.
+    expect(peekOf(row)?.getBoundingClientRect().width).toBeGreaterThan(
+      titleOf(row).getBoundingClientRect().width,
+    );
     // The latest line starts past the title's column, never under it.
     expect(peekOf(row)?.getBoundingClientRect().left).toBeGreaterThan(
       titleOf(row).getBoundingClientRect().right,
@@ -421,7 +436,7 @@ describe("ThreadRow", () => {
     expect(slim.scrollWidth).toBe(slim.clientWidth);
   });
 
-  it("carries no reply count and no time", async () => {
+  it("carries no reply count, and a time only when slim", async () => {
     const { rows } = await renderRows([
       { density: "tall", thread: thread({ replyCount: 3 }) },
       { density: "slim", thread: thread({ replyCount: 3 }) },
@@ -432,7 +447,7 @@ describe("ThreadRow", () => {
     }
     expect(tall.querySelector('[aria-label="3 replies"]')).toBeNull();
     expect(firstLineOf(tall).textContent).toBe(TITLE);
-    expect(slim.textContent).toBe(`${TITLE}${REPLY}`);
+    expect(slim.textContent).toBe(`${TITLE}${REPLY}9:11 AM`);
   });
 
   it.each<[string, Partial<Thread>, null | { color: string; label: string }]>([
@@ -1023,7 +1038,7 @@ describe("the row's actions", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("keeps the star at the row's end at either width, out of the actions and clear of the words, and turns it on a click", async () => {
+  it("keeps the star in front of the wide row and at the narrow row's end, out of the actions and clear of the words, and turns it on a click", async () => {
     const { rows } = await renderRows([
       { density: "slim", thread: thread() },
       {
@@ -1043,13 +1058,13 @@ describe("the row's actions", () => {
     if (!slim || !tall) {
       throw new Error("no rows");
     }
-    // At the wide row's end, past the latest line.
+    // At the wide row's front, before the title.
     const control = slim.querySelector<HTMLButtonElement>(
       '[aria-label="Star"]',
     );
     expect(control).not.toBeNull();
-    expect(control?.getBoundingClientRect().left).toBeGreaterThanOrEqual(
-      peekOf(slim)?.getBoundingClientRect().right ?? 0,
+    expect(control?.getBoundingClientRect().right).toBeLessThanOrEqual(
+      titleOf(slim).getBoundingClientRect().left,
     );
     control?.click();
     await vi.waitFor(() => {

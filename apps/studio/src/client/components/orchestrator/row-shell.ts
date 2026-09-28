@@ -11,6 +11,13 @@ export interface RowAction {
   run: () => void;
 }
 
+/**
+ * The name's column on a slim row: a quarter of it and no more than a
+ * mailbox gives its senders, so the latest line gets the row's width, and
+ * every row's latest line starts at one edge.
+ */
+export const SLIM_NAME_COLUMN = "flex w-1/4 max-w-60 min-w-0 shrink-0 items-center gap-1.5";
+
 /** The two shapes a row takes, by the room the list has: one line across a wide list, three down a narrow one. */
 export type RowDensity = "slim" | "tall";
 

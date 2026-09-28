@@ -5,7 +5,7 @@ import { memo, type RefObject, useLayoutEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { DraftRow } from "./draft-row";
-import { type RowDensity } from "./row-shell";
+import { type RowDensity, SLIM_NAME_COLUMN } from "./row-shell";
 import { useThreadActionsFor } from "./thread-actions";
 import { ThreadRow } from "./thread-row";
 import { byActivity, type Thread, type Topic } from "./threads";
@@ -36,6 +36,7 @@ const ListedThread = memo(function ListedThread({
   }>;
   isArriving: boolean;
   isOpen: boolean;
+  now: Date;
   thread: Thread;
   topics: Topic[];
 }) {
@@ -163,6 +164,7 @@ export function ThreadList({
           isArriving={thread.id === arrivedId}
           isOpen={thread.id === openId}
           key={thread.id}
+          now={now}
           thread={thread}
           topics={topics}
         />
@@ -233,7 +235,8 @@ function RowSkeleton({
     >
       {density === "slim" ? (
         <>
-          <span className="flex basis-[38%] items-center">
+          <span className="size-5 shrink-0" />
+          <span className={SLIM_NAME_COLUMN}>
             <Skeleton className="h-3" style={{ width: title }} />
           </span>
           <Skeleton className="h-3 flex-1" style={{ maxWidth: peek }} />

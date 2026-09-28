@@ -37,14 +37,8 @@ import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
 /** A layout change that lands at once, for tiles moved by anything but a drag. */
 const STILL = { layout: { duration: 0 } };
 
-/** How long a page on screen is left to settle before its picture is taken. */
-const SETTLE_MS = 1500;
-
 /** How long after a page loads, moves, or renames itself its picture is taken. */
 const CHANGE_SETTLE_MS = 500;
-
-/** How often a page on screen is pictured again, for changes that are not navigations. */
-const ON_SCREEN_EVERY_MS = 5000;
 
 /**
  * What a chat holds, down its right edge: a tile for each thing it has open
@@ -220,9 +214,11 @@ function keyOf(tab: WindowTab): string {
 
 /**
  * A page as its last picture, or, until it has one, its site's mark. The
- * picture is taken each time the page loads, moves, or renames itself, on
- * screen or not; while on screen once it has settled and every few seconds
- * after; and once more as it leaves the screen.
+ * picture is taken each time a page off screen loads, moves, or renames
+ * itself, since the agent browses in tabs the person is not looking at, and
+ * once more as a page leaves the screen. The page on screen shows its mark
+ * instead and takes none: it is drawn large beside the chat already, and
+ * picturing it as it is used would cost for nothing.
  */
 function PagePicture({
   isOnScreen,
@@ -268,13 +264,11 @@ function PagePicture({
         // A missed picture keeps the last one; the next visit takes another.
       });
   };
-  // A picture shortly after the page loads, moves, or renames itself,
-  // whether or not it is on screen, since the agent browses in tabs the
-  // person is not looking at; and one once it has settled if it was already
-  // loaded when it came up. A guest off screen that draws nothing leaves
-  // the last picture in place.
+  // A picture shortly after a page off screen loads, moves, or renames
+  // itself. A guest off screen that draws nothing leaves the last picture in
+  // place.
   useEffect(() => {
-    const webview = getWebviewElement(targetId);
+    const webview = isOnScreen ? null : getWebviewElement(targetId);
     if (!webview) {
       return;
     }
@@ -292,34 +286,16 @@ function PagePicture({
     for (const event of events) {
       webview.addEventListener(event, soon);
     }
-    try {
-      if (isOnScreen && !webview.isLoading()) {
-        pending = setTimeout(capture, SETTLE_MS);
-      }
-    } catch {
-      // Not attached yet: its first load will say when it is ready.
-    }
     return () => {
       for (const event of events) {
         webview.removeEventListener(event, soon);
       }
       clearTimeout(pending);
     };
-    // Re-armed when the page comes on screen and when its guest attaches.
+    // Re-armed when the page leaves or comes on screen and when its guest
+    // attaches.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnScreen, isAttached, targetId]);
-  // While on screen, again every so often: the agent changes a page by
-  // clicking and typing in it without ever navigating.
-  useEffect(() => {
-    if (!isOnScreen) {
-      return;
-    }
-    const timer = setInterval(capture, ON_SCREEN_EVERY_MS);
-    return () => {
-      clearInterval(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnScreen, targetId]);
   // Leaving the screen: one more, of the page as it was last seen. Not when
   // the tile goes, which is the tab closing.
   const wasOnScreen = useRef(isOnScreen);
@@ -331,19 +307,44 @@ function PagePicture({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnScreen]);
 
-  if (picture.data?.url) {
-    return (
-      <img
-        alt=""
-        className="size-full object-contain"
-        draggable={false}
-        src={picture.data.url}
-      />
-    );
+  if (picture.data?.url && !isOnScreen) {
+    return <FittedPicture src={picture.data.url} />;
   }
   return (
     <span className="[&_img]:size-6 [&_svg]:size-6">
       <SiteIcon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
+    </span>
+  );
+}
+
+/**
+ * A picture whole inside its tile, the room it leaves at its sides filled
+ * with a blurred, dimmed copy of itself rather than bars, so a dark page
+ * does not sit between two bands of the tile's own color.
+ */
+function FittedPicture({
+  onError,
+  src,
+}: {
+  onError?: () => void;
+  src: string;
+}) {
+  return (
+    <span className="relative size-full overflow-hidden">
+      <img
+        alt=""
+        aria-hidden
+        className="absolute inset-0 size-full scale-125 object-cover opacity-50 blur-md"
+        draggable={false}
+        src={src}
+      />
+      <img
+        alt=""
+        className="relative size-full object-contain"
+        draggable={false}
+        onError={onError}
+        src={src}
+      />
     </span>
   );
 }
@@ -488,10 +489,7 @@ function ScreenPicture({
     });
     if (picture && !failed) {
       return (
-        <img
-          alt=""
-          className="size-full object-contain"
-          draggable={false}
+        <FittedPicture
           onError={() => {
             setFailed(true);
           }}

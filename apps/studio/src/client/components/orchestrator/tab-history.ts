@@ -1,5 +1,5 @@
 import {
-  NEW_TAB_HREF,
+  newTabHrefOf,
   type TabVisit,
   type WindowTab,
 } from "@/client/atoms/orchestrator";
@@ -18,7 +18,7 @@ export function stepTabVisit(
     direction === 1
       ? current.future
       : current.kind === "page" && !current.past?.length
-        ? [newTabVisit()]
+        ? [newTabVisit(current.group)]
         : current.past;
   const visit = from?.at(-1);
   if (!visit || !from) return undefined;
@@ -100,9 +100,9 @@ function leftBehind(
   };
 }
 
-function newTabVisit(): TabVisit {
+function newTabVisit(group: string | undefined): TabVisit {
   return {
-    href: NEW_TAB_HREF,
+    href: newTabHrefOf(group),
     id: `screen-${crypto.randomUUID()}`,
     kind: "screen",
   };

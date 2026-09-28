@@ -1,7 +1,7 @@
 import {
   type BrowserTab,
   everyTabIdAtom,
-  NEW_TAB_HREF,
+  newTabHrefOf,
   orchestratorRecentsAtom,
   originOf,
   RECENTS_MAX,
@@ -844,7 +844,7 @@ export function BrowserTabs({
             kind: "page",
             past: [
               {
-                href: NEW_TAB_HREF,
+                href: newTabHrefOf(into ?? current.group),
                 id: `screen-${crypto.randomUUID()}`,
                 kind: "screen",
               },

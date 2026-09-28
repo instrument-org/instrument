@@ -1,4 +1,9 @@
-import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/orchestrator";
+import {
+  draftGroupOf,
+  NEW_TAB_HREF,
+  WEB_HREF,
+  type WindowTab,
+} from "@/client/atoms/orchestrator";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { fileHref } from "@/shared/computer-href";
 import { describe, expect, it } from "vitest";
@@ -90,18 +95,23 @@ describe("tab visits", () => {
     });
   });
 
-  it("steps a page with nothing behind it back to a new tab", () => {
+  it("steps a draft's page with nothing behind it back to the draft's new tab", () => {
+    const back = stepped({ ...page, group: draftGroupOf("draft") }, -1);
+    expect(back).toMatchObject({ href: NEW_TAB_HREF, kind: "screen" });
+  });
+
+  it("steps a chat's page with nothing behind it back to the web's starting view", () => {
     const back = stepped(page, -1);
     expect(back).toMatchObject({
       future: [page],
-      href: NEW_TAB_HREF,
+      href: WEB_HREF,
       kind: "screen",
       past: [],
       stripKey: page.id,
     });
     expect(stepTabVisit(back, 1)).toMatchObject({
       ...page,
-      past: [{ href: NEW_TAB_HREF, id: back.id, kind: "screen" }],
+      past: [{ href: WEB_HREF, id: back.id, kind: "screen" }],
     });
   });
 });
@@ -150,7 +160,7 @@ describe("a file screen handing its page to the browser", () => {
     expect(stepped(shown, -1)).toMatchObject({ ...page, future: [filePage] });
   });
 
-  it("leaves a page opened as its own tab with a new tab behind it", () => {
+  it("leaves a page opened as its own tab with the web's starting view behind it", () => {
     const fileScreen: WindowTab = {
       at: 0,
       href: fileHref(hostPath),
@@ -163,7 +173,7 @@ describe("a file screen handing its page to the browser", () => {
     const back = stepped(shown, -1);
     expect(back).toMatchObject({
       future: [filePage],
-      href: NEW_TAB_HREF,
+      href: WEB_HREF,
       kind: "screen",
       stripKey: "file-screen",
     });

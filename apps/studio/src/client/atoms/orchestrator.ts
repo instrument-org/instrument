@@ -380,12 +380,16 @@ export const APPS_HREF = "/orchestrator/apps";
 const COMPUTER_HREF = instrumentFolderHref();
 
 /**
- * The address a group's new tab opens at: a place's own kind of tab, and
- * the page that reaches everything for a thread or a draft.
+ * The address a group's new tab opens at: a place's own kind of tab, the
+ * page that reaches everything for a draft, and the web's starting view for
+ * a chat, whose tabs are its browsers.
  */
 export function newTabHrefOf(group: string | undefined): string {
   const place = placeOfGroup(group);
-  return place === undefined ? NEW_TAB_HREF : placeHomeHref(place);
+  if (place !== undefined) {
+    return placeHomeHref(place);
+  }
+  return draftOfGroup(group) === undefined ? WEB_HREF : NEW_TAB_HREF;
 }
 
 /** The address a place's new tab opens at, which is what its last tab closing leaves behind. */

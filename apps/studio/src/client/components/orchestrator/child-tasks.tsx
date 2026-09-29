@@ -11,7 +11,6 @@ import {
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
-import { hasLiveAgent } from "@/client/lib/agent-status";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
@@ -23,16 +22,13 @@ import {
 import { safe } from "@orpc/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import ms from "ms";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { TabIcon } from "./browser-tabs";
 import { useOrchestrator } from "./context";
 import { useNewestSessionId } from "./newest-session";
-
-/** How often a task's sessions and standing are re-read while it is open. */
-const REFRESH_MS = ms("2 seconds");
+import { useIsTaskWorking } from "./task-working";
 
 const noop = () => {
   // A transcript with nothing to type into has nothing to retry or continue.
@@ -51,13 +47,7 @@ export function ChildTranscript({ task }: { task: Task }) {
       input: sessionId ? { id: task.id, sessionId } : skipToken,
     }),
   );
-  const status = useQuery(
-    rpcClient.workspace.task.agentStatus.byIds.queryOptions({
-      input: { ids: [task.id] },
-      refetchInterval: REFRESH_MS,
-    }),
-  );
-  const isWorking = status.data?.some(hasLiveAgent) ?? false;
+  const isWorking = useIsTaskWorking(task.id);
 
   const openFile = useOpenFileNamedByTask(task.id);
 

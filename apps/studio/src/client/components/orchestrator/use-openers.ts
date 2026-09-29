@@ -69,6 +69,18 @@ export function useOpeners({
   // where nobody can see it. Everything else gives its place up in place.
   const isTaskTab = active?.kind === "page" && Boolean(active.taskId);
   /**
+   * Brings a chat on screen for something shown into its group from outside
+   * it, a row's file in the inbox with another chat up or none: the group
+   * on screen follows the tab up, so the tab goes to the chat, or what was
+   * shown waits in a group nobody is looking at.
+   */
+  const goToChatOf = (into: string) => {
+    const chat = StoreId.SessionSchema.safeParse(into);
+    if (chat.success) {
+      appTabs.go(`${CHATS_HREF}/${chat.data}`);
+    }
+  };
+  /**
    * Opens a page: in the tab on screen when it is a page of the window's
    * own, in a tab of its own when asked for one, and into a named group when
    * the open belongs to a chat other than the one up, where it waits
@@ -95,6 +107,9 @@ export function useOpeners({
       return id;
     }
     if (into !== undefined && into !== windowTabs.group) {
+      if (show) {
+        goToChatOf(into);
+      }
       const id = browser?.openOrFocus(url, { group: into, show });
       if (show) {
         setPaneOpen(into, true);
@@ -224,6 +239,9 @@ export function useOpeners({
       return;
     }
     if (into !== undefined && into !== windowTabs.group) {
+      if (show) {
+        goToChatOf(into);
+      }
       windowTabs.openOrFocusScreen(href, {
         activate,
         group: into,

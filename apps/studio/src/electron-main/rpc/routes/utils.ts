@@ -12,7 +12,7 @@ import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
 import { prepareFileDrag } from "@/electron-main/lib/file-drag";
 import {
   getBrowserOpenTarget,
-  getFileManagerIconUrl,
+  getFileManagerApp,
   getFileOpenCandidates,
   getFileOpenTarget,
 } from "@/electron-main/lib/file-open-target";
@@ -480,11 +480,17 @@ const browserOpenTarget = base
   )
   .handler(() => getBrowserOpenTarget());
 
-// The system file manager's icon, for its row in an "Open in" list. Null
-// where the platform cannot render one; callers draw a folder glyph.
-const fileManagerIcon = base
-  .output(z.object({ iconUrl: z.string().nullable() }))
-  .handler(async () => ({ iconUrl: await getFileManagerIconUrl() }));
+// The system file manager, for its row in an "Open in" list: its path, so the
+// list can leave it out where it is already a candidate, and its icon. Null
+// fields where the platform cannot say; callers draw a folder glyph.
+const fileManagerApp = base
+  .output(
+    z.object({
+      appPath: z.string().nullable(),
+      iconUrl: z.string().nullable(),
+    }),
+  )
+  .handler(() => getFileManagerApp());
 
 // Every app that can open the file, for an "Open with" picker. The system's own
 // choice carries `isDefault`; its position in the list is not meaningful.
@@ -946,7 +952,7 @@ export const utils = {
   displayProtocol,
   events,
   exportZip,
-  fileManagerIcon,
+  fileManagerApp,
   fileOpenCandidates,
   fileOpenTarget,
   getSupportedEditors,

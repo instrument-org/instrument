@@ -1344,7 +1344,7 @@ export function ComputerPage({
  * where there is nothing under it, in the order the Finder's own menu puts
  * them: opening first, the Trash apart, then what changes the thing, then
  * where it is. Handing a file to another program is one row, and a submenu
- * wherever the Mac can name the apps that read it: naming an app on the row
+ * wherever the Mac can name the apps that read it, a folder's included: naming an app on the row
  * itself makes the menu as wide as whatever app that file happens to belong
  * to.
  */
@@ -1393,6 +1393,9 @@ export function FolderMenu({
   const file = tab ? { hostPath: tab.hostPath } : undefined;
   const openFile = useOpenFile();
   const { openLabel, showOpen } = useFileOpenTarget(file);
+  const itemHostPath = hostPathOfItem(item);
+  const openIn =
+    isMacOS() && itemHostPath ? { hostPath: itemHostPath } : undefined;
   return (
     <ContextMenuContent
       className="min-w-48"
@@ -1431,8 +1434,8 @@ export function FolderMenu({
               the first frame rather than arriving under the pointer once a
               lookup has answered. Elsewhere the one row hands the file to
               whichever program the system has chosen for it. */}
-          {file && isMacOS() ? (
-            <OpenInMenu file={file} menuComponents={contextMenuComponents} />
+          {openIn ? (
+            <OpenInMenu file={openIn} menuComponents={contextMenuComponents} />
           ) : file && showOpen ? (
             <ContextMenuItem
               onClick={() => {
@@ -1472,7 +1475,7 @@ export function FolderMenu({
           </ContextMenuItem>
           {/* The Open in list already offers the Finder, so a row of its
               own would name it twice. */}
-          {file && isMacOS() ? null : (
+          {openIn ? null : (
             <ContextMenuItem onClick={onReveal}>
               <RevealInFolderIcon className="size-4" />
               <span>{getRevealInFolderLabel()}</span>

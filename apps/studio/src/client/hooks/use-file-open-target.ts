@@ -15,6 +15,21 @@ const openTargetQueryOptions = (file: FileRef | undefined) =>
     staleTime: Number.POSITIVE_INFINITY,
   });
 
+// The system's file manager: its path, and its own icon where the platform can
+// render one (macOS). Fetched once for the session.
+export function useFileManagerApp() {
+  const { data } = useQuery(
+    rpcClient.utils.fileManagerApp.queryOptions({
+      input: isMacOS() ? undefined : skipToken,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
+      staleTime: Number.POSITIVE_INFINITY,
+    }),
+  );
+  return data;
+}
+
 // Every app that can open the file, with the system's own choice carrying
 // `isDefault` rather than a position. File viewers start this lookup
 // immediately; contextual menus wait until opened.

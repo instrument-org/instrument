@@ -71,6 +71,13 @@ vi.mock("@/client/rpc/client", () => {
         save: routeOf(calls.transcript),
       },
       utils: {
+        // The Finder's icon is decorative; the row draws its glyph without it.
+        fileManagerApp: {
+          queryOptions: () => ({
+            queryFn: () => ({ appPath: null, iconUrl: null }),
+            queryKey: ["fileManagerApp"],
+          }),
+        },
         openExternalLink: routeOf(vi.fn()),
         openTaskIn: routeOf(vi.fn()),
         showFileInFolder: routeOf(vi.fn()),

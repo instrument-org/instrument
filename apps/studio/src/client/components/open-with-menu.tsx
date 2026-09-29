@@ -1,11 +1,12 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
-import { useFileOpenCandidates } from "@/client/hooks/use-file-open-target";
+import {
+  useFileManagerApp,
+  useFileOpenCandidates,
+} from "@/client/hooks/use-file-open-target";
 import { useOpenFileWith } from "@/client/hooks/use-open-file";
 import { hasFilesView, revealInFileManager } from "@/client/lib/show-in-files";
 import { getFileManagerName } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { useQuery } from "@tanstack/react-query";
 import { type ReactElement } from "react";
 
 import { IconWithFallback } from "./icon-with-fallback";
@@ -79,9 +80,57 @@ export function OpenWithDropdown({
             omitDefault
           />
         </MenuScrollArea>
-        <FileManagerFooter file={file} menuComponents={dropdownMenuComponents} />
+        <FileManagerFooter
+          file={file}
+          menuComponents={dropdownMenuComponents}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Where the window shows a file in Files of its own, the system's file manager
+ * is one more place the file can go, and the one every file has. It sits under
+ * the apps rather than among them, held still while a long list scrolls, so
+ * the app the file opens in stays the first row.
+ */
+function FileManagerFooter({
+  file,
+  menuComponents,
+}: {
+  file: FileRef;
+  menuComponents: MenuComponents;
+}) {
+  if (!hasFilesView()) {
+    return null;
+  }
+  const { Separator } = menuComponents;
+  return (
+    <div className="shrink-0 px-1 pb-1">
+      <Separator className="mt-0" />
+      <FileManagerItem file={file} menuComponents={menuComponents} />
+    </div>
+  );
+}
+
+function FileManagerItem({
+  file,
+  menuComponents,
+}: {
+  file: FileRef;
+  menuComponents: MenuComponents;
+}) {
+  const { Item } = menuComponents;
+  return (
+    <Item
+      onClick={() => {
+        void revealInFileManager(file.hostPath);
+      }}
+    >
+      <RevealInFolderIcon className="size-5" />
+      <span className="truncate">{getFileManagerName()}</span>
+    </Item>
   );
 }
 
@@ -99,15 +148,21 @@ function OpenWithCandidates({
     enabled: true,
   });
   const openWith = useOpenFileWith();
+  // The file manager has a row of its own under the list, so where the system
+  // offers it as one of the apps (it opens every folder) it is not named twice.
+  const fileManager = useFileManagerApp();
+  const listed = hasFilesView()
+    ? apps.filter((candidate) => candidate.appPath !== fileManager?.appPath)
+    : apps;
   // Beside a control that already launches the default app, only the
   // alternatives are listed; otherwise the default leads. Match on the flag
   // rather than on position: the resolver orders by Launch Services
   // preference, which is not a guarantee.
   const candidates = omitDefault
-    ? apps.filter((candidate) => !candidate.isDefault)
+    ? listed.filter((candidate) => !candidate.isDefault)
     : [
-        ...apps.filter((candidate) => candidate.isDefault),
-        ...apps.filter((candidate) => !candidate.isDefault),
+        ...listed.filter((candidate) => candidate.isDefault),
+        ...listed.filter((candidate) => !candidate.isDefault),
       ];
 
   if (isPending) {
@@ -153,62 +208,5 @@ function OpenWithCandidates({
         </Item>
       ))}
     </>
-  );
-}
-
-/**
- * Where the window shows a file in Files of its own, the system's file manager
- * is one more place the file can go, and the one every file has. It sits under
- * the apps rather than among them, held still while a long list scrolls, so
- * the app the file opens in stays the first row.
- */
-function FileManagerFooter({
-  file,
-  menuComponents,
-}: {
-  file: FileRef;
-  menuComponents: MenuComponents;
-}) {
-  if (!hasFilesView()) {
-    return null;
-  }
-  const { Separator } = menuComponents;
-  return (
-    <div className="shrink-0 px-1 pb-1">
-      <Separator className="mt-0" />
-      <FileManagerItem file={file} menuComponents={menuComponents} />
-    </div>
-  );
-}
-
-function FileManagerItem({
-  file,
-  menuComponents,
-}: {
-  file: FileRef;
-  menuComponents: MenuComponents;
-}) {
-  const { Item } = menuComponents;
-  const { data } = useQuery(
-    rpcClient.utils.fileManagerIcon.queryOptions({
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      refetchOnWindowFocus: false,
-      staleTime: Number.POSITIVE_INFINITY,
-    }),
-  );
-  return (
-    <Item
-      onClick={() => {
-        void revealInFileManager(file.hostPath);
-      }}
-    >
-      <IconWithFallback
-        className="size-5"
-        fallback={<RevealInFolderIcon className="size-5" />}
-        src={data?.iconUrl ?? null}
-      />
-      <span className="truncate">{getFileManagerName()}</span>
-    </Item>
   );
 }

@@ -53,6 +53,11 @@ const BROWSER_TARGET_KEY = "https:";
 // resolves to the same app, so the page on screen never leaves the process.
 const BROWSER_PROBE_URL = "https://example.com/";
 
+// Every folder is opened by the same apps, whatever its name: Launch Services
+// answers for the folder type, so one entry serves them all. Not an extension
+// and not a path, so it collides with neither.
+const FOLDER_CANDIDATES_KEY = "folder/";
+
 const FINDER_APP_PATH = "/System/Library/CoreServices/Finder.app";
 
 // What a platform that cannot name the browser answers.
@@ -82,17 +87,37 @@ export async function getBrowserOpenTarget(): Promise<FileOpenTarget> {
   );
 }
 
+// The Finder, with its own icon rendered the way every candidate app's is, for
+// the row that hands a file to it. Null elsewhere, where no Open in list is
+// drawn.
+export async function getFileManagerApp(): Promise<{
+  appPath: null | string;
+  iconUrl: null | string;
+}> {
+  if (process.platform !== "darwin") {
+    return { appPath: null, iconUrl: null };
+  }
+  const icons = await resolveIcons([FINDER_APP_PATH]);
+  return {
+    appPath: FINDER_APP_PATH,
+    iconUrl: icons.get(FINDER_APP_PATH) ?? null,
+  };
+}
+
 // Rejects when the lookup itself failed, so callers can tell "this file type
 // has no alternate apps" apart from "we could not find out". Collapsing the two
 // silently hides the picker with no way for the user to retry.
 export async function getFileOpenCandidates(
   fullPath: string,
 ): Promise<FileOpenCandidate[]> {
-  const apps = await getCandidateApps(fullPath);
-  const candidates = curateCandidates(
-    apps,
-    path.extname(fullPath).toLowerCase(),
-  );
+  const isFolder = await fs
+    .stat(fullPath)
+    .then((stats) => stats.isDirectory())
+    .catch(() => false);
+  // A folder's name can carry a dot without that being a type of its own.
+  const ext = isFolder ? "" : path.extname(fullPath).toLowerCase();
+  const apps = await getCandidateApps(fullPath, { ext, isFolder });
+  const candidates = curateCandidates(apps, ext);
   if (candidates.length === 0) {
     return [];
   }
@@ -107,16 +132,6 @@ export async function getFileOpenCandidates(
     iconUrl: icons.get(candidate.appPath) ?? null,
     isDefault: candidate.isDefault,
   }));
-}
-
-// The Finder's own icon, rendered the way every candidate app's is, for the
-// row that hands a file to it. Null elsewhere, where no Open in list is drawn.
-export async function getFileManagerIconUrl(): Promise<null | string> {
-  if (process.platform !== "darwin") {
-    return null;
-  }
-  const icons = await resolveIcons([FINDER_APP_PATH]);
-  return icons.get(FINDER_APP_PATH) ?? null;
 }
 
 export async function getFileOpenTarget(
@@ -233,20 +248,23 @@ async function getCachedTarget(
 
 // The raw enumeration for a file type, before curation. Persisted in this form
 // so a policy change takes effect on the next read.
-async function getCandidateApps(fullPath: string): Promise<CandidateApp[]> {
+async function getCandidateApps(
+  fullPath: string,
+  { ext, isFolder }: { ext: string; isFolder: boolean },
+): Promise<CandidateApp[]> {
   if (process.platform !== "darwin") {
     // Only macOS has a portable enumeration of every app that can open a file.
     return [];
   }
-  const ext = path.extname(fullPath).toLowerCase();
-  const key = ext || fullPath;
+  const key = isFolder ? FOLDER_CANDIDATES_KEY : ext || fullPath;
   const existing = candidatesCache.get(key);
   if (existing) {
     return existing;
   }
-  const pending = ext
-    ? getOrResolveCandidates(key, fullPath)
-    : enumerateDarwinCandidates(fullPath);
+  const pending =
+    isFolder || ext
+      ? getOrResolveCandidates(key, fullPath)
+      : enumerateDarwinCandidates(fullPath);
   candidatesCache.set(key, pending);
   // Launch Services occasionally rejects a file even when its default app is
   // resolvable. Drop the failure so a later request retries rather than serving

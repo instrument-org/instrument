@@ -394,7 +394,7 @@ function refusal(error: unknown, spec: string) {
 async function requireReadable(
   folderPath: string,
   spec: string,
-): Promise<{ answer: Promise<string | undefined> } | undefined> {
+): Promise<undefined | { answer: Promise<string | undefined> }> {
   const answer = (async () => {
     const dir = await fs.opendir(folderPath);
     try {
@@ -403,7 +403,7 @@ async function requireReadable(
       await dir.close();
     }
   })().then(
-    () => undefined,
+    () => {},
     (error: unknown) => refusal(error, spec),
   );
   let timer: NodeJS.Timeout | undefined;

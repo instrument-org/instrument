@@ -68,7 +68,6 @@ type ParentActorRef = ActorRef<AnyMachineSnapshot, SessionMachineParentEvent>;
 
 type SessionMachineEvent =
   | AgentParentEvent
-  | { reason?: StopReason; type: "stop" }
   | {
       /** Stop the step in flight so the message runs as the next turn. */
       interrupt?: boolean;
@@ -76,6 +75,7 @@ type SessionMachineEvent =
       type: "addMessage";
       value: SessionMessage.UserWithParts;
     }
+  | { reason?: StopReason; type: "stop" }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
   | { type: "runTurn" }

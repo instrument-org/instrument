@@ -3,9 +3,9 @@ import {
   draftGroupOf,
   NEW_TAB_HREF,
   WEB_HREF,
-  withChatNewTabs,
   type WindowTab,
   windowTabsAtom,
+  withChatNewTabs,
 } from "@/client/atoms/orchestrator";
 import { fileHref } from "@/shared/computer-href";
 import { renderWithProviders } from "@/tests/render";

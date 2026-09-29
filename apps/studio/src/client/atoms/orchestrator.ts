@@ -370,16 +370,6 @@ export const windowTabsAtom = atomWithStorage<WindowTabs>(
   { getOnInit: true },
 );
 
-/** localStorage backing for the window's tabs, reading what was kept through {@link withChatNewTabs}. */
-function windowTabsStorage() {
-  const json = createJSONStorage<WindowTabs>(() => localStorage);
-  return {
-    ...json,
-    getItem: (key: string, initialValue: WindowTabs) =>
-      withChatNewTabs(json.getItem(key, initialValue)),
-  };
-}
-
 /**
  * The window's tabs with every chat's new-tab page read as a chat's new tab,
  * the web's starting view. The new-tab page is a draft's own face and only
@@ -387,27 +377,43 @@ function windowTabsStorage() {
  * hold it, in a tab or in where a tab has been.
  */
 export function withChatNewTabs(state: WindowTabs): WindowTabs {
-  const fix = (href: string) =>
-    href.split(/[?#]/)[0] === NEW_TAB_HREF ? WEB_HREF : href;
-  const fixVisit = <Visit extends TabVisit>(visit: Visit): Visit =>
-    visit.kind === "screen"
-      ? {
-          ...visit,
-          href: fix(visit.href),
-          ...(visit.trail ? { trail: visit.trail.map(fix) } : {}),
-        }
-      : visit;
   return {
     ...state,
     tabs: state.tabs.map((tab) =>
       draftOfGroup(tab.group) === undefined
         ? {
-            ...fixVisit(tab),
-            ...(tab.past ? { past: tab.past.map(fixVisit) } : {}),
-            ...(tab.future ? { future: tab.future.map(fixVisit) } : {}),
+            ...visitAsWeb(tab),
+            ...(tab.past ? { past: tab.past.map(visitAsWeb) } : {}),
+            ...(tab.future ? { future: tab.future.map(visitAsWeb) } : {}),
           }
         : tab,
     ),
+  };
+}
+
+/** An address on the new-tab page as a chat's new tab, the web's starting view. */
+function newTabAsWeb(href: string) {
+  return href.split(/[?#]/)[0] === NEW_TAB_HREF ? WEB_HREF : href;
+}
+
+/** A visit to the new-tab page, or through it, as one to the web's starting view. */
+function visitAsWeb<Visit extends TabVisit>(visit: Visit): Visit {
+  return visit.kind === "screen"
+    ? {
+        ...visit,
+        href: newTabAsWeb(visit.href),
+        ...(visit.trail ? { trail: visit.trail.map(newTabAsWeb) } : {}),
+      }
+    : visit;
+}
+
+/** localStorage backing for the window's tabs, reading what was kept through {@link withChatNewTabs}. */
+function windowTabsStorage() {
+  const json = createJSONStorage<WindowTabs>(() => localStorage);
+  return {
+    ...json,
+    getItem: (key: string, initialValue: WindowTabs) =>
+      withChatNewTabs(json.getItem(key, initialValue)),
   };
 }
 

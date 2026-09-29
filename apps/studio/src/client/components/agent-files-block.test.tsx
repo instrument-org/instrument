@@ -30,6 +30,7 @@ vi.mock("./files-grid", () => ({
       ))}
     </ul>
   ),
+  ROW_CARD_GRID: "row-card-grid",
 }));
 
 // A fence asks the task's layout where its files are and nothing else, so the
@@ -153,7 +154,7 @@ describe("AgentFilesBlock", () => {
         "/mnt/Instrument/report.html @ /Users/casey/Instrument/report.html @ instrument://computer-test/Users/casey/Instrument/report.html",
       ]
     `);
-    expect(screen.getByRole("button").textContent).toBe("backups");
+    expect(screen.getByRole("button", { name: "Open backups" })).toBeTruthy();
   });
 
   it("takes the grid's folder bucketing off, which drops anything outside the task folder", () => {

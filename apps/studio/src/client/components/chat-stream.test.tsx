@@ -272,16 +272,6 @@ function metadata(startedAt?: Date) {
   };
 }
 
-/** A reasoning block the model finished, with something written under it. */
-function thought(text: string) {
-  return {
-    metadata: { ...metadata(new Date(1)), endedAt: new Date(2) },
-    state: "done",
-    text,
-    type: "reasoning",
-  };
-}
-
 function prose(text: string) {
   return { metadata: metadata(), state: "done", text, type: "text" };
 }
@@ -369,6 +359,16 @@ function renderTranscript({
     ],
     { isAgentRunning, isDeveloperMode, releaseAutoScroll },
   );
+}
+
+/** A reasoning block the model finished, with something written under it. */
+function thought(text: string) {
+  return {
+    metadata: { ...metadata(new Date(1)), endedAt: new Date(2) },
+    state: "done",
+    text,
+    type: "reasoning",
+  };
 }
 
 function userMessage(text: string) {

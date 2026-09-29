@@ -86,6 +86,21 @@ export function isWorking(taskId: TaskId) {
   );
 }
 
+/** The transcript of the task's latest session; empty when it has none or the read fails. */
+export async function latestMessages(
+  taskId: TaskId,
+): Promise<SessionMessage.WithParts[]> {
+  const sessionId = await latestSessionId(taskId);
+  if (sessionId.isErr() || !sessionId.value) {
+    return [];
+  }
+  const messages = await Store.getMessagesWithParts({
+    sessionId: sessionId.value,
+    taskId,
+  });
+  return messages.isOk() ? messages.value : [];
+}
+
 export async function latestStep(taskId: TaskId): Promise<string | undefined> {
   return latestStepIn(await latestMessages(taskId));
 }
@@ -207,21 +222,6 @@ export async function turnStartedAt(taskId: TaskId): Promise<Date | undefined> {
   }
   return messages.value.findLast((message) => message.role === "user")?.metadata
     .createdAt;
-}
-
-/** The transcript of the task's latest session; empty when it has none or the read fails. */
-async function latestMessages(
-  taskId: TaskId,
-): Promise<SessionMessage.WithParts[]> {
-  const sessionId = await latestSessionId(taskId);
-  if (sessionId.isErr() || !sessionId.value) {
-    return [];
-  }
-  const messages = await Store.getMessagesWithParts({
-    sessionId: sessionId.value,
-    taskId,
-  });
-  return messages.isOk() ? messages.value : [];
 }
 
 /** The words of a choice put to the user, when the call carries them. */

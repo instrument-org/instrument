@@ -4,6 +4,7 @@ import { dedent, pick } from "radashi";
 
 import {
   AGENT_FILES_LANGUAGE,
+  AGENT_NEEDS_LANGUAGE,
   TASK_FOLDER_NAMES as F,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
@@ -188,6 +189,13 @@ const readByAssistant = {
       Could we move the walkthrough to Friday at 10? Same room, same agenda.
       \`\`\`
     - A folder, a file, or a service you were not handed is not something to ask a person for: stop, and name it in your last message. The assistant can hand it to you and send you on.
+    - When you cannot go on without something from the user or the assistant (a folder, a connected app, a sign-in, an answer, a decision), end your last message with a \`\`\`${AGENT_NEEDS_LANGUAGE} fence, one need per line, the kind first and then what it is for. That fence tells the assistant you are waiting rather than done. Use it only when the work truly cannot continue: a preference you could settle with a sensible default is a judgment call you name in your receipt, not a need.
+
+      \`\`\`${AGENT_NEEDS_LANGUAGE}
+      folder: Desktop, to save the invoice there
+      app: Linear
+      answer: which of the two Lisbon hotels, the Alfama one or the Chiado one?
+      \`\`\`
   `,
 };
 

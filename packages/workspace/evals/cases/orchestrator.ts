@@ -220,9 +220,8 @@ function saidAtMost(chars: number): Assertion {
 
 /**
  * A task revised where it stands rather than replaced. `task folder --add` and
- * `task app --add` are the moves being scored; `task tab` and `task model` are
- * the same act on the task's other settings, and any of them followed by a
- * `send` is the shape.
+ * `task app --add` are the moves being scored, and each tells the task itself;
+ * `task tab` and `task model` are the same act on the task's other settings.
  */
 const REVISED_A_TASK = /(?:^|[\n;&|])\s*task (?:app|folder|tab|model)\b/;
 

@@ -19,7 +19,7 @@ const COMMAND_MAX_LENGTH = 80;
 
 /**
  * One process in a line: its id, its command cut to fit, and how long it has
- * been running. The id is what `task kill` takes, so it leads.
+ * been running. The id is what `task stop <id> <bg id>` takes, so it leads.
  */
 export function describeLeftRunning({
   command,

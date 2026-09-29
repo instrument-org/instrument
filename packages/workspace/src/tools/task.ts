@@ -36,6 +36,10 @@ export const Task = setupTool({
     action: z.enum(["new", "send", "stop"]).meta({
       description: "What to do: start a task, message one, or stop one.",
     }),
+    all: z.boolean().optional().meta({
+      description:
+        "stop: end its turn and every process it left running in the background.",
+    }),
     apps: z.array(z.string()).optional().meta({
       description:
         "new: connected apps this task may reach, by slug. It reaches no other.",
@@ -66,6 +70,10 @@ export const Task = setupTool({
     now: z.boolean().optional().meta({
       description:
         "send: stop the step in flight and run the message as its next turn, for a correction that makes the current work wrong or a task whose latest step has run for minutes without a tool call. Without it, a busy task hears the message at its next step.",
+    }),
+    process: z.string().optional().meta({
+      description:
+        "stop: one process the task left running in the background, by the id `task show` lists (bg_1), stopped instead of its turn.",
     }),
     tab: z.string().optional().meta({
       description:
@@ -116,7 +124,14 @@ export const Task = setupTool({
               brief,
               MOUNT.task,
             )
-          : runStop([input.taskId ?? ""], context));
+          : runStop(
+              [
+                input.taskId ?? "",
+                ...(input.process ? [input.process] : []),
+                ...(input.all ? ["--all"] : []),
+              ],
+              context,
+            ));
       return ok({
         ok: result.exitCode === 0,
         output: result.exitCode === 0 ? result.stdout : result.stderr,

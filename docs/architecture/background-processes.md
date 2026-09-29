@@ -112,7 +112,7 @@ The registry is keyed by **session**, not task ([`recordsBySession`](../../packa
 
 ## Who stopped it
 
-A stop carries who asked for it (`stoppedBy`: the agent's own `kill`, the user's stop button, or the conversation's `task kill`), and `fg` and `jobs` say so rather than printing the interpreter's abort code. A stop the agent did not make is a decision it must not undo, and the text tells it not to start the process again unless asked; "finished with exit code 124" read as the command failing on its own.
+A stop carries who asked for it (`stoppedBy`: the agent's own `kill`, the user's stop button, or the conversation's `task stop`), and `fg` and `jobs` say so rather than printing the interpreter's abort code. A stop the agent did not make is a decision it must not undo, and the text tells it not to start the process again unless asked; "finished with exit code 124" read as the command failing on its own.
 
 ## Two Unix metaphors we sit on
 

@@ -491,6 +491,21 @@ export namespace SessionMessageDataPart {
            */
           files: z.array(z.string()).optional(),
           /**
+           * The step running as an overdue note is composed, in one line:
+           * how long the turn has run, when it last called a tool, and what
+           * it is doing this moment (writing with no tool call, or which tool
+           * is running and for how long). What tells a step that is working
+           * apart from one that will never end on its own.
+           */
+          inFlight: z.string().optional(),
+          /**
+           * What the child said it cannot go on without, one line each, read
+           * from the needs fence of its last message. Present only when the
+           * turn ended on one: the task is waiting on the chat or the user,
+           * not finished.
+           */
+          needs: z.array(z.string()).optional(),
+          /**
            * What the child left running in the background as its turn ended:
            * a server it started on purpose, or a scan it never stopped. Absent
            * when nothing was, and on an overdue event, whose turn is still

@@ -30,11 +30,13 @@ import {
 } from "../apps/connection";
 import { loadApp } from "../apps/store";
 import { attachFolder, detachFolder } from "../attach-folder";
+import { attachedFolderMountPoint } from "../attached-folder-mounts";
 import {
   killBackgroundProcess,
   listTaskBackgroundProcesses,
 } from "../background-processes";
 import { defaultTaskName } from "../default-task-name";
+import { folderLabel } from "../folder-parent-label";
 import { getTask } from "../get-tasks";
 import { initializeTask } from "../initialize-task";
 import { isLocalAddress } from "../local-page-address";
@@ -45,6 +47,7 @@ import { childTaskMounts, listChildTasks } from "../orchestrator/children";
 import { describeHoldings } from "../orchestrator/describe-holdings";
 import { windowTaskId } from "../orchestrator/ensure";
 import { taskFolderHoldings } from "../orchestrator/folder-holdings";
+import { stepInFlight } from "../orchestrator/in-flight";
 import {
   lastAssistantText,
   latestOrNewSessionId,
@@ -137,9 +140,8 @@ const DEFAULT_LOG_TAIL_LINES = 120;
  */
 const MAX_ASKED_WAKE_MS = ms("2 hours");
 const LOG_MAX_BYTES = 24 * 1024;
-/** Held back from the yield window so a wait returns inside it. */
+/** Held back from the yield window so a stop returns inside it. */
 const WAIT_MARGIN_MS = 500;
-const MAX_WAIT_MS = ms("10 minutes");
 
 const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
@@ -180,27 +182,34 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       next turn: for a correction that makes the current work wrong, or a
       task whose latest step has run for minutes without a tool call. Same
       heredoc, and --file hands it a file the way \`new --file\` does.
-  ${TASK_COMMAND.name} stop <id>
-      End a running task's work where it is, and say whether it stopped.
-      \`send\` gives it the next thing to do.
-  ${TASK_COMMAND.name} kill <id> [<bg id>]
-      Stop what a task left running in the background after its turn ended:
-      the one process named, by the id \`show\` lists (bg_1), or every one. A
-      server the user is still using is theirs to keep; a scan nobody is
-      waiting on is not.
-  ${TASK_COMMAND.name} folder <id> [--add <mount>[/<folder>][:rw|:ro]]... [--remove <mount>[/<folder>]]...
-      Change which folders a task already running may reach, named the way
-      \`new --folder\` names them. --add hands it one more of yours, read and
-      write unless :ro narrows it, and naming a folder it already has re-grants
-      that one at the new access instead of mounting it twice. --remove takes
-      one away; the workspace folder stays, since that is where its results go.
-      A task hears about the change on the next message you send it.
-  ${TASK_COMMAND.name} app <id> [--add <slug>]... [--remove <slug>]...
-      Change which connected apps a task already running may reach. A task that
-      stopped for want of a service is why this exists: connect the app with
-      \`connect_app\`, hand it over here, and ${TASK_COMMAND.name} send tells it to carry on,
-      rather than starting the work again from nothing. Only a connected app
-      can be handed over.
+  ${TASK_COMMAND.name} stop <id> [<bg id> | --all]
+      End a running task's turn where it is, and say whether it stopped;
+      \`send\` gives it the next thing to do. With a process id (bg_1, as
+      \`show\` lists them), stop only that process the task left running in
+      the background, and leave its turn alone. --all ends the turn and every
+      process it left running. A server the user is still using is theirs to
+      keep; a scan nobody is waiting on is not.
+  ${TASK_COMMAND.name} folder <id> [--add <mount>[/<folder>][:rw|:ro]]... [--remove <mount>[/<folder>]]... [--none] [<<'EOF'
+  <what it is for>
+  EOF]
+      Change which folders a task may reach, named the way \`new --folder\`
+      names them. --add hands it one more of yours, read and write unless :ro
+      narrows it, and naming a folder it already has re-grants that one at the
+      new access instead of mounting it twice. --remove takes one away; --none
+      takes every one away. The workspace folder stays either way, since that
+      is where its results go. The task is told at once: a working task hears
+      it at its next step, an idle one it hands a folder carries on with it as
+      a new turn. Say what the folder is for on stdin, in the same heredoc form
+      as \`send\`, and it is told that too.
+  ${TASK_COMMAND.name} app <id> [--add <slug>]... [--remove <slug>]... [--none] [<<'EOF'
+  <what it is for>
+  EOF]
+      Change which connected apps a task may reach; --none takes every one
+      away. A task that stopped for want of a service is why this exists:
+      connect the app with \`connect_app\` and hand it over here, with what it
+      is for on stdin, and the task carries on rather than starting the work
+      again from nothing. It is told the way \`folder\` tells it. Only a
+      connected app can be handed over.
   ${TASK_COMMAND.name} tab <id> [<tab id>...] [--add <tab id>]... [--remove <tab id>]... [--none]
       Change which tabs a task holds after the fact, by the ids the note on
       their message gives. Tab ids on their own replace the tabs it was
@@ -234,9 +243,6 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       in dollars per million tokens in and out, what it takes besides text, and
       tags. All of them on the provider this conversation runs on, which is the
       only provider a task of yours runs on. Long; pipe it through head or rg.
-  ${TASK_COMMAND.name} wait <id> [--timeout <ms>]
-      Block until it finishes or the timeout, whichever comes first. Rarely the
-      right call: you are woken when it finishes anyway.
   ${TASK_COMMAND.name} wake <id> --in <duration>|--cancel
       Be woken about a task after a delay you choose (30s, 5m, 1h), with where it
       stands then: its steps this turn, what it has written, what it has spent.
@@ -267,13 +273,10 @@ export function createTaskCommand(context: TaskCommandContext) {
           return ok(USAGE);
         }
         case "app": {
-          return await runApp(rest, context);
+          return await runApp(rest, context, ctx.stdin);
         }
         case "folder": {
-          return await runFolder(rest, context);
-        }
-        case "kill": {
-          return await runKill(rest, context);
+          return await runFolder(rest, context, ctx.stdin);
         }
         case "list": {
           return await runList(rest, context);
@@ -311,9 +314,6 @@ export function createTaskCommand(context: TaskCommandContext) {
         case "trash": {
           return await runTrash(rest, context);
         }
-        case "wait": {
-          return await runWait(rest, context, ctx.signal);
-        }
         case "wake": {
           return await runWake(rest, context);
         }
@@ -328,26 +328,31 @@ export function createTaskCommand(context: TaskCommandContext) {
 }
 
 /**
- * Changes which connected apps a task already under way may reach.
+ * Changes which connected apps a task may reach.
  *
  * The flow this exists for: a task needs a service it was not handed, and it
  * has no way to ask for one itself, so it stops and says so. The conversation
- * connects the app with the user, hands it over here, and sends the task on its
- * way. Without this the app arrives with nowhere to go and the only move left
- * is a second task, briefed from nothing, paying again for everything the first
- * one had worked out.
+ * connects the app with the user and hands it over here, and the task is told
+ * in the same call and carries on. Without this the app arrives with nowhere
+ * to go and the only move left is a second task, briefed from nothing, paying
+ * again for everything the first one had worked out.
  */
-export async function runApp(args: string[], context: TaskCommandContext) {
+export async function runApp(
+  args: string[],
+  context: TaskCommandContext,
+  stdin: ByteString,
+) {
   const { positional, values } = parseFlags(args, {
+    boolean: ["none"],
     flags: ["add", "remove"],
     repeatable: ["add", "remove"],
   });
   const task = await requireOwnChild(positional[0], context);
   const askedAdds = values.get("add") ?? [];
-  const askedRemoves = values.get("remove") ?? [];
-  if (askedAdds.length === 0 && askedRemoves.length === 0) {
+  const none = values.has("none");
+  if (askedAdds.length === 0 && !values.has("remove") && !none) {
     throw new Error(
-      `app: --add or --remove is required. \`${TASK_COMMAND.name} show ${task.id}\` lists the apps it has.`,
+      `app: --add, --remove, or --none is required. \`${TASK_COMMAND.name} show ${task.id}\` lists the apps it has.`,
     );
   }
   const settings = await getTaskSettings(taskDir(task.id));
@@ -358,6 +363,7 @@ export async function runApp(args: string[], context: TaskCommandContext) {
       `${task.id} was not created by this conversation, so it already reaches every connected app.`,
     );
   }
+  const askedRemoves = none ? settings.apps : (values.get("remove") ?? []);
   // Checked before anything is written, so a refused slug leaves the task's
   // apps as they were rather than half changed.
   const adds = await resolveApps(askedAdds);
@@ -369,10 +375,12 @@ export async function runApp(args: string[], context: TaskCommandContext) {
       );
     }
   }
+  const purpose = await grantPurpose("app", task.id, context, stdin);
   const removed = new Set(askedRemoves);
+  const added = adds.filter((slug) => !held.has(slug));
   const apps = [
     ...settings.apps.filter((slug) => !removed.has(slug)),
-    ...adds.filter((slug) => !held.has(slug)),
+    ...added,
   ];
   const result = await updateTaskSettings(task.id, { apps });
   if (result.isErr()) {
@@ -380,17 +388,26 @@ export async function runApp(args: string[], context: TaskCommandContext) {
   }
   const lines = [
     ...askedRemoves.map((slug) => `Took ${slug} back from ${task.id}.`),
-    ...adds
-      .filter((slug) => !held.has(slug))
-      .map((slug) => `${task.id} can now reach ${slug}.`),
+    ...added.map((slug) => `${task.id} can now reach ${slug}.`),
   ];
+  const told = await tellOfGrant({
+    added: added.length > 0,
+    command: "app",
+    context,
+    facts: [
+      ...added.map((slug) => `You were handed the connected app ${slug}.`),
+      ...askedRemoves.map((slug) => `The app ${slug} was taken back from you.`),
+    ],
+    purpose,
+    task,
+  });
   return ok(
-    `${lines.join("\n") || `${task.id} already had ${adds.join(", ")}.`}\nIt learns of this on the next message you send it; say what the app is for when it stopped for want of one.\n`,
+    `${lines.join("\n") || (none ? `${task.id} had no apps.` : `${task.id} already had ${adds.join(", ")}.`)}\n${told}`,
   );
 }
 
 /**
- * Changes which of the user's folders a task already under way may reach.
+ * Changes which of the user's folders a task may reach.
  *
  * The grant `new --folder` makes, made after the fact: a task that turns out to
  * need one more folder is handed it where it stands, rather than stopped and
@@ -399,20 +416,25 @@ export async function runApp(args: string[], context: TaskCommandContext) {
  * its folders under are assigned per task and mean nothing here.
  *
  * A task reads its folders fresh on every turn, so the mount is there the
- * moment this returns; what waits for the next message is the *telling*, which
- * rides it as a folder-changes note.
+ * moment this returns, and the task is told in the same call (tellOfGrant).
  */
-export async function runFolder(args: string[], context: TaskCommandContext) {
+export async function runFolder(
+  args: string[],
+  context: TaskCommandContext,
+  stdin: ByteString,
+) {
   const { positional, values } = parseFlags(args, {
+    boolean: ["none"],
     flags: ["add", "remove"],
     repeatable: ["add", "remove"],
   });
   const task = await requireOwnChild(positional[0], context);
   const askedAdds = values.get("add") ?? [];
   const askedRemoves = values.get("remove") ?? [];
-  if (askedAdds.length === 0 && askedRemoves.length === 0) {
+  const none = values.has("none");
+  if (askedAdds.length === 0 && askedRemoves.length === 0 && !none) {
     throw new Error(
-      `folder: --add or --remove is required. \`${TASK_COMMAND.name} show ${task.id}\` lists the folders it has.`,
+      `folder: --add, --remove, or --none is required. \`${TASK_COMMAND.name} show ${task.id}\` lists the folders it has.`,
     );
   }
   const orchestratorState = await getTaskState(
@@ -427,22 +449,36 @@ export async function runFolder(args: string[], context: TaskCommandContext) {
   // Matched against the folders as they stand before any of this runs: every
   // spec on the line names one of those, not one a later removal has moved.
   const taskFolders = await mountsOf(task.id);
-  const removes = askedRemoves.map((spec) => {
-    const folder = matchTaskFolder(spec, orchestratorFolders, taskFolders);
-    if (!folder) {
-      throw new Error(
-        `${task.id} has no folder "${spec}". \`${TASK_COMMAND.name} show ${task.id}\` lists the ones it has.`,
-      );
-    }
-    if (path.resolve(folder.path) === workspace) {
-      throw new Error(
-        "every task keeps the workspace folder, which is where its results go when nothing else says. Hand it another folder to write to rather than taking this one away.",
-      );
-    }
-    return folder;
-  });
+  const removes = none
+    ? Object.values(taskFolders).filter(
+        (folder) => path.resolve(folder.path) !== workspace,
+      )
+    : askedRemoves.map((spec) => {
+        const folder = matchTaskFolder(spec, orchestratorFolders, taskFolders);
+        if (!folder) {
+          throw new Error(
+            `${task.id} has no folder "${spec}". \`${TASK_COMMAND.name} show ${task.id}\` lists the ones it has.`,
+          );
+        }
+        if (path.resolve(folder.path) === workspace) {
+          throw new Error(
+            "every task keeps the workspace folder, which is where its results go when nothing else says. Hand it another folder to write to rather than taking this one away.",
+          );
+        }
+        return folder;
+      });
+  const removedPaths = new Set(
+    removes.map((folder) => path.resolve(folder.path)),
+  );
+  const purpose = await grantPurpose("folder", task.id, context, stdin, [
+    ...Object.values(taskFolders).filter(
+      (folder) => !removedPaths.has(path.resolve(folder.path)),
+    ),
+    ...adds,
+  ]);
 
   const lines: string[] = [];
+  const facts: string[] = [];
   // Taken away first, so `--remove <folder> --add <folder>:ro` reads as the
   // re-grant it looks like rather than as a removal of what was just added.
   for (const folder of removes) {
@@ -450,9 +486,12 @@ export async function runFolder(args: string[], context: TaskCommandContext) {
     lines.push(
       `Took ${mountPathOf(folder.path, orchestratorFolders) ?? `${MOUNT.attachedFolders}/${folder.mountName}`} back from ${task.id}.`,
     );
+    facts.push(
+      `The folder ${folderLabel(folder.path)} at ${attachedFolderMountPoint(folder.mountName)} was taken back from you.`,
+    );
   }
   for (const folder of adds) {
-    await attachFolder({
+    const attached = await attachFolder({
       access: folder.access,
       path: folder.path,
       taskId: task.id,
@@ -460,61 +499,21 @@ export async function runFolder(args: string[], context: TaskCommandContext) {
     lines.push(
       `${task.id} now has ${mountPathOf(folder.path, orchestratorFolders) ?? folder.path} (${folder.access}).`,
     );
-  }
-  return ok(
-    `${lines.join("\n")}\nIt learns of this on the next message you send it; say what the folder is for when it is waiting on one.\n`,
-  );
-}
-
-/**
- * Stops what a task left running in the background: one process, or all of
- * them. Acts on the registry directly rather than asking the task to, which
- * would cost it a turn and trust the model that left the process behind. The
- * same act as the stop button beside the task's title.
- */
-export async function runKill(args: string[], context: TaskCommandContext) {
-  const task = await requireOwnChild(args[0], context);
-  const wanted = args[1];
-  const running = listTaskBackgroundProcesses(task.id).filter(
-    (process) => process.status === "running",
-  );
-  if (running.length === 0) {
-    return ok(`${task.id} has nothing running in the background.\n`);
-  }
-  const targets =
-    wanted === undefined
-      ? running
-      : running.filter((process) => process.id === wanted);
-  if (wanted !== undefined && targets.length === 0) {
-    const background = leftRunning(task.id)
-      .map((process) => describeLeftRunning(process))
-      .join(", ");
-    throw new Error(
-      `no ${wanted} running in ${task.id}. In the background: ${background}.`,
+    facts.push(
+      `You were handed the folder ${folderLabel(attached.path)} at ${attachedFolderMountPoint(attached.mountName)}, ${attached.access === "read-write" ? "read and write" : "read-only"}.`,
     );
   }
-  const now = Date.now();
-  const lines = await Promise.all(
-    targets.map(async (process) => {
-      const described = describeLeftRunning({
-        command: process.command,
-        id: process.id,
-        runningForMs: now - process.startedAt.getTime(),
-      });
-      const killed = await killBackgroundProcess({
-        by: "conversation",
-        id: process.id,
-        sessionId: process.sessionId,
-      });
-      if (!killed?.stoppedByThisCall) {
-        return `${process.id} had already ended.`;
-      }
-      return killed.terminationConfirmed
-        ? `Stopped ${described}.`
-        : `Told ${described} to stop, but could not confirm it did; \`${TASK_COMMAND.name} show ${task.id}\` will say.`;
-    }),
+  const told = await tellOfGrant({
+    added: adds.length > 0,
+    command: "folder",
+    context,
+    facts,
+    purpose,
+    task,
+  });
+  return ok(
+    `${lines.join("\n") || `${task.id} has no folder but the workspace folder.`}\n${told}`,
   );
-  return ok(`${lines.join("\n")}\n`);
 }
 
 export async function runNew(
@@ -705,11 +704,6 @@ export async function runSend(
   const orchestratorState = await getTaskState(
     taskDir(context.orchestratorTaskId),
   );
-  const rawURI = state.selectedModelURI ?? orchestratorState.selectedModelURI;
-  if (!rawURI) {
-    throw new Error("send: the task has no model; set one with `task model`.");
-  }
-  const { model, modelURI } = await resolveModel(rawURI, context);
   const orchestratorFolders = orchestratorState.attachedFolders ?? {};
   const askedFiles = values.get("file") ?? [];
   const layout = await orchestratorLayout(context, orchestratorFolders);
@@ -722,21 +716,69 @@ export async function runSend(
     [...Object.values(state.attachedFolders ?? {}), ...files],
     task.id,
   );
-  const session = await latestOrNewSessionId(task.id);
-  if (session.isErr()) {
-    throw session.error;
-  }
-  const sessionId = session.value;
-  const message = await newMessage({
+  const { message, running } = await deliver({
+    command: "send",
+    context,
     files,
-    model,
-    modelURI,
+    interrupt: now,
     // In the task's paths, as the brief that started it was.
     prompt: translateMountPaths(
       prompt,
       orchestratorFolders,
       state.attachedFolders ?? {},
     ),
+    task,
+  });
+  const sent = running
+    ? now
+      ? `Sent to ${task.id}. Its step in flight was stopped, and it takes this up as its next turn; you will be told when that turn finishes.`
+      : `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes. If its latest step has run for minutes without a tool call, \`send --now\` interrupts it.`
+    : `Sent to ${task.id}. It is running now; you will be told when it finishes.`;
+  return ok(`${sent}\n${handedFiles(message)}`);
+}
+
+/**
+ * Puts a message into a task: saved at once, so the task's transcript shows it
+ * the moment it was sent, then handed to its session, which runs it now when
+ * the task is idle and at its next step when it is working (at once, its step
+ * in flight stopped, with `interrupt`). Says whether the task was working.
+ */
+async function deliver({
+  command,
+  context,
+  files,
+  interrupt = false,
+  prompt,
+  task,
+}: {
+  command: string;
+  context: TaskCommandContext;
+  files?: Awaited<ReturnType<typeof resolveFileUploads>>;
+  interrupt?: boolean;
+  prompt: string;
+  task: Task;
+}) {
+  const state = await getTaskState(taskDir(task.id));
+  const orchestratorState = await getTaskState(
+    taskDir(context.orchestratorTaskId),
+  );
+  const rawURI = state.selectedModelURI ?? orchestratorState.selectedModelURI;
+  if (!rawURI) {
+    throw new Error(
+      `${command}: the task has no model; set one with \`task model\`.`,
+    );
+  }
+  const { model, modelURI } = await resolveModel(rawURI, context);
+  const session = await latestOrNewSessionId(task.id);
+  if (session.isErr()) {
+    throw session.error;
+  }
+  const sessionId = session.value;
+  const message = await newMessage({
+    ...(files ? { files } : {}),
+    model,
+    modelURI,
+    prompt,
     sessionId,
     taskId: task.id,
   });
@@ -744,7 +786,6 @@ export async function runSend(
     throw message.error;
   }
   const running = isWorking(task.id);
-  // Written now, so the task's transcript shows it the moment it was sent.
   const written = await Store.saveMessageWithParts(message.value, task.id);
   if (written.isErr()) {
     throw written.error;
@@ -754,7 +795,7 @@ export async function runSend(
     value: {
       agentName: "main",
       id: task.id,
-      interrupt: now,
+      interrupt,
       message: message.value,
       model,
       saved: true,
@@ -762,12 +803,90 @@ export async function runSend(
     },
   });
   await recordTaskActivity(task.id);
-  const sent = running
-    ? now
-      ? `Sent to ${task.id}. Its step in flight was stopped, and it takes this up as its next turn; you will be told when that turn finishes.`
-      : `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes. If its latest step has run for minutes without a tool call, \`send --now\` interrupts it.`
-    : `Sent to ${task.id}. It is running now; you will be told when it finishes.`;
-  return ok(`${sent}\n${handedFiles(message.value)}`);
+  return { message: message.value, running };
+}
+
+/**
+ * What the conversation said a folder or app is for, on stdin, in the task's
+ * paths. Checked before the grant is written, so a message naming a folder the
+ * task will not have refuses the whole call rather than half of it.
+ */
+async function grantPurpose(
+  command: "app" | "folder",
+  taskId: TaskId,
+  context: TaskCommandContext,
+  stdin: ByteString,
+  handed?: { path: string }[],
+): Promise<string> {
+  const said = promptFrom("", stdin);
+  if (!said) {
+    return "";
+  }
+  const orchestratorState = await getTaskState(
+    taskDir(context.orchestratorTaskId),
+  );
+  const orchestratorFolders = orchestratorState.attachedFolders ?? {};
+  const taskState = await getTaskState(taskDir(taskId));
+  const taskFolders = taskState.attachedFolders;
+  requireFoldersNamedInBriefHanded(
+    command,
+    said,
+    orchestratorFolders,
+    handed ?? Object.values(taskFolders ?? {}),
+    taskId,
+  );
+  // Translated against the folders as they stand once the grant is written,
+  // which is when the task reads it; `tellOfGrant` does that.
+  return said;
+}
+
+/**
+ * Tells a task what a `folder` or `app` call changed, so the change takes
+ * effect without a `send` after it: a working task hears it at its next step,
+ * and an idle one it handed something carries on with it as a new turn. An
+ * idle task that only lost something is left idle, since a turn to hear that
+ * would cost money and do nothing; the change rides its next message anyway,
+ * as the folder and app notes every message carries.
+ */
+async function tellOfGrant({
+  added,
+  command,
+  context,
+  facts,
+  purpose,
+  task,
+}: {
+  added: boolean;
+  command: "app" | "folder";
+  context: TaskCommandContext;
+  facts: string[];
+  purpose: string;
+  task: Task;
+}): Promise<string> {
+  const running = isWorking(task.id);
+  if (!running && !added && !purpose) {
+    return `${task.id} is not running; it is told when its next turn starts.\n`;
+  }
+  const orchestratorState = await getTaskState(
+    taskDir(context.orchestratorTaskId),
+  );
+  const state = await getTaskState(taskDir(task.id));
+  const said = purpose
+    ? translateMountPaths(
+        purpose,
+        orchestratorState.attachedFolders ?? {},
+        state.attachedFolders ?? {},
+      )
+    : "";
+  await deliver({
+    command,
+    context,
+    prompt: [facts.join(" "), said].filter(Boolean).join("\n\n"),
+    task,
+  });
+  return running
+    ? `Sent to ${task.id}, which is busy and hears this at its next step; you will be told when its turn finishes.\n`
+    : `Sent to ${task.id}, which carries on with it now; you will be told when it finishes.\n`;
 }
 
 /**
@@ -804,24 +923,45 @@ function withRefusals(
 const STOP_CONFIRM_MS = 5000;
 const STOP_POLL_MS = 100;
 
+/**
+ * One stop verb for everything a task has going. Bare, it ends the task's
+ * turn and leaves what it started in the background running, since a server
+ * the user is looking at outlives the turn that started it; with a process id
+ * it stops that one process and leaves the turn alone; `--all` ends both.
+ *
+ * Background processes are stopped through the registry directly rather than
+ * by asking the task to, which would cost it a turn and trust the model that
+ * left them behind: the same act as the stop button beside the task's title.
+ */
 export async function runStop(args: string[], context: TaskCommandContext) {
-  const task = await requireOwnChild(args[0], context);
-  const running = isWorking(task.id);
-  if (!running) {
-    return ok(`${task.id} is not running.\n`);
+  const { positional, values } = parseFlags(args, {
+    boolean: ["all"],
+    flags: [],
+    repeatable: [],
+  });
+  const task = await requireOwnChild(positional[0], context);
+  const processId = positional[1];
+  const all = values.has("all");
+  if (processId !== undefined && all) {
+    throw new Error(
+      "stop: a process id or --all, not both. --all already stops every process.",
+    );
   }
-  // The wake would report the turn this ends as a finish; it is not news.
-  expectStop(task.id);
-  getWorkspaceActorRef().send({ type: "stopSessions", value: { id: task.id } });
-  const timeoutMs = Math.max(
-    0,
-    Math.min(STOP_CONFIRM_MS, context.remainingYieldMs() - WAIT_MARGIN_MS),
-  );
-  const stopped = await waitForIdle(task.id, timeoutMs);
+  if (processId !== undefined) {
+    return ok(await stopBackground(task.id, processId));
+  }
+  const turn = isWorking(task.id)
+    ? await stopTurn(task.id, context)
+    : `${task.id} is not running.\n`;
+  if (all) {
+    return ok(`${turn}${await stopBackground(task.id)}`);
+  }
+  const background = leftRunning(task.id);
+  if (background.length === 0) {
+    return ok(turn);
+  }
   return ok(
-    stopped
-      ? `Stopped ${task.id}. Its turn ended where it was; \`task send\` gives it the next thing to do.\n`
-      : `Told ${task.id} to stop, and it is still ending; \`task show ${task.id}\` will say when it has.\n`,
+    `${turn}It left running in the background: ${background.map((process) => describeLeftRunning(process)).join(", ")}. \`${TASK_COMMAND.name} stop ${task.id} <bg id>\` stops one, \`${TASK_COMMAND.name} stop ${task.id} --all\` every one.\n`,
   );
 }
 
@@ -1152,7 +1292,7 @@ async function requireChild(
  * still something a brief can talk about, by its name, the way a person would.
  */
 function requireFoldersNamedInBriefHanded(
-  command: "new" | "send",
+  command: "app" | "folder" | "new" | "send",
   prompt: string,
   orchestratorFolders: FolderMounts,
   handed: ({ content: string } | { path: string })[],
@@ -1178,7 +1318,9 @@ function requireFoldersNamedInBriefHanded(
   const handOver =
     command === "new"
       ? `pass the folder with --folder`
-      : `hand it over first with \`${TASK_COMMAND.name} folder ${taskId ?? "<id>"} --add <path>\``;
+      : command === "folder"
+        ? `add it on this command with --add <path>`
+        : `hand it over first with \`${TASK_COMMAND.name} folder ${taskId ?? "<id>"} --add <path>\``;
   throw new Error(
     `${command}: the ${command === "new" ? "brief" : "message"} names ${named}, which this task ${command === "new" ? "is not handed" : "was not handed"}. A task reaches only the folders it is handed, at paths of its own, and your paths are translated to its paths only for those folders. If the task needs the folder, ${handOver}; if not, call the folder by its name rather than its path. Nothing was ${command === "new" ? "created" : "sent"}.`,
   );
@@ -1358,6 +1500,69 @@ async function runTrash(args: string[], context: TaskCommandContext) {
   return ok(`Moved ${task.id} ("${task.title}") to the trash.\n`);
 }
 
+/**
+ * Stops what a task left running in the background: the one process named, or
+ * every one. Says so when there is nothing, so `--all` on a task with no
+ * processes reads as done rather than as silence.
+ */
+async function stopBackground(taskId: TaskId, wanted?: string) {
+  const running = listTaskBackgroundProcesses(taskId).filter(
+    (process) => process.status === "running",
+  );
+  if (running.length === 0) {
+    return `${taskId} has nothing running in the background.\n`;
+  }
+  const targets =
+    wanted === undefined
+      ? running
+      : running.filter((process) => process.id === wanted);
+  if (wanted !== undefined && targets.length === 0) {
+    const background = leftRunning(taskId)
+      .map((process) => describeLeftRunning(process))
+      .join(", ");
+    throw new Error(
+      `no ${wanted} running in ${taskId}. In the background: ${background}.`,
+    );
+  }
+  const now = Date.now();
+  const lines = await Promise.all(
+    targets.map(async (process) => {
+      const described = describeLeftRunning({
+        command: process.command,
+        id: process.id,
+        runningForMs: now - process.startedAt.getTime(),
+      });
+      const killed = await killBackgroundProcess({
+        by: "conversation",
+        id: process.id,
+        sessionId: process.sessionId,
+      });
+      if (!killed?.stoppedByThisCall) {
+        return `${process.id} had already ended.`;
+      }
+      return killed.terminationConfirmed
+        ? `Stopped ${described}.`
+        : `Told ${described} to stop, but could not confirm it did; \`${TASK_COMMAND.name} show ${taskId}\` will say.`;
+    }),
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+/** Ends a working task's turn, and says whether it went idle in time. */
+async function stopTurn(taskId: TaskId, context: TaskCommandContext) {
+  // The wake would report the turn this ends as a finish; it is not news.
+  expectStop(taskId);
+  getWorkspaceActorRef().send({ type: "stopSessions", value: { id: taskId } });
+  const timeoutMs = Math.max(
+    0,
+    Math.min(STOP_CONFIRM_MS, context.remainingYieldMs() - WAIT_MARGIN_MS),
+  );
+  const stopped = await waitForIdle(taskId, timeoutMs);
+  return stopped
+    ? `Stopped ${taskId}. Its turn ended where it was; \`task send\` gives it the next thing to do.\n`
+    : `Told ${taskId} to stop, and it is still ending; \`task show ${taskId}\` will say when it has.\n`;
+}
+
 /** The id a tab goes by in the note and on `--tab`. */
 function tabIdOf(targetId: BrowserTargetId): string {
   return decodeBrowserTargetId(targetId)?.sessionId ?? targetId;
@@ -1468,7 +1673,13 @@ export async function runLog(args: string[], context: TaskCommandContext) {
     omitted > 0
       ? `[${omitted} earlier lines omitted; raise --tail to see more]\n`
       : "";
-  return ok(`${header}${text}\n`);
+  // The outline's lines are steps that happened; a working task's last line
+  // is the one still happening, which no step line measures.
+  const inFlight =
+    values.has("steps") && isWorking(task.id)
+      ? await stepInFlight(task.id)
+      : undefined;
+  return ok(`${header}${text}\n${inFlight ? `now: ${inFlight}\n` : ""}`);
 }
 
 /** The window and date flags `list` and `search` share. */
@@ -1681,9 +1892,11 @@ async function runShow(args: string[], context: TaskCommandContext) {
   // and a turn that ended with a scan still going leaves the task idle with
   // something running.
   const background = leftRunning(task.id);
+  const inFlight = running ? await stepInFlight(task.id) : undefined;
   const lines = [
     `${task.id}: "${task.title}"`,
     `status: ${running ? "running" : "idle"}`,
+    ...(inFlight ? [`now: ${inFlight}`] : []),
     ...(background.length > 0
       ? [
           `in the background: ${background.length > 1 ? "\n  " : ""}${background.map((process) => describeLeftRunning(process)).join("\n  ")}`,
@@ -1699,56 +1912,6 @@ async function runShow(args: string[], context: TaskCommandContext) {
     `last said: ${lastSaid ? `\n  ${lastSaid.replaceAll("\n", "\n  ")}` : "nothing yet"}`,
   ];
   return ok(`${lines.join("\n")}\n`);
-}
-
-async function runWait(
-  args: string[],
-  context: TaskCommandContext,
-  signal: AbortSignal | undefined,
-) {
-  const { positional, values } = parseFlags(args, {
-    flags: ["timeout"],
-    repeatable: [],
-  });
-  const task = await requireChild(positional[0], context);
-  const requestedRaw = values.get("timeout")?.[0];
-  const requested =
-    requestedRaw === undefined ? undefined : Number.parseInt(requestedRaw, 10);
-  if (requested !== undefined && !Number.isFinite(requested)) {
-    throw new Error("--timeout takes a number of milliseconds.");
-  }
-  const budget = Math.max(
-    0,
-    Math.min(MAX_WAIT_MS, context.remainingYieldMs() - WAIT_MARGIN_MS),
-  );
-  const timeoutMs =
-    requested === undefined ? budget : Math.min(requested, budget);
-
-  if (!isWorking(task.id)) {
-    return ok(`${task.id} is not running.\n`);
-  }
-
-  const timeout = AbortSignal.timeout(timeoutMs);
-  const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
-  const startedAt = Date.now();
-  try {
-    for await (const payload of publisher.subscribe("session.done", {
-      signal: combined,
-    })) {
-      if (payload.id === task.id && !payload.parentSessionId) {
-        return ok(
-          `${task.id} finished after ${ms(Math.max(1000, Date.now() - startedAt), { long: true })}. Read it with \`task show ${task.id}\` or \`task log ${task.id}\`.\n`,
-        );
-      }
-    }
-  } catch (error) {
-    if (!combined.aborted) {
-      throw error;
-    }
-  }
-  return ok(
-    `${task.id} is still running after ${ms(Math.max(1000, Date.now() - startedAt), { long: true })}. You will be told when it finishes; there is no need to wait again.\n`,
-  );
 }
 
 /**

@@ -49,7 +49,7 @@ describe("taskEventModelNote", () => {
             /mnt/Instrument/report.md
             \`\`\`
         Its folder /tasks/2026-09-08-find-the-vault holds: work/ 3 files, 1 file at the root.
-        It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`task kill 2026-09-08-find-the-vault <bg id>\`, or all of it with \`task kill 2026-09-08-find-the-vault\`; a server they are using stays.
+        It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`task stop 2026-09-08-find-the-vault <bg id>\`, or all of it with \`task stop 2026-09-08-find-the-vault --all\`; a server they are using stays.
       Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
     `);
@@ -148,5 +148,63 @@ describe("taskEventModelNote", () => {
     expect(note).toContain(
       'Its latest step: "Reading the sandbox environment factory"',
     );
+  });
+
+  // The latest step's label says what the step set out to do; the Now line
+  // says whether it is still doing it, which is what tells stuck from busy.
+  it("measures an overdue task's step in flight", () => {
+    const note = taskEventModelNote({
+      events: [
+        {
+          activeMs: 360_000,
+          inFlight:
+            "working 6m · last tool call 5m 40s ago · writing for 5m 35s: ~4.1K tokens, no tool call",
+          status: "overdue",
+          steps: ["bash: Searching pnpm source"],
+          taskId: TASK_ID,
+          title: "Find the pnpm store",
+        },
+      ],
+    });
+    expect(note).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      A task you created is taking a while:
+      - 2026-09-08-find-the-vault ("Find the pnpm store") is still working (6 minutes of work). Its steps this turn, latest last: "bash: Searching pnpm source".
+        Now: working 6m · last tool call 5m 40s ago · writing for 5m 35s: ~4.1K tokens, no tool call.
+      Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
+      </instrument-system-note>"
+    `);
+  });
+
+  it("reports a task that ended on a needs fence as waiting, its needs listed", () => {
+    const note = taskEventModelNote({
+      events: [
+        {
+          activeMs: 95_000,
+          needs: [
+            "folder: Desktop, to save the confirmation there",
+            "answer: which of the two Lisbon hotels?",
+          ],
+          status: "done",
+          summary: "I found both hotels but cannot book without a choice.",
+          taskId: TASK_ID,
+          title: "Book the Lisbon hotel",
+          tokens: 61_000,
+        },
+      ],
+    });
+    expect(note).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      A task you created is waiting on you:
+      - 2026-09-08-find-the-vault ("Book the Lisbon hotel") is waiting on you (2 minutes of work, 61K tokens so far). It said:
+            I found both hotels but cannot book without a choice.
+        It cannot go on without:
+            folder: Desktop, to save the confirmation there
+            answer: which of the two Lisbon hotels?
+      Nobody typed anything; this note is why you are awake.
+      </instrument-system-note>"
+    `);
   });
 });

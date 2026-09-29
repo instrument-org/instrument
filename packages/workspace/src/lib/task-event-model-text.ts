@@ -23,9 +23,11 @@ export function taskEventModelNote(
         ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
         : event.status === "overdue"
           ? "is still working"
-          : event.ended
-            ? `was ${asClause(event.ended)}`
-            : "finished a turn";
+          : event.needs && event.needs.length > 0
+            ? "is waiting on you"
+            : event.ended
+              ? `was ${asClause(event.ended)}`
+              : "finished a turn";
     // Cache reads are named beside the total because they are most of a long
     // task's tokens and cost a fraction of the rest; the bare total reads as
     // money spent at full price, and a task stopped for its bill was measured
@@ -66,14 +68,24 @@ export function taskEventModelNote(
     // The shape of its folder, as counts: enough to see a repository copied
     // in or a build left behind, without a listing the orchestrator can make
     // for itself when it wants the names.
+    // What the step running now is doing, on its own line: the measure of a
+    // step that may never end on its own, which its label does not give.
+    const inFlight =
+      event.status === "overdue" && event.inFlight
+        ? `\n  Now: ${event.inFlight}.`
+        : "";
+    const needs =
+      event.needs && event.needs.length > 0
+        ? `\n  It cannot go on without:\n${event.needs.map((need) => `      ${need}`).join("\n")}`
+        : "";
     const holds = event.holds
       ? `\n  Its folder ${MOUNT.tasks}/${event.taskId} holds${event.status === "overdue" ? " so far" : ""}: ${describeHoldings(event.holds)}.`
       : "";
     const running =
       event.running && event.running.length > 0
-        ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} kill ${event.taskId} <bg id>\`, or all of it with \`${TASK_COMMAND.name} kill ${event.taskId}\`; a server they are using stays.`
+        ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${event.taskId} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${event.taskId} --all\`; a server they are using stays.`
         : "";
-    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${holds}${running}`;
+    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${inFlight}${needs}${holds}${running}`;
   });
 
   // What to do about a wake is the prompt's business (When a task finishes);
@@ -95,8 +107,19 @@ export function taskEventModelNote(
     `;
   }
 
+  const waiting = data.events.every(
+    (event) => event.needs && event.needs.length > 0,
+  );
   return systemNote`
-    ${data.events.length === 1 ? "A task you created has finished:" : "Tasks you created have finished:"}
+    ${
+      waiting
+        ? data.events.length === 1
+          ? "A task you created is waiting on you:"
+          : "Tasks you created are waiting on you:"
+        : data.events.length === 1
+          ? "A task you created has finished:"
+          : "Tasks you created have finished:"
+    }
     ${lines.join("\n")}
     Nobody typed anything; this note is why you are awake.
   `;

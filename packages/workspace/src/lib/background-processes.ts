@@ -132,7 +132,7 @@ export interface BackgroundRunHandle {
 /**
  * Who asked a process to stop. The agent reads each differently: its own
  * `kill` is a step it took, the user's stop button is a decision it must not
- * undo by starting the process again, and the conversation's `task kill` is
+ * undo by starting the process again, and the conversation's `task stop` is
  * the assistant that briefed it stepping in.
  */
 export type StoppedBy = "agent" | "conversation" | "user";

@@ -9,6 +9,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
 import { getTasks } from "../get-tasks";
 import { filesNamedIn } from "../parse-files-block";
+import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
 import { chatOfSession, isChatId, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
@@ -20,6 +21,7 @@ import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { chatOfTask } from "./attribution";
 import { listChatIds } from "./chat-records";
 import { taskFolderHoldings } from "./folder-holdings";
+import { stepInFlight } from "./in-flight";
 import {
   cutForNote,
   lastAssistantText,
@@ -373,10 +375,17 @@ async function onSessionDone(
   // The note carries the receipt itself; this is for the card, which draws
   // the files as chips.
   const files = receipt === undefined ? [] : filesNamedIn(receipt);
+  // What the task cannot go on without, read the same way and listed apart
+  // from its words, so a turn that ended blocked reads as waiting rather than
+  // finished and the fence is not said twice.
+  const needs = receipt === undefined ? [] : needsNamedIn(receipt);
   const summary =
     receipt === undefined
       ? undefined
-      : cutForNote(receipt, WAKE_SUMMARY_MAX_LENGTH);
+      : cutForNote(
+          needs.length > 0 ? withoutNeedsFences(receipt) : receipt,
+          WAKE_SUMMARY_MAX_LENGTH,
+        );
   schedule(
     orchestratorId,
     {
@@ -384,6 +393,7 @@ async function onSessionDone(
       ...(ending ? { ended: ending.line } : {}),
       ...(files.length > 0 ? { files } : {}),
       holds: await taskFolderHoldings(id),
+      ...(needs.length > 0 ? { needs } : {}),
       ...(running.length > 0 ? { running } : {}),
       status: ending?.failed ? "error" : "done",
       summary,
@@ -419,9 +429,9 @@ function schedule(
 
 /**
  * Where a working task stands: how long and how much so far, where it has
- * gone this turn, and what it has written. The two things that tell a task
- * doing deep work apart from one that is lost, which its latest step alone
- * does not.
+ * gone this turn, what it has written, and what the step running now is
+ * doing. What tells a task doing deep work apart from one that is lost, which
+ * its latest step alone does not.
  */
 async function stillWorkingEvent({
   orchestratorId,
@@ -446,6 +456,7 @@ async function stillWorkingEvent({
     activeMs: usage.activeMs,
     cachedTokens: usage.inputTokenDetails.cacheReadTokens,
     holds: await taskFolderHoldings(taskId),
+    inFlight: await stepInFlight(taskId),
     status: "overdue",
     steps: steps.filter((step) => step !== undefined),
     summary: await inOrchestratorPaths(await latestStep(taskId), paths),

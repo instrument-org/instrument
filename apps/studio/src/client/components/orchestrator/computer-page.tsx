@@ -1470,10 +1470,14 @@ export function FolderMenu({
             <ClipboardTextIcon className="size-4" />
             <span>Copy Path</span>
           </ContextMenuItem>
-          <ContextMenuItem onClick={onReveal}>
-            <RevealInFolderIcon className="size-4" />
-            <span>{getRevealInFolderLabel()}</span>
-          </ContextMenuItem>
+          {/* The Open in list already offers the Finder, so a row of its
+              own would name it twice. */}
+          {file && isMacOS() ? null : (
+            <ContextMenuItem onClick={onReveal}>
+              <RevealInFolderIcon className="size-4" />
+              <span>{getRevealInFolderLabel()}</span>
+            </ContextMenuItem>
+          )}
         </>
       ) : (
         <>

@@ -1,4 +1,4 @@
-import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
@@ -82,8 +82,11 @@ function FolderGroup({
                     onReveal(folder);
                   }}
                 >
-                  <RevealInFolderIcon className="size-4 text-muted-foreground" />
-                  <span>{getRevealInFolderLabel()}</span>
+                  <ShowInFolderIcon
+                    className="size-4 text-muted-foreground"
+                    kind="folder"
+                  />
+                  <span>{showInFolderLabel("folder")}</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -111,13 +114,6 @@ function UnrecognizedFolders() {
   );
   const trashMutation = useMutation(
     rpcClient.workspace.storage.invalidFolders.trash.mutationOptions(),
-  );
-  const revealMutation = useMutation(
-    rpcClient.utils.showFileInFolder.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't reveal that folder");
-      },
-    }),
   );
   const [folderToTrash, setFolderToTrash] = useState<InvalidFolder | null>(
     null,
@@ -164,7 +160,7 @@ function UnrecognizedFolders() {
         <FolderGroup
           folders={projects}
           onReveal={(folder) => {
-            revealMutation.mutate({ filepath: folder.path });
+            void showInFolder(folder.path, { kind: "folder" });
           }}
           onTrash={setFolderToTrash}
           title="Projects"
@@ -174,7 +170,7 @@ function UnrecognizedFolders() {
         <FolderGroup
           folders={tasks}
           onReveal={(folder) => {
-            revealMutation.mutate({ filepath: folder.path });
+            void showInFolder(folder.path, { kind: "folder" });
           }}
           onTrash={setFolderToTrash}
           title="Tasks"
@@ -219,15 +215,6 @@ function WorkspaceLocation() {
   const { data: location } = useQuery(
     rpcClient.workspace.storage.location.queryOptions(),
   );
-  const revealMutation = useMutation(
-    rpcClient.utils.openFolder.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't open the workspace folder", {
-          description: error.message,
-        });
-      },
-    }),
-  );
 
   if (!location) {
     return null;
@@ -241,13 +228,13 @@ function WorkspaceLocation() {
         </h4>
         <Button
           onClick={() => {
-            revealMutation.mutate({ folderPath: location.rootDir });
+            void showInFolder(location.rootDir, { kind: "folder" });
           }}
           size="sm"
           variant="outline"
         >
-          <RevealInFolderIcon className="size-4" />
-          {getRevealInFolderLabel()}
+          <ShowInFolderIcon className="size-4" kind="folder" />
+          {showInFolderLabel("folder")}
         </Button>
       </div>
       <div className="rounded-lg border bg-muted/40 px-3 py-2">

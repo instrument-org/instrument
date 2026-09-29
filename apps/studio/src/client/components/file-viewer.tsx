@@ -19,8 +19,8 @@ import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language
 import { flushFileWrites } from "@/client/lib/file-flush";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { UNTRUSTED_TASK_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
+import { cn } from "@/client/lib/utils";
 import {
   isMessageDocument,
   parseMessage,
@@ -33,7 +33,7 @@ import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { XIcon } from "@phosphor-icons/react/X";
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { motion } from "motion/react";
 import {
@@ -56,7 +56,7 @@ import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
-import { RevealInFolderIcon } from "./icons/reveal-in-folder";
+import { ShowInFolderIcon } from "./icons/reveal-in-folder";
 import { ImageViewer } from "./image-viewer";
 import { MarkdownDocument } from "./markdown-outline";
 import { MessageCard } from "./message-card";
@@ -750,17 +750,6 @@ export function FileViewer({
   // offers the others; the viewer's own head keeps the split button.
   const isInRow = actionsInto !== undefined;
   const openControl = useFileOpenControl(file, { loadCandidates: !isInRow });
-  const revealFileMutation = useMutation(
-    rpcClient.utils.showFileInFolder.mutationOptions({
-      onError: (error) => {
-        const label = getRevealInFolderLabel();
-        const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
-        toast.error(`Failed to ${lowercasedLabel}`, {
-          description: error.message,
-        });
-      },
-    }),
-  );
 
   const fileType = getFileType(file);
   // The source is where a file with a view of its own goes to be edited as
@@ -834,7 +823,7 @@ export function FileViewer({
   };
 
   const handleRevealInFolder = () => {
-    revealFileMutation.mutate({ filepath: hostPath });
+    void showInFolder(hostPath, { kind: "file" });
   };
 
   const viewer: ViewerEntry = showsSource ? SOURCE_VIEWER : VIEWERS[fileType];
@@ -943,8 +932,8 @@ export function FileViewer({
             )}
             {fileActions.showReveal && (
               <DropdownMenuItem onClick={handleRevealInFolder}>
-                <RevealInFolderIcon className="size-4" />
-                <span>{getRevealInFolderLabel()}</span>
+                <ShowInFolderIcon className="size-4" kind="file" />
+                <span>{showInFolderLabel("file")}</span>
               </DropdownMenuItem>
             )}
             {hasHeaderMenuActions &&

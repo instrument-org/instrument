@@ -800,6 +800,11 @@ const copyTaskPathToClipboard = base
     clipboard.writeText(taskDir(taskId));
   });
 
+/** Where a task's folder is on the computer, for the window to show it in its own folder view. */
+const taskFolderPath = base
+  .input(z.object({ id: TaskIdSchema }))
+  .handler(({ input }) => taskDir(input.id));
+
 const copyProjectPathToClipboard = base
   .errors({
     PROJECT_NOT_FOUND: { message: "Project not found" },
@@ -954,5 +959,6 @@ export const utils = {
   showFolderPicker,
   showProjectInFolder,
   syncZoom,
+  taskFolderPath,
   toggleMaximizeWindow,
 };

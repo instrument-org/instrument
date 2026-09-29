@@ -1,4 +1,6 @@
+import { hasFilesView } from "@/client/lib/show-in-files";
 import { isMacOS } from "@/client/lib/utils";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 
 export function RevealInFolderIcon({ className }: { className?: string }) {
@@ -19,4 +21,22 @@ export function RevealInFolderIcon({ className }: { className?: string }) {
     );
   }
   return <FolderOpenIcon className={className} />;
+}
+
+/** The mark beside `showInFolderLabel`: a folder for a file shown in its folder, Files' own for a folder opened there, and the file manager's elsewhere. */
+export function ShowInFolderIcon({
+  className,
+  kind,
+}: {
+  className?: string;
+  kind: "file" | "folder";
+}) {
+  if (!hasFilesView()) {
+    return <RevealInFolderIcon className={className} />;
+  }
+  return kind === "file" ? (
+    <FolderOpenIcon className={className} />
+  ) : (
+    <FileTextIcon className={className} />
+  );
 }

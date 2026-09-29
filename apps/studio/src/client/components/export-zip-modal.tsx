@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { type Task } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
@@ -21,10 +21,6 @@ interface ExportZipModalProps {
 }
 
 export function ExportZipModal({ isOpen, onClose, task }: ExportZipModalProps) {
-  const showFileInFolderMutation = useMutation(
-    rpcClient.utils.showFileInFolder.mutationOptions(),
-  );
-
   const exportZipMutation = useMutation(
     rpcClient.utils.exportZip.mutationOptions({
       onError: (error: Error) => {
@@ -35,11 +31,9 @@ export function ExportZipModal({ isOpen, onClose, task }: ExportZipModalProps) {
       onSuccess: (result) => {
         toast.success("Task exported to Downloads", {
           action: {
-            label: getRevealInFolderLabel(),
+            label: showInFolderLabel("file"),
             onClick: () => {
-              showFileInFolderMutation.mutate({
-                filepath: result.filepath,
-              });
+              void showInFolder(result.filepath, { kind: "file" });
             },
           },
           closeButton: true,

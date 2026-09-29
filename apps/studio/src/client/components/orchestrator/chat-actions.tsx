@@ -1,6 +1,6 @@
-import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
@@ -104,15 +104,6 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
       },
     }),
   );
-  const { mutate: reveal } = useMutation(
-    rpcClient.utils.openTaskIn.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to open the chat's folder", {
-          description: error.message,
-        });
-      },
-    }),
-  );
   return (chat) => {
     const input = { sessionId: chat.id };
     const put: RowAction = chat.archived
@@ -189,12 +180,12 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
       },
     };
     const show: RowAction = {
-      icon: <RevealInFolderIcon className="size-4" />,
+      icon: <ShowInFolderIcon className="size-4" kind="folder" />,
       id: "reveal",
-      label: getRevealInFolderLabel(),
+      label: showInFolderLabel("folder"),
       menuOnly: true,
       run: () => {
-        reveal({ id: chat.taskId, type: "show-in-folder" });
+        void showTaskFolder(chat.taskId);
       },
     };
     return [put, ...mark, starred, save, show];

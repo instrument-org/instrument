@@ -1,8 +1,7 @@
 import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { captureException } from "@/client/lib/telemetry";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { safe } from "@orpc/client";
 import { sleep } from "radashi";
 import { toast } from "sonner";
 
@@ -44,9 +43,9 @@ export function initBrowserDownloadNotices(): () => void {
           }
           toast.success(`Downloaded ${download.filename}`, {
             action: {
-              label: getRevealInFolderLabel(),
+              label: showInFolderLabel("file"),
               onClick: () => {
-                void reveal(path);
+                void showInFolder(path, { kind: "file" });
               },
             },
             description: `Saved in ${folder}`,
@@ -70,13 +69,4 @@ export function initBrowserDownloadNotices(): () => void {
   return () => {
     controller.abort();
   };
-}
-
-async function reveal(filepath: string) {
-  const [error] = await safe(
-    rpcClient.utils.showFileInFolder.call({ filepath }),
-  );
-  if (error) {
-    toast.error("That file is no longer on disk.");
-  }
 }

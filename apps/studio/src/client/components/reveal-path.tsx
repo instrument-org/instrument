@@ -1,3 +1,4 @@
+import { hasFilesView, showInFolder } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -11,7 +12,8 @@ const HOME_PREFIX =
   /^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[/\\]Users[/\\][^/\\]+)/;
 
 /**
- * A path with the home directory collapsed, that reveals itself in Finder.
+ * A path with the home directory collapsed, that shows its folder: in Files
+ * where the window has it, in the Finder elsewhere.
  *
  * Paths are shown shortened because the full one is mostly noise, and the
  * username in it is the user's own name — fine on screen, needless in a
@@ -36,6 +38,10 @@ export function RevealPath({
         className,
       )}
       onClick={async () => {
+        if (hasFilesView()) {
+          await showInFolder(path, { kind: "folder" });
+          return;
+        }
         const [error] = await safe(
           rpcClient.utils.showFileInFolder.call({ filepath: path }),
         );

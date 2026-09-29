@@ -2,19 +2,17 @@ import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
-import { rpcClient } from "@/client/rpc/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 import { useFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
-import { getRevealInFolderLabel, isMacOS } from "../lib/utils";
-import { RevealInFolderIcon } from "./icons/reveal-in-folder";
+import { showInFolder, showInFolderLabel } from "../lib/show-in-files";
+import { isMacOS } from "../lib/utils";
+import { ShowInFolderIcon } from "./icons/reveal-in-folder";
 import { OpenInAppMenuItems } from "./open-in-app";
 import { Button, type ButtonVariant } from "./ui/button";
 import {
@@ -96,18 +94,6 @@ export function FileActionsMenuItems({
   // the first frame; elsewhere there is a row only once an app is named.
   const showOpenIn = isMacOS() || showOpen;
 
-  const showFileInFolderMutation = useMutation(
-    rpcClient.utils.showFileInFolder.mutationOptions({
-      onError: (error) => {
-        const label = getRevealInFolderLabel();
-        const lowercasedLabel = label.charAt(0).toLowerCase() + label.slice(1);
-        toast.error(`Failed to ${lowercasedLabel}`, {
-          description: error.message,
-        });
-      },
-    }),
-  );
-
   const { active: copied, trigger: triggerCopied } = useTimedFlag();
 
   const handleCopy = async () => {
@@ -130,7 +116,7 @@ export function FileActionsMenuItems({
   };
 
   const handleRevealInFolder = () => {
-    showFileInFolderMutation.mutate({ filepath: file.hostPath });
+    void showInFolder(file.hostPath, { kind: "file" });
   };
 
   const hasFileActions =
@@ -187,8 +173,8 @@ export function FileActionsMenuItems({
       )}
       {fileActions.showReveal && (
         <Item onClick={handleRevealInFolder}>
-          <RevealInFolderIcon className="size-4" />
-          <span>{getRevealInFolderLabel()}</span>
+          <ShowInFolderIcon className="size-4" kind="file" />
+          <span>{showInFolderLabel("file")}</span>
         </Item>
       )}
     </>

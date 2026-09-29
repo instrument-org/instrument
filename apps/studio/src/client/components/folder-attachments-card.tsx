@@ -1,9 +1,7 @@
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
-import { rpcClient } from "@/client/rpc/client";
+import { showInFolder } from "@/client/lib/show-in-files";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
-import { safe } from "@orpc/client";
-import { toast } from "sonner";
 
 import { Button } from "./ui/button";
 
@@ -40,13 +38,7 @@ function FolderAttachmentPreview({
   folder: SessionMessageDataPart.FolderAttachmentDataPart;
 }) {
   const handleClick = async () => {
-    const [error] = await safe(
-      rpcClient.utils.openFolder.call({ folderPath: folder.path }),
-    );
-
-    if (error) {
-      toast.error("Failed to open folder", { description: error.message });
-    }
+    await showInFolder(folder.path, { kind: "folder" });
   };
 
   return (

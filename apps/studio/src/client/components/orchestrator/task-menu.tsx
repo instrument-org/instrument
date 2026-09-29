@@ -1,4 +1,4 @@
-import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -8,13 +8,10 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
-import { getRevealInFolderLabel } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
 
 /**
  * The menu beside a task's name, for what someone looking over its shoulder can
@@ -30,15 +27,6 @@ export function TaskMenu({
   taskId: TaskId;
 }) {
   const transcript = useTranscriptActions({ id: taskId, sessionId });
-  const reveal = useMutation(
-    rpcClient.utils.openTaskIn.mutationOptions({
-      onError: (error) => {
-        toast.error("Failed to open the task folder", {
-          description: error.message,
-        });
-      },
-    }),
-  );
 
   return (
     <DropdownMenu>
@@ -72,11 +60,11 @@ export function TaskMenu({
           only way to see what it wrote that it never mentioned. */}
         <DropdownMenuItem
           onSelect={() => {
-            reveal.mutate({ id: taskId, type: "show-in-folder" });
+            void showTaskFolder(taskId);
           }}
         >
-          <RevealInFolderIcon className="size-4" />
-          {getRevealInFolderLabel()}
+          <ShowInFolderIcon className="size-4" kind="folder" />
+          {showInFolderLabel("folder")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

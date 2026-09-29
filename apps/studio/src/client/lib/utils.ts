@@ -12,6 +12,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** What the system's own file manager is called here, for a row that hands a file to it. */
+export function getFileManagerName(): string {
+  if (isMacOS()) {
+    return "Finder";
+  }
+  if (isWindows()) {
+    return "File Explorer";
+  }
+  return "File Manager";
+}
+
 export function getRevealInFolderLabel(): string {
   if (isMacOS()) {
     return "Reveal in Finder";

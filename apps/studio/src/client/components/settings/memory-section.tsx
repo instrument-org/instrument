@@ -1,7 +1,7 @@
 import { CHATS_HREF } from "@/client/atoms/orchestrator";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { Favicon } from "@/client/components/favicon";
-import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OrchestratorContext } from "@/client/components/orchestrator/context";
 import { GlyphButton } from "@/client/components/orchestrator/glyph-button";
 import { RelativeTime } from "@/client/components/relative-time";
@@ -19,7 +19,8 @@ import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import { Input } from "@/client/components/ui/input";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
-import { cn, getRevealInFolderLabel } from "@/client/lib/utils";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
+import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
@@ -543,14 +544,6 @@ function MemoryRow({
 
 /** The way to the files themselves, beside the list they hold. */
 function RevealFolder({ dir, hidden }: { dir: string; hidden: boolean }) {
-  const revealMutation = useMutation(
-    rpcClient.utils.openFolder.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't open the memory folder");
-      },
-    }),
-  );
-
   if (hidden) {
     return null;
   }
@@ -558,12 +551,12 @@ function RevealFolder({ dir, hidden }: { dir: string; hidden: boolean }) {
     <Button
       className="h-auto p-0 text-xs font-normal text-muted-foreground"
       onClick={() => {
-        revealMutation.mutate({ folderPath: dir });
+        void showInFolder(dir, { kind: "folder" });
       }}
       variant="link"
     >
-      <RevealInFolderIcon className="size-3.5" />
-      {getRevealInFolderLabel()}
+      <ShowInFolderIcon className="size-3.5" kind="folder" />
+      {showInFolderLabel("folder")}
     </Button>
   );
 }

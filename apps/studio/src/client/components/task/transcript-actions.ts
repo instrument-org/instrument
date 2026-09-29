@@ -1,4 +1,4 @@
-import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
@@ -35,10 +35,6 @@ export function useTranscriptActions({
   label?: string;
   sessionId: StoreId.Session | undefined;
 }) {
-  const { mutate: showFileInFolder } = useMutation(
-    rpcClient.utils.showFileInFolder.mutationOptions(),
-  );
-
   // The stable `mutate` and the flag rather than the mutation objects, which
   // are new on every render: a list that saves through this hook memoizes on
   // what it returns.
@@ -70,9 +66,9 @@ export function useTranscriptActions({
         // holds its path, so it would only be a long string to wrap.
         toast.success("Transcript saved to Downloads", {
           action: {
-            label: getRevealInFolderLabel(),
+            label: showInFolderLabel("file"),
             onClick: () => {
-              showFileInFolder({ filepath: result.filepath });
+              void showInFolder(result.filepath, { kind: "file" });
             },
           },
           description: "Path copied to clipboard",

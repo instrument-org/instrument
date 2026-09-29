@@ -1,10 +1,13 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { useFileOpenCandidates } from "@/client/hooks/use-file-open-target";
 import { useOpenFileWith } from "@/client/hooks/use-open-file";
+import { hasFilesView, revealInFileManager } from "@/client/lib/show-in-files";
+import { getFileManagerName } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { type ReactElement } from "react";
 
 import { IconWithFallback } from "./icon-with-fallback";
+import { RevealInFolderIcon } from "./icons/reveal-in-folder";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,7 +90,7 @@ function OpenWithCandidates({
   menuComponents: MenuComponents;
   omitDefault?: boolean;
 }) {
-  const { Item } = menuComponents;
+  const { Item, Separator } = menuComponents;
   const { apps, isError, isPending } = useFileOpenCandidates(file, {
     enabled: true,
   });
@@ -103,28 +106,54 @@ function OpenWithCandidates({
         ...apps.filter((candidate) => !candidate.isDefault),
       ];
 
+  // Where the window shows a file in Files of its own, the system's file
+  // manager is one more app the file can go to, listed after the apps that
+  // open it.
+  const fileManager = hasFilesView() && (
+    <>
+      <Separator />
+      <Item
+        onClick={() => {
+          void revealInFileManager(file.hostPath);
+        }}
+      >
+        <RevealInFolderIcon className="size-5" />
+        <span className="truncate">{getFileManagerName()}</span>
+      </Item>
+    </>
+  );
+
   if (isPending) {
     return (
-      <Item disabled>
-        <Spinner className="size-4" delay={0} />
-        <span>Loading apps…</span>
-      </Item>
+      <>
+        <Item disabled>
+          <Spinner className="size-4" delay={0} />
+          <span>Loading apps…</span>
+        </Item>
+        {fileManager}
+      </>
     );
   }
 
   if (isError) {
     return (
-      <Item disabled>
-        <span>Couldn&apos;t load apps</span>
-      </Item>
+      <>
+        <Item disabled>
+          <span>Couldn&apos;t load apps</span>
+        </Item>
+        {fileManager}
+      </>
     );
   }
 
   if (candidates.length === 0) {
     return (
-      <Item disabled>
-        <span>No apps available</span>
-      </Item>
+      <>
+        <Item disabled>
+          <span>No apps available</span>
+        </Item>
+        {fileManager}
+      </>
     );
   }
 
@@ -145,6 +174,7 @@ function OpenWithCandidates({
           <span className="truncate">{candidate.appName}</span>
         </Item>
       ))}
+      {fileManager}
     </>
   );
 }

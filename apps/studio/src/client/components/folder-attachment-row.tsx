@@ -4,13 +4,11 @@ import {
 } from "@/client/components/folder-access-list";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
-import { rpcClient } from "@/client/rpc/client";
+import { showInFolder } from "@/client/lib/show-in-files";
 import { APP_NAME } from "@instrument-org/shared";
 import { type FolderAttachment } from "@instrument-org/workspace/client";
-import { safe } from "@orpc/client";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -53,12 +51,7 @@ export function FolderAttachmentRow({
   const name = folderLabel(path);
 
   const handleOpen = async () => {
-    const [error] = await safe(
-      rpcClient.utils.openFolder.call({ folderPath: path }),
-    );
-    if (error) {
-      toast.error("Failed to open folder", { description: error.message });
-    }
+    await showInFolder(path, { kind: "folder" });
   };
 
   return (

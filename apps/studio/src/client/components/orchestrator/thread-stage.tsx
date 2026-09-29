@@ -3,14 +3,9 @@ import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { TaskChat } from "@/client/components/task/chat";
 import { Spinner } from "@/client/components/ui/spinner";
-import {
-  ActiveTabProvider,
-  useIsActiveTab,
-} from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
-import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type SessionMessageDataPart,
@@ -18,7 +13,7 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useContext, useEffect, useState } from "react";
+import { type ReactNode, useContext, useEffect } from "react";
 
 import { AskPills } from "./ask-pills";
 import { OrchestratorContext, useOrchestrator } from "./context";
@@ -26,9 +21,6 @@ import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { threadListOptions } from "./thread-list-query";
 import { ThreadWork } from "./thread-work";
 import { WorkingRow } from "./working-row";
-
-/** How many threads stay mounted behind the one on screen. */
-const KEPT = 4;
 
 interface ThreadScreenProps {
   /** Drawn at the head of the composer: what goes with a message besides its words. */
@@ -69,78 +61,6 @@ export function ThreadScreen(props: ThreadScreenProps) {
     );
   }
   return <ChatScreen {...props} taskId={taskId} />;
-}
-
-/**
- * The threads on screen and the few lately left, all mounted: the one whose
- * group is up is shown over its tabs, and the others stay laid out under it,
- * hidden, so coming back to a thread is the transcript as it was rather than
- * a transcript rebuilt, with its images and its scroll. Which thread is up
- * is the tab model's business; the stage only follows it.
- */
-export function ThreadStage({
-  sendContext,
-  sessionId,
-}: {
-  /** What a thread's tab up shows, read as a reply is sent in that thread, so the reply carries it. */
-  sendContext: (
-    sessionId: StoreId.Session,
-  ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** The thread whose group is up, or nothing while a draft's is. */
-  sessionId: StoreId.Session | undefined;
-}) {
-  // `recency` is newest last, and says which to let go of; the one up is
-  // always among them. `order` is the same threads in the order they arrived,
-  // which is the order they are drawn in: a kept thread moved in the DOM is
-  // detached and put back, which takes its transcript's scroll to the top and
-  // replays every animation in it.
-  const [kept, setKept] = useState<{
-    order: StoreId.Session[];
-    recency: StoreId.Session[];
-  }>({ order: [], recency: [] });
-  if (sessionId !== undefined && kept.recency.at(-1) !== sessionId) {
-    setKept((current) => {
-      const recency = [
-        ...current.recency.filter((id) => id !== sessionId),
-        sessionId,
-      ].slice(-KEPT);
-      const order = current.order.filter((id) => recency.includes(id));
-      return {
-        order: order.includes(sessionId) ? order : [...order, sessionId],
-        recency,
-      };
-    });
-  }
-  // Up only while the window's tab this stands in is the one up as well: a
-  // chat behind another tab is not read, and does not take the caret.
-  const isTabActive = useIsActiveTab();
-  return (
-    <>
-      {kept.order.map((id) => {
-        const isUp = id === sessionId && isTabActive;
-        return (
-          <div
-            aria-hidden={!isUp}
-            // Hidden by visibility rather than display, so the transcript
-            // keeps its layout and its scroll while it waits.
-            className={cn(
-              "absolute inset-0",
-              isUp ? undefined : "pointer-events-none invisible",
-            )}
-            key={id}
-          >
-            <ActiveTabProvider isActive={isUp}>
-              <ThreadScreen
-                isUp={isUp}
-                sendContext={() => sendContext(id)}
-                sessionId={id}
-              />
-            </ActiveTabProvider>
-          </div>
-        );
-      })}
-    </>
-  );
 }
 
 function ChatScreen({

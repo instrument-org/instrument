@@ -39,7 +39,7 @@ import { TabLocationRow } from "@/client/components/orchestrator/tab-location-ro
 import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
 import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
 import { ThreadRail } from "@/client/components/orchestrator/thread-rail";
-import { ThreadStage } from "@/client/components/orchestrator/thread-stage";
+import { ThreadScreen } from "@/client/components/orchestrator/thread-stage";
 import {
   parseHref,
   threadOfHref,
@@ -337,15 +337,19 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
                         topics={shell.topics}
                       />
                       <div className="relative min-h-0 flex-1">
-                        <ThreadStage
-                          sendContext={(id) =>
-                            shell.sendContext({
-                              isViewOpen: id === thread && showsPane,
-                              sessionId: id,
-                            })
-                          }
-                          sessionId={thread}
-                        />
+                        <div className="absolute inset-0">
+                          <ThreadScreen
+                            isUp={isActive}
+                            key={thread}
+                            sendContext={() =>
+                              shell.sendContext({
+                                isViewOpen: showsPane,
+                                sessionId: thread,
+                              })
+                            }
+                            sessionId={thread}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -578,10 +582,7 @@ function SiteView({ group }: { group: string }) {
         current.group === group
           ? (stashed[0]?.id ?? current.activeId)
           : current.activeId,
-      tabs: [
-        ...current.tabs.filter((tab) => tab.group !== group),
-        ...stashed,
-      ],
+      tabs: [...current.tabs.filter((tab) => tab.group !== group), ...stashed],
     }));
     setPutAway((current) => {
       const { [group]: _restored, ...rest } = current;

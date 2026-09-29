@@ -14,6 +14,14 @@ interface TranscriptGroupValue {
    */
   isHead: boolean;
   /**
+   * The agent is still working inside this group. A head line that is a copy
+   * of one of its steps keeps the live indicator for all of that time, not only
+   * while its own step runs: the gap between one call ending and the next
+   * starting is most of a working run, and a head line that went quiet for it
+   * would read as the run stopping and starting on every step.
+   */
+  isWorking: boolean;
+  /**
    * How many commands started inside this group are still running. The heading
    * shows the badge for them: a fold hides the row that would carry it, which
    * turns "the server is still up" into something you only find by expanding a
@@ -81,6 +89,7 @@ export function TranscriptGroup({
   children,
   className,
   isExpanded,
+  isWorking = false,
   onToggle,
   runningProcessCount = 0,
 }: {
@@ -89,6 +98,7 @@ export function TranscriptGroup({
   /** Spacing the box takes from what sits above it; see `PROSE_GAP_IN_GROUP`. */
   className?: string;
   isExpanded: boolean;
+  isWorking?: boolean;
   onToggle: () => void;
   runningProcessCount?: number;
 }) {
@@ -98,6 +108,7 @@ export function TranscriptGroup({
         canExpand,
         isExpanded,
         isHead: false,
+        isWorking,
         runningProcessCount,
         toggle: onToggle,
       }}

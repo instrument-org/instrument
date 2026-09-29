@@ -44,6 +44,7 @@ import {
   buildTranscriptLayout,
   generatedGroupHeading,
   groupCanExpand,
+  groupHasHeading,
   groupStandInRowId,
   isActiveToolPart,
   isPartBeingWritten,
@@ -213,21 +214,20 @@ export function ChatStream({
       return next;
     });
 
-    // A run the agent never named is headed by a copy of one of its own steps,
-    // so the click that opened it was a click on that step. Opening the run
-    // alone answers with the row the reader just clicked, shut, somewhere among
-    // its neighbors; opening the step too is what they asked for. Shutting takes
-    // both back, since the head line is the only thing left to shut the run
-    // with.
+    // A run too short for a heading is headed by a copy of one of its own
+    // steps, so the click that opened it was a click on that step. Opening the
+    // run alone answers with the row the reader just clicked, shut, somewhere
+    // among its neighbors; opening the step too is what they asked for.
+    // Shutting takes both back, since the head line is the only thing left to
+    // shut the run with.
     //
-    // A named phase is headed by its own title instead, and a click there asks
-    // for the phase's steps rather than any one of them. Its copy is an ordinary
-    // row that already opens itself and the phase around it; see
-    // `setRowExpanded`.
-    const headRowId =
-      group.headingRowId === undefined
-        ? groupStandInRowId({ group, isExpanded: !isOpening })
-        : undefined;
+    // A headed phase, named or generated, is headed by its title instead, and
+    // a click there asks for the phase's steps rather than any one of them. Its
+    // copy is an ordinary row that already opens itself and the phase around
+    // it; see `setRowExpanded`.
+    const headRowId = groupHasHeading(group)
+      ? undefined
+      : groupStandInRowId({ group, isExpanded: !isOpening });
     if (headRowId === undefined) {
       return;
     }
@@ -456,12 +456,12 @@ export function ChatStream({
     // Under a heading the copy is one of the group's rows and sits where they
     // sit. With no heading it is the head line itself, so it takes the outer
     // edge and answers the clicks that open and close the group.
-    return group.headingRowId === undefined ? (
-      <TranscriptGroupHead key="stand-in">{slot}</TranscriptGroupHead>
-    ) : (
+    return groupHasHeading(group) ? (
       <div className={GROUP_INDENT} key="stand-in">
         {slot}
       </div>
+    ) : (
+      <TranscriptGroupHead key="stand-in">{slot}</TranscriptGroupHead>
     );
   };
 
@@ -1065,7 +1065,7 @@ function collectGroups({
     // With a heading over it the copy of the step in flight is one of the
     // group's rows and follows them; with no heading it is the head line and
     // leads.
-    const standsAtHead = group.headingRowId === undefined;
+    const standsAtHead = !groupHasHeading(group);
 
     return (
       <TranscriptGroup
@@ -1074,6 +1074,7 @@ function collectGroups({
           openingRow?.hasProseBoundaryAbove === true && PROSE_GAP_IN_GROUP,
         )}
         isExpanded={isGroupExpanded(group)}
+        isWorking={group.phase === "working"}
         key={`group-${group.id}-${run.rows[0]?.id ?? ""}`}
         onToggle={() => {
           onToggle(group);
@@ -1081,7 +1082,13 @@ function collectGroups({
         runningProcessCount={groupRunningProcessCount(group)}
       >
         {heading !== undefined && (
-          <GroupHeading key="heading" title={heading} />
+          // Working only while the agent is: the layout settles whatever it
+          // left open once the run stops.
+          <GroupHeading
+            isRunning={group.phase === "working"}
+            key="heading"
+            title={heading}
+          />
         )}
         {standsAtHead && standIn}
         {nodes}

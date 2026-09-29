@@ -10,6 +10,7 @@ import {
   buildTranscriptLayout,
   generatedGroupHeading,
   groupCanExpand,
+  groupHasHeading,
   groupStandInRowId,
   isVisibleAssistantPart,
   planRow,
@@ -246,7 +247,7 @@ function draw(
     if (rowId === undefined) {
       return;
     }
-    const indent = group.headingRowId === undefined ? "" : "  ";
+    const indent = groupHasHeading(group) ? "  " : "";
     lines.push(`> ${indent}${labels.get(rowId) ?? rowId}`);
   };
 
@@ -272,7 +273,9 @@ function draw(
             .filter(Boolean)
             .join(" "),
         );
-        // With no heading of its own, the copy is the group's head line.
+        // With no heading, the copy is the group's head line; under a
+        // generated one it follows the heading, the one line the group
+        // always draws.
         if (group.headingRowId === undefined) {
           standIn(group);
         }
@@ -793,7 +796,7 @@ describe("groups the agent never named", () => {
 });
 
 describe("while the agent is working", () => {
-  it("heads an unannounced run with a copy of the call the queue reached", () => {
+  it("heads an unannounced run with its summary and the call the queue reached under it", () => {
     expect(
       draw(
         [
@@ -809,8 +812,8 @@ describe("while the agent is working", () => {
         { isAgentRunning: true },
       ),
     ).toMatchInlineSnapshot(`
-      "--- inferred working
-      > two
+      "--- inferred working "Read 2 files"
+      >   two
       ·   one
       ·   two"
     `);
@@ -831,8 +834,7 @@ describe("while the agent is working", () => {
         { isAgentRunning: true, isDeveloperMode: true, isExpanded: true },
       ),
     ).toMatchInlineSnapshot(`
-      "--- inferred working
-      > two
+      "--- inferred working "Read 2 files"
           two
           three"
     `);

@@ -33,13 +33,16 @@ const MIN_INFERRED_GROUP_CALLS = 2;
  * A group is `working` until something closes it and `settled` after, and
  * between them that is the whole of how it draws:
  *
- * |          | working                                  | settled                        |
- * | -------- | ---------------------------------------- | ------------------------------ |
- * | declared | heading, and the step in flight under it | heading, rows folded behind it |
- * | inferred | the step in flight, standing for the run | generated heading, rows folded |
+ * |          | working                                            | settled                        |
+ * | -------- | -------------------------------------------------- | ------------------------------ |
+ * | declared | heading, and the step in flight under it           | heading, rows folded behind it |
+ * | inferred | generated heading, and the step in flight under it | generated heading, rows folded |
  *
- * So a phase of work costs one line whether or not the agent named it, and
- * while it runs that line is whatever the agent is doing at that moment.
+ * So a phase of work reads the same whether or not the agent named it: a
+ * heading saying what the phase is, which carries the live indicator for as
+ * long as it runs, and under it whatever the agent is doing at that moment. An
+ * inferred run too short for a generated heading (see `generatedGroupHeading`)
+ * has the step in flight as its head line instead.
  *
  * The step in flight is drawn as a *copy*, in a slot the group owns, and its own
  * row stays folded with the rest. A group reaches across many messages -- a turn
@@ -350,14 +353,15 @@ export function buildTranscriptLayout({
  * none.
  *
  * A declared group draws its own `start_activity` row instead, so it returns
- * nothing here. An inferred one earns a heading only once it has settled -- a
- * run still in progress is represented by the row in flight -- and only if it
- * holds enough calls for a summary to say more than the rows it replaces.
+ * nothing here. An inferred one earns a heading once it holds enough calls for
+ * a summary to say more than the rows it replaces, working or settled alike: a
+ * run in progress reads the way a named phase does, its heading growing as the
+ * calls land, and settling changes nothing about it but the live indicator.
  */
 export function generatedGroupHeading(
   group: TranscriptGroup,
 ): string | undefined {
-  if (group.headingRowId !== undefined || group.phase === "working") {
+  if (group.headingRowId !== undefined) {
     return undefined;
   }
   if (group.toolCalls.length < MIN_INFERRED_GROUP_CALLS) {
@@ -382,20 +386,32 @@ export function groupCanExpand(group: TranscriptGroup): boolean {
   // holds more than that one; everywhere else the head line is not a row, and a
   // single row behind it is still a row hidden.
   const isHeadedByOwnRow =
-    group.headingRowId === undefined &&
+    !groupHasHeading(group) &&
     (group.phase === "working" || soleToolCallRowId(group) !== undefined);
 
   return isHeadedByOwnRow ? group.foldedRowCount > 1 : group.foldedRowCount > 0;
 }
 
 /**
+ * Whether the group's head line is a heading, the agent's or a generated one,
+ * rather than a copy of one of its own steps. Under a heading the copy of the
+ * step in flight is one of the group's rows; without one it is the head line.
+ */
+export function groupHasHeading(group: TranscriptGroup): boolean {
+  return (
+    group.headingRowId !== undefined ||
+    generatedGroupHeading(group) !== undefined
+  );
+}
+
+/**
  * The row a working group copies into the slot it draws in place of its
  * contents, or undefined when it has none.
  *
- * A declared group draws the copy under its heading while folded: the heading
- * says what the phase is and the copy says where it has got to. Opening it shows
- * the steps themselves, so the copy goes. An inferred group has no heading, so
- * the copy is its head line and stays whether it is open or shut -- open, it is
+ * A group with a heading draws the copy under it while folded: the heading says
+ * what the phase is and the copy says where it has got to. Opening it shows the
+ * steps themselves, so the copy goes. A run too short for a heading has only the
+ * copy as its head line, which stays whether it is open or shut -- open, it is
  * also the only thing that can shut it again.
  */
 export function groupStandInRowId({
@@ -408,8 +424,8 @@ export function groupStandInRowId({
   if (group.phase !== "working") {
     return soleToolCallRowId(group);
   }
-  // Opening a named phase shows the steps themselves, so the copy goes.
-  if (isExpanded && group.headingRowId !== undefined) {
+  // Opening a headed phase shows the steps themselves, so the copy goes.
+  if (isExpanded && groupHasHeading(group)) {
     return undefined;
   }
   // The step in flight, or the last one the group finished while the agent

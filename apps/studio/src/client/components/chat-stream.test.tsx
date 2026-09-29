@@ -183,10 +183,10 @@ function chatStream(
  * group is open that step is on screen twice: once heading it, once in its place
  * in the run. The first is the head.
  */
-function clickRow(text: string) {
+function clickRow(text: RegExp | string) {
   const [row] = screen.getAllByText(text);
   if (!row) {
-    throw new Error(`no row labeled ${text}`);
+    throw new Error(`no row labeled ${String(text)}`);
   }
   fireEvent.click(row);
 }
@@ -250,7 +250,7 @@ function imageCall(explanation: string) {
  * and so is always above it. Which one is asked matters, because the copy is on
  * its way out at exactly the moment this is worth asking.
  */
-function isRowOpen(text: string) {
+function isRowOpen(text: RegExp | string) {
   const row = screen.getAllByText(text).at(-1);
   // Read off the state rather than off the content: a collapsible that has been
   // opened once keeps its content mounted and hides it, so its presence says
@@ -269,6 +269,16 @@ function metadata(startedAt?: Date) {
     messageId,
     sessionId,
     startedAt,
+  };
+}
+
+/** A reasoning block the model finished, with something written under it. */
+function thought(text: string) {
+  return {
+    metadata: { ...metadata(new Date(1)), endedAt: new Date(2) },
+    state: "done",
+    text,
+    type: "reasoning",
   };
 }
 
@@ -456,54 +466,74 @@ describe("ChatStream groups the agent never named", () => {
     expect(screen.queryByText("Reading the first quarter")).toBeNull();
   });
 
-  it("opens from the row heading it, since there is nothing else to click", () => {
+  // The same shape a named phase takes, with the title generated from what the
+  // run has done so far.
+  it("heads the run in flight with its summary and the call under it", () => {
     inFlight();
 
-    expect(screen.queryByText("Reading the first quarter")).toBeNull();
+    expect(screen.getByText("Read 3 files")).toBeDefined();
+    const [step] = screen.getAllByText("Reading the third quarter");
+    expect(screen.getAllByText("Reading the third quarter")).toHaveLength(1);
+    expect(step?.closest(INDENTED)).not.toBeNull();
+  });
 
-    clickRow("Reading the third quarter");
+  // Most of a working run is the gap between one call ending and the next
+  // starting, and a heading that went quiet for it would flicker every step.
+  it("says it is working through the heading, between steps too", () => {
+    renderSteps(
+      [
+        [read({ explanation: "Reading the first quarter" })],
+        [read({ explanation: "Reading the second quarter" })],
+      ],
+      { isAgentRunning: true },
+    );
+
+    expect(screen.getByText("Read 2 files").className).toContain(
+      "brand-shiny-text",
+    );
+    expect(
+      screen.getByText("Reading the second quarter").className,
+    ).not.toContain("brand-shiny-text");
+  });
+
+  it("opens from the heading, which the steps then replace the copy under", () => {
+    inFlight();
+
+    fireEvent.click(screen.getByText("Read 3 files"));
 
     expect(screen.getByText("Reading the first quarter")).toBeDefined();
-    expect(screen.getByText("Reading the second quarter")).toBeDefined();
+    expect(screen.getAllByText("Reading the third quarter")).toHaveLength(1);
   });
 
-  it("shuts again from that same row, which opening leaves in place", () => {
-    inFlight();
-
-    clickRow("Reading the third quarter");
-    clickRow("Reading the third quarter");
-
-    expect(screen.queryByText("Reading the first quarter")).toBeNull();
-  });
-
-  it("heads the open run with a copy of the step, which keeps its own place", () => {
-    inFlight();
-
-    clickRow("Reading the third quarter");
-
-    // Once heading the group, once where it falls in the run.
-    expect(screen.getAllByText("Reading the third quarter")).toHaveLength(2);
-  });
-
-  // The run's head line is a copy of one of its own steps, so the click that
-  // opens the run landed on that step; see `toggleGroup`. Nothing is in flight
-  // here, which is what leaves the head line on the last step the run finished.
+  // A run with one call in it is too short for a summary to say more than the
+  // call does, so the copy of its step is its head line; see `toggleGroup`.
+  // Nothing is in flight here, which is what leaves the head line on the last
+  // step the run finished.
+  // Labeled with how long it took.
+  const THOUGHT = /^Thought/;
   const betweenSteps = () => [
-    assistantMessage([read({ explanation: "Reading the first quarter" })]),
-    assistantMessage([read({ explanation: "Reading the second quarter" })]),
+    assistantMessage([thought("Weighing up the quarters")]),
     assistantMessage([read({ explanation: "Reading the third quarter" })]),
   ];
+
+  it("keeps the head line working between steps", () => {
+    renderMessages(betweenSteps(), { isAgentRunning: true });
+
+    expect(screen.getByText("Reading the third quarter").className).toContain(
+      "brand-shiny-text",
+    );
+  });
 
   it("opens the step its head line copies, not only the run behind it", () => {
     renderMessages(betweenSteps(), { isAgentRunning: true });
 
     clickRow("Reading the third quarter");
 
-    expect(screen.getByText("Reading the first quarter")).toBeDefined();
+    expect(screen.getByText(THOUGHT)).toBeDefined();
     expect(isRowOpen("Reading the third quarter")).toBe(true);
     // That one and no other: the rest of the run comes up shut, the way it
     // would have if the reader had opened the run from anywhere else.
-    expect(isRowOpen("Reading the first quarter")).toBe(false);
+    expect(isRowOpen(THOUGHT)).toBe(false);
   });
 
   it("shuts that step again along with the run, and leaves it shut", () => {
@@ -513,25 +543,20 @@ describe("ChatStream groups the agent never named", () => {
     clickRow("Reading the third quarter");
     clickRow("Reading the third quarter");
 
-    expect(screen.queryByText("Reading the first quarter")).toBeNull();
+    expect(screen.queryByText(THOUGHT)).toBeNull();
 
-    // The agent takes another step, which is what the run is headed by now.
-    // Opening it again answers with that step alone: what the reader shut is
-    // still shut behind it rather than coming back with it.
+    // The agent thinks again, which is what the run is headed by now. Opening
+    // it again answers with that step alone: what the reader shut is still
+    // shut behind it rather than coming back with it.
     rerender(
       chatStream(
-        [
-          ...messages,
-          assistantMessage([
-            read({ explanation: "Reading the fourth quarter" }),
-          ]),
-        ],
+        [...messages, assistantMessage([thought("Checking the totals")])],
         { isAgentRunning: true },
       ),
     );
-    clickRow("Reading the fourth quarter");
+    clickRow(THOUGHT);
 
-    expect(isRowOpen("Reading the fourth quarter")).toBe(true);
+    expect(isRowOpen(THOUGHT)).toBe(true);
     expect(isRowOpen("Reading the third quarter")).toBe(false);
   });
 

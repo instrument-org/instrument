@@ -86,8 +86,8 @@ export const AssistantMessage = memo(function AssistantMessage({
 
   if (bubble) {
     // The bubble is for the words. The files a reply hands over stand under
-    // it at the column's width, as the cards a task page draws them, where
-    // a card is not squeezed by a bubble sized to a sentence.
+    // it at the width a bubble reaches, as the cards a task page draws them,
+    // where a card is not squeezed by a bubble sized to a sentence.
     const fences = [...messageText.matchAll(FILES_FENCE)].map(
       (match) => match[1] ?? "",
     );
@@ -146,9 +146,12 @@ export const AssistantMessage = memo(function AssistantMessage({
               taskId,
             }}
           >
-            <div className="w-full">
+            {/* As wide as a bubble at its widest, a lone file across all of
+                it rather than one column of the grid, and spaced from the
+                bubbles as they are from each other. */}
+            <div className="flex w-full max-w-[85%] flex-col gap-2 [&_[data-slot=files-grid-card]:only-child]:col-span-full [&_[data-slot=files-grid-media]:only-child]:w-full">
               {fences.map((content, index) => (
-                <AgentFilesBlock content={content} key={index} />
+                <AgentFilesBlock className="my-0" content={content} key={index} />
               ))}
             </div>
           </MarkdownTaskContext>

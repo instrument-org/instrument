@@ -54,7 +54,14 @@ import { PreviewListItem } from "./preview-list-item";
  * hands the second one the picture it already decoded for the first. That is
  * how a reply reporting a change draws the file as it was before it.
  */
-export function AgentFilesBlock({ content }: { content: string }) {
+export function AgentFilesBlock({
+  className,
+  content,
+}: {
+  /** Replaces the block's own margins, for a column that spaces its rows itself. */
+  className?: string;
+  content: string;
+}) {
   const { isStreaming } = useContext(MarkdownTaskContext);
 
   // A fence still arriving ends mid-path: the model has typed `work/ch` of
@@ -84,7 +91,13 @@ export function AgentFilesBlock({ content }: { content: string }) {
           )
       : undefined;
 
-  return <FilePathsGrid paths={paths} pendingFilePath={pendingPath} />;
+  return (
+    <FilePathsGrid
+      className={className}
+      paths={paths}
+      pendingFilePath={pendingPath}
+    />
+  );
 }
 
 /**
@@ -96,9 +109,12 @@ export function AgentFilesBlock({ content }: { content: string }) {
  * indistinguishable should not be two pieces of code.
  */
 export function FilePathsGrid({
+  className,
   paths,
   pendingFilePath,
 }: {
+  /** Replaces the grid's own margins, for a column that spaces its rows itself. */
+  className?: string;
   paths: string[];
   pendingFilePath?: string;
 }) {
@@ -166,7 +182,7 @@ export function FilePathsGrid({
   // the folders take a row of their own above them.
   if (layout === "list") {
     return (
-      <div className="not-prose my-2 flex flex-col gap-1">
+      <div className={cn("not-prose my-2 flex flex-col gap-1", className)}>
         {messageCards}
         {paths
           .filter((path) => !isMessage(path))
@@ -195,7 +211,7 @@ export function FilePathsGrid({
   }
 
   return (
-    <div className="not-prose my-4 flex flex-col gap-2">
+    <div className={cn("not-prose my-4 flex flex-col gap-2", className)}>
       {messageCards}
       {folderPaths.length > 0 && (
         <div className="flex flex-wrap items-start gap-2">

@@ -16,7 +16,12 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
-import { type ReactNode, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useRef,
+  useState,
+} from "react";
 
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { type RowAction } from "./row-shell";
@@ -64,14 +69,7 @@ export function ThreadHeader({
   /** What sits at the head's right: the pane toggle while the pane is closed. */
   trailing?: ReactNode;
 }) {
-  // Every topic the thread is filed under, in the order it was filed.
-  const filed = (thread?.topics ?? []).flatMap((id) => {
-    const topic = topics.find((entry) => entry.id === id);
-    return topic ? [topic] : [];
-  });
-  const rename = useThreadRename(thread);
   const [isDeleting, setDeleting] = useState(false);
-  const [topicsOpen, setTopicsOpen] = useState(false);
   return (
     <div className="flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
       {thread && (
@@ -85,63 +83,19 @@ export function ThreadHeader({
       <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2 select-none">
         {leading}
         {thread ? (
-          <h2 className="flex min-w-0">
-            <ThreadTitle
-              className="text-sm font-medium"
-              rename={rename}
-              title={thread.title}
-            />
-          </h2>
-        ) : (
-          <h2 className="min-w-0 truncate text-sm font-medium">Chat</h2>
-        )}
-        {/* After the title, the way mail puts a label after a subject;
-            pressing them, or the slot while there are none, opens the topic
-            picker every filing shares. */}
-        {thread && (
-          <TopicPicker
-            chosen={new Set(thread.topics)}
-            isOpen={topicsOpen}
-            onNew={onNewTopic}
-            onOpenChange={setTopicsOpen}
-            onToggle={(id) => {
-              onSetTopics(
-                thread.topics.includes(id)
-                  ? thread.topics.filter((entry) => entry !== id)
-                  : [...thread.topics, id],
-              );
-            }}
-            topics={topics}
-          >
-            {filed.length === 0 ? (
-              // No dashed slot in the head: a chat with no topics is filed
-              // from the menu, and this is only the picker's anchor then.
-              <span aria-hidden className="h-4 w-0 shrink-0" />
-            ) : (
-              <button
-                aria-label="Topics"
-                className="flex min-w-0 items-center gap-1"
-                type="button"
-              >
-                {filed.map((topic) => (
-                  <TopicPill key={topic.id} topic={topic} />
-                ))}
-              </button>
-            )}
-          </TopicPicker>
-        )}
-        {thread && (
-          <ThreadMenu
+          <ThreadHeading
+            menu={{ onViewTasks }}
             onDelete={() => {
               setDeleting(true);
             }}
-            onEditTopics={() => {
-              setTopicsOpen(true);
-            }}
-            onViewTasks={onViewTasks}
-            rename={rename}
+            onNewTopic={onNewTopic}
+            onSetTopics={onSetTopics}
             thread={thread}
+            titleClassName="text-sm font-medium"
+            topics={topics}
           />
+        ) : (
+          <h2 className="min-w-0 truncate text-sm font-medium">Chat</h2>
         )}
       </div>
       {(popOut !== undefined || Boolean(trailing)) && (
@@ -167,6 +121,102 @@ export function ThreadHeader({
           {trailing}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A chat's title, the topics it is filed under and its menu, as the chat's
+ * head and its popped-out window both draw them: the title renames the chat
+ * when clicked, the topics after it the way mail puts a label after a
+ * subject, and the menu hugging them. The title gives way first, truncating;
+ * on a narrow head the topics stand as their marks alone, and nothing is
+ * ever drawn over the menu.
+ */
+export function ThreadHeading({
+  menu,
+  onDelete,
+  onNewTopic,
+  onSetTopics,
+  thread,
+  titleClassName,
+  topics,
+}: {
+  /** What the menu offers beyond what every head's does. */
+  menu: Pick<
+    ComponentProps<typeof ThreadMenu>,
+    "onArchived" | "onOpenInChats" | "onViewTasks"
+  >;
+  onDelete: () => void;
+  /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
+  onNewTopic: (name?: string) => void;
+  onSetTopics: (topics: string[]) => void;
+  thread: Thread;
+  /** The type the title is set in, which its rename field takes too. */
+  titleClassName: string;
+  topics: Topic[];
+}) {
+  // Every topic the thread is filed under, in the order it was filed.
+  const filed = thread.topics.flatMap((id) => {
+    const topic = topics.find((entry) => entry.id === id);
+    return topic ? [topic] : [];
+  });
+  const rename = useThreadRename(thread);
+  const [topicsOpen, setTopicsOpen] = useState(false);
+  return (
+    <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
+      <h2 className="flex min-w-0">
+        <ThreadTitle
+          className={titleClassName}
+          rename={rename}
+          title={thread.title}
+        />
+      </h2>
+      {/* Pressing them, or the slot while there are none, opens the topic
+          picker every filing shares. */}
+      <TopicPicker
+        chosen={new Set(thread.topics)}
+        isOpen={topicsOpen}
+        onNew={onNewTopic}
+        onOpenChange={setTopicsOpen}
+        onToggle={(id) => {
+          onSetTopics(
+            thread.topics.includes(id)
+              ? thread.topics.filter((entry) => entry !== id)
+              : [...thread.topics, id],
+          );
+        }}
+        topics={topics}
+      >
+        {filed.length === 0 ? (
+          // No dashed slot in the head: a chat with no topics is filed from
+          // the menu, and this is only the picker's anchor then.
+          <span aria-hidden className="h-4 w-0 shrink-0" />
+        ) : (
+          <button
+            aria-label="Topics"
+            className="flex shrink-0 items-center gap-1"
+            type="button"
+          >
+            {filed.map((topic, index) => (
+              <TopicPill
+                compact={index === 0 ? "narrow" : true}
+                key={topic.id}
+                topic={topic}
+              />
+            ))}
+          </button>
+        )}
+      </TopicPicker>
+      <ThreadMenu
+        {...menu}
+        onDelete={onDelete}
+        onEditTopics={() => {
+          setTopicsOpen(true);
+        }}
+        rename={rename}
+        thread={thread}
+      />
     </div>
   );
 }
@@ -220,7 +270,7 @@ export function ThreadMenu({
             // 4px around a 16px glyph: the button hugs the title it acts on
             // rather than reading as its own toolbar slot.
             className:
-              "size-6 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+              "size-6 shrink-0 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
             pressed: false,
           })}
           size="icon-sm"

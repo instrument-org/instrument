@@ -141,4 +141,44 @@ describe("layoutCompose", () => {
       { ...draft("b"), right: 20, width: 492 },
     ]);
   });
+
+  it("folds a chat window's rail to its marks where its pictures do not fit", () => {
+    const chat = thread("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ2");
+    const at = (width: number) =>
+      layoutCompose([draft("a"), chat], width, (entry) => entry.kind === "thread")
+        .filter((entry) => entry.kind === "thread")
+        .map(({ isRailCompact, width: placedWidth }) => ({
+          isRailCompact,
+          width: placedWidth,
+        }));
+    expect([at(2000), at(560), at(400)]).toMatchInlineSnapshot(`
+      [
+        [
+          {
+            "isRailCompact": undefined,
+            "width": undefined,
+          },
+        ],
+        [
+          {
+            "isRailCompact": true,
+            "width": 476,
+          },
+        ],
+        [
+          {
+            "isRailCompact": true,
+            "width": 368,
+          },
+        ],
+      ]
+    `);
+  });
+
+  it("folds a grown chat window's rail once its view and conversation are short of room", () => {
+    const grown = thread("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ2", "expanded");
+    const folds = (width: number) =>
+      layoutCompose([grown], width, () => true)[0]?.isRailCompact === true;
+    expect([folds(1200), folds(800)]).toEqual([false, true]);
+  });
 });

@@ -382,8 +382,8 @@ export function TopicPill({
   onPick,
   topic,
 }: {
-  /** The mark alone, for a topic past the first on a row with a title to keep. */
-  compact?: boolean;
+  /** The mark alone, for a topic past the first on a row with a title to keep; `"narrow"` is the mark alone only on a narrow chat head. */
+  compact?: "narrow" | boolean;
   onPick?: () => void;
   topic: Topic;
 }) {
@@ -391,7 +391,11 @@ export function TopicPill({
   // or the clip that truncates it cuts them off.
   const className = cn(
     "inline-flex h-5 max-w-32 shrink-0 items-center gap-1 rounded-full bg-(--topic-tint-surface) pl-1 text-[11px] leading-4 text-foreground/90 topic-tint",
-    compact ? "pr-1" : "pr-1.5",
+    compact === true
+      ? "pr-1"
+      : compact === "narrow"
+        ? "pr-1.5 @max-sm/chathead:pr-1"
+        : "pr-1.5",
   );
   const inside = (
     <>
@@ -400,7 +404,16 @@ export function TopicPill({
       ) : (
         <TopicMark className="size-3.5 text-[10px]" topic={topic} />
       )}
-      {!compact && <span className="truncate">{topic.name}</span>}
+      {compact !== true && (
+        <span
+          className={cn(
+            "truncate",
+            compact === "narrow" && "@max-sm/chathead:hidden",
+          )}
+        >
+          {topic.name}
+        </span>
+      )}
     </>
   );
   if (!onPick) {
@@ -408,7 +421,7 @@ export function TopicPill({
       <span
         className={className}
         style={topicTint(topicColor(topic))}
-        title={compact ? topic.name : undefined}
+        title={compact === false ? undefined : topic.name}
       >
         {inside}
       </span>
@@ -426,7 +439,7 @@ export function TopicPill({
         onPick();
       }}
       style={topicTint(topicColor(topic))}
-      title={compact ? topic.name : "Topics"}
+      title={compact === false ? "Topics" : topic.name}
       type="button"
     >
       {inside}

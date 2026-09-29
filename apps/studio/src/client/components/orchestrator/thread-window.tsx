@@ -40,12 +40,10 @@ import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
 import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { useTaskTitles } from "./task-titles";
-import { ThreadMenu } from "./thread-header";
+import { ThreadHeading } from "./thread-header";
 import { ThreadRail } from "./thread-rail";
 import { ThreadScreen } from "./thread-stage";
-import { ThreadTitle } from "./thread-title";
-import { draftTitle, type Thread } from "./threads";
-import { useThreadRename } from "./use-thread-rename";
+import { draftTitle, type Thread, type Topic } from "./threads";
 import { useWindowTabs } from "./window-tabs";
 
 /** A thread's small view's height, in layout px: enough of the conversation to follow a reply arriving. */
@@ -116,42 +114,51 @@ export function ThreadBar({
  * A chat popped out: its conversation in a small window docked to the row's
  * bottom-right corner, over whatever place the window stands in, the way a
  * video keeps playing in its small window over the page that owns it, with
- * the rail of what the chat holds along its right edge. Its head carries the
- * pulse while the chat works, the chat's title, which opens that chat in
- * Chats when clicked, its own menu, and the window's buttons.
+ * the rail of what the chat holds along its right edge, folded to its marks
+ * when the window is narrower than it wants. Its head carries the chat's
+ * title, topics and menu as the chat's own head draws them, and the window's
+ * buttons.
  *
  * Grown, it is a window over the whole row, the way a draft grows: the
  * conversation, the thing pressed on the rail drawn large beside it, and the
  * rail. Pressing a tile in the small window grows it with that thing up, and
  * so does anything the conversation asks to have shown; what the agent opens
- * behind stays behind. Its title takes the window to that chat in Chats.
+ * behind stays behind.
  */
 export function ThreadWindow({
   arrives,
+  isRailCompact,
   onClose,
   onCloseTab,
   onLandOnTab,
   onMinimize,
+  onNewTopic,
   onOpenInChats,
   onPageChrome,
   onPageHost,
   onPlacementChange,
+  onSetTopics,
   placement,
   right,
   sendContext,
   sentWords,
   sessionId,
   thread,
+  topics,
   width,
 }: {
   /** Whether the window arrives with a motion: a draft becoming the thread is the same window, so it does not. */
   arrives: boolean;
+  /** Whether the rail stands as a column of marks, for a window with no room for its pictures. */
+  isRailCompact: boolean;
   onClose: () => void;
   /** Closes one of the chat's tabs, the way the window's strip does: asking first while a task is working in it. */
   onCloseTab: (id: string) => void;
   /** Lands in Chats with the chat open and this tab up, for a thing the window cannot draw. */
   onLandOnTab: (tabId: string) => void;
   onMinimize: () => void;
+  /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
+  onNewTopic: (name?: string) => void;
   /** Takes the window to its chat in Chats: the window goes and the chat is selected. */
   onOpenInChats: () => void;
   /** The element the chat's page is drawn into while the window is grown with a page up, null while none is. */
@@ -159,6 +166,7 @@ export function ThreadWindow({
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
+  onSetTopics: (topics: string[]) => void;
   placement: "docked" | "expanded";
   /** Where the window stands along the foot, in layout px from the right edge. */
   right: number;
@@ -170,6 +178,7 @@ export function ThreadWindow({
   sentWords?: string;
   sessionId: StoreId.Session;
   thread: Thread | undefined;
+  topics: Topic[];
   /** The window's width, rail and all, narrower than its own on a row with less room. */
   width?: number;
 }) {
@@ -184,7 +193,6 @@ export function ThreadWindow({
   const showsItem = isExpanded && isViewOpen && up !== undefined;
   const isWorking =
     thread === undefined ? sentWords !== undefined : thread.state === "working";
-  const rename = useThreadRename(thread);
   const [isDeleting, setDeleting] = useState(false);
   const taskTitles = useTaskTitles();
   const threadTitles = new Map<StoreId.Session, string>(
@@ -292,6 +300,7 @@ export function ThreadWindow({
     <ThreadRail
       activeId={up?.id}
       appsBySlug={appsBySlug}
+      isCompact={isRailCompact}
       isThreadWorking={isWorking}
       isViewOpen={showsItem}
       onAddComputer={() => {
@@ -370,38 +379,24 @@ export function ThreadWindow({
           the chat is working, where its reply will land. */}
         <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
         {thread ? (
-          // The title and its menu side by side, taking their own width:
-          // the title reads as a title rather than a button, and opening
-          // the chat in Chats is in the menu.
-          <div className="flex min-w-0 flex-1 items-center gap-1">
-            <h2 className={cn("flex min-w-0", rename.isEditing && "flex-1")}>
-              {rename.isEditing ? (
-                <ThreadTitle
-                  className="text-[13px] font-semibold"
-                  grow
-                  rename={rename}
-                  title={thread.title}
-                />
-              ) : (
-                <span className="min-w-0 truncate text-[13px] font-semibold">
-                  {thread.title}
-                </span>
-              )}
-            </h2>
-            <ThreadMenu
+          <ThreadHeading
+            menu={{
               // An archived chat is put away, so its window goes with it.
-              onArchived={onClose}
-              onDelete={() => {
-                setDeleting(true);
-              }}
-              onOpenInChats={onOpenInChats}
-              onViewTasks={() => {
+              onArchived: onClose,
+              onOpenInChats,
+              onViewTasks: () => {
                 openTasksHere(tasksHref(sessionId));
-              }}
-              rename={rename}
-              thread={thread}
-            />
-          </div>
+              },
+            }}
+            onDelete={() => {
+              setDeleting(true);
+            }}
+            onNewTopic={onNewTopic}
+            onSetTopics={onSetTopics}
+            thread={thread}
+            titleClassName="text-[13px] font-semibold"
+            topics={topics}
+          />
         ) : (
           <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
             {sentWords === undefined ? "Chat" : draftTitle(sentWords)}
@@ -428,9 +423,6 @@ export function ThreadWindow({
           </WindowButton>
         </div>
       </div>
-      {/* Not a container for the rail: here it keeps its pictures however
-          small the window, since they are most of what the window shows of
-          the chat's tabs. */}
       <div className="flex min-h-0 flex-1">
         {/* `select-text`: the window's shell is chrome and turns selection off; the chat is text. The sizes are the chat column's. */}
         <div

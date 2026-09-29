@@ -34,9 +34,11 @@ export function ComposeLayer({
   onCloseThread,
   onExpandThread,
   onModelChange,
+  onNewThreadTopic,
   onNewTopic,
   onOpenThread,
   onPressThreadTab,
+  onSetThreadTopics,
   onStart,
   openOutside,
   sendContext,
@@ -59,11 +61,14 @@ export function ComposeLayer({
   onExpandThread: (sessionId: StoreId.Session) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
+  /** Makes a topic from a popped-out chat's head, filing that chat under it. */
+  onNewThreadTopic: (sessionId: StoreId.Session, name?: string) => void;
   onNewTopic: (draftId: string, name: string) => void;
   /** A popped-out chat asked to open in Chats, from its title: the window goes and the chat is selected. */
   onOpenThread: (sessionId: StoreId.Session) => void;
   /** A thing a grown window cannot draw, asked for: the chat lands in Chats with that tab in front. */
   onPressThreadTab: (sessionId: StoreId.Session, tabId: string) => void;
+  onSetThreadTopics: (sessionId: StoreId.Session, topics: string[]) => void;
   onStart: (id: string, send: DraftSend) => void;
   openOutside: (href: string) => void;
   /** What goes with a reply sent from a chat's small view: its own tab up while its view is open, what the window has up behind it otherwise. */
@@ -122,6 +127,7 @@ export function ComposeLayer({
             return (
               <ThreadWindow
                 arrives={entry.fromDraft === undefined}
+                isRailCompact={entry.isRailCompact === true}
                 // The draft's key, for a thread that grew from one: the same
                 // element, so the window is not seen to leave and arrive.
                 key={entry.fromDraft ?? sessionId}
@@ -134,6 +140,9 @@ export function ComposeLayer({
                 }}
                 onMinimize={() => {
                   compose.setPlacement(sessionId, "bar");
+                }}
+                onNewTopic={(name) => {
+                  onNewThreadTopic(sessionId, name);
                 }}
                 onOpenInChats={() => {
                   onOpenThread(sessionId);
@@ -150,6 +159,9 @@ export function ComposeLayer({
                   }
                   compose.setPlacement(sessionId, placement);
                 }}
+                onSetTopics={(next) => {
+                  onSetThreadTopics(sessionId, next);
+                }}
                 placement={entry.placement}
                 right={entry.right}
                 sendContext={(options) =>
@@ -162,6 +174,7 @@ export function ComposeLayer({
                 }
                 sessionId={sessionId}
                 thread={thread}
+                topics={topics}
                 width={entry.width}
               />
             );

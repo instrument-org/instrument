@@ -586,6 +586,8 @@ function WindowShell({
   const [newTopic, setNewTopic] = useState<{
     draftId?: string;
     name?: string;
+    /** The chat it files, when that is not the one the tab up has open: a popped-out chat's. */
+    threadId?: StoreId.Session;
   }>();
   const threadUp = threadOfHref(activeHref);
 
@@ -809,11 +811,15 @@ function WindowShell({
                   }
                 }}
                 onModelChange={setDefaultModelURI}
+                onNewThreadTopic={(threadId, name) => {
+                  setNewTopic({ threadId, ...(name ? { name } : {}) });
+                }}
                 onNewTopic={(draftId, name) => {
                   setNewTopic({ draftId, ...(name ? { name } : {}) });
                 }}
                 onOpenThread={landThread}
                 onPressThreadTab={landOnTab}
+                onSetThreadTopics={setThreadTopics}
                 onStart={startThread}
                 openOutside={(href) => {
                   appTabs.open(href);
@@ -918,14 +924,19 @@ function WindowShell({
               makes is filed on that chat or draft as it lands. */}
             <NewTopicDialog
               candidates={backfillCandidates(
-                (threads.data ?? []).filter((thread) => thread.id !== threadUp),
+                (threads.data ?? []).filter(
+                  (thread) => thread.id !== (newTopic?.threadId ?? threadUp),
+                ),
               )}
               {...(newTopic?.name ? { name: newTopic.name } : {})}
               onCreate={(topic, alsoFile) => {
                 const forDraft = newTopic?.draftId;
                 const filedOn =
                   forDraft === undefined
-                    ? threads.data?.find((thread) => thread.id === threadUp)
+                    ? threads.data?.find(
+                        (thread) =>
+                          thread.id === (newTopic?.threadId ?? threadUp),
+                      )
                     : undefined;
                 createTopic.mutate(topic, {
                   onSuccess: (created) => {

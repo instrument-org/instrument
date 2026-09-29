@@ -177,6 +177,30 @@ async function writeWhole(filePath: string, content: string) {
 }
 
 /**
+ * Each file's writes in turn, keyed by the file a link resolves to, so two
+ * editors holding the same version cannot both pass the check before either
+ * lands: the second sees the first's text and gets it back to merge. This
+ * orders the app's own writers only; anything else writing the file can
+ * still slip in between.
+ */
+const writeChains = new Map<string, Promise<unknown>>();
+
+async function oneWriterAt<T>(filePath: string, work: () => Promise<T>) {
+  const key = await fs.realpath(filePath).catch(() => path.resolve(filePath));
+  const run = (writeChains.get(key) ?? Promise.resolve()).then(work, work);
+  const settled = run.catch(() => {
+    // The caller hears the failure through `run`; the next write still goes.
+  });
+  writeChains.set(key, settled);
+  void settled.then(() => {
+    if (writeChains.get(key) === settled) {
+      writeChains.delete(key);
+    }
+  });
+  return run;
+}
+
+/**
  * The person's own edit to a text file they have open, written only when the
  * file on disk is still the version the editor started from. When the agent
  * (or anything else) wrote in between, nothing is written and the current text
@@ -203,15 +227,17 @@ const write = base
   )
   .handler(async ({ errors, input }) => {
     try {
-      if (input.baseVersion !== undefined) {
-        const disk = await fs.readFile(input.path, "utf8");
-        const diskVersion = versionOf(disk);
-        if (diskVersion !== input.baseVersion) {
-          return { content: disk, ok: false as const, version: diskVersion };
+      return await oneWriterAt(input.path, async () => {
+        if (input.baseVersion !== undefined) {
+          const disk = await fs.readFile(input.path, "utf8");
+          const diskVersion = versionOf(disk);
+          if (diskVersion !== input.baseVersion) {
+            return { content: disk, ok: false as const, version: diskVersion };
+          }
         }
-      }
-      await writeWhole(input.path, input.content);
-      return { ok: true as const, version: versionOf(input.content) };
+        await writeWhole(input.path, input.content);
+        return { ok: true as const, version: versionOf(input.content) };
+      });
     } catch (error) {
       throw errors.CANNOT_WRITE({
         message: error instanceof Error ? error.message : undefined,

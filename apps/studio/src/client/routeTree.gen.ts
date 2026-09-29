@@ -17,7 +17,6 @@ import { Route as OrchestratorIndexRouteImport } from './routes/orchestrator/ind
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as OrchestratorWebRouteImport } from './routes/orchestrator/web'
 import { Route as OrchestratorPageRouteImport } from './routes/orchestrator/page'
-import { Route as OrchestratorHomeRouteImport } from './routes/orchestrator/home'
 import { Route as OrchestratorComputerRouteImport } from './routes/orchestrator/computer'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
@@ -102,11 +101,6 @@ const OrchestratorWebRoute = OrchestratorWebRouteImport.update({
 const OrchestratorPageRoute = OrchestratorPageRouteImport.update({
   id: '/page',
   path: '/page',
-  getParentRoute: () => OrchestratorRouteRoute,
-} as any)
-const OrchestratorHomeRoute = OrchestratorHomeRouteImport.update({
-  id: '/home',
-  path: '/home',
   getParentRoute: () => OrchestratorRouteRoute,
 } as any)
 const OrchestratorComputerRoute = OrchestratorComputerRouteImport.update({
@@ -368,7 +362,6 @@ export interface FileRoutesByFullPath {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/orchestrator/computer': typeof OrchestratorComputerRoute
-  '/orchestrator/home': typeof OrchestratorHomeRoute
   '/orchestrator/page': typeof OrchestratorPageRoute
   '/orchestrator/web': typeof OrchestratorWebRoute
   '/onboarding/': typeof OnboardingIndexRoute
@@ -419,7 +412,6 @@ export interface FileRoutesByTo {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/orchestrator/computer': typeof OrchestratorComputerRoute
-  '/orchestrator/home': typeof OrchestratorHomeRoute
   '/orchestrator/page': typeof OrchestratorPageRoute
   '/orchestrator/web': typeof OrchestratorWebRoute
   '/onboarding': typeof OnboardingIndexRoute
@@ -475,7 +467,6 @@ export interface FileRoutesById {
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/orchestrator/computer': typeof OrchestratorComputerRoute
-  '/orchestrator/home': typeof OrchestratorHomeRoute
   '/orchestrator/page': typeof OrchestratorPageRoute
   '/orchestrator/web': typeof OrchestratorWebRoute
   '/onboarding/': typeof OnboardingIndexRoute
@@ -532,7 +523,6 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/orchestrator/computer'
-    | '/orchestrator/home'
     | '/orchestrator/page'
     | '/orchestrator/web'
     | '/onboarding/'
@@ -583,7 +573,6 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/orchestrator/computer'
-    | '/orchestrator/home'
     | '/orchestrator/page'
     | '/orchestrator/web'
     | '/onboarding'
@@ -638,7 +627,6 @@ export interface FileRouteTypes {
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/orchestrator/computer'
-    | '/orchestrator/home'
     | '/orchestrator/page'
     | '/orchestrator/web'
     | '/onboarding/'
@@ -745,13 +733,6 @@ declare module '@tanstack/react-router' {
       path: '/page'
       fullPath: '/orchestrator/page'
       preLoaderRoute: typeof OrchestratorPageRouteImport
-      parentRoute: typeof OrchestratorRouteRoute
-    }
-    '/orchestrator/home': {
-      id: '/orchestrator/home'
-      path: '/home'
-      fullPath: '/orchestrator/home'
-      preLoaderRoute: typeof OrchestratorHomeRouteImport
       parentRoute: typeof OrchestratorRouteRoute
     }
     '/orchestrator/computer': {
@@ -1233,7 +1214,6 @@ const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
 
 interface OrchestratorRouteRouteChildren {
   OrchestratorComputerRoute: typeof OrchestratorComputerRoute
-  OrchestratorHomeRoute: typeof OrchestratorHomeRoute
   OrchestratorPageRoute: typeof OrchestratorPageRoute
   OrchestratorWebRoute: typeof OrchestratorWebRoute
   OrchestratorIndexRoute: typeof OrchestratorIndexRoute
@@ -1250,7 +1230,6 @@ interface OrchestratorRouteRouteChildren {
 
 const OrchestratorRouteRouteChildren: OrchestratorRouteRouteChildren = {
   OrchestratorComputerRoute: OrchestratorComputerRoute,
-  OrchestratorHomeRoute: OrchestratorHomeRoute,
   OrchestratorPageRoute: OrchestratorPageRoute,
   OrchestratorWebRoute: OrchestratorWebRoute,
   OrchestratorIndexRoute: OrchestratorIndexRoute,

@@ -1,9 +1,6 @@
-import { type FileTab } from "@/client/atoms/orchestrator";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
-import { fileHref } from "@/shared/computer-href";
 import { MOUNT } from "@instrument-org/workspace/client";
 
-import { useOrchestrator } from "./context";
 import { isInside, segmentsOf } from "./host-path";
 import { parseHref } from "./window-tabs";
 
@@ -69,14 +66,4 @@ export function pageTabTitle(tab: { title?: string; url?: string }) {
   return filePath === undefined
     ? tab.url
     : (segmentsOf(filePath).at(-1) ?? filePath);
-}
-
-/**
- * Opens a file using the navigation policy of the surface that contains it.
- */
-export function useOpenFileTab() {
-  const { openScreen } = useOrchestrator();
-  return (tab: FileTab) => {
-    openScreen(fileHref(tab.hostPath));
-  };
 }

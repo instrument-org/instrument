@@ -20,6 +20,15 @@ import { FilePreviewListItem } from "./file-preview-list-item";
 import { MEDIA_CARD_ASPECT } from "./media-card-shape";
 import { Skeleton } from "./ui/skeleton";
 
+/**
+ * The columns row cards stand in, the same the media tiles above take, so a
+ * lone tile's edge lands on one of these. Three only once there is room for a
+ * filename beside a thumbnail in a third of the column. Shared with the
+ * folders a reply names, which stand as row cards of their own.
+ */
+export const ROW_CARD_GRID =
+  "grid grid-cols-1 gap-2 @sm:grid-cols-2 @xl:grid-cols-3";
+
 interface FilesGridProps {
   alignEnd?: boolean;
   compact?: boolean;
@@ -161,10 +170,7 @@ export function FilesGrid({
       {rowCardFiles.length > 0 && (
         <div className="@container">
           <div
-            className={cn(
-              ROW_CARD_GRID,
-              alignEnd && "justify-items-end",
-            )}
+            className={cn(ROW_CARD_GRID, alignEnd && "justify-items-end")}
             data-slot="files-grid-cards"
           >
             {rowCardFiles.map((file) => (
@@ -240,15 +246,6 @@ function bucketByTaskFolder(files: ViewerFile[], prioritizeUserFiles: boolean) {
     ? [...sortedAttachmentFiles, ...sortedRootFiles, ...sortedDownloadFiles]
     : [...sortedRootFiles, ...sortedAttachmentFiles, ...sortedDownloadFiles];
 }
-
-/**
- * The columns row cards stand in, the same the media tiles above take, so a
- * lone tile's edge lands on one of these. Three only once there is room for a
- * filename beside a thumbnail in a third of the column. Shared with the
- * folders a reply names, which stand as row cards of their own.
- */
-export const ROW_CARD_GRID =
-  "grid grid-cols-1 gap-2 @sm:grid-cols-2 @xl:grid-cols-3";
 
 // Which types get a full-width preview row rather than a compact chip. Images
 // and video are the exceptions: they have their own square media section above.

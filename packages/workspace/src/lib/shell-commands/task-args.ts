@@ -395,17 +395,19 @@ async function requireReadable(
   folderPath: string,
   spec: string,
 ): Promise<undefined | { answer: Promise<string | undefined> }> {
-  const answer = (async () => {
-    const dir = await fs.opendir(folderPath);
+  const answer = (async (): Promise<string | undefined> => {
     try {
-      await dir.read();
-    } finally {
-      await dir.close();
+      const dir = await fs.opendir(folderPath);
+      try {
+        await dir.read();
+      } finally {
+        await dir.close();
+      }
+      return;
+    } catch (error) {
+      return refusal(error, spec);
     }
-  })().then(
-    () => {},
-    (error: unknown) => refusal(error, spec),
-  );
+  })();
   let timer: NodeJS.Timeout | undefined;
   const asking = new Promise<"asking">((resolve) => {
     timer = setTimeout(() => {

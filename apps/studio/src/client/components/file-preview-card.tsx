@@ -220,6 +220,7 @@ function FileRowCard({
       {!hideActionsMenu && hasFileActions && !isMissing && (
         <div
           className="relative z-10 -ml-3 flex w-0 shrink-0 items-center overflow-hidden opacity-0 group-focus-within:ml-0 group-focus-within:w-auto group-focus-within:overflow-visible group-focus-within:opacity-100 group-hover:ml-0 group-hover:w-auto group-hover:opacity-100 has-data-[state=open]:ml-0 has-data-[state=open]:w-auto has-data-[state=open]:opacity-100"
+          data-slot="file-row-actions"
           onClick={(e) => {
             e.stopPropagation();
           }}

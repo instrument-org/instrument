@@ -146,10 +146,12 @@ export const AssistantMessage = memo(function AssistantMessage({
               taskId,
             }}
           >
-            {/* As wide as a bubble at its widest, a lone file across all of
-                it rather than one column of the grid, and spaced from the
-                bubbles as they are from each other. */}
-            <div className="flex w-full max-w-[85%] flex-col gap-2 [&_[data-slot=files-grid-card]:only-child]:col-span-full [&_[data-slot=files-grid-media]:only-child]:w-full">
+            {/* Each card as wide as its name, up to what a bubble reaches at
+                its widest (the whole of it for a lone file, a column of it
+                for several), and spaced from the bubbles as they are from
+                each other. A card sized to its name keeps the room for its
+                menu, so it does not grow under the pointer. */}
+            <div className="flex w-full max-w-[85%] flex-col gap-2 [&_[data-slot=file-row-actions]]:ml-0 [&_[data-slot=file-row-actions]]:w-auto [&_[data-slot=files-grid-card]]:justify-self-start [&_[data-slot=files-grid-card]:only-child]:col-span-full [&_[data-slot=files-grid-media]:only-child]:w-full">
               {fences.map((content, index) => (
                 <AgentFilesBlock
                   className="my-0"

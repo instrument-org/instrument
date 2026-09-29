@@ -204,13 +204,13 @@ export function getGuestGeneration(
   return pool.get(targetId)?.generation;
 }
 
-/** The pooled guest element for a target, if it exists (for nav controls). */
 /** Who walks each page's tab when a thumb button is pressed over it, by the page's target. */
 const thumbHandlers = new Map<
   BrowserTargetId,
   (direction: "back" | "forward") => void
 >();
 
+/** The pooled guest element for a target, if it exists (for nav controls). */
 export function getWebviewElement(
   targetId: BrowserTargetId,
 ): null | WebviewElement {

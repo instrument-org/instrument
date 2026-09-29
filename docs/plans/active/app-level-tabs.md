@@ -27,7 +27,7 @@ Every app tab is a route under `/orchestrator`:
 | Route | Shows |
 | --- | --- |
 | `/orchestrator` | Chat: the inbox with no chat open. A new tab opens here. |
-| `/orchestrator/threads/$id` | Chat: the inbox beside the chat, its tabs on its rail. |
+| `/orchestrator/chats/$id` | Chat: the inbox beside the chat, its tabs on its rail. |
 | `/orchestrator/computer?…` | Files: the Finder at a folder, or a file. |
 | `/orchestrator/apps`, `/orchestrator/apps/$slug` | Apps, and one app's front. |
 | `/orchestrator/ideas`, `/orchestrator/ideas/$idea` | Discover. |
@@ -41,7 +41,7 @@ Choosing a chat in the inbox, a folder in the Finder, or an app on Apps navigate
 - **Shell, once per window** (`OrchestratorWindow`, rendered in place of `App` for the orchestrator window): providers, the app tab routers, the frame, the bar (back, forward, the app tab strip with its new tab button, the corner), the app rail, the draft and popped-out chat layer, the window's browser, window chords, and the dialogs. It reads the active tab's router through `RouterContextProvider`.
 - **Per app tab** (`/orchestrator` layout route): the chat (inbox column, the conversation, its pane and rail) or the screen filling the card.
 - **A chat's pane** draws its tab through `GroupItem`, as a popped-out chat already does, instead of through the router's outlet. The router is the app tab's; the pane's screens walk their own tab.
-- **The group on screen** (`windowTabs.group`) follows the active app tab: its chat's thread, or none. The window's browser, the openers and the send context keep reading it as today.
+- **The group on screen** (`windowTabs.group`) follows the active app tab: its chat, or none. The window's browser, the openers and the send context keep reading it as today.
 - **The rail** jumps the active tab to a place (history entry); middle click, Cmd-click, or its context menu's Open in New Tab opens a tab there. Chat takes the tab back to the chat it last showed.
 - **Chords**: Cmd+T new chat tab, Cmd+W close the app tab, Shift+Cmd+T reopen, Cmd+1…9, Ctrl+Tab and Shift+Ctrl+Tab, Cmd+[ and Cmd+] back and forward in the tab, the mouse's back and forward buttons.
 - **Strip**: the existing `TabStrip` (drag to reorder, middle-click close, close button, shrink to icons), in the window bar.

@@ -2,7 +2,7 @@
 // node render.mjs <transcript.md> [--out file.html] [--children]
 // The run read like the chat it was: your messages and its replies as
 // bubbles, and between them, open, the activities it worked through and the
-// actions inside each. Tasks a thread started sit inline where they ran.
+// actions inside each. Tasks a chat started sit inline where they ran.
 import fs from "node:fs";
 import path from "node:path";
 
@@ -161,7 +161,7 @@ function activity(b) {
 
 function conversation(l, childBlocks = []) {
   const bs = blocks(l);
-  // Child task turns go after the last thread block that started before them.
+  // Child task turns go after the last chat block that started before them.
   const html = [];
   const pending = [...childBlocks].sort((x, y) => x.at - y.at);
   bs.forEach((b, i) => {
@@ -188,7 +188,7 @@ function block(b) {
   return activity(b);
 }
 
-// A child task's turns, each as one inset card placed on the thread's clock.
+// A child task's turns, each as one inset card placed on the chat's clock.
 function childTurns(c) {
   const bs = blocks(c);
   const turns = [];
@@ -207,7 +207,7 @@ const m = root.p.meta;
 const firstAsk = root.a.timeline.find((e) => e.kind === "user")?.say ?? "";
 const name =
   m.taskName === "Instrument"
-    ? `Thread: ${short(firstAsk.replace(/\s+/g, " "), 60)}`
+    ? `Chat: ${short(firstAsk.replace(/\s+/g, " "), 60)}`
     : m.taskName;
 const all = [root, ...children];
 const totalWork = all.reduce(

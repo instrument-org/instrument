@@ -1,5 +1,5 @@
-// Tasks an orchestrator thread started, found by folder name anywhere in the
-// thread and exported from their own task.db with the repo's exporter. The
+// Tasks an orchestrator chat started, found by folder name anywhere in the
+// chat and exported from their own task.db with the repo's exporter. The
 // only part of the digest that needs this machine's task folders.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -12,8 +12,8 @@ const REPO = path.resolve(
   "../../../..",
 );
 
-// Where a task the thread named can be: inside the thread's own chat folder
-// (`chats/<chat>/tasks/<id>`), flat beside it for a thread with no chat
+// Where a task the chat named can be: inside the chat's own chat folder
+// (`chats/<chat>/tasks/<id>`), flat beside it for a chat with no chat
 // folder (`tasks/<id>`), or inside another chat of the same workspace.
 function candidateDirs(taskDir, id) {
   const parent = path.dirname(taskDir);

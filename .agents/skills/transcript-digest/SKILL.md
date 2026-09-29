@@ -1,6 +1,6 @@
 ---
 name: transcript-digest
-description: Digest an exported Instrument transcript (a `*-transcript.md`, usually in ~/Downloads) before reading it. Use whenever someone hands over a transcript to review, asks how a run went, where its time went, whether it shows harness issues, why a task failed or stalled, or passes a thread transcript whose child tasks matter. Gives timing buckets, failed/repeated/slow calls and one line per step with line numbers, so the Markdown is read only where it matters.
+description: Digest an exported Instrument transcript (a `*-transcript.md`, usually in ~/Downloads) before reading it. Use whenever someone hands over a transcript to review, asks how a run went, where its time went, whether it shows harness issues, why a task failed or stalled, or passes a chat transcript whose child tasks matter. Gives timing buckets, failed/repeated/slow calls and one line per step with line numbers, so the Markdown is read only where it matters.
 ---
 
 # Transcript digest
@@ -9,18 +9,18 @@ An exported transcript runs to thousands of lines, most of them the system promp
 
 ```bash
 node .agents/skills/transcript-digest/scripts/digest.mjs ~/Downloads/<name>-transcript.md
-node .agents/skills/transcript-digest/scripts/digest.mjs <thread>-transcript.md --children   # plus every task the thread started
+node .agents/skills/transcript-digest/scripts/digest.mjs <chat>-transcript.md --children   # plus every task the chat started
 node .agents/skills/transcript-digest/scripts/digest.mjs <file> --json                       # the same, structured
 ```
 
-No dependencies. It reads only the Markdown, so it works on a transcript from anyone's machine. `--children` is the one part that needs this Mac: it finds the `tasks/<id>` folders the thread mentions inside the thread's chat folder (`chats/<chat>/tasks/<id>`), falling back to flat `tasks/<id>` and the workspace's other chats, and exports each through `script:dump-session-transcript` (the `session-transcript` skill). A child whose folder is not here is reported as not found rather than failing the run.
+No dependencies. It reads only the Markdown, so it works on a transcript from anyone's machine. `--children` is the one part that needs this Mac: it finds the `tasks/<id>` folders the chat mentions inside the chat's folder (`chats/<chat>/tasks/<id>`), falling back to flat `tasks/<id>` and the workspace's other chats, and exports each through `script:dump-session-transcript` (the `session-transcript` skill). A child whose folder is not here is reported as not found rather than failing the run.
 
 ## How to use it
 
 1. Run the digest first, always. Read its header, time split and flags before opening the transcript.
 2. Read the transcript only at the line ranges the flags and the step list point to (`sed -n 'A,Bp'` or Read with an offset). The step list's `L` numbers are the step headings; a flagged tool call's line is its `### Tool Call` heading, with the result below it.
 3. If the header says the same session was exported more than once, work from the newest export and say which one you used. Identical copies are marked.
-4. For a thread (task name "Instrument", `task new` / `task send` in its calls), rerun with `--children` before judging what a child did; the thread only sees the child's receipt. Each child's header gives the path of its exported transcript; read that file at the child's flagged lines rather than running the digest again.
+4. For a chat (task name "Instrument", `task new` / `task send` in its calls), rerun with `--children` before judging what a child did; the chat only sees the child's receipt. Each child's header gives the path of its exported transcript; read that file at the child's flagged lines rather than running the digest again.
 
 ## Reading the output
 

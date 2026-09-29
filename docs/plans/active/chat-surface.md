@@ -10,7 +10,7 @@ The 2.0 draft window grew into a corner. Its head carries the name, the topic, t
 
 ## Decisions
 
-- **Chat, not thread.** Everything a person reads says "chat": "New chat", never "New thread". Code names can follow separately.
+- **Chat, not chat.** Everything a person reads says "chat": "New chat", never "New chat". Code names can follow separately.
 - **The draft's head stays a chat.** The person is starting a chat, so the head says "New chat", followed by the topic. Its dropdown is where an output is picked by hand, which is rare; once one is picked or suggested the head reads "Make a [page type] in [topic]". Suggesting the output from the draft's words does most of the work. Both pills are filled by Instrument when it is confident (the topic already is, from the draft's words), tinted while they are its pick, removable with × (and then left alone for that draft), and pickable by hand. "in" is the only joiner.
 - **One topic picker.** A search field that also makes a topic, best fit first, New topic at the foot; the same component in the draft head, on rows, and in a chat's head.
 - **Bringing things in is two steps.** A fresh draft's band shows tiles to open (Web, This Mac, Apps) and, under them and smaller, a place to attach a file or a folder that is also the drop zone, leaving room above for typing; the whole window takes a drop. Pressing Apps opens the Apps landing page (the same page the rail's Apps place shows, without its prompts to connect more) in the band, and pressing an app goes into that app's own page there, so a connected Gmail can be opened and browsed in the draft; naming an app in the words is the @ mention, not the tile. Pressing Web opens the browser right there in its own zero state (bookmarks, recents, an address bar), with no popover in between; This Mac opens the Finder the same way. A dropped or pasted file opens as a tab, never a chip. The first zero state never shows tabs; once something is open, bringing in more goes through +, which opens a new tab showing the same zero state.
@@ -76,7 +76,7 @@ So thumbnails are pictures, never scaled live pages: a guest can be shown in onl
 - A file in the full view is `FileViewer`, which renders standalone in whatever area it is given. It draws its own header unless handed `actionsInto` (the 2.0 file tab portals Edit/Done, Ask and ⋯ into its tab row that way), and its editors, Edit source and comments tray need nothing from a pane. The Open-in app button lives in the location pill (`tab-location-row.tsx`, `open-in-app.tsx`), so the full view's chrome or the viewer header has to host it.
 - An HTML file shown as a page is a webview guest in a slot: the host registers a `<div>` in `pageSlotsAtom` under `page:<tabId>` and opens the page tab in that group, and page editing keys off that tab's id (`pageEditTabsAtom`, `PageEditSession`). The full view needs the same slot and hosted page tab, the way the Files screen and quick look do.
 - The comments tray's "Add to chat" targets the chat on screen beside the file, else a new draft; in the rail's world it targets the chat whose rail the file was opened from.
-- `ThreadWindow` gains the rail and a maximize-as-modal state; its tab row goes. `PoppedOut` goes; `ThreadStage` stops skipping floating sessions and draws them in the column too, and popping out only clears the selection.
+- `ChatWindow` gains the rail and a maximize-as-modal state; its tab row goes. `PoppedOut` goes; the chat column stops skipping floating sessions and draws them too, and popping out only clears the selection.
 - The reply box's + menu becomes the tile chooser: Web, This Mac, Apps (connected apps to mention, and a way to the Apps landing page), Attach files and Add a folder, and the skill and model pickers. The local-folder item goes.
 - Every Finder opens a double-clicked file in place with back and forward; opening a file as a new tab goes, and so does any "where to open" choice for a file named in a chat.
 - The pane's New tab page and the tasks pane go.
@@ -86,7 +86,7 @@ So thumbnails are pictures, never scaled live pages: a guest can be shown in onl
 
 Each step lands and is checked in the app on its own.
 
-1. Copy: "thread" becomes "chat" in everything a person reads.
+1. Copy: "chat" becomes "chat" in everything a person reads.
 2. The Finder opens a double-clicked file in place, with back and forward; the "where to open" choice goes.
 3. Rail thumbnails as captured pictures (measured; see above).
 4. The reply box's +: tiles, Attach files and Add a folder, skills, model, apps to mention; / stays the keyboard path.

@@ -1192,6 +1192,7 @@ export function GroupItem({
               key={up.id}
               path={computer.path}
               root={computer.root}
+              select={search.get("select") ?? undefined}
               source={search.get("source") === "true"}
               tree={tree}
             />

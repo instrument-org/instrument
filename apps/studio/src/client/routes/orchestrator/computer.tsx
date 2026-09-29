@@ -11,6 +11,8 @@ export const Route = createFileRoute("/orchestrator/computer")({
     path: z.string().default(""),
     /** Where the browser is rooted: `~` for the home folder, or a folder's own path. */
     root: z.string().default("~"),
+    /** What the folder opens with selected, as a path under the root: `report.pdf`. */
+    select: z.string().optional(),
     /** A page's file shown as its text rather than as the page: view source. */
     source: z.boolean().optional(),
     /** The folder a file tab's own tree is rooted at: where the Finder stood when the file was opened. */
@@ -19,12 +21,13 @@ export const Route = createFileRoute("/orchestrator/computer")({
 });
 
 function ComputerRoute() {
-  const { file, path, root, source, tree } = Route.useSearch();
+  const { file, path, root, select, source, tree } = Route.useSearch();
   return (
     <FilesScreen
       file={file}
       path={path}
       root={root}
+      select={select}
       source={source ?? false}
       tree={tree}
     />

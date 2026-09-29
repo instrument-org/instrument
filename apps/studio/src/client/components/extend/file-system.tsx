@@ -149,6 +149,8 @@ export type FileSystemProps = {
   contextMenuPath?: null | string;
   /** Folder prefix to open initially, e.g. `"invoices/"`. */
   defaultPath?: string;
+  /** The item selected on opening, by path, e.g. `"invoices/march.pdf"`. */
+  defaultSelectedPath?: string;
   /** The order the browser opens in, when name ascending is the wrong one. */
   defaultSort?: FileSystemSortState;
   defaultView?: FileSystemView;
@@ -1461,6 +1463,7 @@ export function FileSystem({
   columnWidth: columnWidthProp,
   contextMenuPath = null,
   defaultPath = "",
+  defaultSelectedPath,
   defaultSort,
   defaultView = "icons",
   getFileUrl,
@@ -1541,7 +1544,7 @@ export function FileSystem({
     onPathChange?.(currentPath);
   }, [currentPath, onPathChange]);
   const [ownSelectedPath, setSelectedPath] = React.useState<null | string>(
-    null,
+    defaultSelectedPath ?? null,
   );
   const selectedPath =
     selectedPathProp === undefined ? ownSelectedPath : selectedPathProp;
@@ -4382,8 +4385,10 @@ function FileSystemListView({
   const scrolledToRef = React.useRef<null | string>(null);
   React.useLayoutEffect(() => {
     if (scrolledToRef.current === selectedPath) return;
-    scrolledToRef.current = selectedPath;
+    // A selection whose row is not listed yet, as one the browser opened on
+    // before its folder was read, is scrolled to once the row arrives.
     if (selectedRowIndex === -1) return;
+    scrolledToRef.current = selectedPath;
     scrollIndexIntoView({
       index: selectedRowIndex,
       itemSize: LIST_ROW_HEIGHT,

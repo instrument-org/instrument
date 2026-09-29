@@ -177,6 +177,7 @@ export function ComputerPage({
   quickLookOpen = false,
   refreshInterval = REFRESH_MS,
   root,
+  select,
 }: {
   /** Told the folder on screen whenever it changes; null when nothing on screen is a folder. */
   onFolderChange?: (folder: FolderOnScreen | null) => void;
@@ -198,6 +199,8 @@ export function ComputerPage({
   /** How often every folder on screen is re-read; false to read each once. */
   refreshInterval?: false | number;
   root: string;
+  /** What the folder opens with selected, as a path under the root: a file shown in its folder. */
+  select?: string;
 }) {
   const { askAbout, openScreen, taskId } = useOrchestrator();
   const { resolvedTheme } = useTheme();
@@ -252,7 +255,9 @@ export function ComputerPage({
   const [current, setCurrent] = useState(path);
   // The path rather than the item: the items are rebuilt on every re-read,
   // and a selection held as one of them would change with each.
-  const [selectedPath, setSelectedPath] = useState<null | string>(null);
+  const [selectedPath, setSelectedPath] = useState<null | string>(
+    select ?? null,
+  );
   // The address this page wrote last, so one that arrives from outside can
   // be told from the page's own echo of what the browser showed. A ref, not
   // state: the router answers a write in a render of its own, ahead of any
@@ -272,7 +277,7 @@ export function ComputerPage({
     const rootChanged = root !== writtenRoot;
     written.current = here;
     setCurrent(path);
-    setSelectedPath(null);
+    setSelectedPath(select ?? null);
     setLoaded((previous) => ({
       prefixes: rootChanged
         ? prefixesOf(path)
@@ -280,7 +285,7 @@ export function ComputerPage({
       root,
     }));
     setOpenings((count) => count + 1);
-  }, [path, root]);
+  }, [path, root, select]);
 
   // `~` names the home folder, which the workspace expands for a folder it is
   // being asked to read. Nothing else does: a path this hands to an action
@@ -658,7 +663,12 @@ export function ComputerPage({
     }
     void navigate({
       replace: true,
-      search: (previous) => ({ ...previous, path: onScreen, root }),
+      search: (previous) => ({
+        ...previous,
+        path: onScreen,
+        root,
+        select: undefined,
+      }),
       to: "/orchestrator/computer",
     });
   }, [navigate, onLocationChange, onScreen, path, root, settled]);
@@ -1039,6 +1049,7 @@ export function ComputerPage({
                 columnWidth={columnWidth}
                 contextMenuPath={isMenuOpen ? (menuItem?.path ?? null) : null}
                 defaultPath={path}
+                defaultSelectedPath={select}
                 // Every row here is a thing on this computer, and drags out of
                 // the window as one: to the desktop, a Finder window, another
                 // app. What lands there is the OS's copy; nothing here moves.

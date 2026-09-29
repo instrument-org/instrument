@@ -85,6 +85,7 @@ export function FilesScreen({
   file,
   path,
   root,
+  select,
   source,
   tree,
 }: {
@@ -92,6 +93,8 @@ export function FilesScreen({
   file: string | undefined;
   path: string;
   root: string;
+  /** What the folder opens with selected, as a path under the root. */
+  select: string | undefined;
   /** Whether a page's file is shown as its text rather than as the page. */
   source: boolean;
   /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
@@ -583,6 +586,7 @@ export function FilesScreen({
             onOpenFile={openFile}
             path={path}
             root={root}
+            select={select}
             {...quickLook.props}
           />
         )}

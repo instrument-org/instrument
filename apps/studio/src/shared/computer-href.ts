@@ -19,10 +19,14 @@ export function fileHref(
  * at the folder that was handed over instead of at the walk down to it. Takes
  * the path on the Mac, which is what the view is rooted by, and every other
  * way into a folder in this window -- a place on the home page, a path typed
- * into the omnibar -- arrives at the same address.
+ * into the omnibar -- arrives at the same address. `select` names something
+ * in the folder to open with selected: a file shown in its folder.
  */
-export function folderHref(hostPath: string) {
-  return `/orchestrator/computer?path=&root=${encodeURIComponent(hostPath)}`;
+export function folderHref(
+  hostPath: string,
+  { select }: { select?: string } = {},
+) {
+  return `/orchestrator/computer?path=&root=${encodeURIComponent(hostPath)}${select === undefined ? "" : `&select=${encodeURIComponent(select)}`}`;
 }
 
 /**

@@ -4,6 +4,7 @@ import {
   fetchModel,
   REASONING_EFFORTS,
 } from "@instrument-org/ai-gateway";
+import { APP_NAME } from "@instrument-org/shared";
 import { type ByteString, defineCommand } from "just-bash";
 import ms from "ms";
 import path from "node:path";
@@ -70,6 +71,7 @@ import { askWake, cancelAskedWake, expectStop } from "../orchestrator/wake";
 import { tabHolders } from "../orchestrator/window-tab";
 import { isChatId, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
+import { systemNote } from "../system-note";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import {
@@ -551,7 +553,7 @@ export async function runNew(
   const askedFolders = values.get("folder") ?? [];
   const orchestratorFolders = orchestratorState.attachedFolders ?? {};
   const resolvedFolders = resolveFolders(askedFolders, orchestratorFolders);
-  await requireFoldersOnDisk(resolvedFolders, askedFolders);
+  const looks = await requireFoldersOnDisk(resolvedFolders, askedFolders);
   const folders = withWorkspaceFolder(resolvedFolders);
   const askedFiles = values.get("file") ?? [];
   const layout = await orchestratorLayout(context, orchestratorFolders);
@@ -643,22 +645,38 @@ export async function runNew(
   };
 
   publisher.publish("task.updated", { id: taskId });
-  getWorkspaceActorRef().send({
-    type: "createSession",
-    value: {
-      agentName: "main",
-      id: taskId,
-      message: briefed,
-      model,
-      sessionId,
-    },
-  });
+  const start = (refusals: string[]) => {
+    getWorkspaceActorRef().send({
+      type: "createSession",
+      value: {
+        agentName: "main",
+        id: taskId,
+        message: withRefusals(briefed, refusals),
+        model,
+        sessionId,
+      },
+    });
+  };
+  // A folder the system is still asking the user about holds the task until
+  // they answer, since a file written by its path goes through while the ask
+  // is up, and a refusal would come after the work it was meant to prevent.
+  if (looks.length === 0) {
+    start([]);
+  } else {
+    void Promise.all(looks.map((look) => look.answer)).then((answers) => {
+      start(answers.filter((answer) => answer !== undefined));
+    });
+  }
   await recordTaskActivity(taskId);
 
   return ok(
-    `Created ${taskId} ("${name}"). It is running now.\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
+    `Created ${taskId} ("${name}"). ${asking}\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
   );
 }
+  const asking =
+    looks.length === 0
+      ? `It is running now.`
+      : `macOS is asking the user whether ${APP_NAME} may use ${looks.map((look) => `"${look.spec}"`).join(" and ")}, and the task starts once they answer: tell them to answer the system's dialog.`;
 
 export async function runSend(
   args: string[],
@@ -752,6 +770,36 @@ export async function runStop(args: string[], context: TaskCommandContext) {
   if (!running) {
     return ok(`${task.id} is not running.\n`);
   }
+/**
+ * The brief with what the user declined added to it: the task still starts,
+ * so the refusal reaches the conversation the way any finish does, and it
+ * does none of the work that needed the folder.
+ */
+function withRefusals(
+  message: SessionMessage.UserWithParts,
+  refusals: string[],
+): SessionMessage.UserWithParts {
+  if (refusals.length === 0) {
+    return message;
+  }
+  const note = systemNote`
+    ${refusals.join("\n")}
+    Do none of the work that needs that folder: say in one line that macOS refused it, and stop.
+  `;
+  // On the brief's own text, so the task reads it as part of what it was told.
+  let noted = false;
+  return {
+    ...message,
+    parts: message.parts.map((part) => {
+      if (part.type !== "text" || noted) {
+        return part;
+      }
+      noted = true;
+      return { ...part, text: `${part.text}\n${note}` };
+    }),
+  };
+}
+
   // The wake would report the turn this ends as a finish; it is not news.
   expectStop(task.id);
   getWorkspaceActorRef().send({ type: "stopSessions", value: { id: task.id } });

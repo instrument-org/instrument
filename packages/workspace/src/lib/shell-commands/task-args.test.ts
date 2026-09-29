@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { MOUNT } from "../../mount-points";
 import { FolderAttachment } from "../../schemas/folder-attachment";
@@ -220,8 +220,56 @@ describe("requireFoldersOnDisk", () => {
     await fs.mkdir(dir);
     await expect(
       requireFoldersOnDisk([{ path: dir }], ["Home/new folder:rw"]),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual([]);
   });
+
+  // The system's ask holds a listing until the user answers, and the command
+  // cannot wait that long, so the answer comes back still to come.
+  it.each([
+    { expected: undefined, refusal: undefined, said: "allows" },
+    {
+      expected:
+        /^macOS did not let Instrument into "Home\/Desktop:rw"|^"Home\/Desktop:rw" cannot be read/,
+      refusal: Object.assign(new Error("not permitted"), { code: "EPERM" }),
+      said: "declines",
+    },
+  ])(
+    "holds the answer for when the user $said",
+    async ({ expected, refusal }) => {
+      const dir = path.join(root, `asked ${refusal ? "no" : "yes"}`);
+      await fs.mkdir(dir);
+      const realOpendir = fs.opendir.bind(fs);
+      let answer = () => {};
+      const opendir = vi.spyOn(fs, "opendir").mockImplementation(
+        (folder) =>
+          new Promise((resolve, reject) => {
+            answer = () => {
+              if (refusal) {
+                reject(refusal);
+              } else {
+                realOpendir(folder).then(resolve, reject);
+              }
+            };
+          }),
+      );
+      try {
+        const pending = await requireFoldersOnDisk(
+          [{ path: dir }],
+          ["Home/Desktop:rw"],
+        );
+        expect(pending.map((look) => look.spec)).toEqual(["Home/Desktop:rw"]);
+        answer();
+        const reason = await pending[0]?.answer;
+        if (expected) {
+          expect(reason).toMatch(expected);
+        } else {
+          expect(reason).toBeUndefined();
+        }
+      } finally {
+        opendir.mockRestore();
+      }
+    },
+  );
 
   // The case from a live session: the note named a folder the user had just
   // renamed in the Finder, the task was started on the old name, and its

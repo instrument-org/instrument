@@ -91,7 +91,8 @@ export function parseFolderSpec(spec: string): {
 export async function requireFoldersOnDisk(
   folders: { path: string }[],
   specs: string[],
-): Promise<void> {
+): Promise<PendingLook[]> {
+  const pending: PendingLook[] = [];
   for (const [index, folder] of folders.entries()) {
     const spec = specs[index] ?? folder.path;
     let stat;
@@ -107,9 +108,21 @@ export async function requireFoldersOnDisk(
         `"${spec}" is a file, not a folder. A task is handed the folder, and finds the file inside it.`,
       );
     }
-    await requireReadable(folder.path, spec);
+    const look = await requireReadable(folder.path, spec);
+    if (look) {
+      pending.push({ answer: look.answer, spec });
+    }
   }
+  return pending;
 }
+
+/**
+ * A look inside a folder still waiting on the user's answer to the system's
+ * ask: the folder as the command named it, and the answer, which settles the
+ * moment they give it, to nothing when they allowed it and to the reason when
+ * they did not.
+ */
+export type PendingLook = { answer: Promise<string | undefined>; spec: string };
 
 /**
  * The files a task is handed, from the `--file` specs on `task new` and
@@ -305,28 +318,36 @@ export function parseDelay(raw: string): number | undefined {
 }
 
 /**
- * A look inside the folder, which is what the operating system gates where a
- * stat is not. On a Mac the first look into Desktop, Documents, Downloads or a
- * removable volume raises the system's own ask, and taking it here puts that
- * ask at the moment the user pointed at the folder rather than at the task's
- * first `ls`; a refusal already given becomes a reason the conversation can
- * pass on instead of an `EPERM` a task has to make sense of.
+ * A look inside the folder, which is what the operating system gates. On a Mac
+ * the first look into Desktop, Documents, Downloads or a removable volume
+ * raises the system's own ask, and taking it here puts that ask at the moment
+ * the user pointed at the folder rather than at the task's first `ls`; a
+ * refusal already given becomes a reason the conversation can pass on instead
+ * of an `EPERM` a task has to make sense of.
  *
  * The ask blocks the look until the user answers, and the command must not
  * wait on that: it would outlive the call's yield and come back as a
- * background job. So a look that has not answered in time is let go, and the
- * task starts: its first read waits on the same answer, and a refusal given
- * then reaches it there.
+ * background job. So a look that has not answered in time comes back as the
+ * answer still to come, for the caller to hold the task on. Only a listing
+ * waits on the ask: a file written or read by its path goes through while it
+ * is up, so a task started before the answer writes into the folder whatever
+ * the user then says.
  */
-async function requireReadable(folderPath: string, spec: string) {
-  const look = (async () => {
+async function requireReadable(
+  folderPath: string,
+  spec: string,
+): Promise<{ answer: Promise<string | undefined> } | undefined> {
+  const answer = (async () => {
     const dir = await fs.opendir(folderPath);
     try {
       await dir.read();
     } finally {
       await dir.close();
     }
-  })();
+  })().then(
+    () => undefined,
+    (error: unknown) => refusal(error, spec),
+  );
   let timer: NodeJS.Timeout | undefined;
   const asking = new Promise<"asking">((resolve) => {
     timer = setTimeout(() => {
@@ -334,22 +355,24 @@ async function requireReadable(folderPath: string, spec: string) {
     }, LOOK_INSIDE_MS);
   });
   const outcome = await Promise.race([
-    look.then(
-      () => "readable" as const,
-      (error: unknown) => error,
-    ),
+    answer.then((reason) => ({ reason })),
     asking,
   ]).finally(() => {
     clearTimeout(timer);
   });
-  if (outcome === "readable" || outcome === "asking") {
-    return;
+  if (outcome === "asking") {
+    return { answer };
   }
+  if (outcome.reason) {
+    throw new Error(outcome.reason);
+  }
+  return undefined;
+}
+
+function refusal(error: unknown, spec: string) {
   const code =
-    outcome instanceof Error && "code" in outcome ? String(outcome.code) : "";
-  throw new Error(
-    process.platform === "darwin" && code === "EPERM"
-      ? `macOS did not let ${APP_NAME} into "${spec}": the user declined its ask. They can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.`
-      : `"${spec}" cannot be read by the account ${APP_NAME} runs as (${code || "unknown error"}). Say so rather than trying again.`,
-  );
+    error instanceof Error && "code" in error ? String(error.code) : "";
+  return process.platform === "darwin" && code === "EPERM"
+    ? `macOS did not let ${APP_NAME} into "${spec}": the user declined its ask. They can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.`
+    : `"${spec}" cannot be read by the account ${APP_NAME} runs as (${code || "unknown error"}). Say so rather than trying again.`;
 }

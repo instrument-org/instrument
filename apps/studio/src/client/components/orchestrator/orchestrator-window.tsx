@@ -73,7 +73,9 @@ import {
   CHAT_HREF,
   groupOfHref,
   isChatHref,
+  isSiteGroup,
   placeOfHref,
+  putAwaySitesAtom,
   useAppTabs,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
@@ -365,6 +367,68 @@ function WindowShell({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A site opened at the window's level lives for as long as an open tab
+  // can come back to it, by its history as its router holds it now. Past
+  // that its page goes, guest and all, so a closed tab's video stops; its
+  // record is put aside for as long as Shift+Cmd+T can reopen the tab, which
+  // brings the page back at its address.
+  const setPutAway = useSetAtom(putAwaySitesAtom);
+  const siteGroups = [
+    ...new Set(
+      windowTabs.allTabs.flatMap((tab) =>
+        tab.group !== undefined && isSiteGroup(tab.group) ? [tab.group] : [],
+      ),
+    ),
+  ].join("\n");
+  useEffect(() => {
+    const groupsOf = (hrefs: string[]) =>
+      hrefs.flatMap((href) => {
+        const group = groupOfHref(href);
+        return group !== undefined && isSiteGroup(group) ? [group] : [];
+      });
+    const open = new Set(
+      appTabs.model.tabs.flatMap((tab) => {
+        const router = routers.get(tab.id);
+        return groupsOf([
+          ...(router
+            ? getRouterHistory(router).entries
+            : (tab.history?.entries ?? [])),
+          tab.pathname,
+        ]);
+      }),
+    );
+    const reopenable = new Set(
+      appTabs.model.recentlyClosed.flatMap((tab) =>
+        groupsOf([...(tab.history?.entries ?? []), tab.pathname]),
+      ),
+    );
+    const leaving = siteGroups
+      .split("\n")
+      .filter((group) => group && !open.has(group));
+    setPutAway((current) => {
+      const next: typeof current = {};
+      // Kept while a closed tab can bring it back, or while an open one is
+      // on its way to (the site's view takes it back itself).
+      for (const [group, stashed] of Object.entries(current)) {
+        if (reopenable.has(group) || open.has(group)) {
+          next[group] = stashed;
+        }
+      }
+      for (const group of leaving) {
+        if (reopenable.has(group)) {
+          next[group] = windowTabs.allTabs.filter(
+            (tab) => tab.group === group,
+          );
+        }
+      }
+      return next;
+    });
+    for (const group of leaving) {
+      windowTabs.dropGroup(group);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteGroups, appTabs.model]);
 
   const setPaneOpen = (group: string, isOpen: boolean) => {
     setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));

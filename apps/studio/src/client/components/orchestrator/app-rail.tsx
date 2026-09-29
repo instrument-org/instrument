@@ -7,6 +7,7 @@ import {
   AvatarImage,
 } from "@/client/components/ui/avatar";
 import { useLiveUser } from "@/client/hooks/use-live-user";
+import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { getInitials } from "@/client/lib/get-initials";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -173,7 +174,7 @@ function RailEntry({
         }
       }}
       onClick={(event) => {
-        onChoose(event.metaKey || event.ctrlKey);
+        onChoose(wantsNewTab(event));
       }}
       onContextMenu={(event) => {
         event.preventDefault();

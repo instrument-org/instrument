@@ -3,7 +3,10 @@ import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { TaskChat } from "@/client/components/task/chat";
 import { Spinner } from "@/client/components/ui/spinner";
-import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
+import {
+  ActiveTabProvider,
+  useIsActiveTab,
+} from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
@@ -108,10 +111,13 @@ export function ThreadStage({
       };
     });
   }
+  // Up only while the window's tab this stands in is the one up as well: a
+  // chat behind another tab is not read, and does not take the caret.
+  const isTabActive = useIsActiveTab();
   return (
     <>
       {kept.order.map((id) => {
-        const isUp = id === sessionId;
+        const isUp = id === sessionId && isTabActive;
         return (
           <div
             aria-hidden={!isUp}

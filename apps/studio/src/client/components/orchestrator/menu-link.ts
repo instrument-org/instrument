@@ -6,6 +6,19 @@
  */
 let menuLink: ((options: { newTab: boolean }) => void) | null = null;
 
+// Every right click forgets the last one's link on its way down, before the
+// surface under the pointer names its own, so a menu raised over anything
+// else never opens a link from an earlier menu that was dismissed.
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "contextmenu",
+    () => {
+      menuLink = null;
+    },
+    { capture: true },
+  );
+}
+
 /** Opens the link the window's native menu was raised over, where its surface says. */
 export function openMenuLink(options: { newTab: boolean }) {
   menuLink?.(options);

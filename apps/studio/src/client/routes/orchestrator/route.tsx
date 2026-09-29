@@ -8,6 +8,7 @@ import {
   SIDEBAR_WIDTH_MIN,
   THREADS_HREF,
   WEB_HREF,
+  windowTabsAtom,
 } from "@/client/atoms/orchestrator";
 import {
   TASK_CHAT_WIDTH_MIN,
@@ -19,6 +20,7 @@ import {
   groupOfHref,
   isChatHref,
   PAGE_HREF,
+  putAwaySitesAtom,
 } from "@/client/components/orchestrator/app-tabs";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import { type PageChromeSlots } from "@/client/components/orchestrator/browser-tabs";
@@ -62,7 +64,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
@@ -73,6 +75,9 @@ const INBOX_COVER_PAST = 80;
 const MAIN_WIDTH_MIN = 560;
 /** The rail's width with its pictures, `w-30`. */
 const RAIL_WIDTH = 120;
+/** Whether the inbox was put away for a row too narrow for it, rather than by hand. */
+const inboxSteppedAsideAtom = atom(false);
+
 /**
  * How much more room than it needs a row must have before what gave way for
  * it comes back, so a window held near the edge does not flicker between the
@@ -171,13 +176,18 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
   // The inbox steps aside as the row crosses into too narrow, and comes back
   // as it crosses out, unless someone put it away or brought it back in
   // between. Only the crossing acts, so either choice holds at any width.
-  const [isSteppedAside, setSteppedAside] = useState(false);
+  // Whether the inbox stepped aside is the window's, like the inbox itself,
+  // and only the tab up acts on either: a tab behind has no row to be
+  // crowded in.
+  const [isSteppedAside, setSteppedAside] = useAtom(inboxSteppedAsideAtom);
   const isCrowded =
-    isActive &&
     showsRightArea &&
     rowWidth > 0 &&
     rowWidth - sidebarWidth < needs + (isSteppedAside ? ROOM_MARGIN : 0);
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
     if (isCrowded) {
       if (isInboxOpen) {
         setSteppedAside(true);
@@ -190,13 +200,13 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
     }
     setSteppedAside(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCrowded]);
+  }, [isCrowded, isActive]);
   // Brought back by hand, the inbox is someone's choice from then on.
   useEffect(() => {
     if (isInboxOpen) {
       setSteppedAside(false);
     }
-  }, [isInboxOpen]);
+  }, [isInboxOpen, setSteppedAside]);
   const beside = rowWidth - (isInboxOpen && showsRightArea ? sidebarWidth : 0);
   const [isRailCompact, setRailCompact] = useState(false);
   const railFolds =
@@ -523,13 +533,40 @@ function SiteView({ group }: { group: string }) {
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   usePageSlot(up?.kind === "page" ? pageHost : null, pageChrome, true);
   const reportView = useScreenViewOfTab();
+  // A tab reopened after its page was put away brings the page back, at
+  // the address it had.
+  const [putAway, setPutAway] = useAtom(putAwaySitesAtom);
+  const setWindowTabs = useSetAtom(windowTabsAtom);
+  const stashed = up === undefined ? putAway[group] : undefined;
+  useEffect(() => {
+    if (!stashed) {
+      return;
+    }
+    setWindowTabs((current) => ({
+      ...current,
+      // Up at once when its group is the one on screen, which it is, being
+      // this tab's.
+      activeId:
+        current.group === group
+          ? (stashed[0]?.id ?? current.activeId)
+          : current.activeId,
+      tabs: [
+        ...current.tabs.filter((tab) => tab.group !== group),
+        ...stashed,
+      ],
+    }));
+    setPutAway((current) => {
+      const { [group]: _restored, ...rest } = current;
+      return rest;
+    });
+  }, [group, setPutAway, setWindowTabs, stashed]);
   // Back from the page's start is the window tab's own back, to where the
   // site was opened from.
   const router = useRouter();
   if (!up) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        This page is closed.
+        {stashed ? null : "This page is closed."}
       </div>
     );
   }
@@ -589,9 +626,14 @@ function useScreenViewOfTab() {
   const setScreenView = useSetAtom(screenViewAtom);
   const [view, setView] = useState<null | ScreenView>(null);
   useEffect(() => {
-    if (isActive) {
-      setScreenView(view);
+    if (!isActive) {
+      return;
     }
+    setScreenView(view);
+    // Only its own answer is cleared, so the next tab's is not cleared with it.
+    return () => {
+      setScreenView((current) => (current === view ? null : current));
+    };
   }, [isActive, setScreenView, view]);
   return setView;
 }

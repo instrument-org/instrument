@@ -38,6 +38,7 @@ import {
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import {
@@ -665,16 +666,20 @@ export function ComputerPage({
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
   const hasRows = items.length > 0;
+  // Only the Finder in the window's tab that is up: every tab stays mounted,
+  // and one behind another is not where the keyboard is.
+  const isActiveTab = useIsActiveTab();
   useEffect(() => {
-    if (!hasRows || isTypingTarget(document.activeElement)) {
+    if (!hasRows || !isActiveTab || isTypingTarget(document.activeElement)) {
       return;
     }
     const row = browserRef.current?.querySelector<HTMLElement>(
       '[role="option"][tabindex="0"]',
     );
     row?.focus({ preventScroll: true });
-    // Once per opening, when its rows are first there.
-  }, [openings, hasRows]);
+    // Once per opening, when its rows are first there, or when its tab comes
+    // up.
+  }, [openings, hasRows, isActiveTab]);
 
   // A name field closing leaves the keyboard on nothing, since the row it was
   // in is being rebuilt under a new name. The browser itself takes it instead,
@@ -820,8 +825,9 @@ export function ComputerPage({
   const quickLookTab = selectedFile ? fileTabOf(selectedFile) : undefined;
   const quickLookKey = quickLookTab?.hostPath;
   useEffect(() => {
-    // No panel to show one in, no key taken from the rest of the page.
-    if (!quickLookTab || !onQuickLook) {
+    // No panel to show one in, no key taken from the rest of the page, and
+    // none from a tab that is not up.
+    if (!quickLookTab || !onQuickLook || !isActiveTab) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
@@ -843,7 +849,7 @@ export function ComputerPage({
     };
     // The tab is rebuilt with the items on every re-read; its path is its identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quickLookKey, onQuickLook]);
+  }, [quickLookKey, onQuickLook, isActiveTab]);
 
   // Quick Look stays up while the arrows walk the folder, and shows whatever
   // the selection lands on. The panel holds the keyboard, so the keys are

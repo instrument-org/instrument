@@ -4,6 +4,7 @@ import {
   chatGroupAtom,
   THREADS_HREF,
   WEB_HREF,
+  type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { tabsAtomOf } from "@/client/atoms/tabs";
 import { freshTabId } from "@/client/lib/tab-actions";
@@ -20,7 +21,7 @@ import {
 import { instrumentFolderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
 import { StoreId } from "@instrument-org/workspace/client";
-import { useAtom, useAtomValue } from "jotai";
+import { atom, useAtom, useAtomValue } from "jotai";
 
 import { IDEAS_HREF } from "./ideas";
 import { parseHref, threadOfHref } from "./window-tabs";
@@ -35,6 +36,13 @@ export const PAGE_HREF = "/orchestrator/page";
 export function isSiteGroup(group: string | undefined): boolean {
   return group?.startsWith("site:") ?? false;
 }
+
+/**
+ * The pages of sites whose tabs were closed, by their group, kept for this
+ * launch so a tab reopened with Shift+Cmd+T gets its page back at the
+ * address it had, while the page itself (its guest, its sound) is gone.
+ */
+export const putAwaySitesAtom = atom<Record<string, WindowTab[]>>({});
 
 /** A fresh group for a site opened at the window's own level. */
 export function newSiteGroup(): string {

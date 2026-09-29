@@ -1,3 +1,4 @@
+import { noop } from "radashi";
 import { describe, expect, it } from "vitest";
 
 import { publisher } from "../rpc/publisher";
@@ -8,8 +9,8 @@ let counter = 0;
 
 /** A promise and the function that settles it. */
 function answer<T>() {
-  let settle: (value: T) => void = () => {};
-  let fail: (error: Error) => void = () => {};
+  let settle: (value: T) => void = noop;
+  let fail: (error: Error) => void = noop;
   const until = new Promise<T>((resolve, reject) => {
     settle = resolve;
     fail = reject;
@@ -38,7 +39,7 @@ function updatesFor(taskId: string) {
         seen.push(event.id);
       }
     }
-  })().catch(() => {});
+  })().catch(noop);
   return {
     seen,
     stop: () => {
@@ -129,7 +130,7 @@ describe("holdTask", () => {
     const { settle, until } = answer<undefined>();
     holdTask(taskId, {
       reason: "r",
-      start: () => {},
+      start: noop,
       until,
       userReason: "u",
     });

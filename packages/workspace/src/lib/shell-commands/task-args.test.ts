@@ -2,6 +2,7 @@ import { mkdtempSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { noop } from "radashi";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { MOUNT } from "../../mount-points";
@@ -240,7 +241,7 @@ describe("requireFoldersOnDisk", () => {
       const dir = path.join(root, `asked ${refusal ? "no" : "yes"}`);
       await fs.mkdir(dir);
       const realOpendir = fs.opendir.bind(fs);
-      let answer = () => {};
+      let answer: () => void = noop;
       const opendir = vi.spyOn(fs, "opendir").mockImplementation(
         (folder) =>
           new Promise((resolve, reject) => {
@@ -501,7 +502,7 @@ describe("awaitAnswers", () => {
     const dir = path.join(root, `asked-${Math.random().toString(36).slice(2)}`);
     await fs.mkdir(dir);
     const realOpendir = fs.opendir.bind(fs);
-    let answer: () => void = () => {};
+    let answer: () => void = noop;
     const opendir = vi.spyOn(fs, "opendir").mockImplementation(
       (folder) =>
         new Promise((resolve, reject) => {

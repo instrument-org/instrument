@@ -1,6 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { noop } from "radashi";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
@@ -160,7 +161,7 @@ export async function awaitAnswers(
   );
   // A refusal that comes after the wait is the held task's to report, not
   // this command's.
-  void all.catch(() => {});
+  void all.catch(noop);
   let timer: NodeJS.Timeout | undefined;
   const deadline = new Promise<void>((resolve) => {
     timer = setTimeout(resolve, Math.max(0, waitMs));

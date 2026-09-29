@@ -2,6 +2,7 @@ import { encodeUtf8ToBytes } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { noop } from "radashi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
@@ -47,8 +48,8 @@ vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
   ...(await importOriginal()),
   // Only `ok` and `value` are read; the Result class behind the real return
   // is not a dependency of this package.
-  fetchModel: async () =>
-    ({ ok: true, value: createMockAIGatewayModel() }) as never,
+  fetchModel: () =>
+    Promise.resolve({ ok: true, value: createMockAIGatewayModel() }) as never,
 }));
 
 let context: TaskCommandContext;
@@ -202,7 +203,7 @@ function held(stdout: string) {
  * about a folder; the returned function lets it go.
  */
 function holdChild() {
-  let release: () => void = () => {};
+  let release: () => void = noop;
   holdTask(CHILD_ID, {
     reason: 'macOS is asking the user about "Desktop"',
     start: () => {

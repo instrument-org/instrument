@@ -135,6 +135,10 @@ function MessageScrollerProvider(
 // overflow buys a horizontal scrollbar across the foot of the conversation,
 // which is invisible where scrollbars are overlays and a permanent grey band
 // where they are not.
+//
+// `isolate` keeps what a message raises (a file card's `z-10` text) under the
+// scroller's own overlays, the jump-to-end button and the fades, which follow
+// the viewport in the tree without a z-index of their own.
 function MessageScrollerViewport({
   className,
   tabIndex = -1,
@@ -143,7 +147,7 @@ function MessageScrollerViewport({
   return (
     <MessageScrollerPrimitive.Viewport
       className={cn(
-        "size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-x-hidden overflow-y-auto overscroll-contain outline-none",
+        "isolate size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-x-hidden overflow-y-auto overscroll-contain outline-none",
         className,
       )}
       data-slot="message-scroller-viewport"

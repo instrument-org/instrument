@@ -49,10 +49,16 @@ function MessageScrollerButton({
     <MessageScrollerPrimitive.Button
       className={cn(
         "relative rounded-full bg-background hover:bg-background/90 data-[active=false]:pointer-events-none data-[active=false]:opacity-0",
-        // The spinner ring stands in for the elevation hairline while busy;
-        // the soft shadow drops that hairline so the two never stack as
-        // concentric rings.
-        busy ? "shadow-lg-soft" : "shadow-lg",
+        // Spelled as a variable so `cn` knows it for a shadow and drops the
+        // button's own `shadow-xs`, whose translucent rings would otherwise
+        // sit outside the edge below.
+        "shadow-(--shadow-lg-soft)",
+        // The elevation hairline, mixed to an opaque color rather than drawn
+        // translucent: the button floats over the transcript, and a see-through
+        // edge shows every line scrolling under it. The busy spinner draws
+        // over this same pixel, so its faint track and the fading tail of its
+        // arc land on the hairline rather than on the transcript.
+        "ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,var(--background))] dark:ring-[color-mix(in_oklab,var(--foreground)_11%,var(--background))]",
         className,
       )}
       data-slot="message-scroller-button"

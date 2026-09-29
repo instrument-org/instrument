@@ -53,6 +53,8 @@ const BROWSER_TARGET_KEY = "https:";
 // resolves to the same app, so the page on screen never leaves the process.
 const BROWSER_PROBE_URL = "https://example.com/";
 
+const FINDER_APP_PATH = "/System/Library/CoreServices/Finder.app";
+
 // What a platform that cannot name the browser answers.
 const UNRESOLVED_BROWSER: FileOpenTarget = {
   appName: null,
@@ -105,6 +107,16 @@ export async function getFileOpenCandidates(
     iconUrl: icons.get(candidate.appPath) ?? null,
     isDefault: candidate.isDefault,
   }));
+}
+
+// The Finder's own icon, rendered the way every candidate app's is, for the
+// row that hands a file to it. Null elsewhere, where no Open in list is drawn.
+export async function getFileManagerIconUrl(): Promise<null | string> {
+  if (process.platform !== "darwin") {
+    return null;
+  }
+  const icons = await resolveIcons([FINDER_APP_PATH]);
+  return icons.get(FINDER_APP_PATH) ?? null;
 }
 
 export async function getFileOpenTarget(

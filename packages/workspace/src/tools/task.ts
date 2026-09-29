@@ -63,6 +63,10 @@ export const Task = setupTool({
     name: z.string().optional().meta({
       description: "new: a short title, in the user's words.",
     }),
+    now: z.boolean().optional().meta({
+      description:
+        "send: stop the step in flight and run the message as its next turn, for a correction that makes the current work wrong or a task whose latest step has run for minutes without a tool call. Without it, a busy task hears the message at its next step.",
+    }),
     tab: z.string().optional().meta({
       description:
         "new: a browser tab of the user's to hand the task, by the id the note on their message gives.",
@@ -82,7 +86,8 @@ export const Task = setupTool({
   execute: async ({ input, taskId }) => {
     const context = {
       orchestratorTaskId: taskId,
-      remainingYieldMs: () => 0,
+      // Not a shell command, so nothing is waiting to move it to the background.
+      remainingYieldMs: () => Number.POSITIVE_INFINITY,
     };
     const brief = encodeUtf8ToBytes(input.brief ?? "");
     const files = (input.files ?? []).flatMap((file) => ["--file", file]);
@@ -105,7 +110,12 @@ export const Task = setupTool({
             MOUNT.task,
           )
         : input.action === "send"
-          ? runSend([input.taskId ?? "", ...files], context, brief, MOUNT.task)
+          ? runSend(
+              [input.taskId ?? "", ...(input.now ? ["--now"] : []), ...files],
+              context,
+              brief,
+              MOUNT.task,
+            )
           : runStop([input.taskId ?? ""], context));
       return ok({
         ok: result.exitCode === 0,

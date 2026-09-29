@@ -1626,6 +1626,79 @@ describe("sessionMachine", () => {
       );
     });
 
+    // A sender that asks to interrupt does not wait for the next step: the
+    // step in flight stops, and the message runs as the next turn.
+    it("stops the step in flight and runs the message next when it interrupts", async () => {
+      const result = await createActorAndTask({
+        chunkSets: [writeFileChunks, finishChunks],
+      });
+      result.actor.start();
+
+      await waitFor(
+        result.actor,
+        (state) => state.context.agentRef !== undefined,
+      );
+      const agentRef = result.actor.getSnapshot().context.agentRef;
+      if (!agentRef) {
+        throw new Error("The agent never started");
+      }
+      await waitFor(agentRef, (state) => state.matches("ExecutingToolCall"));
+
+      const messageId = StoreId.newMessageId();
+      const message: SessionMessage.UserWithParts = {
+        id: messageId,
+        metadata: { createdAt: mockDate, sessionId: defaultSessionId },
+        parts: [
+          {
+            metadata: {
+              createdAt: mockDate,
+              id: StoreId.newPartId(),
+              messageId,
+              sessionId: defaultSessionId,
+            },
+            text: "Make it about a submarine captain instead.",
+            type: "text",
+          },
+        ],
+        role: "user",
+      };
+      result.actor.send({
+        interrupt: true,
+        type: "addMessage",
+        value: message,
+      });
+
+      const session = await runTestMachine(result);
+      expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+        "<session title="Test session" count="6">
+          <user>
+            <text>Hello, I need help with something.</text>
+          </user>
+          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+            <step-start step="1" />
+            <tool tool="write_file" state="output-error" callId="test-call-2">
+              <input>
+                {
+                  "filePath": "test.txt",
+                  "content": "console.log('Hello, world!');"
+                }
+              </input>
+              <error>This action was interrupted by a newer message from the user, and may not have finished.</error>
+            </tool>
+          </assistant>
+          <session-context main realRole="system" />
+          <session-context main realRole="user" />
+          <user>
+            <text>Make it about a submarine captain instead.</text>
+          </user>
+          <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
+            <step-start step="1" />
+            <text state="done">I'm done.</text>
+          </assistant>
+        </session>"
+      `);
+    });
+
     // A message sent while the agent is inside a tool call is written into
     // the transcript at the next point between steps and seen by the request
     // that follows, and once heard it is not run again as a turn of its own.

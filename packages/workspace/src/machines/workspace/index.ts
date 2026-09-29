@@ -74,6 +74,8 @@ export type WorkspaceEvent =
       value: {
         agentName: AgentName;
         id: TaskId;
+        /** Stop the step in flight so the message runs as the next turn. */
+        interrupt?: boolean;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         /** Already in the store, so the session shows it now and never writes it again. */
@@ -476,6 +478,7 @@ export const workspaceMachine = setup({
         actions: ({ context, event }) => {
           const targetRef = findLiveSessionRef(context, event.value);
           targetRef?.send({
+            interrupt: event.value.interrupt,
             saved: event.value.saved,
             type: "addMessage",
             value: event.value.message,

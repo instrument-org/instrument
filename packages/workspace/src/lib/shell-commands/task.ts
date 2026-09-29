@@ -171,14 +171,18 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       Prints the task id. You are told when it finishes a turn; do not poll it.
       What that note carries is its last message, so the brief names a file to
       make and a folder for it, never findings or a summary to put in the reply.
-  ${TASK_COMMAND.name} send <id> [--file <path>]... <<'EOF'
+  ${TASK_COMMAND.name} send <id> [--now] [--file <path>]... <<'EOF'
   <message>
   EOF
-      Deliver a message into a task: it runs now if idle, after its current turn
-      if busy. Follow-ups, corrections, answers to its questions. Same heredoc,
-      and --file hands it a file the way \`new --file\` does.
+      Deliver a message into a task: it runs now if idle; if busy, the task
+      hears it at its next step. Follow-ups, corrections, answers to its
+      questions. --now stops the step in flight and runs the message as its
+      next turn: for a correction that makes the current work wrong, or a
+      task whose latest step has run for minutes without a tool call. Same
+      heredoc, and --file hands it a file the way \`new --file\` does.
   ${TASK_COMMAND.name} stop <id>
-      Interrupt a running task. Follow with send to redirect it.
+      End a running task's work where it is, and say whether it stopped.
+      \`send\` gives it the next thing to do.
   ${TASK_COMMAND.name} kill <id> [<bg id>]
       Stop what a task left running in the background after its turn ended:
       the one process named, by the id \`show\` lists (bg_1), or every one. A
@@ -669,14 +673,14 @@ export async function runNew(
   }
   await recordTaskActivity(taskId);
 
-  return ok(
-    `Created ${taskId} ("${name}"). ${asking}\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
-  );
-}
   const asking =
     looks.length === 0
       ? `It is running now.`
       : `macOS is asking the user whether ${APP_NAME} may use ${looks.map((look) => `"${look.spec}"`).join(" and ")}, and the task starts once they answer: tell them to answer the system's dialog.`;
+  return ok(
+    `Created ${taskId} ("${name}"). ${asking}\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
+  );
+}
 
 export async function runSend(
   args: string[],
@@ -685,9 +689,11 @@ export async function runSend(
   cwd: string,
 ) {
   const { positional, values } = parseFlags(args, {
+    boolean: ["now"],
     flags: ["file"],
     repeatable: ["file"],
   });
+  const now = values.has("now");
   const task = await requireOwnChild(positional[0], context);
   const prompt = promptFrom(positional.slice(1).join(" "), stdin);
   if (!prompt) {
@@ -748,6 +754,7 @@ export async function runSend(
     value: {
       agentName: "main",
       id: task.id,
+      interrupt: now,
       message: message.value,
       model,
       saved: true,
@@ -755,21 +762,14 @@ export async function runSend(
     },
   });
   await recordTaskActivity(task.id);
-  return ok(
-    `${
-      running
-        ? `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes.`
-        : `Sent to ${task.id}. It is running now; you will be told when it finishes.`
-    }\n${handedFiles(message.value)}`,
-  );
+  const sent = running
+    ? now
+      ? `Sent to ${task.id}. Its step in flight was stopped, and it takes this up as its next turn; you will be told when that turn finishes.`
+      : `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes. If its latest step has run for minutes without a tool call, \`send --now\` interrupts it.`
+    : `Sent to ${task.id}. It is running now; you will be told when it finishes.`;
+  return ok(`${sent}\n${handedFiles(message.value)}`);
 }
 
-export async function runStop(args: string[], context: TaskCommandContext) {
-  const task = await requireOwnChild(args[0], context);
-  const running = isWorking(task.id);
-  if (!running) {
-    return ok(`${task.id} is not running.\n`);
-  }
 /**
  * The brief with what the user declined added to it: the task still starts,
  * so the refusal reaches the conversation the way any finish does, and it
@@ -800,11 +800,28 @@ function withRefusals(
   };
 }
 
+/** How long `stop` waits to see a task go idle before saying it is still ending. */
+const STOP_CONFIRM_MS = 5000;
+const STOP_POLL_MS = 100;
+
+export async function runStop(args: string[], context: TaskCommandContext) {
+  const task = await requireOwnChild(args[0], context);
+  const running = isWorking(task.id);
+  if (!running) {
+    return ok(`${task.id} is not running.\n`);
+  }
   // The wake would report the turn this ends as a finish; it is not news.
   expectStop(task.id);
   getWorkspaceActorRef().send({ type: "stopSessions", value: { id: task.id } });
+  const timeoutMs = Math.max(
+    0,
+    Math.min(STOP_CONFIRM_MS, context.remainingYieldMs() - WAIT_MARGIN_MS),
+  );
+  const stopped = await waitForIdle(task.id, timeoutMs);
   return ok(
-    `Stopping ${task.id}. Its turn ends where it is; \`task send\` gives it the next thing to do.\n`,
+    stopped
+      ? `Stopped ${task.id}. Its turn ended where it was; \`task send\` gives it the next thing to do.\n`
+      : `Told ${task.id} to stop, and it is still ending; \`task show ${task.id}\` will say when it has.\n`,
   );
 }
 
@@ -1381,6 +1398,23 @@ async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
     );
   }
   return encodeBrowserTargetId(await windowTaskId(), sessionId.data);
+}
+
+/**
+ * Whether a task went idle within `timeoutMs`, checked every
+ * {@link STOP_POLL_MS}. A stop ends the step in flight at once, and a session
+ * that does not answer is torn down a second later, so a few seconds is
+ * enough for anything but a store write that hangs.
+ */
+async function waitForIdle(taskId: TaskId, timeoutMs: number) {
+  const deadline = Date.now() + timeoutMs;
+  while (isWorking(taskId)) {
+    if (Date.now() >= deadline) {
+      return false;
+    }
+    await new Promise((resolve) => setTimeout(resolve, STOP_POLL_MS));
+  }
+  return true;
 }
 
 /**

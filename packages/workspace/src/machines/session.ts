@@ -69,7 +69,13 @@ type ParentActorRef = ActorRef<AnyMachineSnapshot, SessionMachineParentEvent>;
 type SessionMachineEvent =
   | AgentParentEvent
   | { reason?: StopReason; type: "stop" }
-  | { saved?: boolean; type: "addMessage"; value: SessionMessage.UserWithParts }
+  | {
+      /** Stop the step in flight so the message runs as the next turn. */
+      interrupt?: boolean;
+      saved?: boolean;
+      type: "addMessage";
+      value: SessionMessage.UserWithParts;
+    }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
   | { type: "runTurn" }
@@ -425,15 +431,16 @@ export const sessionMachine = setup({
         // user typed while it was composing stops the turn, and the queue runs
         // the message as a turn of its own, over everything said so far. A
         // note from a task or an app steers, since the reply in flight is
-        // still the reply to what the user said.
+        // still the reply to what the user said. A sender that asks to
+        // interrupt supersedes any agent's step the same way.
         enqueueActions(({ context, enqueue, event }) => {
           const agentRef = context.agentRef;
           if (agentRef?.getSnapshot().status !== "active") {
             return;
           }
           if (
-            context.agent.name === "instrument" &&
-            isTypedByUser(event.value)
+            event.interrupt ||
+            (context.agent.name === "instrument" && isTypedByUser(event.value))
           ) {
             enqueue.raise({ reason: "superseded", type: "stop" });
             return;

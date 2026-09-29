@@ -16,6 +16,8 @@ export const AGENT_FLASH_MS = 1800;
 /** How long editing rests before a save, and the longest a save waits under steady editing. */
 const SAVE_DEBOUNCE_MS = 400;
 const SAVE_MAX_WAIT_MS = 2000;
+/** How many rounds of follow-up saves a flush waits out before settling. */
+const FLUSH_ROUNDS = 5;
 /** How often an open editor looks for the agent's writes. */
 const WATCH_INTERVAL_MS = 250;
 
@@ -61,6 +63,9 @@ export function createSaveQueue({
     });
   };
 
+  // Read through a call: a save can schedule another while a flush awaits.
+  const saveWaiting = () => saveQueued || saveTimer !== undefined;
+
   let pullQueued = false;
 
   return {
@@ -68,15 +73,24 @@ export function createSaveQueue({
     cancel: () => {
       clearTimeout(saveTimer);
     },
-    /** Runs a scheduled save now; settles once everything queued is done. */
-    flush: () => {
-      if (saveTimer !== undefined) {
-        clearTimeout(saveTimer);
-        saveTimer = undefined;
-        pendingSince = 0;
-        queueSave();
+    /**
+     * Runs a scheduled save now; settles once everything queued is done,
+     * including the saves those saves schedule (a conflict merged in, text
+     * typed while one was in flight), for a few rounds at most.
+     */
+    flush: async () => {
+      for (let round = 0; round < FLUSH_ROUNDS; round++) {
+        if (saveTimer !== undefined) {
+          clearTimeout(saveTimer);
+          saveTimer = undefined;
+          pendingSince = 0;
+          queueSave();
+        }
+        await queue;
+        if (!saveWaiting()) {
+          return;
+        }
       }
-      return queue;
     },
     /** Whether, once the queue settles, no save is waiting. */
     idle: async () => {

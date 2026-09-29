@@ -49,6 +49,8 @@ export interface TaskListRow {
   leftRunning: number;
   title: string;
   updatedAt: Date;
+  /** Why it is held from starting, and for how long so far, when it is. */
+  waiting?: string;
 }
 
 export interface TaskListSelection {
@@ -163,7 +165,11 @@ export function renderTaskList(
   const anyLeft = selection.shown.some((row) => row.leftRunning > 0);
   const cells = selection.shown.map((row) => [
     row.id,
-    row.isRunning ? "running" : "idle",
+    row.waiting
+      ? `waiting: ${row.waiting}`
+      : row.isRunning
+        ? "running"
+        : "idle",
     ...(anyLeft
       ? [row.leftRunning > 0 ? `${row.leftRunning} in background` : ""]
       : []),
@@ -239,7 +245,8 @@ export function selectTasks(
   query: TaskListQuery = {},
 ): TaskListSelection {
   const matched = rows.filter((row) => {
-    if (query.running && !row.isRunning) {
+    // A task waiting to start is work in hand, and listed with what runs.
+    if (query.running && !row.isRunning && !row.waiting) {
       return false;
     }
     if (query.since && row.updatedAt < query.since) {

@@ -9,6 +9,7 @@ import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
+import { cancelHold } from "../../lib/task-hold";
 import { recordTaskActivity } from "../../lib/task-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
@@ -195,6 +196,9 @@ const run = base
 const stop = base
   .input(z.object({ id: TaskIdSchema }))
   .handler(({ context, input }) => {
+    // A task held from starting has no session to stop; stopping it cancels
+    // the start instead.
+    cancelHold(input.id);
     context.workspaceRef.send({
       type: "stopSessions",
       value: {

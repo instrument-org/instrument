@@ -8,6 +8,7 @@ import { getTaskAgentStatus } from "../get-task-agent-status";
 import { isToolPart } from "../is-tool-part";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
+import { taskHold } from "../task-hold";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { listChildTasks } from "./children";
 import { latestSessionId } from "./latest-session";
@@ -161,7 +162,8 @@ export function leftRunning(taskId: TaskId, now = Date.now()): LeftRunning[] {
  * What is happening behind the conversation right now: each task of the
  * orchestrator's that is at work, and the label on its latest step. The
  * conversation shows this under its transcript, so a reply that handed the
- * work off does not read as the end of it.
+ * work off does not read as the end of it. A task held from starting is here
+ * too, waiting on what holds it, since it is the user's move either way.
  */
 export async function orchestratorActivity(
   orchestratorTaskId: TaskId,
@@ -169,14 +171,17 @@ export async function orchestratorActivity(
   const children = await listChildTasks(orchestratorTaskId);
   const running = await Promise.all(
     children
-      .filter((child) => isWorking(child.id))
+      .filter((child) => isWorking(child.id) || taskHold(child.id))
       .map(async (child) => {
         const chat =
           child.parentTaskId === undefined
             ? undefined
             : sessionOfChat(child.parentTaskId);
+        const held = taskHold(child.id);
         return {
-          ...(await runningLines(child.id)),
+          ...(held
+            ? { waiting: held.userReason }
+            : await runningLines(child.id)),
           taskId: child.id,
           ...(chat ? { chat } : {}),
           title: child.title,

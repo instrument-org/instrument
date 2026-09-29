@@ -153,6 +153,23 @@ describe("renderTaskList", () => {
     `);
   });
 
+  it("says why a task held from starting waits, and lists it with --running", () => {
+    const tasks = [
+      {
+        ...row("2026-09-08-desktop", "Tidy the Desktop", 0),
+        waiting: 'macOS is asking the user about "Desktop" (38s)',
+      },
+      row("2026-09-08-hey", "hey", 0, true),
+      row("2026-09-04-webauthn", "Test WebAuthn registration", 4),
+    ];
+    expect(renderTaskList(selectTasks(tasks, { running: true }), { now: NOW }))
+      .toMatchInlineSnapshot(`
+        "2026-09-08-desktop  waiting: macOS is asking the user about "Desktop" (38s)  2026-09-08  1s ago  Tidy the Desktop
+        2026-09-08-hey      running                                                  2026-09-08  1s ago  hey
+        "
+      `);
+  });
+
   it("names every way to narrow when it left rows behind", () => {
     const many = Array.from({ length: 30 }, (_, index) =>
       row(`task-${index}`, `Task ${index}`, index),

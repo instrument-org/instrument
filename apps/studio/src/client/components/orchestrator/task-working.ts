@@ -20,3 +20,18 @@ export function useIsTaskWorking(taskId: TaskId) {
   );
   return status.data?.some(hasLiveAgent) ?? false;
 }
+
+/**
+ * Why the task has not started yet, in the user's words, while something holds
+ * it from starting; re-read while it is on screen. The same query the task's
+ * card in the chat follows, so the two say the same thing.
+ */
+export function useTaskHold(taskId: TaskId) {
+  const status = useQuery(
+    rpcClient.workspace.orchestrator.childStatus.queryOptions({
+      input: { id: taskId },
+      refetchInterval: REFRESH_MS,
+    }),
+  );
+  return status.data?.held;
+}

@@ -85,6 +85,25 @@ function renderFinished(standing: {
   return renderCard();
 }
 
+/** The card while the task is held from starting. */
+function renderHeld(held: string) {
+  childStatusOptions.mockReturnValue({
+    queryFn: () =>
+      Promise.resolve({
+        held,
+        isWorking: false,
+        title: "Tidy the Desktop",
+        updatedAt: 0,
+      }),
+    queryKey: ["childStatus", TASK_ID],
+  });
+  childrenOptions.mockReturnValue({
+    queryFn: () => Promise.resolve([]),
+    queryKey: ["children", ORCHESTRATOR_ID],
+  });
+  return renderCard();
+}
+
 /** The card while the task is at a step. */
 function renderWorking(step: string) {
   childStatusOptions.mockReturnValue({
@@ -156,5 +175,23 @@ describe("CreatedTaskCard", () => {
 
     await screen.findByText("Wrote hotel-options.md.");
     expect(screen.queryByRole("button", { name: "Stop this task" })).toBeNull();
+  });
+
+  it("says what a held task waits on, in the warning tone, with a stop that cancels it", async () => {
+    renderHeld("Waiting for you to allow access to Desktop");
+
+    const said = await screen.findByText(
+      "Waiting for you to allow access to Desktop",
+    );
+    expect(said.className).toContain("text-warning-700");
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop this task" }));
+
+    await vi.waitFor(() => {
+      expect(stopSessions).toHaveBeenCalledWith(
+        { id: "lisbon-hotel" },
+        expect.anything(),
+      );
+    });
   });
 });

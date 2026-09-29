@@ -12,6 +12,7 @@ import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import {
+  awaitAnswers,
   parseDelay,
   parseFlags,
   parseFolderSpec,
@@ -486,5 +487,84 @@ describe("requireFilesNamedInBrief", () => {
         own,
       ),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("awaitAnswers", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "task-answers-"));
+
+  /**
+   * A folder whose look the system holds, as its ask does, until `answer` is
+   * called: allowed, or declined with `refusal`.
+   */
+  async function askedFolder(refusal?: Error) {
+    const dir = path.join(root, `asked-${Math.random().toString(36).slice(2)}`);
+    await fs.mkdir(dir);
+    const realOpendir = fs.opendir.bind(fs);
+    let answer: () => void = () => {};
+    const opendir = vi.spyOn(fs, "opendir").mockImplementation(
+      (folder) =>
+        new Promise((resolve, reject) => {
+          answer = () => {
+            if (refusal) {
+              reject(refusal);
+            } else {
+              realOpendir(folder).then(resolve, reject);
+            }
+          };
+        }),
+    );
+    const looks = await requireFoldersOnDisk(
+      [{ path: dir }],
+      ["Home/Desktop:rw"],
+    );
+    opendir.mockRestore();
+    return {
+      answer: () => {
+        answer();
+      },
+      looks,
+    };
+  }
+
+  it("reports an answer given inside the wait: allowed leaves nothing pending", async () => {
+    const { answer, looks } = await askedFolder();
+    setTimeout(answer, 50);
+    const startedAt = Date.now();
+    await expect(awaitAnswers(looks, 5000)).resolves.toEqual([]);
+    expect(Date.now() - startedAt).toBeLessThan(2000);
+  });
+
+  it("refuses the command when the user declines inside the wait", async () => {
+    const { answer, looks } = await askedFolder(
+      Object.assign(new Error("not permitted"), { code: "EPERM" }),
+    );
+    setTimeout(answer, 50);
+    await expect(awaitAnswers(looks, 5000)).rejects.toThrow(
+      /^macOS did not let Instrument into "Home\/Desktop:rw"|^"Home\/Desktop:rw" cannot be read/,
+    );
+  });
+
+  // The case that makes a held task: the dialog is still up when the wait
+  // runs out, and a refusal after that is the task's to report.
+  it("hands back a look still unanswered when the wait runs out", async () => {
+    const { answer, looks } = await askedFolder(
+      Object.assign(new Error("not permitted"), { code: "EPERM" }),
+    );
+    const startedAt = Date.now();
+    const pending = await awaitAnswers(looks, 200);
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(190);
+    expect(pending.map((look) => look.spec)).toMatchInlineSnapshot(`
+      [
+        "Home/Desktop:rw",
+      ]
+    `);
+    answer();
+    await expect(pending[0]?.answer).resolves.toMatch(/Home\/Desktop:rw/);
+  });
+
+  it("does not wait at all with no yield left", async () => {
+    const { looks } = await askedFolder();
+    await expect(awaitAnswers(looks, -1000)).resolves.toHaveLength(1);
   });
 });

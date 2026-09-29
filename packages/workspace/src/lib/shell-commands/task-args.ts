@@ -15,6 +15,18 @@ import {
 } from "../workspace-fs-layout";
 
 /**
+ * A look inside a folder still waiting on the user's answer to the system's
+ * ask: the folder on disk and as the command named it, and the answer, which
+ * settles the moment they give it, to nothing when they allowed it and to the
+ * reason when they did not.
+ */
+export interface PendingLook {
+  answer: Promise<string | undefined>;
+  path: string;
+  spec: string;
+}
+
+/**
  * `--flag value` and `--flag=value` pairs, plus everything else in order. Each
  * flag in `repeatable` collects every value it is given; the others keep the
  * last. Values are whatever the shell already split them into, so a quoted
@@ -110,19 +122,56 @@ export async function requireFoldersOnDisk(
     }
     const look = await requireReadable(folder.path, spec);
     if (look) {
-      pending.push({ answer: look.answer, spec });
+      pending.push({ answer: look.answer, path: folder.path, spec });
     }
   }
   return pending;
 }
 
 /**
- * A look inside a folder still waiting on the user's answer to the system's
- * ask: the folder as the command named it, and the answer, which settles the
- * moment they give it, to nothing when they allowed it and to the reason when
- * they did not.
+ * How long `task new` waits on the user's answer to the system's ask before
+ * making the task and holding it. Most people answer a dialog they were just
+ * told about within this, and an answer inside it is reported as what it is: a
+ * task started, or a refusal with nothing created.
  */
-export type PendingLook = { answer: Promise<string | undefined>; spec: string };
+export const ANSWER_WAIT_MS = 20_000;
+
+/**
+ * Waits up to `waitMs` for the looks still pending to be answered, and returns
+ * the ones that were not. A refusal inside the wait throws it at once, so the
+ * command refuses as it would have had the user declined before it ran.
+ */
+export async function awaitAnswers(
+  looks: PendingLook[],
+  waitMs: number,
+): Promise<PendingLook[]> {
+  if (looks.length === 0) {
+    return [];
+  }
+  const answered = new Set<PendingLook>();
+  const all = Promise.all(
+    looks.map(async (look) => {
+      const reason = await look.answer;
+      if (reason !== undefined) {
+        throw new Error(reason);
+      }
+      answered.add(look);
+    }),
+  );
+  // A refusal that comes after the wait is the held task's to report, not
+  // this command's.
+  void all.catch(() => {});
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, Math.max(0, waitMs));
+  });
+  try {
+    await Promise.race([all, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+  return looks.filter((look) => !answered.has(look));
+}
 
 /**
  * The files a task is handed, from the `--file` specs on `task new` and
@@ -290,7 +339,9 @@ function ownPath(spec: string, cwd: string): string {
 /**
  * How long a look inside a folder is given before it is taken to be the system
  * asking the user about the folder. A folder that is readable answers in
- * microseconds; one that is refused answers as fast.
+ * microseconds; one that is refused answers as fast. This only tells whether
+ * the system is asking at all; how long to wait on the answer is
+ * {@link ANSWER_WAIT_MS}.
  */
 const LOOK_INSIDE_MS = 750;
 
@@ -317,6 +368,14 @@ export function parseDelay(raw: string): number | undefined {
   return delay > 0 ? Math.round(delay) : undefined;
 }
 
+function refusal(error: unknown, spec: string) {
+  const code =
+    error instanceof Error && "code" in error ? String(error.code) : "";
+  return process.platform === "darwin" && code === "EPERM"
+    ? `macOS did not let ${APP_NAME} into "${spec}": the user declined its ask. They can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.`
+    : `"${spec}" cannot be read by the account ${APP_NAME} runs as (${code || "unknown error"}). Say so rather than trying again.`;
+}
+
 /**
  * A look inside the folder, which is what the operating system gates. On a Mac
  * the first look into Desktop, Documents, Downloads or a removable volume
@@ -325,13 +384,12 @@ export function parseDelay(raw: string): number | undefined {
  * refusal already given becomes a reason the conversation can pass on instead
  * of an `EPERM` a task has to make sense of.
  *
- * The ask blocks the look until the user answers, and the command must not
- * wait on that: it would outlive the call's yield and come back as a
- * background job. So a look that has not answered in time comes back as the
- * answer still to come, for the caller to hold the task on. Only a listing
- * waits on the ask: a file written or read by its path goes through while it
- * is up, so a task started before the answer writes into the folder whatever
- * the user then says.
+ * The ask blocks the look until the user answers, which can be never, so a
+ * look that has not answered in time comes back as the answer still to come:
+ * the caller waits on it a while (`awaitAnswers`) and holds the task on it
+ * past that. Only a listing waits on the ask: a file written or read by its
+ * path goes through while it is up, so a task started before the answer
+ * writes into the folder whatever the user then says.
  */
 async function requireReadable(
   folderPath: string,
@@ -367,12 +425,4 @@ async function requireReadable(
     throw new Error(outcome.reason);
   }
   return undefined;
-}
-
-function refusal(error: unknown, spec: string) {
-  const code =
-    error instanceof Error && "code" in error ? String(error.code) : "";
-  return process.platform === "darwin" && code === "EPERM"
-    ? `macOS did not let ${APP_NAME} into "${spec}": the user declined its ask. They can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders, after which the same command works.`
-    : `"${spec}" cannot be read by the account ${APP_NAME} runs as (${code || "unknown error"}). Say so rather than trying again.`;
 }

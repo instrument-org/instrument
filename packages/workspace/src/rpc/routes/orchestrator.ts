@@ -60,6 +60,7 @@ import {
 } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { taskDir } from "../../lib/task-dir-utils";
+import { taskHold } from "../../lib/task-hold";
 import { setTaskState } from "../../lib/task-record";
 import { getTaskSettings } from "../../lib/task-settings";
 import { trashChat } from "../../lib/trash-task";
@@ -85,6 +86,8 @@ const childStatus = base
   .input(z.object({ id: TaskIdSchema }))
   .output(
     z.object({
+      /** Why it has not started yet, in the user's words, while it is held. */
+      held: z.string().optional(),
       isWorking: z.boolean(),
       step: z.string().optional(),
       title: z.string(),
@@ -98,7 +101,9 @@ const childStatus = base
     }
     const working = isWorking(input.id);
     const step = working ? await latestStep(input.id) : undefined;
+    const held = taskHold(input.id);
     return {
+      ...(held ? { held: held.userReason } : {}),
       isWorking: working,
       ...(step ? { step } : {}),
       title: task.value.title,

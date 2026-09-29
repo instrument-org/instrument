@@ -1,7 +1,10 @@
 import { ChildTranscript } from "@/client/components/orchestrator/child-tasks";
 import { useNewestSessionId } from "@/client/components/orchestrator/newest-session";
 import { TaskMenu } from "@/client/components/orchestrator/task-menu";
-import { useIsTaskWorking } from "@/client/components/orchestrator/task-working";
+import {
+  useIsTaskWorking,
+  useTaskHold,
+} from "@/client/components/orchestrator/task-working";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { rpcClient } from "@/client/rpc/client";
@@ -13,8 +16,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
  * One task's own chat, in its chat's pane: how the user looks over the
  * conversation's shoulder. Headed by the task's title and its menu, which
  * travel together so the menu reads as acting on the task named beside it.
- * While the task works, a Stop at the header's far end halts it. Nothing
- * names the chat: the page stands under it.
+ * A task held from starting says what it waits on beside them. While the task
+ * works or waits, a Stop at the header's far end halts it, or cancels its
+ * start. Nothing names the chat: the page stands under it.
  */
 export function TaskPage({ taskId }: { taskId: TaskId }) {
   const task = useQuery(
@@ -26,6 +30,7 @@ export function TaskPage({ taskId }: { taskId: TaskId }) {
   // on screen rather than on whichever session it would pick for itself.
   const sessionId = useNewestSessionId(taskId);
   const isWorking = useIsTaskWorking(taskId);
+  const held = useTaskHold(taskId);
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   if (!task.data) {
     return (
@@ -41,7 +46,12 @@ export function TaskPage({ taskId }: { taskId: TaskId }) {
           {task.data.title}
         </h2>
         <TaskMenu sessionId={sessionId} taskId={taskId} />
-        {isWorking && (
+        {held ? (
+          <span className="min-w-0 truncate text-sm text-warning-700 dark:text-warning-300">
+            {held}
+          </span>
+        ) : null}
+        {(isWorking || held !== undefined) && (
           <Button
             className="ml-auto shrink-0"
             disabled={stop.isPending}

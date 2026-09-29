@@ -7,6 +7,7 @@ import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
 import { Store } from "../store";
+import { taskHold } from "../task-hold";
 import { askIn, latestStep, runningLines } from "./activity";
 import { lastAssistantText, latestSessionId } from "./latest-session";
 
@@ -125,7 +126,8 @@ export function excerptOf(text: string, maxLength: number): string {
  *
  * A running task can be waiting too: its agent stays alive while an ask of
  * its own sits unanswered, and the list says what it is waiting for rather
- * than showing a step that is not moving.
+ * than showing a step that is not moving. A task held from starting waits on
+ * whatever holds it.
  */
 export async function taskStanding({
   isRunning,
@@ -134,6 +136,10 @@ export async function taskStanding({
   isRunning: boolean;
   taskId: TaskId;
 }): Promise<TaskStanding> {
+  const held = taskHold(taskId);
+  if (held) {
+    return { kind: "waiting", line: held.userReason };
+  }
   if (isRunning) {
     const { step, waiting } = await runningLines(taskId);
     return waiting

@@ -76,6 +76,13 @@ import { isChatId, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { systemNote } from "../system-note";
 import { taskDir } from "../task-dir-utils";
+import {
+  cancelHold,
+  holdTask,
+  queueBehindHold,
+  type TaskHold,
+  taskHold,
+} from "../task-hold";
 import { getTaskState, setTaskState } from "../task-record";
 import {
   getTaskSettings,
@@ -92,9 +99,12 @@ import {
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import {
+  ANSWER_WAIT_MS,
+  awaitAnswers,
   parseDelay,
   parseFlags,
   parseFolderSpec,
+  type PendingLook,
   requireFilesNamedInBrief,
   requireFoldersOnDisk,
   resolveFileUploads,
@@ -142,6 +152,12 @@ const MAX_ASKED_WAKE_MS = ms("2 hours");
 const LOG_MAX_BYTES = 24 * 1024;
 /** Held back from the yield window so a stop returns inside it. */
 const WAIT_MARGIN_MS = 500;
+/**
+ * Held back from the yield window while `new` waits on the user's answer to
+ * the system's ask, for the task to be made and the command to return inside
+ * it.
+ */
+const ANSWER_WAIT_MARGIN_MS = 2000;
 
 const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
 
@@ -177,7 +193,8 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
   <message>
   EOF
       Deliver a message into a task: it runs now if idle; if busy, the task
-      hears it at its next step. Follow-ups, corrections, answers to its
+      hears it at its next step; if still waiting to start, right after its
+      brief once it starts. Follow-ups, corrections, answers to its
       questions. --now stops the step in flight and runs the message as its
       next turn: for a correction that makes the current work wrong, or a
       task whose latest step has run for minutes without a tool call. Same
@@ -188,7 +205,8 @@ const USAGE = `Usage: ${TASK_COMMAND.name} <subcommand> ...
       \`show\` lists them), stop only that process the task left running in
       the background, and leave its turn alone. --all ends the turn and every
       process it left running. A server the user is still using is theirs to
-      keep; a scan nobody is waiting on is not.
+      keep; a scan nobody is waiting on is not. A task still waiting to
+      start is canceled instead, and never runs.
   ${TASK_COMMAND.name} folder <id> [--add <mount>[/<folder>][:rw|:ro]]... [--remove <mount>[/<folder>]]... [--none] [<<'EOF'
   <what it is for>
   EOF]
@@ -574,6 +592,17 @@ export async function runNew(
   );
   const apps = await resolveApps(values.get("app") ?? []);
   requireAppsNamedInBrief(prompt, apps);
+  // The dialog is on the user's screen already, so the answer is often a few
+  // seconds off: waited for, it is reported as what it is, a task started or
+  // a refusal with nothing made. Only a look still unanswered after the wait
+  // makes a task that waits on it.
+  const unanswered = await awaitAnswers(
+    looks,
+    Math.min(
+      ANSWER_WAIT_MS,
+      context.remainingYieldMs() - ANSWER_WAIT_MARGIN_MS,
+    ),
+  );
 
   const taskId = await newTaskId({ prompt, workspaceConfig });
   // How hard the conversation thinks is how hard its tasks think: the level is
@@ -648,13 +677,13 @@ export async function runNew(
   };
 
   publisher.publish("task.updated", { id: taskId });
-  const start = (refusals: string[]) => {
+  const start = (brief: SessionMessage.UserWithParts) => {
     getWorkspaceActorRef().send({
       type: "createSession",
       value: {
         agentName: "main",
         id: taskId,
-        message: withRefusals(briefed, refusals),
+        message: brief,
         model,
         sessionId,
       },
@@ -663,19 +692,27 @@ export async function runNew(
   // A folder the system is still asking the user about holds the task until
   // they answer, since a file written by its path goes through while the ask
   // is up, and a refusal would come after the work it was meant to prevent.
-  if (looks.length === 0) {
-    start([]);
+  if (unanswered.length === 0) {
+    start(briefed);
   } else {
-    void Promise.all(looks.map((look) => look.answer)).then((answers) => {
-      start(answers.filter((answer) => answer !== undefined));
+    holdTask(taskId, {
+      ...folderAskHold(unanswered),
+      // Stamped when it starts, so the turn's clock counts the work rather
+      // than the wait.
+      start: (refusals) => {
+        start(withRefusals(stampedNow(briefed), refusals));
+      },
+      until: Promise.all(unanswered.map((look) => look.answer)).then(
+        (answers) => answers.filter((answer) => answer !== undefined),
+      ),
     });
   }
   await recordTaskActivity(taskId);
 
   const asking =
-    looks.length === 0
+    unanswered.length === 0
       ? `It is running now.`
-      : `macOS is asking the user whether ${APP_NAME} may use ${looks.map((look) => `"${look.spec}"`).join(" and ")}, and the task starts once they answer: tell them to answer the system's dialog.`;
+      : `macOS is asking the user whether ${APP_NAME} may use ${unanswered.map((look) => `"${look.spec}"`).join(" and ")}, and the task starts once they answer: tell them to answer the system's dialog. Until then it waits; \`${TASK_COMMAND.name} send\` queues behind that, and \`${TASK_COMMAND.name} stop\` cancels it.`;
   return ok(
     `Created ${taskId} ("${name}"). ${asking}\nIts folders: ${handedFolders(folders, orchestratorFolders)}.\n${handedFiles(message.value)}${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`,
   );
@@ -716,7 +753,7 @@ export async function runSend(
     [...Object.values(state.attachedFolders ?? {}), ...files],
     task.id,
   );
-  const { message, running } = await deliver({
+  const { held, message, running } = await deliver({
     command: "send",
     context,
     files,
@@ -729,11 +766,13 @@ export async function runSend(
     ),
     task,
   });
-  const sent = running
-    ? now
-      ? `Sent to ${task.id}. Its step in flight was stopped, and it takes this up as its next turn; you will be told when that turn finishes.`
-      : `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes. If its latest step has run for minutes without a tool call, \`send --now\` interrupts it.`
-    : `Sent to ${task.id}. It is running now; you will be told when it finishes.`;
+  const sent = held
+    ? `Queued for ${task.id}, which has not started: ${describeHold(held)}. It hears this right after its brief once it starts; you will be told when it finishes.`
+    : running
+      ? now
+        ? `Sent to ${task.id}. Its step in flight was stopped, and it takes this up as its next turn; you will be told when that turn finishes.`
+        : `Sent to ${task.id}. It is busy and will hear this at its next step; you will be told when its turn finishes. If its latest step has run for minutes without a tool call, \`send --now\` interrupts it.`
+      : `Sent to ${task.id}. It is running now; you will be told when it finishes.`;
   return ok(`${sent}\n${handedFiles(message)}`);
 }
 
@@ -785,6 +824,27 @@ async function deliver({
   if (message.isErr()) {
     throw message.error;
   }
+  // A task held from starting hears this after its brief, once it starts. The
+  // store gets it then too, so the transcript never shows it ahead of the brief.
+  const held = taskHold(task.id);
+  if (
+    held &&
+    queueBehindHold(task.id, () => {
+      getWorkspaceActorRef().send({
+        type: "addMessage",
+        value: {
+          agentName: "main",
+          id: task.id,
+          message: stampedNow(message.value),
+          model,
+          sessionId,
+        },
+      });
+    })
+  ) {
+    await recordTaskActivity(task.id);
+    return { held, message: message.value, running: false };
+  }
   const running = isWorking(task.id);
   const written = await Store.saveMessageWithParts(message.value, task.id);
   if (written.isErr()) {
@@ -803,7 +863,24 @@ async function deliver({
     },
   });
   await recordTaskActivity(task.id);
-  return { message: message.value, running };
+  return { held: undefined, message: message.value, running };
+}
+
+/** A hold as the conversation reads it: why, and for how long so far. */
+function describeHold(hold: TaskHold, now = Date.now()): string {
+  return `${hold.reason} (${formatAge(now - hold.since.getTime())})`;
+}
+
+/**
+ * What holds a task on the system's ask about its folders, in the
+ * conversation's words and in the user's.
+ */
+function folderAskHold(looks: PendingLook[]) {
+  const names = looks.map((look) => folderLabel(look.path));
+  return {
+    reason: `macOS is asking the user about ${names.map((name) => `"${name}"`).join(" and ")}`,
+    userReason: `Waiting for you to allow access to ${names.join(" and ")}`,
+  };
 }
 
 /**
@@ -838,6 +915,19 @@ async function grantPurpose(
   // Translated against the folders as they stand once the grant is written,
   // which is when the task reads it; `tellOfGrant` does that.
   return said;
+}
+
+/**
+ * The message as sent now: a message made before its task was held reaches
+ * the task when the hold lets go, and the turn it starts is timed from there.
+ */
+function stampedNow(
+  message: SessionMessage.UserWithParts,
+): SessionMessage.UserWithParts {
+  return {
+    ...message,
+    metadata: { ...message.metadata, createdAt: new Date() },
+  };
 }
 
 /**
@@ -878,12 +968,15 @@ async function tellOfGrant({
         state.attachedFolders ?? {},
       )
     : "";
-  await deliver({
+  const { held } = await deliver({
     command,
     context,
     prompt: [facts.join(" "), said].filter(Boolean).join("\n\n"),
     task,
   });
+  if (held) {
+    return `${task.id} has not started (${describeHold(held)}); it is told this right after its brief once it starts.\n`;
+  }
   return running
     ? `Sent to ${task.id}, which is busy and hears this at its next step; you will be told when its turn finishes.\n`
     : `Sent to ${task.id}, which carries on with it now; you will be told when it finishes.\n`;
@@ -950,9 +1043,12 @@ export async function runStop(args: string[], context: TaskCommandContext) {
   if (processId !== undefined) {
     return ok(await stopBackground(task.id, processId));
   }
-  const turn = isWorking(task.id)
-    ? await stopTurn(task.id, context)
-    : `${task.id} is not running.\n`;
+  const canceled = cancelHold(task.id);
+  const turn = canceled
+    ? `Stopped ${task.id} before it started; it was waiting: ${describeHold(canceled)}. It never ran, and nothing sent to it will run; start a new task if the work is still wanted.\n`
+    : isWorking(task.id)
+      ? await stopTurn(task.id, context)
+      : `${task.id} is not running.\n`;
   if (all) {
     return ok(`${turn}${await stopBackground(task.id)}`);
   }
@@ -1704,13 +1800,17 @@ function listQueryFrom(args: string[]): TaskListQuery {
 }
 
 function listRowsOf(tasks: Task[]): TaskListRow[] {
-  return tasks.map((task) => ({
-    id: task.id,
-    isRunning: isWorking(task.id),
-    leftRunning: leftRunning(task.id).length,
-    title: task.title,
-    updatedAt: task.updatedAt,
-  }));
+  return tasks.map((task) => {
+    const held = taskHold(task.id);
+    return {
+      id: task.id,
+      isRunning: isWorking(task.id),
+      leftRunning: leftRunning(task.id).length,
+      title: task.title,
+      updatedAt: task.updatedAt,
+      ...(held ? { waiting: describeHold(held) } : {}),
+    };
+  });
 }
 
 async function renderTranscript({
@@ -1858,6 +1958,7 @@ async function runShow(args: string[], context: TaskCommandContext) {
   const task = await requireChild(args[0], context);
   const state = await getTaskState(taskDir(task.id));
   const running = isWorking(task.id);
+  const held = taskHold(task.id);
   // Everything below is the task's, said in this conversation's paths: the
   // names are the task's own and mean nothing here (see mount-paths.ts).
   const taskFolders = state.attachedFolders ?? {};
@@ -1895,7 +1996,7 @@ async function runShow(args: string[], context: TaskCommandContext) {
   const inFlight = running ? await stepInFlight(task.id) : undefined;
   const lines = [
     `${task.id}: "${task.title}"`,
-    `status: ${running ? "running" : "idle"}`,
+    `status: ${held ? `waiting: ${describeHold(held)}` : running ? "running" : "idle"}`,
     ...(inFlight ? [`now: ${inFlight}`] : []),
     ...(background.length > 0
       ? [

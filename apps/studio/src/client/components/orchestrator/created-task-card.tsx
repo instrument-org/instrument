@@ -25,7 +25,9 @@ const REFRESH_MS = ms("2 seconds");
  * stopped to ask says so in its line's tone rather than with a mark. A press
  * opens the task's own page in the tab on screen, and a middle or modified
  * click puts it in a tab of its own; the way out shows on hover where a tool
- * row keeps its chevron. While the task works, a stop follows the row.
+ * row keeps its chevron. A task held from starting says what it waits on, in
+ * the warning tone, until it starts. While the task works or waits, a stop
+ * follows the row.
  */
 export function CreatedTaskCard({ taskId }: { taskId: string }) {
   const orchestrator = useOrchestrator();
@@ -34,7 +36,9 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
     rpcClient.workspace.orchestrator.childStatus.queryOptions({
       input: { id },
       refetchInterval: (query) =>
-        query.state.data?.isWorking === false ? false : REFRESH_MS,
+        query.state.data?.isWorking === false && !query.state.data.held
+          ? false
+          : REFRESH_MS,
     }),
   );
   // The line a finished task ends on: what it made, what it asks for, or how
@@ -42,7 +46,7 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
   // only once this one is done, which is the moment the line is settled.
   const children = useQuery(
     rpcClient.workspace.orchestrator.children.queryOptions({
-      enabled: status.data?.isWorking === false,
+      enabled: status.data?.isWorking === false && !status.data.held,
       input: { id: orchestrator.taskId },
     }),
   );
@@ -62,12 +66,15 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
   };
 
   const title = status.data?.title ?? "Task";
-  const isWorking = status.data?.isWorking !== false;
-  const line = isWorking ? status.data?.step : standing?.line;
+  const held = status.data?.held;
+  const isWorking = !held && status.data?.isWorking !== false;
+  const line = held ?? (isWorking ? status.data?.step : standing?.line);
   // The line is in the warning tone when the task did not get to the end of
   // its work: it failed, it was stopped, or it is waiting on the user.
   const needsAttention =
-    !isWorking && (standing?.kind === "failed" || standing?.kind === "waiting");
+    held !== undefined ||
+    (!isWorking &&
+      (standing?.kind === "failed" || standing?.kind === "waiting"));
 
   return (
     // `mt-2` on top of the reply's own 8px gap is the boundary the transcript
@@ -118,7 +125,7 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
           is hovered. */}
         <ArrowUpRightIcon className="-ml-1 size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity duration-200 group-hover/run-row:opacity-100 group-focus-visible/run-row:opacity-100" />
       </button>
-      {status.data?.isWorking && (
+      {(status.data?.isWorking || held !== undefined) && (
         <StopProcessButton
           className="size-6"
           disabled={stop.isPending}

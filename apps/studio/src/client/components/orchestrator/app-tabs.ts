@@ -3,6 +3,7 @@ import {
   APPS_HREF,
   chatGroupAtom,
   CHATS_HREF,
+  NEW_TAB_HREF,
   WEB_HREF,
   type WindowTab,
 } from "@/client/atoms/orchestrator";
@@ -17,9 +18,10 @@ import {
   selectAdjacent,
   selectByIndex,
   selectTab,
+  type TabsModel,
 } from "@/client/lib/tabs-model";
 import { instrumentFolderHref } from "@/shared/computer-href";
-import { type TabId } from "@/shared/tabs";
+import { type Tab, type TabId } from "@/shared/tabs";
 import { StoreId } from "@instrument-org/workspace/client";
 import { atom, useAtom, useAtomValue } from "jotai";
 
@@ -64,7 +66,33 @@ function siteGroupOf(id: string): string {
  * apps or an app, Discover, or a site, kept across launches with each tab's
  * own history.
  */
-export const appTabsAtom = tabsAtomOf("orchestrator.app-tabs.v1", CHAT_HREF);
+export const appTabsAtom = tabsAtomOf(
+  "orchestrator.app-tabs.v1",
+  CHAT_HREF,
+  withoutNewTabPage,
+);
+
+/**
+ * The window's tabs with the new-tab page, which is a draft's own face and
+ * no route of the window's, read as the inbox wherever a tab stands on it
+ * or has been at it.
+ */
+export function withoutNewTabPage(model: TabsModel): TabsModel {
+  const fix = (href: string) =>
+    href.split(/[?#]/)[0] === NEW_TAB_HREF ? CHAT_HREF : href;
+  const fixTab = (tab: Tab): Tab => ({
+    ...tab,
+    pathname: fix(tab.pathname),
+    ...(tab.history
+      ? { history: { ...tab.history, entries: tab.history.entries.map(fix) } }
+      : {}),
+  });
+  return {
+    ...model,
+    recentlyClosed: model.recentlyClosed.map(fixTab),
+    tabs: model.tabs.map(fixTab),
+  };
+}
 
 /**
  * The group of a chat's tabs or a site's page an app tab's address stands

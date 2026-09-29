@@ -2,6 +2,8 @@ import {
   CHATS_HREF,
   draftGroupOf,
   NEW_TAB_HREF,
+  WEB_HREF,
+  withChatNewTabs,
   type WindowTab,
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
@@ -457,5 +459,44 @@ describe("pageTakesOver", () => {
       url: "https://example.com/",
     });
     expect(tab?.past?.at(-1)).toMatchObject({ at: 1, href: fileScreen });
+  });
+});
+
+describe("withChatNewTabs", () => {
+  it("reads a chat's kept new-tab page as the web, wherever the tab has been", () => {
+    const folder = fileHref("/Users/me/notes.md");
+    const { tabs } = withChatNewTabs({
+      activeId: "home",
+      tabs: [
+        {
+          at: 0,
+          future: [{ href: folder, id: "next", kind: "screen" }],
+          group: CHAT_A,
+          href: NEW_TAB_HREF,
+          id: "home",
+          kind: "screen",
+          past: [{ href: NEW_TAB_HREF, id: "before", kind: "screen" }],
+          trail: [NEW_TAB_HREF, folder],
+        },
+      ],
+    });
+    expect(tabs[0]).toMatchObject({
+      future: [{ href: folder }],
+      href: WEB_HREF,
+      past: [{ href: WEB_HREF }],
+      trail: [WEB_HREF, folder],
+    });
+  });
+
+  it("leaves a draft's new-tab page, which the draft draws", () => {
+    const draft: WindowTab = {
+      group: draftGroupOf("d1"),
+      href: NEW_TAB_HREF,
+      id: "home",
+      kind: "screen",
+    };
+    expect(withChatNewTabs({ activeId: null, tabs: [draft] }).tabs).toEqual([
+      draft,
+    ]);
   });
 });

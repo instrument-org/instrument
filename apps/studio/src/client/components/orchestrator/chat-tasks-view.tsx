@@ -57,6 +57,7 @@ export function ChatTasksScreen({
     id: child.id,
     line: child.standing.line,
     standing: child.standing.kind,
+    stoppable: child.stoppable,
     title: child.title,
     updatedAt: child.updatedAt,
   }));

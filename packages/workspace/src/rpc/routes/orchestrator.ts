@@ -127,6 +127,8 @@ const children = base
       chatSessionId: StoreId.SessionSchema.optional(),
       /** That chat's title, as the user knows it. */
       chatTitle: z.string().optional(),
+      /** Whether a stop has something to end: an agent at work, or a hold on its start. */
+      stoppable: z.boolean(),
     }).array(),
   )
   .handler(async ({ input }) => {
@@ -142,13 +144,12 @@ const children = base
             ? await Store.getSession(chatSessionId, task.parentTaskId)
             : undefined;
         const chatTitle = chat?.isOk() ? chat.value.title : undefined;
+        const running = isWorking(task.id);
         return {
           ...task,
           dir: taskDir(task.id),
-          standing: await taskStanding({
-            isRunning: isWorking(task.id),
-            taskId: task.id,
-          }),
+          standing: await taskStanding({ isRunning: running, taskId: task.id }),
+          stoppable: running || taskHold(task.id) !== undefined,
           ...(chatSessionId ? { chatSessionId } : {}),
           ...(chatTitle === undefined ? {} : { chatTitle }),
         };

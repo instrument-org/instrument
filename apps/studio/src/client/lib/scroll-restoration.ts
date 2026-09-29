@@ -23,6 +23,8 @@ import { type FileRouteTypes } from "../routeTree.gen";
  */
 const SCROLLER_OWNED_PATHS = [
   "/debug/components/transcript",
+  "/orchestrator/chats/$id",
+  "/orchestrator/tasks/$id",
   "/tasks/$id/",
 ] satisfies FileRouteTypes["fullPaths"][];
 

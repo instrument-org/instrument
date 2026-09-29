@@ -102,8 +102,8 @@ export function getSystemInfoText() {
   const now = getCurrentDate();
   return dedent`
     <system_info>
-    The user's computer: ${getSystemInfo()}. Their files and apps belong to this system, and so does anything you write for them to run. It is not where your own commands run.
-    Your shell: POSIX with GNU coreutils, whatever the user's computer is. Reach for GNU spellings such as \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here.
+    The user's computer: ${getSystemInfo()}. You run on it: their files and apps belong to this system, and so does anything you write for them to run.
+    Your shell: a sandboxed POSIX shell with GNU coreutils, whatever the user's computer is. Reach for GNU spellings such as \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here.
     Current date: ${formatContextDate(contextDateKey(now))} -- the day this session started. A session that runs past midnight is told the new date on the turn it happens; until then, this is today.
     </system_info>
   `.trim();

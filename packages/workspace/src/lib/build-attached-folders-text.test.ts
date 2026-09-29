@@ -162,7 +162,7 @@ describe("buildAttachedFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "sam" -> \`/mnt/sam\` (read-only as a whole, read and write inside)",
+        "- "sam" -> \`/mnt/sam\` (read-only for you, and a task handed a folder inside it can write there)",
       ]
     `);
     expect(text).not.toContain("Writing into a read-only folder fails");

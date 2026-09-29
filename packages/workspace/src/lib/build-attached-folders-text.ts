@@ -66,7 +66,7 @@ export function buildAttachedFoldersText({
         access === "read-write"
           ? "read and write"
           : writableInside
-            ? "read-only as a whole, read and write inside"
+            ? "read-only for you, and a task handed a folder inside it can write there"
             : "read-only",
         missing ? "no longer exists" : null,
       ]
@@ -98,7 +98,7 @@ export function buildAttachedFoldersText({
           `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
           `Look inside by mount path with bash (\`ls\`, \`cat\`, \`head\`, \`find\`), like any other directory.`,
           writable
-            ? `A file's contents are written by a task handed the folder with --folder; what you do yourself is \`cp\` or \`mv\` a finished file into a folder listed above as read and write for you. One that is read-only as a whole refuses that with \`EROFS\`, however writable a task finds a folder inside it. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
+            ? `A file's contents are written by a task handed the folder with --folder; what you do yourself is \`cp\` or \`mv\` a finished file into a folder listed above as read and write for you. One that is read-only for you refuses that with \`EROFS\`, however writable a task finds a folder inside it: moving a file there is a task's. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
             : null,
           readOnly
             ? `Writing into a read-only folder fails, for you and for a task. It mirrors the user's real files and is not yours to change.`

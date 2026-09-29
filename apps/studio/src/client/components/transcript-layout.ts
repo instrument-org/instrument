@@ -36,13 +36,13 @@ const MIN_INFERRED_GROUP_CALLS = 2;
  * |          | working                                            | settled                        |
  * | -------- | -------------------------------------------------- | ------------------------------ |
  * | declared | heading, and the step in flight under it           | heading, rows folded behind it |
- * | inferred | generated heading, and the step in flight under it | generated heading, rows folded |
+ * | inferred | "Working for 12s", and the step in flight under it | generated heading, rows folded |
  *
  * So a phase of work reads the same whether or not the agent named it: a
- * heading saying what the phase is, which carries the live indicator for as
- * long as it runs, and under it whatever the agent is doing at that moment. An
- * inferred run too short for a generated heading (see `generatedGroupHeading`)
- * has the step in flight as its head line instead.
+ * heading that carries the live indicator for as long as it runs, and under it
+ * whatever the agent is doing at that moment. An unnamed phase has nothing to
+ * say about what it is until it is over, so while it runs its heading says how
+ * long it has been going, which is the thing that shows it is still moving.
  *
  * The step in flight is drawn as a *copy*, in a slot the group owns, and its own
  * row stays folded with the rest. A group reaches across many messages -- a turn
@@ -81,6 +81,11 @@ export interface TranscriptGroup {
    */
   lastRowId?: StoreId.Part;
   phase: "settled" | "working";
+  /**
+   * When the row it opens on was created, which is what a working inferred
+   * group's heading counts up from.
+   */
+  startedAt: Date;
   /**
    * Its tool calls in order: the names a generated heading is built from, and
    * the row each one sits in, for the run that ends up folding under a copy of
@@ -240,9 +245,7 @@ export function buildTranscriptLayout({
         }
         settle();
         if (isHeading) {
-          open = emptyGroup(part.metadata.id, {
-            headingRowId: part.metadata.id,
-          });
+          open = emptyGroup(part, { headingRowId: part.metadata.id });
           push(part.metadata.id, "step");
         }
         continue;
@@ -300,7 +303,7 @@ export function buildTranscriptLayout({
           push(id, kind);
           continue;
         }
-        open = emptyGroup(id);
+        open = emptyGroup(part);
       }
 
       push(id, kind);
@@ -349,19 +352,20 @@ export function buildTranscriptLayout({
 }
 
 /**
- * The heading an inferred group draws above its rows, or undefined when it has
- * none.
+ * The summary a settled inferred group draws above its rows, or undefined when
+ * it has none.
  *
- * A declared group draws its own `start_activity` row instead, so it returns
- * nothing here. An inferred one earns a heading once it holds enough calls for
- * a summary to say more than the rows it replaces, working or settled alike: a
- * run in progress reads the way a named phase does, its heading growing as the
- * calls land, and settling changes nothing about it but the live indicator.
+ * A declared group draws its own `start_activity` row instead, and a working
+ * one draws how long it has been going, so both return nothing here. A settled
+ * one earns a summary only if it holds enough calls for it to say more than
+ * the rows it replaces. The count is read once the run is over and never
+ * while it works: a call still unfinished is a row only while it is in the
+ * newest message, so a tally taken mid-run goes down as well as up.
  */
 export function generatedGroupHeading(
   group: TranscriptGroup,
 ): string | undefined {
-  if (group.headingRowId !== undefined) {
+  if (group.headingRowId !== undefined || group.phase === "working") {
     return undefined;
   }
   if (group.toolCalls.length < MIN_INFERRED_GROUP_CALLS) {
@@ -386,33 +390,33 @@ export function groupCanExpand(group: TranscriptGroup): boolean {
   // holds more than that one; everywhere else the head line is not a row, and a
   // single row behind it is still a row hidden.
   const isHeadedByOwnRow =
-    !groupHasHeading(group) &&
-    (group.phase === "working" || soleToolCallRowId(group) !== undefined);
+    !groupHasHeading(group) && soleToolCallRowId(group) !== undefined;
 
   return isHeadedByOwnRow ? group.foldedRowCount > 1 : group.foldedRowCount > 0;
 }
 
 /**
- * Whether the group's head line is a heading, the agent's or a generated one,
- * rather than a copy of one of its own steps. Under a heading the copy of the
- * step in flight is one of the group's rows; without one it is the head line.
+ * Whether the group's head line is a heading -- the agent's, the working
+ * clock, or a generated summary -- rather than a copy of one of its own steps.
+ * Under a heading the copy of the step in flight is one of the group's rows;
+ * without one it is the head line.
  */
 export function groupHasHeading(group: TranscriptGroup): boolean {
   return (
     group.headingRowId !== undefined ||
+    group.phase === "working" ||
     generatedGroupHeading(group) !== undefined
   );
 }
 
 /**
- * The row a working group copies into the slot it draws in place of its
- * contents, or undefined when it has none.
+ * The row a group copies into the slot it draws in place of its contents, or
+ * undefined when it has none.
  *
- * A group with a heading draws the copy under it while folded: the heading says
- * what the phase is and the copy says where it has got to. Opening it shows the
- * steps themselves, so the copy goes. A run too short for a heading has only the
- * copy as its head line, which stays whether it is open or shut -- open, it is
- * also the only thing that can shut it again.
+ * A working group draws the copy under its heading while folded: the heading
+ * says the phase is still going and the copy says where it has got to. Opening
+ * it shows the steps themselves, so the copy goes. A settled run with one call
+ * in it is headed by a copy of that call instead; see `soleToolCallRowId`.
  */
 export function groupStandInRowId({
   group,
@@ -424,8 +428,8 @@ export function groupStandInRowId({
   if (group.phase !== "working") {
     return soleToolCallRowId(group);
   }
-  // Opening a headed phase shows the steps themselves, so the copy goes.
-  if (isExpanded && groupHasHeading(group)) {
+  // Opening the phase shows the steps themselves, so the copy goes.
+  if (isExpanded) {
     return undefined;
   }
   // The step in flight, or the last one the group finished while the agent
@@ -540,14 +544,15 @@ export function planRow({
 }
 
 function emptyGroup(
-  id: StoreId.Part,
+  part: SessionMessagePart.Type,
   { headingRowId }: { headingRowId?: StoreId.Part } = {},
 ): TranscriptGroup {
   return {
     foldedRowCount: 0,
     headingRowId,
-    id,
+    id: part.metadata.id,
     phase: "working",
+    startedAt: part.metadata.createdAt,
     toolCalls: [],
   };
 }

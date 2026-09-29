@@ -25,7 +25,10 @@ import {
 import { FolderAttachmentsCard } from "./folder-attachments-card";
 import { PlanningDotIcon } from "./icons/planning-dot";
 import { MessageError } from "./message-error";
-import { GroupHeading } from "./message-part/group-heading";
+import {
+  GroupHeading,
+  WorkingGroupHeading,
+} from "./message-part/group-heading";
 import { GroupStandIn } from "./message-part/group-stand-in";
 import { isAwaitingUser } from "./message-part/tool-call-utils";
 import {
@@ -1058,7 +1061,12 @@ function collectGroups({
 
     // With the group folded, a middle slice holds nothing that draws, and an
     // empty box is a blank gap down the transcript where the steps used to be.
-    if (nodes.length === 0 && heading === undefined && standIn === null) {
+    if (
+      nodes.length === 0 &&
+      heading === undefined &&
+      standIn === null &&
+      !(isOpeningSlice && group.phase === "working")
+    ) {
       return [];
     }
 
@@ -1074,7 +1082,6 @@ function collectGroups({
           openingRow?.hasProseBoundaryAbove === true && PROSE_GAP_IN_GROUP,
         )}
         isExpanded={isGroupExpanded(group)}
-        isWorking={group.phase === "working"}
         key={`group-${group.id}-${run.rows[0]?.id ?? ""}`}
         onToggle={() => {
           onToggle(group);
@@ -1082,14 +1089,16 @@ function collectGroups({
         runningProcessCount={groupRunningProcessCount(group)}
       >
         {heading !== undefined && (
-          // Working only while the agent is: the layout settles whatever it
-          // left open once the run stops.
-          <GroupHeading
-            isRunning={group.phase === "working"}
-            key="heading"
-            title={heading}
-          />
+          <GroupHeading key="heading" title={heading} />
         )}
+        {isOpeningSlice &&
+          group.headingRowId === undefined &&
+          group.phase === "working" && (
+            <WorkingGroupHeading
+              key="heading"
+              startedAt={group.startedAt}
+            />
+          )}
         {standsAtHead && standIn}
         {nodes}
         {!standsAtHead && standIn}

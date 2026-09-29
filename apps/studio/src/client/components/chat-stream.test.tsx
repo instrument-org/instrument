@@ -5,7 +5,7 @@ import {
   type Task,
   TaskIdSchema,
 } from "@instrument-org/workspace/client";
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 
@@ -466,12 +466,13 @@ describe("ChatStream groups the agent never named", () => {
     expect(screen.queryByText("Reading the first quarter")).toBeNull();
   });
 
-  // The same shape a named phase takes, with the title generated from what the
-  // run has done so far.
-  it("heads the run in flight with its summary and the call under it", () => {
+  // The same shape a named phase takes. Nothing is known yet about what the
+  // phase amounts to, so the heading says the agent is working and for how
+  // long.
+  it("heads the run in flight with the working clock and the call under it", () => {
     inFlight();
 
-    expect(screen.getByText("Read 3 files")).toBeDefined();
+    expect(screen.getByText(/^Working/)).toBeDefined();
     const [step] = screen.getAllByText("Reading the third quarter");
     expect(screen.getAllByText("Reading the third quarter")).toHaveLength(1);
     expect(step?.closest(INDENTED)).not.toBeNull();
@@ -488,7 +489,7 @@ describe("ChatStream groups the agent never named", () => {
       { isAgentRunning: true },
     );
 
-    expect(screen.getByText("Read 2 files").className).toContain(
+    expect(screen.getByText(/^Working/).className).toContain(
       "brand-shiny-text",
     );
     expect(
@@ -496,68 +497,45 @@ describe("ChatStream groups the agent never named", () => {
     ).not.toContain("brand-shiny-text");
   });
 
+  it("counts up how long the run has been working", () => {
+    vi.useFakeTimers({ now: new Date(0) });
+    try {
+      inFlight();
+      expect(screen.getByText("Working")).toBeDefined();
+
+      act(() => {
+        vi.advanceTimersByTime(12_000);
+      });
+
+      expect(screen.getByText("Working for 12s")).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("opens from the heading, which the steps then replace the copy under", () => {
     inFlight();
 
-    fireEvent.click(screen.getByText("Read 3 files"));
+    fireEvent.click(screen.getByText(/^Working/));
 
     expect(screen.getByText("Reading the first quarter")).toBeDefined();
     expect(screen.getAllByText("Reading the third quarter")).toHaveLength(1);
   });
 
-  // A run with one call in it is too short for a summary to say more than the
-  // call does, so the copy of its step is its head line; see `toggleGroup`.
-  // Nothing is in flight here, which is what leaves the head line on the last
-  // step the run finished.
-  // Labeled with how long it took.
-  const THOUGHT = /^Thought/;
-  const betweenSteps = () => [
-    assistantMessage([thought("Weighing up the quarters")]),
-    assistantMessage([read({ explanation: "Reading the third quarter" })]),
-  ];
-
-  it("keeps the head line working between steps", () => {
-    renderMessages(betweenSteps(), { isAgentRunning: true });
-
-    expect(screen.getByText("Reading the third quarter").className).toContain(
-      "brand-shiny-text",
-    );
-  });
-
-  it("opens the step its head line copies, not only the run behind it", () => {
-    renderMessages(betweenSteps(), { isAgentRunning: true });
+  // A finished run with one call in it is headed by that call, since a summary
+  // would say less than its row does; see `toggleGroup`.
+  it("opens the step a finished run's head line copies, not only the run", () => {
+    renderParts([
+      thought("Weighing up the quarters"),
+      read({ explanation: "Reading the third quarter" }),
+      prose("Revenue grew in the north."),
+    ]);
 
     clickRow("Reading the third quarter");
 
-    expect(screen.getByText(THOUGHT)).toBeDefined();
+    expect(screen.getByText(/^Thought/)).toBeDefined();
     expect(isRowOpen("Reading the third quarter")).toBe(true);
-    // That one and no other: the rest of the run comes up shut, the way it
-    // would have if the reader had opened the run from anywhere else.
-    expect(isRowOpen(THOUGHT)).toBe(false);
-  });
-
-  it("shuts that step again along with the run, and leaves it shut", () => {
-    const messages = betweenSteps();
-    const { rerender } = renderMessages(messages, { isAgentRunning: true });
-
-    clickRow("Reading the third quarter");
-    clickRow("Reading the third quarter");
-
-    expect(screen.queryByText(THOUGHT)).toBeNull();
-
-    // The agent thinks again, which is what the run is headed by now. Opening
-    // it again answers with that step alone: what the reader shut is still
-    // shut behind it rather than coming back with it.
-    rerender(
-      chatStream(
-        [...messages, assistantMessage([thought("Checking the totals")])],
-        { isAgentRunning: true },
-      ),
-    );
-    clickRow(THOUGHT);
-
-    expect(isRowOpen(THOUGHT)).toBe(true);
-    expect(isRowOpen("Reading the third quarter")).toBe(false);
+    expect(isRowOpen(/^Thought/)).toBe(false);
   });
 
   it("names the finished run from what it turned out to contain", () => {
@@ -1084,9 +1062,9 @@ describe("ChatStream and the step that opens itself", () => {
     expect(isRowOpen("Drawing the cover")).toBe(false);
   });
 
-  // Drawn without a phase announced first, the image heads a run of its own:
-  // the head line is a copy of the row itself, so opening the run puts the same
-  // call on screen twice. The picture belongs to the row in the run, not both.
+  // Drawn without a phase announced first, the image opens a run headed by the
+  // working clock, and opening the run takes the copy under it away, so the
+  // call and its picture are on screen once.
   it("draws the picture once when the run it opens has no heading", () => {
     const image = imageCall("Drawing the cover");
 
@@ -1094,7 +1072,8 @@ describe("ChatStream and the step that opens itself", () => {
       isAgentRunning: true,
     });
 
-    expect(screen.getAllByText("Drawing the cover")).toHaveLength(2);
+    expect(screen.getByText(/^Working/)).toBeDefined();
+    expect(screen.getAllByText("Drawing the cover")).toHaveLength(1);
     expect(screen.getAllByText("Generating")).toHaveLength(1);
   });
 

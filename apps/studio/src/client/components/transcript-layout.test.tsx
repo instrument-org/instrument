@@ -529,7 +529,7 @@ describe("groups the agent named", () => {
         these are older than I expected
       ~
       --- inferred working
-      > two
+      >   two
       ·   two"
     `);
   });
@@ -796,7 +796,7 @@ describe("groups the agent never named", () => {
 });
 
 describe("while the agent is working", () => {
-  it("heads an unannounced run with its summary and the call the queue reached under it", () => {
+  it("heads an unannounced run with the working clock and the call the queue reached under it", () => {
     expect(
       draw(
         [
@@ -812,7 +812,7 @@ describe("while the agent is working", () => {
         { isAgentRunning: true },
       ),
     ).toMatchInlineSnapshot(`
-      "--- inferred working "Read 2 files"
+      "--- inferred working
       >   two
       ·   one
       ·   two"
@@ -834,7 +834,7 @@ describe("while the agent is working", () => {
         { isAgentRunning: true, isDeveloperMode: true, isExpanded: true },
       ),
     ).toMatchInlineSnapshot(`
-      "--- inferred working "Read 2 files"
+      "--- inferred working
           two
           three"
     `);
@@ -902,7 +902,7 @@ describe("while the agent is working", () => {
       ),
     ).toMatchInlineSnapshot(`
       "--- inferred working
-      > weighing it up
+      >   weighing it up
       ·   one
       ·   weighing it up"
     `);
@@ -1113,7 +1113,7 @@ describe("a reasoning part the run died inside of", () => {
       ),
     ).toMatchInlineSnapshot(`
       "--- inferred working
-      > cut off
+      >   cut off
       ·   one
       ·   cut off"
     `);

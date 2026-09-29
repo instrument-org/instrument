@@ -132,10 +132,8 @@ export const ReasoningMessage = memo(function ReasoningMessage({
       : `Thought for ${duration}`;
 
   // Only the head line of a group carries the live indicator, so there is one
-  // thing moving per group; see `TranscriptGroup`. As a working group's head
-  // line it stays live between steps too; see `isWorking`.
-  const showsLiveIndicator =
-    group === null ? isLoading : group.isHead && (isLoading || group.isWorking);
+  // thing moving per group; see `TranscriptGroup`.
+  const showsLiveIndicator = isLoading && (group === null || group.isHead);
 
   return (
     <Collapsible

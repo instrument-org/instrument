@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+
+import { formatDuration } from "../../lib/format-time";
 import { cn } from "../../lib/utils";
 import { PlanningDotSlot } from "../planning-dot-slot";
 import { RunRowChevron } from "../run-row-chevron";
@@ -69,5 +72,44 @@ export function GroupHeading({
       {runningCount > 0 && <RunningBadge count={runningCount} />}
       {canExpand && <RunRowChevron isOpen={isExpanded} />}
     </button>
+  );
+}
+
+// How long a phase has to run before its heading starts counting. The same
+// wait a thought gets before it shows a number, so the two clocks agree.
+const COUNT_UP_AFTER_MS = 3000;
+
+/**
+ * The heading of a phase the agent did not name, while it is still going.
+ *
+ * Nothing is known yet about what the phase amounts to -- the summary it
+ * settles to is read off the finished run -- so the heading says the one thing
+ * that is true all the way through: the agent is working, and for how long. A
+ * clock that keeps climbing is what shows a run is still making progress across
+ * the gaps between its steps, when nothing under it is moving.
+ */
+export function WorkingGroupHeading({ startedAt }: { startedAt: Date }) {
+  // The clock the heading reads against, held as state and advanced once a
+  // second so the row stays a function of its inputs.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
+
+  const elapsedMs = now - startedAt.getTime();
+  return (
+    <GroupHeading
+      isRunning
+      title={
+        elapsedMs < COUNT_UP_AFTER_MS
+          ? "Working"
+          : `Working for ${formatDuration(elapsedMs)}`
+      }
+    />
   );
 }

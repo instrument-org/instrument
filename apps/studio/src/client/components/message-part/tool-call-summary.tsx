@@ -81,11 +81,7 @@ export function ToolCallSummary({
   // a row reading "Checking the localhost server status" as though the check
   // were still going, when what is still going is the server. That fact gets
   // the badge at the end of the row instead.
-  //
-  // As a working group's head line it stays live between steps too; see
-  // `isWorking`.
-  const showsLiveIndicator =
-    group === null ? isRunning : group.isHead && (isRunning || group.isWorking);
+  const showsLiveIndicator = isRunning && (group === null || group.isHead);
 
   const toolName = getToolNameByType(part.type);
   const browserInfo = getBrowserInfo(part);

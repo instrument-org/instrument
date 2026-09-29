@@ -11,3 +11,11 @@ export const PAGE_EDITOR_BOOT_CHANNEL = "page-editor:boot";
 
 /** Between the editor in the guest and the window that embeds it. */
 export const PAGE_EDITOR_CHANNEL = "page-editor";
+
+/**
+ * A thumb button pressed over a page, from the guest to the window that
+ * embeds it: `"back"` or `"forward"`. The window walks the tab the page is
+ * in, the way its row's arrows do, rather than letting the guest step
+ * through its own history alone.
+ */
+export const PAGE_THUMB_CHANNEL = "page-thumb";

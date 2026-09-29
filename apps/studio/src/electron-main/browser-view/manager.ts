@@ -358,6 +358,15 @@ export function createBrowserViewManager(): BrowserViewManager {
         markNavigated(entry, details.url);
       }
     });
+    // The blank page every guest is born on is not somewhere the page has
+    // been: once it has somewhere real, that start leaves its history, so
+    // back from its first page is the tab's back rather than a step onto
+    // an empty page.
+    guest.on("did-navigate", (_event, url) => {
+      if (url !== "about:blank") {
+        dropBlankStart(guest);
+      }
+    });
     guest.on("dom-ready", () => {
       focusGuard.onLoadProgress(targetId);
     });
@@ -802,6 +811,20 @@ export function createBrowserViewManager(): BrowserViewManager {
 
 export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
+}
+
+/** Removes the blank entries behind where a guest stands in its history. */
+function dropBlankStart(wc: WebContents) {
+  if (wc.isDestroyed()) {
+    return;
+  }
+  const history = wc.navigationHistory;
+  const entries = history.getAllEntries();
+  for (let index = history.getActiveIndex() - 1; index >= 0; index -= 1) {
+    if (entries[index]?.url === "about:blank") {
+      history.removeEntryAtIndex(index);
+    }
+  }
 }
 
 // Record that a guest has started loading a real page, and republish so the UI

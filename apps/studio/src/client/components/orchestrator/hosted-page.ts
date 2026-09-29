@@ -1,5 +1,5 @@
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { getWebviewElement, onPageThumb } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isPageEditAddress } from "@instrument-org/shared";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
@@ -9,10 +9,9 @@ import { useEffect, useRef } from "react";
  * What a page drawn inside a file tab (beside its tree) moving means for the
  * tab around it:
  *
- * - `back`: the guest stepped back past the file to the blank page every
- *   guest starts on, by a mouse's thumb button or its own menu. The file is
- *   the start of the page's history, so the step is the tab's, back to where
- *   the file was opened from.
+ * - `back`: the mouse's back button pressed over the page with nothing of
+ *   the page's own behind it. The file is the start of the page's history,
+ *   so the step is the tab's, back to where the file was opened from.
  * - `file`: a link took the page to another file on the computer, which the
  *   tab shows in the file's place, its tree following.
  * - `site`: a link took the page off the computer, and the tab becomes the
@@ -29,13 +28,13 @@ export type HostedPageStep =
 
 export function hostedPageStep(
   url: string,
-  { canGoForward, fileUrl }: { canGoForward: boolean; fileUrl: string },
+  { fileUrl }: { fileUrl: string },
 ): HostedPageStep {
   if (url === "" || isPageEditAddress(url) || sameDocument(url, fileUrl)) {
     return undefined;
   }
   if (url === "about:blank") {
-    return canGoForward ? { kind: "back" } : undefined;
+    return undefined;
   }
   const path = hostPathOfFileUrl(url);
   return path === undefined ? { kind: "site", url } : { kind: "file", path };
@@ -43,10 +42,10 @@ export function hostedPageStep(
 
 /**
  * Follows the guest of a page drawn inside a file tab and hands each move
- * that takes it off the file to the tab; see `hostedPageStep`. A step back to
- * the blank start is undone in the guest first, so the page is the file again
- * if the tab comes back to it. A page going on to a site starts its own
- * history there, since what came before it is the tab's.
+ * that takes it off the file to the tab; see `hostedPageStep`. The mouse's
+ * thumb buttons over the page walk the page's own history, and back past
+ * its start is the tab's. A page going on to a site starts its own history
+ * there, since what came before it is the tab's.
  */
 export function useHostedPageNavigation(
   target: BrowserTargetId | undefined,
@@ -60,7 +59,10 @@ export function useHostedPageNavigation(
     latest.current = { fileUrl, onStep };
   });
   useEffect(() => {
-    const webview = target && isAttached ? getWebviewElement(target) : null;
+    if (target === undefined || !isAttached) {
+      return;
+    }
+    const webview = getWebviewElement(target);
     if (!webview) {
       return;
     }
@@ -70,19 +72,14 @@ export function useHostedPageNavigation(
         return;
       }
       let url: string;
-      let canGoForward: boolean;
       try {
         url = webview.getURL();
-        canGoForward = webview.canGoForward();
       } catch {
         return;
       }
-      const next = hostedPageStep(url, { canGoForward, fileUrl: shown });
+      const next = hostedPageStep(url, { fileUrl: shown });
       if (!next) {
         return;
-      }
-      if (next.kind === "back") {
-        webview.goForward();
       }
       // The tab's own history holds the file now, behind the page; the
       // guest's would hold it a second time.
@@ -92,8 +89,24 @@ export function useHostedPageNavigation(
       step(next);
     };
     webview.addEventListener("did-navigate", onNavigate);
+    const releaseThumbs = onPageThumb(target, (direction) => {
+      try {
+        if (direction === "forward") {
+          if (webview.canGoForward()) {
+            webview.goForward();
+          }
+        } else if (webview.canGoBack()) {
+          webview.goBack();
+        } else if (latest.current.fileUrl !== undefined) {
+          latest.current.onStep({ kind: "back" });
+        }
+      } catch {
+        // Not attached yet: there is no history to step.
+      }
+    });
     return () => {
       webview.removeEventListener("did-navigate", onNavigate);
+      releaseThumbs();
     };
   }, [isAttached, target]);
 }

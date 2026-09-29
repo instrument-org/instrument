@@ -6,6 +6,7 @@ import {
   type BrowserGuestTarget,
   browserPartition,
 } from "@/shared/browser";
+import { PAGE_THUMB_CHANNEL } from "@/shared/page-editor-channels";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { sleep } from "radashi";
 
@@ -204,6 +205,12 @@ export function getGuestGeneration(
 }
 
 /** The pooled guest element for a target, if it exists (for nav controls). */
+/** Who walks each page's tab when a thumb button is pressed over it, by the page's target. */
+const thumbHandlers = new Map<
+  BrowserTargetId,
+  (direction: "back" | "forward") => void
+>();
+
 export function getWebviewElement(
   targetId: BrowserTargetId,
 ): null | WebviewElement {
@@ -332,6 +339,23 @@ export function initBrowserPool(): () => void {
     controller.abort();
     document.removeEventListener("focusin", recordHostFocus);
     window.removeEventListener("resize", onWindowResize);
+  };
+}
+
+/**
+ * Takes the thumb buttons pressed over one page, for the surface showing it,
+ * until the returned function lets them go. The latest surface to ask has
+ * them, since it is the one drawing the page.
+ */
+export function onPageThumb(
+  targetId: BrowserTargetId,
+  handler: (direction: "back" | "forward") => void,
+): () => void {
+  thumbHandlers.set(targetId, handler);
+  return () => {
+    if (thumbHandlers.get(targetId) === handler) {
+      thumbHandlers.delete(targetId);
+    }
   };
 }
 
@@ -565,6 +589,33 @@ function ensureWebview(
   });
   webview.addEventListener("blur", () => {
     void rpcClient.browser.syncFocus.call({ focused: false, targetId });
+  });
+  // A thumb button pressed over the page: the surface showing it walks its
+  // tab; with none, the page steps its own history, as a browser would.
+  webview.addEventListener("ipc-message", (event) => {
+    // The guest's message, as Electron's `<webview>` fires it.
+    const { args, channel } = event as Event & {
+      args?: unknown[];
+      channel?: string;
+    };
+    if (channel !== PAGE_THUMB_CHANNEL) {
+      return;
+    }
+    const direction = args?.[0] === "forward" ? "forward" : "back";
+    const handler = thumbHandlers.get(targetId);
+    if (handler) {
+      handler(direction);
+      return;
+    }
+    try {
+      if (direction === "back" && webview.canGoBack()) {
+        webview.goBack();
+      } else if (direction === "forward" && webview.canGoForward()) {
+        webview.goForward();
+      }
+    } catch {
+      // Not attached yet: there is no history to step.
+    }
   });
 
   container.append(webview);

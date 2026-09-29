@@ -50,22 +50,16 @@ describe("hostedPageStep", () => {
   const fileUrl = "file:///Users/me/site/a.html";
 
   it.each([
-    ["file:///Users/me/site/a.html", false, undefined],
-    ["file:///Users/me/site/a.html#bottom", false, undefined],
-    ["file:///Users/me/site/a.html?instrument-edit=1", false, undefined],
-    ["about:blank", true, { kind: "back" }],
-    ["about:blank", false, undefined],
+    ["file:///Users/me/site/a.html", undefined],
+    ["file:///Users/me/site/a.html#bottom", undefined],
+    ["file:///Users/me/site/a.html?instrument-edit=1", undefined],
+    ["about:blank", undefined],
     [
       "file:///Users/me/site/b.html",
-      false,
       { kind: "file", path: "/Users/me/site/b.html" },
     ],
-    [
-      "https://example.com/",
-      false,
-      { kind: "site", url: "https://example.com/" },
-    ],
-  ])("reads %s (forward: %s)", (url, canGoForward, step) => {
-    expect(hostedPageStep(url, { canGoForward, fileUrl })).toEqual(step);
+    ["https://example.com/", { kind: "site", url: "https://example.com/" }],
+  ])("reads %s", (url, step) => {
+    expect(hostedPageStep(url, { fileUrl })).toEqual(step);
   });
 });

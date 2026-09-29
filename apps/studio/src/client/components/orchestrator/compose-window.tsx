@@ -32,7 +32,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
-import { getWebviewElement } from "@/client/lib/browser-pool";
+import { getWebviewElement, onPageThumb } from "@/client/lib/browser-pool";
 import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
@@ -1015,41 +1015,58 @@ export function GroupItem({
         )
       : undefined;
   const guest = useGuestSteps(targetId);
-  // A site of the window's own stepping back past its first page, to the
-  // blank start every guest has, is the window's tab going back.
-  const beforeNow = useRef(before);
+  // Back walks what is up (the page's own history, the screen's trail),
+  // then what the tab showed before it, then, for a tab that is a site of
+  // the window's own, where the window's tab was before the site. The row's
+  // arrows and the mouse's thumb buttons over the page both take these.
+  const webview = targetId ? getWebviewElement(targetId) : null;
+  const at = atOf(up);
+  const withinBack = up.kind === "page" ? guest.back : at > 0;
+  const withinForward =
+    up.kind === "page" ? guest.forward : at < trailOf(up).length - 1;
+  // A site of the window's own has nothing of its own before its page.
+  const hasPast = !before && Boolean(up.past?.length);
+  const hasFuture = Boolean(up.future?.length);
+  const goBack = () => {
+    if (withinBack) {
+      if (up.kind === "page") {
+        webview?.goBack();
+      } else {
+        windowTabs.stepTab(up.id, -1);
+      }
+    } else if (hasPast) {
+      windowTabs.stepVisitOf(up.id, -1);
+    } else {
+      before?.back();
+    }
+  };
+  const goForward = () => {
+    if (withinForward) {
+      if (up.kind === "page") {
+        webview?.goForward();
+      } else {
+        windowTabs.stepTab(up.id, 1);
+      }
+    } else if (hasFuture) {
+      windowTabs.stepVisitOf(up.id, 1);
+    }
+  };
+  const stepsNow = useRef({ goBack, goForward });
   useEffect(() => {
-    beforeNow.current = before;
+    stepsNow.current = { goBack, goForward };
   });
-  const targets = useBrowserTargets();
-  const isAttached = targetId !== undefined && targets.has(targetId);
   useEffect(() => {
-    const webview =
-      targetId && isAttached && beforeNow.current
-        ? getWebviewElement(targetId)
-        : null;
-    if (!webview) {
+    if (targetId === undefined) {
       return;
     }
-    const onNavigate = () => {
-      try {
-        if (
-          webview.getURL() === "about:blank" &&
-          !webview.canGoBack() &&
-          webview.canGoForward()
-        ) {
-          webview.goForward();
-          beforeNow.current?.back();
-        }
-      } catch {
-        // Not attached yet.
+    return onPageThumb(targetId, (direction) => {
+      if (direction === "back") {
+        stepsNow.current.goBack();
+      } else {
+        stepsNow.current.goForward();
       }
-    };
-    webview.addEventListener("did-navigate", onNavigate);
-    return () => {
-      webview.removeEventListener("did-navigate", onNavigate);
-    };
-  }, [isAttached, targetId]);
+    });
+  }, [targetId]);
 
   /**
    * The row over what is up, the one the pane beside a chat draws: its
@@ -1057,47 +1074,14 @@ export function GroupItem({
    * sends a page somewhere else, or takes a screen's tab to a site.
    */
   const row = (location: TabLocation, { isFileScreen = false } = {}) => {
-    const webview = targetId ? getWebviewElement(targetId) : null;
-    const at = atOf(up);
-    // Back walks what is up (the page's own history, the screen's trail),
-    // then what the tab showed before it, then, for a tab that is a site of
-    // the window's own, where the window's tab was before the site.
-    const withinBack = up.kind === "page" ? guest.back : at > 0;
-    const withinForward =
-      up.kind === "page" ? guest.forward : at < trailOf(up).length - 1;
-    // A site of the window's own has nothing of its own before its page.
-    const hasPast = !before && Boolean(up.past?.length);
-    const hasFuture = Boolean(up.future?.length);
     return (
       <TabLocationRow
         canGoBack={withinBack || hasPast || Boolean(before?.canGoBack)}
         canGoForward={withinForward || hasFuture}
         location={location}
         {...(onClose ? { onClose } : {})}
-        onBack={() => {
-          if (withinBack) {
-            if (up.kind === "page") {
-              webview?.goBack();
-            } else {
-              windowTabs.stepTab(up.id, -1);
-            }
-          } else if (hasPast) {
-            windowTabs.stepVisitOf(up.id, -1);
-          } else {
-            before?.back();
-          }
-        }}
-        onForward={() => {
-          if (withinForward) {
-            if (up.kind === "page") {
-              webview?.goForward();
-            } else {
-              windowTabs.stepTab(up.id, 1);
-            }
-          } else if (hasFuture) {
-            windowTabs.stepVisitOf(up.id, 1);
-          }
-        }}
+        onBack={goBack}
+        onForward={goForward}
         onSite={(url) => {
           if (up.kind === "page" && webview) {
             void webview.loadURL(url);

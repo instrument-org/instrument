@@ -9,7 +9,7 @@ import {
   type Task,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
 import { chatSeparators } from "../lib/chat-separators";
@@ -908,7 +908,7 @@ export function ChatStream({
   if (renderAsItems) {
     return (
       <TranscriptExpansionContext value={expansion}>
-        {chatElements}
+        <TailFirst items={chatElements} />
         {continueNode && (
           <MessageScrollerItem key="continue">
             {continueNode}
@@ -927,6 +927,12 @@ export function ChatStream({
     </TranscriptExpansionContext>
   );
 }
+
+/** How many of a transcript's last turns are drawn the moment it arrives. */
+const TAIL_ITEMS = 12;
+
+/** How many older turns are put back above them each time the window is idle. */
+const FILL_ITEMS = 6;
 
 /**
  * The conversation is composing: three dots in a bubble of their own, the
@@ -1175,6 +1181,41 @@ function readTurnOpenings({
     isAgentRunning && regularMessages.length > 0 && !trailingTurnHasContent;
 
   return { isAwaitingFirstRow, wordmarkMessageIds };
+}
+
+/**
+ * A transcript's turns, drawn from the end: the last few at once, where the
+ * reader lands, and the older ones above them a few at a time while the
+ * window is idle, until the whole transcript is there. Drawing every turn of
+ * a long conversation at once holds the window for as long as the
+ * conversation is long, every time it is opened.
+ *
+ * The scroller keeps what is on screen in place as turns arrive above it, and
+ * each turn keeps its key, so the ones already drawn are never drawn again.
+ * Turns added at the end while it fills are shown as they come.
+ */
+function TailFirst({ items }: { items: React.ReactNode[] }) {
+  const [hidden, setHidden] = useState(() =>
+    Math.max(0, items.length - TAIL_ITEMS),
+  );
+
+  useEffect(() => {
+    if (hidden === 0) {
+      return;
+    }
+    // A deadline, so a window that is never idle still fills.
+    const handle = requestIdleCallback(
+      () => {
+        setHidden((count) => Math.max(0, count - FILL_ITEMS));
+      },
+      { timeout: 500 },
+    );
+    return () => {
+      cancelIdleCallback(handle);
+    };
+  }, [hidden]);
+
+  return items.slice(hidden);
 }
 
 // What opens an assistant turn, wherever the turn is opening from.

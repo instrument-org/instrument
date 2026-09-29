@@ -16,8 +16,8 @@ import { InfoIcon } from "@phosphor-icons/react/Info";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ReactNode } from "react";
 
+import { type Topic } from "./chats";
 import { PickList, PickListAction } from "./pick-list";
-import { type Topic } from "./threads";
 import { TopicMark } from "./topic-mark";
 
 /**

@@ -186,10 +186,7 @@ async function heldTabsStatus(
   }
   const windowTargets = await browser.listTargets(await windowTaskId());
   const titles = new Map(
-    windowTargets.map((target) => [
-      target.id,
-      target.title,
-    ]),
+    windowTargets.map((target) => [target.id, target.title]),
   );
   return heldTabs.flatMap((tab) => {
     const decoded = decodeBrowserTargetId(tab.id);

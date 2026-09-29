@@ -4,9 +4,9 @@ import { rpcClient } from "@/client/rpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { chatListOptions } from "./chat-list-query";
+import { type Chat } from "./chats";
 import { useOrchestrator } from "./context";
-import { threadListOptions } from "./thread-list-query";
-import { type Thread } from "./threads";
 
 /** How many of the chat's tasks the dialog names before it counts the rest. */
 const TASKS_NAMED = 5;
@@ -19,16 +19,16 @@ const TASKS_NAMED = 5;
  * the thing most worth knowing before pressing the button.
  */
 export function DeleteChatDialog({
+  chat,
   onDeleted,
   onOpenChange,
   open,
-  thread,
 }: {
+  chat: Chat;
   /** Told once the chat is in the trash, so the window can put it away. */
   onDeleted: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  thread: Thread;
 }) {
   const { taskId } = useOrchestrator();
   const queryClient = useQueryClient();
@@ -40,7 +40,7 @@ export function DeleteChatDialog({
     }),
   );
   const tasks = (children.data ?? []).filter(
-    (task) => task.threadId === thread.id,
+    (task) => task.chatSessionId === chat.id,
   );
   const named = tasks.slice(0, TASKS_NAMED);
   const more = tasks.length - named.length;
@@ -50,7 +50,7 @@ export function DeleteChatDialog({
       content={
         <div className="overflow-hidden rounded-lg border bg-muted/50 px-4 py-3 text-sm">
           <div className="truncate font-medium text-foreground">
-            {thread.title}
+            {chat.title}
           </div>
           {tasks.length === 0 ? (
             <div className="mt-1 text-xs text-muted-foreground">
@@ -78,11 +78,11 @@ export function DeleteChatDialog({
         </div>
       }
       description={`This chat, the tasks it started, and everything in their folders move to your ${trashTerminology}, where you can restore them. Files they saved to your own folders, like Documents/Instrument, stay where they are.`}
-      items={[thread]}
+      items={[chat]}
       onDelete={async () => {
         try {
           await rpcClient.workspace.orchestrator.chats.trash.call({
-            sessionId: thread.id,
+            sessionId: chat.id,
           });
         } catch (error) {
           toast.error("Failed to delete the chat", {
@@ -93,13 +93,12 @@ export function DeleteChatDialog({
           });
           throw error;
         }
-        queryClient.setQueryData<Thread[]>(
-          threadListOptions().queryKey,
-          (threads) => threads?.filter((each) => each.id !== thread.id),
+        queryClient.setQueryData<Chat[]>(chatListOptions().queryKey, (chats) =>
+          chats?.filter((each) => each.id !== chat.id),
         );
         queryClient.removeQueries({
           queryKey: rpcClient.workspace.orchestrator.chats.of.queryKey({
-            input: { sessionId: thread.id },
+            input: { sessionId: chat.id },
           }),
         });
         onDeleted();

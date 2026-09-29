@@ -9,7 +9,7 @@ import { createContext, useContext } from "react";
 
 import { type useAppTabs } from "./app-tabs";
 import { type PageChromeSlots } from "./browser-tabs";
-import { type Thread, type Topic } from "./threads";
+import { type Chat, type Topic } from "./chats";
 import { type useCompose } from "./use-compose";
 
 /**
@@ -33,6 +33,8 @@ export interface WindowShell {
   appTabs: ReturnType<typeof useAppTabs>;
   /** The chat a draft just became, marked in the inbox as it arrives. */
   arrivedId: StoreId.Session | undefined;
+  chats: Chat[] | undefined;
+  chatTitles: Map<StoreId.Session, string>;
   /** Each task's title, for a tab standing on one. */
   childTitles: Map<TaskId, string>;
   compose: ReturnType<typeof useCompose>;
@@ -55,11 +57,9 @@ export interface WindowShell {
     isViewOpen: boolean;
     sessionId: StoreId.Session;
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
+  setChatTopics: (id: StoreId.Session, topics: string[]) => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;
-  setThreadTopics: (id: StoreId.Session, topics: string[]) => void;
   showDraft: (id: string) => void;
-  threads: Thread[] | undefined;
-  threadTitles: Map<StoreId.Session, string>;
   topics: Topic[];
 }
 

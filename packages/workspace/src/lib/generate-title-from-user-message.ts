@@ -248,11 +248,11 @@ function buildSystemPrompt({
   const replySection = withReply
     ? `${dedent`
         <reply>
-        The message opened a thread that has since been answered, and the agent's latest reply follows it after "Latest reply:". The reply says what the work turned out to be, so let it sharpen the title: a message asking "what should I make for dinner" answered with a lentil soup recipe is "Lentil soup for dinner". Name the subject the message and the reply share; never name the act of replying, and never a title that is only the reply's own words.
+        The message opened a chat that has since been answered, and the agent's latest reply follows it after "Latest reply:". The reply says what the work turned out to be, so let it sharpen the title: a message asking "what should I make for dinner" answered with a lentil soup recipe is "Lentil soup for dinner". Name the subject the message and the reply share; never name the act of replying, and never a title that is only the reply's own words.
         </reply>`}\n\n`
     : "";
 
-  // Two calls over the same thread word the same subject differently, so
+  // Two calls over the same chat word the same subject differently, so
   // without a pull towards the name it has, every call is a rename.
   const currentTitleSection = hasCurrentTitle
     ? `${dedent`

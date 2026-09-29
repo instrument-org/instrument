@@ -5,6 +5,7 @@ import {
   askOf,
   basename,
   byActivity,
+  type ChatFilters,
   choose,
   dayLabel,
   draftTitle,
@@ -14,11 +15,10 @@ import {
   matchesFilters,
   NO_FILTERS,
   outsideFilters,
-  type ThreadFilters,
   widenToSearch,
-} from "./threads";
+} from "./chats";
 
-function thread({
+function chat({
   holds,
   ...overrides
 }: Partial<Omit<Filterable, "holds">> & {
@@ -37,9 +37,9 @@ function thread({
   };
 }
 
-/** A thread with every kind of words a row shows, for the search to find. */
-function wordyThread(): Filterable {
-  return thread({
+/** A chat with every kind of words a row shows, for the search to find. */
+function wordyChat(): Filterable {
+  return chat({
     holds: {
       apps: ["gmail"],
       files: ["/task/out/Protein-Report.md"],
@@ -57,32 +57,28 @@ function wordyThread(): Filterable {
 const TOPIC_NAMES = new Map([["shopping", "Shopping"]]);
 
 describe("outsideFilters", () => {
-  const threads = [
-    wordyThread(),
-    thread({ archived: true, title: "Protein powder returns" }),
-    thread({ title: "Protein bars", topics: ["house"] }),
-    thread({ title: "Roof repair" }),
+  const chats = [
+    wordyChat(),
+    chat({ archived: true, title: "Protein powder returns" }),
+    chat({ title: "Protein bars", topics: ["house"] }),
+    chat({ title: "Roof repair" }),
   ];
 
-  it("counts the threads the words find that the place and the topic keep out", () => {
+  it("counts the chats the words find that the place and the topic keep out", () => {
     // The inbox hides the archived one; a topic hides the one filed elsewhere.
     expect(
-      outsideFilters(
-        threads,
-        { ...NO_FILTERS, search: "protein" },
-        TOPIC_NAMES,
-      ),
+      outsideFilters(chats, { ...NO_FILTERS, search: "protein" }, TOPIC_NAMES),
     ).toBe(1);
     expect(
       outsideFilters(
-        threads,
+        chats,
         { ...NO_FILTERS, search: "protein", topics: ["shopping"] },
         TOPIC_NAMES,
       ),
     ).toBe(2);
     expect(
       outsideFilters(
-        threads,
+        chats,
         { ...NO_FILTERS, place: "all", search: "protein" },
         TOPIC_NAMES,
       ),
@@ -90,12 +86,10 @@ describe("outsideFilters", () => {
   });
 
   it("counts nothing when nothing is searched for, whatever the filters hide", () => {
-    expect(outsideFilters(threads, { ...NO_FILTERS, topics: ["house"] })).toBe(
-      0,
-    );
+    expect(outsideFilters(chats, { ...NO_FILTERS, topics: ["house"] })).toBe(0);
   });
 
-  it("widens to the same words over every thread", () => {
+  it("widens to the same words over every chat", () => {
     expect(
       widenToSearch({
         apps: ["gmail"],
@@ -109,39 +103,39 @@ describe("outsideFilters", () => {
 
 describe("matchesFilters", () => {
   it("narrows nothing with nothing set", () => {
-    expect(matchesFilters(thread(), NO_FILTERS)).toBe(true);
+    expect(matchesFilters(chat(), NO_FILTERS)).toBe(true);
   });
 
-  it.each<[string, Partial<ThreadFilters>, Filterable, Filterable]>([
+  it.each<[string, Partial<ChatFilters>, Filterable, Filterable]>([
     [
       "the user to answer",
       { place: "needsYou" },
-      thread({ state: "waiting" }),
-      thread({ state: "working", unread: 2 }),
+      chat({ state: "waiting" }),
+      chat({ state: "working", unread: 2 }),
     ],
     [
       "a star",
       { place: "starred" },
-      thread({ archived: true, starred: true }),
-      thread({ unread: 2 }),
+      chat({ archived: true, starred: true }),
+      chat({ unread: 2 }),
     ],
     [
       "a topic",
       { topics: ["house"] },
-      thread({ topics: ["house", "money"] }),
-      thread({ topics: ["money"] }),
+      chat({ topics: ["house", "money"] }),
+      chat({ topics: ["money"] }),
     ],
     [
       "an app",
       { apps: ["gmail"] },
-      thread({ holds: { apps: ["gmail"] } }),
-      thread({ holds: { apps: ["github"] } }),
+      chat({ holds: { apps: ["gmail"] } }),
+      chat({ holds: { apps: ["github"] } }),
     ],
     [
       "the words",
       { search: "protein" },
-      thread({ title: "Best priced protein drink" }),
-      thread({ title: "MLS standings" }),
+      chat({ title: "Best priced protein drink" }),
+      chat({ title: "MLS standings" }),
     ],
   ])("keeps what has %s and drops the rest", (_, group, kept, dropped) => {
     const filters = { ...NO_FILTERS, ...group };
@@ -149,58 +143,58 @@ describe("matchesFilters", () => {
     expect(matchesFilters(dropped, filters)).toBe(false);
   });
 
-  it("holds no thread in the drafts, since a draft is not a thread yet", () => {
-    const filters: ThreadFilters = { ...NO_FILTERS, place: "drafts" };
-    expect(matchesFilters(thread(), filters)).toBe(false);
-    expect(matchesFilters(thread({ unread: 3 }), filters)).toBe(false);
-    expect(matchesFilters(wordyThread(), filters, TOPIC_NAMES)).toBe(false);
+  it("holds no chat in the drafts, since a draft is not a chat yet", () => {
+    const filters: ChatFilters = { ...NO_FILTERS, place: "drafts" };
+    expect(matchesFilters(chat(), filters)).toBe(false);
+    expect(matchesFilters(chat({ unread: 3 }), filters)).toBe(false);
+    expect(matchesFilters(wordyChat(), filters, TOPIC_NAMES)).toBe(false);
   });
 
-  it("keeps every thread not put away in the inbox, whatever it holds", () => {
-    const filters: ThreadFilters = { ...NO_FILTERS, place: undefined };
-    expect(matchesFilters(thread(), filters)).toBe(true);
-    expect(matchesFilters(thread({ unread: 3 }), filters)).toBe(true);
-    expect(matchesFilters(thread({ state: "waiting" }), filters)).toBe(true);
-    expect(matchesFilters(thread({ archived: true }), filters)).toBe(false);
+  it("keeps every chat not put away in the inbox, whatever it holds", () => {
+    const filters: ChatFilters = { ...NO_FILTERS, place: undefined };
+    expect(matchesFilters(chat(), filters)).toBe(true);
+    expect(matchesFilters(chat({ unread: 3 }), filters)).toBe(true);
+    expect(matchesFilters(chat({ state: "waiting" }), filters)).toBe(true);
+    expect(matchesFilters(chat({ archived: true }), filters)).toBe(false);
   });
 
-  it.each<[string, ThreadFilters, Filterable]>([
+  it.each<[string, ChatFilters, Filterable]>([
     [
       "Needs you",
       { ...NO_FILTERS, place: "needsYou" },
-      thread({ state: "waiting" }),
+      chat({ state: "waiting" }),
     ],
     [
       "a topic",
       { ...NO_FILTERS, topics: ["house"] },
-      thread({ topics: ["house"] }),
+      chat({ topics: ["house"] }),
     ],
     [
       "an app",
       { ...NO_FILTERS, apps: ["gmail"] },
-      thread({ holds: { apps: ["gmail"] } }),
+      chat({ holds: { apps: ["gmail"] } }),
     ],
     [
       "the words",
       { ...NO_FILTERS, search: "protein" },
-      thread({ title: "Protein drink" }),
+      chat({ title: "Protein drink" }),
     ],
-  ])("leaves a thread put away out of %s", (_, filters, kept) => {
+  ])("leaves a chat put away out of %s", (_, filters, kept) => {
     expect(matchesFilters(kept, filters)).toBe(true);
     expect(matchesFilters({ ...kept, archived: true }, filters)).toBe(false);
   });
 
-  it("holds every thread in All, put away or not, narrowed by the search", () => {
-    const filters: ThreadFilters = { ...NO_FILTERS, place: "all" };
-    expect(matchesFilters(thread({ archived: true, unread: 3 }), filters)).toBe(
+  it("holds every chat in All, put away or not, narrowed by the search", () => {
+    const filters: ChatFilters = { ...NO_FILTERS, place: "all" };
+    expect(matchesFilters(chat({ archived: true, unread: 3 }), filters)).toBe(
       true,
     );
     expect(
-      matchesFilters(thread({ archived: true, state: "waiting" }), filters),
+      matchesFilters(chat({ archived: true, state: "waiting" }), filters),
     ).toBe(true);
-    expect(matchesFilters(thread({ unread: 3 }), filters)).toBe(true);
+    expect(matchesFilters(chat({ unread: 3 }), filters)).toBe(true);
     expect(
-      matchesFilters(thread({ archived: true, title: "MLS standings" }), {
+      matchesFilters(chat({ archived: true, title: "MLS standings" }), {
         ...filters,
         search: "protein",
       }),
@@ -217,37 +211,37 @@ describe("matchesFilters", () => {
     ["an app", "gmail"],
   ])("finds a word in %s, whatever its case", (_, search) => {
     const filters = { ...NO_FILTERS, search: search.toUpperCase() };
-    expect(matchesFilters(wordyThread(), filters, TOPIC_NAMES)).toBe(true);
-    expect(matchesFilters(thread(), filters, TOPIC_NAMES)).toBe(false);
+    expect(matchesFilters(wordyChat(), filters, TOPIC_NAMES)).toBe(true);
+    expect(matchesFilters(chat(), filters, TOPIC_NAMES)).toBe(false);
   });
 
   it("wants every word searched for, wherever each turns up", () => {
     expect(
       matchesFilters(
-        wordyThread(),
+        wordyChat(),
         { ...NO_FILTERS, search: "  chocolate  amazon " },
         TOPIC_NAMES,
       ),
     ).toBe(true);
     expect(
       matchesFilters(
-        wordyThread(),
+        wordyChat(),
         { ...NO_FILTERS, search: "chocolate costco" },
         TOPIC_NAMES,
       ),
     ).toBe(false);
     expect(
-      matchesFilters(thread(), { ...NO_FILTERS, search: "   " }, TOPIC_NAMES),
+      matchesFilters(chat(), { ...NO_FILTERS, search: "   " }, TOPIC_NAMES),
     ).toBe(true);
   });
 
   it("reads a pill only by a name it was given", () => {
     const filters = { ...NO_FILTERS, search: "shopping" };
-    expect(matchesFilters(wordyThread(), filters)).toBe(false);
-    expect(matchesFilters(wordyThread(), filters, TOPIC_NAMES)).toBe(true);
+    expect(matchesFilters(wordyChat(), filters)).toBe(false);
+    expect(matchesFilters(wordyChat(), filters, TOPIC_NAMES)).toBe(true);
   });
 
-  it("reads any row's words the same way, for the rows that are not threads", () => {
+  it("reads any row's words the same way, for the rows that are not chats", () => {
     expect(hasWords("PROTEIN drink", ["Best priced protein", "drink"])).toBe(
       true,
     );
@@ -265,43 +259,34 @@ describe("matchesFilters", () => {
     };
     expect(
       matchesFilters(
-        thread({ holds: { apps: ["gmail"] }, topics: ["errands"] }),
+        chat({ holds: { apps: ["gmail"] }, topics: ["errands"] }),
         filters,
       ),
     ).toBe(true);
     expect(
       matchesFilters(
-        thread({ holds: { apps: ["gmail"] }, topics: ["money"] }),
+        chat({ holds: { apps: ["gmail"] }, topics: ["money"] }),
         filters,
       ),
     ).toBe(false);
     expect(
-      matchesFilters(
-        thread({ holds: { apps: [] }, topics: ["house"] }),
-        filters,
-      ),
+      matchesFilters(chat({ holds: { apps: [] }, topics: ["house"] }), filters),
     ).toBe(false);
   });
 
   it("narrows a place by the search too", () => {
-    const filters: ThreadFilters = {
+    const filters: ChatFilters = {
       ...NO_FILTERS,
       place: "starred",
       search: "protein",
     };
     expect(
-      matchesFilters(
-        thread({ starred: true, title: "Protein drink" }),
-        filters,
-      ),
+      matchesFilters(chat({ starred: true, title: "Protein drink" }), filters),
     ).toBe(true);
     expect(
-      matchesFilters(
-        thread({ starred: true, title: "MLS standings" }),
-        filters,
-      ),
+      matchesFilters(chat({ starred: true, title: "MLS standings" }), filters),
     ).toBe(false);
-    expect(matchesFilters(thread({ title: "Protein drink" }), filters)).toBe(
+    expect(matchesFilters(chat({ title: "Protein drink" }), filters)).toBe(
       false,
     );
   });
@@ -376,7 +361,7 @@ describe("the inbox", () => {
     expect(isInbox({ ...NO_FILTERS, apps: ["gmail"] })).toBe(true);
   });
 
-  it.each<[string, ThreadFilters]>([
+  it.each<[string, ChatFilters]>([
     ["what needs the user", { ...NO_FILTERS, place: "needsYou" }],
     ["the starred", { ...NO_FILTERS, place: "starred" }],
     ["the drafts", { ...NO_FILTERS, place: "drafts" }],
@@ -387,14 +372,14 @@ describe("the inbox", () => {
 });
 
 describe("the inbox's order", () => {
-  it("puts the thread something last happened in at the top", () => {
-    const threads = [
+  it("puts the chat something last happened in at the top", () => {
+    const chats = [
       { id: "b", updatedAt: new Date(2026, 8, 15, 8).getTime() },
       { id: "d", updatedAt: new Date(2026, 8, 16, 11).getTime() },
       { id: "a", updatedAt: new Date(2026, 8, 14, 8).getTime() },
       { id: "c", updatedAt: new Date(2026, 8, 16, 9).getTime() },
     ];
-    expect(byActivity(threads).map((row) => row.id)).toEqual([
+    expect(byActivity(chats).map((row) => row.id)).toEqual([
       "d",
       "c",
       "b",
@@ -403,13 +388,13 @@ describe("the inbox's order", () => {
   });
 
   it("leaves the list it was given as it was", () => {
-    const threads = [
+    const chats = [
       { id: "a", updatedAt: 1 },
       { id: "b", updatedAt: 2 },
     ];
-    const sorted = byActivity(threads);
-    expect(sorted).not.toBe(threads);
-    expect(threads.map((row) => row.id)).toEqual(["a", "b"]);
+    const sorted = byActivity(chats);
+    expect(sorted).not.toBe(chats);
+    expect(chats.map((row) => row.id)).toEqual(["a", "b"]);
   });
 });
 

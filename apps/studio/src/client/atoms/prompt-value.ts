@@ -18,9 +18,9 @@ import { rpcClient } from "../rpc/client";
 //  - compose: the "new task" input on the new-tab / project pages, keyed by the
 //    owning tab so each tab composes independently. Ephemeral by design; a
 //    half-written new task isn't worth persisting across restarts.
-//  - thread: the reply in one thread of the orchestrator's, kept in memory for
+//  - chat: the reply in one chat of the orchestrator's, kept in memory for
 //    the window's life so a reply left half-typed is there on coming back,
-//    and so the inbox can say the thread has one. The threads share a task,
+//    and so the inbox can say the chat has one. The chats share a task,
 //    whose stored draft is the top-level field's, so none of them writes it.
 //  - transient: a composer that starts from a prefill and is meant to be thrown
 //    away, like the one on a skill page. Nothing is shared or retained, so
@@ -28,21 +28,21 @@ import { rpcClient } from "../rpc/client";
 //    the next skill and to the new-tab composer.
 export type PromptDraftKey =
   | { id: string; scope: "transient" }
+  | { scope: "chat"; sessionId: StoreId.Session }
   | { scope: "compose"; tabId: TabId }
-  | { scope: "task"; taskId: TaskId }
-  | { scope: "thread"; sessionId: StoreId.Session };
+  | { scope: "task"; taskId: TaskId };
 
 /** One string per draft, for keying anything that has to re-key with the scope. */
 export function draftKeyString(key: PromptDraftKey): string {
   switch (key.scope) {
+    case "chat": {
+      return `chat:${key.sessionId}`;
+    }
     case "compose": {
       return `compose:${key.tabId}`;
     }
     case "task": {
       return `task:${key.taskId}`;
-    }
-    case "thread": {
-      return `thread:${key.sessionId}`;
     }
     case "transient": {
       return `transient:${key.id}`;
@@ -125,10 +125,10 @@ const composeDraftFamily = atomFamily((_tabId: TabId) => atom(""));
 // Transient drafts, discarded by the composer when it unmounts or re-keys.
 const transientDraftFamily = atomFamily((_id: string) => atom(""));
 
-// Thread replies, one per thread, kept as long as the window is: read by the
-// thread's composer and by its row in the inbox alike, so the atom for a
-// thread is always the same one, whether or not its composer is mounted.
-const threadDraftFamily = atomFamily((_sessionId: StoreId.Session) => atom(""));
+// Chat replies, one per chat, kept as long as the window is: read by the
+// chat's composer and by its row in the inbox alike, so the atom for a
+// chat is always the same one, whether or not its composer is mounted.
+const chatDraftFamily = atomFamily((_sessionId: StoreId.Session) => atom(""));
 
 // What the composer is editing, before any of it is written back.
 const taskDraftValueFamily = atomFamily((_taskId: TaskId) => atom(""));
@@ -152,14 +152,14 @@ const taskDraftFamily = atomFamily((taskId: TaskId) =>
 /** The value atom for a draft, resolving to the right backing store per scope. */
 export function promptDraftAtom(key: PromptDraftKey) {
   switch (key.scope) {
+    case "chat": {
+      return chatDraftFamily(key.sessionId);
+    }
     case "compose": {
       return composeDraftFamily(key.tabId);
     }
     case "task": {
       return taskDraftFamily(key.taskId);
-    }
-    case "thread": {
-      return threadDraftFamily(key.sessionId);
     }
     case "transient": {
       return transientDraftFamily(key.id);

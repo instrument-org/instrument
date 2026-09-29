@@ -2,16 +2,16 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { systemNote } from "./system-note";
 
 /**
- * Tells the agent which topics this thread is filed under: each one's name,
+ * Tells the agent which topics this chat is filed under: each one's name,
  * its mark, and the line saying what belongs there. Rendered only when it
- * differs from the last note, so a thread tagged once is told once.
+ * differs from the last note, so a chat tagged once is told once.
  */
-export function threadTopicsModelNote(
-  data: SessionMessageDataPart.ThreadTopicsDataPart,
+export function chatTopicsModelNote(
+  data: SessionMessageDataPart.ChatTopicsDataPart,
 ) {
   if (data.topics.length === 0) {
     return systemNote`
-      This thread has no topics now.
+      This chat has no topics now.
     `;
   }
   const named = data.topics
@@ -22,6 +22,6 @@ export function threadTopicsModelNote(
     })
     .join(", ");
   return systemNote`
-    This thread is filed under the ${data.topics.length === 1 ? "topic" : "topics"} ${named}. Topics are tags the user puts on threads to find them by; read the thread through them.
+    This chat is filed under the ${data.topics.length === 1 ? "topic" : "topics"} ${named}. Topics are tags the user puts on chats to find them by; read the chat through them.
   `;
 }

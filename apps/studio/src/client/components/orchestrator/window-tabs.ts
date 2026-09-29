@@ -1,9 +1,9 @@
 import {
+  CHATS_HREF,
   draftGroupOf,
   draftOfGroup,
   NEW_TAB_HREF,
   newTabHrefOf,
-  THREADS_HREF,
   type WindowTab,
   type WindowTabs,
   windowTabsAtom,
@@ -16,6 +16,50 @@ import { stepTabVisit, visitInTab } from "./tab-history";
 
 export function atOf(tab: undefined | WindowTab) {
   return tab?.kind === "screen" ? (tab.at ?? trailOf(tab).length - 1) : 0;
+}
+
+/** The chat whose screen an address is, if it is one. */
+export function chatOfHref(href: string): StoreId.Session | undefined {
+  const { pathname } = parseHref(href);
+  if (!pathname.startsWith(`${CHATS_HREF}/`)) {
+    return undefined;
+  }
+  const id = StoreId.SessionSchema.safeParse(
+    pathname.slice(CHATS_HREF.length + 1).replace(/\/$/, ""),
+  );
+  return id.success ? id.data : undefined;
+}
+
+/**
+ * The chat an address names by the start of its id, among the chats the
+ * window has.
+ *
+ * The agent's own listing prints a chat as the first characters of its id,
+ * and a link written from that listing carries the same, so an address with
+ * a whole id is one case of this rather than the only one. Case is ignored
+ * the way the listing's own lookup ignores it. Exactly one chat starting
+ * with it is the chat; none or several is no chat, since a link that
+ * could mean two things should open neither.
+ */
+export function chatOfHrefPrefix(
+  href: string,
+  chats: Iterable<StoreId.Session>,
+): StoreId.Session | undefined {
+  const { pathname } = parseHref(href);
+  if (!pathname.startsWith(`${CHATS_HREF}/`)) {
+    return undefined;
+  }
+  const prefix = pathname
+    .slice(CHATS_HREF.length + 1)
+    .replace(/\/$/, "")
+    .toLowerCase();
+  if (!prefix) {
+    return undefined;
+  }
+  const matches = [...chats].filter((id) =>
+    id.toLowerCase().startsWith(prefix),
+  );
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 /**
@@ -104,61 +148,17 @@ export function selectTab(current: WindowTabs, id: string): WindowTabs {
   return { ...current, ...movingTo(current, tab.group), activeId: id };
 }
 
-/** The thread whose screen an address is, if it is one. */
-export function threadOfHref(href: string): StoreId.Session | undefined {
-  const { pathname } = parseHref(href);
-  if (!pathname.startsWith(`${THREADS_HREF}/`)) {
-    return undefined;
-  }
-  const id = StoreId.SessionSchema.safeParse(
-    pathname.slice(THREADS_HREF.length + 1).replace(/\/$/, ""),
-  );
-  return id.success ? id.data : undefined;
-}
-
-/**
- * The thread an address names by the start of its id, among the threads the
- * window has.
- *
- * The agent's own listing prints a thread as the first characters of its id,
- * and a link written from that listing carries the same, so an address with
- * a whole id is one case of this rather than the only one. Case is ignored
- * the way the listing's own lookup ignores it. Exactly one thread starting
- * with it is the thread; none or several is no thread, since a link that
- * could mean two things should open neither.
- */
-export function threadOfHrefPrefix(
-  href: string,
-  threads: Iterable<StoreId.Session>,
-): StoreId.Session | undefined {
-  const { pathname } = parseHref(href);
-  if (!pathname.startsWith(`${THREADS_HREF}/`)) {
-    return undefined;
-  }
-  const prefix = pathname
-    .slice(THREADS_HREF.length + 1)
-    .replace(/\/$/, "")
-    .toLowerCase();
-  if (!prefix) {
-    return undefined;
-  }
-  const matches = [...threads].filter((id) =>
-    id.toLowerCase().startsWith(prefix),
-  );
-  return matches.length === 1 ? matches[0] : undefined;
-}
-
 /** Where a screen tab has been, and where along it the tab is standing. */
 export function trailOf(tab: undefined | WindowTab) {
   return tab?.kind === "screen" ? (tab.trail ?? [tab.href]) : [];
 }
 
 /**
- * The window's tabs, in groups: every thread has a group of its own, keyed
+ * The window's tabs, in groups: every chat has a group of its own, keyed
  * by its session, and every draft one under its key. One group is on screen
  * at a time, or none; its tabs are what the strip shows and what `tabs` here
- * lists, while the other groups keep what they have for when their thread
- * comes back. A group may hold no tabs at all: the thread or the draft
+ * lists, while the other groups keep what they have for when their chat
+ * comes back. A group may hold no tabs at all: the chat or the draft
  * stands over the tabs rather than among them. Pages and screens are one
  * list; where the router goes when a tab is selected is the layout's
  * business, which watches `activeId`.
@@ -178,7 +178,7 @@ export function useWindowTabs() {
   /**
    * Shows a group: it comes on screen at the tab it last had up, or at its
    * first tab, or at none. Asking for the group already on screen changes
-   * nothing: the thread is over its tabs whichever of them is up.
+   * nothing: the chat is over its tabs whichever of them is up.
    */
   const showGroup = (key: string) => {
     setTabs((current) => {
@@ -195,7 +195,7 @@ export function useWindowTabs() {
     });
   };
 
-  const showThread = (sessionId: StoreId.Session) => {
+  const showChat = (sessionId: StoreId.Session) => {
     showGroup(sessionId);
   };
 
@@ -228,7 +228,7 @@ export function useWindowTabs() {
    * Opens a screen at an address: in the group on screen and shown, or in
    * the group named, behind whatever is up, when that group is not the one
    * on screen. A group that has nothing yet is made by the tab landing in it,
-   * so a thread that has not been opened still gets what was opened for it.
+   * so a chat that has not been opened still gets what was opened for it.
    * `activate` makes the tab the one a group behind has up, for a host that
    * draws that group's tabs itself.
    */
@@ -240,9 +240,9 @@ export function useWindowTabs() {
       isOpened = false,
     }: { activate?: boolean; group?: string; isOpened?: boolean } = {},
   ) => {
-    const thread = threadOfHref(href);
-    if (thread) {
-      showThread(thread);
+    const chat = chatOfHref(href);
+    if (chat) {
+      showChat(chat);
       return;
     }
     const id = `screen-${crypto.randomUUID()}`;
@@ -402,9 +402,9 @@ export function useWindowTabs() {
    * taken by back or forward, so it moves nothing.
    */
   const setActiveHref = (href: string) => {
-    const thread = threadOfHref(href);
-    if (thread) {
-      showThread(thread);
+    const chat = chatOfHref(href);
+    if (chat) {
+      showChat(chat);
       return;
     }
     setTabs((current) => {
@@ -445,9 +445,9 @@ export function useWindowTabs() {
   };
 
   const navigateScreen = (href: string) => {
-    const thread = threadOfHref(href);
-    if (thread) {
-      showThread(thread);
+    const chat = chatOfHref(href);
+    if (chat) {
+      showChat(chat);
     } else if (active?.kind === "page") {
       replace(
         active.id,
@@ -514,7 +514,7 @@ export function useWindowTabs() {
     active ? stepTab(active.id, direction) : undefined;
 
   /**
-   * Closes a tab. A thread's last tab closes like any other, and its pane
+   * Closes a tab. A chat's last tab closes like any other, and its pane
    * goes with it; a draft's or a place's last tab is replaced by its new
    * tab, since the draft is what is gathered beside the words and the page
    * is where gathering starts, and a place is nothing but its tabs.
@@ -568,14 +568,14 @@ export function useWindowTabs() {
   };
 
   /**
-   * Hands a group over to a thread: what a draft gathered becomes the
-   * thread's tabs exactly as they are, guests and all, the one up still up,
-   * so starting the thread moves nothing under it. A tab already filed
-   * under the thread (a task's browser that arrived before the start came
-   * back) stays where it is, beside them. The thread's group comes on
+   * Hands a group over to a chat: what a draft gathered becomes the
+   * chat's tabs exactly as they are, guests and all, the one up still up,
+   * so starting the chat moves nothing under it. A tab already filed
+   * under the chat (a task's browser that arrived before the start came
+   * back) stays where it is, beside them. The chat's group comes on
    * screen, and the group handed over is gone, its remembered tab and all.
    * Told not to show it, the tabs move behind whatever is on screen and the
-   * thread remembers the tab the draft had up, for a thread that floats.
+   * chat remembers the tab the draft had up, for a chat that floats.
    */
   const adoptGroup = (
     from: string,
@@ -603,7 +603,7 @@ export function useWindowTabs() {
         };
       }
       // Leaving the group being handed over is leaving nothing: what it had
-      // up is what the thread has up, not a place to come back to.
+      // up is what the chat has up, not a place to come back to.
       const leaving =
         current.group === from
           ? { ...current, activeByGroup, group: undefined }
@@ -640,7 +640,7 @@ export function useWindowTabs() {
 
   /** Puts the group on screen away: nothing is on screen until a group is asked for again. */
   /**
-   * Drops a group and every tab in it, for a thread that no longer exists,
+   * Drops a group and every tab in it, for a chat that no longer exists,
    * and puts it away when it is the one on screen.
    */
   const forgetGroup = (key: string) => {
@@ -692,7 +692,7 @@ export function useWindowTabs() {
     canStepForward:
       active?.kind === "screen" && atOf(active) < trailOf(active).length - 1,
     dropGroup,
-    /** The group on screen, by the thread's session id or the draft's key, or nothing while none is. */
+    /** The group on screen, by the chat's session id or the draft's key, or nothing while none is. */
     forgetGroup,
     group,
     leaveGroup,
@@ -754,9 +754,9 @@ export function useWindowTabs() {
       }
     },
     setActiveHref,
+    showChat,
     showDraft,
     showGroup,
-    showThread,
     step,
     stepVisit,
     stepVisitOf,

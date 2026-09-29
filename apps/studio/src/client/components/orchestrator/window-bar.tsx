@@ -84,7 +84,7 @@ export function WindowCorner() {
         </Suspense>
       )}
       {/* A build waiting to be installed is the window's news, not a
-        thread's, so it sits in the same corner the classic window keeps it
+        chat's, so it sits in the same corner the classic window keeps it
         in. */}
       <UpdateStatusIndicator />
     </>

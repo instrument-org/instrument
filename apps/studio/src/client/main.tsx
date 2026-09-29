@@ -1,4 +1,6 @@
 import "./styles/globals.css";
+// Before anything that defines an atom reading its stored value on load.
+import "./lib/rename-chat-storage";
 
 import ReactDOM, { type Root } from "react-dom/client";
 
@@ -36,7 +38,7 @@ if (rootElement) {
   const isMainWindow = window.api.windowType === "main";
   // Beside either root, the file browser's own type icons, drawn by
   // reference: a file named anywhere in any window (a reply's file chips, a
-  // thread's marks) wears the same colored mark it has in the computer view.
+  // chat's marks) wears the same colored mark it has in the computer view.
   root.render(
     <>
       <FileSystemIconSpriteSheet />

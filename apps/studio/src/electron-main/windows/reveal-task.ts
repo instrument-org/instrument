@@ -12,7 +12,7 @@ import { type StoreId, type TaskId } from "@instrument-org/workspace/electron";
  * Bring a task into view from outside the app: today, a completion
  * notification the user clicked.
  *
- * A task opens in a tab, which only the classic window has, and a thread of
+ * A task opens in a tab, which only the classic window has, and a chat of
  * the conversation opens in the inbox, which only the Instrument 2.0 window
  * has. Raising the window is the whole of what a click can do anywhere else,
  * and raising the right one matters more than the tab: the classic window is
@@ -21,12 +21,12 @@ import { type StoreId, type TaskId } from "@instrument-org/workspace/electron";
  */
 export function revealTask({
   id,
-  isThread = false,
+  isChat = false,
   sessionId,
 }: {
   id: TaskId;
-  /** A thread of the conversation rather than a task: the session is what the inbox lists. */
-  isThread?: boolean;
+  /** A chat of the conversation rather than a task: the session is what the inbox lists. */
+  isChat?: boolean;
   sessionId: StoreId.Session;
 }) {
   const target = getForegroundWindow();
@@ -42,7 +42,7 @@ export function revealTask({
   if (target === getMainWindow()) {
     focusMainContents();
     sendAppCommand({ id, sessionId, type: "focusTask" });
-  } else if (isThread && target === getOrchestratorWindow()) {
-    openOrchestratorScreen(`/orchestrator/threads/${sessionId}`);
+  } else if (isChat && target === getOrchestratorWindow()) {
+    openOrchestratorScreen(`/orchestrator/chats/${sessionId}`);
   }
 }

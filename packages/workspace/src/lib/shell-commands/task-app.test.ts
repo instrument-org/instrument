@@ -200,6 +200,6 @@ describe("task app", () => {
         ...context,
         orchestratorTaskId: TaskIdSchema.parse("someone-else"),
       }),
-    ).rejects.toThrow(/"file-the-issue" was started in another thread/);
+    ).rejects.toThrow(/"file-the-issue" was started in another chat/);
   });
 });

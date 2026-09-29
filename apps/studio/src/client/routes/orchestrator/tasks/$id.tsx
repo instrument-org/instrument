@@ -1,4 +1,4 @@
-import { TaskScreen } from "@/client/components/orchestrator/thread-tasks-view";
+import { TaskScreen } from "@/client/components/orchestrator/chat-tasks-view";
 import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { createFileRoute } from "@tanstack/react-router";
 

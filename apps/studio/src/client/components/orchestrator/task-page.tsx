@@ -7,10 +7,10 @@ import { type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
 /**
- * One task's own chat, in its thread's pane: how the user looks over the
+ * One task's own chat, in its chat's pane: how the user looks over the
  * conversation's shoulder. Headed by the task's title and its menu, which
  * travel together so the menu reads as acting on the task named beside it.
- * Nothing names the thread: the page stands under it.
+ * Nothing names the chat: the page stands under it.
  */
 export function TaskPage({ taskId }: { taskId: TaskId }) {
   const task = useQuery(

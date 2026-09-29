@@ -1,4 +1,5 @@
 import {
+  CHATS_HREF,
   inboxOpenAtom,
   orchestratorSidebarWidthAtom,
   paneOpenByGroupAtom,
@@ -6,7 +7,6 @@ import {
   screenViewAtom,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
-  THREADS_HREF,
   WEB_HREF,
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
@@ -24,6 +24,10 @@ import {
 } from "@/client/components/orchestrator/app-tabs";
 import { useAppsBySlug } from "@/client/components/orchestrator/apps-by-slug";
 import { type PageChromeSlots } from "@/client/components/orchestrator/browser-tabs";
+import { ChatHeader } from "@/client/components/orchestrator/chat-header";
+import { ChatPane } from "@/client/components/orchestrator/chat-pane";
+import { ChatRail } from "@/client/components/orchestrator/chat-rail";
+import { ChatScreen } from "@/client/components/orchestrator/chat-screen";
 import { GroupItem } from "@/client/components/orchestrator/compose-window";
 import {
   OrchestratorContext,
@@ -36,13 +40,9 @@ import { screenLocation } from "@/client/components/orchestrator/screen-presenta
 import { useShell } from "@/client/components/orchestrator/shell-context";
 import { tasksHref } from "@/client/components/orchestrator/tab-location";
 import { TabLocationRow } from "@/client/components/orchestrator/tab-location-row";
-import { ThreadHeader } from "@/client/components/orchestrator/thread-header";
-import { ThreadPane } from "@/client/components/orchestrator/thread-pane";
-import { ThreadRail } from "@/client/components/orchestrator/thread-rail";
-import { ThreadScreen } from "@/client/components/orchestrator/thread-stage";
 import {
+  chatOfHref,
   parseHref,
-  threadOfHref,
   useWindowTabs,
 } from "@/client/components/orchestrator/window-tabs";
 import { PageOpenContext } from "@/client/components/page-open-context";
@@ -69,7 +69,7 @@ import { type ReactNode, useEffect, useState } from "react";
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
 const INBOX_COLLAPSE_THRESHOLD = 240;
-/** How far past its widest the inbox is dragged before it takes the row and the thread beside it goes. */
+/** How far past its widest the inbox is dragged before it takes the row and the chat beside it goes. */
 const INBOX_COVER_PAST = 80;
 /** The least the conversation and its pane keep beside the inbox while the inbox is dragged wider. */
 const MAIN_WIDTH_MIN = 560;
@@ -150,30 +150,29 @@ function ChatColumn({
  * what it holds down its right edge. Choosing another chat in the inbox
  * moves this tab there, one step on in its history.
  */
-function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
+function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
   const shell = useShell();
   const orchestrator = useOrchestrator();
-  const { appTabs, rowWidth, setPaneOpen, threads, threadTitles } = shell;
+  const { appTabs, chats, chatTitles, rowWidth, setPaneOpen } = shell;
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
   const sidebarWidth = useAtomValue(orchestratorSidebarWidthAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const isActive = useIsActiveTab();
-  const showsRightArea = thread !== undefined;
+  const showsRightArea = chat !== undefined;
   const bounds = inboxBounds(rowWidth);
 
   // The chat's tabs, and the one it has up.
   const tabs =
-    thread === undefined
+    chat === undefined
       ? []
-      : windowTabs.allTabs.filter((tab) => tab.group === thread);
-  const up = windowTabs.tabUpIn(thread);
-  const isPaneWanted =
-    thread === undefined || (paneOpenByGroup[thread] ?? true);
+      : windowTabs.allTabs.filter((tab) => tab.group === chat);
+  const up = windowTabs.tabUpIn(chat);
+  const isPaneWanted = chat === undefined || (paneOpenByGroup[chat] ?? true);
   const showsPane = up !== undefined && isPaneWanted;
   // Drawn only once there is something in it.
-  const showsRail = thread !== undefined && tabs.length > 0;
+  const showsRail = chat !== undefined && tabs.length > 0;
 
   // What gives way as the window narrows, one thing at a time and in one
   // order: the pane gives up width, then the rail folds to its marks while
@@ -249,7 +248,7 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
   };
 
   const isFloating = shell.compose.entries.some(
-    (entry) => entry.kind === "thread" && entry.sessionId === thread,
+    (entry) => entry.kind === "chat" && entry.sessionId === chat,
   );
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
@@ -260,7 +259,7 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
   );
   const reportView = useScreenViewOfTab();
 
-  const threadRecord = threads?.find((entry) => entry.id === thread);
+  const chatRecord = chats?.find((entry) => entry.id === chat);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
@@ -278,20 +277,20 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
         <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
           {/* A plain click on a row opens in this tab, and a middle or
             modified click asks for a tab of its own. */}
-          <ThreadPane
+          <ChatPane
             arrivedId={shell.arrivedId}
             drafts={shell.drafts}
             onDeleteDraft={shell.deleteDraft}
             onListed={isActive ? shell.onListed : undefined}
-            onOpenDraft={shell.showDraft}
-            onOpenThread={(entry) => {
-              orchestrator.openScreen(`${THREADS_HREF}/${entry.id}`);
+            onOpenChat={(entry) => {
+              orchestrator.openScreen(`${CHATS_HREF}/${entry.id}`);
             }}
-            openThreadId={thread}
+            onOpenDraft={shell.showDraft}
+            openChatId={chat}
           />
         </div>
       </ChatColumn>
-      {thread !== undefined && (
+      {chat !== undefined && (
         <main className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
             <div className="relative min-w-0 flex-1">
@@ -299,7 +298,8 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
                 conversation={
                   <div className="relative flex h-full min-h-0 flex-col">
                     <div className="absolute inset-0 flex flex-col">
-                      <ThreadHeader
+                      <ChatHeader
+                        chat={chatRecord}
                         // Ahead of the title, the inbox column put away or
                         // brought back, so the chat and its tabs can have
                         // the window.
@@ -307,16 +307,16 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
                         onDeleted={() => {
                           // The chat and the tabs it had are gone; the inbox
                           // takes the tab back.
-                          windowTabs.forgetGroup(thread);
+                          windowTabs.forgetGroup(chat);
                           appTabs.navigate(CHAT_HREF, { replace: true });
                           setInboxOpen(true);
                         }}
                         onNewTopic={shell.onNewTopic}
                         onSetTopics={(next) => {
-                          shell.setThreadTopics(thread, next);
+                          shell.setChatTopics(chat, next);
                         }}
                         onViewTasks={() => {
-                          orchestrator.openScreen(tasksHref(thread), {
+                          orchestrator.openScreen(tasksHref(chat), {
                             ownTab: true,
                           });
                         }}
@@ -326,28 +326,27 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
                           // no longer the one this tab has open.
                           onToggle: () => {
                             if (isFloating) {
-                              shell.compose.remove(thread);
+                              shell.compose.remove(chat);
                             } else {
-                              shell.compose.float(thread);
+                              shell.compose.float(chat);
                               leaveChat();
                             }
                           },
                         }}
-                        thread={threadRecord}
                         topics={shell.topics}
                       />
                       <div className="relative min-h-0 flex-1">
                         <div className="absolute inset-0">
-                          <ThreadScreen
+                          <ChatScreen
                             isUp={isActive}
-                            key={thread}
+                            key={chat}
                             sendContext={() =>
                               shell.sendContext({
                                 isViewOpen: showsPane,
-                                sessionId: thread,
+                                sessionId: chat,
                               })
                             }
-                            sessionId={thread}
+                            sessionId={chat}
                           />
                         </div>
                       </div>
@@ -357,9 +356,9 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
                 fills={false}
                 isOpen={showsPane}
                 onCollapse={() => {
-                  setPaneOpen(thread, false);
+                  setPaneOpen(chat, false);
                 }}
-                paneKey={thread}
+                paneKey={chat}
               >
                 <div
                   className={cn(
@@ -376,12 +375,12 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
                   {up && (
                     <GroupItem
                       closeTab={shell.requestClose}
-                      group={thread}
+                      group={chat}
                       isFramed={false}
                       // Puts the view away; what it showed stays on the
                       // rail, whose tiles are where a tab is closed.
                       onClose={() => {
-                        setPaneOpen(thread, false);
+                        setPaneOpen(chat, false);
                       }}
                       onPageChrome={setPageChrome}
                       onPageHost={setPageHost}
@@ -400,33 +399,34 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
               </RightPane>
             </div>
             {showsRail && (
-              <ThreadRail
+              <ChatRail
                 activeId={up?.id}
                 appsBySlug={appsBySlug}
+                chatTitles={chatTitles}
+                isChatWorking={chatRecord?.state === "working"}
                 isCompact={railFolds}
-                isThreadWorking={threadRecord?.state === "working"}
                 isViewOpen={showsPane}
                 onAddComputer={() => {
                   windowTabs.openScreen(instrumentFolderHref(), {
                     activate: true,
-                    group: thread,
+                    group: chat,
                   });
-                  setPaneOpen(thread, true);
+                  setPaneOpen(chat, true);
                 }}
                 onAddWeb={() => {
                   windowTabs.openScreen(WEB_HREF, {
                     activate: true,
-                    group: thread,
+                    group: chat,
                   });
-                  setPaneOpen(thread, true);
+                  setPaneOpen(chat, true);
                 }}
                 onClose={shell.requestClose}
                 onReorder={(keys) => {
-                  windowTabs.reorder(keys, thread);
+                  windowTabs.reorder(keys, chat);
                 }}
                 onSelect={(id) => {
-                  windowTabs.selectIn(thread, id);
-                  setPaneOpen(thread, true);
+                  windowTabs.selectIn(chat, id);
+                  setPaneOpen(chat, true);
                 }}
                 tabs={tabs}
                 targetOf={(tab) =>
@@ -436,7 +436,6 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
                   )
                 }
                 taskTitles={shell.childTitles}
-                threadTitles={threadTitles}
               />
             )}
           </div>
@@ -476,7 +475,7 @@ function OrchestratorTab() {
     select: (routerState) => routerState.location.href,
   });
   if (isChatHref(href)) {
-    return <ChatView thread={threadOfHref(href)} />;
+    return <ChatView chat={chatOfHref(href)} />;
   }
   const group = groupOfHref(href);
   if (parseHref(href).pathname === PAGE_HREF && group !== undefined) {
@@ -503,8 +502,8 @@ function RouteScreen({ href }: { href: string }) {
   const isFileScreen = computerTabOf(href)?.file !== undefined;
   const fromHref = screenLocation(href, {
     appsBySlug,
+    chatTitles: shell.chatTitles,
     taskTitles: shell.childTitles,
-    threadTitles: shell.threadTitles,
   });
   const location =
     fromHref.kind === "folder" && screenView?.folder

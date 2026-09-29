@@ -4,13 +4,13 @@ import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { FilterHead } from "./filter-head";
 import {
+  type ChatFilters,
   type Filterable,
   NO_FILTERS,
-  type ThreadFilters,
   type Topic,
-} from "./threads";
+} from "./chats";
+import { FilterHead } from "./filter-head";
 
 const HOUSE: Topic = {
   color: "#0f9d6e",
@@ -28,7 +28,7 @@ const MONEY: Topic = {
   name: "Money",
 };
 
-function thread({
+function chat({
   holds,
   ...overrides
 }: Partial<Omit<Filterable, "holds">> & {
@@ -47,9 +47,9 @@ function thread({
   };
 }
 
-const THREADS = [
-  thread({ holds: { apps: ["gmail"] }, topics: ["house"], unread: 2 }),
-  thread({ topics: ["house"] }),
+const CHATS = [
+  chat({ holds: { apps: ["gmail"] }, topics: ["house"], unread: 2 }),
+  chat({ topics: ["house"] }),
 ];
 
 /** The picker is a popover, which Radix opens on click. */
@@ -58,23 +58,23 @@ function openPicker(picker: HTMLElement) {
 }
 
 function renderHead({
+  chats = CHATS,
   filters = NO_FILTERS,
-  threads = THREADS,
   topics = [HOUSE, MONEY],
 }: {
-  filters?: ThreadFilters;
-  threads?: Filterable[];
+  chats?: Filterable[];
+  filters?: ChatFilters;
   topics?: Topic[];
 } = {}) {
   const onFiltersChange = vi.fn();
   const onNewTopic = vi.fn();
   renderWithProviders(
     <FilterHead
+      chats={chats}
       filters={filters}
       onFiltersChange={onFiltersChange}
       onNewTopic={onNewTopic}
       onTopicDetails={vi.fn()}
-      threads={threads}
       topics={topics}
     />,
   );
@@ -103,12 +103,12 @@ describe("FilterHead", () => {
     ).toEqual(["Starred", "Drafts", "All"]);
   });
 
-  it("counts nothing on the places, keeps a thread put away out of the chats' count, and offers Needs you only while something waits", () => {
+  it("counts nothing on the places, keeps a chat put away out of the chats' count, and offers Needs you only while something waits", () => {
     const { head, places } = renderHead({
-      threads: [
-        thread({ starred: true, unread: 1 }),
-        thread({ archived: true, unread: 3 }),
-        thread({ state: "waiting" }),
+      chats: [
+        chat({ starred: true, unread: 1 }),
+        chat({ archived: true, unread: 3 }),
+        chat({ state: "waiting" }),
       ],
     });
     openPicker(head.getByRole("button", { name: "View: Chats" }));

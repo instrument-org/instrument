@@ -1,4 +1,4 @@
-// A thread at rest has nothing following its end but the bridge, so what the
+// A chat at rest has nothing following its end but the bridge, so what the
 // bridge does while a long transcript lays out is the whole of whether the
 // reader arrives at the bottom. Measured, since jsdom has no layout.
 import { renderInBrowser } from "@/tests/render-browser";

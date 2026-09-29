@@ -9,8 +9,8 @@ import { createSession } from "../../lib/create-session";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
-import { threadContextFor } from "../../lib/orchestrator/thread-context";
-import { setThreadTopics } from "../../lib/orchestrator/threads";
+import { chatContextFor } from "../../lib/orchestrator/chat-context";
+import { setChatTopics } from "../../lib/orchestrator/chats";
 import { getTaskProjectName } from "../../lib/project";
 import { sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
@@ -66,8 +66,8 @@ const create = base
       modelURI: AIGatewayModelURI.Schema,
       /**
        * The id for the session this message opens, when the caller chose
-       * it: a window that shows the new thread from the press, before this
-       * call has answered, has to know which thread it is showing. Ignored
+       * it: a window that shows the new chat from the press, before this
+       * call has answered, has to know which chat it is showing. Ignored
        * alongside `sessionId`, which names a session that already exists.
        */
       newSessionId: StoreId.SessionSchema.optional(),
@@ -77,7 +77,7 @@ const create = base
       /** The earlier message this one answers. */
       replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
       sessionId: StoreId.SessionSchema.optional(),
-      /** Topic ids for the thread this message opens, when it opens one. */
+      /** Topic ids for the chat this message opens, when it opens one. */
       topics: z.array(z.string()).optional(),
       viewing: SessionMessageDataPart.ViewContextDataPartSchema.optional(),
     }),
@@ -125,16 +125,14 @@ const create = base
       const isOrchestrator = settings?.kind === "orchestrator";
 
       let finalSessionId: StoreId.Session;
-      // The other threads as they stand when a new one opens, read before
+      // The other chats as they stand when a new one opens, read before
       // the new session exists so it is not among them.
-      let threadContext:
-        | SessionMessageDataPart.ThreadContextDataPart
-        | undefined;
+      let chatContext: SessionMessageDataPart.ChatContextDataPart | undefined;
       if (sessionId) {
         finalSessionId = sessionId;
       } else {
         if (isOrchestrator) {
-          threadContext = await threadContextFor();
+          chatContext = await chatContextFor();
         }
         const sessionResult = await createSession({
           sessionId: chatSession ?? newSessionId ?? StoreId.newSessionId(),
@@ -146,7 +144,7 @@ const create = base
         }
         finalSessionId = sessionResult.value.id;
         if (isOrchestrator && topics && topics.length > 0) {
-          await setThreadTopics(finalSessionId, topics);
+          await setChatTopics(finalSessionId, topics);
         }
       }
 
@@ -162,6 +160,7 @@ const create = base
 
       const messageResult = await newMessage({
         asks,
+        chatContext,
         files,
         folders,
         model,
@@ -171,7 +170,6 @@ const create = base
         replyTo,
         sessionId: finalSessionId,
         taskId,
-        threadContext,
         viewing,
       });
 

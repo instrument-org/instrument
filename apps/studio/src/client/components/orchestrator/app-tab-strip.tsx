@@ -21,6 +21,7 @@ import { parseHref } from "./window-tabs";
  * right click, and the plus at the end opens a chat.
  */
 export function AppTabStrip({
+  chatTitles,
   childTitles,
   onClose,
   onNew,
@@ -28,8 +29,8 @@ export function AppTabStrip({
   onSelect,
   selectedId,
   tabs,
-  threadTitles,
 }: {
+  chatTitles: Map<StoreId.Session, string>;
   childTitles: Map<TaskId, string>;
   onClose: (id: TabId) => void;
   onNew: () => void;
@@ -37,7 +38,6 @@ export function AppTabStrip({
   onSelect: (id: TabId) => void;
   selectedId: null | TabId;
   tabs: { id: TabId; pathname: string }[];
-  threadTitles: Map<StoreId.Session, string>;
 }) {
   const appsBySlug = useAppsBySlug();
   const { activeByGroup, tabs: groupTabs } = useAtomValue(windowTabsAtom);
@@ -79,8 +79,8 @@ export function AppTabStrip({
     }
     return screenPresentation(href, {
       appsBySlug,
+      chatTitles,
       taskTitles: childTitles,
-      threadTitles,
     });
   };
 

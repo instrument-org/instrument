@@ -535,7 +535,7 @@ describe("generateTitleFromUserMessage with a current title", () => {
     };
   }
 
-  // Each call words the same subject its own way, so a thread renamed from
+  // Each call words the same subject its own way, so a chat renamed from
   // scratch on every call would never hold a name.
   it("hands the model the title and asks it to keep it", async () => {
     const { system, user } = await callWith("Dinner ideas with lentils");

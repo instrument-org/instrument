@@ -15,22 +15,22 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { chatListOptions } from "./chat-list-query";
+import { type Chat } from "./chats";
 import { useOrchestrator } from "./context";
 import { type RowAction } from "./row-shell";
-import { threadListOptions } from "./thread-list-query";
-import { type Thread } from "./threads";
 
-/** Which thread a call is about, as every thread mutation takes it. */
-interface ThreadInput {
+/** Which chat a call is about, as every chat mutation takes it. */
+interface ChatInput {
   sessionId: string;
 }
 
 /**
- * A thread's actions as every menu of one lists them, each group set off by a
+ * A chat's actions as every menu of one lists them, each group set off by a
  * separator: its marks first, then what it keeps on disk, then putting it
  * away. A menu adds its own entries between these, never reorders them.
  */
-export function threadMenuGroups(actions: RowAction[]) {
+export function chatMenuGroups(actions: RowAction[]) {
   const of = (ids: string[]) =>
     actions.filter((action) => ids.includes(action.id));
   return {
@@ -40,13 +40,13 @@ export function threadMenuGroups(actions: RowAction[]) {
   };
 }
 
-/** The actions of one thread, where one thread is all there is: the head of its pane. */
-export function useThreadActions(thread: Thread): RowAction[] {
-  return useThreadActionsFor()(thread);
+/** The actions of one chat, where one chat is all there is: the head of its pane. */
+export function useChatActions(chat: Chat): RowAction[] {
+  return useChatActionsFor()(chat);
 }
 
 /**
- * What a thread offers that no line of it carries, in the order the row's
+ * What a chat offers that no line of it carries, in the order the row's
  * edge and its menu list them: putting it away, or back in the inbox, with
  * an undo in the toast either way; marking it read while something in it
  * is unseen, or unread again once it has replies to be unread, with no
@@ -54,51 +54,51 @@ export function useThreadActions(thread: Thread): RowAction[] {
  * taking the star back, last, where a starred row wears its star; and, in
  * the menu alone, saving its transcript and showing its folder.
  *
- * Answered for any thread by one set of mutations, so a list asks once and
+ * Answered for any chat by one set of mutations, so a list asks once and
  * hands each row its actions, rather than every row registering its own ten
  * observers on the mutation cache and re-rendering on every other row's
- * archive. Everything that depends on the thread happens in the call.
+ * archive. Everything that depends on the chat happens in the call.
  */
-export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
+export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   const { taskId } = useOrchestrator();
   const transcript = useTranscriptActions({ id: taskId, sessionId: undefined });
   const queryClient = useQueryClient();
-  const paint = (sessionId: string, change: (thread: Thread) => Thread) => {
-    paintThread(queryClient, { sessionId }, change);
+  const paint = (sessionId: string, change: (chat: Chat) => Chat) => {
+    paintChat(queryClient, { sessionId }, change);
   };
   const repaint = () => {
-    repaintThreads(queryClient);
+    repaintChats(queryClient);
   };
   // The rest are each held as their stable `mutate` rather than as the
   // mutation object, which is new on every render and would make the
   // function returned below new with it, and every row the list memoizes on
   // it render again.
   const { mutate: seen } = useMutation(
-    rpcClient.workspace.orchestrator.threads.seen.mutationOptions({
+    rpcClient.workspace.orchestrator.chats.seen.mutationOptions({
       onError: repaint,
       onMutate: (input) => {
-        paint(input.sessionId, (thread) => ({ ...thread, unread: 0 }));
+        paint(input.sessionId, (chat) => ({ ...chat, unread: 0 }));
       },
     }),
   );
   // Unseen again is the newest reply only, which is one to the count.
   const { mutate: unseen } = useMutation(
-    rpcClient.workspace.orchestrator.threads.unseen.mutationOptions({
+    rpcClient.workspace.orchestrator.chats.unseen.mutationOptions({
       onError: repaint,
       onMutate: (input) => {
-        paint(input.sessionId, (thread) => ({
-          ...thread,
-          unread: Math.max(thread.unread, 1),
+        paint(input.sessionId, (chat) => ({
+          ...chat,
+          unread: Math.max(chat.unread, 1),
         }));
       },
     }),
   );
   const { mutate: star } = useMutation(
-    rpcClient.workspace.orchestrator.threads.star.mutationOptions({
+    rpcClient.workspace.orchestrator.chats.star.mutationOptions({
       onError: repaint,
       onMutate: (input) => {
-        paint(input.sessionId, (thread) => ({
-          ...thread,
+        paint(input.sessionId, (chat) => ({
+          ...chat,
           starred: input.starred,
         }));
       },
@@ -113,9 +113,9 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
       },
     }),
   );
-  return (thread) => {
-    const input = { sessionId: thread.id };
-    const put: RowAction = thread.archived
+  return (chat) => {
+    const input = { sessionId: chat.id };
+    const put: RowAction = chat.archived
       ? {
           icon: <ArrowCounterClockwiseIcon className="size-3.5" />,
           id: "unarchive",
@@ -133,7 +133,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           },
         };
     const mark: RowAction[] =
-      thread.unread > 0
+      chat.unread > 0
         ? [
             {
               icon: <EnvelopeSimpleOpenIcon className="size-3.5" />,
@@ -144,7 +144,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
               },
             },
           ]
-        : thread.replyCount > 0
+        : chat.replyCount > 0
           ? [
               {
                 icon: <EnvelopeSimpleIcon className="size-3.5" />,
@@ -156,7 +156,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
               },
             ]
           : [];
-    const starred: RowAction = thread.starred
+    const starred: RowAction = chat.starred
       ? {
           icon: <StarIcon className="size-3.5" weight="fill" />,
           id: "unstar",
@@ -174,7 +174,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
           },
         };
     // Saves without opening anything: the transcript lands in Downloads,
-    // named for the thread, and its path on the clipboard.
+    // named for the chat, and its path on the clipboard.
     const save: RowAction = {
       icon: <ArrowLineDownIcon className="size-3.5" />,
       id: "transcript",
@@ -182,9 +182,9 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
       menuOnly: true,
       run: () => {
         transcript.save("markdown", {
-          id: thread.chatId,
-          label: thread.title,
-          sessionId: thread.id,
+          id: chat.taskId,
+          label: chat.title,
+          sessionId: chat.id,
         });
       },
     };
@@ -194,7 +194,7 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
       label: getRevealInFolderLabel(),
       menuOnly: true,
       run: () => {
-        reveal({ id: thread.chatId, type: "show-in-folder" });
+        reveal({ id: chat.taskId, type: "show-in-folder" });
       },
     };
     return [put, ...mark, starred, save, show];
@@ -202,31 +202,29 @@ export function useThreadActionsFor(): (thread: Thread) => RowAction[] {
 }
 
 /**
- * Paints a mark onto one thread in the list from the click rather than from
+ * Paints a mark onto one chat in the list from the click rather than from
  * the round trip: the row moves, or its mark changes, the moment it is asked
  * for. The live list's next answer is the truth either way.
  */
-function paintThread(
+function paintChat(
   queryClient: QueryClient,
-  { sessionId }: ThreadInput,
-  change: (thread: Thread) => Thread,
+  { sessionId }: ChatInput,
+  change: (chat: Chat) => Chat,
 ) {
-  queryClient.setQueryData<Thread[]>(threadListOptions().queryKey, (threads) =>
-    threads?.map((thread) =>
-      thread.id === sessionId ? change(thread) : thread,
-    ),
+  queryClient.setQueryData<Chat[]>(chatListOptions().queryKey, (chats) =>
+    chats?.map((chat) => (chat.id === sessionId ? change(chat) : chat)),
   );
 }
 
 /** Asks for the list's truth again at once, after a paint the workspace refused. */
-function repaintThreads(queryClient: QueryClient) {
+function repaintChats(queryClient: QueryClient) {
   void queryClient.invalidateQueries({
-    queryKey: threadListOptions().queryKey,
+    queryKey: chatListOptions().queryKey,
   });
 }
 
 /**
- * Puts a thread away or brings it back. Each way's toast offers the other
+ * Puts a chat away or brings it back. Each way's toast offers the other
  * way back, so an undo can be undone; the toast hangs off the call's answer
  * rather than off a row, since the row is gone from the list by the time it
  * lands. Outside the hook so that it is one function for the window's life,
@@ -234,13 +232,13 @@ function repaintThreads(queryClient: QueryClient) {
  */
 function setArchived(
   queryClient: QueryClient,
-  input: ThreadInput,
+  input: ChatInput,
   archived: boolean,
 ) {
-  paintThread(queryClient, input, (thread) => ({ ...thread, archived }));
+  paintChat(queryClient, input, (chat) => ({ ...chat, archived }));
   const call = archived
-    ? rpcClient.workspace.orchestrator.threads.archive.call(input)
-    : rpcClient.workspace.orchestrator.threads.unarchive.call(input);
+    ? rpcClient.workspace.orchestrator.chats.archive.call(input)
+    : rpcClient.workspace.orchestrator.chats.unarchive.call(input);
   call.then(
     () => {
       toast(archived ? "Archived" : "Moved to Inbox", {
@@ -253,7 +251,7 @@ function setArchived(
       });
     },
     (error: unknown) => {
-      repaintThreads(queryClient);
+      repaintChats(queryClient);
       toast.error(
         archived
           ? "Failed to archive the chat"

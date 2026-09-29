@@ -84,7 +84,7 @@ describe("detectMessageGap", () => {
     };
   }
 
-  it("reports nothing on the first message of a thread", async () => {
+  it("reports nothing on the first message of a chat", async () => {
     const { detect } = await setup();
 
     const result = await detect(new Date(9 * HOUR));

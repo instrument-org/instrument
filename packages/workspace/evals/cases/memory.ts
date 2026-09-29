@@ -7,7 +7,7 @@
  * source, and it regresses silently. What these measure:
  *
  * - **A standing fact gets saved.** The user says something that will matter
- *   in a thread next week; the conversation saves it in the same reply.
+ *   in a chat next week; the conversation saves it in the same reply.
  * - **It was a reply, not a task.** Keeping a fact is the conversation's own
  *   job, and nothing about the ask needs a task.
  * - **A preference inside a work ask is still saved.** Measured, this is the

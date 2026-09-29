@@ -136,7 +136,6 @@ function identifyingIds(
     }));
 }
 
-
 /**
  * The model that answered instead, on a turn where one did. Absent on a routed
  * turn, where a different answer is the router doing its job rather than

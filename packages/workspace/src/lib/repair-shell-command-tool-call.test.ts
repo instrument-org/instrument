@@ -17,7 +17,7 @@ describe("shellCommandFromToolName", () => {
     expect(repair("app call linear list_issues")).toBe(
       "app call linear list_issues",
     );
-    expect(repair("chat threads -n 5")).toBe("chat threads -n 5");
+    expect(repair("chat list -n 5")).toBe("chat list -n 5");
   });
 
   it("takes a whole script, which is the failure it exists for", () => {

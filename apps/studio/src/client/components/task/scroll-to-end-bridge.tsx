@@ -23,7 +23,7 @@ const TAKEOVER_EVENTS = ["wheel", "touchstart", "keydown", "pointerdown"];
  *
  * Arriving is not one moment. The messages are read after the conversation
  * mounts, and a long transcript lays out for a while after they land: images
- * size themselves, cards fetch what they show, Markdown finishes. On a thread
+ * size themselves, cards fetch what they show, Markdown finishes. On a chat
  * at rest nothing else follows the end, so the end taken once is short of the
  * end by everything that laid out after. The content is watched instead, and
  * the end taken again each time it grows, until it has held still for a

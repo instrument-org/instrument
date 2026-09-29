@@ -19,13 +19,17 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
+import { ChatHeading } from "./chat-header";
+import { ChatRail } from "./chat-rail";
+import { ChatScreen } from "./chat-screen";
+import { type Chat, draftTitle, type Topic } from "./chats";
 import {
+  CHAT_RAIL_WIDTH,
+  CHAT_WINDOW_WIDTH,
   COMPOSE_BAR_WIDTH,
   COMPOSE_MOTION,
   GROWN,
   GROWN_RIGHT,
-  THREAD_RAIL_WIDTH,
-  THREAD_WINDOW_WIDTH,
 } from "./compose-layout";
 import {
   BarMarks,
@@ -40,38 +44,34 @@ import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
 import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { useTaskTitles } from "./task-titles";
-import { ThreadHeading } from "./thread-header";
-import { ThreadRail } from "./thread-rail";
-import { ThreadScreen } from "./thread-stage";
-import { draftTitle, type Thread, type Topic } from "./threads";
 import { useWindowTabs } from "./window-tabs";
 
-/** A thread's small view's height, in layout px: enough of the conversation to follow a reply arriving. */
-const THREAD_WINDOW_HEIGHT = 560;
+/** A chat's small view's height, in layout px: enough of the conversation to follow a reply arriving. */
+const CHAT_WINDOW_HEIGHT = 560;
 
 /**
- * A thread put down: a dark bar along the window's foot with its title, the
+ * A chat put down: a dark bar along the window's foot with its title, the
  * pulse while it works, and the marks of what it holds, as a draft's bar
- * has, brought back up by a press, taken down by its cross. The thread itself is untouched by either.
+ * has, brought back up by a press, taken down by its cross. The chat itself is untouched by either.
  */
-export function ThreadBar({
+export function ChatBar({
+  chat,
   onClose,
   onOpen,
   right,
-  thread,
 }: {
+  chat: Chat | undefined;
   onClose: () => void;
   onOpen: () => void;
   /** Where the bar stands along the foot, in layout px from the right edge. */
   right: number;
-  thread: Thread | undefined;
 }) {
-  const isWorking = thread?.state === "working";
+  const isWorking = chat?.state === "working";
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
       className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-800 dark:ring-1 dark:ring-white/10"
-      data-slot="thread-bar"
+      data-slot="chat-bar"
       exit={{ opacity: 0, y: 36 }}
       initial={{ opacity: 0, right, y: 36 }}
       style={{ width: COMPOSE_BAR_WIDTH }}
@@ -93,10 +93,10 @@ export function ThreadBar({
               isWorking && "brand-shiny-text",
             )}
           >
-            {thread?.title ?? "Chat"}
+            {chat?.title ?? "Chat"}
           </span>
         </span>
-        {thread && <BarMarks group={thread.id} />}
+        {chat && <BarMarks group={chat.id} />}
       </button>
       <button
         aria-label="Close"
@@ -125,8 +125,9 @@ export function ThreadBar({
  * so does anything the conversation asks to have shown; what the agent opens
  * behind stays behind.
  */
-export function ThreadWindow({
+export function ChatWindow({
   arrives,
+  chat,
   isRailCompact,
   onClose,
   onCloseTab,
@@ -143,12 +144,12 @@ export function ThreadWindow({
   sendContext,
   sentWords,
   sessionId,
-  thread,
   topics,
   width,
 }: {
-  /** Whether the window arrives with a motion: a draft becoming the thread is the same window, so it does not. */
+  /** Whether the window arrives with a motion: a draft becoming the chat is the same window, so it does not. */
   arrives: boolean;
+  chat: Chat | undefined;
   /** Whether the rail stands as a column of marks, for a window with no room for its pictures. */
   isRailCompact: boolean;
   onClose: () => void;
@@ -174,10 +175,9 @@ export function ThreadWindow({
   sendContext: (options: {
     isViewOpen: boolean;
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** The words the draft this window was sent, while the thread they start is on its way. */
+  /** The words the draft this window was sent, while the chat they start is on its way. */
   sentWords?: string;
   sessionId: StoreId.Session;
-  thread: Thread | undefined;
   topics: Topic[];
   /** The window's width, rail and all, narrower than its own on a row with less room. */
   width?: number;
@@ -192,11 +192,11 @@ export function ThreadWindow({
   const [isViewOpen, setViewOpen] = useState(false);
   const showsItem = isExpanded && isViewOpen && up !== undefined;
   const isWorking =
-    thread === undefined ? sentWords !== undefined : thread.state === "working";
+    chat === undefined ? sentWords !== undefined : chat.state === "working";
   const [isDeleting, setDeleting] = useState(false);
   const taskTitles = useTaskTitles();
-  const threadTitles = new Map<StoreId.Session, string>(
-    thread === undefined ? [] : [[thread.id, thread.title]],
+  const chatTitles = new Map<StoreId.Session, string>(
+    chat === undefined ? [] : [[chat.id, chat.title]],
   );
 
   // The page's host, held as state so the ref React calls is one stable
@@ -297,11 +297,12 @@ export function ThreadWindow({
   };
 
   const rail = tabs.length > 0 && (
-    <ThreadRail
+    <ChatRail
       activeId={up?.id}
       appsBySlug={appsBySlug}
+      chatTitles={chatTitles}
+      isChatWorking={isWorking}
       isCompact={isRailCompact}
-      isThreadWorking={isWorking}
       isViewOpen={showsItem}
       onAddComputer={() => {
         openHere(instrumentFolderHref());
@@ -322,7 +323,6 @@ export function ThreadWindow({
         )
       }
       taskTitles={taskTitles}
-      threadTitles={threadTitles}
     />
   );
 
@@ -347,7 +347,7 @@ export function ThreadWindow({
           ? "inset-3 rounded-2xl"
           : "bottom-[calc(1px/var(--app-zoom))] max-h-[calc(100%-1rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
       )}
-      data-slot="thread-window"
+      data-slot="chat-window"
       exit={{ opacity: 0, y: 24 }}
       initial={
         arrives
@@ -358,28 +358,29 @@ export function ThreadWindow({
         isExpanded
           ? GROWN
           : {
-              height: THREAD_WINDOW_HEIGHT,
+              height: CHAT_WINDOW_HEIGHT,
               width:
                 width ??
-                THREAD_WINDOW_WIDTH + (tabs.length > 0 ? THREAD_RAIL_WIDTH : 0),
+                CHAT_WINDOW_WIDTH + (tabs.length > 0 ? CHAT_RAIL_WIDTH : 0),
             }
       }
       transition={COMPOSE_MOTION}
     >
-      {thread && (
+      {chat && (
         <DeleteChatDialog
+          chat={chat}
           onDeleted={onClose}
           onOpenChange={setDeleting}
           open={isDeleting}
-          thread={thread}
         />
       )}
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3 select-none">
         {/* No mark of work here: the line at the conversation's end says
           the chat is working, where its reply will land. */}
         <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
-        {thread ? (
-          <ThreadHeading
+        {chat ? (
+          <ChatHeading
+            chat={chat}
             menu={{
               // An archived chat is put away, so its window goes with it.
               onArchived: onClose,
@@ -393,7 +394,6 @@ export function ThreadWindow({
             }}
             onNewTopic={onNewTopic}
             onSetTopics={onSetTopics}
-            thread={thread}
             titleClassName="text-[13px] font-semibold"
             topics={topics}
           />
@@ -510,7 +510,7 @@ export function ThreadWindow({
             >
               <LinkSurface>
                 <ActiveTabProvider isActive>
-                  <ThreadScreen
+                  <ChatScreen
                     composerLead={
                       isComposing && behind && !isBehindLeftOut ? (
                         <IncludedChip

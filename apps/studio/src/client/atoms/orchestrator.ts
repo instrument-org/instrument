@@ -4,9 +4,9 @@ import {
   type FileSystemSortState,
 } from "@/client/components/extend/file-system";
 import {
+  type ChatFilters,
   NO_FILTERS,
-  type ThreadFilters,
-} from "@/client/components/orchestrator/threads";
+} from "@/client/components/orchestrator/chats";
 import { type PromptInputDraft } from "@/client/components/prompt-input";
 import {
   type SessionMessageDataPart,
@@ -17,15 +17,15 @@ import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
 /**
- * What the thread column is narrowed to.
+ * What the chat column is narrowed to.
  *
  * Here rather than in the pane that reads it, because anything that opens a
- * brand new thread has to put the list back where that thread is visible: a
- * column standing in a topic or a place is a column the new thread is very
+ * brand new chat has to put the list back where that chat is visible: a
+ * column standing in a topic or a place is a column the new chat is very
  * likely not in, and a button that appears to do nothing is a button someone
  * presses again.
  */
-export const threadFiltersAtom = atom<ThreadFilters>(NO_FILTERS);
+export const chatFiltersAtom = atom<ChatFilters>(NO_FILTERS);
 
 /** A screen the window was on, so the sidebar can take the user back to it. */
 export interface OrchestratorRecent {
@@ -68,7 +68,7 @@ export interface ChosenItem {
 
 /**
  * The folder the Finder on screen stands in and what is selected in it, by
- * host path, so a draft opened over it can name them as the thread will be
+ * host path, so a draft opened over it can name them as the chat will be
  * told them and leave out what it already holds by name.
  */
 export const finderOnScreenAtom = atom<null | {
@@ -77,7 +77,7 @@ export const finderOnScreenAtom = atom<null | {
 }>(null);
 
 /**
- * A thread not yet started: its words and the topic it will be filed under.
+ * A chat not yet started: its words and the topic it will be filed under.
  * What it has gathered (sites, files, folders) is its tab group, kept with
  * the window's tabs under the draft's group key; what its composer holds
  * besides the words is kept in memory beside it.
@@ -85,7 +85,7 @@ export const finderOnScreenAtom = atom<null | {
 export interface Draft {
   /**
    * Files and folders the person opened the draft on by name, from a menu or
-   * a button over them: held for the thread whatever the window moves on to,
+   * a button over them: held for the chat whatever the window moves on to,
    * until the person leaves one out.
    */
   chosen?: ChosenItem[];
@@ -95,7 +95,7 @@ export interface Draft {
    * The thing the draft was opened over, when the window stood in a place
    * with a tab up: that tab, by its group and id. A pointer rather than a
    * copy or a tab of the draft's own, so the draft says what the screen
-   * already gives it and the thread is told about it as it starts. Cleared
+   * already gives it and the chat is told about it as it starts. Cleared
    * when the person leaves it out.
    */
   included?: { group: string; tabId: string };
@@ -143,20 +143,20 @@ export const draftsAtom = atomWithStorage<Draft[]>(
 export const draftSnapshotsAtom = atom<Record<string, PromptInputDraft>>({});
 
 /**
- * One window along the foot: a draft being written, or a thread floating in
- * its small view, and how the window stands. A thread's entry remembers the
+ * One window along the foot: a draft being written, or a chat floating in
+ * its small view, and how the window stands. A chat's entry remembers the
  * draft it grew from, so the window that was the draft is the window that
- * is the thread, with no arrival between them.
+ * is the chat, with no arrival between them.
  */
 export type ComposeEntry = { placement: ComposePlacement } & (
   | { draftId: string; kind: "draft" }
-  | { fromDraft?: string; kind: "thread"; sessionId: StoreId.Session }
+  | { fromDraft?: string; kind: "chat"; sessionId: StoreId.Session }
 );
 
 /** How a window stands: docked along the window's foot, grown to fill the window, or put down to a bar along the foot. */
 export type ComposePlacement = "bar" | "docked" | "expanded";
 
-/** The group key of what a window shows: the draft's tabs, or the thread's. */
+/** The group key of what a window shows: the draft's tabs, or the chat's. */
 export function composeKeyOf(entry: ComposeEntry): string {
   return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.sessionId;
 }
@@ -165,7 +165,7 @@ export function composeKeyOf(entry: ComposeEntry): string {
  * The windows floating over the row, the way a mail client keeps several
  * compose windows along its foot, oldest first: the newest stands at the
  * right, and the ones there is no room for are not drawn. The drafts being
- * written and the threads in their small views share the row. Kept across
+ * written and the chats in their small views share the row. Kept across
  * launches, so what was floating when the app quit floats again; the drafts
  * themselves are in `draftsAtom`.
  */
@@ -191,7 +191,7 @@ export const chatGroupAtom = atomWithStorage<null | string>(
 );
 
 /**
- * Whether the inbox column is shown. Put away, a thread and its tabs have
+ * Whether the inbox column is shown. Put away, a chat and its tabs have
  * the window to themselves; it comes back on its own when nothing is left
  * on screen without it.
  */
@@ -203,10 +203,10 @@ export const inboxOpenAtom = atomWithStorage<boolean>(
 );
 
 /**
- * Whether each group's pane is open, by the thread's session id or the
+ * Whether each group's pane is open, by the chat's session id or the
  * draft's key: the tabs beside the conversation, put away and brought back
  * by the toggle over it. A group not named here has its pane open, so a
- * thread whose agent opened something shows it on arrival.
+ * chat whose agent opened something shows it on arrival.
  */
 export const paneOpenByGroupAtom = atomWithStorage<Record<string, boolean>>(
   "orchestrator.pane-open.v1",
@@ -215,7 +215,7 @@ export const paneOpenByGroupAtom = atomWithStorage<Record<string, boolean>>(
   { getOnInit: true },
 );
 
-/** The pane's share of the row beside the conversation, dragged at its edge; one share for every thread. */
+/** The pane's share of the row beside the conversation, dragged at its edge; one share for every chat. */
 export const orchestratorPaneShareAtom = atomWithStorage<number>(
   "orchestrator.pane-share.v1",
   TASK_PANE_DEFAULT_SHARE,
@@ -288,8 +288,8 @@ interface TabHistory {
   at?: number;
   future?: TabVisit[];
   /**
-   * The thread this tab belongs to, by its session id, or the draft's key:
-   * what was opened while the thread was on screen stays with the thread.
+   * The chat this tab belongs to, by its session id, or the draft's key:
+   * what was opened while the chat was on screen stays with the chat.
    */
   group?: string;
   /**
@@ -339,8 +339,8 @@ export function newTabHrefOf(group: string | undefined): string {
   return draftOfGroup(group) === undefined ? WEB_HREF : NEW_TAB_HREF;
 }
 
-/** The route a thread's screen is at, followed by the thread's session id. */
-export const THREADS_HREF = "/orchestrator/threads";
+/** The route a chat's screen is at, followed by the chat's session id. */
+export const CHATS_HREF = "/orchestrator/chats";
 
 /**
  * What the window has open: every group's tabs in strip order, which group
@@ -350,7 +350,7 @@ export interface WindowTabs {
   /** The tab each group last had up, by its key, so coming back lands there. */
   activeByGroup?: Record<string, string>;
   activeId: null | string;
-  /** The group on screen: a thread's session id or a draft's key; absent while nothing is on screen. */
+  /** The group on screen: a chat's session id or a draft's key; absent while nothing is on screen. */
   group?: string;
   /** The group the one on screen took over from, so a draft put away can hand the screen back. */
   previousGroup?: string;
@@ -359,8 +359,8 @@ export interface WindowTabs {
 
 /**
  * The window's tabs, one list across every group, kept across launches on
- * this computer. Every screen reads and writes this one; a thread's tabs are
- * the ones in its group, and a draft's the ones under its key. The thread
+ * this computer. Every screen reads and writes this one; a chat's tabs are
+ * the ones in its group, and a draft's the ones under its key. The chat
  * itself is not a tab: it stands over its tabs, and a group may have none.
  */
 export const windowTabsAtom = atomWithStorage<WindowTabs>(
@@ -369,7 +369,6 @@ export const windowTabsAtom = atomWithStorage<WindowTabs>(
   undefined,
   { getOnInit: true },
 );
-
 
 export const SIDEBAR_WIDTH_MIN = 320;
 /** Wide enough for the inbox to lay its rows down to one line each beside the column. */

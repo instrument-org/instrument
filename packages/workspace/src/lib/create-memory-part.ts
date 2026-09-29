@@ -26,15 +26,15 @@ const HEADLINE_MAX = 240;
 const ToldSchema = z.record(z.string(), z.string());
 
 /**
- * What memory holds, for the turn about to run, on a thread's user message.
+ * What memory holds, for the turn about to run, on a chat's user message.
  *
  * Attached only when memory changed since this session was last told, the
- * way the pane report is: on the thread's first message, and again after
- * another thread, the user, or a file edit changed it. The first note is the
+ * way the pane report is: on the chat's first message, and again after
+ * another chat, the user, or a file edit changed it. The first note is the
  * whole of memory; every later one carries only what was saved, corrected,
- * or forgotten since, because each note stays in the thread for good and a
- * thread that outlives many changes would otherwise carry the whole of
- * memory once per change. A change the thread made itself is recorded as
+ * or forgotten since, because each note stays in the chat for good and a
+ * chat that outlives many changes would otherwise carry the whole of
+ * memory once per change. A change the chat made itself is recorded as
  * told by the command that made it, so the note never restates what the
  * agent just did.
  */
@@ -63,7 +63,7 @@ export async function createMemoryPart({
       storage.value,
     );
     // Nothing recorded reads as told nothing, which is what an empty memory
-    // also reads as: a fresh thread with nothing to remember gets no note.
+    // also reads as: a fresh chat with nothing to remember gets no note.
     const told = reported.isOk() ? reported.value : {};
     if (isEqual(told, digests)) {
       return undefined;
@@ -83,7 +83,7 @@ export async function createMemoryPart({
       sessionId,
     };
     const sentAt = createdAt.getTime();
-    // A thread told nothing yet hears the whole; so does one whose memory is
+    // A chat told nothing yet hears the whole; so does one whose memory is
     // gone, since "empty now" says more than a list of every name forgotten.
     if (Object.keys(told).length === 0 || memories.length === 0) {
       return {

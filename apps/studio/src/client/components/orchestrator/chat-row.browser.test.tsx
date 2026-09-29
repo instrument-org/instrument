@@ -17,11 +17,11 @@ import {
 } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { useChatActionsFor } from "./chat-actions";
+import { ChatRow } from "./chat-row";
+import { type Chat, type Topic } from "./chats";
 import { OrchestratorContext, type OrchestratorWindow } from "./context";
 import { type RowDensity } from "./row-shell";
-import { useThreadActionsFor } from "./thread-actions";
-import { ThreadRow } from "./thread-row";
-import { type Thread, type Topic } from "./threads";
 
 /** What each of the row's own routes was asked, by name. */
 const calls = vi.hoisted(() => ({
@@ -77,12 +77,12 @@ vi.mock("@/client/rpc/client", () => {
       },
       workspace: {
         orchestrator: {
-          threads: {
+          chats: {
             archive: routeOf(calls.archive),
             // Only for its key, which the actions paint their marks onto.
             live: {
               list: {
-                experimental_liveOptions: () => ({ queryKey: ["threads"] }),
+                experimental_liveOptions: () => ({ queryKey: ["chats"] }),
               },
             },
             seen: routeOf(calls.seen),
@@ -103,13 +103,13 @@ const INPUT = { sessionId };
 
 /** The moment every row is read at: a Wednesday afternoon. */
 
-/** When the fixture's thread last moved, earlier the same day. */
+/** When the fixture's chat last moved, earlier the same day. */
 const MOVED_AT = new Date(2026, 8, 16, 9, 11);
 
-/** The afternoon the rows are read in: the same day the thread last moved. */
+/** The afternoon the rows are read in: the same day the chat last moved. */
 const NOW = new Date(2026, 8, 16, 14, 30);
 
-/** The morning the fixture's thread began. */
+/** The morning the fixture's chat began. */
 const STARTED_AT = new Date(2026, 8, 16, 8, 46);
 
 const ASK = "Guard the Nest eco mode before 5 p.m.";
@@ -122,11 +122,10 @@ const REPLY = "Done: the automation now checks presence first.";
 const LONG_REPLY =
   "Done: the automation now checks presence first, then the hour, then the thermostat's own schedule, and only then trips eco mode, which it also undoes on the way back before five so the second floor is warm when anyone comes up.";
 
-function thread(overrides: Partial<Thread> = {}): Thread {
+function chat(overrides: Partial<Chat> = {}): Chat {
   const messageId = StoreId.newMessageId();
   return {
     archived: false,
-    chatId: TaskIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     createdAt: STARTED_AT.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: sessionId,
@@ -153,6 +152,7 @@ function thread(overrides: Partial<Thread> = {}): Thread {
     runningTasks: [],
     starred: false,
     state: "idle",
+    taskId: TaskIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     title: TITLE,
     titled: true,
     topics: [],
@@ -199,7 +199,7 @@ function barOf(row: HTMLElement) {
   }
   return {
     bar,
-    // The actions past the control that files the thread, which leads.
+    // The actions past the control that files the chat, which leads.
     labels: [...bar.querySelectorAll("button")]
       .map((button) => button.getAttribute("aria-label"))
       .filter((label) => label !== "Topics"),
@@ -250,13 +250,13 @@ function peekOf(row: HTMLElement) {
   return row.querySelector<HTMLElement>('[class*="text-[12px]"]');
 }
 
-/** The pill of the topic the thread is filed under: a label, not a control. */
+/** The pill of the topic the chat is filed under: a label, not a control. */
 function pillOf(row: HTMLElement) {
   return row.querySelector<HTMLElement>("span.rounded-full");
 }
 
 async function renderRow(
-  row: Thread,
+  row: Chat,
   {
     density = "tall",
     onOpen = vi.fn(),
@@ -271,7 +271,7 @@ async function renderRow(
     store?: ReturnType<typeof createStore>;
   } = {},
 ) {
-  const { rows, ...rest } = await renderRows([{ density, thread: row }], {
+  const { rows, ...rest } = await renderRows([{ chat: row, density }], {
     onOpen,
     onSetTopics,
     openScreen,
@@ -289,7 +289,7 @@ async function renderRow(
  * can hold two shapes side by side without a second render.
  */
 async function renderRows(
-  specs: { density: RowDensity; thread: Thread }[],
+  specs: { chat: Chat; density: RowDensity }[],
   {
     onOpen = vi.fn(),
     onSetTopics = vi.fn(),
@@ -305,26 +305,26 @@ async function renderRows(
 ) {
   // The rows' actions come from the list, which asks once for all of them.
   function Rows() {
-    const actionsFor = useThreadActionsFor();
+    const actionsFor = useChatActionsFor();
     return specs.map((spec, index) => (
       <div
         key={index}
         style={{ width: spec.density === "slim" ? "800px" : "400px" }}
       >
-        <ThreadRow
-          actions={actionsFor(spec.thread)}
+        <ChatRow
+          actions={actionsFor(spec.chat)}
           appsBySlug={
             new Map([
               ["github", { name: "GitHub", site: "https://github.com" }],
             ])
           }
+          chat={spec.chat}
           density={spec.density}
           isOpen={false}
           now={NOW}
           onNewTopic={vi.fn()}
           onOpen={onOpen}
           onSetTopics={onSetTopics}
-          thread={spec.thread}
           topics={[HOUSE, MONEY]}
         />
       </div>
@@ -356,9 +356,9 @@ function titleOf(row: HTMLElement) {
   return title;
 }
 
-describe("ThreadRow", () => {
+describe("ChatRow", () => {
   it("lies down to one line across a wide list, the pills and the time at the far right, no ask on it", async () => {
-    const { row } = await renderRow(thread({ topics: ["house"] }), {
+    const { row } = await renderRow(chat({ topics: ["house"] }), {
       density: "slim",
     });
     expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(40);
@@ -381,7 +381,7 @@ describe("ThreadRow", () => {
 
   it("stacks when the list is narrow: the title with the pill at its end on one line, the latest under it, the files and the time under that", async () => {
     const { row } = await renderRow(
-      thread({
+      chat({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
         topics: ["house"],
       }),
@@ -417,12 +417,12 @@ describe("ThreadRow", () => {
   });
 
   it("gives the latest line two lines when tall and one when slim", async () => {
-    const long = thread({
+    const long = chat({
       latest: { at: MOVED_AT.getTime(), kind: "reply", text: LONG_REPLY },
     });
     const { rows } = await renderRows([
-      { density: "tall", thread: long },
-      { density: "slim", thread: long },
+      { chat: long, density: "tall" },
+      { chat: long, density: "slim" },
     ]);
     const [tall, slim] = rows;
     if (!tall || !slim) {
@@ -439,8 +439,8 @@ describe("ThreadRow", () => {
 
   it("carries no reply count, and the time at either width", async () => {
     const { rows } = await renderRows([
-      { density: "tall", thread: thread({ replyCount: 3 }) },
-      { density: "slim", thread: thread({ replyCount: 3 }) },
+      { chat: chat({ replyCount: 3 }), density: "tall" },
+      { chat: chat({ replyCount: 3 }), density: "slim" },
     ]);
     const [tall, slim] = rows;
     if (!tall || !slim) {
@@ -452,7 +452,7 @@ describe("ThreadRow", () => {
     expect(slim.textContent).toBe(`${TITLE}${REPLY}9:11 AM`);
   });
 
-  it.each<[string, Partial<Thread>]>([
+  it.each<[string, Partial<Chat>]>([
     ["quiet", {}],
     ["unseen", { unread: 2 }],
     ["working", { state: "working" }],
@@ -460,15 +460,15 @@ describe("ThreadRow", () => {
   ])(
     "wears no dot when %s: the latest line says where it stands",
     async (_, overrides) => {
-      const { row } = await renderRow(thread(overrides));
+      const { row } = await renderRow(chat(overrides));
       expect(dotOf(row)).toBeNull();
     },
   );
 
   it("sets the title in semibold only while something in it is unseen", async () => {
     const { rows } = await renderRows([
-      { density: "tall", thread: thread({ unread: 1 }) },
-      { density: "tall", thread: thread() },
+      { chat: chat({ unread: 1 }), density: "tall" },
+      { chat: chat(), density: "tall" },
     ]);
     const [unseen, seen] = rows;
     if (!unseen || !seen) {
@@ -479,14 +479,14 @@ describe("ThreadRow", () => {
   });
 
   it.each<RowDensity>(["tall", "slim"])(
-    "says Draft in red right after the title while the thread's composer holds words, %s",
+    "says Draft in red right after the title while the chat's composer holds words, %s",
     async (density) => {
       const store = createStore();
       store.set(
-        promptDraftAtom({ scope: "thread", sessionId }),
+        promptDraftAtom({ scope: "chat", sessionId }),
         "and keep the porch light on",
       );
-      const { row } = await renderRow(thread({ topics: ["house"] }), {
+      const { row } = await renderRow(chat({ topics: ["house"] }), {
         density,
         store,
       });
@@ -508,13 +508,13 @@ describe("ThreadRow", () => {
 
   it("says nothing of a draft that is only whitespace", async () => {
     const store = createStore();
-    store.set(promptDraftAtom({ scope: "thread", sessionId }), "  \n");
-    const { row } = await renderRow(thread(), { store });
+    store.set(promptDraftAtom({ scope: "chat", sessionId }), "  \n");
+    const { row } = await renderRow(chat(), { store });
     expect(row.textContent).not.toContain("Draft");
   });
 
   it("wears a pill per topic, each by name, at the title's end", async () => {
-    const { row } = await renderRow(thread({ topics: ["money", "house"] }));
+    const { row } = await renderRow(chat({ topics: ["money", "house"] }));
     const pills = [...row.querySelectorAll("span.rounded-full")];
     expect(pills.map((pill) => pill.textContent)).toEqual([
       "💸Money",
@@ -525,8 +525,7 @@ describe("ThreadRow", () => {
   it("shows the step in brand while working, and the question behind the amber glyph while waiting", async () => {
     const { rows } = await renderRows([
       {
-        density: "tall",
-        thread: thread({
+        chat: chat({
           latest: undefined,
           replyCount: 0,
           runningTasks: [
@@ -538,10 +537,10 @@ describe("ThreadRow", () => {
           ],
           state: "working",
         }),
+        density: "tall",
       },
       {
-        density: "tall",
-        thread: thread({
+        chat: chat({
           latest: {
             at: MOVED_AT.getTime(),
             kind: "question",
@@ -549,6 +548,7 @@ describe("ThreadRow", () => {
           },
           state: "waiting",
         }),
+        density: "tall",
       },
     ]);
     const [working, waiting] = rows;
@@ -564,14 +564,14 @@ describe("ThreadRow", () => {
   });
 
   it("says what it is answering under Instrument is working until a task starts, in two lines only", async () => {
-    const working = thread({
+    const working = chat({
       lastAsk: "Check the Nest schedule",
       latest: undefined,
       state: "working",
     });
     const { rows } = await renderRows([
-      { density: "tall", thread: working },
-      { density: "slim", thread: working },
+      { chat: working, density: "tall" },
+      { chat: working, density: "slim" },
     ]);
     const [tall, slim] = rows;
     if (!tall || !slim) {
@@ -585,7 +585,7 @@ describe("ThreadRow", () => {
 
   it("says Instrument is working under a task's title until its first step lands", async () => {
     const { row } = await renderRow(
-      thread({
+      chat({
         latest: undefined,
         runningTasks: [
           { id: TaskIdSchema.parse("nest-guard"), title: "Nest guard" },
@@ -596,17 +596,17 @@ describe("ThreadRow", () => {
     expect(peekOf(row)?.textContent).toBe("Nest guardInstrument is working");
   });
 
-  it("has no latest line for an idle thread with nothing to say", async () => {
+  it("has no latest line for an idle chat with nothing to say", async () => {
     const { row } = await renderRow(
-      thread({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
+      chat({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
     );
     expect(peekOf(row)).toBeNull();
     expect(row.textContent).toBe(`${TITLE}9:11 AM`);
   });
 
-  it("opens the thread from a click anywhere on it, and from Enter", async () => {
+  it("opens the chat from a click anywhere on it, and from Enter", async () => {
     const { onOpen, openScreen, row } = await renderRow(
-      thread({ topics: ["house"] }),
+      chat({ topics: ["house"] }),
     );
     row.click();
     firstLineOf(row).click();
@@ -619,8 +619,8 @@ describe("ThreadRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("opens the thread in place on a modified click too: a thread is never a tab", async () => {
-    const { onOpen, openScreen, row } = await renderRow(thread());
+  it("opens the chat in place on a modified click too: a chat is never a tab", async () => {
+    const { onOpen, openScreen, row } = await renderRow(chat());
     titleOf(row).dispatchEvent(
       new MouseEvent("click", { bubbles: true, metaKey: true }),
     );
@@ -630,7 +630,7 @@ describe("ThreadRow", () => {
 
   it("wears the hover tint inside the row, and brings the corner's controls up in place of the pills then", async () => {
     const { row } = await renderRow(
-      thread({
+      chat({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
         topics: ["house"],
       }),
@@ -675,8 +675,8 @@ describe("ThreadRow", () => {
       sites: ["wakatime.com", "example.com", "example.org", "example.net"],
     };
     const { rows } = await renderRows([
-      { density: "tall", thread: thread({ holds }) },
-      { density: "slim", thread: thread({ holds }) },
+      { chat: chat({ holds }), density: "tall" },
+      { chat: chat({ holds }), density: "slim" },
     ]);
     for (const row of rows) {
       const marks = marksOf(row);
@@ -684,7 +684,7 @@ describe("ThreadRow", () => {
       expect(marks).toHaveLength(6);
       expect(marks.at(-1)?.textContent).toBe("+2");
       // The files first, newest first, each named and a door; the app and
-      // the sites bare, and nothing to press: the thread's face, not its
+      // the sites bare, and nothing to press: the chat's face, not its
       // openers.
       expect(marks.slice(0, 2).map((mark) => mark.textContent)).toEqual([
         "data.csv",
@@ -713,10 +713,10 @@ describe("ThreadRow", () => {
     );
     const holds = { apps: ["github"], files, sites: ["wakatime.com"] };
     const { rows } = await renderRows([
-      { density: "tall", thread: thread({ holds }) },
+      { chat: chat({ holds }), density: "tall" },
       {
+        chat: chat({ holds: { ...holds, files: files.slice(0, 1) } }),
         density: "tall",
-        thread: thread({ holds: { ...holds, files: files.slice(0, 1) } }),
       },
     ]);
     const [many, few] = rows;
@@ -751,7 +751,7 @@ describe("ThreadRow", () => {
     // An app the workspace does not know draws its initial, which needs no
     // icon to arrive before the mark holds still under the pointer.
     const { row } = await renderRow(
-      thread({ holds: { apps: ["paper"], files: [], sites: [] } }),
+      chat({ holds: { apps: ["paper"], files: [], sites: [] } }),
       { density: "slim" },
     );
     const [app] = marksOf(row);
@@ -769,7 +769,7 @@ describe("ThreadRow", () => {
 
   it("leaves out a site whose icon resolves nowhere, rather than drawing a globe for it", async () => {
     const { row } = await renderRow(
-      thread({
+      chat({
         holds: {
           apps: ["paper"],
           files: [],
@@ -799,7 +799,7 @@ describe("ThreadRow", () => {
       (_, index) => `/task/out/report-${index}.md`,
     );
     const { row } = await renderRow(
-      thread({ holds: { apps: ["paper"], files, sites: [] } }),
+      chat({ holds: { apps: ["paper"], files, sites: [] } }),
       { density: "slim" },
     );
     const count = marksOf(row).at(-1);
@@ -823,9 +823,9 @@ describe("ThreadRow", () => {
     await userEvent.keyboard("{Escape}");
   });
 
-  it("opens a file it holds inside its thread, as a tab of the thread's group, shown, without opening the row; an app or a site it used opens nothing", async () => {
+  it("opens a file it holds inside its chat, as a tab of the chat's group, shown, without opening the row; an app or a site it used opens nothing", async () => {
     const { onOpen, openScreen, row, window } = await renderRow(
-      thread({
+      chat({
         holds: { apps: ["github"], files: ["/task/out/report.md"], sites: [] },
       }),
     );
@@ -846,9 +846,9 @@ describe("ThreadRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("opens the thread's topic list from the corner's tag control, which files the thread rather than opening it, and holds the corner while the list leaves", async () => {
+  it("opens the chat's topic list from the corner's tag control, which files the chat rather than opening it, and holds the corner while the list leaves", async () => {
     const { onOpen, onSetTopics, row } = await renderRow(
-      thread({ topics: ["house"] }),
+      chat({ topics: ["house"] }),
     );
     const control = row.querySelector<HTMLElement>('[aria-label="Topics"]');
     if (!control) {
@@ -902,7 +902,7 @@ describe("the row's actions", () => {
   it.each<RowDensity>(["tall", "slim"])(
     "stand over the %s row's right end while the pointer is on it, out of the flow at rest",
     async (density) => {
-      const { row } = await renderRow(thread(), { density });
+      const { row } = await renderRow(chat(), { density });
       const { bar, labels } = barOf(row);
       expect(labels).toEqual(["Archive", "Mark as unread", "Star"]);
       // The pointer is wherever the last test left it, which may be here.
@@ -928,8 +928,8 @@ describe("the row's actions", () => {
     },
   );
 
-  it("puts the thread away from its edge, short of the door, and offers it back from the toast", async () => {
-    const { onOpen, row } = await renderRow(thread());
+  it("puts the chat away from its edge, short of the door, and offers it back from the toast", async () => {
+    const { onOpen, row } = await renderRow(chat());
     await userEvent.hover(titleOf(row));
     await userEvent.click(actionOf(row, "Archive"));
     expect(calls.archive).toHaveBeenCalledWith(INPUT);
@@ -941,8 +941,8 @@ describe("the row's actions", () => {
     expect(calls.archive).toHaveBeenCalledTimes(2);
   });
 
-  it("offers a thread put away the way back", async () => {
-    const { row } = await renderRow(thread({ archived: true }));
+  it("offers a chat put away the way back", async () => {
+    const { row } = await renderRow(chat({ archived: true }));
     expect(barOf(row).labels).toEqual(["Unarchive", "Mark as unread", "Star"]);
     await userEvent.hover(titleOf(row));
     await userEvent.click(actionOf(row, "Unarchive"));
@@ -951,13 +951,13 @@ describe("the row's actions", () => {
     await expect.element(page.getByText("Moved to Inbox")).toBeVisible();
   });
 
-  it.each<[string, Partial<Thread>, Mock]>([
+  it.each<[string, Partial<Chat>, Mock]>([
     ["Mark as read", { unread: 2 }, calls.seen],
     ["Mark as unread", { replyCount: 3, unread: 0 }, calls.unseen],
   ])(
     "offers %s, which asks the route and says nothing",
     async (label, overrides, call) => {
-      const { onOpen, row } = await renderRow(thread(overrides));
+      const { onOpen, row } = await renderRow(chat(overrides));
       await userEvent.hover(titleOf(row));
       await userEvent.click(actionOf(row, label));
       expect(call).toHaveBeenCalledWith(INPUT);
@@ -968,13 +968,13 @@ describe("the row's actions", () => {
     },
   );
 
-  it("offers no read or unread mark on a thread with no replies to have read", async () => {
-    const { row } = await renderRow(thread({ replyCount: 0, unread: 0 }));
+  it("offers no read or unread mark on a chat with no replies to have read", async () => {
+    const { row } = await renderRow(chat({ replyCount: 0, unread: 0 }));
     expect(barOf(row).labels).toEqual(["Archive", "Star"]);
   });
 
   it("raises the row's menu on a right click: the way in, the actions, and the topics", async () => {
-    const { onOpen, onSetTopics, row } = await renderRow(thread({ unread: 1 }));
+    const { onOpen, onSetTopics, row } = await renderRow(chat({ unread: 1 }));
     await userEvent.click(titleOf(row), { button: "right" });
     const menu = page.getByRole("menu");
     await expect.element(menu).toBeVisible();
@@ -1018,8 +1018,8 @@ describe("the row's actions", () => {
     const onOpen = vi.fn();
     const { rows } = await renderRows(
       [
-        { density: "tall", thread: thread({ title: `${TITLE} one` }) },
-        { density: "tall", thread: thread({ title: `${TITLE} two` }) },
+        { chat: chat({ title: `${TITLE} one` }), density: "tall" },
+        { chat: chat({ title: `${TITLE} two` }), density: "tall" },
       ],
       { onOpen },
     );
@@ -1038,7 +1038,7 @@ describe("the row's actions", () => {
   // right click is the row's whatever is under the pointer, or the menu is
   // only there on the words.
   it("raises the row's menu on a right click on a pill, the star, and the corner's bar", async () => {
-    const { onOpen, row } = await renderRow(thread({ topics: ["house"] }));
+    const { onOpen, row } = await renderRow(chat({ topics: ["house"] }));
     const menu = page.getByRole("menu");
     for (const target of [
       pillOf(row),
@@ -1058,11 +1058,11 @@ describe("the row's actions", () => {
   });
 
   it("marks a starred row with a star past its topics, not a control, at either width", async () => {
-    const starred = thread({ starred: true, topics: ["house"] });
+    const starred = chat({ starred: true, topics: ["house"] });
     const { rows } = await renderRows([
-      { density: "slim", thread: starred },
-      { density: "tall", thread: starred },
-      { density: "tall", thread: thread() },
+      { chat: starred, density: "slim" },
+      { chat: starred, density: "tall" },
+      { chat: chat(), density: "tall" },
     ]);
     const [slim, tall, plain] = rows;
     if (!slim || !tall || !plain) {

@@ -14,4 +14,3 @@ export const SKILL_NAMES = {
   powerpoint: "powerpoint",
   spreadsheet: "spreadsheet",
 } as const;
-

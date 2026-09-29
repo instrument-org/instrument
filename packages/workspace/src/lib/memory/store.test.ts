@@ -59,7 +59,7 @@ describe("saveMemory", () => {
     expect(saved.memory.path).toBe(path.join(dir, "pacific-time.md"));
     const file = await fs.readFile(saved.memory.path, "utf8");
     expect(file).toMatch(
-      /^---\nfrom: "Roofer call"\nthread: "ses_1"\nat: \d{4}-\d{2}-\d{2}T[^\n]+\n---\nYou are on Pacific time and mornings are best for calls.\n$/,
+      /^---\nfrom: "Roofer call"\nchat: "ses_1"\nat: \d{4}-\d{2}-\d{2}T[^\n]+\n---\nYou are on Pacific time and mornings are best for calls.\n$/,
     );
 
     const listed = await listMemories(dir);
@@ -96,7 +96,7 @@ describe("saveMemory", () => {
   });
 
   it("keeps a title with a colon and quotes through the round trip", async () => {
-    const title = 'Caffeine: the "Zevia" thread';
+    const title = 'Caffeine: the "Zevia" chat';
     await saveMemory(dir, {
       from: { title },
       name: "zevia",
@@ -105,6 +105,16 @@ describe("saveMemory", () => {
 
     const memory = await readMemory(dir, "zevia");
     expect(memory?.from).toEqual({ title });
+  });
+
+  it("reads the chat of a memory saved while chats were threads", async () => {
+    await fs.writeFile(
+      path.join(dir, "roofer.md"),
+      '---\nfrom: "Roofer call"\nthread: "ses_1"\nat: 2026-09-01T00:00:00.000Z\n---\nThe roofer comes Tuesday.\n',
+    );
+
+    const memory = await readMemory(dir, "roofer");
+    expect(memory?.from).toEqual({ sessionId: "ses_1", title: "Roofer call" });
   });
 });
 

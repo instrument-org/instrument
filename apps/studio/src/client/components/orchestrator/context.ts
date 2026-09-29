@@ -30,10 +30,10 @@ export interface OpenOptions {
 
 /** What every screen of the orchestrator window shares. */
 export interface OrchestratorWindow {
-  /** Opens a draft of a new thread with the line already in it, to be read and sent by the person; inside a thread, sends the line there. */
+  /** Opens a draft of a new chat with the line already in it, to be read and sent by the person; inside a chat, sends the line there. */
   ask: (prompt: string) => void;
   /**
-   * Opens a draft of a new thread with these files or folders picked to go
+   * Opens a draft of a new chat with these files or folders picked to go
    * with it; absent where there is no new draft to open, as inside one.
    */
   askAbout?: (items: ChosenItem[]) => void;
@@ -56,7 +56,7 @@ export interface OrchestratorWindow {
   rowLead?: HTMLElement | null;
   /** The tail of the tab's row, where a screen draws what it can do with what it shows; null until the row is up. */
   rowTail?: HTMLElement | null;
-  /** The thread a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */
+  /** The chat a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */
   sessionId?: StoreId.Session;
   taskId: TaskId;
 }

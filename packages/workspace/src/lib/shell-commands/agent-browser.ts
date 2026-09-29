@@ -36,10 +36,7 @@ import { isTaskId } from "../is-task-id";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { browserHostForTask } from "../orchestrator/browser-host";
 import { windowTaskId } from "../orchestrator/ensure";
-import {
-  chatSessionOfTask,
-  liveHeldTabs,
-} from "../orchestrator/window-tab";
+import { chatSessionOfTask, liveHeldTabs } from "../orchestrator/window-tab";
 import { isAtOrUnder } from "../path-containment";
 import { isChatId } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";

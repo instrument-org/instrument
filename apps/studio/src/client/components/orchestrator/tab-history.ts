@@ -28,7 +28,7 @@ export function stepTabVisit(
       direction === 1
         ? from.slice(0, -1)
         : [...(current.future ?? []), visitOf(current)],
-    // The tab stays the thread's whatever it steps to.
+    // The tab stays the chat's whatever it steps to.
     group: current.group,
     isOpened: current.isOpened,
     past:
@@ -45,7 +45,7 @@ export function visitInTab(current: WindowTab, visit: TabVisit): WindowTab {
   return {
     ...visit,
     future: [],
-    // The tab stays the thread's whatever it visits.
+    // The tab stays the chat's whatever it visits.
     group: current.group,
     isOpened: current.isOpened,
     past: [...(current.past ?? []), ...(previous ? [visitOf(previous)] : [])],

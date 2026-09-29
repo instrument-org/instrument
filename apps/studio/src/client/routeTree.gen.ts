@@ -34,10 +34,10 @@ import { Route as OrchestratorAppsIndexRouteImport } from './routes/orchestrator
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
 import { Route as AppSkillsIndexRouteImport } from './routes/_app/skills/index'
 import { Route as AppDebugIndexRouteImport } from './routes/_app/debug/index'
-import { Route as OrchestratorThreadsIdRouteImport } from './routes/orchestrator/threads/$id'
 import { Route as OrchestratorTasksIdRouteImport } from './routes/orchestrator/tasks/$id'
 import { Route as OrchestratorSkillsNameRouteImport } from './routes/orchestrator/skills/$name'
 import { Route as OrchestratorIdeasIdeaRouteImport } from './routes/orchestrator/ideas/$idea'
+import { Route as OrchestratorChatsIdRouteImport } from './routes/orchestrator/chats/$id'
 import { Route as OrchestratorAppsSlugRouteImport } from './routes/orchestrator/apps/$slug'
 import { Route as AppSkillsNameRouteImport } from './routes/_app/skills/$name'
 import { Route as AppDebugNotificationsRouteImport } from './routes/_app/debug/notifications'
@@ -188,11 +188,6 @@ const AppDebugIndexRoute = AppDebugIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppDebugRouteRoute,
 } as any)
-const OrchestratorThreadsIdRoute = OrchestratorThreadsIdRouteImport.update({
-  id: '/threads/$id',
-  path: '/threads/$id',
-  getParentRoute: () => OrchestratorRouteRoute,
-} as any)
 const OrchestratorTasksIdRoute = OrchestratorTasksIdRouteImport.update({
   id: '/tasks/$id',
   path: '/tasks/$id',
@@ -206,6 +201,11 @@ const OrchestratorSkillsNameRoute = OrchestratorSkillsNameRouteImport.update({
 const OrchestratorIdeasIdeaRoute = OrchestratorIdeasIdeaRouteImport.update({
   id: '/ideas/$idea',
   path: '/ideas/$idea',
+  getParentRoute: () => OrchestratorRouteRoute,
+} as any)
+const OrchestratorChatsIdRoute = OrchestratorChatsIdRouteImport.update({
+  id: '/chats/$id',
+  path: '/chats/$id',
   getParentRoute: () => OrchestratorRouteRoute,
 } as any)
 const OrchestratorAppsSlugRoute = OrchestratorAppsSlugRouteImport.update({
@@ -380,10 +380,10 @@ export interface FileRoutesByFullPath {
   '/debug/notifications': typeof AppDebugNotificationsRoute
   '/skills/$name': typeof AppSkillsNameRoute
   '/orchestrator/apps/$slug': typeof OrchestratorAppsSlugRoute
+  '/orchestrator/chats/$id': typeof OrchestratorChatsIdRoute
   '/orchestrator/ideas/$idea': typeof OrchestratorIdeasIdeaRoute
   '/orchestrator/skills/$name': typeof OrchestratorSkillsNameRoute
   '/orchestrator/tasks/$id': typeof OrchestratorTasksIdRoute
-  '/orchestrator/threads/$id': typeof OrchestratorThreadsIdRoute
   '/debug/': typeof AppDebugIndexRoute
   '/skills/': typeof AppSkillsIndexRoute
   '/tasks/': typeof AppTasksIndexRoute
@@ -430,10 +430,10 @@ export interface FileRoutesByTo {
   '/debug/notifications': typeof AppDebugNotificationsRoute
   '/skills/$name': typeof AppSkillsNameRoute
   '/orchestrator/apps/$slug': typeof OrchestratorAppsSlugRoute
+  '/orchestrator/chats/$id': typeof OrchestratorChatsIdRoute
   '/orchestrator/ideas/$idea': typeof OrchestratorIdeasIdeaRoute
   '/orchestrator/skills/$name': typeof OrchestratorSkillsNameRoute
   '/orchestrator/tasks/$id': typeof OrchestratorTasksIdRoute
-  '/orchestrator/threads/$id': typeof OrchestratorThreadsIdRoute
   '/debug': typeof AppDebugIndexRoute
   '/skills': typeof AppSkillsIndexRoute
   '/tasks': typeof AppTasksIndexRoute
@@ -487,10 +487,10 @@ export interface FileRoutesById {
   '/_app/debug/notifications': typeof AppDebugNotificationsRoute
   '/_app/skills/$name': typeof AppSkillsNameRoute
   '/orchestrator/apps/$slug': typeof OrchestratorAppsSlugRoute
+  '/orchestrator/chats/$id': typeof OrchestratorChatsIdRoute
   '/orchestrator/ideas/$idea': typeof OrchestratorIdeasIdeaRoute
   '/orchestrator/skills/$name': typeof OrchestratorSkillsNameRoute
   '/orchestrator/tasks/$id': typeof OrchestratorTasksIdRoute
-  '/orchestrator/threads/$id': typeof OrchestratorThreadsIdRoute
   '/_app/debug/': typeof AppDebugIndexRoute
   '/_app/skills/': typeof AppSkillsIndexRoute
   '/_app/tasks/': typeof AppTasksIndexRoute
@@ -544,10 +544,10 @@ export interface FileRouteTypes {
     | '/debug/notifications'
     | '/skills/$name'
     | '/orchestrator/apps/$slug'
+    | '/orchestrator/chats/$id'
     | '/orchestrator/ideas/$idea'
     | '/orchestrator/skills/$name'
     | '/orchestrator/tasks/$id'
-    | '/orchestrator/threads/$id'
     | '/debug/'
     | '/skills/'
     | '/tasks/'
@@ -594,10 +594,10 @@ export interface FileRouteTypes {
     | '/debug/notifications'
     | '/skills/$name'
     | '/orchestrator/apps/$slug'
+    | '/orchestrator/chats/$id'
     | '/orchestrator/ideas/$idea'
     | '/orchestrator/skills/$name'
     | '/orchestrator/tasks/$id'
-    | '/orchestrator/threads/$id'
     | '/debug'
     | '/skills'
     | '/tasks'
@@ -650,10 +650,10 @@ export interface FileRouteTypes {
     | '/_app/debug/notifications'
     | '/_app/skills/$name'
     | '/orchestrator/apps/$slug'
+    | '/orchestrator/chats/$id'
     | '/orchestrator/ideas/$idea'
     | '/orchestrator/skills/$name'
     | '/orchestrator/tasks/$id'
-    | '/orchestrator/threads/$id'
     | '/_app/debug/'
     | '/_app/skills/'
     | '/_app/tasks/'
@@ -866,13 +866,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDebugIndexRouteImport
       parentRoute: typeof AppDebugRouteRoute
     }
-    '/orchestrator/threads/$id': {
-      id: '/orchestrator/threads/$id'
-      path: '/threads/$id'
-      fullPath: '/orchestrator/threads/$id'
-      preLoaderRoute: typeof OrchestratorThreadsIdRouteImport
-      parentRoute: typeof OrchestratorRouteRoute
-    }
     '/orchestrator/tasks/$id': {
       id: '/orchestrator/tasks/$id'
       path: '/tasks/$id'
@@ -892,6 +885,13 @@ declare module '@tanstack/react-router' {
       path: '/ideas/$idea'
       fullPath: '/orchestrator/ideas/$idea'
       preLoaderRoute: typeof OrchestratorIdeasIdeaRouteImport
+      parentRoute: typeof OrchestratorRouteRoute
+    }
+    '/orchestrator/chats/$id': {
+      id: '/orchestrator/chats/$id'
+      path: '/chats/$id'
+      fullPath: '/orchestrator/chats/$id'
+      preLoaderRoute: typeof OrchestratorChatsIdRouteImport
       parentRoute: typeof OrchestratorRouteRoute
     }
     '/orchestrator/apps/$slug': {
@@ -1238,10 +1238,10 @@ interface OrchestratorRouteRouteChildren {
   OrchestratorWebRoute: typeof OrchestratorWebRoute
   OrchestratorIndexRoute: typeof OrchestratorIndexRoute
   OrchestratorAppsSlugRoute: typeof OrchestratorAppsSlugRoute
+  OrchestratorChatsIdRoute: typeof OrchestratorChatsIdRoute
   OrchestratorIdeasIdeaRoute: typeof OrchestratorIdeasIdeaRoute
   OrchestratorSkillsNameRoute: typeof OrchestratorSkillsNameRoute
   OrchestratorTasksIdRoute: typeof OrchestratorTasksIdRoute
-  OrchestratorThreadsIdRoute: typeof OrchestratorThreadsIdRoute
   OrchestratorAppsIndexRoute: typeof OrchestratorAppsIndexRoute
   OrchestratorIdeasIndexRoute: typeof OrchestratorIdeasIndexRoute
   OrchestratorSkillsIndexRoute: typeof OrchestratorSkillsIndexRoute
@@ -1255,10 +1255,10 @@ const OrchestratorRouteRouteChildren: OrchestratorRouteRouteChildren = {
   OrchestratorWebRoute: OrchestratorWebRoute,
   OrchestratorIndexRoute: OrchestratorIndexRoute,
   OrchestratorAppsSlugRoute: OrchestratorAppsSlugRoute,
+  OrchestratorChatsIdRoute: OrchestratorChatsIdRoute,
   OrchestratorIdeasIdeaRoute: OrchestratorIdeasIdeaRoute,
   OrchestratorSkillsNameRoute: OrchestratorSkillsNameRoute,
   OrchestratorTasksIdRoute: OrchestratorTasksIdRoute,
-  OrchestratorThreadsIdRoute: OrchestratorThreadsIdRoute,
   OrchestratorAppsIndexRoute: OrchestratorAppsIndexRoute,
   OrchestratorIdeasIndexRoute: OrchestratorIdeasIndexRoute,
   OrchestratorSkillsIndexRoute: OrchestratorSkillsIndexRoute,

@@ -168,9 +168,9 @@ function AppChipIcon({ slug }: { slug: string }) {
  *
  * A chip for the same reason a file is one: what it opens is not a page, and
  * the glyph in front says which of the app's own things it is, a task or a
- * memory or a thread, the way a site's icon says which site. Drawn from the
+ * memory or a chat, the way a site's icon says which site. Drawn from the
  * address alone, with nothing asked of the server, so it renders as the reply
- * streams; a memory since forgotten or a thread since gone is still a chip,
+ * streams; a memory since forgotten or a chat since gone is still a chip,
  * and what it opens says so.
  *
  * The gestures are the ones every openable thing answers, so a middle click
@@ -222,6 +222,9 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     case "app": {
       return <AppChipIcon slug={link.name} />;
     }
+    case "chat": {
+      return <ChatTeardropTextIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
     case "idea":
     case "ideas": {
       return <CompassIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
@@ -236,9 +239,6 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     // one: a task is the app at work rather than a thing it holds.
     case "task": {
       return <InstrumentGlyph className="size-3 shrink-0 text-brand-600" />;
-    }
-    case "thread": {
-      return <ChatTeardropTextIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
   }
 }

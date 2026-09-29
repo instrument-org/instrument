@@ -6,33 +6,32 @@ import { screenLocation, screenPresentation } from "./screen-presentation";
 
 const CONTEXT = { appsBySlug: new Map() };
 
-const THREAD_ID = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
-const THREAD_HREF = `/orchestrator/threads/${THREAD_ID}`;
+const CHAT_ID = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+const CHAT_HREF = `/orchestrator/chats/${CHAT_ID}`;
 
 describe("screenPresentation", () => {
-  it("names a thread tab by the thread's title, and by kind until it is known", () => {
-    const threadTitles = new Map([[THREAD_ID, "Caffeine mixes, plus Zevia"]]);
+  it("names a chat tab by the chat's title, and by kind until it is known", () => {
+    const chatTitles = new Map([[CHAT_ID, "Caffeine mixes, plus Zevia"]]);
     expect(
-      screenPresentation(THREAD_HREF, { ...CONTEXT, threadTitles }).title,
+      screenPresentation(CHAT_HREF, { ...CONTEXT, chatTitles }).title,
     ).toBe("Caffeine mixes, plus Zevia");
-    expect(screenPresentation(THREAD_HREF, CONTEXT).title).toBe("Chat");
+    expect(screenPresentation(CHAT_HREF, CONTEXT).title).toBe("Chat");
   });
 
   it("names a tasks tab, and a task's by its title once known", () => {
     const task = TaskIdSchema.parse("book");
     const taskTitles = new Map([[task, "Book the hotel"]]);
-    const href = `/orchestrator/tasks/${task}?thread=${THREAD_ID}`;
+    const href = `/orchestrator/tasks/${task}?chat=${CHAT_ID}`;
     expect(
-      screenPresentation(`/orchestrator/tasks?thread=${THREAD_ID}`, CONTEXT)
-        .title,
+      screenPresentation(`/orchestrator/tasks?chat=${CHAT_ID}`, CONTEXT).title,
     ).toBe("Tasks");
     expect(screenPresentation(href, { ...CONTEXT, taskTitles }).title).toBe(
       "Book the hotel",
     );
     expect(screenPresentation(href, CONTEXT).title).toBe("Task");
     expect(screenLocation(href, { ...CONTEXT, taskTitles })).toEqual({
+      chat: CHAT_ID,
       kind: "task",
-      thread: THREAD_ID,
       title: "Book the hotel",
     });
   });
@@ -108,10 +107,10 @@ describe("screenLocation", () => {
     expect(screenLocation(href, CONTEXT)).toEqual({ kind: "folder", path });
   });
 
-  it("places a thread tab on its thread", () => {
-    const threadTitles = new Map([[THREAD_ID, "Caffeine mixes"]]);
-    expect(screenLocation(THREAD_HREF, { ...CONTEXT, threadTitles })).toEqual({
-      kind: "thread",
+  it("places a chat tab on its chat", () => {
+    const chatTitles = new Map([[CHAT_ID, "Caffeine mixes"]]);
+    expect(screenLocation(CHAT_HREF, { ...CONTEXT, chatTitles })).toEqual({
+      kind: "chat",
       title: "Caffeine mixes",
     });
   });

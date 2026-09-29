@@ -3,30 +3,30 @@ import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention"
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { format, isSameYear } from "date-fns";
 
-/** A thread as the chat lists it: the first message, the title, and where it stands. */
-export type Thread =
-  RPCOutput["workspace"]["orchestrator"]["threads"]["list"][number];
+/** A chat as the chat lists it: the first message, the title, and where it stands. */
+export type Chat =
+  RPCOutput["workspace"]["orchestrator"]["chats"]["list"][number];
 
 /** What narrows the list, all of it client-side: each group is any-of, and the groups are all-of. */
-export interface ThreadFilters {
-  /** App slugs a thread has to have used one of. */
+export interface ChatFilters {
+  /** App slugs a chat has to have used one of. */
   apps: string[];
   /** The place the column stands in, when it is not the inbox: what needs the user, the starred, the drafts, or all of it. */
-  place?: ThreadPlace;
-  /** Words that all have to turn up somewhere on a thread's row, whatever their case. */
+  place?: ChatPlace;
+  /** Words that all have to turn up somewhere on a chat's row, whatever their case. */
   search: string;
-  /** Topic ids a thread has to be filed under one of. */
+  /** Topic ids a chat has to be filed under one of. */
   topics: string[];
 }
 
-/** The places of the column apart from the inbox: threads waiting on the user, threads the user starred, drafts not yet sent, and every thread, the ones put away among them. What is unread is a count on a place, the way mail counts it, rather than a place of its own. */
-export type ThreadPlace = "all" | "drafts" | "needsYou" | "starred";
+/** The places of the column apart from the inbox: chats waiting on the user, chats the user starred, drafts not yet sent, and every chat, the ones put away among them. What is unread is a count on a place, the way mail counts it, rather than a place of its own. */
+export type ChatPlace = "all" | "drafts" | "needsYou" | "starred";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic =
   RPCOutput["workspace"]["orchestrator"]["topics"]["list"][number];
 
-export const NO_FILTERS: ThreadFilters = {
+export const NO_FILTERS: ChatFilters = {
   apps: [],
   search: "",
   topics: [],
@@ -35,14 +35,14 @@ export const NO_FILTERS: ThreadFilters = {
 /** What a search reads the pills by when no topics are in hand: nothing, so a pill's name is not searched. */
 const NO_TOPIC_NAMES: ReadonlyMap<string, string> = new Map();
 
-/** The part of a thread the filters read, which is what its row shows, so the predicate is testable off any row shape. */
+/** The part of a chat the filters read, which is what its row shows, so the predicate is testable off any row shape. */
 export interface Filterable {
-  /** Whether the thread was put away: out of every place but All. */
+  /** Whether the chat was put away: out of every place but All. */
   archived: boolean;
   holds: { apps: string[]; files: string[]; sites: string[] };
   latest?: { text: string };
   root?: undefined | { parts: { text?: string; type: string }[] };
-  /** Whether the user starred it: a mark of the user's own, kept wherever the thread is. */
+  /** Whether the user starred it: a mark of the user's own, kept wherever the chat is. */
   starred: boolean;
   state: "idle" | "waiting" | "working";
   title: string;
@@ -53,7 +53,7 @@ export interface Filterable {
 /** One row of the column: which group it is in, and which of that group's ids it stands for. */
 export type FilterChoice =
   | { group: "apps" | "topics"; id: string }
-  | { group: "place"; id: ThreadPlace };
+  | { group: "place"; id: ChatPlace };
 
 /**
  * The filters with a row turned. The column shows one view at a time: the
@@ -64,9 +64,9 @@ export type FilterChoice =
  * downstream knows the column only ever fills one.
  */
 export function choose(
-  filters: ThreadFilters,
+  filters: ChatFilters,
   choice: FilterChoice,
-): ThreadFilters {
+): ChatFilters {
   const { place: _place, ...rest } = filters;
   const inbox = { ...rest, apps: [], topics: [] };
   if (choice.group === "place") {
@@ -88,49 +88,49 @@ export function hasWords(search: string, shown: string[]) {
 }
 
 /** Whether the column stands in the inbox: no place chosen, whatever topic or app narrows it. */
-export function isInbox(filters: ThreadFilters) {
+export function isInbox(filters: ChatFilters) {
   return filters.place === undefined;
 }
 
-/** Whether a thread passes every filter that is set. */
+/** Whether a chat passes every filter that is set. */
 export function matchesFilters(
-  thread: Filterable,
-  filters: ThreadFilters,
+  chat: Filterable,
+  filters: ChatFilters,
   /** Topic names by id, which is how the search reads a row's pills. */
   topicNames: ReadonlyMap<string, string> = NO_TOPIC_NAMES,
 ) {
   return (
-    matchesPlace(thread, filters.place) &&
-    anyOf(filters.topics, thread.topics) &&
-    anyOf(filters.apps, thread.holds.apps) &&
-    matchesSearch(thread, filters.search, topicNames)
+    matchesPlace(chat, filters.place) &&
+    anyOf(filters.topics, chat.topics) &&
+    anyOf(filters.apps, chat.holds.apps) &&
+    matchesSearch(chat, filters.search, topicNames)
   );
 }
 
 /**
- * How many threads the words searched for turn up on that the place, topic,
+ * How many chats the words searched for turn up on that the place, topic,
  * or app filter keeps out of the list. A search reads inside the place the
  * column stands in, so a match filed elsewhere is silently missing; this is
  * the count the list says so with. Nothing searched for means nothing is
  * missing, whatever the filters hide.
  */
 export function outsideFilters(
-  threads: Filterable[],
-  filters: ThreadFilters,
+  chats: Filterable[],
+  filters: ChatFilters,
   topicNames: ReadonlyMap<string, string> = NO_TOPIC_NAMES,
 ) {
   if (filters.search.trim() === "") {
     return 0;
   }
-  return threads.filter(
-    (thread) =>
-      matchesSearch(thread, filters.search, topicNames) &&
-      !matchesFilters(thread, filters, topicNames),
+  return chats.filter(
+    (chat) =>
+      matchesSearch(chat, filters.search, topicNames) &&
+      !matchesFilters(chat, filters, topicNames),
   ).length;
 }
 
-/** The same search over every thread: the words kept, the place, topic, and app filters lifted. */
-export function widenToSearch(filters: ThreadFilters): ThreadFilters {
+/** The same search over every chat: the words kept, the place, topic, and app filters lifted. */
+export function widenToSearch(filters: ChatFilters): ChatFilters {
   return { ...filters, apps: [], place: "all", topics: [] };
 }
 
@@ -140,13 +140,13 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
 }
 
 /**
- * Whether a thread is in the place the column stands in. A thread put away
+ * Whether a chat is in the place the column stands in. A chat put away
  * is in All and nowhere else, the way mail keeps what was archived out of
- * the inbox but in the whole of it, so the inbox is every other thread and
- * Needs you those of them waiting on the user. Drafts are not threads at all
+ * the inbox but in the whole of it, so the inbox is every other chat and
+ * Needs you those of them waiting on the user. Drafts are not chats at all
  * yet, so that place holds none.
  */
-function matchesPlace(thread: Filterable, place: ThreadPlace | undefined) {
+function matchesPlace(chat: Filterable, place: ChatPlace | undefined) {
   switch (place) {
     case "all": {
       return true;
@@ -155,43 +155,43 @@ function matchesPlace(thread: Filterable, place: ThreadPlace | undefined) {
       return false;
     }
     case "needsYou": {
-      return !thread.archived && thread.state === "waiting";
+      return !chat.archived && chat.state === "waiting";
     }
     case "starred": {
-      // A star is the user's own mark, and stays on a thread put away.
-      return thread.starred;
+      // A star is the user's own mark, and stays on a chat put away.
+      return chat.starred;
     }
     case undefined: {
-      return !thread.archived;
+      return !chat.archived;
     }
   }
 }
 
 /**
- * Whether every word searched for turns up somewhere on the thread's row,
+ * Whether every word searched for turns up somewhere on the chat's row,
  * whatever its case: in the title, the ask, the latest line, a topic's name,
  * a file's name, a site, or an app. Nothing searched for matches everything.
  */
 function matchesSearch(
-  thread: Filterable,
+  chat: Filterable,
   search: string,
   topicNames: ReadonlyMap<string, string>,
 ) {
   return hasWords(search, [
-    thread.title,
-    askOf(thread),
-    thread.latest?.text ?? "",
-    ...thread.topics.map((id) => topicNames.get(id) ?? ""),
-    ...thread.holds.files.map(basename),
-    ...thread.holds.sites,
-    ...thread.holds.apps,
+    chat.title,
+    askOf(chat),
+    chat.latest?.text ?? "",
+    ...chat.topics.map((id) => topicNames.get(id) ?? ""),
+    ...chat.holds.files.map(basename),
+    ...chat.holds.sites,
+    ...chat.holds.apps,
   ]);
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * When something last happened in a thread, the way a mailbox says it at a
+ * When something last happened in a chat, the way a mailbox says it at a
  * row's end: the time of day while it is today, and the date past that.
  */
 export function activityLabel(date: Date, now: Date): string {
@@ -203,11 +203,11 @@ export function activityLabel(date: Date, now: Date): string {
   return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
 }
 
-/** The words of a thread's first message: what the row shows as the ask. */
-export function askOf(thread: {
+/** The words of a chat's first message: what the row shows as the ask. */
+export function askOf(chat: {
   root?: undefined | { parts: { text?: string; type: string }[] };
 }): string {
-  return (thread.root?.parts ?? [])
+  return (chat.root?.parts ?? [])
     .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
     .join("\n");
 }
@@ -217,9 +217,9 @@ export function basename(path: string): string {
   return path.replace(/\/+$/, "").split("/").at(-1) || path;
 }
 
-/** The threads by when something last happened in each, newest first, which is the order the inbox keeps. */
-export function byActivity<T extends { updatedAt: number }>(threads: T[]): T[] {
-  return [...threads].sort((a, b) => b.updatedAt - a.updatedAt);
+/** The chats by when something last happened in each, newest first, which is the order the inbox keeps. */
+export function byActivity<T extends { updatedAt: number }>(chats: T[]): T[] {
+  return [...chats].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 /**

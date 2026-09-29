@@ -3,10 +3,10 @@ import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { ChatTitle } from "./chat-title";
+import { type Chat } from "./chats";
 import { OrchestratorContext } from "./context";
-import { ThreadTitle } from "./thread-title";
-import { type Thread } from "./threads";
-import { useThreadRename } from "./use-thread-rename";
+import { useChatRename } from "./use-chat-rename";
 
 const calls = vi.hoisted(() => ({
   rename: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     workspace: {
       orchestrator: {
-        threads: {
+        chats: {
           rename: {
             mutationOptions: (options: object) => ({
               ...options,
@@ -44,30 +44,11 @@ const taskId = TaskIdSchema.parse("orchestrator");
 const sessionId = StoreId.newSessionId();
 const TITLE = "Grocery list for the week";
 
-async function renderTitle() {
-  await renderInBrowser(
-    <OrchestratorContext
-      value={{
-        ask: vi.fn(),
-        browser: null,
-        focusComposer: vi.fn(),
-        openPage: vi.fn(),
-        openPath: vi.fn(),
-        openScreen: vi.fn(),
-        taskId,
-      }}
-    >
-      <Title />
-    </OrchestratorContext>,
-  );
-}
-
-function thread(): Thread {
+function chat(): Chat {
   const messageId = StoreId.newMessageId();
   const at = new Date(2026, 8, 16, 9, 0);
   return {
     archived: false,
-    chatId: TaskIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     createdAt: at.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: sessionId,
@@ -92,6 +73,7 @@ function thread(): Thread {
     runningTasks: [],
     starred: false,
     state: "idle",
+    taskId: TaskIdSchema.parse("2026-09-16-nest-eco-mode-guard"),
     title: TITLE,
     titled: true,
     topics: [],
@@ -100,12 +82,30 @@ function thread(): Thread {
   };
 }
 
-function Title() {
-  const rename = useThreadRename(thread());
-  return <ThreadTitle className="text-sm" rename={rename} title={TITLE} />;
+async function renderTitle() {
+  await renderInBrowser(
+    <OrchestratorContext
+      value={{
+        ask: vi.fn(),
+        browser: null,
+        focusComposer: vi.fn(),
+        openPage: vi.fn(),
+        openPath: vi.fn(),
+        openScreen: vi.fn(),
+        taskId,
+      }}
+    >
+      <Title />
+    </OrchestratorContext>,
+  );
 }
 
-describe("ThreadTitle", () => {
+function Title() {
+  const rename = useChatRename(chat());
+  return <ChatTitle className="text-sm" rename={rename} title={TITLE} />;
+}
+
+describe("ChatTitle", () => {
   beforeEach(() => {
     calls.rename.mockClear();
   });
@@ -126,7 +126,7 @@ describe("ThreadTitle", () => {
     });
   });
 
-  it("names the thread from the sparkle inside the field, keeping the field open until it has", async () => {
+  it("names the chat from the sparkle inside the field, keeping the field open until it has", async () => {
     let answer: ((value: { title?: string }) => void) | undefined;
     calls.retitle.mockReturnValueOnce(
       new Promise((resolve) => {

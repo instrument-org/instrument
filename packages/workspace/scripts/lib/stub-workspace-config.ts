@@ -40,7 +40,8 @@ export function createStubWorkspaceConfig({
       path.join(absoluteRootDir, "default-task-template"),
     ),
     getAIProviderConfigs: () => [],
-    isActivityHeadingsEnabled: () => process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
+    isActivityHeadingsEnabled: () =>
+      process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
     // On for the dev harnesses, which exist to exercise the real thing. The
     // app ships with it off until the macOS permission prompt is handled.
     isExternalBrowserEnabled: () => true,

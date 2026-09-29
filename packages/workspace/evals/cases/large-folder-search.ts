@@ -86,7 +86,7 @@ const noBudgetExhaustedTraversal: Assertion = {
     const burned = bashOutcomes(sessions).filter((run) =>
       /(?:traversal|glob) (?:work |operation )?limit exceeded/.test(run.text),
     );
-    const wasted = burned.reduce((total, run) => total + run.durationMs, 0)
+    const wasted = burned.reduce((total, run) => total + run.durationMs, 0);
     return {
       evidence:
         burned.length === 0

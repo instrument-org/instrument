@@ -15,7 +15,7 @@ function answering(moved: number | undefined) {
   );
 }
 
-const thread = {
+const chat = {
   configs: [],
   currentTitle: "Find flights to Lisbon",
   opening: "find me cheap flights to lisbon",
@@ -33,7 +33,7 @@ describe("titleStillFits", () => {
     "keeps the title at P(moved)=$moved: $expected",
     async ({ expected, moved }) => {
       await expect(
-        titleStillFits({ ...thread, ask: answering(moved) }),
+        titleStillFits({ ...chat, ask: answering(moved) }),
       ).resolves.toBe(expected);
     },
   );
@@ -42,19 +42,19 @@ describe("titleStillFits", () => {
     const ask = vi.fn<typeof askDecisionModel>(() =>
       Promise.resolve(undefined),
     );
-    await expect(titleStillFits({ ...thread, ask })).resolves.toBe(false);
+    await expect(titleStillFits({ ...chat, ask })).resolves.toBe(false);
   });
 
   it("leaves the title model to decide when the decision model fails", async () => {
     const ask = vi.fn<typeof askDecisionModel>(() =>
       Promise.reject(new Error("upstream 529")),
     );
-    await expect(titleStillFits({ ...thread, ask })).resolves.toBe(false);
+    await expect(titleStillFits({ ...chat, ask })).resolves.toBe(false);
   });
 
   it("asks one yes-or-no about the title against the opening and the reply", async () => {
     const ask = answering(0.1);
-    await titleStillFits({ ...thread, ask });
+    await titleStillFits({ ...chat, ask });
     expect(ask.mock.calls[0]?.[0].body.state).toMatchInlineSnapshot(`
       {
         "current_title": "Find flights to Lisbon",

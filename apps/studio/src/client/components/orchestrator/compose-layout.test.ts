@@ -3,13 +3,24 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
+  CHAT_WINDOW_WIDTH,
   COMPOSE_BAR_WIDTH,
   COMPOSE_EDGE_GAP,
   COMPOSE_GAP,
   COMPOSE_WIDTH,
   layoutCompose,
-  THREAD_WINDOW_WIDTH,
 } from "./compose-layout";
+
+function chat(
+  id: string,
+  placement: ComposeEntry["placement"] = "docked",
+): ComposeEntry {
+  return {
+    kind: "chat",
+    placement,
+    sessionId: StoreId.SessionSchema.parse(id),
+  };
+}
 
 function draft(
   draftId: string,
@@ -21,17 +32,6 @@ function draft(
 /** What a placed entry stands for, by the id its kind carries. */
 function idOf(entry: ComposeEntry) {
   return entry.kind === "draft" ? entry.draftId : entry.sessionId;
-}
-
-function thread(
-  id: string,
-  placement: ComposeEntry["placement"] = "docked",
-): ComposeEntry {
-  return {
-    kind: "thread",
-    placement,
-    sessionId: StoreId.SessionSchema.parse(id),
-  };
 }
 
 describe("layoutCompose", () => {
@@ -56,8 +56,8 @@ describe("layoutCompose", () => {
   it("lays a minimized chat that holds tabs at a bar's width, with no room for a rail", () => {
     const placed = layoutCompose(
       [
-        thread("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV", "bar"),
-        thread("ses_01ARZ3NDEKTSV4RRFFQ69G5FAW", "bar"),
+        chat("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV", "bar"),
+        chat("ses_01ARZ3NDEKTSV4RRFFQ69G5FAW", "bar"),
       ],
       2000,
       () => true,
@@ -87,9 +87,9 @@ describe("layoutCompose", () => {
     ]);
   });
 
-  it("lays a thread's small view at its own width beside a draft's window", () => {
+  it("lays a chat's small view at its own width beside a draft's window", () => {
     const placed = layoutCompose(
-      [draft("a"), thread("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ1"), draft("b", "bar")],
+      [draft("a"), chat("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ1"), draft("b", "bar")],
       2000,
     );
     expect(placed.map((entry) => [idOf(entry), entry.right])).toEqual([
@@ -103,17 +103,17 @@ describe("layoutCompose", () => {
         COMPOSE_EDGE_GAP +
           COMPOSE_BAR_WIDTH +
           COMPOSE_GAP +
-          THREAD_WINDOW_WIDTH +
+          CHAT_WINDOW_WIDTH +
           COMPOSE_GAP,
       ],
     ]);
   });
 
-  it("puts a thread down to a bar of the same width as a draft's", () => {
+  it("puts a chat down to a bar of the same width as a draft's", () => {
     const placed = layoutCompose(
       [
-        thread("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ2", "bar"),
-        thread("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ3", "bar"),
+        chat("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ2", "bar"),
+        chat("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ3", "bar"),
       ],
       2000,
     );
@@ -143,10 +143,10 @@ describe("layoutCompose", () => {
   });
 
   it("folds a chat window's rail to its marks where its pictures do not fit", () => {
-    const chat = thread("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ2");
+    const open = chat("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ2");
     const at = (width: number) =>
-      layoutCompose([draft("a"), chat], width, (entry) => entry.kind === "thread")
-        .filter((entry) => entry.kind === "thread")
+      layoutCompose([draft("a"), open], width, (entry) => entry.kind === "chat")
+        .filter((entry) => entry.kind === "chat")
         .map(({ isRailCompact, width: placedWidth }) => ({
           isRailCompact,
           width: placedWidth,
@@ -176,7 +176,7 @@ describe("layoutCompose", () => {
   });
 
   it("folds a grown chat window's rail once its view and conversation are short of room", () => {
-    const grown = thread("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ2", "expanded");
+    const grown = chat("ses_01J8ZZZZZZZZZZZZZZZZZZZZZ2", "expanded");
     const folds = (width: number) =>
       layoutCompose([grown], width, () => true)[0]?.isRailCompact === true;
     expect([folds(1200), folds(800)]).toEqual([false, true]);

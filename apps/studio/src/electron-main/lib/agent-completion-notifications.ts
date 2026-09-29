@@ -26,10 +26,10 @@ const MAX_NOTIFICATION_BODY_LENGTH = 200;
 // handlers stay alive.
 const liveNotifications = new Set<Notification>();
 
-type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
-type Thread = InferRouterOutputs<
+type Chat = InferRouterOutputs<
   typeof workspaceRouter
->["orchestrator"]["threads"]["list"][number];
+>["orchestrator"]["chats"]["list"][number];
+type Messages = InferRouterOutputs<typeof workspaceRouter>["message"]["list"];
 
 export function shouldShowAgentCompletionNotification({
   isAppWindowFocused,
@@ -79,8 +79,8 @@ export function startAgentCompletionNotifications({
    */
   revealTask: (task: {
     id: TaskId;
-    /** A thread of the conversation, which the inbox lists by its session. */
-    isThread: boolean;
+    /** A chat of the conversation, which the inbox lists by its session. */
+    isChat: boolean;
     sessionId: StoreId.Session;
   }) => void;
   workspaceConfig: WorkspaceConfig;
@@ -103,16 +103,16 @@ export function startAgentCompletionNotifications({
     const context = { workspaceConfig, workspaceRef };
 
     let taskTitle = "Task complete";
-    let isThread = false;
+    let isChat = false;
     try {
       const task = await call(workspaceRouter.task.byId, { id }, { context });
-      // A task the conversation started reports into its thread, and the
-      // thread's reply is the news; a notification for each would say the
+      // A task the conversation started reports into its chat, and the
+      // chat's reply is the news; a notification for each would say the
       // same thing twice, the first time in words meant for the conversation.
       if (task.parentTaskId !== undefined) {
         return;
       }
-      isThread = task.kind === "orchestrator";
+      isChat = task.kind === "orchestrator";
       taskTitle = task.title;
     } catch (error) {
       logger
@@ -127,29 +127,27 @@ export function startAgentCompletionNotifications({
         { id, sessionId },
         { context },
       );
-      body = isThread
-        ? latestTurnText(messages)
-        : latestAssistantText(messages);
+      body = isChat ? latestTurnText(messages) : latestAssistantText(messages);
     } catch (error) {
       logger
         .scope("agentCompletionNotifications")
         .warn("Failed to read agent response for notification", error);
     }
-    if (isThread) {
-      // A thread's turn that said nothing (a task steered, a note read) is not
+    if (isChat) {
+      // A chat's turn that said nothing (a task steered, a note read) is not
       // a reply, and the user was not waiting on it.
       if (body === undefined) {
         return;
       }
-      const thread = await threadOf({ context, sessionId });
-      // A reply while a task of the thread's is still at work is a step on
+      const chat = await chatOf({ context, sessionId });
+      // A reply while a task of the chat's is still at work is a step on
       // the way: the line said before a hand-off, a task sent back. The news
-      // is the reply that leaves the thread at rest, with nothing of its own
+      // is the reply that leaves the chat at rest, with nothing of its own
       // running and the next move the user's.
-      if (thread?.state === "working") {
+      if (chat?.state === "working") {
         return;
       }
-      taskTitle = thread?.title ?? taskTitle;
+      taskTitle = chat?.title ?? taskTitle;
     }
 
     // Reading the task is asynchronous, so the window may have regained
@@ -161,18 +159,18 @@ export function startAgentCompletionNotifications({
     presentNotification({
       body,
       onClick: () => {
-        revealTask({ id, isThread, sessionId });
+        revealTask({ id, isChat, sessionId });
       },
       title: taskTitle,
     });
   }
 
   /**
-   * The thread as the inbox lists it: what its reply is filed under, and
+   * The chat as the inbox lists it: what its reply is filed under, and
    * whether it is still at work, read once its own turn has ended so only its
    * tasks count.
    */
-  async function threadOf({
+  async function chatOf({
     context,
     sessionId,
   }: {
@@ -181,18 +179,18 @@ export function startAgentCompletionNotifications({
       workspaceRef: WorkspaceActorRef;
     };
     sessionId: StoreId.Session;
-  }): Promise<Thread | undefined> {
+  }): Promise<Chat | undefined> {
     try {
-      const threads = await call(
-        workspaceRouter.orchestrator.threads.list,
+      const chats = await call(
+        workspaceRouter.orchestrator.chats.list,
         undefined,
         { context },
       );
-      return threads.find((thread) => thread.id === sessionId);
+      return chats.find((chat) => chat.id === sessionId);
     } catch (error) {
       logger
         .scope("agentCompletionNotifications")
-        .warn("Failed to read the thread for notification", error);
+        .warn("Failed to read the chat for notification", error);
       return undefined;
     }
   }
@@ -266,7 +264,7 @@ function latestAssistantText(messages: Messages): string | undefined {
 }
 
 /**
- * What a thread's turn said: every assistant message since the last thing
+ * What a chat's turn said: every assistant message since the last thing
  * that woke it, since a turn is one message per step and the words can sit
  * on a step before the last. Nothing when the turn only acted.
  */

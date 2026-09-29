@@ -190,6 +190,6 @@ describe("task tab", () => {
         ...context,
         orchestratorTaskId: TaskIdSchema.parse("someone-else"),
       }),
-    ).rejects.toThrow(/"read-the-page" was started in another thread/);
+    ).rejects.toThrow(/"read-the-page" was started in another chat/);
   });
 });

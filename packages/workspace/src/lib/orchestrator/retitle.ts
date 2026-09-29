@@ -18,31 +18,31 @@ import { getTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
+import { chatIsWorking, settleChatTitle } from "./chats";
 import { lastAssistantTextIn } from "./latest-session";
-import { settleThreadTitle, threadIsWorking } from "./threads";
 
 /** How much of the latest reply the title call reads. */
 const REPLY_MAX = 600;
 
 /**
  * Below this chance that the subject has moved, an agent-given title is kept
- * without asking the title model. Threads that stayed on their subject came
- * back near 0.07 and threads that moved near 0.75, so 0.3 leaves room on both
+ * without asking the title model. Chats that stayed on their subject came
+ * back near 0.07 and chats that moved near 0.75, so 0.3 leaves room on both
  * sides and leans toward asking: a wrong keep leaves a stale title for good,
  * while a wrong ask only spends the call this exists to save.
  */
 const MOVED_BELOW = 0.3;
 
 /**
- * Names a thread again from its root and its latest reply, and says what it
+ * Names a chat again from its root and its latest reply, and says what it
  * is called now: the new title, the one it already had when the call agreed
- * with it, or nothing when the thread has no reply to be named from or no
+ * with it, or nothing when the chat has no reply to be named from or no
  * model to ask. `keep` asks the call to hold on to an agent-given title
  * unless the subject has moved, and asks the decision model first, so a
  * title it is confident still fits is kept without the call; without `keep`,
- * as on the user's own ask, the call names the thread afresh.
+ * as on the user's own ask, the call names the chat afresh.
  */
-export async function retitleThread({
+export async function retitleChat({
   id,
   keep = false,
   parentSessionId,
@@ -134,19 +134,19 @@ export async function retitleThread({
 }
 
 /**
- * Names a thread once more, when its first exchange has settled.
+ * Names a chat once more, when its first exchange has settled.
  *
  * The title is written from the opening message, before anything has been
- * done; by the time the thread's agent and every task it filed have stopped,
- * the work has said what it is about, so the thread is named again from the
+ * done; by the time the chat's agent and every task it filed have stopped,
+ * the work has said what it is about, so the chat is named again from the
  * root and the latest reply. That is the whole of it: a title that kept
  * moving would be one the user loses in the list, so after the first settle,
- * or once the user has named the thread themselves, only the user renames it. A turn that leaves something of
- * the thread's still working (a hand-off, a task's report while another
+ * or once the user has named the chat themselves, only the user renames it. A turn that leaves something of
+ * the chat's still working (a hand-off, a task's report while another
  * runs) waits for the one that settles it, the same moment a notification
  * treats as news.
  */
-export function startThreadRetitle(): void {
+export function startChatRetitle(): void {
   void (async () => {
     for await (const payload of publisher.subscribe("session.done")) {
       try {
@@ -159,7 +159,7 @@ export function startThreadRetitle(): void {
 }
 
 /**
- * Whether a title the agent gave still names the thread, asked of the
+ * Whether a title the agent gave still names the chat, asked of the
  * decision model before the title model is: one yes-or-no on whether the
  * subject has moved, a few hundred milliseconds and a fraction of a cent
  * against a full title call. Only a confident no keeps the title. No
@@ -186,8 +186,8 @@ export async function titleStillFits({
           moved: {
             criteria: {
               false:
-                "The title still fits the thread, even if the work narrowed or progressed",
-              true: "The title names something the thread has moved on from, or misses what it is now mainly about",
+                "The title still fits the chat, even if the work narrowed or progressed",
+              true: "The title names something the chat has moved on from, or misses what it is now mainly about",
             },
             instructions:
               "Has the conversation's subject moved away from what `current_title` names, so that the title no longer describes it?",
@@ -240,11 +240,11 @@ async function retitleOnSettle({
   if (session.isErr() || session.value.titleSettledAt) {
     return;
   }
-  if (await threadIsWorking(sessionId)) {
+  if (await chatIsWorking(sessionId)) {
     return;
   }
-  const title = await retitleThread({ id, keep: true, sessionId });
+  const title = await retitleChat({ id, keep: true, sessionId });
   if (title !== undefined) {
-    await settleThreadTitle(sessionId);
+    await settleChatTitle(sessionId);
   }
 }

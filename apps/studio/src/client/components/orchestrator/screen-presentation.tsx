@@ -1,6 +1,6 @@
 import {
+  CHATS_HREF,
   NEW_TAB_HREF,
-  THREADS_HREF,
   WEB_HREF,
 } from "@/client/atoms/orchestrator";
 import {
@@ -32,16 +32,16 @@ import { parseHref } from "./window-tabs";
  */
 interface ScreenNames {
   appsBySlug: Map<string, { name: string; site: string | undefined }>;
+  /** Each chat's title by its session, for a tab standing on one; a chat not in it is a "Chat". */
+  chatTitles?: Map<StoreId.Session, string>;
   /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
   taskTitles?: Map<TaskId, string>;
-  /** Each thread's title by its session, for a tab standing on one; a chat not in it is a "Chat". */
-  threadTitles?: Map<StoreId.Session, string>;
 }
 
 /** Where a screen tab is, in the terms the row above it says a place in. */
 export function screenLocation(
   href: string,
-  { appsBySlug, taskTitles, threadTitles }: ScreenNames,
+  { appsBySlug, chatTitles, taskTitles }: ScreenNames,
 ): TabLocation {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -87,14 +87,14 @@ export function screenLocation(
   if (pathname === SKILLS_HREF) {
     return { kind: "skills" };
   }
-  if (pathname.startsWith(`${THREADS_HREF}/`)) {
-    return { kind: "thread", title: threadTitleOf(pathname, threadTitles) };
+  if (pathname.startsWith(`${CHATS_HREF}/`)) {
+    return { kind: "chat", title: chatTitleOf(pathname, chatTitles) };
   }
   const tasks = tasksOfHref(href);
   if (tasks?.task !== undefined) {
     return {
       kind: "task",
-      ...(tasks.thread === undefined ? {} : { thread: tasks.thread }),
+      ...(tasks.chat === undefined ? {} : { chat: tasks.chat }),
       title: taskTitles?.get(tasks.task) ?? "Task",
     };
   }
@@ -109,7 +109,7 @@ export function screenLocation(
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(
   href: string,
-  { appsBySlug, taskTitles, threadTitles }: ScreenNames,
+  { appsBySlug, chatTitles, taskTitles }: ScreenNames,
 ): { icon: ReactNode; title: string } {
   const { pathname, search } = parseHref(href);
   if (pathname === NEW_TAB_HREF) {
@@ -135,10 +135,10 @@ export function screenPresentation(
       title: folderTitle(search),
     };
   }
-  if (pathname.startsWith(`${THREADS_HREF}/`)) {
+  if (pathname.startsWith(`${CHATS_HREF}/`)) {
     return {
       icon: <ChatTeardropTextIcon className="size-3.5" />,
-      title: threadTitleOf(pathname, threadTitles),
+      title: chatTitleOf(pathname, chatTitles),
     };
   }
   if (pathname.startsWith("/orchestrator/apps/")) {
@@ -191,6 +191,14 @@ export function screenPresentation(
   return { icon: <MagnifyingGlassIcon className="size-3.5" />, title: "Tab" };
 }
 
+/** The chat a screen address stands on, by the title the window has for it. */
+function chatTitleOf(pathname: string, chatTitles: ScreenNames["chatTitles"]) {
+  const id = StoreId.SessionSchema.safeParse(
+    pathname.slice(`${CHATS_HREF}/`.length),
+  );
+  return (id.success ? chatTitles?.get(id.data) : undefined) ?? "Chat";
+}
+
 /**
  * The folder a folder tab's address stands in: the root the browser is rooted
  * at, and the walk below it, as one path. The home folder stays `~`, which is
@@ -238,15 +246,4 @@ function skillNameOf(pathname: string) {
     // Not valid encoding, so the segment is the name as written.
   }
   return name.slice(name.lastIndexOf(":") + 1);
-}
-
-/** The thread a screen address stands on, by the title the window has for it. */
-function threadTitleOf(
-  pathname: string,
-  threadTitles: ScreenNames["threadTitles"],
-) {
-  const id = StoreId.SessionSchema.safeParse(
-    pathname.slice(`${THREADS_HREF}/`.length),
-  );
-  return (id.success ? threadTitles?.get(id.data) : undefined) ?? "Chat";
 }

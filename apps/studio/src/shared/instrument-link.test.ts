@@ -17,10 +17,18 @@ describe("instrumentLinkOf", () => {
       },
     ],
     [
+      "instrument://chat/ses_01J9",
+      {
+        href: "/orchestrator/chats/ses_01J9",
+        kind: "chat",
+        name: "ses_01J9",
+      },
+    ],
+    [
       "instrument://thread/ses_01J9",
       {
-        href: "/orchestrator/threads/ses_01J9",
-        kind: "thread",
+        href: "/orchestrator/chats/ses_01J9",
+        kind: "chat",
         name: "ses_01J9",
       },
     ],
@@ -93,7 +101,7 @@ describe("instrumentLinkOf", () => {
 describe("instrumentUrlOf", () => {
   it.each([
     ["/orchestrator/tasks/lisbon-hotel", "instrument://task/lisbon-hotel"],
-    ["/orchestrator/threads/ses_01J9", "instrument://thread/ses_01J9"],
+    ["/orchestrator/chats/ses_01J9", "instrument://chat/ses_01J9"],
     ["/orchestrator/memory/no-stevia", "instrument://memory/no-stevia"],
     ["/orchestrator/apps/linear", "instrument://app/linear"],
     ["/orchestrator/skills/create-page", "instrument://skill/create-page"],
@@ -103,7 +111,7 @@ describe("instrumentUrlOf", () => {
     ],
     ["/orchestrator/ideas/timeline", "instrument://discover/timeline"],
     ["/orchestrator/ideas", "instrument://discover"],
-    ["/orchestrator/threads/ses_01J9?tab=1", "instrument://thread/ses_01J9"],
+    ["/orchestrator/chats/ses_01J9?tab=1", "instrument://chat/ses_01J9"],
   ])("writes %s as %s", (href, url) => {
     expect(instrumentUrlOf(href)).toBe(url);
   });
@@ -126,11 +134,17 @@ describe("instrumentUrlOf", () => {
 
 describe("filePathOfInstrumentLink", () => {
   it.each([
-    ["instrument://file//mnt/Journal/2026-09-23.md", "/mnt/Journal/2026-09-23.md"],
-    ["instrument://file/mnt/Journal/2026-09-23.md", "/mnt/Journal/2026-09-23.md"],
+    [
+      "instrument://file//mnt/Journal/2026-09-23.md",
+      "/mnt/Journal/2026-09-23.md",
+    ],
+    [
+      "instrument://file/mnt/Journal/2026-09-23.md",
+      "/mnt/Journal/2026-09-23.md",
+    ],
     ["instrument://File/mnt/My%20Notes/a.md", "/mnt/My Notes/a.md"],
     ["instrument://file/", undefined],
-    ["instrument://thread/ses_01", undefined],
+    ["instrument://chat/ses_01", undefined],
     ["https://file/mnt/a.md", undefined],
   ])("%s", (url, path) => {
     expect(filePathOfInstrumentLink(url)).toBe(path);

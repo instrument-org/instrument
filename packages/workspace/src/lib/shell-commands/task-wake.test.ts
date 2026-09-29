@@ -115,6 +115,6 @@ describe("task wake", () => {
         ...context,
         orchestratorTaskId: TaskIdSchema.parse("someone-else"),
       }),
-    ).rejects.toThrow(/"audit-the-runtime" was started in another thread/);
+    ).rejects.toThrow(/"audit-the-runtime" was started in another chat/);
   });
 });

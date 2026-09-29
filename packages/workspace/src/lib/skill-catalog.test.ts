@@ -158,7 +158,10 @@ describe("renderSkillCatalog", () => {
     const namesOnly = renderSkillCatalog(
       [...bundled, ...others].map((entry) => ({ ...entry, description: "" })),
     ).xml.length;
-    const catalog = renderSkillCatalog([...bundled, ...others], namesOnly + 500);
+    const catalog = renderSkillCatalog(
+      [...bundled, ...others],
+      namesOnly + 500,
+    );
 
     expect(
       catalog.entries.map((entry) => [entry.name, entry.description.length]),

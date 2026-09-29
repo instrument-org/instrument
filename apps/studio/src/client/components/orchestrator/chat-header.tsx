@@ -16,46 +16,42 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
-import {
-  type ComponentProps,
-  type ReactNode,
-  useRef,
-  useState,
-} from "react";
+import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 
+import { chatMenuGroups, useChatActions } from "./chat-actions";
+import { TopicPill } from "./chat-row";
+import { ChatTitle } from "./chat-title";
+import { type Chat, type Topic } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { type RowAction } from "./row-shell";
-import { threadMenuGroups, useThreadActions } from "./thread-actions";
-import { TopicPill } from "./thread-row";
-import { ThreadTitle } from "./thread-title";
-import { type Thread, type Topic } from "./threads";
 import { TopicPicker } from "./topic-picker";
-import { type ThreadRename, useThreadRename } from "./use-thread-rename";
+import { type ChatRename, useChatRename } from "./use-chat-rename";
 
 /**
- * The head over a thread's conversation, the way a task's page heads its
- * chat: its title at the left, which renames the thread when clicked, the
- * topics it is filed under after it, and the thread's own menu hugging them,
+ * The head over a chat's conversation, the way a task's page heads its
+ * chat: its title at the left, which renames the chat when clicked, the
+ * topics it is filed under after it, and the chat's own menu hugging them,
  * and at the right the glyph that pops the conversation out into its small
  * view in the corner (lit while it is out, when pressing it brings the
- * conversation back), then the pane toggle while the pane is closed. No way out of the thread here: the
- * thread stays beside the inbox until the inbox is dragged over it. Nothing
+ * conversation back), then the pane toggle while the pane is closed. No way out of the chat here: the
+ * chat stays beside the inbox until the inbox is dragged over it. Nothing
  * under the head but air: the transcript starts below.
  */
-export function ThreadHeader({
+export function ChatHeader({
+  chat,
   leading,
   onDeleted,
   onNewTopic,
   onSetTopics,
   onViewTasks,
   popOut,
-  thread,
   topics,
   trailing,
 }: {
+  chat: Chat | undefined;
   /** What sits ahead of the title: the toggle that puts the inbox away. */
   leading?: ReactNode;
-  /** Told once the thread has been deleted, so the window can put it away. */
+  /** Told once the chat has been deleted, so the window can put it away. */
   onDeleted: () => void;
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewTopic: (name?: string) => void;
@@ -64,7 +60,6 @@ export function ThreadHeader({
   onViewTasks?: () => void;
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
   popOut?: { isOut: boolean; onToggle: () => void };
-  thread: Thread | undefined;
   topics: Topic[];
   /** What sits at the head's right: the pane toggle while the pane is closed. */
   trailing?: ReactNode;
@@ -72,25 +67,25 @@ export function ThreadHeader({
   const [isDeleting, setDeleting] = useState(false);
   return (
     <div className="flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
-      {thread && (
+      {chat && (
         <DeleteChatDialog
+          chat={chat}
           onDeleted={onDeleted}
           onOpenChange={setDeleting}
           open={isDeleting}
-          thread={thread}
         />
       )}
       <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2 select-none">
         {leading}
-        {thread ? (
-          <ThreadHeading
+        {chat ? (
+          <ChatHeading
+            chat={chat}
             menu={{ onViewTasks }}
             onDelete={() => {
               setDeleting(true);
             }}
             onNewTopic={onNewTopic}
             onSetTopics={onSetTopics}
-            thread={thread}
             titleClassName="text-sm font-medium"
             topics={topics}
           />
@@ -133,57 +128,57 @@ export function ThreadHeader({
  * on a narrow head the topics stand as their marks alone, and nothing is
  * ever drawn over the menu.
  */
-export function ThreadHeading({
+export function ChatHeading({
+  chat,
   menu,
   onDelete,
   onNewTopic,
   onSetTopics,
-  thread,
   titleClassName,
   topics,
 }: {
+  chat: Chat;
   /** What the menu offers beyond what every head's does. */
   menu: Pick<
-    ComponentProps<typeof ThreadMenu>,
+    ComponentProps<typeof ChatMenu>,
     "onArchived" | "onOpenInChats" | "onViewTasks"
   >;
   onDelete: () => void;
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewTopic: (name?: string) => void;
   onSetTopics: (topics: string[]) => void;
-  thread: Thread;
   /** The type the title is set in, which its rename field takes too. */
   titleClassName: string;
   topics: Topic[];
 }) {
-  // Every topic the thread is filed under, in the order it was filed.
-  const filed = thread.topics.flatMap((id) => {
+  // Every topic the chat is filed under, in the order it was filed.
+  const filed = chat.topics.flatMap((id) => {
     const topic = topics.find((entry) => entry.id === id);
     return topic ? [topic] : [];
   });
-  const rename = useThreadRename(thread);
+  const rename = useChatRename(chat);
   const [topicsOpen, setTopicsOpen] = useState(false);
   return (
     <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
       <h2 className="flex min-w-0">
-        <ThreadTitle
+        <ChatTitle
           className={titleClassName}
           rename={rename}
-          title={thread.title}
+          title={chat.title}
         />
       </h2>
       {/* Pressing them, or the slot while there are none, opens the topic
           picker every filing shares. */}
       <TopicPicker
-        chosen={new Set(thread.topics)}
+        chosen={new Set(chat.topics)}
         isOpen={topicsOpen}
         onNew={onNewTopic}
         onOpenChange={setTopicsOpen}
         onToggle={(id) => {
           onSetTopics(
-            thread.topics.includes(id)
-              ? thread.topics.filter((entry) => entry !== id)
-              : [...thread.topics, id],
+            chat.topics.includes(id)
+              ? chat.topics.filter((entry) => entry !== id)
+              : [...chat.topics, id],
           );
         }}
         topics={topics}
@@ -208,34 +203,35 @@ export function ThreadHeading({
           </button>
         )}
       </TopicPicker>
-      <ThreadMenu
+      <ChatMenu
         {...menu}
+        chat={chat}
         onDelete={onDelete}
         onEditTopics={() => {
           setTopicsOpen(true);
         }}
         rename={rename}
-        thread={thread}
       />
     </div>
   );
 }
 
 /**
- * The thread's own menu, beside its title: the inbox row's menu in the same
- * groups and order (see `threadMenuGroups`), with renaming it, which opens
+ * The chat's own menu, beside its title: the inbox row's menu in the same
+ * groups and order (see `chatMenuGroups`), with renaming it, which opens
  * the title's field, and its tasks among the ways to organize it, and
  * deleting it at the foot. Its topics are the pills beside the title.
  */
-export function ThreadMenu({
+export function ChatMenu({
+  chat,
   onArchived,
   onDelete,
   onEditTopics,
   onOpenInChats,
   onViewTasks,
   rename,
-  thread,
 }: {
+  chat: Chat;
   /** After the chat is archived from this menu, for a head that should go with it. */
   onArchived?: () => void;
   onDelete: () => void;
@@ -245,10 +241,9 @@ export function ThreadMenu({
   onOpenInChats?: () => void;
   /** Opens the chat's tasks, when the head can reach them. */
   onViewTasks?: () => void;
-  rename: ThreadRename;
-  thread: Thread;
+  rename: ChatRename;
 }) {
-  const groups = threadMenuGroups(useThreadActions(thread));
+  const groups = chatMenuGroups(useChatActions(chat));
   const item = (action: RowAction) => (
     <DropdownMenuItem key={action.id} onSelect={action.run}>
       {action.icon}

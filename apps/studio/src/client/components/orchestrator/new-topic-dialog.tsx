@@ -101,7 +101,7 @@ export function EditTopicDialog({
 }
 
 /**
- * Making a topic, which is a tag rather than a place: threads are filed under
+ * Making a topic, which is a tag rather than a place: chats are filed under
  * it and the list is filtered by it. Worth a moment, and nothing here can be
  * got wrong permanently, since the topic's details rename and re-mark it.
  */
@@ -152,7 +152,7 @@ export function NewTopicDialog({
 const FITS_NAMED = 3;
 
 /**
- * Deleting a topic, behind a confirmation: the tag goes, and the threads
+ * Deleting a topic, behind a confirmation: the tag goes, and the chats
  * filed under it keep everything else they have.
  */
 function DeleteTopicButton({
@@ -176,7 +176,7 @@ function DeleteTopicButton({
         <AlertDialogHeader>
           <AlertDialogTitle>{`Delete “${name}”?`}</AlertDialogTitle>
           <AlertDialogDescription>
-            Threads filed under it keep everything; they lose the tag.
+            Chats filed under it keep everything; they lose the tag.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

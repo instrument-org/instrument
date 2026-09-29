@@ -17,8 +17,8 @@ import { getTaskSettings, recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
-import { threadOfTask } from "./attribution";
-import { listChatIds } from "./chats";
+import { chatOfTask } from "./attribution";
+import { listChatIds } from "./chat-records";
 import { taskFolderHoldings } from "./folder-holdings";
 import {
   cutForNote,
@@ -131,7 +131,7 @@ const pending = new Map<
 
 /**
  * Whether a task's finish is waiting out the debounce before its wake is
- * written. The thread it was filed from is still at work in that gap: its task
+ * written. The chat it was filed from is still at work in that gap: its task
  * has stopped and its own agent has not started on the news yet.
  */
 export function hasPendingWake(orchestratorId: TaskId, taskId: TaskId) {
@@ -240,21 +240,21 @@ async function deliver(
   events: TaskEvent[],
   workspaceRef: WorkspaceActorRef,
 ) {
-  // A task reports into the thread it was filed from, so a batch that spans
-  // threads becomes one wake each rather than one message in whichever
-  // thread happens to be newest.
-  const byThread = new Map<string, TaskEvent[]>();
+  // A task reports into the chat it was filed from, so a batch that spans
+  // chats becomes one wake each rather than one message in whichever
+  // chat happens to be newest.
+  const byChat = new Map<string, TaskEvent[]>();
   const sessions = new Map<string, StoreId.Session | undefined>();
   for (const event of events) {
-    const sessionId = await threadOfTask(event.taskId);
+    const sessionId = await chatOfTask(event.taskId);
     const key = sessionId ?? "";
     sessions.set(key, sessionId);
-    byThread.set(key, [...(byThread.get(key) ?? []), event]);
+    byChat.set(key, [...(byChat.get(key) ?? []), event]);
   }
-  for (const [key, threadEvents] of byThread) {
+  for (const [key, chatEvents] of byChat) {
     await wakeWith(
       orchestratorId,
-      { data: { events: threadEvents }, type: "data-taskEvent" },
+      { data: { events: chatEvents }, type: "data-taskEvent" },
       workspaceRef,
       sessions.get(key),
     );
@@ -459,8 +459,8 @@ async function wakeWith(
   orchestratorId: TaskId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
-  /** The thread to wake in; the newest one when a caller has no thread. */
-  threadId?: StoreId.Session,
+  /** The chat to wake in; the newest one when a caller has no chat. */
+  chatSessionId?: StoreId.Session,
 ) {
   const workspaceConfig = getWorkspaceConfig();
   const state = await getTaskState(taskDir(orchestratorId));
@@ -483,7 +483,7 @@ async function wakeWith(
   if (session.isErr()) {
     throw session.error;
   }
-  const sessionId = threadId ?? session.value;
+  const sessionId = chatSessionId ?? session.value;
 
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();

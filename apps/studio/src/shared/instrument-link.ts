@@ -16,25 +16,28 @@ export interface InstrumentLink {
  */
 type InstrumentLinkKind =
   | "app"
+  | "chat"
   | "idea"
   | "ideas"
   | "memory"
   | "skill"
-  | "task"
-  | "thread";
+  | "task";
 
 /**
  * The nouns an address may lead with, each with the screen prefix its thing
  * lives under. `discover` is the website's word for the Ideas screen and
- * stays as the site wrote it into its "Try in Instrument" links.
+ * stays as the site wrote it into its "Try in Instrument" links. `thread` is
+ * what a chat was called when older replies linked one, and those replies
+ * are still in transcripts.
  */
 const HOSTS = {
   app: { kind: "app", prefix: "/orchestrator/apps" },
+  chat: { kind: "chat", prefix: "/orchestrator/chats" },
   discover: { kind: "idea", prefix: "/orchestrator/ideas" },
   memory: { kind: "memory", prefix: "/orchestrator/memory" },
   skill: { kind: "skill", prefix: "/orchestrator/skills" },
   task: { kind: "task", prefix: "/orchestrator/tasks" },
-  thread: { kind: "thread", prefix: "/orchestrator/threads" },
+  thread: { kind: "chat", prefix: "/orchestrator/chats" },
 } as const satisfies Record<
   string,
   { kind: InstrumentLinkKind; prefix: string }
@@ -48,7 +51,7 @@ const isHost = (host: string): host is Host => host in HOSTS;
  * A name as it may appear in an address: one path segment of the characters
  * every kind's names are made of, which for a skill includes the colon its
  * qualified name carries (`instrument:create-page`). What it names is the
- * opener's question; a deleted memory or a task from a thread since closed
+ * opener's question; a deleted memory or a task from a chat since closed
  * is still an address.
  */
 const NAME = /^[\w.:-]+$/;
@@ -63,7 +66,7 @@ const SCHEMES = new Set([`${APP_NAME_SLUG}:`, `${APP_PROTOCOL}:`]);
 /**
  * The file path an `instrument://file/<path>` address names, or undefined for
  * any other address. A file is handed over as a path, not as a place in the
- * window, but a reply taught to link tasks and threads this way reaches for
+ * window, but a reply taught to link tasks and chats this way reaches for
  * the same form for a file, and the path in it is the one it meant.
  */
 export function filePathOfInstrumentLink(url: string): string | undefined {

@@ -71,7 +71,7 @@ describe("memory", () => {
     `);
   });
 
-  it("saves from a heredoc, naming the thread, and lists it", async () => {
+  it("saves from a heredoc, naming the chat, and lists it", async () => {
     const saved = await run(
       ["save", "pacific-time"],
       "You are on Pacific time and mornings are best for calls.\n",

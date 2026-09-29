@@ -1,4 +1,4 @@
-import { THREADS_HREF } from "@/client/atoms/orchestrator";
+import { CHATS_HREF } from "@/client/atoms/orchestrator";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { Favicon } from "@/client/components/favicon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -109,7 +109,7 @@ function anyPrompt(entry: string) {
 
 Open ${entry}; if that is a name rather than an address, find the service and open it. If it turns out not to be a service I can sign in to and ask, say so rather than guessing. Check I am signed in, and if I am not, say so and wait for me. Then ask it in a chat to list everything it remembers about me, including anything it has saved about my preferences, my work, and how I like answers written, and read the whole reply.
 
-Bring what it says back to this thread and save the durable facts here as memories, one fact each, in my words where you can. Skip anything that was only about one old conversation, anything you already remember about me, and anything sensitive such as keys, passwords, or payment details. Tell me what you saved and what you left out.`;
+Bring what it says back to this chat and save the durable facts here as memories, one fact each, in my words where you can. Skip anything that was only about one old conversation, anything you already remember about me, and anything sensitive such as keys, passwords, or payment details. Tell me what you saved and what you left out.`;
 }
 
 /**
@@ -157,16 +157,16 @@ function AnySource({ onStart }: { onStart: (entry: string) => void }) {
 }
 
 /**
- * The thread a memory was learned in, as a door to it.
+ * The chat a memory was learned in, as a door to it.
  *
- * Only where threads are a thing that can be opened. Elsewhere the title is
+ * Only where chats are a thing that can be opened. Elsewhere the title is
  * the name of something the reader cannot get to from here, which is worth
  * less than the room it takes.
  */
-function FromThread({ from }: { from: NonNullable<Memory["from"]> }) {
+function FromChat({ from }: { from: NonNullable<Memory["from"]> }) {
   const closeSettings = useSetAtom(settingsModalAtom);
   const gestures = useOpenGestures({
-    href: `${THREADS_HREF}/${from.sessionId ?? ""}`,
+    href: `${CHATS_HREF}/${from.sessionId ?? ""}`,
     kind: "screen",
   });
   const open = gestures.destinations.find((entry) => entry.id === "open");
@@ -516,7 +516,7 @@ function MemoryRow({
         <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
           {memory.from && (
             <>
-              <FromThread from={memory.from} />
+              <FromChat from={memory.from} />
               <span aria-hidden>·</span>
             </>
           )}
@@ -626,5 +626,5 @@ function webPrompt({ name, site }: { name: string; site: string }) {
 
 Open ${site} and check I am signed in; if I am not, say so and wait for me rather than guessing. Then ask ${name} in a chat to list everything it remembers about me, including anything it has saved about my preferences, my work, and how I like answers written, and read the whole reply.
 
-Bring what it says back to this thread and save the durable facts here as memories, one fact each, in my words where you can. Skip anything that was only about one old conversation, anything you already remember about me, and anything sensitive such as keys, passwords, or payment details. Tell me what you saved and what you left out.`;
+Bring what it says back to this chat and save the durable facts here as memories, one fact each, in my words where you can. Skip anything that was only about one old conversation, anything you already remember about me, and anything sensitive such as keys, passwords, or payment details. Tell me what you saved and what you left out.`;
 }

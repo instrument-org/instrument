@@ -410,6 +410,11 @@ function locationMark(location: TabLocation): ReactNode {
         <AppWindowIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
+    case "chat": {
+      return (
+        <ChatTeardropTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
     case "file": {
       // A file wears its own type's mark, the way a site wears a favicon: it
       // is the one thing about a file you can tell before opening it.
@@ -457,11 +462,6 @@ function locationMark(location: TabLocation): ReactNode {
         <ListChecksIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
-    case "thread": {
-      return (
-        <ChatTeardropTextIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      );
-    }
   }
 }
 
@@ -473,6 +473,9 @@ function locationText(location: TabLocation) {
     }
     case "apps": {
       return "Apps";
+    }
+    case "chat": {
+      return location.title;
     }
     case "file":
     case "folder": {
@@ -501,9 +504,6 @@ function locationText(location: TabLocation) {
     }
     case "tasks": {
       return "Tasks";
-    }
-    case "thread": {
-      return location.title;
     }
   }
 }

@@ -1,4 +1,4 @@
-import { ThreadTasksScreen } from "@/client/components/orchestrator/thread-tasks-view";
+import { ChatTasksScreen } from "@/client/components/orchestrator/chat-tasks-view";
 import { StoreId } from "@instrument-org/workspace/client";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
@@ -8,14 +8,12 @@ export const Route = createFileRoute("/orchestrator/tasks/")({
   component: TasksRoute,
   validateSearch: z.object({
     /** The chat whose tasks alone are listed, by session id; every task otherwise. */
-    thread: z.string().optional(),
+    chat: z.string().optional(),
   }),
 });
 
 function TasksRoute() {
-  const { thread } = Route.useSearch();
-  const parsed = StoreId.SessionSchema.safeParse(thread);
-  return (
-    <ThreadTasksScreen thread={parsed.success ? parsed.data : undefined} />
-  );
+  const { chat } = Route.useSearch();
+  const parsed = StoreId.SessionSchema.safeParse(chat);
+  return <ChatTasksScreen chat={parsed.success ? parsed.data : undefined} />;
 }

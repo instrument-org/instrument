@@ -64,7 +64,7 @@ export interface WorkspaceLayoutMigration {
   conflictedTaskIds: string[];
   movedTaskCount: number;
   // Chrome profile clones deleted, each a recursive delete of a few hundred MB
-  // on the thread that owns the window. Reported so a boot that stalls on one
+  // on the chat that owns the window. Reported so a boot that stalls on one
   // says so rather than looking like a hang.
   removedBrowserProfileCloneCount: number;
 }

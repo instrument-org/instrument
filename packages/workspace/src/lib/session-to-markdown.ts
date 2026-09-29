@@ -283,7 +283,7 @@ export async function sessionToMarkdown(
     /**
      * What the transcript is headed with when the session has no name of its
      * own. A session's title names it among the task's other sessions (a
-     * thread's title, a later chat's), and a session that is the task's only
+     * chat's title, a later chat's), and a session that is the task's only
      * one keeps the placeholder it was created with, so the task's name is
      * the one a reader knows it by.
      */

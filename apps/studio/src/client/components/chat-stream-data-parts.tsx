@@ -92,11 +92,11 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // The reason an orchestrator woke, shown so a reply that follows nothing the
   // user typed has a visible cause.
   "data-taskEvent": "always",
-  // What the agent is told about the chat around its thread: the other
-  // threads at the moment this one opened, and the topics this one is filed
-  // under. Context for the model; the head of the thread is the user's copy.
-  "data-threadContext": "dev",
-  "data-threadTopics": "dev",
+  // What the agent is told about the chats around this one: the other
+  // chats at the moment this one opened, and the topics this one is filed
+  // under. Context for the model; the head of the chat is the user's copy.
+  "data-chatContext": "dev",
+  "data-chatTopics": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
 };
@@ -185,6 +185,34 @@ export function renderDataPart({
           compact={compact}
           key={part.metadata.id}
           text={browserStatusModelNote(part.data)}
+        />
+      );
+    }
+    case "data-chatContext": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={
+            part.data.chats.length === 0
+              ? "The first chat"
+              : `Other chats: ${part.data.chats.map((chat) => chat.title).join(" · ")}`
+          }
+        />
+      );
+    }
+    case "data-chatTopics": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={
+            part.data.topics.length === 0
+              ? "No topics on this chat"
+              : `Topics: ${part.data.topics.map((topic) => topic.name).join(", ")}`
+          }
         />
       );
     }
@@ -332,34 +360,6 @@ export function renderDataPart({
         return null;
       }
       return <TaskEventNote data={part.data} key={part.metadata.id} />;
-    }
-    case "data-threadContext": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={
-            part.data.threads.length === 0
-              ? "The first chat"
-              : `Other chats: ${part.data.threads.map((thread) => thread.title).join(" · ")}`
-          }
-        />
-      );
-    }
-    case "data-threadTopics": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={
-            part.data.topics.length === 0
-              ? "No topics on this chat"
-              : `Topics: ${part.data.topics.map((topic) => topic.name).join(", ")}`
-          }
-        />
-      );
     }
     case "data-unknown": {
       // Not a failure the reader can do anything about, so it stays a

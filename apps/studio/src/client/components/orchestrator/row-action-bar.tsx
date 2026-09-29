@@ -29,7 +29,7 @@ export function RowActionBar({
   density: RowDensity;
   /** Kept in the flow whatever the pointer does: while a menu of one of the controls is on its way out. */
   isHeld?: boolean;
-  /** The control in front of the actions: the one that files the thread. */
+  /** The control in front of the actions: the one that files the chat. */
   leading?: ReactNode;
 }) {
   const shown = actions.filter((action) => !action.menuOnly);

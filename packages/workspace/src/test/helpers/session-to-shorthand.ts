@@ -134,6 +134,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           : "";
       return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
     }
+    case "data-chatContext": {
+      return `<data-chatContext>${part.data.chats.map((chat) => chat.title).join(",")}</data-chatContext>`;
+    }
+    case "data-chatTopics": {
+      return `<data-chatTopics>${part.data.topics.map((topic) => topic.name).join(",")}</data-chatTopics>`;
+    }
     case "data-contextRollover": {
       const retained = ` retainedUserMessages="${part.data.retainedUserMessages}"`;
       const dropped = ` droppedMessages="${part.data.droppedMessages}"`;
@@ -221,12 +227,6 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .map((event) => `${event.taskId}:${event.status}`)
         .join(",");
       return `<data-taskEvent>${events}</data-taskEvent>`;
-    }
-    case "data-threadContext": {
-      return `<data-threadContext>${part.data.threads.map((thread) => thread.title).join(",")}</data-threadContext>`;
-    }
-    case "data-threadTopics": {
-      return `<data-threadTopics>${part.data.topics.map((topic) => topic.name).join(",")}</data-threadTopics>`;
     }
     case "data-unknown": {
       return `<data-unknown originalType="${part.data.originalType}" />`;

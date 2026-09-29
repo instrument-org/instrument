@@ -12,7 +12,7 @@ import {
   loadApp,
   readAppGuide,
 } from "../lib/apps/store";
-import { recordAppThread } from "../lib/orchestrator/attribution";
+import { recordAppChat } from "../lib/orchestrator/attribution";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";
@@ -116,8 +116,8 @@ export const ConnectApp = setupTool({
               : "needs-sign-in",
       });
       // What the user does on the card comes back as an app event with no
-      // thread of its own; this is what tells it which one asked.
-      await recordAppThread({ sessionId, slug });
+      // chat of its own; this is what tells it which one asked.
+      await recordAppChat({ sessionId, slug });
     }
     return ok({
       kind,

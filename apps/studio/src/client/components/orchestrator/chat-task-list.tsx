@@ -15,14 +15,14 @@ export interface TaskListItem {
 }
 
 /**
- * A thread's tasks, in the pane beside it: headed Tasks, newest first, one
+ * A chat's tasks, in the pane beside it: headed Tasks, newest first, one
  * row each with the title and when anything last happened at its right,
  * then the task's own line under it, the running step behind a brand dot in
  * the shimmer, what it waits on in amber, and how it ended otherwise. No day
- * heads, no filters, no search: a thread has a handful, and the row says
+ * heads, no filters, no search: a chat has a handful, and the row says
  * where each stands. A row pressed opens the task in the pane's place.
  */
-export function ThreadTaskList({
+export function ChatTaskList({
   items,
   onOpen,
 }: {

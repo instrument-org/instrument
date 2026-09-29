@@ -51,8 +51,8 @@ function chord(
 }
 
 const FILE_CHORDS: WindowChord[] = [
-  // Where mail keeps New Message: a draft of a new thread, at the corner.
-  chord("newThread"),
+  // Where mail keeps New Message: a draft of a new chat, at the corner.
+  chord("newChat"),
   chord("search", () => {
     // The chord reaches the menu when a page guest has the keyboard, since
     // its keys never reach the window's own renderer. The field is the
@@ -83,14 +83,11 @@ const TAB_CHORDS: WindowChord[] = [
 const VIEW_CHORDS: WindowChord[] = [chord("toggleInbox"), chord("editPage")];
 
 /**
- * Down and up the inbox from the thread on screen, in the order the list
+ * Down and up the inbox from the chat on screen, in the order the list
  * shows. Alt with the command key, since Alt and an arrow alone moves the
  * caret by a word in the composer.
  */
-const THREAD_CHORDS: WindowChord[] = [
-  chord("nextThread"),
-  chord("previousThread"),
-];
+const CHAT_CHORDS: WindowChord[] = [chord("nextChat"), chord("previousChat")];
 
 /**
  * The chords the main window's tab bar answers to, on whichever screen is up
@@ -143,7 +140,7 @@ const WINDOW_CHORDS = [
   ...FILE_CHORDS,
   ...VIEW_CHORDS,
   ...TAB_CHORDS,
-  ...THREAD_CHORDS,
+  ...CHAT_CHORDS,
   ...TAB_SWITCH_CHORDS,
   ...HISTORY_CHORDS,
 ];
@@ -192,9 +189,9 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
-  const threadsMenu: MenuItemConstructorOptions = {
+  const chatsMenu: MenuItemConstructorOptions = {
     label: "Chats",
-    submenu: menuItems(THREAD_CHORDS),
+    submenu: menuItems(CHAT_CHORDS),
   };
 
   const tabMenu: MenuItemConstructorOptions = {
@@ -227,7 +224,7 @@ export function createOrchestratorWindowMenu(): MenuItemConstructorOptions[] {
     fileMenu,
     createEditMenu(),
     viewMenu,
-    threadsMenu,
+    chatsMenu,
     tabMenu,
     historyMenu,
     createWindowMenu(),

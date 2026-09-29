@@ -1,7 +1,7 @@
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
 
 /**
- * The thread at work with nothing being typed: a task of its own is running,
+ * The chat at work with nothing being typed: a task of its own is running,
  * or its agent is between steps, and the next thing to land here is theirs.
  * Drawn at the transcript's tail where the reply will arrive, as the agent's
  * breathing dot and a line saying so, rather than as a bubble, since a bubble

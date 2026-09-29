@@ -18,7 +18,7 @@ import { createChatCommand } from "./chat";
 
 vi.mock(import("../session-store-storage"));
 
-// The list asks the machine which threads and tasks are at work; a test has
+// The list asks the machine which chats and tasks are at work; a test has
 // no machine, so nothing is.
 vi.mock(import("../orchestrator/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -35,7 +35,7 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 }));
 
 // Task state and sessions are real files under the mock workspace, so a task
-// id reused across runs would read the last run's threads.
+// id reused across runs would read the last run's chats.
 let counter = 0;
 /**
  * The window's record, in a workspace of its own: chats, topics and the
@@ -59,20 +59,8 @@ const freshTask = async () => {
   return taskId;
 };
 
-function run(...args: string[]) {
-  return createChatCommand().execute(
-    args,
-    createCommandContext({
-      cwd: "/task",
-      env: new Map<string, string>(),
-      fs: new InMemoryFs(),
-      stdin: EMPTY_BYTES,
-    }),
-  );
-}
-
-/** A thread: a session, the user's opening message, and one reply. */
-async function thread(title: string, ask: string, reply?: string) {
+/** A chat: a session, the user's opening message, and one reply. */
+async function chat(title: string, ask: string, reply?: string) {
   const sessionId = StoreId.newSessionId();
   const taskId = chatFor(sessionId);
   await Store.saveSession(
@@ -129,40 +117,52 @@ async function thread(title: string, ask: string, reply?: string) {
   return sessionId;
 }
 
-describe("chat threads", () => {
-  it("lists each thread with its state, title, topics and latest line", async () => {
+function run(...args: string[]) {
+  return createChatCommand().execute(
+    args,
+    createCommandContext({
+      cwd: "/task",
+      env: new Map<string, string>(),
+      fs: new InMemoryFs(),
+      stdin: EMPTY_BYTES,
+    }),
+  );
+}
+
+describe("chat list", () => {
+  it("lists each chat with its state, title, topics and latest line", async () => {
     await freshTask();
     await createTopic({ name: "Home" });
-    const groceries = await thread(
+    const groceries = await chat(
       "Groceries for the week",
       "make me a grocery list",
       "Starting the list.",
     );
-    const lisbon = await thread("Trip to Lisbon", "plan a trip");
+    const lisbon = await chat("Trip to Lisbon", "plan a trip");
     await run("tag", "groceries", "home");
 
-    const result = await run("threads");
+    const result = await run("list");
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
       `${groceries}  idle  "Groceries for the week"  #Home  Starting the list.\n${lisbon}  working  "Trip to Lisbon"  nothing yet\n`,
     );
 
-    const filtered = await run("threads", "--topic", "home");
+    const filtered = await run("list", "--topic", "home");
     expect(filtered.stdout).toContain("Groceries");
     expect(filtered.stdout).not.toContain("Lisbon");
   });
 });
 
 describe("chat read", () => {
-  it("reads a thread by words from its title", async () => {
+  it("reads a chat by words from its title", async () => {
     await freshTask();
-    await thread(
+    await chat(
       "Groceries for the week",
       "make me a grocery list",
       "Starting the list.",
     );
-    await thread("Trip to Lisbon", "plan a trip");
+    await chat("Trip to Lisbon", "plan a trip");
 
     const result = await run("read", "lisbon");
 
@@ -172,25 +172,25 @@ describe("chat read", () => {
     );
   });
 
-  it("lists the matches when the words fit more than one thread", async () => {
+  it("lists the matches when the words fit more than one chat", async () => {
     await freshTask();
-    await thread("Trip to Lisbon", "plan a trip");
-    await thread("Trip to Porto", "plan another trip");
+    await chat("Trip to Lisbon", "plan a trip");
+    await chat("Trip to Porto", "plan another trip");
 
     const result = await run("read", "trip");
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("matches 2 threads");
+    expect(result.stderr).toContain("matches 2 chats");
     expect(result.stderr).toContain("Trip to Lisbon");
     expect(result.stderr).toContain("Trip to Porto");
   });
 });
 
 describe("chat search", () => {
-  it("finds a line across every thread", async () => {
+  it("finds a line across every chat", async () => {
     await freshTask();
-    await thread("Groceries", "make me a grocery list", "Added Zevia.");
-    await thread("Trip to Lisbon", "plan a trip");
+    await chat("Groceries", "make me a grocery list", "Added Zevia.");
+    await chat("Trip to Lisbon", "plan a trip");
 
     const result = await run("search", "zevia");
 
@@ -204,7 +204,7 @@ describe("chat tag", () => {
   it("refuses a topic that does not exist and names the ones that do", async () => {
     await freshTask();
     await createTopic({ name: "Home" });
-    await thread("Groceries", "make me a grocery list");
+    await chat("Groceries", "make me a grocery list");
 
     const result = await run("tag", "groceries", "work");
 
@@ -214,10 +214,10 @@ describe("chat tag", () => {
     );
   });
 
-  it("files the thread under the topic", async () => {
+  it("files the chat under the topic", async () => {
     await freshTask();
     const home = await createTopic({ name: "Home" });
-    const sessionId = await thread("Groceries", "make me a grocery list");
+    const sessionId = await chat("Groceries", "make me a grocery list");
 
     const result = await run("tag", sessionId.slice(0, 8), "Home");
 

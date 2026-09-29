@@ -313,7 +313,11 @@ const assertConversationHandedBackNote: Assertion = {
       })),
     ];
     if (handed.length === 0) {
-      return { evidence: `none: ${JSON.stringify(reply)}`, passed: false, text };
+      return {
+        evidence: `none: ${JSON.stringify(reply)}`,
+        passed: false,
+        text,
+      };
     }
     const results = await Promise.all(
       handed.map(async ({ carrier, line }) => {

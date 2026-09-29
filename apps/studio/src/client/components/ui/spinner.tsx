@@ -39,7 +39,10 @@ function Spinner({
   }, [delay]);
   if (isWaiting) {
     return (
-      <span aria-hidden className={cn("relative flex size-4 shrink-0", className)} />
+      <span
+        aria-hidden
+        className={cn("relative flex size-4 shrink-0", className)}
+      />
     );
   }
   // 1px feathered mask edge reduces aliasing versus a hard cutoff, so the ring

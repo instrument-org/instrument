@@ -1,8 +1,8 @@
 import {
+  CHATS_HREF,
   type Draft,
   draftGroupOf,
   NEW_TAB_HREF,
-  THREADS_HREF,
   type WindowTab,
 } from "@/client/atoms/orchestrator";
 import { fileUrlOf } from "@/client/lib/file-url";
@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { contextReaders, type SendContextWindow } from "./send-context";
 
-const THREAD = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+const CHAT = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 const HOME = FolderAttachment.Schema.parse({
   access: "read-write",
   createdAt: 0,
@@ -32,9 +32,9 @@ const NEVER_ANSWERS = new Promise<undefined>(() => {
   // Never settles.
 });
 
-/** A site open in the thread's pane. */
+/** A site open in the chat's pane. */
 const SITE: WindowTab = {
-  group: THREAD,
+  group: CHAT,
   id: "guest",
   kind: "page",
   openedAt: 1,
@@ -75,12 +75,12 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
           url: "https://example.com/",
         }),
     },
+    chatTitles: new Map([[CHAT, "Lisbon"]]),
     drafts: [],
     href: "/orchestrator/browser",
     paneOpenByGroup: {},
     screenView: null,
     state: { attachedFolders: { home: HOME } },
-    threadTitles: new Map([[THREAD, "Lisbon"]]),
     viewsById: {},
     windowTabs: tabsOf([]),
     ...over,
@@ -94,10 +94,10 @@ afterEach(() => {
 describe("sendContext", () => {
   it("describes the chat's page though no screen has said what it shows", async () => {
     const { sendContext } = contextReaders(
-      windowOf({ windowTabs: tabsOf([SITE], THREAD) }),
+      windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
     await expect(
-      sendContext({ isViewOpen: true, sessionId: THREAD }),
+      sendContext({ isViewOpen: true, sessionId: CHAT }),
     ).resolves.toMatchObject({
       page: { text: "Words on the page" },
       screen: "browser",
@@ -107,9 +107,9 @@ describe("sendContext", () => {
 
   it("names only the chat's tabs while its view is put away and nothing else is up", async () => {
     const { sendContext } = contextReaders(
-      windowOf({ windowTabs: tabsOf([SITE], THREAD) }),
+      windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
-    await expect(sendContext({ isViewOpen: false, sessionId: THREAD })).resolves
+    await expect(sendContext({ isViewOpen: false, sessionId: CHAT })).resolves
       .toMatchInlineSnapshot(`
       {
         "screen": "home",
@@ -129,8 +129,8 @@ describe("sendContext", () => {
     const other = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAW");
     const { sendContext } = contextReaders(
       windowOf({
-        paneOpenByGroup: { [THREAD]: true },
-        windowTabs: tabsOf([SITE], THREAD),
+        paneOpenByGroup: { [CHAT]: true },
+        windowTabs: tabsOf([SITE], CHAT),
       }),
     );
     await expect(sendContext({ isViewOpen: false, sessionId: other })).resolves
@@ -159,28 +159,28 @@ describe("sendContext", () => {
       windowOf({
         screenView: { screen: "browser" },
         state: undefined,
-        windowTabs: tabsOf([SITE], THREAD),
+        windowTabs: tabsOf([SITE], CHAT),
       }),
     );
     await expect(
-      sendContext({ isViewOpen: true, sessionId: THREAD }),
+      sendContext({ isViewOpen: true, sessionId: CHAT }),
     ).resolves.toBeUndefined();
   });
 
   it("sends the page's words with the tabs the conversation can name", async () => {
-    const thread: WindowTab = {
-      group: THREAD,
-      href: `${THREADS_HREF}/${THREAD}`,
-      id: "thread",
+    const chat: WindowTab = {
+      group: CHAT,
+      href: `${CHATS_HREF}/${CHAT}`,
+      id: "chat",
       kind: "screen",
     };
     const { sendContext } = contextReaders(
       windowOf({
         screenView: { screen: "browser" },
-        windowTabs: tabsOf([SITE, thread], THREAD),
+        windowTabs: tabsOf([SITE, chat], CHAT),
       }),
     );
-    await expect(sendContext({ isViewOpen: true, sessionId: THREAD })).resolves
+    await expect(sendContext({ isViewOpen: true, sessionId: CHAT })).resolves
       .toMatchInlineSnapshot(`
       {
         "page": {
@@ -196,8 +196,8 @@ describe("sendContext", () => {
             "title": "Example",
           },
           {
-            "at": "/orchestrator/threads/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            "id": "thread",
+            "at": "/orchestrator/chats/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "id": "chat",
             "title": "Lisbon",
           },
         ],
@@ -208,7 +208,7 @@ describe("sendContext", () => {
 
   it("sends a file shown as a page as the file, reached through its grant", async () => {
     const file: WindowTab = {
-      group: THREAD,
+      group: CHAT,
       id: "file",
       kind: "page",
       openedAt: 1,
@@ -219,10 +219,10 @@ describe("sendContext", () => {
       windowOf({
         browser: { readPage },
         screenView: { screen: "browser" },
-        windowTabs: tabsOf([file], THREAD),
+        windowTabs: tabsOf([file], CHAT),
       }),
     );
-    await expect(sendContext({ isViewOpen: true, sessionId: THREAD })).resolves
+    await expect(sendContext({ isViewOpen: true, sessionId: CHAT })).resolves
       .toMatchInlineSnapshot(`
       {
         "file": {
@@ -250,10 +250,10 @@ describe("sendContext", () => {
       windowOf({
         browser: { readPage: () => NEVER_ANSWERS },
         screenView: { screen: "browser" },
-        windowTabs: tabsOf([SITE], THREAD),
+        windowTabs: tabsOf([SITE], CHAT),
       }),
     );
-    const sent = sendContext({ isViewOpen: true, sessionId: THREAD });
+    const sent = sendContext({ isViewOpen: true, sessionId: CHAT });
     await vi.advanceTimersByTimeAsync(5000);
     await expect(sent).resolves.toMatchInlineSnapshot(`
       {
@@ -272,8 +272,8 @@ describe("sendContext", () => {
 
   it("describes a chat's tasks tab as its screen reports it", async () => {
     const tasksTab: WindowTab = {
-      group: THREAD,
-      href: `/orchestrator/tasks?thread=${THREAD}`,
+      group: CHAT,
+      href: `/orchestrator/tasks?chat=${CHAT}`,
       id: "tasks",
       kind: "screen",
     };
@@ -291,16 +291,16 @@ describe("sendContext", () => {
             },
           ],
         },
-        windowTabs: tabsOf([tasksTab, SITE], THREAD),
+        windowTabs: tabsOf([tasksTab, SITE], CHAT),
       }),
     );
-    await expect(sendContext({ isViewOpen: true, sessionId: THREAD })).resolves
+    await expect(sendContext({ isViewOpen: true, sessionId: CHAT })).resolves
       .toMatchInlineSnapshot(`
       {
         "screen": "tasks",
         "tabs": [
           {
-            "at": "/orchestrator/tasks?thread=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "at": "/orchestrator/tasks?chat=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
             "id": "tasks",
             "title": "Tasks",
           },
@@ -318,7 +318,7 @@ describe("sendContext", () => {
             "title": "Scan the receipts",
           },
         ],
-        "url": "/orchestrator/tasks?thread=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "url": "/orchestrator/tasks?chat=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
       }
     `);
   });
@@ -332,7 +332,7 @@ describe("draftContext", () => {
     words: "Plan the trip",
   };
   const GROUP = draftGroupOf(DRAFT.id);
-  /** The band's own face, which is not carried to the thread. */
+  /** The band's own face, which is not carried to the chat. */
   const HOME_TAB: WindowTab = {
     group: GROUP,
     href: NEW_TAB_HREF,
@@ -345,7 +345,7 @@ describe("draftContext", () => {
     await expect(draftContext(DRAFT.id)).resolves.toBeUndefined();
   });
 
-  it("sends the band's page and the draft's tabs as the thread starts", async () => {
+  it("sends the band's page and the draft's tabs as the chat starts", async () => {
     const band: WindowTab = {
       group: GROUP,
       id: "band",
@@ -354,17 +354,17 @@ describe("draftContext", () => {
       title: "Hotels",
       url: "https://hotels.example/",
     };
-    const thread: WindowTab = {
+    const chat: WindowTab = {
       group: GROUP,
-      href: `${THREADS_HREF}/${THREAD}`,
-      id: "thread",
+      href: `${CHATS_HREF}/${CHAT}`,
+      id: "chat",
       kind: "screen",
     };
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
         viewsById: { [GROUP]: { screen: "browser" } },
-        windowTabs: tabsOf([band, thread]),
+        windowTabs: tabsOf([band, chat]),
       }),
     );
     await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(`
@@ -390,8 +390,8 @@ describe("draftContext", () => {
             "title": "Hotels",
           },
           {
-            "at": "/orchestrator/threads/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            "id": "thread",
+            "at": "/orchestrator/chats/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "id": "chat",
             "title": "Lisbon",
           },
         ],
@@ -403,7 +403,7 @@ describe("draftContext", () => {
   const FOLDER = folderHref("/Users/casey/Documents");
   const FILE = fileHref("/Users/casey/Downloads/receipt.pdf");
   const APP = "/orchestrator/apps/notion";
-  /** The band's face as the thread is told it, ahead of the thing included. */
+  /** The band's face as the chat is told it, ahead of the thing included. */
   const NEW_TAB = { at: NEW_TAB_HREF, id: "home", title: "New tab" };
 
   it.each<[string, WindowTab, SessionMessageDataPart.ViewContextDataPart]>([
@@ -556,7 +556,7 @@ describe("draftContext", () => {
       kind: "screen",
     };
     const page: WindowTab = {
-      group: THREAD,
+      group: CHAT,
       id: "page",
       kind: "page",
       openedAt: 1,
@@ -589,8 +589,8 @@ describe("draftContext", () => {
     const behindPage = contextReaders(
       windowOf({
         drafts: [DRAFT],
-        paneOpenByGroup: { [THREAD]: true },
-        windowTabs: tabsOf([page], THREAD),
+        paneOpenByGroup: { [CHAT]: true },
+        windowTabs: tabsOf([page], CHAT),
       }),
     );
     await expect(behindPage.draftContext(DRAFT.id)).resolves
@@ -616,14 +616,14 @@ describe("draftContext", () => {
     const leftOut = contextReaders(
       windowOf({
         drafts: [{ ...DRAFT, leftBehind: ["page"] }],
-        paneOpenByGroup: { [THREAD]: true },
-        windowTabs: tabsOf([page], THREAD),
+        paneOpenByGroup: { [CHAT]: true },
+        windowTabs: tabsOf([page], CHAT),
       }),
     );
     await expect(leftOut.draftContext(DRAFT.id)).resolves.toBeUndefined();
 
     const paneShut = contextReaders(
-      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([page], THREAD) }),
+      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([page], CHAT) }),
     );
     await expect(paneShut.draftContext(DRAFT.id)).resolves.toBeUndefined();
   });

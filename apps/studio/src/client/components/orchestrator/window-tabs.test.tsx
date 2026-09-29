@@ -1,7 +1,7 @@
 import {
+  CHATS_HREF,
   draftGroupOf,
   NEW_TAB_HREF,
-  THREADS_HREF,
   type WindowTab,
   windowTabsAtom,
 } from "@/client/atoms/orchestrator";
@@ -13,14 +13,14 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import {
+  chatOfHrefPrefix,
   pageTakesOver,
   sameHref,
-  threadOfHrefPrefix,
   useWindowTabs,
 } from "./window-tabs";
 
-const THREAD_A = StoreId.newSessionId();
-const THREAD_B = StoreId.newSessionId();
+const CHAT_A = StoreId.newSessionId();
+const CHAT_B = StoreId.newSessionId();
 
 function Navigation() {
   const tabs = useWindowTabs();
@@ -62,11 +62,11 @@ function Navigation() {
       <button onClick={() => tabs.openOrFocusScreen("/orchestrator/computer")}>
         Conversation file
       </button>
-      <button onClick={() => tabs.openScreen(`${THREADS_HREF}/${THREAD_A}`)}>
-        Thread A
+      <button onClick={() => tabs.openScreen(`${CHATS_HREF}/${CHAT_A}`)}>
+        Chat A
       </button>
-      <button onClick={() => tabs.openScreen(`${THREADS_HREF}/${THREAD_B}`)}>
-        Thread B
+      <button onClick={() => tabs.openScreen(`${CHATS_HREF}/${CHAT_B}`)}>
+        Chat B
       </button>
       <button onClick={() => tabs.openScreen("/orchestrator/apps")}>
         Open apps
@@ -101,14 +101,14 @@ function Navigation() {
       </button>
       <button
         onClick={() => {
-          tabs.adoptGroup(draftGroupOf("d1"), THREAD_B);
+          tabs.adoptGroup(draftGroupOf("d1"), CHAT_B);
         }}
       >
         Adopt
       </button>
       <button
         onClick={() => {
-          tabs.openScreen("/orchestrator/ideas", { group: THREAD_B });
+          tabs.openScreen("/orchestrator/ideas", { group: CHAT_B });
         }}
       >
         Open ideas for B
@@ -206,35 +206,35 @@ describe("window navigation", () => {
   });
 });
 
-describe("a thread's tabs", () => {
+describe("a chat's tabs", () => {
   const strip = () => screen.getByTestId("strip").textContent;
   const active = (read: () => { activeId: null | string; tabs: WindowTab[] }) =>
     read().tabs.find((tab) => tab.id === read().activeId);
 
-  it("keeps each thread's tabs in a group of its own, with the thread over them rather than among them", () => {
+  it("keeps each chat's tabs in a group of its own, with the chat over them rather than among them", () => {
     const read = setup({
       href: "/orchestrator/apps",
       id: "apps",
       kind: "screen",
     });
-    fireEvent.click(screen.getByText("Thread A"));
-    expect(read().group).toBe(THREAD_A);
+    fireEvent.click(screen.getByText("Chat A"));
+    expect(read().group).toBe(CHAT_A);
     expect(strip()).toBe("");
     expect(read().activeId).toBeNull();
-    // Opened while the thread is up, so the thread's.
+    // Opened while the chat is up, so the chat's.
     fireEvent.click(screen.getByText("Open apps"));
     expect(strip()).toBe("/orchestrator/apps");
-    expect(active(read)?.group).toBe(THREAD_A);
-    // Another thread swaps the whole row.
-    fireEvent.click(screen.getByText("Thread B"));
+    expect(active(read)?.group).toBe(CHAT_A);
+    // Another chat swaps the whole row.
+    fireEvent.click(screen.getByText("Chat B"));
     expect(strip()).toBe("");
-    // Coming back lands where the thread was left; asking again while it is
+    // Coming back lands where the chat was left; asking again while it is
     // up changes nothing.
-    fireEvent.click(screen.getByText("Thread A"));
+    fireEvent.click(screen.getByText("Chat A"));
     expect(strip()).toBe("/orchestrator/apps");
     expect(active(read)).toMatchObject({ href: "/orchestrator/apps" });
     const before = read();
-    fireEvent.click(screen.getByText("Thread A"));
+    fireEvent.click(screen.getByText("Chat A"));
     expect(read()).toBe(before);
     // Leaving shows nothing; every group keeps what it has.
     fireEvent.click(screen.getByText("Leave"));
@@ -243,35 +243,35 @@ describe("a thread's tabs", () => {
     expect(read().tabs).toHaveLength(2);
   });
 
-  it("closes a thread's last tab and keeps the thread up with nothing under it", () => {
+  it("closes a chat's last tab and keeps the chat up with nothing under it", () => {
     const read = setup({
       href: "/orchestrator/apps",
       id: "apps",
       kind: "screen",
     });
-    fireEvent.click(screen.getByText("Thread A"));
+    fireEvent.click(screen.getByText("Chat A"));
     fireEvent.click(screen.getByText("Open apps"));
     fireEvent.click(screen.getByText("Close active"));
-    expect(read().group).toBe(THREAD_A);
+    expect(read().group).toBe(CHAT_A);
     expect(strip()).toBe("");
     expect(read().activeId).toBeNull();
     fireEvent.click(screen.getByText("Open apps"));
     expect(strip()).toBe("/orchestrator/apps");
   });
 
-  it("files a tab opened for a thread that is not up in that thread's group, behind", () => {
+  it("files a tab opened for a chat that is not up in that chat's group, behind", () => {
     const read = setup({
       href: "/orchestrator/apps",
       id: "apps",
       kind: "screen",
     });
-    fireEvent.click(screen.getByText("Thread A"));
+    fireEvent.click(screen.getByText("Chat A"));
     fireEvent.click(screen.getByText("Open ideas for B"));
     // Still on A, with nothing under it.
-    expect(read().group).toBe(THREAD_A);
+    expect(read().group).toBe(CHAT_A);
     expect(strip()).toBe("");
     // B's group was made by the tab landing in it.
-    fireEvent.click(screen.getByText("Thread B"));
+    fireEvent.click(screen.getByText("Chat B"));
     expect(strip()).toBe("/orchestrator/ideas");
   });
 });
@@ -279,7 +279,7 @@ describe("a thread's tabs", () => {
 describe("a draft's tabs", () => {
   const strip = () => screen.getByTestId("strip").textContent;
 
-  it("gathers from the new-tab page and hands everything to the thread exactly as it is", () => {
+  it("gathers from the new-tab page and hands everything to the chat exactly as it is", () => {
     const read = setup({
       href: "/orchestrator/apps",
       id: "apps",
@@ -300,12 +300,12 @@ describe("a draft's tabs", () => {
       .map((tab) => tab.id);
     const up = read().activeId;
     fireEvent.click(screen.getByText("Adopt"));
-    expect(read().group).toBe(THREAD_B);
+    expect(read().group).toBe(CHAT_B);
     expect(strip()).toBe("/orchestrator/apps|/orchestrator/computer");
-    // The same tabs, under the thread now, the same one up.
+    // The same tabs, under the chat now, the same one up.
     expect(
       read()
-        .tabs.filter((tab) => tab.group === THREAD_B)
+        .tabs.filter((tab) => tab.group === CHAT_B)
         .map((tab) => tab.id),
     ).toEqual(gathered);
     expect(read().activeId).toBe(up);
@@ -317,10 +317,10 @@ describe("a draft's tabs", () => {
     expect(read().activeByGroup ?? {}).not.toHaveProperty(draftGroupOf("d1"));
   });
 
-  // A task the thread started can open its browser before the start comes
-  // back, and its tab is filed under the thread's own id then; adoption
+  // A task the chat started can open its browser before the start comes
+  // back, and its tab is filed under the chat's own id then; adoption
   // keeps it beside what the draft gathered rather than dropping it.
-  it("keeps a tab already filed under the thread when the draft is handed over", () => {
+  it("keeps a tab already filed under the chat when the draft is handed over", () => {
     const read = setup({
       href: "/orchestrator/apps",
       id: "apps",
@@ -330,11 +330,11 @@ describe("a draft's tabs", () => {
     fireEvent.click(screen.getByText("Home"));
     fireEvent.click(screen.getByText("Apps"));
     fireEvent.click(screen.getByText("Open ideas for B"));
-    expect(read().tabs.filter((tab) => tab.group === THREAD_B)).toHaveLength(1);
+    expect(read().tabs.filter((tab) => tab.group === CHAT_B)).toHaveLength(1);
     fireEvent.click(screen.getByText("Adopt"));
     expect(
       read()
-        .tabs.filter((tab) => tab.group === THREAD_B)
+        .tabs.filter((tab) => tab.group === CHAT_B)
         .map((tab) => (tab.kind === "screen" ? tab.href : tab.url)),
     ).toEqual(["/orchestrator/ideas", "/orchestrator/apps"]);
     expect(strip()).toBe("/orchestrator/ideas|/orchestrator/apps");
@@ -356,27 +356,27 @@ describe("a draft's tabs", () => {
   });
 });
 
-describe("threadOfHrefPrefix", () => {
-  const threads = [
+describe("chatOfHrefPrefix", () => {
+  const chats = [
     StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA"),
     StoreId.SessionSchema.parse("ses_01JABBBBBBBBBBBBBBBBBBBBBB"),
     StoreId.SessionSchema.parse("ses_01JCCCCCCCCCCCCCCCCCCCCCCC"),
   ];
 
   it.each([
-    ["the start of one id", "/orchestrator/threads/ses_01JC", threads[2]],
+    ["the start of one id", "/orchestrator/chats/ses_01JC", chats[2]],
     [
       "a whole id",
-      "/orchestrator/threads/ses_01JAAAAAAAAAAAAAAAAAAAAAAA",
-      threads[0],
+      "/orchestrator/chats/ses_01JAAAAAAAAAAAAAAAAAAAAAAA",
+      chats[0],
     ],
-    ["an id in the wrong case", "/orchestrator/threads/SES_01jcc", threads[2]],
-    ["a start two ids share", "/orchestrator/threads/ses_01JA", undefined],
-    ["a start no id has", "/orchestrator/threads/ses_01JZ", undefined],
-    ["the threads as a whole", "/orchestrator/threads", undefined],
+    ["an id in the wrong case", "/orchestrator/chats/SES_01jcc", chats[2]],
+    ["a start two ids share", "/orchestrator/chats/ses_01JA", undefined],
+    ["a start no id has", "/orchestrator/chats/ses_01JZ", undefined],
+    ["the chats as a whole", "/orchestrator/chats", undefined],
     ["another screen", "/orchestrator/tasks/ses_01JC", undefined],
   ])("resolves %s", (_case, href, expected) => {
-    expect(threadOfHrefPrefix(href, threads)).toBe(expected);
+    expect(chatOfHrefPrefix(href, chats)).toBe(expected);
   });
 });
 
@@ -424,11 +424,11 @@ describe("pageTakesOver", () => {
       {
         activeByGroup: {},
         activeId: "finder",
-        group: THREAD_A,
+        group: CHAT_A,
         tabs: [
           {
             at: 1,
-            group: THREAD_A,
+            group: CHAT_A,
             href: fileScreen,
             id: "finder",
             kind: "screen",
@@ -450,7 +450,7 @@ describe("pageTakesOver", () => {
     expect(next.tabs).toHaveLength(1);
     const [tab] = next.tabs;
     expect(tab).toMatchObject({
-      group: THREAD_A,
+      group: CHAT_A,
       id: PAGE,
       kind: "page",
       stripKey: "finder",

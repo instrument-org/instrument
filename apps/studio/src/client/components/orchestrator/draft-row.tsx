@@ -9,6 +9,8 @@ import {
 import { FeatherIcon } from "@phosphor-icons/react/Feather";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 
+import { TopicPill } from "./chat-row";
+import { activityLabel, draftTitle, type Topic } from "./chats";
 import { RowActionBar } from "./row-action-bar";
 import {
   type RowAction,
@@ -16,14 +18,12 @@ import {
   type RowDensity,
   SLIM_NAME_COLUMN,
 } from "./row-shell";
-import { TopicPill } from "./thread-row";
-import { activityLabel, draftTitle, type Topic } from "./threads";
 
 /**
- * One draft in the Drafts place, laid out the way a thread's row is so the
+ * One draft in the Drafts place, laid out the way a chat's row is so the
  * list reads the same whichever it holds: a feather in the gutter where a
- * thread wears its state, the topic it will be filed under as a pill, the
- * first line of its words as the title, "Draft" in muted where a thread's
+ * chat wears its state, the topic it will be filed under as a pill, the
+ * first line of its words as the title, "Draft" in muted where a chat's
  * latest line goes, and when it was last touched at the far right. A plain
  * click, or Enter, opens the draft to go on writing; deleting it is the one
  * action at the row's edge and on its menu, and takes no confirming, since

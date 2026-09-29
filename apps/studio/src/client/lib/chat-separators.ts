@@ -11,7 +11,7 @@ const DAY_MS = 24 * HOUR_MS;
 
 /**
  * How long a chat has to sit quiet before the next message gets a separator of
- * its own, the way a text thread marks a return to it.
+ * its own, the way a text chat marks a return to it.
  */
 const SEPARATOR_GAP_MS = HOUR_MS;
 
@@ -90,7 +90,7 @@ export function chatSeparators(
 }
 
 /**
- * The separator's day, in the words a text thread uses: Today and Yesterday,
+ * The separator's day, in the words a text chat uses: Today and Yesterday,
  * the weekday within the week, the date past it, and the year only when it is
  * not this one.
  */

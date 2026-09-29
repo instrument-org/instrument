@@ -3,7 +3,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { type Topic } from "./threads";
+import { type Topic } from "./chats";
 
 /**
  * How sure the decision model has to be before it files a draft. Measured on

@@ -18,13 +18,13 @@ import { ChevronDown } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 import {
+  type ChatFilters,
+  type ChatPlace,
   choose,
   type Filterable,
   isInbox,
-  type ThreadFilters,
-  type ThreadPlace,
   type Topic,
-} from "./threads";
+} from "./chats";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicActionsButton, TopicContextMenu } from "./topic-menu";
@@ -33,14 +33,14 @@ import { topicTint } from "./topic-tint";
 /** One of the places beside the picker, each a view of its own. */
 interface Place {
   icon: (isOn: boolean) => ReactNode;
-  id: ThreadPlace;
+  id: ChatPlace;
   label: string;
 }
 
 /** The places in the order they are drawn: what waits on the user, what is starred, what is not yet sent, and the whole of it, put away included. */
 const PLACES: Place[] = [
   {
-    // The same amber dot a waiting thread wears in its gutter.
+    // The same amber dot a waiting chat wears in its gutter.
     icon: () => <span className="size-2.5 rounded-full bg-warning-500" />,
     id: "needsYou",
     label: "Needs you",
@@ -78,24 +78,24 @@ const UNCHOSEN =
 
 /** What the head is built from. */
 interface FilterProps {
-  filters: ThreadFilters;
-  onFiltersChange: (filters: ThreadFilters) => void;
+  chats: Filterable[];
+  filters: ChatFilters;
+  onFiltersChange: (filters: ChatFilters) => void;
   /** Opens the dialog that makes a topic; the one made is the one the list then stands in. */
   onNewTopic: () => void;
   /** Opens a topic's details: its name, its mark, and the way to delete it. */
   onTopicDetails: (topic: Topic) => void;
-  threads: Filterable[];
   topics: Topic[];
 }
 
 /**
  * The line over the inbox that says which view the list is: at its head a
- * picker between the chats (every thread not put away) and each topic, and
+ * picker between the chats (every chat not put away) and each topic, and
  * beside it the places as marks (Needs you while something waits, Starred,
- * Drafts, and All, which is every thread, put away or not). One view at a
+ * Drafts, and All, which is every chat, put away or not). One view at a
  * time: a topic is not narrowed to a place or a place to a topic, and
  * choosing the view already on steps back to the chats. The marks carry no
- * figures; the one figure is how many threads hold replies not yet seen, on
+ * figures; the one figure is how many chats hold replies not yet seen, on
  * the chats in the open picker. The search under the line adds to whatever
  * is chosen.
  */
@@ -228,9 +228,9 @@ function TopicFace({ size, topic }: { size: "chip" | "row"; topic: Topic }) {
   );
 }
 
-/** How many of these threads hold replies not yet seen. */
+/** How many of these chats hold replies not yet seen. */
 function unreadIn(held: Filterable[]) {
-  return held.filter((thread) => thread.unread > 0).length;
+  return held.filter((chat) => chat.unread > 0).length;
 }
 
 /**
@@ -240,17 +240,17 @@ function unreadIn(held: Filterable[]) {
  * be a warning about nothing.
  */
 function useFilterModel({
+  chats,
   filters,
   onFiltersChange,
   onNewTopic,
   onTopicDetails,
-  threads,
   topics,
 }: FilterProps) {
   const live = topics.filter((topic) => !topic.retired);
-  // The threads the counts are read over: what was put away is in All alone.
-  const kept = threads.filter((thread) => !thread.archived);
-  const needsYou = kept.some((thread) => thread.state === "waiting");
+  // The chats the counts are read over: what was put away is in All alone.
+  const kept = chats.filter((chat) => !chat.archived);
+  const needsYou = kept.some((chat) => chat.state === "waiting");
   const chosenTopics = new Set(filters.topics);
   const keptUnread = unreadIn(kept);
   // Needs you stays a mark while it is the place stood in, whether or not

@@ -16,7 +16,8 @@ export interface RowAction {
  * mailbox gives its senders, so the latest line gets the row's width, and
  * every row's latest line starts at one edge.
  */
-export const SLIM_NAME_COLUMN = "flex w-1/4 max-w-60 min-w-0 shrink-0 items-center gap-1.5";
+export const SLIM_NAME_COLUMN =
+  "flex w-1/4 max-w-60 min-w-0 shrink-0 items-center gap-1.5";
 
 /** The two shapes a row takes, by the room the list has: one line across a wide list, three down a narrow one. */
 export type RowDensity = "slim" | "tall";
@@ -36,12 +37,12 @@ export const ROW_TINT =
  * The face every row of the inbox wears: a click target rather than text,
  * with no selection and no text cursor over it, the tint above while the
  * pointer is on it or its menu is open, a hairline above it that stops short
- * of the list's edges and square corners, and, for the row whose thread is
+ * of the list's edges and square corners, and, for the row whose chat is
  * open beside the list, the shape of a card lifted off the list: the card's
  * ground, rounded corners, an edge, no tint, and no hairline of its own or
  * on the row under it. The card takes the air around it out of its own
  * height rather than adding it, so its footprint in the list is a resting
- * row's and nothing under it moves as a thread opens or closes: its words
+ * row's and nothing under it moves as a chat opens or closes: its words
  * stay where the row had them, with a hair less of the card's ground above
  * and below them.
  */

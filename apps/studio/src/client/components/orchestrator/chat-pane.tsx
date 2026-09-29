@@ -1,4 +1,4 @@
-import { type Draft, threadFiltersAtom } from "@/client/atoms/orchestrator";
+import { chatFiltersAtom, type Draft } from "@/client/atoms/orchestrator";
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -6,64 +6,64 @@ import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { FilterHead } from "./filter-head";
-import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
-import { SearchField } from "./search-field";
-import { ThreadList } from "./thread-list";
-import { threadListOptions } from "./thread-list-query";
+import { ChatList } from "./chat-list";
+import { chatListOptions } from "./chat-list-query";
 import {
   byActivity,
+  type Chat,
+  type ChatFilters,
   draftTitle,
   hasWords,
   matchesFilters,
   outsideFilters,
-  type Thread,
-  type ThreadFilters,
   type Topic,
   widenToSearch,
-} from "./threads";
+} from "./chats";
+import { FilterHead } from "./filter-head";
+import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
+import { SearchField } from "./search-field";
 import { TopicBanner } from "./topic-banner";
-import { useSetThreadTopics } from "./use-set-thread-topics";
-import { useThreadSearchFallback } from "./use-thread-search-fallback";
+import { useChatSearchFallback } from "./use-chat-search-fallback";
+import { useSetChatTopics } from "./use-set-chat-topics";
 import { backfillCandidates } from "./use-topic-backfill";
 
 /**
  * The chat pane: the inbox under the line that says where it stands, with
  * the search between them. Nothing is composed here: New in the rail opens
- * a draft, and the thread it starts lands at the top of the list; until it
+ * a draft, and the chat it starts lands at the top of the list; until it
  * is started it is a row of the Drafts place, which lists the drafts where
- * the threads otherwise go. With one topic chosen in the head, the topic's
+ * the chats otherwise go. With one topic chosen in the head, the topic's
  * banner stands above the rows.
  */
-export function ThreadPane({
+export function ChatPane({
   arrivedId,
   drafts,
   onDeleteDraft,
   onListed,
+  onOpenChat,
   onOpenDraft,
-  onOpenThread,
-  openThreadId,
+  openChatId,
 }: {
-  /** The thread that just started from a draft, whose row arrives with a motion of its own. */
+  /** The chat that just started from a draft, whose row arrives with a motion of its own. */
   arrivedId?: string;
   /** Every draft not yet started, for the Drafts place and its count. */
   drafts: Draft[];
   /** Deletes a draft outright; the caller says so and offers it back. */
   onDeleteDraft: (id: string) => void;
-  /** Told the threads the list shows, in its order, whenever that changes: what a chord steps through. */
+  /** Told the chats the list shows, in its order, whenever that changes: what a chord steps through. */
   onListed?: (ids: StoreId.Session[]) => void;
+  onOpenChat: (chat: Chat) => void;
   /** Opens a draft to go on writing it. */
   onOpenDraft: (id: string) => void;
-  onOpenThread: (thread: Thread) => void;
-  /** The thread open beside the list, if one is. */
-  openThreadId: string | undefined;
+  /** The chat open beside the list, if one is. */
+  openChatId: string | undefined;
 }) {
   const appsBySlug = useAppsBySlug();
-  const threadsQuery = useQuery(threadListOptions());
+  const chatsQuery = useQuery(chatListOptions());
   const topicsQuery = useQuery(
     rpcClient.workspace.orchestrator.topics.list.queryOptions(),
   );
-  const threads: Thread[] = threadsQuery.data ?? [];
+  const chats: Chat[] = chatsQuery.data ?? [];
   const topics: Topic[] = topicsQuery.data ?? [];
   const afterTopicChange = { onSuccess: () => void topicsQuery.refetch() };
   const createTopic = useMutation(
@@ -81,41 +81,41 @@ export function ThreadPane({
       afterTopicChange,
     ),
   );
-  const setThreadTopics = useSetThreadTopics();
+  const setChatTopics = useSetChatTopics();
 
-  const [filters, setFilters] = useAtom(threadFiltersAtom);
+  const [filters, setFilters] = useAtom(chatFiltersAtom);
   const [scrollSignal, setScrollSignal] = useState(0);
   // A change of filter is a change of subject, and the newest of the new
   // subject is what matters, so the list is taken back to its top with it.
-  const changeFilters = (next: ThreadFilters) => {
+  const changeFilters = (next: ChatFilters) => {
     setFilters(next);
     setScrollSignal((signal) => signal + 1);
   };
   const topicNames = new Map(topics.map((topic) => [topic.id, topic.name]));
-  const matched = threads.filter((thread) =>
-    matchesFilters(thread, filters, topicNames),
+  const matched = chats.filter((chat) =>
+    matchesFilters(chat, filters, topicNames),
   );
-  const outside = outsideFilters(threads, filters, topicNames);
-  // Words that turn up in no thread anywhere are handed to the decision
-  // model, which reads the threads the other filters keep for the one the
+  const outside = outsideFilters(chats, filters, topicNames);
+  // Words that turn up in no chat anywhere are handed to the decision
+  // model, which reads the chats the other filters keep for the one the
   // search means; its finds stand in the list's place, under a line saying
   // where they came from.
-  const aiSearch = useThreadSearchFallback({
+  const aiSearch = useChatSearchFallback({
     active:
       filters.place !== "drafts" &&
       filters.search.trim() !== "" &&
       matched.length === 0 &&
       outside === 0,
-    candidates: threads.filter((thread) =>
-      matchesFilters(thread, { ...filters, search: "" }, topicNames),
+    candidates: chats.filter((chat) =>
+      matchesFilters(chat, { ...filters, search: "" }, topicNames),
     ),
     search: filters.search,
     topicNames,
   });
-  const isAISearch = aiSearch.isLooking || aiSearch.threads.length > 0;
-  const shown = matched.length > 0 ? matched : aiSearch.threads;
-  const listed = byActivity(shown).map((thread) => thread.id);
-  // Keyed by value: the list is rebuilt on every read of the threads, and
+  const isAISearch = aiSearch.isLooking || aiSearch.chats.length > 0;
+  const shown = matched.length > 0 ? matched : aiSearch.chats;
+  const listed = byActivity(shown).map((chat) => chat.id);
+  // Keyed by value: the list is rebuilt on every read of the chats, and
   // the callback is written fresh each render; the ids are what matter.
   const listedKey = listed.join("\n");
   useEffect(() => {
@@ -141,13 +141,13 @@ export function ThreadPane({
       ? topics.find((topic) => topic.id === filters.topics[0])
       : undefined;
 
-  // Whether the new-topic dialog is up, and for which thread when a row
-  // opened it: a topic made from a row is filed on that thread as it lands,
+  // Whether the new-topic dialog is up, and for which chat when a row
+  // opened it: a topic made from a row is filed on that chat as it lands,
   // since that is what asking for one there means; one made from the head's
   // picker is the topic the list then stands in, since that is what picking
   // it means.
   const [newTopic, setNewTopic] = useState<{
-    forThread?: Thread;
+    forChat?: Chat;
     name?: string;
   }>();
   // The topic whose details are open, by id, so a re-read of the list does
@@ -158,6 +158,7 @@ export function ThreadPane({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <FilterHead
+        chats={chats}
         filters={filters}
         onFiltersChange={changeFilters}
         onNewTopic={() => {
@@ -166,7 +167,6 @@ export function ThreadPane({
         onTopicDetails={(topic) => {
           setEditingId(topic.id);
         }}
-        threads={threads}
         topics={topics}
       />
       {/* Under the line rather than on it, the way mail puts it: the search
@@ -182,13 +182,13 @@ export function ThreadPane({
       {chosenTopic && (
         <TopicBanner
           appsBySlug={appsBySlug}
+          chats={shown}
           onClear={() => {
             changeFilters({ ...filters, topics: [] });
           }}
           onDetails={(topic) => {
             setEditingId(topic.id);
           }}
-          threads={shown}
           topic={chosenTopic}
         />
       )}
@@ -197,55 +197,52 @@ export function ThreadPane({
           AI results
         </p>
       )}
-      <ThreadList
+      <ChatList
         appsBySlug={appsBySlug}
         arrivedId={arrivedId}
+        chats={shown}
         drafts={shownDrafts}
         emptyLine={
           aiSearch.isLooking
             ? "Looking through your chats…"
-            : emptyLineFor(filters, threads.length)
+            : emptyLineFor(filters, chats.length)
         }
         // The drafts are kept on this computer, so they are never on
         // their way.
-        isLoading={shownDrafts === undefined && threadsQuery.data === undefined}
+        isLoading={shownDrafts === undefined && chatsQuery.data === undefined}
         onDeleteDraft={onDeleteDraft}
-        onNewTopic={(thread, name) => {
-          setNewTopic({ forThread: thread, ...(name ? { name } : {}) });
+        onNewTopic={(chat, name) => {
+          setNewTopic({ forChat: chat, ...(name ? { name } : {}) });
         }}
-        onOpen={onOpenThread}
+        onOpen={onOpenChat}
         onOpenDraft={onOpenDraft}
-        onSetTopics={(thread, next) => {
-          setThreadTopics(thread.id, next);
+        onSetTopics={(chat, next) => {
+          setChatTopics(chat.id, next);
         }}
         onWiden={() => {
           changeFilters(widenToSearch(filters));
         }}
-        openId={openThreadId}
+        openId={openChatId}
         outside={outside}
         scrollSignal={scrollSignal}
-        threads={shown}
         topics={topics}
       />
       <NewTopicDialog
         candidates={backfillCandidates(
-          threads.filter((thread) => thread.id !== newTopic?.forThread?.id),
+          chats.filter((chat) => chat.id !== newTopic?.forChat?.id),
         )}
         {...(newTopic?.name ? { name: newTopic.name } : {})}
         onCreate={(topic, alsoFile) => {
-          const forThread = newTopic?.forThread;
+          const forChat = newTopic?.forChat;
           createTopic.mutate(topic, {
             onSuccess: (created) => {
               // Chats offered were filed under nothing, so the new topic
               // is all they carry.
               for (const id of alsoFile) {
-                setThreadTopics(id, [created.id]);
+                setChatTopics(id, [created.id]);
               }
-              if (forThread) {
-                setThreadTopics(forThread.id, [
-                  ...forThread.topics,
-                  created.id,
-                ]);
+              if (forChat) {
+                setChatTopics(forChat.id, [...forChat.topics, created.id]);
                 return;
               }
               // Read at the moment it lands rather than from the render
@@ -276,7 +273,7 @@ export function ThreadPane({
             updateTopic.mutate({ ...edits, topicId: editingTopic.id });
           }}
           // Deleting retires the topic: the tag goes from the column and from
-          // the filter if it was the one chosen; the threads keep everything.
+          // the filter if it was the one chosen; the chats keep everything.
           onDelete={() => {
             retireTopic.mutate({ topicId: editingTopic.id });
             if (filters.topics.includes(editingTopic.id)) {
@@ -297,7 +294,7 @@ export function ThreadPane({
 }
 
 /** What the list says when it has nothing to show, by where the column stands. */
-function emptyLineFor(filters: ThreadFilters, total: number): string {
+function emptyLineFor(filters: ChatFilters, total: number): string {
   if (filters.place === "drafts") {
     return "No drafts yet.";
   }

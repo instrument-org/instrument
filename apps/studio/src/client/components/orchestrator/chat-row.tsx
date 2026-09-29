@@ -22,6 +22,8 @@ import { useAtomValue } from "jotai";
 import { type ReactNode, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
+import { chatMenuGroups } from "./chat-actions";
+import { activityLabel, type Chat, type Topic } from "./chats";
 import { OrchestratorContext, useOrchestrator } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { RowActionBar } from "./row-action-bar";
@@ -32,8 +34,6 @@ import {
   SLIM_NAME_COLUMN,
   stopHere,
 } from "./row-shell";
-import { threadMenuGroups } from "./thread-actions";
-import { activityLabel, type Thread, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicPicker } from "./topic-picker";
@@ -43,13 +43,13 @@ import { topicTint } from "./topic-tint";
 const PICKER_LEAVE_MS = 250;
 
 /**
- * One thread in the inbox, and the door into it: a click anywhere on it
- * opens the thread beside the list (a thread is never a tab, so no gesture
+ * One chat in the inbox, and the door into it: a click anywhere on it
+ * opens the chat beside the list (a chat is never a tab, so no gesture
  * asks for one), a right click raises its menu, and the keyboard opens it
  * with Enter. The title in semibold while there is something unseen in it,
  * which is the only mark unread wears,
  * the word Draft after it in red while a reply sits typed and unsent in the
- * thread's composer, the way mail marks a thread with a draft in it,
+ * chat's composer, the way mail marks a conversation with a draft in it,
  * the topics it is filed under as pills in the row's corner, the agent's
  * latest line (the step it is on, the question it is waiting on, or its last
  * reply's first words), and the marks of what it holds. Slim, all of that is
@@ -59,21 +59,22 @@ const PICKER_LEAVE_MS = 250;
  * topics at its end, the latest line gets two, and what it holds sits on a
  * third line that never wraps: the files it made as chips with their names,
  * the apps and sites as marks beside them, fading out at the row's edge,
- * with the time in the row's bottom corner. A starred thread wears a filled
- * star past its topics, at either width. Where the thread
+ * with the time in the row's bottom corner. A starred chat wears a filled
+ * star past its topics, at either width. Where the chat
  * stands is said by the latest line alone: shimmering while it works, behind
  * an amber glyph while it waits on the user. No avatar,
  * no name: every row here is the user's. The marks, the tag
  * control that stands in front of the title while the pointer is on the
- * row, and the actions that stand over the corner then (putting the thread
+ * row, and the actions that stand over the corner then (putting the chat
  * away or back, marking it read or unread, and starring it last, where the
  * star stands) are the row's own controls, and a
  * click on one stops short of the door. The menu offers the same, with the
- * way to open the thread and its topics.
+ * way to open the chat and its topics.
  */
-export function ThreadRow({
+export function ChatRow({
   actions,
   appsBySlug,
+  chat,
   density,
   isArriving = false,
   isOpen,
@@ -81,29 +82,28 @@ export function ThreadRow({
   onNewTopic,
   onOpen,
   onSetTopics,
-  thread,
   topics,
 }: {
-  /** The thread's actions, answered by the list for every row through one set of mutations. */
+  /** The chat's actions, answered by the list for every row through one set of mutations. */
   actions: RowAction[];
   appsBySlug: AppsBySlug;
+  chat: Chat;
   density: RowDensity;
-  /** Whether the thread just started from a draft: its row arrives with a wash that settles. */
+  /** Whether the chat just started from a draft: its row arrives with a wash that settles. */
   isArriving?: boolean;
-  /** Whether this thread is the one open beside the list. */
+  /** Whether this chat is the one open beside the list. */
   isOpen: boolean;
   /** The moment the slim row's time is read against. */
   now: Date;
-  /** Opens the new-topic dialog for this thread, with the name typed in the picker when anything was. */
+  /** Opens the new-topic dialog for this chat, with the name typed in the picker when anything was. */
   onNewTopic: (name?: string) => void;
-  /** A plain click: the thread in place of whatever the window shows. */
+  /** A plain click: the chat in place of whatever the window shows. */
   onOpen: () => void;
   onSetTopics: (topics: string[]) => void;
-  thread: Thread;
   topics: Topic[];
 }) {
-  // Every topic the thread is filed under, in the order it was filed.
-  const filed = thread.topics.flatMap((id) => {
+  // Every topic the chat is filed under, in the order it was filed.
+  const filed = chat.topics.flatMap((id) => {
     const topic = topics.find((entry) => entry.id === id);
     return topic ? [topic] : [];
   });
@@ -121,30 +121,30 @@ export function ThreadRow({
       }, PICKER_LEAVE_MS);
     }
   };
-  const isUnseen = thread.unread > 0;
-  // What the thread's composer holds, whether or not it is on screen.
+  const isUnseen = chat.unread > 0;
+  // What the chat's composer holds, whether or not it is on screen.
   const draft = useAtomValue(
-    promptDraftAtom({ scope: "thread", sessionId: thread.id }),
+    promptDraftAtom({ scope: "chat", sessionId: chat.id }),
   );
   const hasDraft = draft.trim() !== "";
   const hasHolds =
-    thread.holds.apps.length > 0 ||
-    thread.holds.files.length > 0 ||
-    thread.holds.sites.length > 0;
+    chat.holds.apps.length > 0 ||
+    chat.holds.files.length > 0 ||
+    chat.holds.sites.length > 0;
   const toggleTopic = (id: string) => {
     onSetTopics(
-      thread.topics.includes(id)
-        ? thread.topics.filter((entry) => entry !== id)
-        : [...thread.topics, id],
+      chat.topics.includes(id)
+        ? chat.topics.filter((entry) => entry !== id)
+        : [...chat.topics, id],
     );
   };
   const tagControl = (
     <TagControl
+      chat={chat}
       isOpen={isPicking}
       onNewTopic={onNewTopic}
       onOpenChange={pickTopics}
       onToggle={toggleTopic}
-      thread={thread}
       topics={topics}
     />
   );
@@ -163,7 +163,7 @@ export function ThreadRow({
           isUnseen ? "font-semibold" : "text-foreground/90",
         )}
       >
-        {thread.title}
+        {chat.title}
       </span>
       {hasDraft && (
         <span className="shrink-0 text-[13px] text-error-700 dark:text-error-300">
@@ -182,13 +182,13 @@ export function ThreadRow({
         isUnseen && "font-semibold text-foreground",
       )}
     >
-      {activityLabel(new Date(thread.updatedAt), now)}
+      {activityLabel(new Date(chat.updatedAt), now)}
     </span>
   );
-  // A starred thread's star, past its topics in the row's corner and a mark
+  // A starred chat's star, past its topics in the row's corner and a mark
   // rather than a control: starring and unstarring end the corner's bar,
   // which stands over the same spot.
-  const starMark = thread.starred && (
+  const starMark = chat.starred && (
     <StarIcon
       aria-label="Starred"
       className="size-3.5 shrink-0 text-warning-500"
@@ -197,7 +197,7 @@ export function ThreadRow({
     />
   );
   // The same groups, in the same order, as the menu in the chat's head.
-  const groups = threadMenuGroups(actions);
+  const groups = chatMenuGroups(actions);
   const item = (action: RowAction) => (
     <ContextMenuItem key={action.id} onSelect={action.run}>
       {action.icon}
@@ -215,10 +215,10 @@ export function ThreadRow({
         <div
           className={cn(
             rowClassName(density, isOpen),
-            // The thread just started from a draft arrives with a wash of
+            // The chat just started from a draft arrives with a wash of
             // the brand's tint that settles, so the eye finds the row the
             // draft became; nothing else that lands in the list does this.
-            isArriving && "thread-arrive",
+            isArriving && "chat-arrive",
           )}
           data-density={density}
           data-open={isOpen || undefined}
@@ -234,20 +234,20 @@ export function ThreadRow({
           {density === "slim" ? (
             <>
               <span className={SLIM_NAME_COLUMN}>{title}</span>
-              <Peek className="min-w-0 flex-1" lines={1} thread={thread} />
+              <Peek chat={chat} className="min-w-0 flex-1" lines={1} />
               {/* No more than a share of the row, clipped with a fade past
-                it, so a thread with many files never pushes into the title's
+                it, so a chat with many files never pushes into the title's
                 column. */}
               {hasHolds && (
-                <HoldsInThread threadId={thread.id}>
+                <HoldsInChat chatSessionId={chat.id}>
                   <HoldMarks
                     appsBySlug={appsBySlug}
                     className="ml-auto max-w-[30%]"
-                    holds={thread.holds}
+                    holds={chat.holds}
                     namedFiles
                     wrap={false}
                   />
-                </HoldsInThread>
+                </HoldsInChat>
               )}
               {/* The topics and the time at the row's end, both stepping
                 aside for the corner's bar while the pointer is on the row,
@@ -280,25 +280,25 @@ export function ThreadRow({
                 </span>
               </div>
               {/* The time in the row's bottom corner: at the end of the
-                holds' line when the thread holds anything, and otherwise at
+                holds' line when the chat holds anything, and otherwise at
                 the end of the latest line, so a row with nothing held takes
                 no line for nothing. */}
               {hasHolds ? (
                 <>
                   {/* Two lines' room whatever the latest line takes, so
-                    the row keeps one height as its thread starts work,
+                    the row keeps one height as its chat starts work,
                     starts a task, and settles on a reply of one line. */}
-                  <Peek className="mt-0.5 min-h-10" lines={2} thread={thread} />
+                  <Peek chat={chat} className="mt-0.5 min-h-10" lines={2} />
                   <div className="mt-1 flex items-end gap-2">
-                    <HoldsInThread threadId={thread.id}>
+                    <HoldsInChat chatSessionId={chat.id}>
                       <HoldMarks
                         appsBySlug={appsBySlug}
                         className="min-w-0 flex-1 gap-1"
-                        holds={thread.holds}
+                        holds={chat.holds}
                         namedFiles
                         wrap={false}
                       />
-                    </HoldsInThread>
+                    </HoldsInChat>
                     {time}
                   </div>
                 </>
@@ -309,7 +309,7 @@ export function ThreadRow({
                 // height as the line changes. The line starts under the
                 // title, as it does in a row that holds something.
                 <div className="mt-0.5 flex min-h-10 items-start gap-2">
-                  <Peek className="min-w-0 flex-1" lines={2} thread={thread} />
+                  <Peek chat={chat} className="min-w-0 flex-1" lines={2} />
                   <span className="ml-auto flex shrink-0 self-end">{time}</span>
                 </div>
               )}
@@ -340,7 +340,7 @@ export function ThreadRow({
               .filter((entry) => !entry.retired)
               .map((entry) => (
                 <ContextMenuCheckboxItem
-                  checked={thread.topics.includes(entry.id)}
+                  checked={chat.topics.includes(entry.id)}
                   key={entry.id}
                   onSelect={() => {
                     toggleTopic(entry.id);
@@ -371,10 +371,10 @@ export function ThreadRow({
 }
 
 /**
- * A topic the thread is filed under, as a pill in its tint no taller than
+ * A topic the chat is filed under, as a pill in its tint no taller than
  * the line it sits on: its emoji, or its mark's tile where it has none, then
  * its name, or the mark alone when the pill is compact and the name is its
- * tooltip. Clicking it opens the thread's topic list rather than the thread;
+ * tooltip. Clicking it opens the chat's topic list rather than the chat;
  * given nothing to open, it is the name alone and no control.
  */
 export function TopicPill({
@@ -448,24 +448,24 @@ export function TopicPill({
 }
 
 /**
- * Names the openers for the marks of what a thread holds: a hold is the
- * thread's, so opening one opens it as a tab of the thread's group, never
- * in place of whatever the right area had up, and brings the thread on
+ * Names the openers for the marks of what a chat holds: a hold is the
+ * chat's, so opening one opens it as a tab of the chat's group, never
+ * in place of whatever the right area had up, and brings the chat on
  * screen at that tab with its pane up. A middle or modified click asks for
  * the same tab.
  */
-function HoldsInThread({
+function HoldsInChat({
+  chatSessionId,
   children,
-  threadId,
 }: {
+  chatSessionId: StoreId.Session;
   children: ReactNode;
-  threadId: StoreId.Session;
 }) {
   const orchestrator = useOrchestrator();
-  const inThread = { group: threadId, ownTab: true, show: true };
+  const inChat = { group: chatSessionId, ownTab: true, show: true };
   // A new-tab gesture asks for a tab of the window's own instead.
   const options = (asked?: { newTab?: boolean }) =>
-    asked?.newTab ? { newTab: true } : inThread;
+    asked?.newTab ? { newTab: true } : inChat;
   return (
     <OrchestratorContext
       value={{
@@ -499,20 +499,20 @@ function HoldsInThread({
  * The agent's latest line: the step while it works, in brand; the question
  * while it waits, behind an amber glyph with the words themselves in gray;
  * and the last reply's first words otherwise, in muted. Nothing when an idle
- * thread has said nothing yet. One line that truncates, or two that clamp.
+ * chat has said nothing yet. One line that truncates, or two that clamp.
  */
 function Peek({
+  chat,
   className,
   lines,
-  thread,
 }: {
+  chat: Chat;
   className?: string;
   lines: 1 | 2;
-  thread: Thread;
 }) {
-  const isWaiting = thread.state === "waiting";
-  const isWorking = thread.state === "working";
-  if (!thread.latest && !isWaiting && !isWorking) {
+  const isWaiting = chat.state === "waiting";
+  const isWorking = chat.state === "working";
+  if (!chat.latest && !isWaiting && !isWorking) {
     return null;
   }
   const clamp = lines === 1 ? "truncate" : "line-clamp-2";
@@ -524,7 +524,7 @@ function Peek({
       )}
     >
       {isWorking ? (
-        <WorkingPeek lines={lines} thread={thread} />
+        <WorkingPeek chat={chat} lines={lines} />
       ) : isWaiting ? (
         <>
           <QuestionIcon
@@ -532,12 +532,12 @@ function Peek({
             weight="bold"
           />
           <span className={cn("min-w-0 text-foreground/80", clamp)}>
-            {thread.latest?.text || "Waiting on you"}
+            {chat.latest?.text || "Waiting on you"}
           </span>
         </>
       ) : (
         <span className={cn("min-w-0 text-muted-foreground", clamp)}>
-          {thread.latest?.text}
+          {chat.latest?.text}
         </span>
       )}
     </span>
@@ -545,35 +545,35 @@ function Peek({
 }
 
 /**
- * The control that files the thread, first in the corner's bar: the topic
+ * The control that files the chat, first in the corner's bar: the topic
  * picker every filing shares. The row keeps its open state, so the bar stays
  * in the flow while the list is up and the list keeps its anchor as it
  * closes.
  */
 function TagControl({
+  chat,
   isOpen,
   onNewTopic,
   onOpenChange,
   onToggle,
-  thread,
   topics,
 }: {
+  chat: Chat;
   isOpen: boolean;
   onNewTopic: (name: string) => void;
   onOpenChange: (open: boolean) => void;
   onToggle: (id: string) => void;
-  thread: Thread;
   topics: Topic[];
 }) {
   return (
     // The list is drawn elsewhere on the page but is this span's in React's
-    // eyes, so a pick inside it stops here rather than opening the thread. A
+    // eyes, so a pick inside it stops here rather than opening the chat. A
     // right click on the control is the row's, and raises the row's menu
     // like a right click on the words.
     <span className="flex shrink-0" onAuxClick={stopHere} onClick={stopHere}>
       <TopicPicker
         align="end"
-        chosen={new Set(thread.topics)}
+        chosen={new Set(chat.topics)}
         isOpen={isOpen}
         onNew={onNewTopic}
         onOpenChange={onOpenChange}
@@ -594,15 +594,15 @@ function TagControl({
 }
 
 /**
- * What a working thread is doing. In two lines, the task at work by its title
+ * What a working chat is doing. In two lines, the task at work by its title
  * and under it the step it is on, each held to one line, so the row keeps its
  * height as the step changes with every call; the step line says Instrument
  * is working until the task's first call lands. In one line, the step, or the task's title
- * before it has one. With no task at work, the thread's own agent is, and
+ * before it has one. With no task at work, the chat's own agent is, and
  * in two lines the user's message it is answering goes under it.
  */
-function WorkingPeek({ lines, thread }: { lines: 1 | 2; thread: Thread }) {
-  const working = thread.runningTasks.filter((task) => !task.waiting);
+function WorkingPeek({ chat, lines }: { chat: Chat; lines: 1 | 2 }) {
+  const working = chat.runningTasks.filter((task) => !task.waiting);
   const lead = working.find((task) => task.step) ?? working[0];
   // `brand-shiny-text` is an inline-block, which a parent's truncate cannot
   // shrink, so each line carries its own.
@@ -614,14 +614,14 @@ function WorkingPeek({ lines, thread }: { lines: 1 | 2; thread: Thread }) {
     );
     // In two lines, what it is answering under it, so the second line says
     // what the wait is for rather than standing empty until a task starts.
-    if (lines === 1 || !thread.lastAsk) {
+    if (lines === 1 || !chat.lastAsk) {
       return status;
     }
     return (
       <span className="flex min-w-0 flex-col">
         {status}
         <span className="min-w-0 truncate text-muted-foreground">
-          You: {thread.lastAsk}
+          You: {chat.lastAsk}
         </span>
       </span>
     );

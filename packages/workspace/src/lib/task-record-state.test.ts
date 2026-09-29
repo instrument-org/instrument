@@ -111,6 +111,26 @@ describe("getTaskState", () => {
     expect(written).toContain('"mountName": "Home-Downloads"');
     expect(written).not.toContain('"name": "Home-Downloads"');
   });
+
+  it("reads and writes the window's maps under their chat names", async () => {
+    await writeStateFile({
+      appThreads: { linear: "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV" },
+      threadSeen: {
+        ses_01ARZ3NDEKTSV4RRFFQ69G5FAV: "msg_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+      },
+    });
+
+    const state = await getTaskState(taskDir(taskId));
+    await setTaskState(taskDir(taskId), { promptDraft: "anything" });
+
+    expect(state).toMatchObject({
+      appChats: { linear: "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV" },
+      chatSeen: {
+        ses_01ARZ3NDEKTSV4RRFFQ69G5FAV: "msg_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+      },
+    });
+    expect(await fs.readFile(recordFilePath(), "utf8")).not.toContain("Thread");
+  });
 });
 
 describe("the pane", () => {

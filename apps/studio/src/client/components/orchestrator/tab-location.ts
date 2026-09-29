@@ -21,15 +21,15 @@ export interface LocationCrumb {
 const TASKS_HREF = "/orchestrator/tasks";
 
 /** The address of one task's page, carrying the chat whose list it was opened from. */
-export function taskHref(id: TaskId, thread?: StoreId.Session): string {
-  return thread === undefined
+export function taskHref(id: TaskId, chat?: StoreId.Session): string {
+  return chat === undefined
     ? `${TASKS_HREF}/${id}`
-    : `${TASKS_HREF}/${id}?thread=${thread}`;
+    : `${TASKS_HREF}/${id}?chat=${chat}`;
 }
 
 /** The address of a chat's task list, or of every task with no chat named. */
-export function tasksHref(thread?: StoreId.Session): string {
-  return thread === undefined ? TASKS_HREF : `${TASKS_HREF}?thread=${thread}`;
+export function tasksHref(chat?: StoreId.Session): string {
+  return chat === undefined ? TASKS_HREF : `${TASKS_HREF}?chat=${chat}`;
 }
 
 /** The route the Skills screen is at: every skill a task can load, and each one's page under it. */
@@ -45,8 +45,15 @@ export type TabLocation =
       /** Where the file sits on the computer, which makes the folders above it places the tab can go. */
       path: string;
     }
+  | {
+      /** The chat whose list the task was opened from, which is where its crumb goes back to. */
+      chat?: StoreId.Session;
+      kind: "task";
+      title: string;
+    }
   | { kind: "app"; name: string; site?: string }
   | { kind: "apps" }
+  | { kind: "chat"; title: string }
   | { kind: "folder"; path: string }
   | { kind: "idea"; title: string }
   | { kind: "ideas" }
@@ -54,14 +61,7 @@ export type TabLocation =
   | { kind: "page"; url: string }
   | { kind: "skill"; name: string }
   | { kind: "skills" }
-  | {
-      kind: "task";
-      /** The chat whose list the task was opened from, which is where its crumb goes back to. */
-      thread?: StoreId.Session;
-      title: string;
-    }
-  | { kind: "tasks" }
-  | { kind: "thread"; title: string };
+  | { kind: "tasks" };
 
 /**
  * The place the field shows, as the parts a person reads it in.
@@ -85,6 +85,11 @@ export function locationCrumbs(
     }
     case "apps": {
       return [{ label: "Apps" }];
+    }
+    // A chat hangs from the chat beside the tabs rather than from a screen
+    // under one, so there is nothing above it the field could go to.
+    case "chat": {
+      return [{ label: location.title }];
     }
     // A path is read the way a person writes one, whichever screen said it:
     // the folder browser hands over a path with the home folder already as
@@ -119,18 +124,13 @@ export function locationCrumbs(
       return [
         {
           label: "Tasks",
-          to: { href: tasksHref(location.thread), kind: "screen" },
+          to: { href: tasksHref(location.chat), kind: "screen" },
         },
         { label: location.title },
       ];
     }
     case "tasks": {
       return [{ label: "Tasks" }];
-    }
-    // A thread hangs from the chat beside the tabs rather than from a screen
-    // under one, so there is nothing above it the field could go to.
-    case "thread": {
-      return [{ label: location.title }];
     }
   }
 }
@@ -142,21 +142,19 @@ export function locationCrumbs(
  */
 export function tasksOfHref(
   href: string,
-): undefined | { task?: TaskId; thread?: StoreId.Session } {
+): undefined | { chat?: StoreId.Session; task?: TaskId } {
   const url = new URL(href, "http://tabs");
   const { pathname } = url;
-  const thread = StoreId.SessionSchema.safeParse(
-    url.searchParams.get("thread"),
-  );
-  const forThread = thread.success ? { thread: thread.data } : {};
+  const chat = StoreId.SessionSchema.safeParse(url.searchParams.get("chat"));
+  const forChat = chat.success ? { chat: chat.data } : {};
   if (pathname === TASKS_HREF || pathname === `${TASKS_HREF}/`) {
-    return forThread;
+    return forChat;
   }
   if (!pathname.startsWith(`${TASKS_HREF}/`)) {
     return undefined;
   }
   const parsed = TaskIdSchema.safeParse(pathname.slice(TASKS_HREF.length + 1));
-  return parsed.success ? { task: parsed.data, ...forThread } : undefined;
+  return parsed.success ? { task: parsed.data, ...forChat } : undefined;
 }
 
 /** The address of the memories, which the window shows in Settings rather than as a screen. */

@@ -1,12 +1,12 @@
+import {
+  ChatTaskList,
+  type TaskListItem,
+} from "@/client/components/orchestrator/chat-task-list";
 import { useOrchestrator } from "@/client/components/orchestrator/context";
 import { useOnScreen } from "@/client/components/orchestrator/on-screen";
 import { useScreenTab } from "@/client/components/orchestrator/screen-tab";
 import { taskHref } from "@/client/components/orchestrator/tab-location";
 import { TaskPage } from "@/client/components/orchestrator/task-page";
-import {
-  type TaskListItem,
-  ThreadTaskList,
-} from "@/client/components/orchestrator/thread-task-list";
 import { Spinner } from "@/client/components/ui/spinner";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
@@ -19,35 +19,27 @@ const REFRESH_MS = ms("2 seconds");
 
 type Child = RPCOutput["workspace"]["orchestrator"]["children"][number];
 
-/** One task's page as a screen: its own chat, told to the conversation as the task and where it stands. */
-export function TaskScreen({ taskId }: { taskId: TaskId }) {
-  const children = useChildren();
-  const child = children.data?.find((entry) => entry.id === taskId);
-  useOnScreen(child ? { screen: "task", task: describe(child) } : null);
-  return <TaskPage taskId={taskId} />;
-}
-
 /**
  * A chat's tasks as a screen in its tab group: the tasks filed from that
  * chat, or every task with no chat named. A row pressed moves the same tab
  * to the task's page, so back returns to the list along the tab's trail.
  */
-export function ThreadTasksScreen({
-  thread,
+export function ChatTasksScreen({
+  chat,
 }: {
-  thread: StoreId.Session | undefined;
+  chat: StoreId.Session | undefined;
 }) {
   const children = useChildren();
   const screenTab = useScreenTab();
   const router = useRouter();
   const own = (children.data ?? []).filter(
-    (child) => thread === undefined || child.threadId === thread,
+    (child) => chat === undefined || child.chatSessionId === chat,
   );
   useOnScreen(
     children.data ? { screen: "tasks", tasks: own.map(describe) } : null,
   );
   const open = (id: TaskId) => {
-    const href = taskHref(id, thread);
+    const href = taskHref(id, chat);
     if (screenTab) {
       screenTab.visit(href);
     } else {
@@ -68,7 +60,15 @@ export function ThreadTasksScreen({
     title: child.title,
     updatedAt: child.updatedAt,
   }));
-  return <ThreadTaskList items={items} onOpen={open} />;
+  return <ChatTaskList items={items} onOpen={open} />;
+}
+
+/** One task's page as a screen: its own chat, told to the conversation as the task and where it stands. */
+export function TaskScreen({ taskId }: { taskId: TaskId }) {
+  const children = useChildren();
+  const child = children.data?.find((entry) => entry.id === taskId);
+  useOnScreen(child ? { screen: "task", task: describe(child) } : null);
+  return <TaskPage taskId={taskId} />;
 }
 
 /** A task as the conversation is told it: what it is called and where it stands. */

@@ -71,6 +71,8 @@ import {
   type PageChromeSlots,
   TabIcon,
 } from "./browser-tabs";
+import { ChatTasksScreen, TaskScreen } from "./chat-tasks-view";
+import { draftTitle, type Topic } from "./chats";
 import {
   COMPOSE_BAR_WIDTH,
   COMPOSE_MOTION,
@@ -94,8 +96,6 @@ import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
 import { useTaskTitles } from "./task-titles";
-import { TaskScreen, ThreadTasksScreen } from "./thread-tasks-view";
-import { draftTitle, type Topic } from "./threads";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { AddTopicChip, TopicPicker } from "./topic-picker";
@@ -111,7 +111,7 @@ import {
   useWindowTabs,
 } from "./window-tabs";
 
-/** What the composer hands over to start the thread. */
+/** What the composer hands over to start the chat. */
 export interface DraftSend {
   files?: FileUpload.Input[];
   folders?: { access: FolderAttachment.Access; path: string }[];
@@ -225,8 +225,8 @@ export function ComposeBar({
 }
 
 /**
- * A draft of a new thread, in a window that floats over the inbox and the
- * thread the way a mail client's compose window does: docked at the window's
+ * A draft of a new chat, in a window that floats over the inbox and the
+ * chat the way a mail client's compose window does: docked at the window's
  * bottom-right corner, or grown to fill the window inset from its edges, and
  * put down to a bar along the window's foot. Its head carries the draft's
  * name, the topic it will be filed under, the composer's controls (the plus
@@ -235,7 +235,7 @@ export function ComposeBar({
  * band that is the draft's own pane: the four doors when nothing is gathered
  * yet, and otherwise the gathered things as tabs with the one up drawn large,
  * a page by the browser and a folder by This Mac. The draft's tabs are the
- * thread's tabs from the moment it starts; nothing is handed over.
+ * chat's tabs from the moment it starts; nothing is handed over.
  *
  * The words ride in the draft's record, so the Drafts list can name it and a
  * relaunch keeps them; what else the box was given (files, a folder) is kept
@@ -277,7 +277,7 @@ export function ComposeWindow({
   onStart: (send: DraftSend) => void;
   /** What the band has up, in the terms the conversation is told it, or null for nothing it can say. */
   onViewChange: (view: null | ScreenView) => void;
-  /** A screen the band cannot draw, handed to the window to open beside the thread. */
+  /** A screen the band cannot draw, handed to the window to open beside the chat. */
   openOutside: (href: string) => void;
   placement: Exclude<ComposePlacement, "bar">;
   /** Where a docked window stands along the foot, in layout px from the right edge; the windows beside it are placed the same way. */
@@ -323,7 +323,7 @@ export function ComposeWindow({
 
   // What the window has up behind the draft now, when that is something
   // else: it goes with the message too, in a pill of its own the person can
-  // leave out, so the draft says everything the thread will be told.
+  // leave out, so the draft says everything the chat will be told.
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const behind = behindTabOf(
     draft,
@@ -515,7 +515,7 @@ export function ComposeWindow({
     }
   };
 
-  // What the band has up, for the thread the draft starts: a folder or file
+  // What the band has up, for the chat the draft starts: a folder or file
   // is said by the screen drawing it, since only that screen knows where the
   // browser has walked to.
   const [filesView, setFilesView] = useState<null | ScreenView>(null);
@@ -812,7 +812,7 @@ export function ComposeWindow({
                   className="min-h-0 flex-1"
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
-                  // The window becomes the thread's at the press, so the
+                  // The window becomes the chat's at the press, so the
                   // box is never left waiting on a send.
                   isLoading={false}
                   lead={
@@ -901,6 +901,7 @@ export function ComposeWindow({
                   // the top of the card under it rather than as the floor.
                   <div className="flex h-9 shrink-0 items-center pr-1 pl-1 [--topic-tint-raised:var(--card)]">
                     <WindowTabStrip
+                      chatTitles={NO_TITLES}
                       childTitles={NO_TITLES}
                       groupKey={group}
                       onClose={closeTab}
@@ -918,7 +919,6 @@ export function ComposeWindow({
                       }}
                       selectedId={up?.id}
                       tabs={tabs}
-                      threadTitles={NO_TITLES}
                     />
                   </div>
                 )}
@@ -1236,7 +1236,7 @@ export function GroupItem({
             }}
           >
             {tasks.task === undefined ? (
-              <ThreadTasksScreen thread={tasks.thread} />
+              <ChatTasksScreen chat={tasks.chat} />
             ) : (
               <TaskScreen key={tasks.task} taskId={tasks.task} />
             )}
@@ -1419,7 +1419,7 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
   );
 }
 
-/** A file or folder the draft was opened on by name, held for the thread until it is left out. */
+/** A file or folder the draft was opened on by name, held for the chat until it is left out. */
 function ChosenChip({
   item,
   onLeaveOut,

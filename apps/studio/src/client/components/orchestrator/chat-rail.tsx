@@ -61,11 +61,12 @@ const AGENT_SETTLE_MS = 1000;
  * it among the others. New, under the last tile, opens the web or this
  * computer beside the chat.
  */
-export function ThreadRail({
+export function ChatRail({
   activeId,
   appsBySlug,
+  chatTitles,
+  isChatWorking,
   isCompact = false,
-  isThreadWorking,
   isViewOpen,
   onAddComputer,
   onAddWeb,
@@ -75,14 +76,14 @@ export function ThreadRail({
   tabs,
   targetOf,
   taskTitles,
-  threadTitles,
 }: {
   activeId: string | undefined;
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
+  chatTitles: Parameters<typeof screenPresentation>[1]["chatTitles"];
+  /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
+  isChatWorking: boolean;
   /** Whether it stands as a column of marks, for a row with no room left for its pictures. */
   isCompact?: boolean;
-  /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
-  isThreadWorking: boolean;
   /** Whether the thing up is shown large, which is when its tile reads as chosen and its page is on screen. */
   isViewOpen: boolean;
   onAddComputer: () => void;
@@ -95,7 +96,6 @@ export function ThreadRail({
   /** The guest a page tab is drawn by, for taking its picture. */
   targetOf: (tab: Extract<WindowTab, { kind: "page" }>) => BrowserTargetId;
   taskTitles?: Parameters<typeof screenPresentation>[1]["taskTitles"];
-  threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
 }) {
   // Tiles slide only while one is being dragged among them: laid out
   // otherwise, they would slide every time the window around the rail grows,
@@ -147,9 +147,10 @@ export function ThreadRail({
             >
               <RailTile
                 appsBySlug={appsBySlug}
+                chatTitles={chatTitles}
+                isChatWorking={isChatWorking}
                 isChosen={isViewOpen && tab.id === activeId}
                 isOnScreen={isViewOpen && tab.id === activeId}
-                isThreadWorking={isThreadWorking}
                 onClose={() => {
                   onClose(tab.id);
                 }}
@@ -159,7 +160,6 @@ export function ThreadRail({
                 tab={tab}
                 targetOf={targetOf}
                 taskTitles={taskTitles}
-                threadTitles={threadTitles}
               />
             </Reorder.Item>
           ))}
@@ -391,19 +391,19 @@ function PagePicture({
  */
 function PageWorking({
   children,
-  isThreadWorking,
+  isChatWorking,
   tab,
   targetId,
 }: {
   children: (isWorking: boolean) => ReactNode;
-  isThreadWorking: boolean;
+  isChatWorking: boolean;
   tab: Extract<WindowTab, { kind: "page" }>;
   targetId: BrowserTargetId;
 }) {
   return tab.taskId ? (
     <TaskWorking taskId={tab.taskId}>{children}</TaskWorking>
   ) : (
-    <TargetWorking isThreadWorking={isThreadWorking} targetId={targetId}>
+    <TargetWorking isChatWorking={isChatWorking} targetId={targetId}>
       {children}
     </TargetWorking>
   );
@@ -411,31 +411,31 @@ function PageWorking({
 
 function RailTile({
   appsBySlug,
+  chatTitles,
+  isChatWorking,
   isChosen,
   isOnScreen,
-  isThreadWorking,
   onClose,
   onSelect,
   tab,
   targetOf,
   taskTitles,
-  threadTitles,
 }: {
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
+  chatTitles: Parameters<typeof screenPresentation>[1]["chatTitles"];
+  isChatWorking: boolean;
   isChosen: boolean;
   isOnScreen: boolean;
-  isThreadWorking: boolean;
   onClose: () => void;
   onSelect: () => void;
   tab: WindowTab;
   targetOf: (tab: Extract<WindowTab, { kind: "page" }>) => BrowserTargetId;
   taskTitles: Parameters<typeof screenPresentation>[1]["taskTitles"];
-  threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
 }) {
   const title =
     tab.kind === "page"
       ? tab.title || hostOf(tab.url ?? tab.openedUrl ?? "")
-      : screenPresentation(tab.href, { appsBySlug, taskTitles, threadTitles })
+      : screenPresentation(tab.href, { appsBySlug, chatTitles, taskTitles })
           .title;
   // What the tile is by its mark: a page's site, a file's type, a folder,
   // an app. Beside the name in a wide rail; the whole tile in a narrow one.
@@ -445,8 +445,8 @@ function RailTile({
     ) : (
       <ScreenMark
         appsBySlug={appsBySlug}
+        chatTitles={chatTitles}
         href={tab.href}
-        threadTitles={threadTitles}
       />
     );
   const tile = (isWorking: boolean) => (
@@ -499,8 +499,8 @@ function RailTile({
           ) : (
             <ScreenPicture
               appsBySlug={appsBySlug}
+              chatTitles={chatTitles}
               href={tab.href}
-              threadTitles={threadTitles}
             />
           )}
         </span>
@@ -527,7 +527,7 @@ function RailTile({
   );
   return tab.kind === "page" ? (
     <PageWorking
-      isThreadWorking={isThreadWorking}
+      isChatWorking={isChatWorking}
       tab={tab}
       targetId={targetOf(tab)}
     >
@@ -541,35 +541,35 @@ function RailTile({
 /** A screen's small mark beside its name: a file's type, a folder, or the screen's own icon. */
 function ScreenMark({
   appsBySlug,
+  chatTitles,
   href,
-  threadTitles,
 }: {
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
+  chatTitles: Parameters<typeof screenPresentation>[1]["chatTitles"];
   href: string;
-  threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
 }) {
-  const location = screenLocation(href, { appsBySlug, threadTitles });
+  const location = screenLocation(href, { appsBySlug, chatTitles });
   if (location.kind === "file") {
     return <FileTypeIcon className="size-3" fileName={location.name} />;
   }
   if (location.kind === "folder") {
     return <FileSystemFolderGlyph className="h-2.5 w-auto" />;
   }
-  return screenPresentation(href, { appsBySlug, threadTitles }).icon;
+  return screenPresentation(href, { appsBySlug, chatTitles }).icon;
 }
 
 /** A screen as what it shows: a file as the picture the app keeps of it, a folder as its mark, anything else as its own mark. */
 function ScreenPicture({
   appsBySlug,
+  chatTitles,
   href,
-  threadTitles,
 }: {
   appsBySlug: Parameters<typeof screenPresentation>[1]["appsBySlug"];
+  chatTitles: Parameters<typeof screenPresentation>[1]["chatTitles"];
   href: string;
-  threadTitles: Parameters<typeof screenPresentation>[1]["threadTitles"];
 }) {
   const { resolvedTheme } = useTheme();
-  const location = screenLocation(href, { appsBySlug, threadTitles });
+  const location = screenLocation(href, { appsBySlug, chatTitles });
   const [failed, setFailed] = useState<string>();
   // Watched while the tile is up, so a file written to, by the agent or
   // anyone, is pictured again as it now is rather than as it first was.
@@ -603,7 +603,7 @@ function ScreenPicture({
   }
   return (
     <span className="text-muted-foreground [&_img]:size-6 [&_svg]:size-6">
-      {screenPresentation(href, { appsBySlug, threadTitles }).icon}
+      {screenPresentation(href, { appsBySlug, chatTitles }).icon}
     </span>
   );
 }
@@ -615,15 +615,15 @@ function ScreenPicture({
  */
 function TargetWorking({
   children,
-  isThreadWorking,
+  isChatWorking,
   targetId,
 }: {
   children: (isWorking: boolean) => ReactNode;
-  isThreadWorking: boolean;
+  isChatWorking: boolean;
   targetId: BrowserTargetId;
 }) {
   const isDriven = useTargetAgentActivity(targetId);
-  return children(isThreadWorking && isDriven);
+  return children(isChatWorking && isDriven);
 }
 
 function TaskWorking({

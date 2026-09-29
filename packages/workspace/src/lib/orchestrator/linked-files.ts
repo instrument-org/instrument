@@ -5,12 +5,12 @@ import { type TaskId } from "../../schemas/task-id";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
-import { listChatIds } from "./chats";
+import { listChatIds } from "./chat-records";
 
 /**
- * How far back into a thread this reads. A file the conversation handed over
+ * How far back into a chat this reads. A file the conversation handed over
  * a hundred messages ago is history rather than a recent, and the point of a
- * bound is that a thread a year old costs the same to ask as a new one.
+ * bound is that a chat a year old costs the same to ask as a new one.
  */
 const MESSAGES_READ = 100;
 
@@ -52,7 +52,7 @@ export async function linkedFiles(): Promise<LinkedFile[]> {
   );
 }
 
-/** What one thread's replies showed. */
+/** What one chat's replies showed. */
 async function shownIn(
   taskId: TaskId,
   sessionId: StoreId.Session,

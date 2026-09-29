@@ -184,8 +184,8 @@ async function pendingAsk(taskId: TaskId): Promise<string | undefined> {
 
 /**
  * What a conversation is waiting on the user for, when its last turn ended on
- * an ask rather than on words. A thread is a session, so this is also how a
- * thread says it has stopped and needs an answer.
+ * an ask rather than on words. A chat is a session, so this is also how a
+ * chat says it has stopped and needs an answer.
  */
 async function sessionAsk(
   taskId: TaskId,

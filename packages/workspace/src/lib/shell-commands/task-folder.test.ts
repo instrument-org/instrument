@@ -223,7 +223,7 @@ describe("task folder", () => {
         ...context,
         orchestratorTaskId: TaskIdSchema.parse("someone-else"),
       }),
-    ).rejects.toThrow(/"find-the-vault" was started in another thread/);
+    ).rejects.toThrow(/"find-the-vault" was started in another chat/);
   });
 });
 

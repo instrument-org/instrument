@@ -177,7 +177,7 @@ export async function updateTaskRecord(
  * queue.
  *
  * For the fields that are read-modify-write on one value with several writers
- * at once: the window records what has been seen in a thread while the agent
+ * at once: the window records what has been seen in a chat while the agent
  * tags it and a task files itself from it. Reading before the queue means the
  * slower writer restores the value the faster one had just changed.
  */
@@ -251,17 +251,19 @@ function recordPath(dir: TaskDir): AbsolutePath {
  * matters more, since the top level is a closed set and `state` is the half
  * that keeps growing.
  *
- * The parsed view still wins over raw, so a value `migrateTaskState` rewrote is
- * not overwritten by the old shape sitting beneath it.
+ * The raw state goes through `migrateTaskState` too, so a key it renamed is
+ * written under its new name only rather than kept beside it, and the parsed
+ * view still wins over raw.
  */
 function recordWithState(
   record: TaskRecord,
   changes: Partial<TaskState>,
 ): Record<string, unknown> {
+  const raw = migrateTaskState(record.raw.state);
   return {
     ...record.raw,
     state: {
-      ...(isRecord(record.raw.state) ? record.raw.state : {}),
+      ...(isRecord(raw) ? raw : {}),
       ...record.state,
       ...changes,
     },

@@ -93,7 +93,7 @@ export function AppRail({
 }: {
   /** A place asked for: in the tab up, or in a tab of its own for a middle or modified click or the menu's ask. */
   onChoose: (place: AppPlace, options: { newTab: boolean }) => void;
-  /** Opens a draft of a new thread. */
+  /** Opens a draft of a new chat. */
   onNew: () => void;
   /** The place the window stands in; none while a screen outside its places is up. */
   place?: AppPlace;
@@ -103,9 +103,9 @@ export function AppRail({
       aria-label="Places"
       className="flex h-full w-19 shrink-0 flex-col items-center gap-3 pt-1 pb-2 select-none"
     >
-      {/* The way to a new thread, in the brand's own green: round, since the
+      {/* The way to a new chat, in the brand's own green: round, since the
         word under it is the label and the tile needs none of its own. */}
-      <ToolbarTooltip chord="newThread" label="New">
+      <ToolbarTooltip chord="newChat" label="New">
         <button
           className="group flex w-16 flex-col items-center gap-0.5 rounded-xl py-1.5"
           onClick={onNew}

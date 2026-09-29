@@ -12,7 +12,7 @@ import { isRecord, splitFrontmatter } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /**
- * What the conversation's agent keeps about the user across every thread: a
+ * What the conversation's agent keeps about the user across every chat: a
  * folder of Markdown files, one memory each, at the workspace root beside the
  * apps and skills folders.
  *
@@ -46,7 +46,7 @@ export const MemoryNameSchema = z
 export const MemorySchema = z.object({
   /** When it was saved or last corrected, in ms since the epoch. */
   at: z.number(),
-  /** The thread it was learned in, when a thread saved it. */
+  /** The chat it was learned in, when a chat saved it. */
   from: z
     .object({
       sessionId: z.string().optional(),
@@ -184,7 +184,7 @@ export async function saveMemory(
   }
   if (body.length > MEMORY_TEXT_MAX) {
     throw new Error(
-      `A memory holds at most ${MEMORY_TEXT_MAX} characters; this one is ${body.length}. Keep the fact and leave the rest to the thread.`,
+      `A memory holds at most ${MEMORY_TEXT_MAX} characters; this one is ${body.length}. Keep the fact and leave the rest to the chat.`,
     );
   }
   const at = Date.now();
@@ -246,12 +246,12 @@ async function readMemoryFile(
     typeof record.at === "string" && !Number.isNaN(Date.parse(record.at))
       ? Date.parse(record.at)
       : modifiedAt;
+  // A memory saved while chats were threads names its chat as `thread`.
+  const chat = record.chat ?? record.thread;
   const from =
     typeof record.from === "string" && record.from.trim()
       ? {
-          ...(typeof record.thread === "string" && record.thread
-            ? { sessionId: record.thread }
-            : {}),
+          ...(typeof chat === "string" && chat ? { sessionId: chat } : {}),
           title: record.from.trim(),
         }
       : undefined;
@@ -259,9 +259,9 @@ async function readMemoryFile(
 }
 
 /**
- * The file: frontmatter naming the thread and the moment, then the memory.
+ * The file: frontmatter naming the chat and the moment, then the memory.
  * String values are written as JSON, which YAML reads as a quoted scalar, so
- * a thread title holding a colon or a quote round-trips.
+ * a chat title holding a colon or a quote round-trips.
  */
 function serialize({
   at,
@@ -276,7 +276,7 @@ function serialize({
   if (from) {
     lines.push(`from: ${JSON.stringify(from.title)}`);
     if (from.sessionId) {
-      lines.push(`thread: ${JSON.stringify(from.sessionId)}`);
+      lines.push(`chat: ${JSON.stringify(from.sessionId)}`);
     }
   }
   lines.push(`at: ${new Date(at).toISOString()}`, "---", body, "");

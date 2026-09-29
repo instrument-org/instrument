@@ -63,7 +63,8 @@ export function buildReportWorkspaceConfig(
       path.join(absoluteWorkspaceDir, "default-task-template"),
     ),
     getAIProviderConfigs: () => [],
-    isActivityHeadingsEnabled: () => process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
+    isActivityHeadingsEnabled: () =>
+      process.env.INSTRUMENT_ACTIVITY_HEADINGS === "1",
     isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},

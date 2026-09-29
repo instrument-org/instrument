@@ -6,7 +6,7 @@ export type LinkTextSegment =
   | { text: string; type: "text" };
 
 // A Markdown inline link whose destination is a page, an address, or a thing
-// inside the app by its own scheme, which is what "Copy Link" on a thread or a
+// inside the app by its own scheme, which is what "Copy Link" on a chat or a
 // task puts on the clipboard. The label may not cross a line or hold a
 // bracket, and the destination may hold one level of balanced parentheses,
 // which is what a URL ending in one needs. A label has to open with something

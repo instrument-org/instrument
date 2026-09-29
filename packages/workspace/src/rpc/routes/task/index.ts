@@ -21,7 +21,7 @@ import { initializeTask } from "../../../lib/initialize-task";
 import { LiveTasksSnapshot } from "../../../lib/live-tasks-snapshot";
 import { newMessage } from "../../../lib/new-message";
 import { newTaskId } from "../../../lib/new-task-id";
-import { ensureChat } from "../../../lib/orchestrator/chats";
+import { ensureChat } from "../../../lib/orchestrator/chat-records";
 import { pathExists } from "../../../lib/path-exists";
 import { getProject } from "../../../lib/project";
 import { normalizeProjectInstructions } from "../../../lib/project-instructions";

@@ -1,5 +1,6 @@
 import {
   chatGroupAtom,
+  CHATS_HREF,
   type Draft,
   draftGroupOf,
   draftsAtom,
@@ -7,7 +8,6 @@ import {
   pageSlotsAtom,
   paneOpenByGroupAtom,
   screenViewAtom,
-  THREADS_HREF,
 } from "@/client/atoms/orchestrator";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -84,6 +84,7 @@ import {
   type BrowserTabsHandle,
   type ComposeHost,
 } from "./browser-tabs";
+import { chatListOptions } from "./chat-list-query";
 import { ComposeLayer } from "./compose-layer";
 import {
   OrchestratorContext,
@@ -98,19 +99,18 @@ import {
   ShellContext,
 } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
-import { threadListOptions } from "./thread-list-query";
 import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
 import { ideasQueryOptions } from "./use-ideas";
 import { useOpeners } from "./use-openers";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
 import { useRecordRecents } from "./use-record-recents";
-import { useSetThreadTopics } from "./use-set-thread-topics";
+import { useSetChatTopics } from "./use-set-chat-topics";
 import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { WindowFrame } from "./window-frame";
-import { threadOfHref, useWindowTabs } from "./window-tabs";
+import { chatOfHref, useWindowTabs } from "./window-tabs";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -270,14 +270,14 @@ function WindowShell({
   const childTitles = new Map<TaskId, string>(
     children.data?.map((child) => [child.id, child.title]) ?? [],
   );
-  // The thread each task was filed from, which is the group its browsing
+  // The chat each task was filed from, which is the group its browsing
   // lands in.
-  const childThreads = new Map<TaskId, string | undefined>(
-    children.data?.map((child) => [child.id, child.threadId]) ?? [],
+  const childChats = new Map<TaskId, string | undefined>(
+    children.data?.map((child) => [child.id, child.chatSessionId]) ?? [],
   );
-  const threads = useQuery(threadListOptions());
-  const threadTitles = new Map<StoreId.Session, string>(
-    threads.data?.map((thread) => [thread.id, thread.title]) ?? [],
+  const chats = useQuery(chatListOptions());
+  const chatTitles = new Map<StoreId.Session, string>(
+    chats.data?.map((chat) => [chat.id, chat.title]) ?? [],
   );
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
@@ -331,7 +331,7 @@ function WindowShell({
     if (!isChat) {
       return;
     }
-    setChatGroup(threadOfHref(activeHref) ?? null);
+    setChatGroup(chatOfHref(activeHref) ?? null);
   }, [activeHref, isChat, setChatGroup]);
 
   const compose = useCompose(rowWidth, (group) =>
@@ -417,9 +417,7 @@ function WindowShell({
       }
       for (const group of leaving) {
         if (reopenable.has(group)) {
-          next[group] = windowTabs.allTabs.filter(
-            (tab) => tab.group === group,
-          );
+          next[group] = windowTabs.allTabs.filter((tab) => tab.group === group);
         }
       }
       return next;
@@ -478,16 +476,16 @@ function WindowShell({
   }, [pageHost, stage]);
 
   /**
-   * Takes a thread out of the corner: the window goes and the thread comes
+   * Takes a chat out of the corner: the window goes and the chat comes
    * up in the tab on screen, whole, its pane as it was.
    */
-  const landThread = (sessionId: StoreId.Session) => {
+  const landChat = (sessionId: StoreId.Session) => {
     compose.remove(sessionId);
-    appTabs.navigate(`${THREADS_HREF}/${sessionId}`);
+    appTabs.navigate(`${CHATS_HREF}/${sessionId}`);
   };
-  /** The same, with one of the thread's tabs put in front of its pane. */
+  /** The same, with one of the chat's tabs put in front of its pane. */
   const landOnTab = (sessionId: StoreId.Session, tabId: string) => {
-    landThread(sessionId);
+    landChat(sessionId);
     windowTabs.selectIn(sessionId, tabId);
     setPaneOpen(sessionId, true);
   };
@@ -495,12 +493,12 @@ function WindowShell({
   const { openNamedPath, openPage, openScreen } = useOpeners({
     appTabs,
     browser,
+    chatOfTask: (id) => childChats.get(id),
+    chats: chats.data,
+    chatTitles,
     ids,
     revealPane,
     setPaneOpen,
-    threadOfTask: (id) => childThreads.get(id),
-    threads: threads.data,
-    threadTitles,
     windowTabs,
   });
 
@@ -566,7 +564,7 @@ function WindowShell({
   usePageThumbnailHousekeeping();
 
   // The default first, since it is what the draft's picker edits: every send
-  // stores its model on the orchestrator's own state, so once any thread has
+  // stores its model on the orchestrator's own state, so once any chat has
   // been started that field is always set. The stored model stands in for a
   // window whose default was never saved.
   const modelURI = defaultModelURI ?? state.data?.selectedModelURI;
@@ -579,28 +577,28 @@ function WindowShell({
       onSuccess: () => void topicsQuery.refetch(),
     }),
   );
-  const setThreadTopics = useSetThreadTopics();
+  const setChatTopics = useSetChatTopics();
   // The new-topic dialog, asked for from a chat's head or a draft's, with
   // what was typed in the picker: the topic it makes files that chat or
   // that draft.
   const [newTopic, setNewTopic] = useState<{
+    /** The chat it files, when that is not the one the tab up has open: a popped-out chat's. */
+    chatSessionId?: StoreId.Session;
     draftId?: string;
     name?: string;
-    /** The chat it files, when that is not the one the tab up has open: a popped-out chat's. */
-    threadId?: StoreId.Session;
   }>();
-  const threadUp = threadOfHref(activeHref);
+  const chatUp = chatOfHref(activeHref);
 
   // What goes with a message, read at the moment of sending.
   const { draftContext, sendContext } = contextReaders({
     appsBySlug,
     browser,
+    chatTitles,
     drafts,
     href: activeHref,
     paneOpenByGroup,
     screenView,
     state: state.data,
-    threadTitles,
     viewsById: compose.viewsById,
     windowTabs,
   });
@@ -612,8 +610,8 @@ function WindowShell({
     newDraft,
     sentWords,
     showDraft,
+    startChat,
     startingIds,
-    startThread,
   } = useDrafts({
     attachedFolders: state.data?.attachedFolders ?? {},
     compose,
@@ -626,7 +624,7 @@ function WindowShell({
   });
   // The inbox's rows as the tab up lists them, for stepping through them by
   // chord.
-  const listedThreads = useRef<StoreId.Session[]>([]);
+  const listedChats = useRef<StoreId.Session[]>([]);
   useWindowCommands(
     {
       back: () => {
@@ -640,8 +638,8 @@ function WindowShell({
       forward: () => {
         appTabs.activeRouter?.history.forward();
       },
+      newChat: newDraft,
       newTab: appTabs.openNewTab,
-      newThread: newDraft,
       // A file from outside the app is the person's own, in a tab of its own.
       openFile: (hostPath) => {
         appTabs.open(fileHref(hostPath));
@@ -656,14 +654,14 @@ function WindowShell({
       toggleInbox: () => {
         // The inbox is the chat's; elsewhere the chord has nothing to move.
         if (isChat) {
-          setInboxOpen((isOpen) => !isOpen || threadUp === undefined);
+          setInboxOpen((isOpen) => !isOpen || chatUp === undefined);
         }
       },
       // The next or previous row of the inbox from the chat up; from no
       // chat, the list's first or last.
-      selectThread: (direction) => {
-        const listed = listedThreads.current;
-        const at = threadUp === undefined ? -1 : listed.indexOf(threadUp);
+      selectChat: (direction) => {
+        const listed = listedChats.current;
+        const at = chatUp === undefined ? -1 : listed.indexOf(chatUp);
         const next =
           at === -1
             ? direction === 1
@@ -671,7 +669,7 @@ function WindowShell({
               : listed.at(-1)
             : listed[at + direction];
         if (next !== undefined) {
-          openScreen(`${THREADS_HREF}/${next}`);
+          openScreen(`${CHATS_HREF}/${next}`);
         }
       },
     },
@@ -681,7 +679,7 @@ function WindowShell({
   const screens: null | Screens = ids
     ? {
         // No session: a line a button hands over at the top level opens a
-        // draft with the line in it rather than a thread, so the person reads
+        // draft with the line in it rather than a chat, so the person reads
         // what is about to be asked, adds to it, and sends it themselves.
         ask: (prompt) => {
           newDraft(prompt);
@@ -733,13 +731,15 @@ function WindowShell({
     deleteDraft,
     // Only a draft with words is a draft to come back to; one being written
     // with none yet is its window's alone, and one being sent is already its
-    // thread.
+    // chat.
+    chats: chats.data,
+    chatTitles,
     drafts: drafts.filter(
       (draft) => hasWords(draft) && !startingIds.has(draft.id),
     ),
     ids,
     onListed: (listed) => {
-      listedThreads.current = listed;
+      listedChats.current = listed;
     },
     onNewTopic: (name) => {
       setNewTopic(name ? { name } : {});
@@ -748,11 +748,9 @@ function WindowShell({
     requestClose,
     rowWidth,
     sendContext: (options) => sendContextRef.current(options),
+    setChatTopics,
     setPaneOpen,
-    setThreadTopics,
     showDraft,
-    threads: threads.data,
-    threadTitles,
     topics,
   };
 
@@ -770,6 +768,7 @@ function WindowShell({
                 leading={<NavControls />}
                 tabs={
                   <AppTabStrip
+                    chatTitles={chatTitles}
                     childTitles={childTitles}
                     onClose={appTabs.close}
                     onNew={appTabs.openNewTab}
@@ -777,7 +776,6 @@ function WindowShell({
                     onSelect={appTabs.select}
                     selectedId={appTabs.model.selectedId}
                     tabs={tabs}
-                    threadTitles={threadTitles}
                   />
                 }
                 trailing={<WindowCorner />}
@@ -786,6 +784,7 @@ function WindowShell({
             overlay={
               <ComposeLayer
                 browser={browser}
+                chats={chats.data ?? []}
                 compose={compose}
                 drafts={drafts}
                 modelURI={modelURI}
@@ -798,12 +797,12 @@ function WindowShell({
                     ),
                   );
                 }}
-                onCloseDraft={closeDraft}
-                onCloseTab={requestClose}
-                onCloseThread={(sessionId) => {
+                onCloseChat={(sessionId) => {
                   compose.remove(sessionId);
                 }}
-                onExpandThread={(sessionId) => {
+                onCloseDraft={closeDraft}
+                onCloseTab={requestClose}
+                onExpandChat={(sessionId) => {
                   // A page shows in one place: the grown window draws the
                   // chat's, so the tab up lets the chat go.
                   if (windowTabs.group === sessionId) {
@@ -811,22 +810,21 @@ function WindowShell({
                   }
                 }}
                 onModelChange={setDefaultModelURI}
-                onNewThreadTopic={(threadId, name) => {
-                  setNewTopic({ threadId, ...(name ? { name } : {}) });
+                onNewChatTopic={(chatSessionId, name) => {
+                  setNewTopic({ chatSessionId, ...(name ? { name } : {}) });
                 }}
                 onNewTopic={(draftId, name) => {
                   setNewTopic({ draftId, ...(name ? { name } : {}) });
                 }}
-                onOpenThread={landThread}
-                onPressThreadTab={landOnTab}
-                onSetThreadTopics={setThreadTopics}
-                onStart={startThread}
+                onOpenChat={landChat}
+                onPressChatTab={landOnTab}
+                onSetChatTopics={setChatTopics}
+                onStart={startChat}
                 openOutside={(href) => {
                   appTabs.open(href);
                 }}
                 sendContext={(options) => sendContextRef.current(options)}
                 sentWords={sentWords}
-                threads={threads.data ?? []}
                 topics={topics}
               />
             }
@@ -872,11 +870,11 @@ function WindowShell({
             {createPortal(
               <ActiveTabProvider isActive={pageSlot?.isShown ?? false}>
                 <BrowserTabs
+                  chatOfTask={childChats}
                   chromeInto={pageSlot?.chrome?.into ?? null}
                   compose={[...compose.hosts, ...slotHosts]}
                   ref={setBrowser}
                   reloadInto={pageSlot?.chrome?.reloadInto ?? null}
-                  threadOfTask={childThreads}
                 />
               </ActiveTabProvider>,
               stage,
@@ -924,8 +922,8 @@ function WindowShell({
               makes is filed on that chat or draft as it lands. */}
             <NewTopicDialog
               candidates={backfillCandidates(
-                (threads.data ?? []).filter(
-                  (thread) => thread.id !== (newTopic?.threadId ?? threadUp),
+                (chats.data ?? []).filter(
+                  (chat) => chat.id !== (newTopic?.chatSessionId ?? chatUp),
                 ),
               )}
               {...(newTopic?.name ? { name: newTopic.name } : {})}
@@ -933,15 +931,15 @@ function WindowShell({
                 const forDraft = newTopic?.draftId;
                 const filedOn =
                   forDraft === undefined
-                    ? threads.data?.find(
-                        (thread) =>
-                          thread.id === (newTopic?.threadId ?? threadUp),
+                    ? chats.data?.find(
+                        (chat) =>
+                          chat.id === (newTopic?.chatSessionId ?? chatUp),
                       )
                     : undefined;
                 createTopic.mutate(topic, {
                   onSuccess: (created) => {
                     for (const id of alsoFile) {
-                      setThreadTopics(id, [created.id]);
+                      setChatTopics(id, [created.id]);
                     }
                     if (forDraft !== undefined) {
                       setDrafts((current) =>
@@ -958,7 +956,7 @@ function WindowShell({
                       );
                     }
                     if (filedOn) {
-                      setThreadTopics(filedOn.id, [
+                      setChatTopics(filedOn.id, [
                         ...filedOn.topics,
                         created.id,
                       ]);

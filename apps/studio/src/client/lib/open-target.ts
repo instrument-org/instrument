@@ -23,7 +23,7 @@ export type OpenTarget =
  * What "copy" puts on the clipboard for a target, and what the row is called.
  *
  * A screen copies as the app's own address for the thing on it, which is the
- * same address a reply links it by, so a thread or a task can be pasted
+ * same address a reply links it by, so a chat or a task can be pasted
  * anywhere a link can and comes back here. A screen no address names copies
  * as nothing.
  */

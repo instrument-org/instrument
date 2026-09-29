@@ -35,7 +35,7 @@ export const CHATS_DIR_NAME = "chats";
 // orchestrator. Secrets never live here; the app's stores hold them.
 export const APPS_DIR_NAME = "apps";
 // One Markdown file per memory at the workspace root: what the conversation's
-// agent keeps about the user across every thread, readable and editable in a
+// agent keeps about the user across every chat, readable and editable in a
 // file manager.
 export const MEMORY_DIR_NAME = "memory";
 // One folder per topic at the workspace root, holding its `topic.md`: the mark

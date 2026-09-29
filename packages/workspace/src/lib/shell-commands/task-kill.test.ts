@@ -163,10 +163,10 @@ describe("task kill", () => {
         ...context,
         orchestratorTaskId: TaskIdSchema.parse("someone-else"),
       }),
-    ).rejects.toThrow(/"find-the-vault" was started in another thread/);
+    ).rejects.toThrow(/"find-the-vault" was started in another chat/);
   });
 
-  // A task started in another thread reports there, so steering it from here
+  // A task started in another chat reports there, so steering it from here
   // would move a conversation the user is not having; reading it stays open.
   it("refuses to act on a task another chat started, naming the chat, and still reads it", async () => {
     const theirs = ORCHESTRATOR_SESSION;
@@ -185,7 +185,7 @@ describe("task kill", () => {
     const elsewhere = chatFor();
     const here = { ...context, orchestratorTaskId: elsewhere };
     await expect(runKill([CHILD_ID], here)).rejects.toThrow(
-      `"find-the-vault" was started in another thread ("Vault hunt"), and is that thread's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it.`,
+      `"find-the-vault" was started in another chat ("Vault hunt"), and is that chat's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it.`,
     );
     expect(stillRunning()).toEqual([server.id]);
     await expect(runLog([CHILD_ID], here)).resolves.toBeDefined();

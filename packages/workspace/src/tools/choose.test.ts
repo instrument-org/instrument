@@ -20,11 +20,10 @@ describe("choose", () => {
       { declined: true as const, note: "Ask design." },
     ];
     expect(
-      outputs.map(
-        (output) =>
-          modelText(
-            TOOLS.Choose.toModelOutput({ input, output, toolCallId: "test" }),
-          ),
+      outputs.map((output) =>
+        modelText(
+          TOOLS.Choose.toModelOutput({ input, output, toolCallId: "test" }),
+        ),
       ),
     ).toMatchInlineSnapshot(`
       [

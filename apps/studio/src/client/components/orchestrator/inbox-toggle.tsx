@@ -5,8 +5,8 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useAtom } from "jotai";
 
 /**
- * The control ahead of a thread's title: puts the inbox column away so the
- * thread and its tabs have the window, and brings it back. Told when
+ * The control ahead of a chat's title: puts the inbox column away so the
+ * chat and its tabs have the window, and brings it back. Told when
  * nothing would be left on screen without the column, it stays put.
  */
 export function InboxToggle({ isCollapsible }: { isCollapsible: boolean }) {

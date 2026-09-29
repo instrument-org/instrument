@@ -1,4 +1,5 @@
 import {
+  chatFiltersAtom,
   type ChosenItem,
   type Draft,
   draftGroupOf,
@@ -6,7 +7,6 @@ import {
   draftSnapshotsAtom,
   NEW_TAB_HREF,
   paneOpenByGroupAtom,
-  threadFiltersAtom,
 } from "@/client/atoms/orchestrator";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -22,20 +22,20 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ulid } from "ulid";
 
+import { type Topic } from "./chats";
 import { type DraftSend } from "./compose-window";
 import { isGroupShown, isIncludable } from "./draft-context";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
-import { type Topic } from "./threads";
 import { type useCompose } from "./use-compose";
 import { isHomeTab, type useWindowTabs } from "./window-tabs";
 
-/** How long a thread just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
-const THREAD_ARRIVAL_MS = ms("3 seconds");
+/** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
+const CHAT_ARRIVAL_MS = ms("3 seconds");
 
 /**
  * A draft's life around its window: made and brought up along the row's
  * foot, put away with its words kept or thrown away with nothing written,
- * and started as the thread it is for. The windows themselves are the
+ * and started as the chat it is for. The windows themselves are the
  * compose surface's; this is what happens to a draft on the way in and out
  * of one.
  */
@@ -53,15 +53,15 @@ export function useDrafts({
   attachedFolders: Record<string, { mountName: string; path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
   compose: ReturnType<typeof useCompose>;
-  /** What a draft's window has up, read as its thread starts. */
+  /** What a draft's window has up, read as its chat starts. */
   draftContext: (
     draftId: string,
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** The orchestrator, once it exists; no thread starts before it does. */
+  /** The orchestrator, once it exists; no chat starts before it does. */
   ids: RPCOutput["workspace"]["orchestrator"]["ensure"] | undefined;
   /** Whether the tab up is the chat, whose inbox's topic a new draft is filed under. */
   isChat: boolean;
-  /** Keeps the model a thread was started with as the one the next draft opens with. */
+  /** Keeps the model a chat was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
   /** The orchestrator's topics, for the one the inbox stands in. */
   topics: Topic[];
@@ -69,7 +69,7 @@ export function useDrafts({
 }) {
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
-  const threadFilters = useAtomValue(threadFiltersAtom);
+  const chatFilters = useAtomValue(chatFiltersAtom);
   const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
@@ -78,8 +78,8 @@ export function useDrafts({
     rpcClient.workspace.message.create.mutationOptions(),
   );
   // The drafts whose first messages are on their way, by id, with the words
-  // each sent: the thread's window shows them from the press, and keeps
-  // showing them until the thread's own transcript has them, a moment past
+  // each sent: the chat's window shows them from the press, and keeps
+  // showing them until the chat's own transcript has them, a moment past
   // the call's answer.
   const [sentWords, setSentWords] = useState<ReadonlyMap<string, string>>(
     () => new Map(),
@@ -87,7 +87,7 @@ export function useDrafts({
   const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  // The thread a draft just became, and the draft it was, for as long as
+  // The chat a draft just became, and the draft it was, for as long as
   // its row's arrival lasts.
   const [arrived, setArrived] = useState<{
     draftId: string;
@@ -100,7 +100,7 @@ export function useDrafts({
     const timer = setTimeout(() => {
       setArrived(undefined);
       setSentWords((current) => withoutKey(current, arrived.draftId));
-    }, THREAD_ARRIVAL_MS);
+    }, CHAT_ARRIVAL_MS);
     return () => {
       clearTimeout(timer);
     };
@@ -158,8 +158,8 @@ export function useDrafts({
    */
   const newDraft = (words?: string, chosen?: ChosenItem[]) =>
     startDraft(
-      isChat && threadFilters.topics.length === 1
-        ? topics.find((topic) => topic.id === threadFilters.topics[0])?.id
+      isChat && chatFilters.topics.length === 1
+        ? topics.find((topic) => topic.id === chatFilters.topics[0])?.id
         : undefined,
       typeof words === "string" ? words : "",
       chosen,
@@ -199,16 +199,16 @@ export function useDrafts({
     }
   };
   /**
-   * Starts the thread the draft is for: what its composer sends (the words,
+   * Starts the chat the draft is for: what its composer sends (the words,
    * the files, the folders, the model) and its topic as the first message,
    * with what its band shows as the context; then what the draft gathered
-   * becomes the thread's tabs exactly as they are. The window becomes the
-   * thread's small view in the same corner at the press, with the words
+   * becomes the chat's tabs exactly as they are. The window becomes the
+   * chat's small view in the same corner at the press, with the words
    * sent standing in its transcript, and the place under it is left as it
-   * is; the thread's row arrives in the inbox marked. A send that fails
+   * is; the chat's row arrives in the inbox marked. A send that fails
    * turns the window back into the draft, with what it held.
    */
-  const startThread = (id: string, send: DraftSend) => {
+  const startChat = (id: string, send: DraftSend) => {
     const draft = drafts.find((entry) => entry.id === id);
     if (!draft || !ids || startingIds.has(id)) {
       return;
@@ -218,11 +218,11 @@ export function useDrafts({
     // eslint-disable-next-line unicorn/no-useless-undefined -- the send's `viewing` takes undefined, not void
     const viewing = draftContext(id).catch(() => undefined);
     // Chosen here rather than by the workspace, so the window can be the
-    // thread's before the thread exists.
+    // chat's before the chat exists.
     const sessionId = StoreId.newSessionId();
     setStartingIds((current) => new Set(current).add(id));
     setSentWords((current) => new Map(current).set(id, send.prompt));
-    // The model chosen for the thread is the one the next draft opens with.
+    // The model chosen for the chat is the one the next draft opens with.
     saveDefaultModelURI(send.modelURI);
     // What was marked in files and moved to this draft goes as its asks.
     const marked = stagedAsks.filter(
@@ -231,7 +231,7 @@ export function useDrafts({
     );
     const asks = asksPart(marked, attachedFolders);
     void (async () => {
-      // The chat's record is made first, so the window never shows a thread
+      // The chat's record is made first, so the window never shows a chat
       // whose record is not there yet; it is a folder and a settings file,
       // so the press still feels immediate.
       let chatId: TaskId;
@@ -241,7 +241,7 @@ export function useDrafts({
             firstWords: send.prompt,
             sessionId,
           }));
-        // Known at once to the thread's screen, which asks for its chat.
+        // Known at once to the chat's screen, which asks for its chat.
         queryClient.setQueryData(
           rpcClient.workspace.orchestrator.chats.of.queryKey({
             input: { sessionId },
@@ -256,7 +256,7 @@ export function useDrafts({
         });
         return;
       }
-      compose.becomeThread(id, sessionId);
+      compose.becomeChat(id, sessionId);
       // Each send settles on its own: the mutation observer follows only the
       // latest call, so callbacks handed to it would be lost for a draft sent
       // while another was still on its way.
@@ -271,8 +271,8 @@ export function useDrafts({
           output: send.output,
           prompt: send.prompt,
           ...(draft.topicId ? { topics: [draft.topicId] } : {}),
-          // A context that cannot be gathered is a thread told less, not a
-          // thread that never starts: the send goes on without it.
+          // A context that cannot be gathered is a chat told less, not a
+          // chat that never starts: the send goes on without it.
           viewing: await viewing,
         });
       } catch (error) {
@@ -288,10 +288,10 @@ export function useDrafts({
       setDrafts((current) => current.filter((entry) => entry.id !== id));
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ draftId: id, sessionId });
-      // What the draft gathered becomes the thread's tabs, the pages and
+      // What the draft gathered becomes the chat's tabs, the pages and
       // folders as they stand, behind the window; the new-tab pages among
       // them were the band's own face and are not carried over, and a draft
-      // that gathered nothing hands over nothing, so the thread opens with
+      // that gathered nothing hands over nothing, so the chat opens with
       // no pane.
       const group = draftGroupOf(id);
       const own = windowTabs.allTabs.filter((tab) => tab.group === group);
@@ -313,8 +313,8 @@ export function useDrafts({
     newDraft,
     sentWords,
     showDraft,
+    startChat,
     startingIds,
-    startThread,
   };
 }
 

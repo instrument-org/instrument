@@ -17,8 +17,8 @@ const RunningTaskSchema = z.object({
   /** What the task is doing this moment, in its agent's own label, when it gave one. */
   step: z.string().optional(),
   taskId: TaskIdSchema,
-  /** The thread it was filed from, by session id; absent for a task filed outside a turn. */
-  thread: z.string().optional(),
+  /** The chat it was filed from, by session id; absent for a task filed outside a turn. */
+  chat: z.string().optional(),
   title: z.string(),
   /** When something last happened in it, in ms. */
   updatedAt: z.number(),
@@ -156,14 +156,14 @@ export async function orchestratorActivity(
     children
       .filter((child) => isWorking(child.id))
       .map(async (child) => {
-        const thread =
+        const chat =
           child.parentTaskId === undefined
             ? undefined
             : sessionOfChat(child.parentTaskId);
         return {
           ...(await runningLines(child.id)),
           taskId: child.id,
-          ...(thread ? { thread } : {}),
+          ...(chat ? { chat } : {}),
           title: child.title,
           updatedAt: child.updatedAt.getTime(),
         };

@@ -5,7 +5,7 @@ import { memoryModelNote } from "./memory-model-text";
 const sentAt = Date.parse("2026-09-19T12:00:00.000Z");
 
 describe("memoryModelNote", () => {
-  it("groups memories under the thread and day they came from, newest first", () => {
+  it("groups memories under the chat and day they came from, newest first", () => {
     expect(
       memoryModelNote({
         forgotten: [],
@@ -35,18 +35,18 @@ describe("memoryModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      What you remember about the user, kept for every thread (3):
+      What you remember about the user, kept for every chat (3):
       From "Roofer call", 2 minutes ago:
       - pacific-time: You are on Pacific time and mornings are best for calls.
       - roofer: Your roofer is Dale at Summit Roofing.
-      From no thread, 18 days ago:
+      From no chat, 18 days ago:
       - address: Your address is 1420 Alder St, Portland.
       Each is what was true when it was saved. When one disagrees with what the user says now or a task reports, the present wins, and \`memory save\` under the same name corrects it.
       </instrument-system-note>"
     `);
   });
 
-  it("starts a new group when the same thread saved on another day", () => {
+  it("starts a new group when the same chat saved on another day", () => {
     expect(
       memoryModelNote({
         forgotten: [],
@@ -89,11 +89,11 @@ describe("memoryModelNote", () => {
         tells: "whole",
       }),
     ).toContain(
-      "(71):\nFrom no thread, 0 seconds ago:\n- one: One.\n...and 70 more; `memory list` names them all.",
+      "(71):\nFrom no chat, 0 seconds ago:\n- one: One.\n...and 70 more; `memory list` names them all.",
     );
   });
 
-  it("tells only the change once the thread has heard the whole", () => {
+  it("tells only the change once the chat has heard the whole", () => {
     expect(
       memoryModelNote({
         forgotten: ["old-roofer"],

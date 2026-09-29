@@ -25,6 +25,8 @@ import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
+import { chatContextModelNote } from "../../lib/chat-context-model-text";
+import { chatTopicsModelNote } from "../../lib/chat-topics-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
@@ -39,8 +41,6 @@ import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { taskAppChangesModelNote } from "../../lib/task-app-changes-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
-import { threadContextModelNote } from "../../lib/thread-context-model-text";
-import { threadTopicsModelNote } from "../../lib/thread-topics-model-text";
 import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { MOUNT } from "../../mount-points";
 import { TOOL_NAMES } from "../../tools/name";
@@ -322,8 +322,8 @@ export namespace SessionMessage {
     // same folder, is a note the agent already read and has no reason to
     // doubt, and a page's excerpt is the longest thing a message carries.
     let previousViewContextNote: string | undefined;
-    // The thread's topics, told again only when they changed.
-    let previousThreadTopicsNote: string | undefined;
+    // The chat's topics, told again only when they changed.
+    let previousChatTopicsNote: string | undefined;
     // What the agent remembers, told again only when it changed.
     let previousMemoryNote: string | undefined;
     // A max-steps stop is recorded on the assistant message where the run
@@ -696,33 +696,33 @@ export namespace SessionMessage {
           });
         }
 
-        const threadContextPart = message.parts.find(
+        const chatContextPart = message.parts.find(
           (
             part,
           ): part is SessionMessagePart.DataPart & {
-            type: "data-threadContext";
-          } => part.type === "data-threadContext",
+            type: "data-chatContext";
+          } => part.type === "data-chatContext",
         );
-        if (threadContextPart) {
+        if (chatContextPart) {
           injectedParts.push({
-            text: threadContextModelNote(threadContextPart.data),
+            text: chatContextModelNote(chatContextPart.data),
             type: "text",
           });
         }
 
-        const threadTopicsPart = message.parts.find(
+        const chatTopicsPart = message.parts.find(
           (
             part,
           ): part is SessionMessagePart.DataPart & {
-            type: "data-threadTopics";
-          } => part.type === "data-threadTopics",
+            type: "data-chatTopics";
+          } => part.type === "data-chatTopics",
         );
-        if (threadTopicsPart) {
-          const note = threadTopicsModelNote(threadTopicsPart.data);
-          if (note !== previousThreadTopicsNote) {
+        if (chatTopicsPart) {
+          const note = chatTopicsModelNote(chatTopicsPart.data);
+          if (note !== previousChatTopicsNote) {
             injectedParts.push({ text: note, type: "text" });
           }
-          previousThreadTopicsNote = note;
+          previousChatTopicsNote = note;
         }
 
         const memoryPart = message.parts.find(

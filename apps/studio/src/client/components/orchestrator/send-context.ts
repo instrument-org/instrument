@@ -34,6 +34,7 @@ export interface SendContextWindow {
   appsBySlug: AppsBySlug;
   /** The window's browser, for a page's words; null until it is mounted. */
   browser: null | Pick<BrowserTabsHandle, "readPage">;
+  chatTitles: Map<StoreId.Session, string>;
   drafts: Draft[];
   /** The router's address, which is the screen's own. */
   href: string;
@@ -43,7 +44,6 @@ export interface SendContextWindow {
   screenView: null | ScreenView;
   /** The orchestrator's state, whose folder grants say how the conversation reaches a file. */
   state: RPCOutput["workspace"]["task"]["state"]["get"] | undefined;
-  threadTitles: Map<StoreId.Session, string>;
   /** What each draft window's band has up, by the draft's group. */
   viewsById: ReturnType<typeof useCompose>["viewsById"];
   windowTabs: Pick<
@@ -54,19 +54,19 @@ export interface SendContextWindow {
 
 /**
  * What goes with a message, read at the moment of sending: the tab on screen
- * and the page's words for a thread's send, and a draft window's band for
- * the thread the draft starts. Both are made over the window as it stands,
+ * and the page's words for a chat's send, and a draft window's band for
+ * the chat the draft starts. Both are made over the window as it stands,
  * so what is read is the window at the moment of the ask.
  */
 export function contextReaders({
   appsBySlug,
   browser,
+  chatTitles,
   drafts,
   href,
   paneOpenByGroup,
   screenView,
   state,
-  threadTitles,
   viewsById,
   windowTabs,
 }: SendContextWindow) {
@@ -80,8 +80,7 @@ export function contextReaders({
         return {
           at: tab.href,
           id: tab.id,
-          title: screenPresentation(tab.href, { appsBySlug, threadTitles })
-            .title,
+          title: screenPresentation(tab.href, { appsBySlug, chatTitles }).title,
         };
       }
       const filePath = hostPathOfFileUrl(tab.url);
@@ -126,7 +125,7 @@ export function contextReaders({
       window.clearTimeout(timer);
     }
   };
-  /** What one tab says about itself, for a thread a draft starts: see includedContext. */
+  /** What one tab says about itself, for a chat a draft starts: see includedContext. */
   const tabContext = async (
     tab: undefined | WindowTab,
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
@@ -168,7 +167,7 @@ export function contextReaders({
         url: tab.href,
       };
     }
-    const where = screenLocation(tab.href, { appsBySlug, threadTitles });
+    const where = screenLocation(tab.href, { appsBySlug, chatTitles });
     if (where.kind === "app") {
       const slug = parseHref(tab.href).pathname.slice(
         "/orchestrator/apps/".length,
@@ -187,18 +186,18 @@ export function contextReaders({
     return;
   };
   /**
-   * What the thing a draft was opened over says about itself, for the thread
+   * What the thing a draft was opened over says about itself, for the chat
    * the draft starts: a file by its path, a page by its words read from the
    * place's own guest, a folder or an app as its screen reports it while it
    * is the one on screen, and otherwise as much as its address says. The
    * page's own tabs are left out, since they are the place's to hand over
-   * and not the thread's.
+   * and not the chat's.
    */
   const includedContext = (
     draft: Draft,
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> =>
     tabContext(includedTabOf(draft, windowTabs.allTabs));
-  /** What a draft's window and the thing it was opened over show, as its thread starts, before what was picked for it. */
+  /** What a draft's window and the thing it was opened over show, as its chat starts, before what was picked for it. */
   const draftShown = async (
     draftId: string,
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
@@ -212,7 +211,7 @@ export function contextReaders({
     const includedTab = draft
       ? includedTabOf(draft, windowTabs.allTabs)
       : undefined;
-    // Without an id: the place's tab is not the thread's to hand over.
+    // Without an id: the place's tab is not the chat's to hand over.
     const described = [
       ...describeTabs(windowTabs.allTabs.filter((tab) => tab.group === group)),
       ...(includedTab
@@ -255,9 +254,9 @@ export function contextReaders({
     };
   };
   /**
-   * What a draft's window has up as its thread starts: the band's page, read
+   * What a draft's window has up as its chat starts: the band's page, read
    * at that moment, or the folder or file its screen reported, and the
-   * draft's tabs for the thread to name, with the thing the draft was opened
+   * draft's tabs for the chat to name, with the thing the draft was opened
    * over described among them. A draft that gathered nothing of its own is
    * told about that thing in place of its band; one with neither has nothing
    * the conversation can be told about. What the draft was opened on by name
@@ -329,7 +328,7 @@ export function contextReaders({
     if (!screenView || screenView.screen === "home") {
       return;
     }
-    // The record open in an app's inspector goes only to a thread a draft
+    // The record open in an app's inspector goes only to a chat a draft
     // starts over it, never into a reply to one already going.
     const app = screenView.app
       ? { ...screenView.app, reading: undefined }
@@ -358,9 +357,7 @@ export function contextReaders({
     const own = windowTabs.allTabs.filter((tab) => tab.group === sessionId);
     const up = windowTabs.tabUpIn(sessionId);
     const shown =
-      isViewOpen && up
-        ? await tabContext(up)
-        : await windowShown(sessionId);
+      isViewOpen && up ? await tabContext(up) : await windowShown(sessionId);
     if (!shown && own.length === 0) {
       return;
     }

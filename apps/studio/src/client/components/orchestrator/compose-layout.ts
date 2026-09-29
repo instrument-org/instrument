@@ -1,17 +1,17 @@
 import { type ComposeEntry } from "@/client/atoms/orchestrator";
 
-/** A docked draft window's width, a thread's small view's, and a bar's, in layout px, which is how the foot is laid out. */
+/** A docked draft window's width, a chat's small view's, and a bar's, in layout px, which is how the foot is laid out. */
 export const COMPOSE_WIDTH = 600;
-export const THREAD_WINDOW_WIDTH = 420;
+export const CHAT_WINDOW_WIDTH = 420;
 export const COMPOSE_BAR_WIDTH = 300;
 
-/** How much wider a thread's small view stands for the rail of what the chat holds, in layout px (the rail's `w-30`). */
-export const THREAD_RAIL_WIDTH = 120;
+/** How much wider a chat's small view stands for the rail of what the chat holds, in layout px (the rail's `w-30`). */
+export const CHAT_RAIL_WIDTH = 120;
 
 /** The rail folded to a column of marks, `w-14`. */
-const THREAD_RAIL_COMPACT_WIDTH = 56;
+const CHAT_RAIL_COMPACT_WIDTH = 56;
 
-/** The least a grown thread window's view keeps beside its conversation, the pane's own floor, before the rail folds to give it room. */
+/** The least a grown chat window's view keeps beside its conversation, the pane's own floor, before the rail folds to give it room. */
 const GROWN_VIEW_MIN = 300;
 
 /**
@@ -62,7 +62,7 @@ export const GROWN_RIGHT = 12;
 /**
  * A window with its place along the foot: how far its right edge stands from
  * the row's, its width when the row is narrower than its own, and whether a
- * thread window's rail folds to its marks to fit.
+ * chat window's rail folds to its marks to fit.
  */
 export type PlacedCompose = ComposeEntry & {
   isRailCompact?: boolean;
@@ -75,13 +75,13 @@ export type PlacedCompose = ComposeEntry & {
  * at the right edge, each older one beside the last, and the ones there is
  * no room for left out from the left, so the row never wraps or squeezes. A
  * window grown to fill the row stands alone among the windows; the bars
- * along the foot stay in their places under it. A thread's small view is
+ * along the foot stay in their places under it. A chat's small view is
  * laid the same way as a draft's window, at its own width.
  */
 export function layoutCompose(
   entries: ComposeEntry[],
   width: number,
-  /** Whether a thread's small view carries its rail, which it does while the chat holds anything. */
+  /** Whether a chat's small view carries its rail, which it does while the chat holds anything. */
   hasRail: (entry: ComposeEntry) => boolean = () => false,
   /** The UI's zoom, which the row is laid out in and the window's edge is not. */
   zoom = 1,
@@ -96,7 +96,7 @@ export function layoutCompose(
       const isRailCompact =
         hasRail(entry) &&
         width - 2 * GROWN_RIGHT <
-          THREAD_WINDOW_WIDTH + GROWN_VIEW_MIN + THREAD_RAIL_WIDTH;
+          CHAT_WINDOW_WIDTH + GROWN_VIEW_MIN + CHAT_RAIL_WIDTH;
       placed.push({
         ...entry,
         right: 0,
@@ -110,11 +110,11 @@ export function layoutCompose(
     // A bar is a bar's width whatever the chat holds: the rail is drawn
     // only by a window.
     const railed = entry.placement !== "bar" && hasRail(entry);
-    const own = widthOf(entry) + (railed ? THREAD_RAIL_WIDTH : 0);
+    const own = widthOf(entry) + (railed ? CHAT_RAIL_WIDTH : 0);
     const room = width - right - COMPOSE_GAP;
     // A window whose rail's pictures do not fit stands with the rail folded
     // to its marks, at the narrower width that gives it.
-    const folded = widthOf(entry) + THREAD_RAIL_COMPACT_WIDTH;
+    const folded = widthOf(entry) + CHAT_RAIL_COMPACT_WIDTH;
     if (railed && own > room && folded <= room) {
       placed.push({ ...entry, isRailCompact: true, right, width: folded });
       right += folded + COMPOSE_GAP;
@@ -146,5 +146,5 @@ function widthOf(entry: ComposeEntry): number {
   if (entry.placement === "bar") {
     return COMPOSE_BAR_WIDTH;
   }
-  return entry.kind === "thread" ? THREAD_WINDOW_WIDTH : COMPOSE_WIDTH;
+  return entry.kind === "chat" ? CHAT_WINDOW_WIDTH : COMPOSE_WIDTH;
 }

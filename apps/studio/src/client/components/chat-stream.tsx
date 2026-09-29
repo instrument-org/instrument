@@ -251,7 +251,7 @@ export function ChatStream({
     (message) => message.role !== "session-context",
   );
 
-  // The conversation reads as a text thread, so it marks when it started and on
+  // The conversation reads as a text chat, so it marks when it started and on
   // what, a return after a quiet spell, and a switch of model.
   const separators =
     presentation === "orchestrator"

@@ -33,6 +33,7 @@ import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 export async function newMessage({
   asks,
+  chatContext,
   files,
   folders,
   intent,
@@ -44,11 +45,12 @@ export async function newMessage({
   replyTo,
   sessionId,
   taskId,
-  threadContext,
   viewing,
 }: {
   /** Places in files the user marked, with what to change at each; see the asks part. */
   asks?: SessionMessageDataPart.AsksDataPart;
+  /** The user's other chats, on the message that opens a new one; see the chat-context part. */
+  chatContext?: SessionMessageDataPart.ChatContextDataPart;
   files?: FileUpload.Type[];
   folders?: {
     access?: FolderAttachment.Access;
@@ -66,8 +68,6 @@ export async function newMessage({
   replyTo?: SessionMessageDataPart.ReplyDataPart;
   sessionId: StoreId.Session;
   taskId: TaskId;
-  /** The user's other threads, on the message that opens a new one; see the thread-context part. */
-  threadContext?: SessionMessageDataPart.ThreadContextDataPart;
   /** What the sending surface had on screen; see the view-context part. */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
 }) {
@@ -195,16 +195,16 @@ export async function newMessage({
     });
   }
 
-  if (threadContext) {
+  if (chatContext) {
     parts.push({
-      data: threadContext,
+      data: chatContext,
       metadata: {
         createdAt,
         id: StoreId.newPartId(),
         messageId,
         sessionId,
       },
-      type: "data-threadContext",
+      type: "data-chatContext",
     });
   }
 
@@ -275,20 +275,20 @@ export async function newMessage({
       parts.push(messageGap.value);
     }
 
-    // The thread's topics ride on every message sent in it, and the model
+    // The chat's topics ride on every message sent in it, and the model
     // note is rendered only when they changed since the last one.
-    const threadTopicsPart = await createThreadTopicsPart({
+    const chatTopicsPart = await createChatTopicsPart({
       createdAt,
       messageId,
       sessionId,
       taskId,
     });
-    if (threadTopicsPart) {
-      parts.push(threadTopicsPart);
+    if (chatTopicsPart) {
+      parts.push(chatTopicsPart);
     }
 
     // What the agent remembers about the user, told once and again only when
-    // it changed since: another thread saved something, or the user forgot one.
+    // it changed since: another chat saved something, or the user forgot one.
     const memoryPart = await createMemoryPart({
       createdAt,
       messageId,
@@ -394,11 +394,11 @@ export async function newMessage({
 }
 
 /**
- * The topics the thread carries, named for the model. None when it carries
- * none and never has: a thread untagged since its last message gets an empty
+ * The topics the chat carries, named for the model. None when it carries
+ * none and never has: a chat untagged since its last message gets an empty
  * part, so the note can say the topics are gone.
  */
-async function createThreadTopicsPart({
+async function createChatTopicsPart({
   createdAt,
   messageId,
   sessionId,
@@ -419,7 +419,7 @@ async function createThreadTopicsPart({
     const toldBefore =
       messages.isOk() &&
       messages.value.some((message) =>
-        message.parts.some((part) => part.type === "data-threadTopics"),
+        message.parts.some((part) => part.type === "data-chatTopics"),
       );
     if (!toldBefore) {
       return undefined;
@@ -441,7 +441,7 @@ async function createThreadTopicsPart({
   return {
     data: { topics },
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
-    type: "data-threadTopics",
+    type: "data-chatTopics",
   };
 }
 

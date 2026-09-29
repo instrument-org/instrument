@@ -9,7 +9,7 @@ export interface PickEntry {
   icon: ReactNode;
   id: string;
   label: string;
-  /** A small figure at the row's far edge: how many threads it reaches. */
+  /** A small figure at the row's far edge: how many chats it reaches. */
   note?: string;
 }
 

@@ -24,9 +24,9 @@ export function useWindowCommands(
     back: () => void;
     closeTab: () => void;
     forward: () => void;
+    /** A draft of a new chat, at the corner. */
+    newChat: () => void;
     newTab: () => void;
-    /** A draft of a new thread, at the corner. */
-    newThread: () => void;
     /** A file handed to the app from outside it: a double click, Open With, or a launch naming it. */
     openFile: (hostPath: string) => void;
     /** A screen by its route, in a tab of its own, since what asked is not in any tab. */
@@ -34,10 +34,10 @@ export function useWindowCommands(
     reopenTab: () => void;
     /** The caret into the window's field, wherever it was. */
     search: () => void;
+    /** The next or previous chat of the inbox, as listed. */
+    selectChat: (direction: -1 | 1) => void;
     selectRelative: (direction: -1 | 1) => void;
     selectTab: (index: number) => void;
-    /** The next or previous thread of the inbox, as listed. */
-    selectThread: (direction: -1 | 1) => void;
     /** The inbox column put away or brought back. */
     toggleInbox: () => void;
   },
@@ -150,32 +150,32 @@ export function useWindowCommands(
               latest.current.forward();
               break;
             }
+            case "newChat": {
+              latest.current.newChat();
+              break;
+            }
             case "newTab": {
               latest.current.newTab();
               break;
             }
-            case "newThread": {
-              latest.current.newThread();
+            case "nextChat": {
+              latest.current.selectChat(1);
               break;
             }
             case "nextTab": {
               latest.current.selectRelative(1);
               break;
             }
-            case "nextThread": {
-              latest.current.selectThread(1);
-              break;
-            }
             case "openSettings": {
               openSettings({ tab: "General" });
               break;
             }
-            case "previousTab": {
-              latest.current.selectRelative(-1);
+            case "previousChat": {
+              latest.current.selectChat(-1);
               break;
             }
-            case "previousThread": {
-              latest.current.selectThread(-1);
+            case "previousTab": {
+              latest.current.selectRelative(-1);
               break;
             }
             case "reopenTab": {

@@ -22,9 +22,9 @@ import {
 
 import { AppIcon } from "./app-icon";
 import { type AppsBySlug } from "./apps-by-slug";
-import { basename } from "./threads";
+import { basename } from "./chats";
 
-/** One thing a thread made or used, with the mark it is drawn as and where it opens. */
+/** One thing a chat made or used, with the mark it is drawn as and where it opens. */
 interface Hold {
   icon: ReactNode;
   key: string;
@@ -39,7 +39,7 @@ interface Hold {
 const MARKS_SHOWN = 5;
 
 /**
- * What a thread has made and used, as marks on a line of it: the apps as
+ * What a chat has made and used, as marks on a line of it: the apps as
  * their icons, the files as their type's, the sites as their favicons, a
  * handful and then a count that opens every hold by name. The marks are bare
  * unless the files are asked for by name, when each file is a chip with its
@@ -73,7 +73,7 @@ export function HoldMarks({
     () => new Set(),
   );
   const items: Hold[] = [
-    // The newest first, so what the thread made last is what shows before
+    // The newest first, so what the chat made last is what shows before
     // the count folds the rest away.
     ...holds.files.toReversed().map((path) => ({
       icon: <FileTypeIcon className="size-4" fileName={basename(path)} />,
@@ -92,7 +92,7 @@ export function HoldMarks({
       };
     }),
     // A site with no icon anywhere is left out rather than drawn as a globe:
-    // a row of globes says nothing about which sites the thread reached.
+    // a row of globes says nothing about which sites the chat reached.
     ...holds.sites
       .toReversed()
       .filter((site) => !unresolved.has(site))
@@ -161,10 +161,10 @@ export function HoldMarks({
             <span className="truncate">{item.name}</span>
           </button>
         ) : (
-          // A bare mark says what the thread used; it is the thread's face
+          // A bare mark says what the chat used; it is the chat's face
           // rather than a door, so it names itself on hover and opens
           // nothing, and it is out of the tab order. A file is the thing the
-          // thread made, and does open.
+          // chat made, and does open.
           <Tooltip key={item.key}>
             <TooltipTrigger asChild>
               <button
@@ -244,7 +244,7 @@ function hostOf(site: string) {
   return URL.canParse(site) ? new URL(site).host : site;
 }
 
-/** Keeps a mark's gesture from reaching the row it sits on, which would open the thread as well. */
+/** Keeps a mark's gesture from reaching the row it sits on, which would open the chat as well. */
 function stopHere(event: SyntheticEvent) {
   event.stopPropagation();
 }

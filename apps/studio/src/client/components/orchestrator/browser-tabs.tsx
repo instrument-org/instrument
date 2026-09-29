@@ -248,13 +248,22 @@ type PageTabsUpdate = (current: {
  * every message.
  */
 export function BrowserTabs({
+  chatOfTask,
   chromeInto,
   compose,
   onPageChange,
   ref,
   reloadInto,
-  threadOfTask,
 }: {
+  /**
+   * The chat each task the conversation started was filed from, by its
+   * session id, which is the group the task's browsing lands in; a task
+   * filed outside any chat is in the map with no chat. A task not in
+   * it is one the window has not read yet, since the list is polled while
+   * a guest's arrival is live, and its guest waits for the next read rather
+   * than landing in no group.
+   */
+  chatOfTask: ReadonlyMap<TaskId, string | undefined>;
   /** The element in the row above that the page's own bar is drawn into. */
   chromeInto?: HTMLElement | null;
   /** The draft windows' bands, one per draft up: each group's page is drawn in its own. */
@@ -264,15 +273,6 @@ export function BrowserTabs({
   ref: Ref<BrowserTabsHandle>;
   /** The element beside the row's arrows that the page's reload is drawn into. */
   reloadInto?: HTMLElement | null;
-  /**
-   * The thread each task the conversation started was filed from, by its
-   * session id, which is the group the task's browsing lands in; a task
-   * filed outside any thread is in the map with no thread. A task not in
-   * it is one the window has not read yet, since the list is polled while
-   * a guest's arrival is live, and its guest waits for the next read rather
-   * than landing in no group.
-   */
-  threadOfTask: ReadonlyMap<TaskId, string | undefined>;
 }) {
   const { taskId } = useOrchestrator();
   const { navigateScreen } = useWindowTabs();
@@ -468,7 +468,7 @@ export function BrowserTabs({
 
   // A task browsing in a guest of its own (one filed outside any chat, since
   // a chat's tasks browse in tabs of the chat) is mounted in this window, and
-  // the moment one attaches it gets a tab in its thread's list, behind
+  // the moment one attaches it gets a tab in its chat's list, behind
   // whatever is up: the user finds it there when they want to watch, and
   // nothing moves under them. Only a guest arriving is a tab to add: one the
   // user closed is still attached until the close lands, and must not come
@@ -479,7 +479,7 @@ export function BrowserTabs({
       (target) => !seenTargets.current.has(target),
     );
     // A guest whose task the window has not read yet is not seen: it is
-    // still arriving, and is placed by the read that names its thread.
+    // still arriving, and is placed by the read that names its chat.
     const waiting = new Set<BrowserTargetId>();
     const newcomers = arrived.flatMap((target) => {
       const decoded = decodeBrowserTargetId(target);
@@ -492,7 +492,7 @@ export function BrowserTabs({
       ) {
         return [];
       }
-      if (!threadOfTask.has(decoded.id)) {
+      if (!chatOfTask.has(decoded.id)) {
         waiting.add(target);
         return [];
       }
@@ -510,19 +510,19 @@ export function BrowserTabs({
     if (newcomers.length === 0) {
       return;
     }
-    // In the group of the thread the task was filed from, so a task's
-    // browsing stays with its thread; a task filed outside any thread
+    // In the group of the chat the task was filed from, so a task's
+    // browsing stays with its chat; a task filed outside any chat
     // browses among the window's own tabs.
     const arriving = newcomers.map((tab) => ({
       ...tab,
-      group: threadOfTask.get(tab.taskId),
+      group: chatOfTask.get(tab.taskId),
       kind: "page" as const,
     }));
     setAllTabs((current) => ({
       ...current,
       tabs: [...current.tabs, ...arriving],
     }));
-  }, [attached, everyTabId, setAllTabs, taskId, threadOfTask]);
+  }, [attached, everyTabId, setAllTabs, taskId, chatOfTask]);
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the
@@ -784,8 +784,8 @@ export function BrowserTabs({
       });
     } else {
       // In the group on screen, or the group asked for: a page opened while
-      // a thread is up is the thread's, and one a thread asked for while
-      // another was up is still that thread's, waiting behind.
+      // a chat is up is the chat's, and one a chat asked for while
+      // another was up is still that chat's, waiting behind.
       setAllTabs((current) => ({
         ...current,
         activeId:
@@ -896,7 +896,7 @@ export function BrowserTabs({
         // A file has one tab per place, the way it has one tab in Files; a
         // website gets a tab every time it is asked for, however many are
         // already open at that address. Among the group's own: another
-        // thread's tab on the file is that thread's, and a task's tab is the
+        // chat's tab on the file is that chat's, and a task's tab is the
         // task's, driving where the task drives it.
         const atFile =
           hostPathOfFileUrl(url) === undefined
@@ -980,8 +980,8 @@ export function BrowserTabs({
           return;
         }
         // The tabs a task can be handed: the group's own, since a note is
-        // written for the thread that is up (or the draft being written) and
-        // another thread's tab is that thread's; a task's tab is already that
+        // written for the chat that is up (or the draft being written) and
+        // another chat's tab is that chat's; a task's tab is already that
         // task's.
         const groupKey =
           tabId === undefined ? latest.current.group : current.group;

@@ -22,7 +22,19 @@ import {
   orchestratorActivity,
   OrchestratorActivitySchema,
 } from "../../lib/orchestrator/activity";
-import { ensureChat } from "../../lib/orchestrator/chats";
+import { ensureChat } from "../../lib/orchestrator/chat-records";
+import {
+  archiveChat,
+  ChatSchema,
+  listChats,
+  markChatSeen,
+  markChatUnseen,
+  renameChat,
+  setChatStarred,
+  setChatTopics,
+  settleChatTitle,
+  unarchiveChat,
+} from "../../lib/orchestrator/chats";
 import { listChildTasks } from "../../lib/orchestrator/children";
 import { ensureOrchestrator } from "../../lib/orchestrator/ensure";
 import {
@@ -30,20 +42,8 @@ import {
   ensureOutputFolder,
   outputFolderPath,
 } from "../../lib/orchestrator/output-folder";
-import { retitleThread } from "../../lib/orchestrator/retitle";
+import { retitleChat } from "../../lib/orchestrator/retitle";
 import { taskStanding } from "../../lib/orchestrator/standing";
-import {
-  archiveThread,
-  listThreads,
-  markThreadSeen,
-  markThreadUnseen,
-  renameThread,
-  setThreadStarred,
-  setThreadTopics,
-  settleThreadTitle,
-  ThreadSchema,
-  unarchiveThread,
-} from "../../lib/orchestrator/threads";
 import {
   createTopic,
   listTopics,
@@ -118,25 +118,25 @@ const children = base
         kind: z.enum(["done", "failed", "running", "waiting"]),
         line: z.string(),
       }),
-      /** The thread it was filed from, absent for a task filed outside a turn. */
-      threadId: StoreId.SessionSchema.optional(),
-      /** That thread's title, as the user knows it. */
-      threadTitle: z.string().optional(),
+      /** The chat it was filed from, absent for a task filed outside a turn. */
+      chatSessionId: StoreId.SessionSchema.optional(),
+      /** That chat's title, as the user knows it. */
+      chatTitle: z.string().optional(),
     }).array(),
   )
   .handler(async ({ input }) => {
     const tasks = await listChildTasks(input.id);
     return await Promise.all(
       tasks.map(async (task) => {
-        const threadId =
+        const chatSessionId =
           task.parentTaskId === undefined
             ? undefined
             : sessionOfChat(task.parentTaskId);
-        const thread =
-          threadId && task.parentTaskId
-            ? await Store.getSession(threadId, task.parentTaskId)
+        const chat =
+          chatSessionId && task.parentTaskId
+            ? await Store.getSession(chatSessionId, task.parentTaskId)
             : undefined;
-        const threadTitle = thread?.isOk() ? thread.value.title : undefined;
+        const chatTitle = chat?.isOk() ? chat.value.title : undefined;
         return {
           ...task,
           dir: taskDir(task.id),
@@ -144,8 +144,8 @@ const children = base
             isRunning: isWorking(task.id),
             taskId: task.id,
           }),
-          ...(threadId ? { threadId } : {}),
-          ...(threadTitle === undefined ? {} : { threadTitle }),
+          ...(chatSessionId ? { chatSessionId } : {}),
+          ...(chatTitle === undefined ? {} : { chatTitle }),
         };
       }),
     );
@@ -187,31 +187,31 @@ const TopicNameSchema = z
   .min(1)
   .max(TOPIC_NAME_MAX * 2);
 
-/** The conversation's threads, oldest first. */
-const listThreadsRoute = base
-  .output(ThreadSchema.array())
-  .handler(() => listThreads());
+/** The conversation's chats, oldest first. */
+const listChatsRoute = base
+  .output(ChatSchema.array())
+  .handler(() => listChats());
 
 /**
- * Fires whenever anything lands in any thread of the task, a thread's
- * record changes, a thread's agent starts, moves, or ends, or the
- * workspace's apps change: a thread's holds name only the apps the workspace
+ * Fires whenever anything lands in any chat of the task, a chat's
+ * record changes, a chat's agent starts, moves, or ends, or the
+ * workspace's apps change: a chat's holds name only the apps the workspace
  * has, so an app set up or removed from the Apps screen moves a row's marks
  * and the column's app rows without a message landing anywhere. The agent's
  * state is read off its actor rather than the store, so a turn ending, which
  * writes nothing after its last reply, is heard from the actor itself; read
  * only on writes, a list would say working for as long as it took the next
- * one to land. A task filed from a thread is heard when it starts a tool
+ * one to land. A task filed from a chat is heard when it starts a tool
  * call, since that is when the step its row shows changes, and not on every
  * token it streams; the rest of what it does reaches the list with the
- * thread's own writes, its wake among them. A deleted chat is heard from
+ * chat's own writes, its wake among them. A deleted chat is heard from
  * `chat.removed`, since the index has forgotten it before anything is told. Subscribed the moment it is called rather than when it is
  * first pulled, so a read taken right after has nothing land unobserved
  * between the two; an event the read already covered only costs one re-read.
  * A burst of events collapses into one firing per pull, since the next batch
  * is only taken once the consumer has come back for it.
  */
-export function threadChanges(signal: AbortSignal | undefined) {
+export function chatChanges(signal: AbortSignal | undefined) {
   const batches = changedMessageBatches({ id: isChatId }, signal);
   const sessionUpdates = publisher.subscribe("session.updated", { signal });
   const sessionRemoved = publisher.subscribe("session.removed", { signal });
@@ -289,44 +289,44 @@ async function* everyOne(generator: AsyncIterable<unknown>) {
   }
 }
 
-/** The same list, re-read on every change in any thread, bursts collapsed. */
-const liveListThreadsRoute = base
-  .output(eventIterator(ThreadSchema.array()))
+/** The same list, re-read on every change in any chat, bursts collapsed. */
+const liveListChatsRoute = base
+  .output(eventIterator(ChatSchema.array()))
   .handler(async function* ({ signal }) {
-    const changes = threadChanges(signal);
+    const changes = chatChanges(signal);
     try {
-      yield await listThreads();
+      yield await listChats();
       for await (const _change of changes) {
-        yield await listThreads();
+        yield await listChats();
       }
     } finally {
       await changes.return();
     }
   });
 
-/** What the user has seen in a thread, so its count can clear. */
-const seenThreadRoute = base
+/** What the user has seen in a chat, so its count can clear. */
+const seenChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await markThreadSeen(input.sessionId);
+    await markChatSeen(input.sessionId);
   });
 
-/** A thread the user wants back among the unread: its newest reply unseen again. */
-const unseenThreadRoute = base
+/** A chat the user wants back among the unread: its newest reply unseen again. */
+const unseenChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await markThreadUnseen(input.sessionId);
+    await markChatUnseen(input.sessionId);
   });
 
-/** Puts a thread away: out of the inbox, still in the list, marked. */
-const archiveThreadRoute = base
+/** Puts a chat away: out of the inbox, still in the list, marked. */
+const archiveChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await archiveThread(input.sessionId);
+    await archiveChat(input.sessionId);
   });
 
-/** Stars a thread, or takes the star off. */
-const starThreadRoute = base
+/** Stars a chat, or takes the star off. */
+const starChatRoute = base
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
@@ -334,23 +334,23 @@ const starThreadRoute = base
     }),
   )
   .handler(async ({ input }) => {
-    await setThreadStarred(input.sessionId, input.starred);
+    await setChatStarred(input.sessionId, input.starred);
   });
 
-/** Brings a thread back into the inbox. */
-const unarchiveThreadRoute = base
+/** Brings a chat back into the inbox. */
+const unarchiveChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
-    await unarchiveThread(input.sessionId);
+    await unarchiveChat(input.sessionId);
   });
 
 /**
- * Names a thread again from where it stands now, on the user's ask, as
+ * Names a chat again from where it stands now, on the user's ask, as
  * often as they ask; answers with the title it has afterward, or nothing when
  * there was nothing to name it from. A name the user asked for settles the
  * title the same as one they typed.
  */
-const retitleThreadRoute = base
+const retitleChatRoute = base
   .input(z.object({ sessionId: StoreId.SessionSchema }))
   .output(z.object({ title: z.string().optional() }))
   .handler(async ({ input }) => {
@@ -358,16 +358,16 @@ const retitleThreadRoute = base
     if (!id) {
       return {};
     }
-    const title = await retitleThread({ id, sessionId: input.sessionId });
+    const title = await retitleChat({ id, sessionId: input.sessionId });
     if (title === undefined) {
       return {};
     }
-    await settleThreadTitle(input.sessionId);
+    await settleChatTitle(input.sessionId);
     return { title };
   });
 
-/** Names a thread as the user typed it. */
-const renameThreadRoute = base
+/** Names a chat as the user typed it. */
+const renameChatRoute = base
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
@@ -375,11 +375,11 @@ const renameThreadRoute = base
     }),
   )
   .handler(async ({ input }) => {
-    await renameThread(input.sessionId, input.title);
+    await renameChat(input.sessionId, input.title);
   });
 
-/** The topics a thread carries, replaced whole. */
-const setThreadTopicsRoute = base
+/** The topics a chat carries, replaced whole. */
+const setChatTopicsRoute = base
   .input(
     z.object({
       sessionId: StoreId.SessionSchema,
@@ -387,7 +387,7 @@ const setThreadTopicsRoute = base
     }),
   )
   .handler(async ({ input }) => {
-    await setThreadTopics(input.sessionId, input.topics);
+    await setChatTopics(input.sessionId, input.topics);
   });
 
 /** The conversation's topics: in use first, in the order made, then retired. */
@@ -427,7 +427,7 @@ const updateTopicRoute = base
     });
   });
 
-/** Takes a topic out of the menus, leaving the threads that carry it alone. */
+/** Takes a topic out of the menus, leaving the chats that carry it alone. */
 const retireTopicRoute = base
   .input(z.object({ topicId: z.string() }))
   .handler(async ({ input }) => {
@@ -599,7 +599,21 @@ export function announceChatRemoved({
 
 export const orchestrator = {
   activity,
-  chats: { ensure: ensureChatRoute, of: chatOfRoute, trash: trashChatRoute },
+  chats: {
+    archive: archiveChatRoute,
+    ensure: ensureChatRoute,
+    list: listChatsRoute,
+    live: { list: liveListChatsRoute },
+    of: chatOfRoute,
+    rename: renameChatRoute,
+    retitle: retitleChatRoute,
+    seen: seenChatRoute,
+    setTopics: setChatTopicsRoute,
+    star: starChatRoute,
+    trash: trashChatRoute,
+    unarchive: unarchiveChatRoute,
+    unseen: unseenChatRoute,
+  },
   children,
   childStatus,
   ensure,
@@ -612,18 +626,6 @@ export const orchestrator = {
   },
   setActiveTab,
   tabDone,
-  threads: {
-    archive: archiveThreadRoute,
-    list: listThreadsRoute,
-    live: { list: liveListThreadsRoute },
-    rename: renameThreadRoute,
-    retitle: retitleThreadRoute,
-    seen: seenThreadRoute,
-    setTopics: setThreadTopicsRoute,
-    star: starThreadRoute,
-    unarchive: unarchiveThreadRoute,
-    unseen: unseenThreadRoute,
-  },
   topics: {
     create: createTopicRoute,
     list: listTopicsRoute,

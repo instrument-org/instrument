@@ -39,7 +39,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
  * conversation has shown.
  * Each section is a head with a way to the rest of it and a grid of tiles,
  * one gesture for everything on the page; whatever is picked, this tab
- * becomes it. Tasks are reached from the thread that started them.
+ * becomes it. Tasks are reached from the chat that started them.
  */
 export const Route = createFileRoute("/orchestrator/home")({
   component: HomeRoute,
@@ -187,7 +187,7 @@ function HomeRoute() {
           )}
         </PageSection>
 
-        {/* What Instrument brings to every thread: the skills its tasks can
+        {/* What Instrument brings to every chat: the skills its tasks can
             load, and where each comes from. Last, since it is the least of
             what the page offers. */}
         <PageSection title="Instrument">

@@ -15,13 +15,13 @@ export namespace SessionMessageDataPart {
    * - **Event**: something that happened on this turn -- `asks`,
    *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `outputFormat`,
    *   `reply`, `skillChanges`, `skillMentions`, and `projectContext` and
-   *   `threadContext`, which are written once at creation. A repeat is
+   *   `chatContext`, which are written once at creation. A repeat is
    *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
    *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
    *   part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
-   *   `browserStatus`, `memory`, `paneTabs`, `threadTopics`, `viewContext`.
+   *   `browserStatus`, `memory`, `paneTabs`, `chatTopics`, `viewContext`.
    *   These are the ones that will restate an unchanged fact on every single
    *   turn unless their producer compares against what this session was last
    *   told. `createBrowserStatusPart` and `createPaneTabsPart` each do, by
@@ -58,8 +58,8 @@ export namespace SessionMessageDataPart {
     "reply",
     "taskAppChanges",
     "taskEvent",
-    "threadContext",
-    "threadTopics",
+    "chatContext",
+    "chatTopics",
     "unknown",
     "viewContext",
   ]);
@@ -380,7 +380,7 @@ export namespace SessionMessageDataPart {
 
   /**
    * The kind of page the user asked to receive the response as, picked on
-   * the draft that opened the thread: a template of the page skill, by the
+   * the draft that opened the chat: a template of the page skill, by the
    * name of its folder and the title the catalog gives it. Carried beside
    * the user's own text so the agent briefs its task with it, and the record
    * says what was asked for.
@@ -696,7 +696,7 @@ export namespace SessionMessageDataPart {
       "skills",
       "task",
       "tasks",
-      "thread",
+      "chat",
     ]),
     /** The one skill open on the Skills screen. */
     skill: z
@@ -711,8 +711,8 @@ export namespace SessionMessageDataPart {
     task: ViewedTaskSchema.optional(),
     /** The tasks listed on the Tasks screen. */
     tasks: z.array(ViewedTaskSchema).optional(),
-    /** The thread open beside the chat, when the message was sent from its screen. */
-    thread: z
+    /** The chat open beside the chat, when the message was sent from its screen. */
+    chat: z
       .object({
         id: z.string(),
         title: z.string(),
@@ -739,7 +739,7 @@ export namespace SessionMessageDataPart {
   export type DateChangeDataPart = z.output<typeof DateChangeDataPartSchema>;
 
   /**
-   * Whole minutes since the user last wrote in this thread, written to a
+   * Whole minutes since the user last wrote in this chat, written to a
    * message they sent after a long enough silence to mean they went away and
    * came back.
    *
@@ -763,19 +763,18 @@ export namespace SessionMessageDataPart {
   export type MessageGapDataPart = z.output<typeof MessageGapDataPartSchema>;
 
   /**
-   * The other threads of the user's chat at the moment a new thread opened,
+   * The user's other chats at the moment a new chat opened,
    * newest first: each one's title, topics, latest line, and when it last
-   * moved. Written once, onto the thread's root message, so a fresh three-word
-   * ask can find the thread it belongs to. Stored rather than read live, so
+   * moved. Written once, onto the chat's root message, so a fresh three-word
+   * ask can find the chat it belongs to. Stored rather than read live, so
    * the note reads the same every time the transcript is rebuilt; `sentAt`
    * is what "when" is measured from.
    */
-  const ThreadContextDataPartSchema = z.object({
-    sentAt: z.number(),
-    threads: z.array(
+  const ChatContextDataPartSchema = z.object({
+    chats: z.array(
       z.object({
         at: z.number(),
-        /** The session id, which a link to the thread carries; absent on a note stored before the agent could link one. */
+        /** The session id, which a link to the chat carries; absent on a note stored before the agent could link one. */
         id: z.string().optional(),
         latest: z.string().optional(),
         title: z.string(),
@@ -783,32 +782,31 @@ export namespace SessionMessageDataPart {
         topics: z.array(z.string()),
       }),
     ),
+    sentAt: z.number(),
   });
 
-  export type ThreadContextDataPart = z.output<
-    typeof ThreadContextDataPartSchema
-  >;
+  export type ChatContextDataPart = z.output<typeof ChatContextDataPartSchema>;
 
   /**
-   * What the conversation's agent remembers about the user, on a thread's
-   * user message when memory changed since the thread was last told: the
+   * What the conversation's agent remembers about the user, on a chat's
+   * user message when memory changed since the chat was last told: the
    * whole of it the first time, and after that only what was saved,
-   * corrected, or forgotten since. Each memory is its first line, the thread
+   * corrected, or forgotten since. Each memory is its first line, the chat
    * it was learned in, and when. State cadence: attached only on a change,
    * and rendered only when it differs from the note before it. `sentAt` is
    * what "when" is measured from.
    */
   const MemoryDataPartSchema = z.object({
-    /** Names forgotten since the thread was last told; only on a change. */
+    /** Names forgotten since the chat was last told; only on a change. */
     forgotten: z.array(z.string()).default([]),
     /**
      * The whole of memory up to the note's ceiling, or, on a change, only the
-     * memories saved or corrected since the thread was last told.
+     * memories saved or corrected since the chat was last told.
      */
     memories: z.array(
       z.object({
         at: z.number(),
-        /** The title of the thread it was learned in, when a thread saved it. */
+        /** The title of the chat it was learned in, when a chat saved it. */
         from: z.string().optional(),
         name: z.string(),
         /** The first line, cut to a note's width; the whole is read by name. */
@@ -818,19 +816,19 @@ export namespace SessionMessageDataPart {
     /** How many memories a whole note left out past its ceiling. */
     more: z.number().int().nonnegative().default(0),
     sentAt: z.number(),
-    /** Whether the note carries the whole of memory or the change since the thread was last told. */
+    /** Whether the note carries the whole of memory or the change since the chat was last told. */
     tells: z.enum(["whole", "changes"]).default("whole"),
   });
 
   export type MemoryDataPart = z.output<typeof MemoryDataPartSchema>;
 
   /**
-   * The topics the thread carries, on every user message sent in a thread
+   * The topics the chat carries, on every user message sent in a chat
    * that has any: each one's name, mark, and the line saying what goes
    * there. State cadence: rendered only when it differs from the note before
-   * it, so a thread tagged once is told once.
+   * it, so a chat tagged once is told once.
    */
-  const ThreadTopicsDataPartSchema = z.object({
+  const ChatTopicsDataPartSchema = z.object({
     topics: z.array(
       z.object({
         about: z.string().optional(),
@@ -840,9 +838,7 @@ export namespace SessionMessageDataPart {
     ),
   });
 
-  export type ThreadTopicsDataPart = z.output<
-    typeof ThreadTopicsDataPartSchema
-  >;
+  export type ChatTopicsDataPart = z.output<typeof ChatTopicsDataPartSchema>;
 
   /**
    * Retired, and read anyway.
@@ -943,6 +939,8 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
+    [NameSchema.enum.chatTopics]: ChatTopicsDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
@@ -960,8 +958,6 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
     [NameSchema.enum.taskAppChanges]: TaskAppChangesDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
-    [NameSchema.enum.threadContext]: ThreadContextDataPartSchema,
-    [NameSchema.enum.threadTopics]: ThreadTopicsDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
     [NameSchema.enum.viewContext]: ViewContextDataPartSchema,
   });

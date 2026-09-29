@@ -6,8 +6,8 @@ import {
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ComponentProps, type ReactNode, useState } from "react";
 
+import { type Topic } from "./chats";
 import { stopHere } from "./row-shell";
-import { type Topic } from "./threads";
 import { TopicPickList } from "./topic-menu";
 
 /** The dashed slot a topic goes in while there is none, as a picker's trigger. */

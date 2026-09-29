@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { threadContextModelNote } from "./thread-context-model-text";
+import { chatContextModelNote } from "./chat-context-model-text";
 
 const sentAt = Date.parse("2026-09-19T12:00:00.000Z");
 
-describe("threadContextModelNote", () => {
-  it("leads each thread with the id a link to it carries", () => {
+describe("chatContextModelNote", () => {
+  it("leads each chat with the id a link to it carries", () => {
     expect(
-      threadContextModelNote({
-        sentAt,
-        threads: [
+      chatContextModelNote({
+        chats: [
           {
             at: Date.parse("2026-09-19T11:58:00.000Z"),
             id: "ses_01M2XZWYFZT1K56M7734XB3V9Z",
@@ -23,14 +22,15 @@ describe("threadContextModelNote", () => {
             topics: [],
           },
         ],
+        sentAt,
       }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Other threads in the user's chat, newest first, each by its id, when it last moved, its title, its topics, and its latest line:
+      The user's other chats, newest first, each by its id, when it last moved, its title, its topics, and its latest line:
       - ses_01M2XZWYFZT1K56M7734XB3V9Z · 2 minutes ago · "Groceries for the week" [Home] · Starting the list.
       - 1 day ago · "Trip to Lisbon"
-      A message here that only makes sense against one of them is about that thread: \`chat read <id or title words>\` reads it before you answer.
+      A message here that only makes sense against one of them is about that chat: \`chat read <id or title words>\` reads it before you answer.
       </instrument-system-note>"
     `);
   });

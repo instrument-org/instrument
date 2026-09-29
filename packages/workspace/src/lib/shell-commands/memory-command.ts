@@ -5,6 +5,6 @@
  */
 export const MEMORY_COMMAND = {
   description:
-    "What you keep about the user for every thread: `memory list` names it all, `memory save <name>` keeps or corrects one (the text on stdin through a quoted heredoc), `memory show <name>` reads one whole, `memory forget <name>` drops it.",
+    "What you keep about the user for every chat: `memory list` names it all, `memory save <name>` keeps or corrects one (the text on stdin through a quoted heredoc), `memory show <name>` reads one whole, `memory forget <name>` drops it.",
   name: "memory",
 } as const;

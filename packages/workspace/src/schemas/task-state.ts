@@ -46,9 +46,9 @@ export const StoredTaskStateSchema = z
     browserTargetId: BrowserTargetIdSchema.optional(),
     /**
      * The orchestrator's topics, in the order they were made: the tags a
-     * thread carries, many threads to many topics. Which threads carry one is
-     * on each thread's own session record (`Session.topics`), so retiring a
-     * topic touches no thread and a filter is a predicate over the list.
+     * chat carries, many chats to many topics. Which chats carry one is
+     * on each chat's own session record (`Session.topics`), so retiring a
+     * topic touches no chat and a filter is a predicate over the list.
      */
     topics: z
       .array(
@@ -62,17 +62,17 @@ export const StoredTaskStateSchema = z
           emoji: z.string().optional(),
           id: z.string(),
           name: z.string(),
-          /** Out of the menus, with the threads that carry it left alone. */
+          /** Out of the menus, with the chats that carry it left alone. */
           retired: z.boolean().optional(),
         }),
       )
       .optional(),
     /**
-     * The newest settled message the user has seen in each thread, by session
+     * The newest settled message the user has seen in each chat, by session
      * id. Window state, kept off the session record; unread is every non-user
      * message after it.
      */
-    threadSeen: z.record(z.string(), StoreId.MessageSchema).optional(),
+    chatSeen: z.record(z.string(), StoreId.MessageSchema).optional(),
     // A pane this build cannot read costs the pane, not the folder list beside
     // it, which the record's silent catch would otherwise write away.
     // eslint-disable-next-line unicorn/prefer-top-level-await -- zod's catch, not a promise's
@@ -94,16 +94,17 @@ export const StoredTaskStateSchema = z
     selectedModelURI: z.string().optional(),
     showTutorial: z.boolean().optional(),
     /**
-     * The thread each task was filed from, by task id: what sends a task's
-     * outcome back to the thread that asked for it rather than to whichever
-     * one is newest when it finishes.
+     * The one-conversation layout's map of the chat each task was filed
+     * from, by task id, under the name that layout gave it. Nothing writes
+     * it; it is kept through a write so `migrate-to-chats` can finish moving
+     * a task whose chat is still to be made.
      */
     taskThreads: z.record(z.string(), StoreId.SessionSchema).optional(),
     /**
-     * The thread each app was asked for in, by slug: what sends the news of
-     * a sign-in, a key, or a decline back to the thread that asked for it.
+     * The chat each app was asked for in, by slug: what sends the news of
+     * a sign-in, a key, or a decline back to the chat that asked for it.
      */
-    appThreads: z.record(z.string(), StoreId.SessionSchema).optional(),
+    appChats: z.record(z.string(), StoreId.SessionSchema).optional(),
   })
   .default(() => ({}));
 
@@ -143,7 +144,18 @@ export type TaskState = z.output<typeof StoredTaskStateSchema>;
  * every caller either writes back or does not care.
  */
 export function migrateTaskState(state: unknown): unknown {
-  if (!isRecord(state) || !isRecord(state.attachedFolders)) {
+  if (!isRecord(state)) {
+    return state;
+  }
+  return migrateAttachedFolders(migrateChatKeys(state));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function migrateAttachedFolders(state: Record<string, unknown>) {
+  if (!isRecord(state.attachedFolders)) {
     return state;
   }
 
@@ -161,6 +173,17 @@ export function migrateTaskState(state: unknown): unknown {
   return { ...state, attachedFolders: Object.fromEntries(folders) };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+// A conversation in the 2.0 window was a thread before it was a chat, and the
+// window's state named its maps for that.
+function migrateChatKeys(state: Record<string, unknown>) {
+  const { appThreads, threadSeen, ...rest } = state;
+  return {
+    ...rest,
+    ...(appThreads === undefined || rest.appChats !== undefined
+      ? {}
+      : { appChats: appThreads }),
+    ...(threadSeen === undefined || rest.chatSeen !== undefined
+      ? {}
+      : { chatSeen: threadSeen }),
+  };
 }

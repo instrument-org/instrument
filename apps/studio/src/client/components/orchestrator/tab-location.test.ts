@@ -8,7 +8,7 @@ import {
   tasksOfHref,
 } from "./tab-location";
 
-const THREAD = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+const CHAT = StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 
 const HOME = "/Users/casey";
 
@@ -115,11 +115,10 @@ describe("locationCrumbs", () => {
   });
 
   it("puts a task opened from a chat's list under that list", () => {
-    expect(
-      readable({ kind: "task", thread: THREAD, title: "Book the hotel" }),
-    ).toMatchInlineSnapshot(`
+    expect(readable({ chat: CHAT, kind: "task", title: "Book the hotel" }))
+      .toMatchInlineSnapshot(`
       [
-        "Tasks -> /orchestrator/tasks?thread=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "Tasks -> /orchestrator/tasks?chat=ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
         "Book the hotel",
       ]
     `);
@@ -151,7 +150,7 @@ describe("locationCrumbs", () => {
         "Apps",
       ]
     `);
-    expect(readable({ kind: "thread", title: "Caffeine mixes" }))
+    expect(readable({ kind: "chat", title: "Caffeine mixes" }))
       .toMatchInlineSnapshot(`
       [
         "Caffeine mixes",
@@ -193,13 +192,10 @@ describe("memoryOfHref", () => {
 describe("tasksOfHref", () => {
   it.each([
     ["/orchestrator/tasks", {}],
-    [`/orchestrator/tasks?thread=${THREAD}`, { thread: THREAD }],
-    ["/orchestrator/tasks?thread=nonsense", {}],
+    [`/orchestrator/tasks?chat=${CHAT}`, { chat: CHAT }],
+    ["/orchestrator/tasks?chat=nonsense", {}],
     ["/orchestrator/tasks/book", { task: "book" }],
-    [
-      `/orchestrator/tasks/book?thread=${THREAD}`,
-      { task: "book", thread: THREAD },
-    ],
+    [`/orchestrator/tasks/book?chat=${CHAT}`, { chat: CHAT, task: "book" }],
     ["/orchestrator/tasks/book/edit", undefined],
     ["/orchestrator/memory/book", undefined],
   ])("reads %s", (href, expected) => {

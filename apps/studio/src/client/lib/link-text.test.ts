@@ -35,11 +35,11 @@ describe("splitLinks", () => {
   });
 
   it("finds a link into the app, written either way", () => {
-    expect(shape("like instrument://thread/ses_01JC, but shorter")).toBe(
-      "like <instrument://thread/ses_01JC -> instrument://thread/ses_01JC>, but shorter",
+    expect(shape("like instrument://chat/ses_01JC, but shorter")).toBe(
+      "like <instrument://chat/ses_01JC -> instrument://chat/ses_01JC>, but shorter",
     );
-    expect(shape("like [that one](instrument://thread/ses_01JC)")).toBe(
-      "like <that one -> instrument://thread/ses_01JC>",
+    expect(shape("like [that one](instrument://chat/ses_01JC)")).toBe(
+      "like <that one -> instrument://chat/ses_01JC>",
     );
   });
 

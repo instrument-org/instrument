@@ -5,12 +5,12 @@ import { SessionMessage } from "./message";
 
 export namespace Session {
   export const Schema = z.object({
-    /** When the thread was put away; absent while it is in the inbox. */
+    /** When the chat was put away; absent while it is in the inbox. */
     archivedAt: z.date().optional(),
     createdAt: z.date(),
     id: StoreId.SessionSchema,
     parentId: StoreId.SessionSchema.optional(),
-    /** When the user starred the thread; absent while it is not starred. */
+    /** When the user starred the chat; absent while it is not starred. */
     starredAt: z.date().optional(),
     /**
      * The last message of the conversation before its context window was reset.
@@ -39,15 +39,15 @@ export namespace Session {
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
     title: z.string(),
     /**
-     * When the thread's title stopped being the app's to change: its one
+     * When the chat's title stopped being the app's to change: its one
      * automatic rename, once its first exchange settled, or the user naming
      * it, by hand or from the conversation. After it, only the user renames
-     * the thread.
+     * the chat.
      */
     titleSettledAt: z.date().optional(),
     /**
-     * The topics this thread is tagged with, by topic id. On the thread's own
-     * record so the thread list is one read and a filter is a predicate over
+     * The topics this chat is tagged with, by topic id. On the chat's own
+     * record so the chat list is one read and a filter is a predicate over
      * it; a task's ordinary sessions never carry any.
      */
     topics: z.array(z.string()).optional(),

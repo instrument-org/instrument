@@ -50,7 +50,7 @@ function dataDirs() {
  * one, otherwise the hicolor theme every desktop falls back to, then pixmaps,
  * across the data dirs. A full icon-theme lookup would follow the desktop's
  * own theme; hicolor is the one every app installs into, which is what makes
- * it portable. PNGs come first; an app that ships only a scalable SVG, as
+ * it portable. ONGs come first; an app that ships only a scalable SVG, as
  * most GNOME apps do, is found last.
  */
 function linuxIconCandidates(icon: string, dirs: string[]) {

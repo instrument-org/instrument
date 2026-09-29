@@ -25,11 +25,11 @@ const USAGE = `Usage: ${NAME} <subcommand> ...
 
   ${NAME} list
       Everything you remember about the user, newest first: its name, the
-      thread it came from, when, and the memory's first line.
+      chat it came from, when, and the memory's first line.
   ${NAME} save <name> <<'EOF'
   <the memory>
   EOF
-      Keep something for every thread to come. The name is a slug saying what
+      Keep something for every chat to come. The name is a slug saying what
       it is about (pacific-time, no-stevia); saving to a name that exists
       replaces what it held, which is how a memory is corrected. Write the
       memory to the user in a sentence ("You are on Pacific time and mornings
@@ -44,7 +44,7 @@ const USAGE = `Usage: ${NAME} <subcommand> ...
 /** What `memory` needs from the `bash` call it runs inside. */
 export interface MemoryCommandContext {
   orchestratorTaskId: TaskId;
-  /** The thread the call runs in: named on what it saves, and spared the note about its own change. */
+  /** The chat the call runs in: named on what it saves, and spared the note about its own change. */
   sessionId: StoreId.Session;
 }
 
@@ -90,6 +90,18 @@ export function createMemoryCommand(context: MemoryCommandContext) {
   });
 }
 
+/** The chat a memory is learned in, by title, so a reader knows where it came from. */
+async function chatOf({
+  orchestratorTaskId,
+  sessionId,
+}: MemoryCommandContext): Promise<Memory["from"]> {
+  const session = await Store.getSession(sessionId, orchestratorTaskId);
+  if (session.isErr() || !session.value.title.trim()) {
+    return undefined;
+  }
+  return { sessionId, title: session.value.title.trim() };
+}
+
 function day(at: number): string {
   return new Date(at).toISOString().slice(0, 10);
 }
@@ -113,7 +125,7 @@ function origin(memory: Memory): string {
 }
 
 /**
- * Where the thread stands after the agent changed memory itself: the change
+ * Where the chat stands after the agent changed memory itself: the change
  * is in front of it, so the next message's note has nothing to add.
  */
 async function rememberTold({
@@ -177,7 +189,7 @@ async function runSave(
     );
   }
   const { memory, replaced } = await saveMemory(memoryDir(), {
-    from: await threadOf(context),
+    from: await chatOf(context),
     name: parsedName.data,
     text,
   });
@@ -197,16 +209,4 @@ async function runShow(args: string[]) {
     return fail(`no memory named "${name}". ${NAME} list names them.`);
   }
   return ok(`${memory.name}  ${origin(memory)}\n\n${memory.text}`);
-}
-
-/** The thread a memory is learned in, by title, so a reader knows where it came from. */
-async function threadOf({
-  orchestratorTaskId,
-  sessionId,
-}: MemoryCommandContext): Promise<Memory["from"]> {
-  const session = await Store.getSession(sessionId, orchestratorTaskId);
-  if (session.isErr() || !session.value.title.trim()) {
-    return undefined;
-  }
-  return { sessionId, title: session.value.title.trim() };
 }

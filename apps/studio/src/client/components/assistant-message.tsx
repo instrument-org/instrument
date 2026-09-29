@@ -151,7 +151,11 @@ export const AssistantMessage = memo(function AssistantMessage({
                 bubbles as they are from each other. */}
             <div className="flex w-full max-w-[85%] flex-col gap-2 [&_[data-slot=files-grid-card]:only-child]:col-span-full [&_[data-slot=files-grid-media]:only-child]:w-full">
               {fences.map((content, index) => (
-                <AgentFilesBlock className="my-0" content={content} key={index} />
+                <AgentFilesBlock
+                  className="my-0"
+                  content={content}
+                  key={index}
+                />
               ))}
             </div>
           </MarkdownTaskContext>

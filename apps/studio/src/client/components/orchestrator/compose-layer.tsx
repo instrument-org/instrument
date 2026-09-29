@@ -8,67 +8,68 @@ import { AnimatePresence } from "motion/react";
 import { useEffect } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
+import { ChatBar, ChatWindow } from "./chat-window";
+import { type Chat, type Topic } from "./chats";
 import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
-import { ThreadBar, ThreadWindow } from "./thread-window";
-import { type Thread, type Topic } from "./threads";
 import { type useCompose } from "./use-compose";
 
 /**
  * The windows floating over the row: the drafts being written, each in its
  * window at its place along the foot or as the bar it was put down to, and
- * the threads in their small views beside them. Laid over the whole row and
+ * the chats in their small views beside them. Laid over the whole row and
  * letting the pointer through everywhere but the windows, so the inbox, the
- * thread and the places stay in reach beside them. A window or a bar
+ * chat and the places stay in reach beside them. A window or a bar
  * arrives and leaves with a motion of its own, so a draft opening is seen
- * to open; a draft becoming a thread keeps its window, since it is the same
+ * to open; a draft becoming a chat keeps its window, since it is the same
  * window in the same corner.
  */
 export function ComposeLayer({
   browser,
+  chats,
   compose,
   drafts,
   modelURI,
   onChangeDraft,
+  onCloseChat,
   onCloseDraft,
   onCloseTab,
-  onCloseThread,
-  onExpandThread,
+  onExpandChat,
   onModelChange,
-  onNewThreadTopic,
+  onNewChatTopic,
   onNewTopic,
-  onOpenThread,
-  onPressThreadTab,
-  onSetThreadTopics,
+  onOpenChat,
+  onPressChatTab,
+  onSetChatTopics,
   onStart,
   openOutside,
   sendContext,
   sentWords,
-  threads,
   topics,
 }: {
   browser: BrowserTabsHandle | null;
+  chats: Chat[];
   compose: ReturnType<typeof useCompose>;
   drafts: Draft[];
   modelURI: AIGatewayModelURI.Type | undefined;
   onChangeDraft: (id: string, update: (draft: Draft) => Draft) => void;
+  /** A chat's small view closed: the window goes, and the chat is as it was in Chat. */
+  onCloseChat: (sessionId: StoreId.Session) => void;
   /** A window closed, with the words as its box had them: the draft is kept or thrown away by them. */
   onCloseDraft: (id: string, words: string) => void;
   /** A tab closed from a chat window's rail: asks first while a task is working in it. */
   onCloseTab: (id: string) => void;
-  /** A thread's small view closed: the window goes, and the thread is as it was in Chat. */
-  onCloseThread: (sessionId: StoreId.Session) => void;
-  /** A thread's small view grown to fill the row: the chat is no longer the one selected in Chats, since a page shows in one place. */
-  onExpandThread: (sessionId: StoreId.Session) => void;
+  /** A chat's small view grown to fill the row: the chat is no longer the one selected in Chats, since a page shows in one place. */
+  onExpandChat: (sessionId: StoreId.Session) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
   /** Makes a topic from a popped-out chat's head, filing that chat under it. */
-  onNewThreadTopic: (sessionId: StoreId.Session, name?: string) => void;
+  onNewChatTopic: (sessionId: StoreId.Session, name?: string) => void;
   onNewTopic: (draftId: string, name: string) => void;
   /** A popped-out chat asked to open in Chats, from its title: the window goes and the chat is selected. */
-  onOpenThread: (sessionId: StoreId.Session) => void;
+  onOpenChat: (sessionId: StoreId.Session) => void;
   /** A thing a grown window cannot draw, asked for: the chat lands in Chats with that tab in front. */
-  onPressThreadTab: (sessionId: StoreId.Session, tabId: string) => void;
-  onSetThreadTopics: (sessionId: StoreId.Session, topics: string[]) => void;
+  onPressChatTab: (sessionId: StoreId.Session, tabId: string) => void;
+  onSetChatTopics: (sessionId: StoreId.Session, topics: string[]) => void;
   onStart: (id: string, send: DraftSend) => void;
   openOutside: (href: string) => void;
   /** What goes with a reply sent from a chat's small view: its own tab up while its view is open, what the window has up behind it otherwise. */
@@ -76,15 +77,14 @@ export function ComposeLayer({
     isViewOpen: boolean;
     sessionId: StoreId.Session;
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** What each draft being started sent, by the draft: its thread's window shows the words until its transcript has them. */
+  /** What each draft being started sent, by the draft: its chat's window shows the words until its transcript has them. */
   sentWords: ReadonlyMap<string, string>;
-  threads: Thread[];
   topics: Topic[];
 }) {
   // A window whose draft is gone (thrown away from the Drafts place, or a
-  // record that did not survive) has nothing to write in. A thread's window
-  // is kept whatever the list says: the list is re-read behind the thread's
-  // creation, and the window names the thread by its id.
+  // record that did not survive) has nothing to write in. A chat's window
+  // is kept whatever the list says: the list is re-read behind the chat's
+  // creation, and the window names the chat by its id.
   const orphanKey = compose.entries
     .flatMap((entry) =>
       entry.kind === "draft" &&
@@ -104,48 +104,47 @@ export function ComposeLayer({
     <div className="pointer-events-none absolute inset-0 z-40">
       <AnimatePresence initial={false}>
         {compose.placed.map((entry) => {
-          if (entry.kind === "thread") {
+          if (entry.kind === "chat") {
             const { sessionId } = entry;
-            const thread = threads.find(
-              (candidate) => candidate.id === sessionId,
-            );
+            const chat = chats.find((candidate) => candidate.id === sessionId);
             if (entry.placement === "bar") {
               return (
-                <ThreadBar
+                <ChatBar
+                  chat={chat}
                   key={`bar:${sessionId}`}
                   onClose={() => {
-                    onCloseThread(sessionId);
+                    onCloseChat(sessionId);
                   }}
                   onOpen={() => {
                     compose.setPlacement(sessionId, "docked");
                   }}
                   right={entry.right}
-                  thread={thread}
                 />
               );
             }
             return (
-              <ThreadWindow
+              <ChatWindow
                 arrives={entry.fromDraft === undefined}
+                chat={chat}
                 isRailCompact={entry.isRailCompact === true}
-                // The draft's key, for a thread that grew from one: the same
+                // The draft's key, for a chat that grew from one: the same
                 // element, so the window is not seen to leave and arrive.
                 key={entry.fromDraft ?? sessionId}
                 onClose={() => {
-                  onCloseThread(sessionId);
+                  onCloseChat(sessionId);
                 }}
                 onCloseTab={onCloseTab}
                 onLandOnTab={(tabId) => {
-                  onPressThreadTab(sessionId, tabId);
+                  onPressChatTab(sessionId, tabId);
                 }}
                 onMinimize={() => {
                   compose.setPlacement(sessionId, "bar");
                 }}
                 onNewTopic={(name) => {
-                  onNewThreadTopic(sessionId, name);
+                  onNewChatTopic(sessionId, name);
                 }}
                 onOpenInChats={() => {
-                  onOpenThread(sessionId);
+                  onOpenChat(sessionId);
                 }}
                 onPageChrome={(slots) => {
                   compose.setChrome(sessionId, slots);
@@ -155,12 +154,12 @@ export function ComposeLayer({
                 }}
                 onPlacementChange={(placement) => {
                   if (placement === "expanded") {
-                    onExpandThread(sessionId);
+                    onExpandChat(sessionId);
                   }
                   compose.setPlacement(sessionId, placement);
                 }}
                 onSetTopics={(next) => {
-                  onSetThreadTopics(sessionId, next);
+                  onSetChatTopics(sessionId, next);
                 }}
                 placement={entry.placement}
                 right={entry.right}
@@ -173,7 +172,6 @@ export function ComposeLayer({
                     : sentWords.get(entry.fromDraft)
                 }
                 sessionId={sessionId}
-                thread={thread}
                 topics={topics}
                 width={entry.width}
               />

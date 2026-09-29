@@ -1,4 +1,4 @@
-import { APPS_HREF, THREADS_HREF } from "@/client/atoms/orchestrator";
+import { APPS_HREF, CHATS_HREF } from "@/client/atoms/orchestrator";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { WINDOW_BROWSER_HOST } from "@/client/lib/browser-host";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -16,16 +16,16 @@ import { toast } from "sonner";
 
 import { newSiteGroup, pageHrefOf, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
+import { type Chat } from "./chats";
 import { type OpenOptions } from "./context";
 import { openMenuLink } from "./menu-link";
 import { visitInTab } from "./tab-history";
 import { memoryOfHref, taskHref, tasksHref, tasksOfHref } from "./tab-location";
-import { type Thread } from "./threads";
 import {
+  chatOfHref,
+  chatOfHrefPrefix,
   isFreshTab,
   parseHref,
-  threadOfHref,
-  threadOfHrefPrefix,
   type useWindowTabs,
 } from "./window-tabs";
 
@@ -37,28 +37,28 @@ import {
 export function useOpeners({
   appTabs,
   browser,
+  chatOfTask,
+  chats,
+  chatTitles,
   ids,
   revealPane,
   setPaneOpen,
-  threadOfTask,
-  threads,
-  threadTitles,
   windowTabs,
 }: {
   /** The window's tabs: what is not a chat's opens by moving the tab up, or in a tab of its own. */
   appTabs: ReturnType<typeof useAppTabs>;
   /** The window's browser; null until it is mounted. */
   browser: BrowserTabsHandle | null;
+  /** The chat a task was filed from, which is the group its tab lands in. */
+  chatOfTask: (id: TaskId) => string | undefined;
+  /** The chats the window has, once the list has been read. */
+  chats: Chat[] | undefined;
+  chatTitles: Map<StoreId.Session, string>;
   /** The orchestrator, once it exists; a path is resolved against it, and nothing it asks for is opened before then. */
   ids: RPCOutput["workspace"]["orchestrator"]["ensure"] | undefined;
   /** Brings the pane up for the group on screen, for something opened into it. */
   revealPane: () => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;
-  /** The chat a task was filed from, which is the group its tab lands in. */
-  threadOfTask: (id: TaskId) => string | undefined;
-  /** The threads the window has, once the list has been read. */
-  threads: Thread[] | undefined;
-  threadTitles: Map<StoreId.Session, string>;
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
   const queryClient = useQueryClient();
@@ -71,7 +71,7 @@ export function useOpeners({
   /**
    * Opens a page: in the tab on screen when it is a page of the window's
    * own, in a tab of its own when asked for one, and into a named group when
-   * the open belongs to a thread other than the one up, where it waits
+   * the open belongs to a chat other than the one up, where it waits
    * behind. Opened into the group on screen, it brings the pane up.
    */
   const openPage = (
@@ -140,21 +140,21 @@ export function useOpeners({
     }: OpenOptions = {},
   ) => {
     // A whole id, or the start of one the way a reply's link carries it,
-    // among the threads the window has: a whole id that names none of them
-    // is a link to a thread since deleted, not a thread with nothing in it.
+    // among the chats the window has: a whole id that names none of them
+    // is a link to a chat since deleted, not a chat with nothing in it.
     // Until the list has been read, a whole id is taken on its own.
-    const thread = threads
-      ? threadOfHrefPrefix(href, threadTitles.keys())
-      : threadOfHref(href);
-    if (thread) {
+    const chat = chats
+      ? chatOfHrefPrefix(href, chatTitles.keys())
+      : chatOfHref(href);
+    if (chat) {
       // A chat is a place a tab stands: the tab up goes there, a step on in
       // its history, and the chat comes up at the tab it last had up.
-      appTabs.go(`${THREADS_HREF}/${thread}`, { newTab });
+      appTabs.go(`${CHATS_HREF}/${chat}`, { newTab });
       return;
     }
-    if (parseHref(href).pathname.startsWith(`${THREADS_HREF}/`)) {
-      // A thread's address that names none of the threads here: a screen
-      // at it would be a thread with nothing in it.
+    if (parseHref(href).pathname.startsWith(`${CHATS_HREF}/`)) {
+      // A chat's address that names none of the chats here: a screen
+      // at it would be a chat with nothing in it.
       toast("No chat at that address", {
         description:
           "It may have been deleted, or the link is not for this chat.",
@@ -174,23 +174,25 @@ export function useOpeners({
     // A tasks tab already up in that chat walks there in place, the way its
     // crumbs do; anything else gets the tab at that address, or a new one.
     const tasks = tasksOfHref(href);
-    const tasksThread = tasks
+    const tasksChat = tasks
       ? StoreId.SessionSchema.safeParse(
-          (tasks.task === undefined ? undefined : threadOfTask(tasks.task)) ??
-            tasks.thread ??
+          (tasks.task === undefined ? undefined : chatOfTask(tasks.task)) ??
+            tasks.chat ??
             into ??
             windowTabs.group,
         )
       : undefined;
-    if (tasks && tasksThread?.success) {
-      const chat = tasksThread.data;
+    if (tasks && tasksChat?.success) {
+      const owner = tasksChat.data;
       const at =
-        tasks.task === undefined ? tasksHref(chat) : taskHref(tasks.task, chat);
-      const up = windowTabs.tabUpIn(chat);
+        tasks.task === undefined
+          ? tasksHref(owner)
+          : taskHref(tasks.task, owner);
+      const up = windowTabs.tabUpIn(owner);
       const walksInPlace =
         !newTab &&
         !ownTab &&
-        chat === windowTabs.group &&
+        owner === windowTabs.group &&
         up?.kind === "screen" &&
         tasksOfHref(up.href) !== undefined;
       if (walksInPlace) {
@@ -199,15 +201,15 @@ export function useOpeners({
         return;
       }
       // In a tab of the window's own, the chat comes up there at its tasks.
-      if (newTab || chat !== windowTabs.group) {
-        appTabs.go(`${THREADS_HREF}/${chat}`, { newTab });
+      if (newTab || owner !== windowTabs.group) {
+        appTabs.go(`${CHATS_HREF}/${owner}`, { newTab });
       }
       windowTabs.openOrFocusScreen(at, {
-        group: chat,
+        group: owner,
         isOpened: true,
         show: true,
       });
-      setPaneOpen(chat, true);
+      setPaneOpen(owner, true);
       return;
     }
     // Anything else in a tab of the window's own, wherever it was asked
@@ -269,12 +271,12 @@ export function useOpeners({
     }
     const isFolder = isFolderPath(path);
     const filePath = isFolder ? path.slice(0, -1) : path;
-    const thread = StoreId.SessionSchema.safeParse(group ?? windowTabs.group);
-    const chat = thread.success
+    const session = StoreId.SessionSchema.safeParse(group ?? windowTabs.group);
+    const record = session.success
       ? await queryClient
           .fetchQuery(
             rpcClient.workspace.orchestrator.chats.of.queryOptions({
-              input: { sessionId: thread.data },
+              input: { sessionId: session.data },
               staleTime: Number.POSITIVE_INFINITY,
             }),
           )
@@ -285,7 +287,7 @@ export function useOpeners({
     const [error, hostPaths] = await safe(
       rpcClient.workspace.task.files.hostPaths.call({
         filePaths: [filePath],
-        taskId: chat?.taskId ?? ids.taskId,
+        taskId: record?.taskId ?? ids.taskId,
       }),
     );
     const hostPath = hostPaths?.[filePath];

@@ -3,10 +3,10 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useState } from "react";
 
-import { type Thread } from "./threads";
+import { type Chat } from "./chats";
 
 /**
- * What the thread is working on right now, folded to one line over its
+ * What the chat is working on right now, folded to one line over its
  * composer: the tasks filed from it that are still at work, with the step
  * the newest is on in the live shimmer, or what it has stopped to ask for.
  *
@@ -14,15 +14,15 @@ import { type Thread } from "./threads";
  * is one task or a dozen: it is the sign that the conversation can keep
  * going while work happens elsewhere, so it must not grow into the column
  * or read as a reply. Opened, it lists each task, and pressing one opens
- * the task's own page beside the thread. Nothing at all while nothing runs.
+ * the task's own page beside the chat. Nothing at all while nothing runs.
  */
-export function ThreadWork({
+export function ChatWork({
   onOpen,
   tasks,
 }: {
-  /** Opens a task's page, as a tab of the thread's. */
-  onOpen: (taskId: Thread["runningTasks"][number]["id"]) => void;
-  tasks: Thread["runningTasks"];
+  /** Opens a task's page, as a tab of the chat's. */
+  onOpen: (taskId: Chat["runningTasks"][number]["id"]) => void;
+  tasks: Chat["runningTasks"];
 }) {
   const [isOpen, setOpen] = useState(false);
   if (tasks.length === 0) {
@@ -91,14 +91,14 @@ export function ThreadWork({
 }
 
 /**
- * A task's line: what it is waiting on, in the amber a waiting thread wears,
+ * A task's line: what it is waiting on, in the amber a waiting chat wears,
  * or the step it is on in the shimmer that says something is happening, so
  * the line needs no mark beside it.
  */
 function WorkLine({
   task,
 }: {
-  task: Thread["runningTasks"][number] | undefined;
+  task: Chat["runningTasks"][number] | undefined;
 }) {
   if (!task) {
     return null;

@@ -24,6 +24,7 @@ import { TabStrip } from "./tab-strip";
  * offers to close it.
  */
 export function WindowTabStrip({
+  chatTitles,
   childTitles,
   groupKey,
   onClose,
@@ -32,11 +33,12 @@ export function WindowTabStrip({
   onSelect,
   selectedId,
   tabs,
-  threadTitles,
   trailing,
 }: {
+  /** Each chat's title by its session, for a tab standing on one. */
+  chatTitles: Map<StoreId.Session, string>;
   childTitles: Map<TaskId, string>;
-  /** Which thread's tabs these are, so a swap to another thread's is not drawn as tabs arriving. */
+  /** Which chat's tabs these are, so a swap to another chat's is not drawn as tabs arriving. */
   groupKey: string;
   onClose: (id: string) => void;
   onNew: () => void;
@@ -44,8 +46,6 @@ export function WindowTabStrip({
   onSelect: (id: string) => void;
   selectedId: string | undefined;
   tabs: WindowTab[];
-  /** Each thread's title by its session, for a tab standing on one. */
-  threadTitles: Map<StoreId.Session, string>;
   /** What sits at the end of the row, past the tabs: the window's top right. */
   trailing?: ReactNode;
 }) {
@@ -132,7 +132,7 @@ export function WindowTabStrip({
         // many tabs fit, so it has to be told to fill the bar rather than
         // sizing to the tabs it currently holds.
         className="min-w-0 flex-1"
-        // Another thread's tabs are another set: the strip adopts them
+        // Another chat's tabs are another set: the strip adopts them
         // silently rather than sliding each one in.
         groupKey={groupKey}
         onClose={(key) => {
@@ -166,8 +166,8 @@ export function WindowTabStrip({
               }
             : screenPresentation(tab.href, {
                 appsBySlug,
+                chatTitles,
                 taskTitles: childTitles,
-                threadTitles,
               })),
         }))}
         trailing={trailing}

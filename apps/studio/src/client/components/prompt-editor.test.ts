@@ -60,7 +60,7 @@ describe("app mentions", () => {
   });
 
   it("keeps a link to something that is not an app as text", () => {
-    const value = "See [that thread](instrument://thread/ses_01JC).";
+    const value = "See [that chat](instrument://chat/ses_01JC).";
     const doc = promptDocFromText(value);
     expect(doc.firstChild?.childCount).toBe(1);
     expect(promptTextFromDoc(doc)).toBe(value);

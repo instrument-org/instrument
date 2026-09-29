@@ -4,7 +4,7 @@ import { systemNote } from "./system-note";
 
 /**
  * The kind of page the user asked to receive the response as, picked on the
- * draft that opened the thread. It names a template of the page skill, so
+ * draft that opened the chat. It names a template of the page skill, so
  * the brief says to load that skill by name and build from that template
  * rather than describing the page; the words are the user's own choice, so
  * a reply in the chat alone is not what they asked for.

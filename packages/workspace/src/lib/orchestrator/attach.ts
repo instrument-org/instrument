@@ -1,14 +1,14 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { startAppEvents } from "../apps/events";
 import { setWorkspaceActorRef } from "../workspace-actor-ref";
-import { startThreadRetitle } from "./retitle";
+import { startChatRetitle } from "./retitle";
 import { startOrchestratorWake } from "./wake";
 
 /**
  * Everything an orchestrator needs from the process that owns the workspace
  * actor: a way for its `task` command to reach the machine, the subscribers
  * that wake it when a child finishes or the user acts on an app, and the one
- * that names a thread again once its first exchange settles.
+ * that names a chat again once its first exchange settles.
  * Called once per actor by whoever creates one, rather than by the machine
  * itself, so a test that builds a machine does not also start a subscriber
  * it never stops.
@@ -17,5 +17,5 @@ export function attachOrchestrator(workspaceRef: WorkspaceActorRef): void {
   setWorkspaceActorRef(workspaceRef);
   startOrchestratorWake(workspaceRef);
   startAppEvents(workspaceRef);
-  startThreadRetitle();
+  startChatRetitle();
 }

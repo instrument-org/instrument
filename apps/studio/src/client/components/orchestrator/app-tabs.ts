@@ -2,7 +2,7 @@ import {
   type AppPlace,
   APPS_HREF,
   chatGroupAtom,
-  THREADS_HREF,
+  CHATS_HREF,
   WEB_HREF,
   type WindowTab,
 } from "@/client/atoms/orchestrator";
@@ -24,7 +24,7 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { atom, useAtom, useAtomValue } from "jotai";
 
 import { IDEAS_HREF } from "./ideas";
-import { parseHref, threadOfHref } from "./window-tabs";
+import { chatOfHref, parseHref } from "./window-tabs";
 
 /** The chat with no chat open: the inbox, and where every new tab opens. */
 export const CHAT_HREF = "/orchestrator";
@@ -72,9 +72,9 @@ export const appTabsAtom = tabsAtomOf("orchestrator.app-tabs.v1", CHAT_HREF);
  * for everything else, whose screen is the route itself.
  */
 export function groupOfHref(href: string): string | undefined {
-  const thread = threadOfHref(href);
-  if (thread) {
-    return thread;
+  const chat = chatOfHref(href);
+  if (chat) {
+    return chat;
   }
   const { pathname, search } = parseHref(href);
   return pathname === PAGE_HREF
@@ -87,7 +87,7 @@ export function isChatHref(href: string): boolean {
   const { pathname } = parseHref(href);
   return (
     pathname.replace(/\/$/, "") === CHAT_HREF ||
-    pathname.startsWith(`${THREADS_HREF}/`)
+    pathname.startsWith(`${CHATS_HREF}/`)
   );
 }
 
@@ -217,8 +217,8 @@ function placeHrefOf(place: AppPlace, lastChat: null | string): string {
       return WEB_HREF;
     }
     case "chat": {
-      const thread = StoreId.SessionSchema.safeParse(lastChat);
-      return thread.success ? `${THREADS_HREF}/${thread.data}` : CHAT_HREF;
+      const chat = StoreId.SessionSchema.safeParse(lastChat);
+      return chat.success ? `${CHATS_HREF}/${chat.data}` : CHAT_HREF;
     }
     case "discover": {
       return IDEAS_HREF;

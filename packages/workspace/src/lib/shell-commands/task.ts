@@ -119,7 +119,7 @@ export interface TaskCommandContext {
   /** What is left of the enclosing call's yield window, read when a wait starts. */
   remainingYieldMs: () => number;
   /**
-   * The thread this command is running in, recorded on every task it makes so
+   * The chat this command is running in, recorded on every task it makes so
    * the outcome comes back where it was asked for. Absent where the command is
    * built outside a turn, which leaves a task unattributed rather than wrong.
    */
@@ -781,7 +781,12 @@ export async function runTab(args: string[], context: TaskCommandContext) {
   const adds = values.get("add") ?? [];
   const removes = values.get("remove") ?? [];
   const none = values.has("none");
-  if (named.length === 0 && adds.length === 0 && removes.length === 0 && !none) {
+  if (
+    named.length === 0 &&
+    adds.length === 0 &&
+    removes.length === 0 &&
+    !none
+  ) {
     throw new Error(
       "tab: name the tabs to hand over, or --add, --remove, or --none. The note on the user's message lists the tabs open.",
     );
@@ -1115,10 +1120,10 @@ function requireFoldersNamedInBriefHanded(
 }
 
 /**
- * The task named, and one this thread may act on: a task started in another
- * thread is that thread's to steer, since its outcome reports there and a
+ * The task named, and one this chat may act on: a task started in another
+ * chat is that chat's to steer, since its outcome reports there and a
  * message sent into it from here would land in a conversation the user is not
- * having. Reading it (`show`, `log`, `list`) stays open to every thread; the
+ * having. Reading it (`show`, `log`, `list`) stays open to every chat; the
  * refusal says where to go instead.
  */
 async function requireOwnChild(
@@ -1137,10 +1142,10 @@ async function requireOwnChild(
   ) {
     return task;
   }
-  const thread = await Store.getSession(filedIn, task.parentTaskId);
-  const named = thread.isOk() ? ` ("${thread.value.title}")` : "";
+  const chat = await Store.getSession(filedIn, task.parentTaskId);
+  const named = chat.isOk() ? ` ("${chat.value.title}")` : "";
   throw new Error(
-    `"${task.id}" was started in another thread${named}, and is that thread's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it. Tell the user which thread it is in, or start a task of your own here.`,
+    `"${task.id}" was started in another chat${named}, and is that chat's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it. Tell the user which chat it is in, or start a task of your own here.`,
   );
 }
 

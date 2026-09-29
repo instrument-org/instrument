@@ -41,16 +41,11 @@ it.each([
     callers: [windowTaskId, viaEnsure, viaEnsure],
     name: "windowTaskId and two ensures",
   },
-])(
-  "makes one window record when $name ask at once",
-  async ({ callers }) => {
-    const ids = await Promise.all(callers.map((call) => call()));
-    expect(new Set(ids)).toEqual(new Set(["instrument"]));
-    expect(await fs.readdir(path.join(rootDir, "tasks"))).toEqual([
-      "instrument",
-    ]);
-  },
-);
+])("makes one window record when $name ask at once", async ({ callers }) => {
+  const ids = await Promise.all(callers.map((call) => call()));
+  expect(new Set(ids)).toEqual(new Set(["instrument"]));
+  expect(await fs.readdir(path.join(rootDir, "tasks"))).toEqual(["instrument"]);
+});
 
 it("finds the window record a finished ensure made", async () => {
   const first = await viaEnsure();

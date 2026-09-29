@@ -14,7 +14,7 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { publisher } from "../publisher";
-import { announceChatRemoved, threadChanges } from "./orchestrator";
+import { announceChatRemoved, chatChanges } from "./orchestrator";
 
 // A chat, a task that is not one, and a task the chat started. The chat is a
 // folder under a workspace root of this file's own.
@@ -75,10 +75,10 @@ async function fired(
   ]);
 }
 
-describe("threadChanges", () => {
-  it("fires when the workspace's apps change, since a thread's holds name only the apps the workspace has", async () => {
+describe("chatChanges", () => {
+  it("fires when the workspace's apps change, since a chat's holds name only the apps the workspace has", async () => {
     const controller = new AbortController();
-    const changes = threadChanges(controller.signal);
+    const changes = chatChanges(controller.signal);
     const next = changes.next();
     publisher.publish("app.updated", null);
     expect(await fired(next)).toBe(true);
@@ -97,10 +97,10 @@ describe("threadChanges", () => {
       },
     ],
   ] as const)(
-    "fires on %s, since a thread's state is read off its agent's actor rather than the store",
+    "fires on %s, since a chat's state is read off its agent's actor rather than the store",
     async (topic, payload) => {
       const controller = new AbortController();
-      const changes = threadChanges(controller.signal);
+      const changes = chatChanges(controller.signal);
       const next = changes.next();
       publisher.publish(topic, payload);
       expect(await fired(next)).toBe(true);
@@ -113,7 +113,7 @@ describe("threadChanges", () => {
     const sessionId = StoreId.newSessionId();
     const deleted = chatFor(sessionId);
     const controller = new AbortController();
-    const changes = threadChanges(controller.signal);
+    const changes = chatChanges(controller.signal);
     const next = changes.next();
     forgetChat(deleted);
     announceChatRemoved({ chatTasks: [], id: deleted, sessionId });
@@ -132,7 +132,7 @@ describe("threadChanges", () => {
     "stays quiet on %s from a task that is not a chat",
     async (topic, payload) => {
       const controller = new AbortController();
-      const changes = threadChanges(controller.signal);
+      const changes = chatChanges(controller.signal);
       const next = changes.next();
       publisher.publish(topic, payload);
       expect(await fired(next)).toBe(false);
@@ -162,7 +162,7 @@ describe("threadChanges", () => {
     ],
   ] as const)("%s", async (_name, id, state, expected) => {
     const controller = new AbortController();
-    const changes = threadChanges(controller.signal);
+    const changes = chatChanges(controller.signal);
     const next = changes.next();
     publisher.publish("part.updated", { id, part: toolPart(state) });
     expect(await fired(next)).toBe(expected);

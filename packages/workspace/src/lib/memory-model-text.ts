@@ -14,9 +14,9 @@ type MemoryRow = SessionMessageDataPart.MemoryDataPart["memories"][number];
  * carries, so the note names each one rather than leaving the agent to list
  * them again to find it.
  *
- * Rows are grouped under the thread they came from and the day, so a thread
+ * Rows are grouped under the chat they came from and the day, so a chat
  * that saved thirty memories in a sitting names itself once rather than on
- * every row. Rendered only when it differs from the last note, so a thread
+ * every row. Rendered only when it differs from the last note, so a chat
  * is told once and again only on a change.
  */
 export function memoryModelNote(data: SessionMessageDataPart.MemoryDataPart) {
@@ -46,7 +46,7 @@ export function memoryModelNote(data: SessionMessageDataPart.MemoryDataPart) {
       : "";
   const count = data.memories.length + data.more;
   return systemNote`
-    What you remember about the user, kept for every thread (${count}):
+    What you remember about the user, kept for every chat (${count}):
     ${groupedRows(data.memories, data.sentAt)}${more}
     ${standing}
   `;
@@ -57,9 +57,9 @@ function day(at: number): string {
 }
 
 /**
- * The rows under a heading per source: the thread the run of memories came
- * from and how long ago, or that they came from no thread. A group holds one
- * thread's memories from one day, in the order given, and its "how long ago"
+ * The rows under a heading per source: the chat the run of memories came
+ * from and how long ago, or that they came from no chat. A group holds one
+ * chat's memories from one day, in the order given, and its "how long ago"
  * is its newest memory's.
  */
 function groupedRows(memories: MemoryRow[], sentAt: number): string {
@@ -83,7 +83,7 @@ function groupedRows(memories: MemoryRow[], sentAt: number): string {
       const when = formatDistanceStrict(new Date(newest.at), new Date(sentAt), {
         addSuffix: true,
       });
-      const from = newest.from ? `From "${newest.from}"` : "From no thread";
+      const from = newest.from ? `From "${newest.from}"` : "From no chat";
       const lines = rows.map((row) => `- ${row.name}: ${row.text}`);
       return [`${from}, ${when}:`, ...lines].join("\n");
     })

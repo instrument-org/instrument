@@ -8,7 +8,7 @@ import { type ReactNode } from "react";
  * mention, the row of a skill-changes card.
  *
  * Where the link is drawn decides where the page opens. In the 2.0 window the
- * skill is a screen of the pane, so the link opens it as a tab of the thread
+ * skill is a screen of the pane, so the link opens it as a tab of the chat
  * through the window's own openers, and a middle click or a right click get
  * the gestures every opener there answers. Outside it, the skill's page is a
  * route of the classic window and the link is the tab-aware one every route

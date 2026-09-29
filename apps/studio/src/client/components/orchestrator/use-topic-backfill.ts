@@ -2,12 +2,12 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { askOf, byActivity, type Thread } from "./threads";
+import { askOf, byActivity, type Chat } from "./chats";
 
 /** A chat a new topic could be filed on at once: which, and what it is called and asks. */
 export interface BackfillCandidate {
   asked: string;
-  id: Thread["id"];
+  id: Chat["id"];
   title: string;
 }
 
@@ -30,15 +30,15 @@ const DEBOUNCE_MS = 600;
  * ones filed under nothing, still in the inbox. Only these, so filing them
  * never takes a topic a chat already has or adds a second one to it.
  */
-export function backfillCandidates(threads: Thread[]): BackfillCandidate[] {
+export function backfillCandidates(chats: Chat[]): BackfillCandidate[] {
   return byActivity(
-    threads.filter((thread) => thread.topics.length === 0 && !thread.archived),
+    chats.filter((chat) => chat.topics.length === 0 && !chat.archived),
   )
     .slice(0, MOST_READ)
-    .map((thread) => ({
-      asked: askOf(thread).slice(0, ASK_MAX),
-      id: thread.id,
-      title: thread.title,
+    .map((chat) => ({
+      asked: askOf(chat).slice(0, ASK_MAX),
+      id: chat.id,
+      title: chat.title,
     }));
 }
 

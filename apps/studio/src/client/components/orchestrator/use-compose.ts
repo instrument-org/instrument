@@ -16,19 +16,19 @@ import { COMPOSE_GUEST_LAYER, layoutCompose } from "./compose-layout";
 
 /**
  * The windows along the foot of the row: the drafts being written and the
- * threads in their small views, laid out, with what each draft window's page
+ * chats in their small views, laid out, with what each draft window's page
  * is drawn into and what each has on screen, for the layout that draws the
- * windows over the pane's page and starts the threads the drafts become. Everything is keyed by the group the window shows: the
- * draft's key, or the thread's session.
+ * windows over the pane's page and starts the chats the drafts become. Everything is keyed by the group the window shows: the
+ * draft's key, or the chat's session.
  */
 export function useCompose(
   width: number,
-  /** Whether a thread's group holds anything, which gives its small view a rail. */
+  /** Whether a chat's group holds anything, which gives its small view a rail. */
   holdsAnything: (group: string) => boolean,
 ) {
   const [entries, setEntries] = useAtom(composeAtom);
   // Where each window's page is drawn, by the window's group, once the
-  // window has made the element (a draft's band, or a thread grown to fill
+  // window has made the element (a draft's band, or a chat grown to fill
   // the row); and what each draft window's band has up.
   const [hostsById, setHostsById] = useState<
     Record<string, HTMLElement | null>
@@ -45,11 +45,11 @@ export function useCompose(
   const placed = layoutCompose(
     entries,
     width,
-    (entry) => entry.kind === "thread" && holdsAnything(entry.sessionId),
+    (entry) => entry.kind === "chat" && holdsAnything(entry.sessionId),
     zoom,
   );
   const windows = placed.filter((entry) => entry.placement !== "bar");
-  // A thread's small view draws no page; grown to fill the row it does.
+  // A chat's small view draws no page; grown to fill the row it does.
   const hosts: ComposeHost[] = windows.flatMap((entry) =>
     entry.kind === "draft" || entry.placement === "expanded"
       ? [
@@ -85,10 +85,10 @@ export function useCompose(
       placement: "docked",
     }));
   };
-  /** Floats a thread in its small view: a new window at the right, or the bar it was put down to, raised. */
+  /** Floats a chat in its small view: a new window at the right, or the bar it was put down to, raised. */
   const float = (sessionId: StoreId.Session) => {
     raise(sessionId, () => ({
-      kind: "thread",
+      kind: "chat",
       placement: "docked",
       sessionId,
     }));
@@ -109,19 +109,19 @@ export function useCompose(
     });
   };
   /**
-   * The draft's window becomes the thread's small view in the same place
+   * The draft's window becomes the chat's small view in the same place
    * along the foot: the entry is replaced where it stands, put down if the
-   * draft was, docked if it had grown, since a thread's view has no larger
+   * draft was, docked if it had grown, since a chat's view has no larger
    * size. What the draft's band drew and reported goes with the draft.
    */
-  const becomeThread = (draftId: string, sessionId: StoreId.Session) => {
+  const becomeChat = (draftId: string, sessionId: StoreId.Session) => {
     const key = draftGroupOf(draftId);
     setEntries((current) =>
       current.map((entry) =>
         entry.kind === "draft" && entry.draftId === draftId
           ? {
               fromDraft: draftId,
-              kind: "thread",
+              kind: "chat",
               placement: entry.placement === "bar" ? "bar" : "docked",
               sessionId,
             }
@@ -131,14 +131,14 @@ export function useCompose(
     forget(key);
   };
   /**
-   * The thread's small view goes back to being the draft's window in the
-   * same place, for a thread that never started: the draft comes back up
+   * The chat's small view goes back to being the draft's window in the
+   * same place, for a chat that never started: the draft comes back up
    * with what its window was given still in it.
    */
   const becomeDraft = (sessionId: StoreId.Session, draftId: string) => {
     setEntries((current) =>
       current.map((entry) =>
-        entry.kind === "thread" && entry.sessionId === sessionId
+        entry.kind === "chat" && entry.sessionId === sessionId
           ? { draftId, kind: "draft", placement: "docked" }
           : entry,
       ),
@@ -182,8 +182,8 @@ export function useCompose(
   };
 
   return {
+    becomeChat,
     becomeDraft,
-    becomeThread,
     entries,
     float,
     hosts,

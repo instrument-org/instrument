@@ -32,7 +32,18 @@ const freshTask = () => {
   return taskId;
 };
 
-/** A reply in a thread, said at a given moment. */
+/** A chat of the conversation: a session under a title. */
+async function chat(_taskId: TaskId, title: string) {
+  const sessionId = StoreId.newSessionId();
+  chatFor(sessionId);
+  await Store.saveSession(
+    { createdAt: new Date(), id: sessionId, title },
+    chatFor(sessionId),
+  );
+  return sessionId;
+}
+
+/** A reply in a chat, said at a given moment. */
 async function said(
   _taskId: TaskId,
   sessionId: StoreId.Session,
@@ -66,23 +77,12 @@ async function said(
   await Store.saveMessageWithParts(message, chatFor(sessionId));
 }
 
-/** A thread of the conversation: a session under a title. */
-async function thread(_taskId: TaskId, title: string) {
-  const sessionId = StoreId.newSessionId();
-  chatFor(sessionId);
-  await Store.saveSession(
-    { createdAt: new Date(), id: sessionId, title },
-    chatFor(sessionId),
-  );
-  return sessionId;
-}
-
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 7, 12, minute));
 
 describe("linkedFiles", () => {
   it("names what a reply put on screen, newest first", async () => {
     const taskId = freshTask();
-    const sessionId = await thread(taskId, "General");
+    const sessionId = await chat(taskId, "General");
     await said(
       taskId,
       sessionId,
@@ -104,10 +104,10 @@ describe("linkedFiles", () => {
     ]);
   });
 
-  it("reads every thread, since the user saw all of them", async () => {
+  it("reads every chat, since the user saw all of them", async () => {
     const taskId = freshTask();
-    const work = await thread(taskId, "Work");
-    const home = await thread(taskId, "Home");
+    const work = await chat(taskId, "Work");
+    const home = await chat(taskId, "Home");
     await said(taskId, work, "```files\noutput/deck.pdf\n```", at(1));
     await said(taskId, home, "```files\n/mnt/Documents/plan.md\n```", at(2));
 
@@ -121,7 +121,7 @@ describe("linkedFiles", () => {
 
   it("leaves a path the reply only talked about out of it", async () => {
     const taskId = freshTask();
-    const sessionId = await thread(taskId, "General");
+    const sessionId = await chat(taskId, "General");
     await said(
       taskId,
       sessionId,
@@ -136,7 +136,7 @@ describe("linkedFiles", () => {
 
   it("names a file shown twice once, at the last time it was shown", async () => {
     const taskId = freshTask();
-    const sessionId = await thread(taskId, "General");
+    const sessionId = await chat(taskId, "General");
     await said(taskId, sessionId, "```files\noutput/report.md\n```", at(1));
     await said(taskId, sessionId, "```files\noutput/chart.png\n```", at(2));
     await said(taskId, sessionId, "```files\noutput/report.md\n```", at(3));
@@ -152,8 +152,8 @@ describe("linkedFiles", () => {
 
   it("names the same path once for each chat that showed it", async () => {
     const taskId = freshTask();
-    const first = await thread(taskId, "First");
-    const second = await thread(taskId, "Second");
+    const first = await chat(taskId, "First");
+    const second = await chat(taskId, "Second");
     await said(taskId, first, "```files\n/task/work/notes.md\n```", at(1));
     await said(taskId, second, "```files\n/task/work/notes.md\n```", at(2));
 
@@ -165,7 +165,7 @@ describe("linkedFiles", () => {
     ]);
   });
 
-  it("has nothing to show for a conversation with no threads", async () => {
+  it("has nothing to show for a conversation with no chats", async () => {
     freshTask();
 
     await expect(linkedFiles()).resolves.toEqual([]);

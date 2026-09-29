@@ -14,10 +14,10 @@ import { OrchestratorContext } from "./context";
 import { mountOfHostPath } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 
-/** The composer a staged ask was moved into: a thread's, or a draft's. */
+/** The composer a staged ask was moved into: a chat's, or a draft's. */
 export type AskDestination =
   | { draftId: string; kind: "draft" }
-  | { kind: "thread"; sessionId: StoreId.Session };
+  | { kind: "chat"; sessionId: StoreId.Session };
 
 /**
  * One place in a file the person marked for Instrument, waiting to be sent:
@@ -180,7 +180,7 @@ function isFor(ask: StagedAsk, destination: AskDestination) {
   const at = ask.destination;
   return destination.kind === "draft"
     ? at?.kind === "draft" && at.draftId === destination.draftId
-    : at?.kind === "thread" && at.sessionId === destination.sessionId;
+    : at?.kind === "chat" && at.sessionId === destination.sessionId;
 }
 
 /**
@@ -229,21 +229,21 @@ export function useAskRevealer(
 export function useMoveAsks() {
   const orchestrator = useContext(OrchestratorContext);
   const store = useStore();
-  const thread = useThreadBeside();
+  const chat = useChatBeside();
   const { moveTo } = useStagedAskActions();
-  const canMove = thread !== undefined || orchestrator?.moveAsksToDraft;
+  const canMove = chat !== undefined || orchestrator?.moveAsksToDraft;
   return {
     canMove: Boolean(canMove),
     /** The button's words for `count` comments: "Add 3 comments to chat". */
     label: (count: number) =>
-      `Add ${commentCount(count)} to ${thread === undefined ? "new chat" : "chat"}`,
+      `Add ${commentCount(count)} to ${chat === undefined ? "new chat" : "chat"}`,
     move: (ids: string[]) => {
-      if (thread === undefined) {
+      if (chat === undefined) {
         orchestrator?.moveAsksToDraft?.(ids);
       } else {
-        moveTo(ids, { kind: "thread", sessionId: thread });
+        moveTo(ids, { kind: "chat", sessionId: chat });
         const editor = store.get(
-          promptDraftRefAtom({ scope: "thread", sessionId: thread }),
+          promptDraftRefAtom({ scope: "chat", sessionId: chat }),
         );
         editor?.focus();
         editor?.moveCaretToEnd();
@@ -253,10 +253,10 @@ export function useMoveAsks() {
 }
 
 /**
- * The thread up beside what is on screen, whose composer takes what a file's
+ * The chat up beside what is on screen, whose composer takes what a file's
  * Ask moves; with none, a new draft takes it.
  */
-function useThreadBeside(): StoreId.Session | undefined {
+function useChatBeside(): StoreId.Session | undefined {
   const { group } = useAtomValue(windowTabsAtom);
   const parsed = StoreId.SessionSchema.safeParse(group);
   return parsed.success ? parsed.data : undefined;

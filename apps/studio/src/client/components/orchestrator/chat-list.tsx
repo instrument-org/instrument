@@ -4,56 +4,56 @@ import { cn } from "@/client/lib/utils";
 import { memo, type RefObject, useLayoutEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
+import { useChatActionsFor } from "./chat-actions";
+import { ChatRow } from "./chat-row";
+import { byActivity, type Chat, type Topic } from "./chats";
 import { DraftRow } from "./draft-row";
 import { type RowDensity, SLIM_NAME_COLUMN } from "./row-shell";
-import { useThreadActionsFor } from "./thread-actions";
-import { ThreadRow } from "./thread-row";
-import { byActivity, type Thread, type Topic } from "./threads";
 import { useNow } from "./use-now";
 
 /** The width the list has to have, in px, before its rows lie down to one line each. */
 const SLIM_FROM = 600;
 
 /**
- * One thread's row, rendered again only when something it shows changes:
- * the list itself renders again on every thread opened and every change the
+ * One chat's row, rendered again only when something it shows changes:
+ * the list itself renders again on every chat opened and every change the
  * list's query brings, and a row that followed it would redraw the whole
  * inbox each time for the two rows whose mark moved.
  */
-const ListedThread = memo(function ListedThread({
+const ListedChat = memo(function ListedChat({
   actionsFor,
+  chat,
   handlers,
-  thread,
   ...row
 }: {
-  actionsFor: ReturnType<typeof useThreadActionsFor>;
+  actionsFor: ReturnType<typeof useChatActionsFor>;
   appsBySlug: AppsBySlug;
+  chat: Chat;
   density: RowDensity;
   handlers: RefObject<{
-    onNewTopic: (thread: Thread, name?: string) => void;
-    onOpen: (thread: Thread) => void;
-    onSetTopics: (thread: Thread, topics: string[]) => void;
+    onNewTopic: (chat: Chat, name?: string) => void;
+    onOpen: (chat: Chat) => void;
+    onSetTopics: (chat: Chat, topics: string[]) => void;
   }>;
   isArriving: boolean;
   isOpen: boolean;
   now: Date;
-  thread: Thread;
   topics: Topic[];
 }) {
   return (
-    <ThreadRow
+    <ChatRow
       {...row}
-      actions={actionsFor(thread)}
+      actions={actionsFor(chat)}
+      chat={chat}
       onNewTopic={(name) => {
-        handlers.current.onNewTopic(thread, name);
+        handlers.current.onNewTopic(chat, name);
       }}
       onOpen={() => {
-        handlers.current.onOpen(thread);
+        handlers.current.onOpen(chat);
       }}
       onSetTopics={(next) => {
-        handlers.current.onSetTopics(thread, next);
+        handlers.current.onSetTopics(chat, next);
       }}
-      thread={thread}
     />
   );
 });
@@ -72,17 +72,18 @@ const SKELETON_WIDTHS = [
 ] as const;
 
 /**
- * The inbox: every thread by when something last happened in it, newest at
- * the top, so a reply landing lifts its thread to the head of the list, or,
+ * The inbox: every chat by when something last happened in it, newest at
+ * the top, so a reply landing lifts its chat to the head of the list, or,
  * given drafts instead, every draft by when it was last touched. The rows
  * take one line each when the list is wide enough for a mailbox's columns,
  * and three when it is not; the list measures its own width for that, since
  * the pane and the column beside it set it. It opens at the top and stays
  * where the reader scrolled to.
  */
-export function ThreadList({
+export function ChatList({
   appsBySlug,
   arrivedId,
+  chats,
   drafts,
   emptyLine,
   isLoading,
@@ -95,43 +96,42 @@ export function ThreadList({
   openId,
   outside = 0,
   scrollSignal,
-  threads,
   topics,
 }: {
   appsBySlug: AppsBySlug;
-  /** The thread that just started from a draft, whose row arrives with a motion of its own. */
+  /** The chat that just started from a draft, whose row arrives with a motion of its own. */
   arrivedId?: string;
-  /** The drafts to list in place of the threads, while the column stands in Drafts. */
+  chats: Chat[];
+  /** The drafts to list in place of the chats, while the column stands in Drafts. */
   drafts?: Draft[];
   /** What the list says when it has nothing to show. */
   emptyLine: string;
-  /** Whether the threads are still on their way: nothing is said about an empty list until they have arrived. */
+  /** Whether the chats are still on their way: nothing is said about an empty list until they have arrived. */
   isLoading: boolean;
   onDeleteDraft: (id: string) => void;
-  /** Opens the new-topic dialog for a thread: the topic it makes is filed on that thread. */
-  onNewTopic: (thread: Thread, name?: string) => void;
-  onOpen: (thread: Thread) => void;
+  /** Opens the new-topic dialog for a chat: the topic it makes is filed on that chat. */
+  onNewTopic: (chat: Chat, name?: string) => void;
+  onOpen: (chat: Chat) => void;
   onOpenDraft: (id: string) => void;
-  onSetTopics: (thread: Thread, topics: string[]) => void;
-  /** Lifts the place, topic, and app filters so the search reads every thread. */
+  onSetTopics: (chat: Chat, topics: string[]) => void;
+  /** Lifts the place, topic, and app filters so the search reads every chat. */
   onWiden?: () => void;
-  /** The thread open beside the list, which its row is marked as. */
+  /** The chat open beside the list, which its row is marked as. */
   openId: string | undefined;
-  /** How many threads the search finds that the filters keep out of the list. */
+  /** How many chats the search finds that the filters keep out of the list. */
   outside?: number;
   /** Counts up whenever the list should be taken back to its top, whatever the reader was doing. */
   scrollSignal: number;
-  threads: Thread[];
   topics: Topic[];
 }) {
   const now = useNow();
   const ref = useRef<HTMLDivElement>(null);
   const density = useDensity(ref);
-  const actionsFor = useThreadActionsFor();
+  const actionsFor = useChatActionsFor();
   // The handlers as the list last had them, for the rows to call: the ones
   // the list is handed are new whenever the window re-renders, and a row
   // handed a new one would render again with every other row each time a
-  // thread is opened.
+  // chat is opened.
   const handlers = useRef({ onNewTopic, onOpen, onSetTopics });
   useLayoutEffect(() => {
     handlers.current = { onNewTopic, onOpen, onSetTopics };
@@ -155,17 +155,17 @@ export function ThreadList({
           topics={topics}
         />
       ))
-    : byActivity(threads).map((thread) => (
-        <ListedThread
+    : byActivity(chats).map((chat) => (
+        <ListedChat
           actionsFor={actionsFor}
           appsBySlug={appsBySlug}
+          chat={chat}
           density={density}
           handlers={handlers}
-          isArriving={thread.id === arrivedId}
-          isOpen={thread.id === openId}
-          key={thread.id}
+          isArriving={chat.id === arrivedId}
+          isOpen={chat.id === openId}
+          key={chat.id}
           now={now}
-          thread={thread}
           topics={topics}
         />
       ));
@@ -207,7 +207,7 @@ export function ThreadList({
       {/* The search reads inside the place the column stands in, so what it
         finds elsewhere is said at the list's end, whether or not anything
         was found here, and pressing it widens the same search to every
-        thread. */}
+        chat. */}
       {outside > 0 && !isLoading && (
         <p className="px-4 py-2 text-center text-sm">
           <button
@@ -223,7 +223,7 @@ export function ThreadList({
   );
 }
 
-/** A row's shape at the list's density, standing in while the threads load. */
+/** A row's shape at the list's density, standing in while the chats load. */
 function RowSkeleton({
   density,
   peek,

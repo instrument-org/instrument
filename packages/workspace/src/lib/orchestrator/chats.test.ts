@@ -15,16 +15,16 @@ import { updateTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type OrchestratorActivity } from "./activity";
 import {
-  archiveThread,
-  listThreads,
-  markThreadSeen,
-  markThreadUnseen,
-  renameThread,
-  setThreadStarred,
-  setThreadTopics,
-  threadById,
-  unarchiveThread,
-} from "./threads";
+  archiveChat,
+  chatById,
+  listChats,
+  markChatSeen,
+  markChatUnseen,
+  renameChat,
+  setChatStarred,
+  setChatTopics,
+  unarchiveChat,
+} from "./chats";
 import { createTopic } from "./topics";
 
 vi.mock(import("../session-store-storage"));
@@ -68,7 +68,7 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 }));
 
 // Task state and sessions are real files under the mock workspace, so a task
-// id reused across runs would read the last run's threads.
+// id reused across runs would read the last run's chats.
 let counter = 0;
 /**
  * The window's record, in a workspace of its own: chats, topics and the
@@ -76,9 +76,9 @@ let counter = 0;
  */
 const freshTask = async () => {
   const taskId = createMockTaskConfig(
-    TaskIdSchema.parse(`threads-${Date.now()}-${(counter += 1)}`),
+    TaskIdSchema.parse(`chats-${Date.now()}-${(counter += 1)}`),
   );
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "threads-root-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "chats-root-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(root),
@@ -92,7 +92,7 @@ const freshTask = async () => {
   return taskId;
 };
 
-/** A task started in a thread: a folder inside that thread's chat. */
+/** A task started in a chat: a folder inside that chat's record. */
 function fileTask(sessionId: StoreId.Session, child: TaskId) {
   const dir = placeChatTask(child, chatFor(sessionId));
   fs.mkdirSync(dir, { recursive: true });
@@ -190,7 +190,7 @@ function partMetadata(ids: {
   return { createdAt: new Date(), id: StoreId.newPartId(), ...ids };
 }
 
-/** A thread: a chat's folder and its one session. */
+/** A chat: a chat's folder and its one session. */
 async function session(_taskId: TaskId, title: string, minute = 0) {
   const id = StoreId.newSessionId();
   chatFor(id);
@@ -221,8 +221,8 @@ async function userSays(
   return messageId;
 }
 
-describe("listThreads", () => {
-  it("lists the threads oldest first, with their roots, counts and latest lines", async () => {
+describe("listChats", () => {
+  it("lists the chats oldest first, with their roots, counts and latest lines", async () => {
     const taskId = await freshTask();
     const groceries = await session(taskId, "Groceries for the week", 1);
     await userSays(taskId, groceries, "make me a grocery list", 1);
@@ -233,17 +233,17 @@ describe("listThreads", () => {
     const trip = await session(taskId, "Trip to Lisbon", 4);
     await userSays(taskId, trip, "plan a trip to lisbon", 4);
 
-    const threads = await listThreads();
+    const chats = await listChats();
 
     expect(
-      threads.map((thread) => ({
-        createdAt: thread.createdAt,
-        latest: thread.latest,
-        replyCount: thread.replyCount,
-        root: thread.root?.parts.find((part) => part.type === "text")?.text,
-        state: thread.state,
-        title: thread.title,
-        unread: thread.unread,
+      chats.map((chat) => ({
+        createdAt: chat.createdAt,
+        latest: chat.latest,
+        replyCount: chat.replyCount,
+        root: chat.root?.parts.find((part) => part.type === "text")?.text,
+        state: chat.state,
+        title: chat.title,
+        unread: chat.unread,
       })),
     ).toEqual([
       {
@@ -271,25 +271,25 @@ describe("listThreads", () => {
     ]);
   });
 
-  it("lets the ask stand for a thread the agent has not named yet", async () => {
+  it("lets the ask stand for a chat the agent has not named yet", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Untitled chat 3");
     await userSays(taskId, sessionId, "plan a trip to lisbon\nin october", 1);
 
-    const [thread] = await listThreads();
-    expect(thread?.title).toBe("plan a trip to lisbon");
+    const [chat] = await listChats();
+    expect(chat?.title).toBe("plan a trip to lisbon");
   });
 
   it("lists a chat whose first message has not been saved yet", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Untitled chat 4", 2);
 
-    const [thread] = await listThreads();
-    expect(thread?.id).toBe(sessionId);
-    expect(thread?.createdAt).toBe(at(2).getTime());
+    const [chat] = await listChats();
+    expect(chat?.id).toBe(sessionId);
+    expect(chat?.createdAt).toBe(at(2).getTime());
   });
 
-  it("lists a thread started with only an ask marked on a file", async () => {
+  it("lists a chat started with only an ask marked on a file", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Make page 1 red");
     const messageId = StoreId.newMessageId();
@@ -320,19 +320,19 @@ describe("listThreads", () => {
     );
     expect(saved.isOk()).toBe(true);
 
-    const [thread] = await listThreads();
-    expect(thread?.id).toBe(sessionId);
+    const [chat] = await listChats();
+    expect(chat?.id).toBe(sessionId);
   });
 
   it("reads what was said since the last list, and a part rewritten in place", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
-    const [asked] = await listThreads();
+    const [asked] = await listChats();
     expect(asked?.replyCount).toBe(0);
 
     await agentSays(taskId, sessionId, "Here is the list.", { minute: 2 });
-    const [replied] = await listThreads();
+    const [replied] = await listChats();
     expect(replied?.latest?.text).toBe("Here is the list.");
 
     const read = await Store.getMessagesWithParts({
@@ -350,7 +350,7 @@ describe("listThreads", () => {
       { ...part, text: "Here is the new list." },
       chatFor(sessionId),
     );
-    const [rewritten] = await listThreads();
+    const [rewritten] = await listChats();
     expect(rewritten?.latest?.text).toBe("Here is the new list.");
   });
 
@@ -363,8 +363,8 @@ describe("listThreads", () => {
       minute: 2,
     });
 
-    const [thread] = await listThreads();
-    expect(thread?.unread).toBe(0);
+    const [chat] = await listChats();
+    expect(chat?.unread).toBe(0);
   });
 
   it("puts one reply back among the unread when asked, and clears it again on seeing", async () => {
@@ -373,14 +373,14 @@ describe("listThreads", () => {
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
     await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
-    await markThreadSeen(sessionId);
+    await markChatSeen(sessionId);
 
-    await markThreadUnseen(sessionId);
-    const [put] = await listThreads();
+    await markChatUnseen(sessionId);
+    const [put] = await listChats();
     expect(put?.unread).toBe(1);
 
-    await markThreadSeen(sessionId);
-    const [seen] = await listThreads();
+    await markChatSeen(sessionId);
+    const [seen] = await listChats();
     expect(seen?.unread).toBe(0);
   });
 
@@ -390,68 +390,68 @@ describe("listThreads", () => {
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Done.", { minute: 2 });
 
-    await markThreadSeen(sessionId);
+    await markChatSeen(sessionId);
     await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
 
-    const [thread] = await listThreads();
-    expect(thread?.unread).toBe(1);
-    // A reply still arriving is not settled, so seeing the thread now records
+    const [chat] = await listChats();
+    expect(chat?.unread).toBe(1);
+    // A reply still arriving is not settled, so seeing the chat now records
     // the reply before it.
     const streaming = await agentSays(taskId, sessionId, "Working on", {
       finished: false,
       minute: 4,
     });
-    const seen = await threadById(sessionId);
+    const seen = await chatById(sessionId);
     const settled = seen?.newestSettledMessageId;
     expect(settled).toBeDefined();
     expect(settled).not.toBe(streaming);
   });
 
-  it("carries the topics a thread is tagged with, dropping ids that are not topics", async () => {
+  it("carries the topics a chat is tagged with, dropping ids that are not topics", async () => {
     const taskId = await freshTask();
     const home = await createTopic({ name: "Home" });
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list");
 
-    await setThreadTopics(sessionId, [home.id, "top_nothing"]);
+    await setChatTopics(sessionId, [home.id, "top_nothing"]);
 
-    const [thread] = await listThreads();
-    expect(thread?.topics).toEqual([home.id]);
+    const [chat] = await listChats();
+    expect(chat?.topics).toEqual([home.id]);
   });
 
-  it("puts a thread away and brings it back, without moving its stamp", async () => {
+  it("puts a chat away and brings it back, without moving its stamp", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries", 1);
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
-    const [before] = await listThreads();
+    const [before] = await listChats();
     expect(before?.archived).toBe(false);
 
-    await archiveThread(sessionId);
-    const [archived] = await listThreads();
+    await archiveChat(sessionId);
+    const [archived] = await listChats();
     expect(archived?.archived).toBe(true);
     expect(archived?.updatedAt).toBe(before?.updatedAt);
 
-    await unarchiveThread(sessionId);
-    const [back] = await listThreads();
+    await unarchiveChat(sessionId);
+    const [back] = await listChats();
     expect(back?.archived).toBe(false);
   });
 
-  it("stars a thread and takes the star off, without moving its stamp", async () => {
+  it("stars a chat and takes the star off, without moving its stamp", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries", 1);
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
-    const [before] = await listThreads();
+    const [before] = await listChats();
     expect(before?.starred).toBe(false);
 
-    await setThreadStarred(sessionId, true);
-    const [starred] = await listThreads();
+    await setChatStarred(sessionId, true);
+    const [starred] = await listChats();
     expect(starred?.starred).toBe(true);
     expect(starred?.updatedAt).toBe(before?.updatedAt);
 
-    await setThreadStarred(sessionId, false);
-    const [back] = await listThreads();
+    await setChatStarred(sessionId, false);
+    const [back] = await listChats();
     expect(back?.starred).toBe(false);
   });
 
@@ -460,10 +460,10 @@ describe("listThreads", () => {
     const sessionId = await session(taskId, "Groceries", 1);
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
-    const [before] = await listThreads();
+    const [before] = await listChats();
 
-    await renameThread(sessionId, "Weekly shop");
-    const [renamed] = await listThreads();
+    await renameChat(sessionId, "Weekly shop");
+    const [renamed] = await listChats();
     expect(renamed?.title).toBe("Weekly shop");
     expect(renamed?.updatedAt).toBe(before?.updatedAt);
     const stored = await Store.getSession(sessionId, chatFor(sessionId));
@@ -479,23 +479,23 @@ describe("listThreads", () => {
     fileTask(sessionId, child);
     running.value = [
       {
+        chat: sessionId,
         step: "Checking the pantry",
         taskId: child,
-        thread: sessionId,
         title: "Grocery list",
         updatedAt: at(3).getTime(),
       },
     ];
 
-    const [thread] = await listThreads();
+    const [chat] = await listChats();
 
-    expect(thread?.state).toBe("working");
-    expect(thread?.latest).toEqual({
+    expect(chat?.state).toBe("working");
+    expect(chat?.latest).toEqual({
       at: at(2).getTime(),
       kind: "step",
       text: "Checking the pantry",
     });
-    expect(thread?.runningTasks).toEqual([
+    expect(chat?.runningTasks).toEqual([
       { id: child, step: "Checking the pantry", title: "Grocery list" },
     ]);
   });
@@ -509,24 +509,24 @@ describe("listThreads", () => {
     fileTask(sessionId, child);
     running.value = [
       {
+        chat: sessionId,
         step: "Picking a store",
         taskId: child,
-        thread: sessionId,
         title: "Grocery list",
         updatedAt: at(3).getTime(),
         waiting: "Which one?",
       },
     ];
 
-    const [thread] = await listThreads();
+    const [chat] = await listChats();
 
-    expect(thread?.state).toBe("waiting");
-    expect(thread?.latest).toEqual({
+    expect(chat?.state).toBe("waiting");
+    expect(chat?.latest).toEqual({
       at: at(3).getTime(),
       kind: "question",
       text: "Which one?",
     });
-    expect(thread?.runningTasks).toEqual([
+    expect(chat?.runningTasks).toEqual([
       {
         id: child,
         step: "Picking a store",
@@ -535,19 +535,19 @@ describe("listThreads", () => {
       },
     ]);
 
-    // Another task still moving keeps the thread at work, and its step is
+    // Another task still moving keeps the chat at work, and its step is
     // the one shown rather than the stalled task's.
     running.value = [
       ...running.value,
       {
+        chat: sessionId,
         step: "Checking the pantry",
         taskId: TaskIdSchema.parse("pantry"),
-        thread: sessionId,
         title: "Pantry",
         updatedAt: at(4).getTime(),
       },
     ];
-    const [busy] = await listThreads();
+    const [busy] = await listChats();
     expect(busy?.state).toBe("working");
     expect(busy?.latest?.text).toBe("Checking the pantry");
   });
@@ -562,15 +562,15 @@ describe("listThreads", () => {
     });
     alive.value = new Set([sessionId]);
 
-    const [thread] = await listThreads();
+    const [chat] = await listChats();
 
-    expect(thread?.state).toBe("working");
-    expect(thread?.latest?.kind).toBe("step");
-    expect(thread?.latest?.text).toBe("Running a command");
+    expect(chat?.state).toBe("working");
+    expect(chat?.latest?.kind).toBe("step");
+    expect(chat?.latest?.text).toBe("Running a command");
   });
 
   // A message is written before the agent it starts is running, so a list
-  // read in between must not call the thread idle and show its last reply.
+  // read in between must not call the chat idle and show its last reply.
   it("is working while a message it was just sent waits for its agent, for a while", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
@@ -581,11 +581,11 @@ describe("listThreads", () => {
       await userSays(taskId, sessionId, "add eggs", 3);
 
       vi.setSystemTime(at(3).getTime() + 5000);
-      const soon = await listThreads();
+      const soon = await listChats();
       expect(soon[0]?.state).toBe("working");
 
       vi.setSystemTime(at(3).getTime() + 60_000);
-      const later = await listThreads();
+      const later = await listChats();
       expect(later[0]?.state).toBe("idle");
     } finally {
       vi.useRealTimers();
@@ -601,9 +601,9 @@ describe("listThreads", () => {
     fileTask(sessionId, child);
     pendingWakes.value = new Set([child]);
 
-    const [thread] = await listThreads();
+    const [chat] = await listChats();
 
-    expect(thread?.state).toBe("working");
+    expect(chat?.state).toBe("working");
   });
 
   it("is waiting while its last turn ended on a question", async () => {
@@ -612,10 +612,10 @@ describe("listThreads", () => {
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentAsks(taskId, sessionId);
 
-    const [thread] = await listThreads();
+    const [chat] = await listChats();
 
-    expect(thread?.state).toBe("waiting");
-    expect(thread?.latest).toEqual({
+    expect(chat?.state).toBe("waiting");
+    expect(chat?.latest).toEqual({
       at: at(5).getTime(),
       kind: "question",
       text: "Which one?",
@@ -630,9 +630,9 @@ describe("listThreads", () => {
     // The agent is alive to the machine: its turn is open on the tool call.
     alive.value = new Set([sessionId]);
     try {
-      const [thread] = await listThreads();
-      expect(thread?.state).toBe("waiting");
-      expect(thread?.latest?.kind).toBe("question");
+      const [chat] = await listChats();
+      expect(chat?.state).toBe("waiting");
+      expect(chat?.latest?.kind).toBe("question");
     } finally {
       alive.value = new Set();
     }
@@ -649,8 +649,8 @@ describe("listThreads", () => {
       { minute: 2 },
     );
 
-    const [thread] = await listThreads();
-    expect(thread?.latest).toEqual({
+    const [chat] = await listChats();
+    expect(chat?.latest).toEqual({
       at: at(2).getTime(),
       kind: "reply",
       text: "Wrote compared.html",
@@ -662,12 +662,12 @@ describe("listThreads", () => {
       "```files\n/mnt/Instrument/quotes/a.md\n/mnt/Instrument/quotes/b.png\n/mnt/Instrument/quotes/c.html\n```",
       { minute: 3 },
     );
-    const [updated] = await listThreads();
+    const [updated] = await listChats();
     expect(updated?.latest?.text).toBe("Wrote 3 files: a.md, b.png, c.html");
     expect(updated?.replyCount).toBe(2);
   });
 
-  it("reads what the thread made and used out of its replies", async () => {
+  it("reads what the chat made and used out of its replies", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
@@ -690,9 +690,9 @@ describe("listThreads", () => {
       { minute: 3 },
     );
 
-    const [thread] = await listThreads();
+    const [chat] = await listChats();
 
-    expect(thread?.holds).toEqual({
+    expect(chat?.holds).toEqual({
       apps: ["notion"],
       files: [
         "/mnt/Instrument/groceries/list.md",

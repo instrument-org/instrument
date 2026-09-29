@@ -6,7 +6,7 @@ import { cn } from "@/client/lib/utils";
 import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { useRef, useState } from "react";
 
-import { type ThreadRename } from "./use-thread-rename";
+import { type ChatRename } from "./use-chat-rename";
 
 // The field's own padding plus the sparkle inside it, so a width built from
 // the measured title fits the same text without truncating it on arrival.
@@ -18,12 +18,12 @@ const FIELD_MIN_WIDTH = 160;
 const FIELD_DEFAULT_WIDTH = 320;
 
 /**
- * A thread's title that renames it when clicked, the way a task's title does
+ * A chat's title that renames it when clicked, the way a task's title does
  * on its page: a button with a hover surface, then a field in its place with
- * the sparkle at its far end. Only where the thread is being viewed, its head
- * and its small view; the inbox's rows open the thread instead.
+ * the sparkle at its far end. Only where the chat is being viewed, its head
+ * and its small view; the inbox's rows open the chat instead.
  */
-export function ThreadTitle({
+export function ChatTitle({
   className,
   grow = false,
   rename,
@@ -33,7 +33,7 @@ export function ThreadTitle({
   className: string;
   /** Whether the field takes the row's free width rather than the title's own. */
   grow?: boolean;
-  rename: ThreadRename;
+  rename: ChatRename;
   title: string;
 }) {
   const titleRef = useRef<HTMLButtonElement>(null);

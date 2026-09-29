@@ -50,11 +50,11 @@ function build() {
 }
 
 describe("createMemoryPart", () => {
-  it("says nothing to a fresh thread when there is nothing to remember", async () => {
+  it("says nothing to a fresh chat when there is nothing to remember", async () => {
     expect(await build()).toBeUndefined();
   });
 
-  it("tells a thread what memory holds once, then only on a change", async () => {
+  it("tells a chat what memory holds once, then only on a change", async () => {
     await saveMemory(memoryDir(), {
       from: { title: "Roofer call" },
       name: "pacific-time",
@@ -90,7 +90,7 @@ describe("createMemoryPart", () => {
     await saveMemory(memoryDir(), { name: "pacific-time", text: "Pacific." });
     await forgetMemory(memoryDir(), "stevia");
 
-    // Two rows and no more: the address the thread already knows stays out.
+    // Two rows and no more: the address the chat already knows stays out.
     expect(await build()).toMatchObject({
       data: {
         forgotten: ["stevia"],
@@ -117,7 +117,7 @@ describe("createMemoryPart", () => {
     expect(await build()).toBeUndefined();
   });
 
-  it("stays quiet about a change the thread was told of by its own command", async () => {
+  it("stays quiet about a change the chat was told of by its own command", async () => {
     await saveMemory(memoryDir(), { name: "one", text: "One." });
     await recordMemoryReported({
       memories: await listMemories(memoryDir()),

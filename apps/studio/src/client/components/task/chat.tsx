@@ -131,7 +131,7 @@ export function TaskChat({
   composerPlaceholder?: string;
   /**
    * Which draft the composer edits. The task's own, stored with it, unless
-   * this chat is one of several over the same task: a thread's composer takes
+   * this chat is one of several over the same task: a chat's composer takes
    * a key of its own, or it would share the top-level field's words.
    */
   draftKey?: PromptDraftKey;
@@ -401,7 +401,7 @@ export function TaskChat({
   const isActiveTab = useIsActiveTab();
   const focusSignal = useAtomValue(promptFocusSignalAtom(useTabId()));
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
-  // A thread coming on screen is a place to reply from, so the caret lands
+  // A chat coming on screen is a place to reply from, so the caret lands
   // in the field as it opens.
   useLayoutEffect(() => {
     if (!isActiveTab) {
@@ -599,11 +599,11 @@ export function TaskChat({
         scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
       >
         {/* The session is part of the signal: arriving in a conversation puts
-        you at its live edge the way opening one does, and switching threads
+        you at its live edge the way opening one does, and switching chats
         is arriving. Without it the transcript kept whatever offset the
-        previous thread happened to leave behind. The messages landing is the
+        previous chat happened to leave behind. The messages landing is the
         other part: they are read after the conversation mounts, and the end
-        of a spinner is not the end of the thread. */}
+        of a spinner is not the end of the chat. */}
         <ScrollToEndBridge
           contentRef={contentRef}
           signal={`${selectedSessionId ?? ""}:${isLoadingMessages ? "loading" : "loaded"}:${scrollToEndSignal}`}

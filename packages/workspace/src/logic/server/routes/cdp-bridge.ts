@@ -41,8 +41,7 @@ export type CdpResponse =
   | { error: { code: number; message: string }; id?: number }
   | { id?: number; result: unknown };
 type CdpEventName = keyof ProtocolMapping.Events;
-type CdpEventParams<E extends CdpEventName> =
-  ProtocolMapping.Events[E][0];
+type CdpEventParams<E extends CdpEventName> = ProtocolMapping.Events[E][0];
 
 export const cdpBridgeRoute = new Hono<WorkspaceServerEnv>().basePath(
   CDP_BASE_PATH,

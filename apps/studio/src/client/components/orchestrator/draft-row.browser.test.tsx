@@ -4,13 +4,13 @@ import { TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { ChatList } from "./chat-list";
+import { type Topic } from "./chats";
 import { OrchestratorContext, type OrchestratorWindow } from "./context";
 import { DraftRow } from "./draft-row";
 import { type RowDensity } from "./row-shell";
-import { ThreadList } from "./thread-list";
-import { type Topic } from "./threads";
 
-/** The window the list sits in, as far as a list of drafts can tell: it answers for the threads' actions, which a draft has none of. */
+/** The window the list sits in, as far as a list of drafts can tell: it answers for the chats' actions, which a draft has none of. */
 const WINDOW: OrchestratorWindow = {
   ask: vi.fn(),
   browser: null,
@@ -121,7 +121,7 @@ describe("DraftRow", () => {
       );
       expect(row.querySelector("svg")).not.toBeNull();
       // Slim, the time ends the one line; tall, it ends the first, and
-      // Draft sits on the second where a thread's latest line goes.
+      // Draft sits on the second where a chat's latest line goes.
       expect(row.textContent).toBe(
         density === "slim"
           ? "🏠HouseGuard the Nest eco mode before 5 p.m.Draft9:11 AM"
@@ -139,7 +139,7 @@ describe("DraftRow", () => {
     },
   );
 
-  it("is a new thread while it has no words, and wears no pill for a topic that is gone", async () => {
+  it("is a new chat while it has no words, and wears no pill for a topic that is gone", async () => {
     const { row } = await renderRow(draft({ topicId: "money", words: " \n" }));
     expect(row.textContent).toBe("New chat9:11 AMDraft");
   });
@@ -194,14 +194,15 @@ describe("DraftRow", () => {
 });
 
 describe("the list of drafts", () => {
-  it("lists the drafts newest first in place of the threads, each opening and deleting by its id", async () => {
+  it("lists the drafts newest first in place of the chats, each opening and deleting by its id", async () => {
     const onOpenDraft = vi.fn();
     const onDeleteDraft = vi.fn();
     const rendered = await renderInBrowser(
       <OrchestratorContext value={WINDOW}>
         <div style={{ height: "300px", width: "400px" }}>
-          <ThreadList
+          <ChatList
             appsBySlug={new Map()}
+            chats={[]}
             drafts={[
               draft({
                 id: "older",
@@ -223,7 +224,6 @@ describe("the list of drafts", () => {
             onSetTopics={vi.fn()}
             openId={undefined}
             scrollSignal={0}
-            threads={[]}
             topics={[]}
           />
         </div>

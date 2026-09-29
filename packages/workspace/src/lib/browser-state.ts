@@ -36,7 +36,7 @@ const BrowserStateSchema = z.object({
   lastUsedAt: z.date(),
   /**
    * The hosts this session's browser has been on, oldest first, each once,
-   * the newest visit moving its host to the end. What a thread shows as the
+   * the newest visit moving its host to the end. What a chat shows as the
    * sites its work used: the pages themselves are too many to keep and too
    * many to draw, and a host is the mark a person recognizes.
    */

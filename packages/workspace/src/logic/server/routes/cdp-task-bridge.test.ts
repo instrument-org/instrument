@@ -71,7 +71,14 @@ function connect() {
   const live = new Set<BrowserTargetId>(
     (record.browserTabs ?? []).map((held) => held.id),
   );
-  const detachers = new Map<BrowserTargetId, () => void>();
+  const subscribers = new Map<
+    BrowserTargetId,
+    {
+      onDetach: () => void;
+      onEvent: (method: string, params: unknown) => void;
+    }[]
+  >();
+  const pages = new Map<BrowserTargetId, { title: string; url: string }>();
   const sent: Record<string, unknown>[] = [];
   const listeners: Record<string, (data: unknown) => void> = {};
   const ws = {
@@ -95,12 +102,29 @@ function connect() {
         live.has(targetId)
           ? { id: WINDOW_ID, partitionDir: "/tmp/profile", sessionId: "s" }
           : null,
-      getTargetUrl: () => "https://example.com/",
+      getTargetUrl: (targetId: BrowserTargetId) =>
+        pages.get(targetId)?.url ?? "https://example.com/",
+      listTargets: () =>
+        Promise.resolve(
+          [...live].map((id) => ({
+            id,
+            title: pages.get(id)?.title ?? "Example",
+            type: "page",
+            url: pages.get(id)?.url ?? "https://example.com/",
+          })),
+        ),
       sendCommand,
       setAgentFileRoots: vi.fn(),
       stopScreencast: vi.fn(),
-      subscribeEvents: (targetId: BrowserTargetId, onDetach: () => void) => {
-        detachers.set(targetId, onDetach);
+      subscribeEvents: (
+        targetId: BrowserTargetId,
+        onDetach: () => void,
+        onEvent: (method: string, params: unknown) => void,
+      ) => {
+        subscribers.set(targetId, [
+          ...(subscribers.get(targetId) ?? []),
+          { onDetach, onEvent },
+        ]);
         return vi.fn();
       },
     },
@@ -144,10 +168,24 @@ function connect() {
     },
     closeByUser: (targetId: BrowserTargetId) => {
       live.delete(targetId);
-      detachers.get(targetId)?.();
+      for (const { onDetach } of subscribers.get(targetId) ?? []) {
+        onDetach();
+      }
     },
+    /** A tab's page moving on by itself, as a clicked link takes it. */
     command,
     events,
+    navigates: async (
+      targetId: BrowserTargetId,
+      page: { title: string; url: string },
+    ) => {
+      pages.set(targetId, page);
+      for (const { onEvent } of subscribers.get(targetId) ?? []) {
+        onEvent("Page.frameNavigated", { frame: { id: "f", url: page.url } });
+        onEvent("Page.loadEventFired", { timestamp: 1 });
+      }
+      await flush();
+    },
     sendCommand,
   };
 }
@@ -355,6 +393,43 @@ describe("a task's browser", () => {
     expect(events("Target.targetDestroyed")).toEqual([
       { targetId: closing.tabId },
     ]);
+  });
+
+  it("tells the agent where a tab it drives has gone, and names it", async () => {
+    const driven = tab();
+    record.browserTabs = [driven.held];
+    const { command, events, navigates } = connect();
+    await command("Target.setDiscoverTargets", { discover: true });
+    await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: driven.tabId,
+    });
+
+    await navigates(driven.held.id, {
+      title: "Glass - Wikipedia",
+      url: "https://en.wikipedia.org/wiki/Glass",
+    });
+    const targets = await command("Target.getTargets");
+
+    expect(
+      events("Target.targetInfoChanged").map((params) => {
+        const { targetId, title, url } = (
+          params as { targetInfo: Record<string, string> }
+        ).targetInfo;
+        return { targetId, title, url };
+      }),
+    ).toEqual(
+      Array.from({ length: 2 }, () => ({
+        targetId: driven.tabId,
+        title: "Glass - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Glass",
+      })),
+    );
+    expect(
+      (targets.result?.targetInfos as { title: string }[]).map(
+        (info) => info.title,
+      ),
+    ).toEqual(["Glass - Wikipedia"]);
   });
 
   it("tells the agent of a tab handed over while it is connected", async () => {

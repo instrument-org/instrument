@@ -73,11 +73,16 @@ export function handleTaskCdpClient(
 ) {
   const { browser } = workspaceConfig;
   const sessions = new Map<string, TargetSession>();
+  /** Per attached tab, the watch that tells the agent where the tab has gone. */
+  const watches = new Map<string, () => void>();
   /** The tabs the agent has been told of, so a change to the record is told as one. */
   const announced = new Map<string, Held>();
   /** A download setting the agent asked for, applied to every tab it holds, those it opens later included. */
   let downloadBehavior: unknown;
   let closed = false;
+  // Browser-level commands and events run in arrival order; a page's own
+  // commands run in their session's order, beside the others.
+  let queue = Promise.resolve();
 
   const send = (payload: CdpEventFrame | CdpResponse) => {
     if (clientWs.readyState === WebSocket.OPEN) {
@@ -114,16 +119,27 @@ export function handleTaskCdpClient(
     });
   };
 
-  const targetInfo = (tab: Held): Protocol.Target.TargetInfo => ({
+  /** The window's titles for its tabs, which only the main process knows. */
+  const titles = async (): Promise<Map<BrowserTargetId, string>> => {
+    const targets = await browser.listTargets(await windowTaskId());
+    return new Map(targets.map((target) => [target.id, target.title]));
+  };
+
+  const targetInfo = (
+    tab: Held,
+    titleOf: Map<BrowserTargetId, string>,
+  ): Protocol.Target.TargetInfo => ({
     attached: sessions.has(tab.tabId),
     canAccessOpener: false,
     targetId: tab.tabId,
-    title: "",
+    title: titleOf.get(tab.targetId) ?? "",
     type: "page",
     url: browser.getTargetUrl(tab.targetId) ?? "about:blank",
   });
 
   const detach = (tabId: string) => {
+    watches.get(tabId)?.();
+    watches.delete(tabId);
     const session = sessions.get(tabId);
     if (session) {
       sessions.delete(tabId);
@@ -143,10 +159,12 @@ export function handleTaskCdpClient(
     }
   };
 
-  const announce = (tab: Held) => {
+  const announce = async (tab: Held) => {
     if (!announced.has(tab.tabId)) {
       announced.set(tab.tabId, tab);
-      event("Target.targetCreated", { targetInfo: targetInfo(tab) });
+      event("Target.targetCreated", {
+        targetInfo: targetInfo(tab, await titles()),
+      });
     }
   };
 
@@ -160,9 +178,35 @@ export function handleTaskCdpClient(
       }
     }
     for (const tab of now) {
-      announce(tab);
+      await announce(tab);
     }
     return now;
+  };
+
+  /**
+   * Tells the agent each time a tab's page changes, the way a browser does:
+   * agent-browser keeps each tab's address and title from these, so without
+   * them a tab it drove by clicks still lists the page it opened.
+   */
+  const watch = (tab: Held) => {
+    const told = async () => {
+      if (sessions.has(tab.tabId)) {
+        event("Target.targetInfoChanged", {
+          targetInfo: targetInfo(tab, await titles()),
+        } satisfies Protocol.Target.TargetInfoChangedEvent);
+      }
+    };
+    watches.set(
+      tab.tabId,
+      browser.subscribeEvents(tab.targetId, noop, (method, params) => {
+        if (
+          method === "Page.loadEventFired" ||
+          (method === "Page.frameNavigated" && isMainFrame(params))
+        ) {
+          queue = queue.then(told).catch(workspaceConfig.captureException);
+        }
+      }),
+    );
   };
 
   const attach = (tab: Held): TargetSession => {
@@ -182,6 +226,7 @@ export function handleTaskCdpClient(
       workspaceRef,
     });
     sessions.set(tab.tabId, session);
+    watch(tab);
     if (downloadBehavior !== undefined) {
       void browser
         .sendCommand(
@@ -261,7 +306,7 @@ export function handleTaskCdpClient(
       await loadInNewTab(browser, targetId, address);
     }
     await holdOpened(targetId);
-    announce({ openedBy: "task", tabId, targetId });
+    await announce({ openedBy: "task", tabId, targetId });
     answer(id, {
       targetId: tabId,
     } satisfies Protocol.Target.CreateTargetResponse);
@@ -306,7 +351,7 @@ export function handleTaskCdpClient(
           refuse(id, `Target ${String(tabId)} is not one of this task's tabs`);
           return;
         }
-        announce(tab);
+        await announce(tab);
         answer(id, {
           sessionId: attach(tab).sessionId,
         } satisfies Protocol.Target.AttachToTargetResponse);
@@ -331,8 +376,9 @@ export function handleTaskCdpClient(
       }
       case "Target.getTargets": {
         const now = await reconcile();
+        const titleOf = await titles();
         answer(id, {
-          targetInfos: now.map(targetInfo),
+          targetInfos: now.map((tab) => targetInfo(tab, titleOf)),
         } satisfies Protocol.Target.GetTargetsResponse);
         return;
       }
@@ -382,10 +428,6 @@ export function handleTaskCdpClient(
         refuse(id, error instanceof Error ? error.message : "Command failed");
       });
   };
-
-  // Browser-level commands run in arrival order; a page's own commands run in
-  // their session's order, beside the others.
-  let queue = Promise.resolve();
 
   clientWs.on("message", (data) => {
     const message = parseCdpMessage(data);
@@ -437,6 +479,10 @@ export function handleTaskCdpClient(
     }
     closed = true;
     stopWatching();
+    for (const stop of watches.values()) {
+      stop();
+    }
+    watches.clear();
     for (const session of sessions.values()) {
       session.end();
     }
@@ -444,6 +490,12 @@ export function handleTaskCdpClient(
   };
   clientWs.on("close", end);
   clientWs.on("error", end);
+}
+
+function isMainFrame(params: unknown): boolean {
+  const frame = (params as undefined | { frame?: { parentId?: unknown } })
+    ?.frame;
+  return frame !== undefined && frame.parentId === undefined;
 }
 
 /** Sends a tab that was just made to its first page and waits for the load, capped. */

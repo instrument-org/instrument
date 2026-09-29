@@ -74,6 +74,8 @@ export function RightPane({
   // holds while the room closes so nothing inside reflows on the way out.
   const reservedWidth = useMotionValue(0);
   const paneWidth = useMotionValue(0);
+  const reservedRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
   // The row's width, for the separator to report its range.
   const [rowWidth, setRowWidth] = useState(0);
   const animationsRef = useRef<AnimationPlaybackControls[]>([]);
@@ -169,6 +171,14 @@ export function RightPane({
       if (width !== paneWidth.get()) {
         reservedWidth.set(width);
         paneWidth.set(width);
+        // Written here as well: motion draws a value on the next frame, and
+        // this frame has already been laid out at the window's new width,
+        // so it would paint with the conversation taking the difference and
+        // then give it back, reflowing everything in it twice per frame.
+        // Written from the observer, the layout settles before the paint.
+        for (const element of [reservedRef.current, paneRef.current]) {
+          element?.style.setProperty("width", `${width}px`);
+        }
       }
     };
     measure();
@@ -196,6 +206,7 @@ export function RightPane({
       </div>
       <motion.div
         className="relative h-full shrink-0"
+        ref={reservedRef}
         style={{ width: reservedWidth }}
       >
         <div className="relative h-full w-full overflow-hidden">
@@ -207,6 +218,7 @@ export function RightPane({
               "absolute inset-y-0 right-0",
               !isShown && "pointer-events-none",
             )}
+            ref={paneRef}
             style={{ width: paneWidth }}
           >
             {children}

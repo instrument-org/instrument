@@ -54,6 +54,7 @@ const SIDEBAR_BOUNDS: RailBounds = {
 export function StudioSidebarRail({
   bounds = SIDEBAR_BOUNDS,
   children,
+  isAtOnce = false,
   isOpen,
   label = "Resize sidebar",
   onCollapse,
@@ -65,6 +66,8 @@ export function StudioSidebarRail({
   bounds?: RailBounds;
   /** What the rail holds; the Studio sidebar unless a window brings its own. */
   children?: ReactNode;
+  /** Whether the next open or close happens at once rather than sliding: one the window made for want of room, in the middle of a resize the slide would fight. */
+  isAtOnce?: boolean;
   isOpen: boolean;
   label?: string;
   onCollapse: () => void;
@@ -97,9 +100,11 @@ export function StudioSidebarRail({
   // their own animation, so re-running the slide spring on every width change
   // would fight them and jitter.
   const storedWidthRef = useRef(storedWidth);
+  const isAtOnceRef = useRef(isAtOnce);
   useEffect(() => {
     storedWidthRef.current = storedWidth;
-  }, [storedWidth]);
+    isAtOnceRef.current = isAtOnce;
+  }, [isAtOnce, storedWidth]);
 
   const applyWidth = (value: number) => {
     layoutWidth.set(value);
@@ -137,6 +142,18 @@ export function StudioSidebarRail({
       return;
     }
 
+    if (isAtOnceRef.current) {
+      for (const control of widthAnimationsRef.current) {
+        control.stop();
+      }
+      widthAnimationsRef.current = [];
+      const width = storedWidthRef.current;
+      layoutWidth.set(isOpen ? width : 0);
+      panelWidth.set(width);
+      panelX.set(isOpen ? 0 : away * width);
+      opacity.set(isOpen ? 1 : 0);
+      return;
+    }
     const controls: AnimationPlaybackControls[] = [];
     if (isOpen) {
       const width = storedWidthRef.current;

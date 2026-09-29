@@ -73,8 +73,15 @@ const INBOX_COLLAPSE_THRESHOLD = 240;
 const INBOX_COVER_PAST = 80;
 /** The least the conversation and its pane keep beside the inbox while the inbox is dragged wider. */
 const MAIN_WIDTH_MIN = 560;
-/** The rail's width with its pictures, `w-30`. */
+/** The rail's width with its pictures, `w-30`, and folded to its marks, `w-14`. */
 const RAIL_WIDTH = 120;
+const RAIL_COMPACT_WIDTH = 56;
+/**
+ * How much room past the floors of the conversation and the pane the rail
+ * keeps its pictures for: with less, it folds to its marks before either is
+ * squeezed to its floor.
+ */
+const RAIL_FOLD_SLACK = 126;
 /** Whether the inbox was put away for a row too narrow for it, rather than by hand. */
 const inboxSteppedAsideAtom = atom(false);
 
@@ -101,6 +108,7 @@ export const Route = createFileRoute("/orchestrator")({
 function ChatColumn({
   bounds,
   children,
+  isAtOnce,
   isOpen,
   isRightAreaOpen,
   onCollapse,
@@ -108,6 +116,8 @@ function ChatColumn({
 }: {
   bounds: RailBounds;
   children: ReactNode;
+  /** Whether it comes and goes at once, for a change the row's width made. */
+  isAtOnce: boolean;
   isOpen: boolean;
   isRightAreaOpen: boolean;
   onCollapse: () => void;
@@ -121,6 +131,7 @@ function ChatColumn({
   return (
     <StudioSidebarRail
       bounds={bounds}
+      isAtOnce={isAtOnce}
       isOpen={isOpen}
       label="Resize the inbox"
       onCollapse={onCollapse}
@@ -165,14 +176,13 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
   const showsRail = thread !== undefined && tabs.length > 0;
 
   // What gives way as the window narrows, one thing at a time and in one
-  // order: the pane down to its floor, then the conversation down to its own
-  // (both inside the pane's row), then the inbox steps aside, and only then
-  // does the rail fold to its marks. Widening brings them back in the other
-  // order, each a margin past the width it left at.
-  const needs =
-    TASK_CHAT_WIDTH_MIN +
-    (showsPane ? TASK_PANE_WIDTH_MIN : 0) +
-    (showsRail ? RAIL_WIDTH : 0);
+  // order: the pane gives up width, then the rail folds to its marks while
+  // the pane and the conversation still have some room past their floors,
+  // then both go down to those floors, and only then does the inbox step
+  // aside. Widening brings them back in the other order, each a margin past
+  // the width it left at.
+  const floors = TASK_CHAT_WIDTH_MIN + (showsPane ? TASK_PANE_WIDTH_MIN : 0);
+  const needs = floors + (showsRail ? RAIL_COMPACT_WIDTH : 0);
   // The inbox steps aside as the row crosses into too narrow, and comes back
   // as it crosses out, unless someone put it away or brought it back in
   // between. Only the crossing acts, so either choice holds at any width.
@@ -180,6 +190,10 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
   // and only the tab up acts on either: a tab behind has no row to be
   // crowded in.
   const [isSteppedAside, setSteppedAside] = useAtom(inboxSteppedAsideAtom);
+  // Whether the inbox's last coming or going was the row's doing, which
+  // happens at once: a slide in the middle of a window being resized drags
+  // the conversation and the pane sideways under the pointer.
+  const [isRoomChange, setRoomChange] = useState(false);
   const isCrowded =
     showsRightArea &&
     rowWidth > 0 &&
@@ -190,27 +204,40 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
     }
     if (isCrowded) {
       if (isInboxOpen) {
+        setRoomChange(true);
         setSteppedAside(true);
         setInboxOpen(false);
       }
       return;
     }
     if (isSteppedAside && !isInboxOpen) {
+      setRoomChange(true);
       setInboxOpen(true);
     }
     setSteppedAside(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCrowded, isActive]);
-  // Brought back by hand, the inbox is someone's choice from then on.
+  // Brought back by hand, the inbox is someone's choice from then on. Either
+  // way, what comes next is someone's to slide.
   useEffect(() => {
     if (isInboxOpen) {
       setSteppedAside(false);
     }
+    setRoomChange(false);
   }, [isInboxOpen, setSteppedAside]);
-  const beside = rowWidth - (isInboxOpen && showsRightArea ? sidebarWidth : 0);
+  // The rail folds on the room beside the inbox, counting an inbox that
+  // stepped aside as still there: the room it leaves is the conversation's,
+  // and a rail that unfolded into it would fold again as the window went on
+  // narrowing, each change setting off the next.
+  const beside =
+    rowWidth -
+    ((isInboxOpen || isSteppedAside) && showsRightArea ? sidebarWidth : 0);
   const [isRailCompact, setRailCompact] = useState(false);
   const railFolds =
-    rowWidth > 0 && beside < needs + (isRailCompact ? ROOM_MARGIN : 0);
+    showsRail &&
+    rowWidth > 0 &&
+    beside <
+      floors + RAIL_WIDTH + RAIL_FOLD_SLACK + (isRailCompact ? ROOM_MARGIN : 0);
   useEffect(() => {
     setRailCompact(railFolds);
   }, [railFolds]);
@@ -239,6 +266,7 @@ function ChatView({ thread }: { thread: StoreId.Session | undefined }) {
     <div className="flex min-h-0 min-w-0 flex-1">
       <ChatColumn
         bounds={bounds}
+        isAtOnce={isRoomChange}
         isOpen={isInboxOpen}
         isRightAreaOpen={showsRightArea}
         onCollapse={() => {

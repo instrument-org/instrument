@@ -85,11 +85,13 @@ import {
   type ComposeHost,
 } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
+import { ChatPane } from "./chat-pane";
 import { ComposeLayer } from "./compose-layer";
 import {
   OrchestratorContext,
   type OrchestratorWindow as Screens,
 } from "./context";
+import { InboxPeek } from "./inbox-peek";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
@@ -102,6 +104,7 @@ import { useStagedAskActions } from "./staged-asks";
 import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
 import { ideasQueryOptions } from "./use-ideas";
+import { useInboxPeek } from "./use-inbox-peek";
 import { useOpeners } from "./use-openers";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
 import { useRecordRecents } from "./use-record-recents";
@@ -284,7 +287,7 @@ function WindowShell({
   const screenView = useAtomValue(screenViewAtom);
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
-  const setInboxOpen = useSetAtom(inboxOpenAtom);
+  const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
   );
@@ -588,6 +591,11 @@ function WindowShell({
     name?: string;
   }>();
   const chatUp = chatOfHref(activeHref);
+  // The inbox is on screen in Chat unless it was put away beside a chat;
+  // anywhere else, Chat in the rail peeks it out.
+  const inboxPeek = useInboxPeek({
+    canPeek: !isChat || (chatUp !== undefined && !isInboxOpen),
+  });
 
   // What goes with a message, read at the moment of sending.
   const { draftContext, sendContext } = contextReaders({
@@ -841,6 +849,7 @@ function WindowShell({
                   }
                   appTabs.goToPlace(next, { newTab });
                 }}
+                onHoverChat={inboxPeek.onRailHover}
                 onNew={() => {
                   newDraft();
                 }}
@@ -863,6 +872,27 @@ function WindowShell({
                   ) : null;
                 })}
               </div>
+              <InboxPeek
+                isOpen={inboxPeek.isOpen}
+                onPointerEnter={inboxPeek.onPointerEnter}
+                onPointerLeave={inboxPeek.onPointerLeave}
+                panelRef={inboxPeek.panelRef}
+              >
+                <ChatPane
+                  arrivedId={arrivedId}
+                  drafts={shell.drafts}
+                  onDeleteDraft={deleteDraft}
+                  onOpenChat={(entry) => {
+                    inboxPeek.close();
+                    openScreen(`${CHATS_HREF}/${entry.id}`);
+                  }}
+                  onOpenDraft={(id) => {
+                    inboxPeek.close();
+                    showDraft(id);
+                  }}
+                  openChatId={chatUp}
+                />
+              </InboxPeek>
             </ShellContext>
             {/* Where the window's page waits while the tab up has none to
               show; hidden, so a guest left over it is parked. */}

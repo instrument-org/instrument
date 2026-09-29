@@ -88,11 +88,14 @@ const SAMPLE_APPS = [
  */
 export function AppRail({
   onChoose,
+  onHoverChat,
   onNew,
   place,
 }: {
   /** A place asked for: in the tab up, or in a tab of its own for a middle or modified click or the menu's ask. */
   onChoose: (place: AppPlace, options: { newTab: boolean }) => void;
+  /** The pointer come onto Chat or gone from it, for the inbox to peek out while it is nowhere on screen. */
+  onHoverChat?: (isOver: boolean) => void;
   /** Opens a draft of a new chat. */
   onNew: () => void;
   /** The place the window stands in; none while a screen outside its places is up. */
@@ -126,6 +129,9 @@ export function AppRail({
             onChoose={(newTab) => {
               onChoose(entry.id, { newTab });
             }}
+            {...(entry.id === "chat" && onHoverChat
+              ? { onHover: onHoverChat }
+              : {})}
           >
             {entry.icon(place === entry.id)}
           </RailEntry>
@@ -152,11 +158,13 @@ function RailEntry({
   isOn,
   label,
   onChoose,
+  onHover,
 }: {
   children: ReactNode;
   isOn: boolean;
   label: string;
   onChoose: (newTab: boolean) => void;
+  onHover?: (isOver: boolean) => void;
 }) {
   return (
     <button
@@ -190,6 +198,12 @@ function RailEntry({
               onChoose(picked.id === "newTab");
             }
           });
+      }}
+      onPointerEnter={() => {
+        onHover?.(true);
+      }}
+      onPointerLeave={() => {
+        onHover?.(false);
       }}
       type="button"
     >

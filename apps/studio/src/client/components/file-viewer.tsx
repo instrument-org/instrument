@@ -19,7 +19,11 @@ import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language
 import { flushFileWrites } from "@/client/lib/file-flush";
 import { type FileType, getFileType } from "@/client/lib/get-file-type";
 import { UNTRUSTED_TASK_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
-import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
+import {
+  hasFilesView,
+  showInFolder,
+  showInFolderLabel,
+} from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
 import {
   isMessageDocument,
@@ -824,6 +828,11 @@ export function FileViewer({
 
   const handleRevealInFolder = () => {
     void showInFolder(hostPath, { kind: "file" });
+    // The folder opens as a tab of the window's own, which a viewer over the
+    // window would stand in front of.
+    if (hasFilesView()) {
+      onClose?.();
+    }
   };
 
   const viewer: ViewerEntry = showsSource ? SOURCE_VIEWER : VIEWERS[fileType];

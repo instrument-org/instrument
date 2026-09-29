@@ -51,12 +51,14 @@ export type PageEditorGuestMessage = z.output<
  * What the window says to the editor: the file changed on disk to something
  * the editor did not write ("external"), commit what is being typed and
  * answer "flushed" once queued writes are sent ("flush"), a save's answer
- * ("reply"), scroll to an ask's element ("reveal"), the file's staged asks
- * ("staged"), and where the window draws the Edit control ("placement").
+ * ("reply") or the error that kept it from being written ("replyFailed"),
+ * scroll to an ask's element ("reveal"), the file's staged asks ("staged"),
+ * and where the window draws the Edit control ("placement").
  */
 export type PageEditorHostMessage =
   | { asks: PageEditorStagedAsk[]; moveLabel: string; type: "staged" }
   | { content: string; type: "external"; version: string }
+  | { error: string; id: number; type: "replyFailed" }
   | { id: number; result: PageEditorSaveResult; type: "reply" }
   | { id: number; type: "flush" }
   | { id: string; type: "reveal" }

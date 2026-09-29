@@ -160,7 +160,13 @@ export async function startEditor(bridge: PageEditorBridge) {
   const handed = (boot.state ?? {}) as Partial<EditorSnapshot>;
 
   // The window's answers to saves, by request id.
-  const replies = new Map<number, (result: PageEditorSaveResult) => void>();
+  const replies = new Map<
+    number,
+    {
+      reject: (error: Error) => void;
+      resolve: (result: PageEditorSaveResult) => void;
+    }
+  >();
   let nextReply = 1;
   const doc = createDoc(
     {
@@ -168,9 +174,9 @@ export async function startEditor(bridge: PageEditorBridge) {
       version: handed.doc?.version ?? boot.version,
     },
     (message) =>
-      new Promise((resolve) => {
+      new Promise((resolve, reject) => {
         const id = nextReply++;
-        replies.set(id, resolve);
+        replies.set(id, { reject, resolve });
         bridge.send({ ...message, id, type: "save" });
       }),
   );
@@ -250,7 +256,14 @@ export async function startEditor(bridge: PageEditorBridge) {
         break;
       }
       case "reply": {
-        replies.get(message.id)?.(message.result);
+        replies.get(message.id)?.resolve(message.result);
+        replies.delete(message.id);
+        break;
+      }
+      case "replyFailed": {
+        // Thrown into the step that saved, whose failure the serial chain
+        // reports before the next step runs.
+        replies.get(message.id)?.reject(new Error(message.error));
         replies.delete(message.id);
         break;
       }

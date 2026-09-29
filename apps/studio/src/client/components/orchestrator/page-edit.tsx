@@ -291,13 +291,24 @@ export function PageEditSession({
         }
         case "save": {
           serial(async () => {
-            const result = await rpcClient.files.write.call({
-              baseVersion: message.baseVersion,
-              content: message.content,
-              path,
-            });
-            known = result.version;
-            send({ id: message.id, result, type: "reply" });
+            try {
+              const result = await rpcClient.files.write.call({
+                baseVersion: message.baseVersion,
+                content: message.content,
+                path,
+              });
+              known = result.version;
+              send({ id: message.id, result, type: "reply" });
+            } catch (error) {
+              // Answered either way: the editor's saves wait on this one.
+              send({
+                error:
+                  error instanceof Error ? error.message : "Could not save",
+                id: message.id,
+                type: "replyFailed",
+              });
+              throw error;
+            }
           });
           break;
         }

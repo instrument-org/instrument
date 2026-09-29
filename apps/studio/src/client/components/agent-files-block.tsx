@@ -24,12 +24,12 @@ import { fork } from "radashi";
 import { useContext } from "react";
 
 import { FileTypeIcon } from "./extend/file-system";
-import { FilesGrid } from "./files-grid";
+import { FolderRowCard } from "./file-preview-card";
+import { FilesGrid, ROW_CARD_GRID } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
 import { MacFolderIcon } from "./icons/mac-folder";
 import { MarkdownTaskContext } from "./markdown-task-context";
 import { MessageCard } from "./message-card";
-import { PreviewListItem } from "./preview-list-item";
 
 /**
  * Renders a ```files fence: the files the agent chose to show, in the order it
@@ -214,19 +214,19 @@ export function FilePathsGrid({
     <div className={cn("not-prose my-4 flex flex-col gap-2", className)}>
       {messageCards}
       {folderPaths.length > 0 && (
-        <div className="flex flex-wrap items-start gap-2">
-          {folderPaths.map((path) => (
-            <div className="h-12 max-w-48 min-w-0" key={path}>
-              <PreviewListItem
-                icon={<MacFolderIcon className="size-5 shrink-0" />}
-                label={nameOfPath(path)}
-                onClick={() => {
-                  showTaskFile(path);
-                }}
-                tooltipContent={path}
-              />
-            </div>
-          ))}
+        <div className="@container">
+          <div className={ROW_CARD_GRID} data-slot="files-grid-cards">
+            {folderPaths.map((path) => (
+              <div data-slot="files-grid-card" key={path}>
+                <FolderRowCard
+                  onClick={() => {
+                    showTaskFile(path);
+                  }}
+                  path={path}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <FilesGrid

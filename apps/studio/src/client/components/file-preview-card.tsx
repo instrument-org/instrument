@@ -11,6 +11,7 @@ import {
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
+import { nameOfPath } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -21,6 +22,7 @@ import { usePrefetchFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
+import { MacFolderIcon } from "./icons/mac-folder";
 import { ImageWithFallback } from "./image-with-fallback";
 import { type MediaCardShape } from "./media-card-shape";
 import { MediaCardShell } from "./media-card-shell";
@@ -245,6 +247,42 @@ function FileRowCard({
         />
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/**
+ * A folder a reply names, as a row card: the file cards' surface, the folder's
+ * mark where a file's picture stands, and what it is under its name, so a
+ * folder and a file side by side read as the same kind of thing.
+ */
+export function FolderRowCard({
+  onClick,
+  path,
+}: {
+  onClick: () => void;
+  path: string;
+}) {
+  const name = nameOfPath(path);
+  return (
+    <div className="group relative flex items-center gap-3 overflow-hidden rounded-2xl bg-card px-3 py-3 shadow-xs select-none hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40">
+      <button
+        aria-label={`Open ${name}`}
+        className="absolute inset-0 z-0 size-full rounded-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+        onClick={onClick}
+        type="button"
+      />
+      <span className="pointer-events-none relative z-10 grid h-11.5 w-9 shrink-0 place-items-center">
+        <MacFolderIcon className="size-9" />
+      </span>
+      <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 flex-col justify-center text-left">
+        <span className="truncate text-sm leading-5 text-foreground" title={path}>
+          {name}
+        </span>
+        <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
+          Folder
+        </span>
+      </div>
+    </div>
   );
 }
 

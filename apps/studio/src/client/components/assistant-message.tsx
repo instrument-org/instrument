@@ -146,12 +146,13 @@ export const AssistantMessage = memo(function AssistantMessage({
               taskId,
             }}
           >
-            {/* Each card as wide as its name, up to what a bubble reaches at
-                its widest (the whole of it for a lone file, a column of it
-                for several), and spaced from the bubbles as they are from
-                each other. A card sized to its name keeps the room for its
-                menu, so it does not grow under the pointer. */}
-            <div className="flex w-full max-w-[85%] flex-col gap-2 [&_[data-slot=file-row-actions]]:ml-0 [&_[data-slot=file-row-actions]]:w-auto [&_[data-slot=files-grid-card]]:justify-self-start [&_[data-slot=files-grid-card]:only-child]:col-span-full [&_[data-slot=files-grid-media]:only-child]:w-full">
+            {/* Within what a bubble reaches at its widest, spaced from the
+                bubbles as they are from each other. A lone card, a folder's
+                included, is as wide as its name needs, keeping the room for
+                its menu so it does not grow under the pointer; several fill
+                columns of at least 11rem, two across a chat of the usual
+                width, so their edges line up. */}
+            <div className="flex w-full max-w-[85%] flex-col gap-2 [&_[data-slot=files-grid-card]:only-child]:col-span-full [&_[data-slot=files-grid-card]:only-child]:justify-self-start [&_[data-slot=files-grid-card]:only-child_[data-slot=file-row-actions]]:ml-0 [&_[data-slot=files-grid-card]:only-child_[data-slot=file-row-actions]]:w-auto [&_[data-slot=files-grid-cards]]:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] [&_[data-slot=files-grid-media]:only-child]:w-full">
               {fences.map((content, index) => (
                 <AgentFilesBlock
                   className="my-0"

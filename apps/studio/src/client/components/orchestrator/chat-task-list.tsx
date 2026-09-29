@@ -1,8 +1,8 @@
 import { ROW_TINT } from "@/client/components/orchestrator/row-shell";
-import { StopProcessButton } from "@/client/components/task/stop-process-button";
-import { Button } from "@/client/components/ui/button";
 import { taskTimeLabel } from "@/client/components/orchestrator/task-time";
 import { useNow } from "@/client/components/orchestrator/use-now";
+import { StopProcessButton } from "@/client/components/task/stop-process-button";
+import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";

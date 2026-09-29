@@ -34,6 +34,7 @@ import {
   useOrchestrator,
 } from "@/client/components/orchestrator/context";
 import { computerTabOf } from "@/client/components/orchestrator/file-tabs";
+import { useInboxRoom } from "@/client/components/orchestrator/inbox-room";
 import { InboxToggle } from "@/client/components/orchestrator/inbox-toggle";
 import { RightPane } from "@/client/components/orchestrator/right-pane";
 import { screenLocation } from "@/client/components/orchestrator/screen-presentation";
@@ -64,7 +65,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
@@ -82,8 +83,6 @@ const RAIL_COMPACT_WIDTH = 56;
  * squeezed to its floor.
  */
 const RAIL_FOLD_SLACK = 126;
-/** Whether the inbox was put away for a row too narrow for it, rather than by hand. */
-const inboxSteppedAsideAtom = atom(false);
 
 /**
  * How much more room than it needs a row must have before what gave way for
@@ -182,48 +181,12 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
   // the width it left at.
   const floors = TASK_CHAT_WIDTH_MIN + (showsPane ? TASK_PANE_WIDTH_MIN : 0);
   const needs = floors + (showsRail ? RAIL_COMPACT_WIDTH : 0);
-  // The inbox steps aside as the row crosses into too narrow, and comes back
-  // as it crosses out, unless someone put it away or brought it back in
-  // between. Only the crossing acts, so either choice holds at any width.
-  // Whether the inbox stepped aside is the window's, like the inbox itself,
-  // and only the tab up acts on either: a tab behind has no row to be
-  // crowded in.
-  const [isSteppedAside, setSteppedAside] = useAtom(inboxSteppedAsideAtom);
-  // Whether the inbox's last coming or going was the row's doing, which
-  // happens at once: a slide in the middle of a window being resized drags
-  // the conversation and the pane sideways under the pointer.
-  const [isRoomChange, setRoomChange] = useState(false);
-  const isCrowded =
-    showsRightArea &&
-    rowWidth > 0 &&
-    rowWidth - sidebarWidth < needs + (isSteppedAside ? ROOM_MARGIN : 0);
-  useEffect(() => {
-    if (!isActive) {
-      return;
-    }
-    if (isCrowded) {
-      if (isInboxOpen) {
-        setRoomChange(true);
-        setSteppedAside(true);
-        setInboxOpen(false);
-      }
-      return;
-    }
-    if (isSteppedAside && !isInboxOpen) {
-      setRoomChange(true);
-      setInboxOpen(true);
-    }
-    setSteppedAside(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCrowded, isActive]);
-  // Brought back by hand, the inbox is someone's choice from then on. Either
-  // way, what comes next is someone's to slide.
-  useEffect(() => {
-    if (isInboxOpen) {
-      setSteppedAside(false);
-    }
-    setRoomChange(false);
-  }, [isInboxOpen, setSteppedAside]);
+  const { isCrossing, isShown, isSteppedAside } = useInboxRoom({
+    isActive,
+    margin: ROOM_MARGIN,
+    needs,
+    room: showsRightArea && rowWidth > 0 ? rowWidth - sidebarWidth : undefined,
+  });
   // The rail folds on the room beside the inbox, counting an inbox that
   // stepped aside as still there: the room it leaves is the conversation's,
   // and a rail that unfolded into it would fold again as the window went on
@@ -265,8 +228,8 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
     <div className="flex min-h-0 min-w-0 flex-1">
       <ChatColumn
         bounds={bounds}
-        isAtOnce={isRoomChange}
-        isOpen={isInboxOpen}
+        isAtOnce={isCrossing}
+        isOpen={isShown}
         isRightAreaOpen={showsRightArea}
         onCollapse={() => {
           setInboxOpen(false);

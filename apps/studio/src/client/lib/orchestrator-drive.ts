@@ -1,6 +1,7 @@
 import { appTabsAtom } from "@/client/components/orchestrator/app-tabs";
-import { openTab } from "@/client/lib/tab-actions";
+import { freshTabId, openTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
+import { reopenClosed } from "@/client/lib/tabs-model";
 import { getDefaultStore } from "jotai";
 
 declare global {
@@ -16,6 +17,8 @@ declare global {
  */
 interface OrchestratorDrive {
   goto: (href: string, options?: { newTab?: boolean }) => void;
+  /** The tab closed last, back with its history, as Shift+Cmd+T brings it. */
+  reopen: () => void;
   state: () => {
     path: null | string;
     tabs: { isSelected: boolean; pathname: string }[];
@@ -41,6 +44,11 @@ export function initOrchestratorDrive() {
         return;
       }
       getTabRouter(store.get(appTabsAtom).selectedId)?.history.push(href);
+    },
+    reopen: () => {
+      store.set(appTabsAtom, (model) =>
+        reopenClosed(model, { id: freshTabId() }),
+      );
     },
     state: () => {
       const model = store.get(appTabsAtom);

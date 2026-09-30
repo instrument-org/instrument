@@ -6,7 +6,6 @@ import {
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { useMemo, useState } from "react";
 
-import { useDeveloperMode } from "../hooks/use-developer-mode";
 import { formatDuration } from "../lib/format-time";
 import { modelsAnswering } from "../lib/models-answered";
 import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "../lib/styles";
@@ -24,7 +23,6 @@ import {
   CollapsibleTrigger,
 } from "./ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { UsageStatsTooltip, UsageSummaryText } from "./usage-stats-tooltip";
 
 interface AssistantMessagesFooterProps {
   /**
@@ -53,7 +51,6 @@ export function AssistantMessagesFooter({
   messages,
 }: AssistantMessagesFooterProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const isDeveloperMode = useDeveloperMode();
   const releaseAutoScroll = useReleaseAutoScroll();
 
   // Compute the summary from the messages this footer already holds -- no need
@@ -215,26 +212,6 @@ export function AssistantMessagesFooter({
                 </div>
               ))}
             </div>
-          )}
-          {isDeveloperMode && (
-            <UsageStatsTooltip
-              messageCount={usageSummary.messageCount}
-              stats={{
-                activeDuration: usageSummary.activeMs,
-                generationDuration: usageSummary.msToFinish,
-                inputTokenDetails: usageSummary.inputTokenDetails,
-                inputTokens: usageSummary.inputTokens,
-                outputTokenDetails: usageSummary.outputTokenDetails,
-                outputTokens: usageSummary.outputTokens,
-                totalTokens: usageSummary.totalTokens,
-              }}
-            >
-              <UsageSummaryText
-                className="min-w-0 text-[10px] text-dev-700/60 hover:text-dev-700 dark:text-dev-300/60 dark:hover:text-dev-300"
-                messageCount={usageSummary.messageCount}
-                totalTokens={usageSummary.totalTokens}
-              />
-            </UsageStatsTooltip>
           )}
           {latestCreatedAt && (
             <RelativeTime

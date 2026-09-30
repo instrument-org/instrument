@@ -1,4 +1,5 @@
 import { TaskBackgroundProcesses } from "@/client/components/task/task-background-processes";
+import { TaskUsageSummary } from "@/client/components/task/usage-summary";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChildTranscript } from "@/client/components/window/child-tasks";
@@ -8,6 +9,7 @@ import {
   useIsTaskWorking,
   useTaskHold,
 } from "@/client/components/window/task-working";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { StopIcon } from "@phosphor-icons/react/Stop";
@@ -19,9 +21,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
  * travel together so the menu reads as acting on the task named beside it.
  * A task held from starting says what it waits on beside them, and a task
  * that left commands running shows how many, opening onto a list that stops
- * them. While the task
- * works or waits, a Stop at the header's far end halts it, or cancels its
- * start. Nothing names the chat: the page stands under it.
+ * them. While the task works or waits, a Stop at the header's far end halts
+ * it, or cancels its start; in developer mode the task's message and token
+ * totals sit beside it. Nothing names the chat: the page stands under it.
  */
 export function TaskPage({ taskId }: { taskId: TaskId }) {
   const task = useQuery(
@@ -35,6 +37,7 @@ export function TaskPage({ taskId }: { taskId: TaskId }) {
   const isWorking = useIsTaskWorking(taskId);
   const held = useTaskHold(taskId);
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
+  const isDeveloperMode = useDeveloperMode();
   if (!task.data) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -55,20 +58,23 @@ export function TaskPage({ taskId }: { taskId: TaskId }) {
           </span>
         ) : null}
         <TaskBackgroundProcesses taskId={taskId} />
-        {(isWorking || held !== undefined) && (
-          <Button
-            className="ml-auto shrink-0"
-            disabled={stop.isPending}
-            onClick={() => {
-              stop.mutate({ id: taskId });
-            }}
-            size="xs"
-            variant="outline"
-          >
-            <StopIcon weight="fill" />
-            Stop
-          </Button>
-        )}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {isDeveloperMode && <TaskUsageSummary taskId={taskId} />}
+          {(isWorking || held !== undefined) && (
+            <Button
+              className="shrink-0"
+              disabled={stop.isPending}
+              onClick={() => {
+                stop.mutate({ id: taskId });
+              }}
+              size="xs"
+              variant="outline"
+            >
+              <StopIcon weight="fill" />
+              Stop
+            </Button>
+          )}
+        </div>
       </div>
       <div className="min-h-0 flex-1">
         <ChildTranscript key={taskId} task={task.data} />

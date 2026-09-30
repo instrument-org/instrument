@@ -143,7 +143,9 @@ async function start() {
     serveAsset(
       c,
       () => import("../../../resources/favicon.ico?asset"),
-      "image/x-icon",
+      // The file is a PNG under an .ico name, and Safari draws nothing for
+      // one served as an icon file.
+      "image/png",
     ),
   );
   app.get("/tailwind.js", (c) =>

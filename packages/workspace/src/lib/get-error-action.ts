@@ -30,6 +30,12 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "retry" };
   }
 
+  // A refused credential or a spent plan allowance answers every retry the
+  // same way; the user has to act before the next request can work.
+  if (classification === "auth" || classification === "usage-limit") {
+    return { type: "stop" };
+  }
+
   if (error.kind === "unknown") {
     return { error: new Error(error.message), type: "error" };
   }

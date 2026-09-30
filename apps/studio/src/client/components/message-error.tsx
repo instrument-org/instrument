@@ -9,6 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { openSettings } from "../atoms/settings-modal";
+import { useOpenExternalLink } from "../hooks/use-open-external-link";
 import {
   parsePlatformApiError,
   requiresAutoModelRecovery,
@@ -62,6 +64,7 @@ export function MessageError({
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
   const { models } = modelsData ?? {};
+  const openLink = useOpenExternalLink();
 
   if (!error) {
     return null;
@@ -194,6 +197,38 @@ export function MessageError({
             }
           >
             <div className="mb-2">{detail}</div>
+
+            {/* A refused key or a spent allowance on the user's own provider is
+                theirs to fix, so the way to it sits under the explanation. */}
+            {showActions &&
+              isOwnKeyProvider &&
+              (classification === "auth" ||
+                classification === "usage-limit") && (
+                <div className="mb-2 flex gap-2">
+                  <Button
+                    onClick={() => {
+                      openSettings({ tab: "Providers" });
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Open provider settings
+                  </Button>
+                  {provider === "chatgpt" &&
+                    classification === "usage-limit" && (
+                      <Button
+                        onClick={() => {
+                          openLink("https://chatgpt.com/settings/usage", {
+                            addReferral: false,
+                          });
+                        }}
+                        size="sm"
+                      >
+                        Manage usage
+                      </Button>
+                    )}
+                </div>
+              )}
 
             {/* Everything below is the provider's own account of the failure,
                 written for whoever integrates against it. On our own provider

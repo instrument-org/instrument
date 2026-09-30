@@ -2,6 +2,7 @@ import { instrumentFolderHref } from "@/shared/computer-href";
 import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
+import routeTree from "../../routeTree.gen.ts?raw";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 
 const CONTEXT = { appsBySlug: new Map() };
@@ -78,23 +79,37 @@ describe("screenPresentation", () => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });
 
-  it("names a screen it has no words for by what its route declares", () => {
-    const href = "/debug/components/colors";
-    expect(
-      screenPresentation(href, {
-        ...CONTEXT,
-        route: { iconName: "code", title: "Colors" },
-      }).title,
-    ).toBe("Colors");
-    expect(screenPresentation(href, CONTEXT).title).toBe("Tab");
+  it.each([
+    ["the debug home", "/debug", "Debug home"],
+    ["a debug tool", "/debug/errors", "Errors"],
+    ["a component page", "/debug/components/colors", "Colors"],
+    ["an onboarding screen", "/debug/components/onboarding/login", "Log in"],
+    ["one agent browser", "/debug/browser-view/target-1", "Debug browser view"],
+  ])("names %s", (_, href, title) => {
+    expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });
 
-  it("keeps its own name for a screen it knows over the route's", () => {
-    expect(
-      screenPresentation(CHAT_HREF, { ...CONTEXT, route: { title: "Debug" } })
-        .title,
-    ).toBe("Chat");
-  });
+  // Every route a window tab can stand on, from the generated tree, so a new
+  // screen with no name here fails rather than reading as "Tab". The chat and a
+  // site's page are named by the tab strip itself, from the window's tabs.
+  const NAMED_BY_THE_STRIP = new Set([
+    "/orchestrator",
+    "/orchestrator/",
+    "/orchestrator/page",
+  ]);
+  const routes = new Set(
+    Array.from(
+      routeTree.matchAll(/fullPath: '((?:\/orchestrator|\/debug)[^']*)'/g),
+      ([, path = ""]) => path,
+    ),
+  );
+  it.each([...routes].filter((path) => !NAMED_BY_THE_STRIP.has(path)))(
+    "names every tab on %s",
+    (path) => {
+      const href = path.replaceAll(/\$\w+/g, "x");
+      expect(screenPresentation(href, CONTEXT).title).not.toBe("Tab");
+    },
+  );
 });
 
 describe("screenLocation", () => {

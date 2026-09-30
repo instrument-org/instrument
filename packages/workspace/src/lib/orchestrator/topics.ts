@@ -98,21 +98,27 @@ export function convertTopicFiles(rootDir: string): number {
   );
   let converted = 0;
   for (const folder of legacy) {
-    const topic = readLegacyTopic(path.join(dir, folder), folder);
-    if (!topic) {
+    // One topic that cannot be moved stays as it was, for the next boot, and
+    // never stops the rest or the migrations after this one.
+    try {
+      const topic = readLegacyTopic(path.join(dir, folder), folder);
+      if (!topic) {
+        continue;
+      }
+      // Its own id-named folder is not yet a topic, so not a name taken.
+      const taken = [
+        ...readTopicsSync(rootDir).map((entry) => entry.name),
+        ...legacy,
+      ];
+      writeTopicSync(rootDir, {
+        ...topic,
+        name: unusedTopicName(topic.name, taken),
+      });
+      fs.rmSync(path.join(dir, folder), { force: true, recursive: true });
+      converted += 1;
+    } catch {
       continue;
     }
-    // Its own id-named folder is not yet a topic, so not a name taken.
-    const taken = [
-      ...readTopicsSync(rootDir).map((entry) => entry.name),
-      ...legacy,
-    ];
-    writeTopicSync(rootDir, {
-      ...topic,
-      name: unusedTopicName(topic.name, taken),
-    });
-    fs.rmSync(path.join(dir, folder), { force: true, recursive: true });
-    converted += 1;
   }
   return converted;
 }

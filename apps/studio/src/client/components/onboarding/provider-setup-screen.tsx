@@ -1,5 +1,6 @@
 import { AddProviderForm } from "@/client/components/add-provider/form";
 import { BrandMark } from "@/client/components/brand-mark";
+import { ChatGPTLoginButton } from "@/client/components/chatgpt-login-button";
 import { ExternalLink } from "@/client/components/external-link";
 import { GoogleLoginButton } from "@/client/components/google-login-button";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
@@ -125,6 +126,16 @@ export function ProviderSetupScreen({
               onLogin={onLogin}
               onSuccess={onLoginSuccess}
             />
+          </div>
+
+          <div className="flex w-full flex-col items-center gap-y-2">
+            <ChatGPTLoginButton
+              className="w-full justify-center"
+              onSuccess={onLoginSuccess}
+            />
+            <p className="text-center text-xs text-foreground/60">
+              {`${APP_NAME} can run on the ChatGPT Plus or Pro plan you already pay for.`}
+            </p>
           </div>
 
           <TermsFooter />

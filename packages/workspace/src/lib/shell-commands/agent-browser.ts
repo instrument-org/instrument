@@ -30,7 +30,7 @@ import {
   instrumentPluginRegistry,
   writeInstrumentProviderPlugin,
 } from "../agent-browser-plugin";
-import { recordBrowserUse } from "../browser-state";
+import { recordBrowserUse, recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isTaskId } from "../is-task-id";
 import { agentSpellingOfFileUrls } from "../local-page-address";
@@ -683,6 +683,8 @@ export function createAgentBrowserCommand({
 
     const commandArgs: string[] = [];
     let targetId: BrowserTargetId | undefined;
+    // A chat's task, which drives the tabs it holds rather than one page.
+    let drivesHeldTabs = false;
     let pluginRegistry: string | undefined;
     // `profiles` inspects the host's Chrome install (real HOME, no browser
     // needed), so it always routes external even without a targeting flag.
@@ -754,6 +756,7 @@ export function createAgentBrowserCommand({
       if (resolved.kind === "page" && resolved.isOwnGuest) {
         targetId = resolved.targetId;
       }
+      drivesHeldTabs = resolved.kind === "task";
 
       const cdpUrl =
         resolved.kind === "task"
@@ -868,6 +871,9 @@ export function createAgentBrowserCommand({
           targetId,
           taskId,
         });
+      }
+      if (drivesHeldTabs) {
+        await recordHeldTabHosts({ sessionId, taskId });
       }
     }
 
@@ -1018,6 +1024,34 @@ async function recordBrowserUseBestEffort({
   });
   if (result.isErr()) {
     getWorkspaceConfig().captureException(result.error);
+  }
+}
+
+/**
+ * The hosts of the pages in the tabs a chat's task holds, recorded as the
+ * sites its work used: read after the command, so a tab it just opened and a
+ * page it just reached are both there.
+ */
+async function recordHeldTabHosts({
+  sessionId,
+  taskId,
+}: {
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}) {
+  const { browser } = getWorkspaceConfig();
+  try {
+    const { browserTabs } = await getTaskState(taskDir(taskId));
+    const urls = (browserTabs ?? []).flatMap((tab) => {
+      const url = browser.getTargetUrl(tab.id);
+      return url ? [url] : [];
+    });
+    const result = await recordVisitedHosts({ sessionId, taskId, urls });
+    if (result.isErr()) {
+      getWorkspaceConfig().captureException(result.error);
+    }
+  } catch (error) {
+    getWorkspaceConfig().captureException(error);
   }
 }
 

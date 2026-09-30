@@ -14,6 +14,7 @@ import {
   BLANK_PAGE_URL,
   getBrowserState,
   recordBrowserUse,
+  recordVisitedHosts,
   restoreLastPage,
 } from "./browser-state";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
@@ -126,6 +127,28 @@ describe("browser state", () => {
       "example.org",
       "example.com",
     ]);
+  });
+
+  it("adds the hosts of a chat task's tabs without taking their page as its own", async () => {
+    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
+    await recordVisitedHosts({
+      sessionId,
+      taskId,
+      urls: [
+        "https://example.org/a",
+        BLANK_PAGE_URL,
+        "file:///tmp/page.html",
+        "https://example.com/b",
+        "https://example.org/b",
+      ],
+    });
+
+    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
+      value: {
+        lastUrl: "https://example.com",
+        visitedHosts: ["example.com", "example.org"],
+      },
+    });
   });
 
   it("preserves the last known page when a later observation has none", async () => {

@@ -236,6 +236,52 @@ export function recordBrowserUse({
 }
 
 /**
+ * Add the hosts of pages a session's work is on to what it has visited,
+ * without the rest of {@link recordBrowserUse}: a chat's task works in tabs
+ * of the chat, opened behind whatever the user has up, so neither the page it
+ * lands on nor the pane is this session's to record or move.
+ */
+export function recordVisitedHosts({
+  sessionId,
+  signal,
+  taskId,
+  urls,
+}: {
+  sessionId: StoreId.Session;
+  signal?: AbortSignal;
+  taskId: TaskId;
+  urls: string[];
+}) {
+  return safeTry(async function* () {
+    const current = yield* getBrowserState(taskId, sessionId, { signal });
+    const known = new Set(current?.visitedHosts);
+    // Every command runs through here with every tab it holds, so only a host
+    // the session has not been on is worth a write; one it has been on stays
+    // where its first visit put it. A blank page or a file has no host.
+    const fresh = urls.filter((url) => {
+      const host = hostnameOf(url);
+      return host !== "" && !known.has(host);
+    });
+    if (fresh.length === 0) {
+      return ok(undefined);
+    }
+    let visitedHosts = current?.visitedHosts ?? [];
+    for (const url of fresh) {
+      visitedHosts = withVisit(visitedHosts, url);
+    }
+    const storage = yield* getSessionsStoreStorage(taskId);
+    yield* setParsedStorageItem(
+      StorageKey.browserState(sessionId),
+      { ...current, lastUsedAt: new Date(), visitedHosts },
+      BrowserStateSchema,
+      storage,
+      { signal },
+    );
+    return ok(undefined);
+  });
+}
+
+/**
  * Put a freshly opened tab back on the page its session was last on.
  *
  * Only ever acts on a blank target, so it cannot disturb a live page: this runs
@@ -306,6 +352,14 @@ export function takeBrowserClosed(
     );
     return ok(current);
   });
+}
+
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 /**

@@ -242,8 +242,8 @@ function reapStaleWorkspaces() {
 }
 
 /**
- * Drops installed dependencies left inside tasks by a live agent run. A replay
- * never creates these, so a workspace only used for driving stays in the low
+ * Drops installed dependencies left inside tasks by a live agent run. A seeded
+ * transcript never creates these, so a workspace only used for driving stays in the low
  * megabytes and this finds nothing.
  */
 function reapWorkArtifacts(workspaceDir) {

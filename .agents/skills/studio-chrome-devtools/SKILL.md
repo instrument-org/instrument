@@ -178,8 +178,6 @@ Two things about that status are worth knowing before trusting a wait built on i
 - Busy is the `agent.alive` tag, carried by every non-final state of the session machine. A task whose turn is over reports **no sessions at all** rather than `agent.done`, because the workspace machine drops the ref when the session finishes.
 - Which makes "no sessions" also what a task reports _before_ its turn starts. `wait --idle` covers that by requiring idle to hold for `--settle` (2s) until it has seen the task busy, and reports `sawBusy` so you can tell which happened. `sawBusy: false` on a wait that was meant to follow a prompt means the prompt never started an agent.
 
-A **replay** is not an agent turn and none of this sees it: it runs its own loop outside the session machine. Poll `workspace.replay.status '{"sessionId":"…"}'` for that one.
-
 ## Page model
 
 The app window is one web contents: its chrome and every open tab mount in the same page, each tab a router of its own across the bar. Agent-browser tabs are renderer `<webview>` guests inside it, not separate DevTools targets. The onboarding window, on a first run, is a second page under `/renderer/`; commands drive the app window's.
@@ -252,4 +250,4 @@ Which reloads the app, and therefore cannot answer what an in-page interaction c
 
 ## Reference
 
-[references/repro-recipes.md](references/repro-recipes.md): replaying a recorded task instead of live-driving the agent, the `#/debug/*` pages, the composer's controlled-input gotcha where `fill` leaves the send button disabled, reading a `<webview>` guest's internal state, and why screenshot pixel math should never be hand-converted.
+[references/repro-recipes.md](references/repro-recipes.md): the `#/debug/*` pages, the composer's controlled-input gotcha where `fill` leaves the send button disabled, reading a `<webview>` guest's internal state, and why screenshot pixel math should never be hand-converted.

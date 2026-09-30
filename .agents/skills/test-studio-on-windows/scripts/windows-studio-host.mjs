@@ -299,8 +299,8 @@ $profile | ConvertTo-Json -Depth 8 -Compress`;
 
 /**
  * PowerShell that drops installed dependencies left inside a task by a live agent
- * run. Nothing else in a seeded workspace grows: a replay never installs
- * anything, and a reseed rebuilds the rest anyway.
+ * run. Nothing else in a seeded workspace grows: a seeded transcript never
+ * installs anything, and a reseed rebuilds the rest anyway.
  */
 function reapFunction() {
   return `function Remove-StaleWorkArtifacts([string] $dir) {

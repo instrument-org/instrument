@@ -2,21 +2,6 @@
 
 Learnings from driving Studio live to reproduce and verify a browser-panel layout bug. Read this before hand-rolling a reproduction with `fill`/`click`/ `evaluate_script` from scratch -- most of the friction below has a working recipe already.
 
-## Prefer replay over driving the agent live
-
-If the bug involves a specific task/session that already ran (an agent tool call sequence, not a fresh scenario), **replay it** instead of re-typing a prompt and waiting for a live LLM turn. Replay re-executes the same tool calls (via `workspace.debug.replaySession`, a `replay-stub` model -- no real LLM call) deterministically, in seconds, for free.
-
-Nothing in the app window offers replay, so call the route through the drive script's `rpc`, which needs **Developer Mode** on (Settings -> General):
-
-```bash
-node $DRIVE rpc workspace.debug.replaySession '{"id":"<task-id>","sessionId":"<session-id>","mode":"new-task"}'
-node $DRIVE goto /tasks/<new-task-id>
-```
-
-`mode` is `new-task` (isolates the repro from the original) or `new-session` (same task), and `delayMs` paces the playback (0, the default, is instant). The route answers with the new task and session.
-
-Only fall back to live-driving the chat (typing a prompt and waiting for a real agent turn) when the bug needs fresh, non-deterministic agent behavior -- e.g. testing whether an agent _chooses_ a different workaround now that a path is blocked, which is not something a replay of an old transcript can show.
-
 ## Check the debug pages before hand-inspecting the DOM
 
 Developer Mode also unlocks `#/debug/*` routes -- check these before reaching for `evaluate_script` archaeology:

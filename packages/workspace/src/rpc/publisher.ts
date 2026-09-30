@@ -76,11 +76,6 @@ export const publisher = new EventPublisher<{
     part: SessionMessagePart.Type;
   };
   "project.updated": null;
-  "replay.changed": {
-    id: TaskId;
-    isActive: boolean;
-    sessionId: StoreId.Session;
-  };
   "runtime.log.updated": {
     id: TaskId;
   };

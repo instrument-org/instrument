@@ -14,7 +14,7 @@ interface DebugBridge {
 
 /**
  * Dev-only console bridge: lets a Chrome DevTools session invoke any oRPC
- * route directly -- `window.__studioDebug.rpc("workspace.debug.replaySession", {...})`
+ * route directly -- `window.__studioDebug.rpc("workspace.debug.runBash", {...})`
  * -- instead of driving the same action through UI clicks. Gated at call
  * time (not attach time) on the live Developer Mode preference, so toggling
  * the setting takes effect without a reload.

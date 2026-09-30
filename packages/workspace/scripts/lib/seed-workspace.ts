@@ -9,9 +9,8 @@
 // read. Reach for a library or a route; never for `fs.writeFile` into a task.
 //
 // Recorded transcripts are inserted as they were captured rather than re-run
-// through the agent loop. `workspace.debug.replaySession` re-executes each tool
-// call, which needs the whole runtime (bash sandbox, browser, model) and makes
-// the result depend on it. Seeding has to work in CI with no provider
+// through the agent loop. Re-running each tool call would need the whole
+// runtime (bash sandbox, browser, model) and make the result depend on it. Seeding has to work in CI with no provider
 // credentials and finish in seconds, so the recorded tool outputs stand, and
 // the artifacts a tool would have written come from the fixture's `files/`.
 

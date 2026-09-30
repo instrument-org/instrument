@@ -2,19 +2,17 @@ import { mergeGenerators } from "@instrument-org/shared/merge-generators";
 import { eventIterator } from "@orpc/server";
 import { isEqual } from "radashi";
 
-import { ActiveReplays } from "../../../lib/active-replays";
 import { getTaskAgentStatus } from "../../../lib/get-task-agent-status";
 import { type WorkspaceActorRef } from "../../../machines/workspace";
 import {
-  type TaskActivity,
-  TaskActivitySchema,
+  type TaskAgentStatus,
+  TaskAgentStatusSchema,
 } from "../../../schemas/task-agent-status";
-import { type TaskId } from "../../../schemas/task-id";
 import { base } from "../../base";
 import { publisher } from "../../publisher";
 
 function getTaskActivity(workspaceRef: WorkspaceActorRef) {
-  const activityByTaskId = new Map<TaskId, TaskActivity>();
+  const activity: TaskAgentStatus[] = [];
   const { sessionRefsByTaskId } = workspaceRef.getSnapshot().context;
 
   for (const id of sessionRefsByTaskId.keys()) {
@@ -26,36 +24,19 @@ function getTaskActivity(workspaceRef: WorkspaceActorRef) {
     );
 
     if (sessionActors.length > 0) {
-      activityByTaskId.set(id, {
-        activeReplaySessionIds: [],
-        sessionActors,
-        taskId: id,
-      });
+      activity.push({ sessionActors, taskId: id });
     }
   }
 
-  for (const { id, sessionId } of ActiveReplays.getActiveSessions()) {
-    const activity = activityByTaskId.get(id);
-    if (activity) {
-      activity.activeReplaySessionIds.push(sessionId);
-    } else {
-      activityByTaskId.set(id, {
-        activeReplaySessionIds: [sessionId],
-        sessionActors: [],
-        taskId: id,
-      });
-    }
-  }
-
-  return [...activityByTaskId.values()];
+  return activity;
 }
 
 export const taskActivity = base
-  .output(TaskActivitySchema.array())
+  .output(TaskAgentStatusSchema.array())
   .handler(({ context }) => getTaskActivity(context.workspaceRef));
 
 export const liveTaskActivity = base
-  .output(eventIterator(TaskActivitySchema.array()))
+  .output(eventIterator(TaskAgentStatusSchema.array()))
   .handler(async function* ({ context, signal }) {
     let previousState = getTaskActivity(context.workspaceRef);
     yield previousState;
@@ -64,7 +45,6 @@ export const liveTaskActivity = base
       publisher.subscribe("session.added", { signal }),
       publisher.subscribe("session.done", { signal }),
       publisher.subscribe("session.tagsChanged", { signal }),
-      publisher.subscribe("replay.changed", { signal }),
     ] as const;
 
     for await (const _payload of mergeGenerators(subscriptions)) {

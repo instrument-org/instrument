@@ -7,38 +7,26 @@ import { skipToken } from "@tanstack/react-query";
 
 import { useTaskActivity } from "./use-task-activity";
 
-/**
- * Derives agent status for a specific session within a task app.
- * Replay status is queried automatically by id.
- * Pass `isReplayActive` to additionally treat an external replay signal as
- * live (e.g. for cancel button logic in task-chat).
- */
+/** Derives agent status for a specific session within a task. */
 export function useAgentSessionStatus({
   id,
-  isReplayActive = false,
   sessionId,
 }: {
   id: TaskId;
-  isReplayActive?: boolean;
   sessionId: StoreId.Session | typeof skipToken | undefined;
 }) {
   const { data: taskActivity } = useTaskActivity({ id });
   const sessionActors = taskActivity?.sessionActors ?? [];
-  const isReplayActiveForSession =
-    isReplayActive ||
-    (!!sessionId &&
-      sessionId !== skipToken &&
-      (taskActivity?.activeReplaySessionIds.includes(sessionId) ?? false));
 
   if (!sessionId || sessionId === skipToken) {
-    return { isAgentAlive: isReplayActive, isAgentRunning: isReplayActive };
+    return { isAgentAlive: false, isAgentRunning: false };
   }
 
   const tags = getSessionTags({ sessionActors, sessionId });
 
   return {
-    isAgentAlive: isReplayActiveForSession || isSessionAlive(tags),
-    isAgentRunning: isReplayActiveForSession || isSessionRunning(tags),
+    isAgentAlive: isSessionAlive(tags),
+    isAgentRunning: isSessionRunning(tags),
   };
 }
 

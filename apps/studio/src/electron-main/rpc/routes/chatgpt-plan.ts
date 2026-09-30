@@ -33,7 +33,7 @@ const signIn = base.handler(async ({ context, errors }) => {
       context.workspaceConfig.captureEvent("provider.created", {
         provider_type: "chatgpt",
       });
-      await setChatGPTPlanDefaultModel();
+      return { ...status, defaultModel: await setChatGPTPlanDefaultModel() };
     }
     return status;
   } catch (error) {

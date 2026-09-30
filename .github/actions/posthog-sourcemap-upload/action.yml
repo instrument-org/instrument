@@ -18,7 +18,23 @@ runs:
         POSTHOG_CLI_API_KEY: ${{ inputs.api-key }}
         POSTHOG_CLI_PROJECT_ID: ${{ inputs.project-id }}
       name: Upload source maps
+      # Every build leg registers the same release, so two legs uploading at
+      # once race to create it and the loser is refused with
+      # release_hash_in_use. By then the release exists, and a second upload
+      # finds it rather than creating it. Injecting stays a single pass.
       run: |
-        pnpm exec posthog-cli sourcemap process --directory "apps/studio/out" --release-name "instrument"${{ inputs.version != '' && format(' --release-version "{0}"', inputs.version) || '' }}
+        pnpm exec posthog-cli sourcemap inject --directory "apps/studio/out"
+        err="$RUNNER_TEMP/posthog-sourcemap-upload.err"
+        for attempt in 1 2; do
+          if pnpm exec posthog-cli sourcemap upload --directory "apps/studio/out" --release-name "instrument"${{ inputs.version != '' && format(' --release-version "{0}"', inputs.version) || '' }} 2> "$err"; then
+            cat "$err" >&2
+            exit 0
+          fi
+          cat "$err" >&2
+          if [ "$attempt" = 2 ] || ! grep -q release_hash_in_use "$err"; then
+            exit 1
+          fi
+          sleep 10
+        done
       shell: bash
   using: composite

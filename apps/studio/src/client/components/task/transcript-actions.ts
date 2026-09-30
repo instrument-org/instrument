@@ -19,8 +19,7 @@ interface Target {
  *
  * Both go straight from the main process to the OS: the content is the largest
  * thing the app moves, and neither action has any use for it here. That also
- * keeps them callable from a menu item, with no viewer mounted and nothing
- * fetched.
+ * keeps them callable from a menu item, with nothing fetched.
  *
  * Saving is offered to everyone; copying is behind developer mode, so a caller
  * outside it wants `save` alone.

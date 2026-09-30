@@ -18,7 +18,7 @@ What it does not fix: once filled, every turn is mounted, so a very long transcr
 
 Two ways to virtualize, and the choice decides most of the risk:
 
-- **A virtual list** (TanStack Virtual, as `transcript-viewer.tsx` already uses): rows absolutely positioned inside a spacer, only the visible range in the DOM. It fights the scroller. The primitive walks the content element's direct children for `data-message-scroller-item` rows, in document order, to follow the end, anchor a submitted turn (`scrollAnchor`), restore position on prepend, and track what is visible. Absolute rows and a range that changes under it break all four, and the fork we carry for `releaseAutoScroll` would grow into a rewrite.
+- **A virtual list** (TanStack Virtual): rows absolutely positioned inside a spacer, only the visible range in the DOM. It fights the scroller. The primitive walks the content element's direct children for `data-message-scroller-item` rows, in document order, to follow the end, anchor a submitted turn (`scrollAnchor`), restore position on prepend, and track what is visible. Absolute rows and a range that changes under it break all four, and the fork we carry for `releaseAutoScroll` would grow into a rewrite.
 - **Placeholders** (recommended): every turn stays a `MessageScrollerItem` in document order, so the scroller sees exactly what it sees today. A turn far from the viewport renders a box of its last measured height instead of its content. The scroller's logic is untouched; only what is inside a far item changes.
 
 The placeholder shape is also what phase 0 already is, taken to its end: `TailFirst` decides which turns are mounted by position from the end, and this decides it by distance from the viewport.

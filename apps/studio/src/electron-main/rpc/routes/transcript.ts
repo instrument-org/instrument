@@ -24,9 +24,8 @@ import { z } from "zod";
  * Saving one is the product's, not the developer menu's: handing a transcript
  * to somebody, or to an agent, is an ordinary thing to want, and a person who
  * has to turn developer mode on to get their own conversation out of the app
- * cannot have it at all. Reading one back into the app and putting one on the
- * clipboard stay behind developer mode: the first is a debugging screen, and
- * the second replaces whatever the user was holding with a whole conversation.
+ * cannot have it at all. Putting one on the clipboard stays behind developer
+ * mode: it replaces whatever the user was holding with a whole conversation.
  */
 
 async function buildSystemFrontMatter(taskId: TaskId) {
@@ -116,14 +115,6 @@ async function renderTranscript({
   return markdown;
 }
 
-/** The rendered transcript itself, for the viewer that shows one in the app. */
-const content = devOnly
-  .input(transcriptInput)
-  .output(z.object({ content: z.string() }))
-  .handler(async ({ context, input, signal }) => ({
-    content: await renderTranscript({ context, input, signal }),
-  }));
-
 // Copying happens here rather than in the renderer: a transcript is the largest
 // thing this route produces, and the renderer would only be receiving it to hand
 // it straight back to the OS.
@@ -172,7 +163,6 @@ function transcriptFilenameStem(taskName: string) {
 }
 
 export const transcript = {
-  content,
   copy,
   save,
 };

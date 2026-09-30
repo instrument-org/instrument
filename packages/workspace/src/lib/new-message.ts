@@ -21,12 +21,16 @@ import { createPaneTabsPart } from "./create-pane-tabs-part";
 import { detectDateChange } from "./date-change";
 import { detectProjectChanges } from "./detect-project-changes";
 import { detectMessageGap } from "./message-gap";
-import { listTopics } from "./orchestrator/topics";
+import { listTopics, type TopicFolder } from "./orchestrator/topics";
 import { tabHolders } from "./orchestrator/window-tab";
 import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
-import { setTaskState } from "./task-record";
+import { attachFolder } from "./attach-folder";
+import { pathExists } from "./path-exists";
+import { MOUNT } from "../mount-points";
+import { AbsolutePathSchema } from "../schemas/paths";
+import { getTaskState, setTaskState } from "./task-record";
 import { getTaskSettings } from "./task-settings";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
@@ -426,23 +430,57 @@ async function createChatTopicsPart({
     }
   }
   const known = await listTopics();
-  const topics = tagged.flatMap((id) => {
+  const topics = [];
+  for (const id of tagged) {
     const topic = known.find((entry) => entry.id === id);
-    return topic
-      ? [
-          {
-            ...(topic.about ? { about: topic.about } : {}),
-            ...(topic.emoji ? { emoji: topic.emoji } : {}),
-            name: topic.name,
-          },
-        ]
-      : [];
-  });
+    if (!topic) {
+      continue;
+    }
+    const folders = await attachTopicFolders(taskId, topic.folders ?? []);
+    topics.push({
+      ...(topic.about ? { about: topic.about } : {}),
+      ...(topic.emoji ? { emoji: topic.emoji } : {}),
+      ...(folders.length > 0 ? { folders } : {}),
+      ...(topic.instructions ? { instructions: topic.instructions } : {}),
+      name: topic.name,
+    });
+  }
   return {
     data: { topics },
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
     type: "data-chatTopics",
   };
+}
+
+/**
+ * Attaches a topic's folders to the chat, the ones it does not have yet, and
+ * returns where each is mounted. A folder no longer on disk is left out, so
+ * the agent is not pointed at nothing; attaching one the chat already has
+ * would reset the access it was given, so that one is only named.
+ */
+async function attachTopicFolders(
+  chatId: TaskId,
+  folders: TopicFolder[],
+): Promise<string[]> {
+  const mounts: string[] = [];
+  for (const folder of folders) {
+    const onDisk = AbsolutePathSchema.safeParse(folder.path);
+    if (!onDisk.success || !(await pathExists(onDisk.data))) {
+      continue;
+    }
+    const state = await getTaskState(taskDir(chatId));
+    const attached =
+      Object.values(state.attachedFolders ?? {}).find(
+        (entry) => entry.path === folder.path,
+      ) ??
+      (await attachFolder({
+        access: "read-write",
+        path: folder.path,
+        taskId: chatId,
+      }));
+    mounts.push(`${MOUNT.attachedFolders}/${attached.mountName}`);
+  }
+  return mounts;
 }
 
 /**

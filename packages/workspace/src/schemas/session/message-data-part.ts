@@ -848,6 +848,10 @@ export namespace SessionMessageDataPart {
       z.object({
         about: z.string().optional(),
         emoji: z.string().optional(),
+        /** Where the topic's folders are mounted in the chat, as `/mnt/<name>`. */
+        folders: z.array(z.string()).optional(),
+        /** The topic's instructions as they stood when the message was sent. */
+        instructions: z.string().optional(),
         name: z.string(),
       }),
     ),

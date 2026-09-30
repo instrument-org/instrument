@@ -1,3 +1,4 @@
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -6,11 +7,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
+  convertTopicFiles,
   createTopic,
   listTopics,
   retireTopic,
   topicByName,
   topicName,
+  TopicNameError,
   topicsDir,
   updateTopic,
 } from "./topics";
@@ -59,20 +62,6 @@ describe("updateTopic", () => {
       { ...made, color: "#ff0000", name: "Ducks" },
     ]);
   });
-
-  it("writes instructions into the file's body, and takes them away when empty", async () => {
-    const made = await createTopic({ name: "Trips" });
-
-    await updateTopic(made.id, { instructions: "  Book aisle seats.\n" });
-    expect(
-      await fs.readFile(path.join(topicsDir(), made.id, "topic.md"), "utf8"),
-    ).toMatch(/---\nBook aisle seats\.\n$/);
-    await updateTopic(made.id, { name: "Travel" });
-    expect((await listTopics())[0]?.instructions).toBe("Book aisle seats.");
-
-    await updateTopic(made.id, { instructions: " " });
-    expect(await listTopics()).toEqual([{ ...made, name: "Travel" }]);
-  });
 });
 
 describe("retireTopic", () => {
@@ -91,37 +80,164 @@ describe("retireTopic", () => {
   });
 });
 
-describe("topic files", () => {
-  it("keeps the mark in front matter and the instructions as the body", async () => {
-    const made = await createTopic({ emoji: "🛒", name: "Shopping: deals" });
-    const file = path.join(topicsDir(), made.id, "topic.md");
-    const written = await fs.readFile(file, "utf8");
-    expect(written.replace(/created: .*/, "created: <at>"))
-      .toMatchInlineSnapshot(`
-        "---
-        name: "Shopping: deals"
-        emoji: "🛒"
-        created: <at>
-        ---
-        "
-      `);
+describe("topic folders", () => {
+  it("keeps settings as JSON and the instructions as Markdown, in a folder by name", async () => {
+    const made = await createTopic({ emoji: "🛒", name: "Shopping" });
+    await updateTopic(made.id, {
+      folders: [{ path: "/Users/someone/Deals" }],
+      instructions: "I have the Prime card.",
+    });
 
-    await fs.writeFile(file, `${written}I have the Prime card.\n`);
-    const [read] = await listTopics();
-    expect(read?.instructions).toBe("I have the Prime card.");
-    expect(read?.name).toBe("Shopping: deals");
+    expect(tree(topicsDir())).toMatchInlineSnapshot(`
+      [
+        "Shopping/.instrument/settings.json",
+        "Shopping/instructions.md",
+      ]
+    `);
+    const settings = JSON.parse(
+      await fs.readFile(
+        path.join(topicsDir(), "Shopping", ".instrument", "settings.json"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    expect({ ...settings, createdAt: "<at>", id: "<id>" })
+      .toMatchInlineSnapshot(`
+        {
+          "createdAt": "<at>",
+          "emoji": "🛒",
+          "folders": [
+            {
+              "path": "/Users/someone/Deals",
+            },
+          ],
+          "id": "<id>",
+        }
+      `);
+    expect(await listTopics()).toEqual([
+      {
+        ...made,
+        folders: [{ path: "/Users/someone/Deals" }],
+        instructions: "I have the Prime card.",
+      },
+    ]);
   });
 
-  it("reads a hand-written file with no front matter as instructions", async () => {
-    await fs.mkdir(path.join(topicsDir(), "top_handmade"), { recursive: true });
-    await fs.writeFile(
-      path.join(topicsDir(), "top_handmade", "topic.md"),
-      "Only the words.\n",
+  it("renames the folder with the topic, and a folder renamed by hand renames the topic", async () => {
+    const made = await createTopic({ name: "Trips" });
+    await updateTopic(made.id, { instructions: "Aisle seats." });
+
+    await updateTopic(made.id, { name: "Travel" });
+    expect(tree(topicsDir())).toMatchInlineSnapshot(`
+      [
+        "Travel/.instrument/settings.json",
+        "Travel/instructions.md",
+      ]
+    `);
+
+    await fs.rename(
+      path.join(topicsDir(), "Travel"),
+      path.join(topicsDir(), "Away"),
     );
-    const [read] = await listTopics();
-    expect(read).toMatchObject({
-      id: "top_handmade",
-      instructions: "Only the words.",
+    expect(await listTopics()).toEqual([
+      { ...made, instructions: "Aisle seats.", name: "Away" },
+    ]);
+  });
+
+  it.each([
+    ["a name another topic has", "home", "There is already a topic called “Home”"],
+    ["a character no folder can hold", "Deals: big", "Topic name can't contain any of: < > : \" / \\ | ? *"],
+    ["a leading period", ".hidden", "Topic name can't start with a period"],
+  ])("refuses %s", async (_case, name, message) => {
+    await createTopic({ name: "Home" });
+    const made = await createTopic({ name: "Trips" });
+
+    await expect(updateTopic(made.id, { name })).rejects.toThrow(
+      new TopicNameError(message),
+    );
+  });
+
+  it("returns the topic already called that, and brings back a retired one", async () => {
+    const made = await createTopic({ name: "Trips" });
+    await updateTopic(made.id, { instructions: "Aisle seats." });
+
+    expect((await createTopic({ name: "trips" })).id).toBe(made.id);
+    await retireTopic(made.id);
+    const revived = await createTopic({ emoji: "✈️", name: "Trips" });
+    expect(revived).toEqual({
+      ...made,
+      emoji: "✈️",
+      instructions: "Aisle seats.",
     });
+    expect((await listTopics())[0]?.retired).toBeUndefined();
   });
 });
+
+describe("convertTopicFiles", () => {
+  it("moves a topic.md under its id into a folder by its name, keeping the id", async () => {
+    const root = getWorkspaceConfig().rootDir;
+    await writeLegacy(
+      "top_01",
+      `---\nname: "Shopping: deals"\nemoji: "🛒"\ncolor: "#e0562f"\ncreated: 2026-09-01T00:00:00.000Z\n---\nI have the Prime card.\n`,
+    );
+    await writeLegacy("top_02", "Only the words.\n");
+    await writeLegacy(
+      "top_03",
+      `---\nname: "Shopping- deals"\ncreated: 2026-09-02T00:00:00.000Z\n---\n`,
+    );
+
+    expect(convertTopicFiles(root)).toBe(3);
+
+    expect(tree(topicsDir())).toMatchInlineSnapshot(`
+      [
+        "Shopping- deals 2/.instrument/settings.json",
+        "Shopping- deals/.instrument/settings.json",
+        "Shopping- deals/instructions.md",
+        "Topic/.instrument/settings.json",
+        "Topic/instructions.md",
+      ]
+    `);
+    expect(
+      (await listTopics()).map((topic) =>
+        topic.id === "top_02" ? { ...topic, createdAt: "<mtime>" } : topic,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "color": "#e0562f",
+          "createdAt": 1788220800000,
+          "emoji": "🛒",
+          "id": "top_01",
+          "instructions": "I have the Prime card.",
+          "name": "Shopping- deals",
+        },
+        {
+          "createdAt": 1788307200000,
+          "id": "top_03",
+          "name": "Shopping- deals 2",
+        },
+        {
+          "createdAt": "<mtime>",
+          "id": "top_02",
+          "instructions": "Only the words.",
+          "name": "Topic",
+        },
+      ]
+    `);
+    expect(convertTopicFiles(root)).toBe(0);
+  });
+});
+
+async function writeLegacy(id: string, content: string) {
+  await fs.mkdir(path.join(topicsDir(), id), { recursive: true });
+  await fs.writeFile(path.join(topicsDir(), id, "topic.md"), content);
+}
+
+function tree(dir: string): string[] {
+  return fsSync
+    .readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) =>
+      path.relative(dir, path.join(entry.parentPath, entry.name)),
+    )
+    .sort();
+}

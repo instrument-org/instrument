@@ -13,12 +13,16 @@ import {
   TASK_DB_FILE_NAME,
   TASK_FOLDER_NAMES,
   TASKS_DIR_NAME,
-  TOPICS_DIR_NAME,
 } from "../constants";
 import { MOUNT } from "../mount-points";
 import { StoreId } from "../schemas/store-id";
 import { chatFolderName } from "./generate-task-folder-name";
-import { serializeTopic, type Topic } from "./orchestrator/topics";
+import {
+  readTopicsSync,
+  type Topic,
+  unusedTopicName,
+  writeTopicSync,
+} from "./orchestrator/topics";
 import { forgetRecordFolders } from "./record-folders";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
@@ -1002,8 +1006,8 @@ function writeTopics(
     ) {
       continue;
     }
-    const file = path.join(rootDir, TOPICS_DIR_NAME, topic.id, "topic.md");
-    if (fs.existsSync(file)) {
+    const existing = readTopicsSync(rootDir);
+    if (existing.some((entry) => entry.id === topic.id)) {
       continue;
     }
     const content: Topic = {
@@ -1013,12 +1017,14 @@ function writeTopics(
         typeof topic.createdAt === "number" ? topic.createdAt : Date.now(),
       ...(typeof topic.emoji === "string" ? { emoji: topic.emoji } : {}),
       id: topic.id,
-      name: topic.name,
+      name: unusedTopicName(
+        topic.name,
+        existing.map((entry) => entry.name),
+      ),
       ...(topic.retired === true ? { retired: true } : {}),
     };
     try {
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, serializeTopic(content), "utf8");
+      writeTopicSync(rootDir, content);
       written += 1;
     } catch {
       left += 1;

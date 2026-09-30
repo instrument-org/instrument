@@ -66,6 +66,7 @@ describe("migrateWorkspaceLayout", () => {
     expect(result).toEqual({
       chats: { chatCount: 0, leftOver: 0, movedTaskCount: 0, topicCount: 0 },
       conflictedTaskIds: [],
+      convertedTopicCount: 0,
       movedTaskCount: 0,
       removedBrowserProfileCloneCount: 0,
     });

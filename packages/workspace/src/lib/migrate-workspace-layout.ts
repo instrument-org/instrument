@@ -15,6 +15,7 @@ import { ProjectIdSchema } from "../schemas/project-id";
 import { foldTaskStateFile } from "./fold-task-state-file";
 import { foldTaskWorkDir } from "./fold-task-work-dir";
 import { type ChatsMigration, migrateToChats } from "./migrate-to-chats";
+import { convertTopicFiles } from "./orchestrator/topics";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
 // Legacy on-disk names this migration renames to their current equivalents.
@@ -62,6 +63,8 @@ export interface WorkspaceLayoutMigration {
   // Task folder ids left in place because a task with the same id already
   // existed under tasks/ (never clobbered).
   conflictedTaskIds: string[];
+  // Topics moved from one `topic.md` under their id into a folder by name.
+  convertedTopicCount: number;
   movedTaskCount: number;
   // Chrome profile clones deleted, each a recursive delete of a few hundred MB
   // on the chat that owns the window. Reported so a boot that stalls on one
@@ -88,7 +91,9 @@ export function migrateWorkspaceLayout({
   // After the task sweep, so the window's record and the tasks it started are
   // in their current shape when they are moved.
   const tasks = migrateTaskLayout(rootDir);
-  return { ...tasks, chats: migrateToChats(rootDir) };
+  const chats = migrateToChats(rootDir);
+  // After the move to chats, which can write topics of its own.
+  return { ...tasks, chats, convertedTopicCount: convertTopicFiles(rootDir) };
 }
 
 // Normalizes one task folder to the current layout. Each step is idempotent
@@ -176,9 +181,9 @@ function mergeDirInto(source: string, destination: string) {
 
 function migrateLegacyProjectsDir(
   rootDir: string,
-): Omit<WorkspaceLayoutMigration, "chats"> {
+): Omit<WorkspaceLayoutMigration, "chats" | "convertedTopicCount"> {
   const legacyDir = path.join(rootDir, LEGACY_TASKS_DIR_NAME);
-  const migration: Omit<WorkspaceLayoutMigration, "chats"> = {
+  const migration: Omit<WorkspaceLayoutMigration, "chats" | "convertedTopicCount"> = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,
@@ -226,8 +231,8 @@ function migrateLegacyProjectsDir(
 
 function migrateTaskLayout(
   rootDir: string,
-): Omit<WorkspaceLayoutMigration, "chats"> {
-  let migration: Omit<WorkspaceLayoutMigration, "chats"> = {
+): Omit<WorkspaceLayoutMigration, "chats" | "convertedTopicCount"> {
+  let migration: Omit<WorkspaceLayoutMigration, "chats" | "convertedTopicCount"> = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
     removedBrowserProfileCloneCount: 0,

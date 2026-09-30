@@ -256,7 +256,7 @@ describe("migrateToChats", () => {
         "tasks/2026-08-07-a-1x-task/.instrument/settings.json",
         "tasks/instrument/.instrument/settings.json",
         "tasks/instrument/.instrument/task.db",
-        "topics/top_01/topic.md",
+        "topics/Shopping/.instrument/settings.json",
       ]
     `);
     expect(

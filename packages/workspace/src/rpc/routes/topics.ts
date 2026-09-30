@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import {
@@ -5,6 +6,8 @@ import {
   listTopics,
   retireTopic,
   TOPIC_NAME_MAX,
+  TopicFolderSchema,
+  TopicNameError,
   TopicSchema,
   updateTopic,
 } from "../../lib/orchestrator/topics";
@@ -26,7 +29,19 @@ const listTopicsRoute = base
   .output(TopicSchema.array())
   .handler(() => listTopics());
 
-/** Makes a topic under a name. */
+/** A name a topic's folder cannot take, said back as a bad request. */
+async function sayingNameErrors<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof TopicNameError) {
+      throw new ORPCError("BAD_REQUEST", { message: error.message });
+    }
+    throw error;
+  }
+}
+
+/** Makes a topic under a name, or returns the one already called that. */
 const createTopicRoute = base
   .input(
     TopicMarkSchema.extend({
@@ -35,34 +50,41 @@ const createTopicRoute = base
   )
   .output(TopicSchema)
   .handler(({ input }) =>
-    createTopic({
-      ...(input.color ? { color: input.color } : {}),
-      ...(input.emoji ? { emoji: input.emoji } : {}),
-      name: input.name,
-    }),
+    sayingNameErrors(() =>
+      createTopic({
+        ...(input.color ? { color: input.color } : {}),
+        ...(input.emoji ? { emoji: input.emoji } : {}),
+        name: input.name,
+      }),
+    ),
   );
 
 /**
- * Changes what the user chose about a topic: its name, its mark, its tint,
- * and its instructions, which an empty string takes away.
+ * Changes what the user chose about a topic: its name, which moves its
+ * folder, its mark, its tint, its folders, and its instructions, which an
+ * empty string takes away.
  */
 const updateTopicRoute = base
   .input(
     TopicMarkSchema.extend({
+      folders: z.array(TopicFolderSchema).optional(),
       instructions: z.string().max(100_000).optional(),
       name: TopicNameSchema.optional(),
       topicId: z.string(),
     }),
   )
   .handler(async ({ input }) => {
-    await updateTopic(input.topicId, {
-      ...(input.color === undefined ? {} : { color: input.color }),
-      ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
-      ...(input.instructions === undefined
-        ? {}
-        : { instructions: input.instructions }),
-      ...(input.name === undefined ? {} : { name: input.name }),
-    });
+    await sayingNameErrors(() =>
+      updateTopic(input.topicId, {
+        ...(input.color === undefined ? {} : { color: input.color }),
+        ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
+        ...(input.folders === undefined ? {} : { folders: input.folders }),
+        ...(input.instructions === undefined
+          ? {}
+          : { instructions: input.instructions }),
+        ...(input.name === undefined ? {} : { name: input.name }),
+      }),
+    );
   });
 
 /** Takes a topic out of the menus, leaving the chats that carry it alone. */

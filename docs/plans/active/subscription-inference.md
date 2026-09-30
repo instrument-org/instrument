@@ -1,6 +1,6 @@
 # Inference through the user's Claude and ChatGPT subscriptions
 
-Status: **draft, not started.** Policy snapshot verified 2026-09-26 against the primary sources linked below. Those terms have changed several times this year, so re-check them before building anything.
+Status: **ChatGPT direct route spiked; Claude and the Codex harness not started.** Policy snapshot verified 2026-09-26 against the primary sources linked below, and OpenAI's Sign in with ChatGPT docs on 2026-09-29. Those terms have changed several times this year, so re-check them before building anything.
 
 ## Goal
 
@@ -37,6 +37,18 @@ Sources: [Codex app-server](https://learn.chatgpt.com/docs/app-server), [Codex a
 2. The user signs in through the CLI's own flow. We never read, store or forward `~/.claude` or `~/.codex` credentials.
 3. Use no provider branding that implies a partnership.
 4. Treat the feature as removable. If a provider revokes it, that provider's entry fails with a clear message and everything else keeps working.
+
+## ChatGPT: the direct route
+
+OpenAI's [ChatGPT plan usage](https://developers.openai.com/siwc/token-sharing-open-source) for open-source, locally run apps needs no CLI. The app signs the user in with OAuth (a public client registered on first sign-in as `dynamic_agent_client`, PKCE, a `127.0.0.1` loopback callback, and the `chatgpt.tokens.use.direct` scope), then sends the access token as the bearer on the public `POST /v1/responses`. Codex app-server is documented only as one consumer of that token. A paid or remotely hosted app goes through OpenAI's partner interest form instead.
+
+That keeps our own loop, tools, prompt, and transcript, so none of the harness work below applies to ChatGPT:
+
+- **Sign-in and tokens** live in the main process ([`chatgpt-plan.ts`](../../../apps/studio/src/electron-main/lib/chatgpt-plan.ts)): a stable `urn:uuid:` host id, ID-token validation against OpenAI's JWKS, an encrypted store keyed by account subject that keeps the issued client id across sign-outs, a serialized refresh ahead of the one-hour expiry, and revocation on sign-out.
+- **The provider** is a synthesized `chatgpt` config, like our own, whose key is the current access token ([`get-ai-provider-configs.ts`](../../../apps/studio/src/electron-main/lib/get-ai-provider-configs.ts)). Models come from the account's `/v1/models` catalog, which is `{ models: [{ slug, display_name, visibility }] }` rather than the API's list.
+- **The request rewrite** happens in the local gateway ([`chatgpt-plan-request.ts`](../../../packages/ai-gateway/src/lib/providers/chatgpt-plan-request.ts)): `store: false` and `stream: true` always, the refused fields (`max_output_tokens`, `user`, `temperature` and the rest) dropped, system items rewritten as developer items, and a request that asked for JSON collapsed from `response.completed`. The platform gateway is never involved.
+
+Open on this route: whether plain top-level function tools are accepted (the docs say to group them in namespaces or send them as `additional_tools`), image generation and hosted web search needing another provider, usage-limit errors surfaced in the composer, and the first-sign-in and "Using ChatGPT plan" UI the guidelines ask for.
 
 ## Approach
 

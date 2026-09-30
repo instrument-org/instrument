@@ -525,6 +525,7 @@ export function ChatWindow({
                       ) : undefined
                     }
                     isUp
+                    onGone={onClose}
                     sendContext={contextToSend}
                     sentPrompt={sentWords}
                     sessionId={sessionId}

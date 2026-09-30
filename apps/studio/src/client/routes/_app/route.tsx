@@ -297,6 +297,13 @@ function ChatView({ chat }: { chat: StoreId.Session | undefined }) {
                           <ChatScreen
                             isUp={isActive}
                             key={chat}
+                            onGone={() => {
+                              // As for a deleted chat: its tabs go, and the
+                              // inbox takes the tab back.
+                              windowTabs.forgetGroup(chat);
+                              appTabs.navigate(INBOX_HREF, { replace: true });
+                              setInboxOpen(true);
+                            }}
                             sendContext={() =>
                               shell.sendContext({
                                 isViewOpen: showsPane,

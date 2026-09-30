@@ -2,6 +2,7 @@ import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { TaskChat } from "@/client/components/task/chat";
+import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
@@ -13,7 +14,7 @@ import {
   type TaskId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useContext, useEffect } from "react";
+import { type ReactNode, useContext, useEffect, useState } from "react";
 
 import { AskPills } from "./ask-pills";
 import { chatListOptions } from "./chat-list-query";
@@ -22,11 +23,22 @@ import { useWindow, WindowContext } from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { WorkingRow } from "./working-row";
 
+/**
+ * How long a chat with no record is waited for before it is called gone: a
+ * new chat's session is on screen before its first send makes the record, so
+ * a missing one is only believed once it has stayed missing, re-asked each
+ * interval, with nothing on its way to make it.
+ */
+const MISSING_GRACE_MS = 5000;
+const MISSING_RECHECK_MS = 1000;
+
 interface ChatScreenProps {
   /** Drawn at the head of the composer: what goes with a message besides its words. */
   composerLead?: ReactNode;
   /** Whether this is the chat on screen: only that one marks itself read or takes the caret. */
   isUp: boolean;
+  /** Puts away a chat no record holds any more, the way deleting one does. */
+  onGone: () => void;
   sendContext: () => Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   >;
@@ -48,13 +60,25 @@ export function ChatScreen(props: ChatScreenProps) {
       input: { sessionId: props.sessionId },
       // A chat keeps its record for as long as it exists; a chat with none
       // yet is asked again, since its first send may still be making it.
+      refetchInterval: (query) =>
+        query.state.data?.taskId === null ? MISSING_RECHECK_MS : false,
       staleTime: (query) =>
         query.state.data?.taskId ? Number.POSITIVE_INFINITY : 0,
     }),
   );
   const taskId = chat.data?.taskId;
+  const isGone = useStaysMissing(
+    chat.data !== undefined && !taskId && props.sentPrompt === undefined,
+  );
   if (!taskId) {
-    return (
+    return isGone ? (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+        <p>This chat is not here any more.</p>
+        <Button onClick={props.onGone} size="sm" variant="outline">
+          Close it
+        </Button>
+      </div>
+    ) : (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         <Spinner className="size-5" />
       </div>
@@ -235,4 +259,25 @@ function ChatScreenOfRecord({
       </div>
     </FileDropRegion>
   );
+}
+
+/**
+ * Whether a chat has had no record for the whole grace, with nothing on its
+ * way to make one. A chat whose record was there and then went is gone at
+ * once: the grace is for one still being made.
+ */
+function useStaysMissing(missing: boolean): boolean {
+  const [isGone, setIsGone] = useState(false);
+  useEffect(() => {
+    if (!missing) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setIsGone(true);
+    }, MISSING_GRACE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [missing]);
+  return missing && isGone;
 }

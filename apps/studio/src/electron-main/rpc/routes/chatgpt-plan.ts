@@ -1,6 +1,5 @@
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import {
-  cancelChatGPTSignIn,
   chatGPTPlanStatus,
   signInWithChatGPT,
   signOutOfChatGPT,
@@ -45,14 +44,9 @@ const signIn = base.handler(async ({ context, errors }) => {
   }
 });
 
-const cancelSignIn = base.handler(() => {
-  cancelChatGPTSignIn();
-});
-
 const signOut = base.handler(() => signOutOfChatGPT());
 
 export const chatgptPlan = {
-  cancelSignIn,
   live,
   signIn,
   signOut,

@@ -80,9 +80,9 @@ type StoreShape = z.output<typeof StoreSchema>;
 let STORE: null | Store<StoreShape> = null;
 
 interface PendingSignIn {
-  cancel: () => void;
   deliver: (params: URLSearchParams) => void;
   promise: Promise<ChatGPTPlanStatus>;
+  supersede: () => void;
 }
 
 let pendingSignIn: null | PendingSignIn = null;
@@ -250,10 +250,6 @@ class TokenError extends Error {
   }
 }
 
-export function cancelChatGPTSignIn(): void {
-  pendingSignIn?.cancel();
-}
-
 /**
  * Hand ChatGPT's redirect to the sign-in waiting for it. Resolves once the
  * sign-in has finished, so the page the browser lands on can say how it went;
@@ -269,19 +265,23 @@ export function receiveChatGPTCallback(
   return pendingSignIn.promise;
 }
 
+/**
+ * Start a sign-in in the user's browser. Asking again while one is waiting
+ * replaces it, so a tab that was closed or never opened is got past by
+ * continuing again rather than by canceling first.
+ */
 export function signInWithChatGPT({
   callbackPort,
 }: {
   callbackPort: number;
 }): Promise<ChatGPTPlanStatus> {
-  if (pendingSignIn) {
-    return pendingSignIn.promise;
-  }
+  pendingSignIn?.supersede();
   const controls: {
-    cancel: () => void;
     deliver: (params: URLSearchParams) => void;
-  } = { cancel: noop, deliver: noop };
-  const received = new Promise<URLSearchParams>((resolve, reject) => {
+    supersede: () => void;
+  } = { deliver: noop, supersede: noop };
+  // Null when a newer sign-in took this one's place.
+  const received = new Promise<null | URLSearchParams>((resolve, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error("ChatGPT sign-in timed out"));
     }, SIGN_IN_TIMEOUT_MS);
@@ -289,21 +289,26 @@ export function signInWithChatGPT({
       clearTimeout(timeout);
       resolve(params);
     };
-    controls.cancel = () => {
+    controls.supersede = () => {
       clearTimeout(timeout);
-      reject(new Error("ChatGPT sign-in was canceled"));
+      resolve(null);
     };
   });
-  const promise = runSignIn({
-    received,
-    redirectURI: `http://127.0.0.1:${String(callbackPort)}${CHATGPT_CALLBACK_PATH}`,
-  }).finally(() => {
-    pendingSignIn = null;
-    publisher.publish("chatgpt-plan.updated", null);
-  });
-  pendingSignIn = { ...controls, promise };
+  const entry: PendingSignIn = {
+    ...controls,
+    promise: runSignIn({
+      received,
+      redirectURI: `http://127.0.0.1:${String(callbackPort)}${CHATGPT_CALLBACK_PATH}`,
+    }).finally(() => {
+      if (pendingSignIn === entry) {
+        pendingSignIn = null;
+      }
+      publisher.publish("chatgpt-plan.updated", null);
+    }),
+  };
+  pendingSignIn = entry;
   publisher.publish("chatgpt-plan.updated", null);
-  return promise;
+  return entry.promise;
 }
 
 function accountFromTokens(
@@ -355,7 +360,7 @@ async function runSignIn({
   received,
   redirectURI,
 }: {
-  received: Promise<URLSearchParams>;
+  received: Promise<null | URLSearchParams>;
   redirectURI: string;
 }): Promise<ChatGPTPlanStatus> {
   const returning = lastAccount();
@@ -390,6 +395,9 @@ async function runSignIn({
   await shell.openExternal(`${AUTHORIZE_URL}?${params.toString()}`);
 
   const callback = await received;
+  if (!callback) {
+    return accountStatus();
+  }
   if (callback.get("state") !== state) {
     throw new Error("The sign-in response did not match this attempt");
   }

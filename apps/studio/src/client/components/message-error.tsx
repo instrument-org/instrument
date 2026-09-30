@@ -1,9 +1,10 @@
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { OUR_MODELS } from "@instrument-org/shared";
+import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import {
   describeMessageError,
   type SessionMessage,
 } from "@instrument-org/workspace/client";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -15,21 +16,21 @@ import {
   parsePlatformApiError,
   requiresAutoModelRecovery,
 } from "../lib/parse-platform-api-error";
+import { cn } from "../lib/utils";
 import { rpcClient } from "../rpc/client";
-import {
-  CollapsiblePartMainContent,
-  CollapsiblePartTrigger,
-} from "./collapsible-part";
+import { CopyButton } from "./copy-button";
 import { DeveloperModeBadge } from "./tool-part/developer-mode-badge";
-import { ToolPartListItemCompact } from "./tool-part/list-item-compact";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "./ui/collapsible";
 import { UpgradeSubscriptionAlert } from "./upgrade-subscription-alert";
+
+interface ErrorAction {
+  label: string;
+  onClick: () => void;
+}
+
+type MessageErrorData = NonNullable<
+  SessionMessage.Assistant["metadata"]["error"]
+>;
 
 interface MessageErrorProps {
   isAgentRunning: boolean;
@@ -41,6 +42,23 @@ interface MessageErrorProps {
   onRunAgain: () => void;
 }
 
+const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
+
+/**
+ * A turn that ended in an error, said in our words with the way forward
+ * beside it.
+ *
+ * Three layers, each asked for by the one before it. The card says what
+ * happened and what to do, in a sentence of ours and the one or two actions
+ * that fix it. Under Details, and only for someone entitled to read it, is the
+ * provider's own account: the status, the request, the body it sent back,
+ * whole and copyable, because that is what a person pastes into a support
+ * thread. Nothing is clipped to a scrolling box inside the card; a body long
+ * enough to need one is read by copying it.
+ *
+ * An error the session has already moved past is kept to its one-line
+ * summary, since the turn after it is what the reader is following.
+ */
 export function MessageError({
   isAgentRunning,
   isDeveloperMode,
@@ -51,243 +69,359 @@ export function MessageError({
   onRunAgain,
 }: MessageErrorProps) {
   const error = message.metadata.error;
-  const showActions = isLastMessage && !isAgentRunning;
-  const defaultExpanded = isLastMessage && !isAgentRunning;
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [lastDefaultExpanded, setLastDefaultExpanded] =
-    useState(defaultExpanded);
-  if (defaultExpanded !== lastDefaultExpanded) {
-    setLastDefaultExpanded(defaultExpanded);
-    setIsExpanded(defaultExpanded);
-  }
   const { data: modelsData } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const { models } = modelsData ?? {};
   const openLink = useOpenExternalLink();
+  const [showDetails, setShowDetails] = useState(false);
+  const [expandedPast, setExpandedPast] = useState(false);
 
   if (!error) {
     return null;
   }
 
-  const isAborted = error.kind === "aborted";
   const platformError = parsePlatformApiError(message);
-  const isStaleInsufficientCredits =
-    platformError?.code === "insufficient-credits" && !isLastMessage;
-  // The session went on past this one, so whatever was throttling or failing
-  // has already been waited out -- the machine retries both of these. Reporting
-  // it above a turn that then succeeded describes a problem the user does not
-  // have.
   const classification =
     "classification" in error ? error.classification : undefined;
-  const isRecoveredRetry =
-    (classification === "rate-limit" || classification === "transient") &&
-    !isLastMessage;
-
-  // Normally hidden errors are still shown in developer mode via the generic renderer
-  const isDevOnlyVisible =
-    isDeveloperMode &&
-    (isAborted || isStaleInsufficientCredits || isRecoveredRetry);
-
-  if (!isDevOnlyVisible) {
-    // Hide old or useless errors for non-developer mode
-    if (isAborted || isStaleInsufficientCredits || isRecoveredRetry) {
-      return null;
-    }
-
-    if (platformError?.code === "insufficient-credits") {
-      return <UpgradeSubscriptionAlert onContinue={onContinue} />;
-    }
+  // Each of these describes a problem the user no longer has: a turn they
+  // stopped themselves, credits they have since topped up, or a throttle the
+  // machine waited out before the turn that followed succeeded.
+  const isHiddenFromReader =
+    error.kind === "aborted" ||
+    (platformError?.code === "insufficient-credits" && !isLastMessage) ||
+    ((classification === "rate-limit" || classification === "transient") &&
+      !isLastMessage);
+  if (isHiddenFromReader && !isDeveloperMode) {
+    return null;
+  }
+  if (!isHiddenFromReader && platformError?.code === "insufficient-credits") {
+    return <UpgradeSubscriptionAlert onContinue={onContinue} />;
   }
 
-  if (showActions && platformError && requiresAutoModelRecovery(message)) {
-    const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
-    // The message names the model, because the recorded model carries a display
-    // name and the platform error only knows the id it was asked for.
-    const modelName = message.metadata.aiGatewayModel?.name.trim();
+  const provider = message.metadata.aiGatewayModel?.params.provider;
+  // A model on the user's own key answers about an account they hold, so its
+  // own account of the failure is theirs to read. Ours writes about upstream
+  // models and vendor accounts they have no part in, so it stays behind
+  // developer mode. A message that recorded no provider counts as ours.
+  const isOwnKeyProvider =
+    provider !== undefined && provider !== OUR_MODELS.providerType;
+  const canReadProviderText = isDeveloperMode || isOwnKeyProvider;
+  const showActions = isLastMessage && !isAgentRunning;
 
+  const { detail, summary } = describeForProvider(
+    describeMessageError(error),
+    { classification, provider },
+  );
+  const modelName = message.metadata.aiGatewayModel?.name.trim();
+  const needsAutoRecovery =
+    !!platformError && requiresAutoModelRecovery(message);
+  const title = needsAutoRecovery
+    ? modelName
+      ? `${modelName} is unavailable`
+      : "Model unavailable"
+    : summary;
+  const body = needsAutoRecovery
+    ? platformError.message || error.message
+    : detail;
+  // Unclassified, our sentence is only that something failed, so the
+  // provider's own line is the one that says what; on a classified error ours
+  // already says it better.
+  const providerLine =
+    canReadProviderText && (classification === undefined || classification === "unknown")
+      ? providerSentence(error)
+      : undefined;
+
+  const actions = errorActions({
+    autoModelURI: needsAutoRecovery
+      ? modelsData?.models.find((m) => m.providerId === OUR_MODELS.text.id)
+          ?.uri
+      : undefined,
+    classification,
+    kind: error.kind,
+    onModelChange,
+    onRunAgain,
+    openLink,
+    provider,
+  });
+
+  const past = !isLastMessage;
+  if (past && !expandedPast) {
     return (
-      <Alert>
-        <AlertTitle>
-          {modelName ? `${modelName} is unavailable` : "Model unavailable"}
-        </AlertTitle>
-        <AlertDescription className="flex flex-col gap-3">
-          <span>{platformError.message || error.message}</span>
-          {autoModel && (
-            <div className="flex">
-              <Button
-                onClick={() => {
-                  onModelChange(autoModel.uri);
-                  toast.success("Switched to Auto model");
-                }}
-                size="sm"
-              >
-                Switch to Auto Mode
-              </Button>
-            </div>
-          )}
-        </AlertDescription>
-      </Alert>
+      <button
+        className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-black/3 dark:hover:bg-white/3"
+        onClick={() => {
+          setExpandedPast(true);
+        }}
+        type="button"
+      >
+        {isHiddenFromReader && <DeveloperModeBadge />}
+        <WarningIcon className="size-3.5 shrink-0 text-warning-700 dark:text-warning-300" />
+        <span className="truncate">{title}</span>
+      </button>
     );
   }
 
-  const { detail, summary } = describeMessageError(error);
-
-  // A model on the user's own key answers about an account they hold. Its
-  // rejection names the tier, the reset window, or the key that was refused,
-  // and every one of those is something they can go and fix -- so it is shown,
-  // not buried. Only our own provider writes about an account they have no part
-  // in. A message that never recorded a provider counts as ours, so an unknown
-  // errs toward saying less rather than leaking more.
-  const provider = message.metadata.aiGatewayModel?.params.provider;
-  const isOwnKeyProvider =
-    provider !== undefined && provider !== OUR_MODELS.providerType;
-
-  const getErrorTitle = () => {
-    switch (error.kind) {
-      case "api-call":
-      case "api-key":
-      case "invalid-tool-input":
-      case "no-such-tool": {
-        return "Model error";
-      }
-      default: {
-        return "Error";
-      }
-    }
-  };
-
-  const mainContent = (
-    <ToolPartListItemCompact isExpanded={isExpanded}>
-      {isDevOnlyVisible && <DeveloperModeBadge />}
-      <span className="shrink-0 text-error-700/80 dark:text-error-300/80">
-        <WarningIcon className="size-3" />
-      </span>
-      <span className="shrink-0 font-medium text-error-700/80 dark:text-error-300/80">
-        {getErrorTitle()}
-      </span>
-      <span className="flex-1" />
-      <span className="shrink-0 text-error-700/60 dark:text-error-300/60">
-        {summary}
-      </span>
-    </ToolPartListItemCompact>
-  );
-
   return (
-    <div className="w-full">
-      <Collapsible
-        className="w-full"
-        onOpenChange={setIsExpanded}
-        open={isExpanded}
-      >
-        <CollapsibleTrigger asChild>
-          <CollapsiblePartTrigger>{mainContent}</CollapsiblePartTrigger>
-        </CollapsibleTrigger>
+    <div
+      className="w-full rounded-xl border border-black/8 bg-card px-4 py-3.5 text-sm dark:border-white/8"
+      role="alert"
+    >
+      <div className="flex items-start gap-3">
+        <WarningIcon className="mt-0.5 size-4 shrink-0 text-warning-700 dark:text-warning-300" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center gap-2">
+            {isHiddenFromReader && <DeveloperModeBadge />}
+            <span className="font-medium text-foreground">{title}</span>
+          </div>
+          <p className="text-muted-foreground">{body}</p>
+          {providerLine && (
+            <p className="text-muted-foreground/80">{providerLine}</p>
+          )}
 
-        <CollapsibleContent>
-          <CollapsiblePartMainContent
-            footer={
-              showActions ? (
-                <div className="mt-2 flex gap-2">
-                  <Button onClick={onRunAgain} size="sm">
-                    Try again
-                  </Button>
-                </div>
-              ) : undefined
-            }
-          >
-            <div className="mb-2">{detail}</div>
-
-            {/* A refused key or a spent allowance on the user's own provider is
-                theirs to fix, so the way to it sits under the explanation. */}
-            {showActions &&
-              isOwnKeyProvider &&
-              (classification === "auth" ||
-                classification === "usage-limit") && (
-                <div className="mb-2 flex gap-2">
+          {(showActions && actions.length > 0) || canReadProviderText ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {showActions &&
+                actions.map((action, index) => (
                   <Button
-                    onClick={() => {
-                      openSettings({ tab: "Providers" });
-                    }}
+                    key={action.label}
+                    onClick={action.onClick}
                     size="sm"
-                    variant="outline"
+                    variant={index === 0 ? "default" : "outline"}
                   >
-                    Open provider settings
+                    {action.label}
                   </Button>
-                  {provider === "chatgpt" &&
-                    classification === "usage-limit" && (
-                      <Button
-                        onClick={() => {
-                          openLink("https://chatgpt.com/settings/usage", {
-                            addReferral: false,
-                          });
-                        }}
-                        size="sm"
-                      >
-                        Manage usage
-                      </Button>
+                ))}
+              {canReadProviderText && (
+                <Button
+                  aria-expanded={showDetails}
+                  className="text-muted-foreground"
+                  onClick={() => {
+                    setShowDetails(!showDetails);
+                  }}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <CaretRightIcon
+                    className={cn(
+                      "transition-transform",
+                      showDetails && "rotate-90",
                     )}
-                </div>
+                  />
+                  Details
+                </Button>
               )}
+            </div>
+          ) : null}
 
-            {/* Everything below is the provider's own account of the failure,
-                written for whoever integrates against it. On our own provider
-                that means upstream models the user never chose and remedies on
-                a vendor account they have no part in, so it is shown only to
-                someone who asked for that layer. On their own key it is the
-                truer answer and the one they can act on. */}
-            {(isDeveloperMode || isOwnKeyProvider) && (
-              <>
-                <div className="mb-2">
-                  <div className="mb-1 font-semibold">Error:</div>
-                  <pre className="font-mono text-xs wrap-break-word whitespace-pre-wrap">
-                    {error.message}
-                  </pre>
-                </div>
-
-                {error.kind === "api-call" && (
-                  <div className="space-y-1">
-                    <div>
-                      <strong>API:</strong> {error.name}
-                    </div>
-                    <div className="break-all">
-                      <strong>URL:</strong> {error.url}
-                    </div>
-                    {error.statusCode && (
-                      <div>
-                        <strong>Status:</strong> {error.statusCode}
-                      </div>
-                    )}
-                    {error.responseBody && (
-                      <div>
-                        <strong>Response:</strong>
-                        <pre className="mt-1 max-h-32 overflow-y-auto rounded-sm bg-muted p-2 text-xs wrap-break-word whitespace-pre-wrap">
-                          {error.responseBody}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {error.kind === "invalid-tool-input" && (
-                  <div>
-                    <div className="mb-1 font-semibold">Input:</div>
-                    <pre className="max-h-32 overflow-y-auto rounded-sm border bg-muted p-2 font-mono text-xs wrap-break-word whitespace-pre-wrap">
-                      {error.input}
-                    </pre>
-                  </div>
-                )}
-
-                {error.kind === "no-such-tool" && (
-                  <div>
-                    <strong>Tool:</strong> {error.toolName}
-                  </div>
-                )}
-              </>
-            )}
-          </CollapsiblePartMainContent>
-        </CollapsibleContent>
-      </Collapsible>
+          {canReadProviderText && showDetails && (
+            <ErrorDetails error={error} message={message} />
+          )}
+        </div>
+      </div>
     </div>
   );
+}
+
+/**
+ * Our sentence, naming the service when we know which one refused. Instrument
+ * reaches several, so "the provider" leaves the reader to work out which
+ * account hit its limit or signed them out.
+ */
+function describeForProvider(
+  described: { detail: string; summary: string },
+  {
+    classification,
+    provider,
+  }: { classification: string | undefined; provider: string | undefined },
+): { detail: string; summary: string } {
+  if (provider !== "chatgpt") {
+    return described;
+  }
+  if (classification === "usage-limit") {
+    return {
+      detail: `You've reached the limit your ChatGPT plan allows ${APP_NAME}. Review it in ChatGPT's usage settings, or switch to another model.`,
+      summary: "ChatGPT usage limit reached",
+    };
+  }
+  if (classification === "auth") {
+    return {
+      detail:
+        "Sign in with ChatGPT again to keep using your plan, or switch to another model.",
+      summary: "Signed out of ChatGPT",
+    };
+  }
+  return described;
+}
+
+function detailFacts(
+  error: MessageErrorData,
+  message: SessionMessage.Assistant,
+): [string, string][] {
+  const model = message.metadata.aiGatewayModel;
+  const facts: [string, string][] = [["Error", error.message]];
+  if (model) {
+    facts.push([
+      "Model",
+      [model.name.trim(), model.providerName].filter(Boolean).join(" · "),
+    ]);
+  }
+  if (error.kind === "api-call") {
+    if (error.statusCode !== undefined) {
+      facts.push(["Status", String(error.statusCode)]);
+    }
+    facts.push(["Request", error.url]);
+  }
+  if (error.kind === "no-such-tool") {
+    facts.push(["Tool", error.toolName]);
+  }
+  return facts;
+}
+
+function detailsText(facts: [string, string][], body: string | undefined) {
+  const lines = facts.map(([label, value]) => `${label}: ${value}`);
+  return body ? [...lines, "", body].join("\n") : lines.join("\n");
+}
+
+function errorActions({
+  autoModelURI,
+  classification,
+  kind,
+  onModelChange,
+  onRunAgain,
+  openLink,
+  provider,
+}: {
+  autoModelURI: AIGatewayModelURI.Type | undefined;
+  classification: string | undefined;
+  kind: MessageErrorData["kind"];
+  onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  onRunAgain: () => void;
+  openLink: ReturnType<typeof useOpenExternalLink>;
+  provider: string | undefined;
+}): ErrorAction[] {
+  const tryAgain = { label: "Try again", onClick: onRunAgain };
+  const providerSettings = {
+    label: "Open provider settings",
+    onClick: () => {
+      openSettings({ tab: "Providers" });
+    },
+  };
+
+  if (autoModelURI) {
+    return [
+      {
+        label: "Switch to Auto",
+        onClick: () => {
+          onModelChange(autoModelURI);
+          toast.success("Switched to Auto");
+        },
+      },
+    ];
+  }
+  if (classification === "usage-limit") {
+    return provider === "chatgpt"
+      ? [
+          {
+            label: "Manage usage",
+            onClick: () => {
+              openLink(CHATGPT_USAGE_URL, { addReferral: false });
+            },
+          },
+          tryAgain,
+        ]
+      : [providerSettings, tryAgain];
+  }
+  if (classification === "auth" || kind === "api-key") {
+    if (provider === OUR_MODELS.providerType) {
+      return [tryAgain];
+    }
+    return provider === "chatgpt"
+      ? [{ ...providerSettings, label: "Sign in again" }, tryAgain]
+      : [providerSettings, tryAgain];
+  }
+  return [tryAgain];
+}
+
+/**
+ * Everything the provider said, laid out to be read and copied rather than
+ * scrolled: the facts in a short list, then the body it sent back, whole.
+ */
+function ErrorDetails({
+  error,
+  message,
+}: {
+  error: MessageErrorData;
+  message: SessionMessage.Assistant;
+}) {
+  const facts = detailFacts(error, message);
+  const responseBody =
+    error.kind === "api-call" && error.responseBody
+      ? prettyBody(error.responseBody)
+      : undefined;
+  const toolInput = error.kind === "invalid-tool-input" ? error.input : undefined;
+
+  return (
+    <div className="relative mt-2 flex flex-col gap-3 rounded-lg bg-black/3 p-3 pr-10 text-xs dark:bg-white/3">
+      <CopyButton
+        className="absolute top-2 right-2 size-6 rounded-sm p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+        iconSize={14}
+        label="Copy error details"
+        onCopy={() =>
+          navigator.clipboard.writeText(
+            detailsText(facts, responseBody ?? toolInput),
+          )
+        }
+        tooltip="Copy error details"
+      />
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1">
+        {facts.map(([label, value]) => (
+          <div className="contents" key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 break-words text-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {(responseBody ?? toolInput) && (
+        <pre className="font-mono break-words whitespace-pre-wrap text-foreground">
+          {responseBody ?? toolInput}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function prettyBody(body: string): string {
+  try {
+    return JSON.stringify(JSON.parse(body), null, 2);
+  } catch {
+    return body;
+  }
+}
+
+/**
+ * The one sentence a provider wrote for a person, pulled out of its body
+ * when it has one: `error.message` in the shapes providers share, else the
+ * error's own message.
+ */
+function providerSentence(error: MessageErrorData): string {
+  if (error.kind === "api-call" && error.responseBody) {
+    try {
+      const parsed: unknown = JSON.parse(error.responseBody);
+      const nested =
+        typeof parsed === "object" && parsed !== null && "error" in parsed
+          ? parsed.error
+          : undefined;
+      if (
+        typeof nested === "object" &&
+        nested !== null &&
+        "message" in nested &&
+        typeof nested.message === "string"
+      ) {
+        return nested.message;
+      }
+    } catch {
+      // Not JSON: the error's own message stands.
+    }
+  }
+  return error.message;
 }

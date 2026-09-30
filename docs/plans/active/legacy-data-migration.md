@@ -102,6 +102,7 @@ Where `migrate-legacy-tasks.ts` differs from the above, or adds to it:
 - **Set aside, not trashed.** Tasks with no user message, and the tutorial replay (its assistant turns name the `tutorial-task-replay` model), move to `.pre-chats/empty-tasks/`. A task with a database and no settings file counts as a task.
 - **Project folders stay on the tasks that had them.** Clearing `projectId` stops project reconciliation, so an adopted task keeps the folders it already mounted rather than losing them.
 - **Replies keep their steps.** Each 1.x assistant message with words stays its own message, marked finished so it counts as a reply. Tool-only steps are dropped. Paths in `files` fences and under `/task/` are rewritten to `/tasks/<id>/`; bare relative paths in prose are left as written.
+- **Files in the chat** are what the copied replies name: a `files` fence or a Markdown link, rewritten to `/tasks/<id>/…`, and `/mnt/<folder>/…` through the task's folders, which the chat is granted. A file an early 1.x task recorded only in `data-fileChanges` is on the chat's row and in the adoption note, and deliberately not drawn in the chat.
 - **Files the row lists** come from `data-fileChanges` under `output/` or `work/`, less deletions, skills, dot folders, `tmp/` and `node_modules/`, and only if still on disk. The note names the first 20.
 - **Attachments are cloned** (`COPYFILE_FICLONE`), so they cost no disk on APFS.
 - **Rows are written as text.** The store refuses a row it reads back as bytes.

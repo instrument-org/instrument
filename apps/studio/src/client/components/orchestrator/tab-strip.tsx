@@ -31,13 +31,13 @@ export interface StripTab {
 // The strip's measurements, in layout px. `GAP` is the `gap-1` between tabs.
 const GAP = 4;
 // A tab with nothing in it but its icon: a square at the strip's tab height.
-const MIN_TAB = 28;
+const MIN_TAB = 32;
 // A centered icon and a close, clear of each other.
 const CLOSE_FITS = 60;
 // An icon at the head of the tab and a few characters of name after it.
 const NAME_FITS = 80;
 // The control that adds a tab, and the gap it holds: room the tabs cannot use.
-const NEW_TAB_ROOM = 28 + GAP;
+const NEW_TAB_ROOM = 32 + GAP;
 // The `mr-3` holding a fixed tab off the rest, on top of the gap.
 const FIXED_MARGIN = 12;
 
@@ -64,21 +64,16 @@ const TAB_MOTION = {
   "--tab-motion": `${TAB_MOTION_MS}ms`,
 } as React.CSSProperties;
 
-// What the tab being read stands on: the topic's own color raised off the
-// bar, so the selection reads in the same hue the bar is wearing. A strip
-// drawn for no topic falls back to the theme's own selected surface.
+// What the tab being read stands on: the page's own surface, lifted off the
+// bar as a card, the way the classic window draws its selected tab. A tint of
+// the bar's own hue sat too close to the bar to read as chosen.
 const SELECTED = {
-  backgroundColor: "var(--topic-tint-raised, var(--accent))",
+  backgroundColor: "var(--background)",
 } satisfies React.CSSProperties;
 
 // What a tab stands on while it is being carried over the others.
 const CARRIED = {
   backgroundColor: "var(--card)",
-} satisfies React.CSSProperties;
-const CARRIED_SELECTED = {
-  ...CARRIED,
-  backgroundImage:
-    "linear-gradient(var(--topic-tint-raised, var(--accent)), var(--topic-tint-raised, var(--accent)))",
 } satisfies React.CSSProperties;
 
 interface StripLayout {
@@ -355,7 +350,11 @@ export function TabStrip({
               onSelectRelative={(direction) => {
                 selectRelative(tab.key, direction);
               }}
-              showSeparator={index < drawnTabs.length - 1}
+              // The last tab keeps its hairline against the new-tab control,
+              // so the control reads as part of the row rather than adrift.
+              showSeparator={
+                index < drawnTabs.length - 1 || onNew !== undefined
+              }
               tab={tab}
               value={tab.key}
             />
@@ -367,7 +366,7 @@ export function TabStrip({
           {onNew ? (
             <ToolbarTooltip chord="newTab" label="New tab">
               <button
-                className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                className="flex size-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
                 onClick={onNew}
                 type="button"
               >
@@ -495,16 +494,16 @@ function Tab({
 
   const sizing = cn(
     isFixed
-      ? cn("shrink-0", density !== "full" && "w-7")
+      ? cn("shrink-0", density !== "full" && "w-8")
       : cn(
           "max-w-48 flex-1",
-          { compact: "min-w-15", full: "min-w-20", icon: "min-w-7" }[density],
+          { compact: "min-w-15", full: "min-w-20", icon: "min-w-8" }[density],
         ),
-    density === "full" ? "gap-1.5 px-2" : "justify-center px-1",
+    density === "full" ? "gap-2 px-2.5" : "justify-center px-1",
   );
 
   const className = cn(
-    "group/pane-tab relative flex h-7 cursor-default items-center rounded-md text-xs font-medium select-none",
+    "group/pane-tab relative flex h-8 cursor-default items-center rounded-xl text-sm font-medium select-none",
     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
     sizing,
     isSelected
@@ -523,7 +522,10 @@ function Tab({
       !isSelected &&
       !nextIsSelected &&
       cn(
-        "after:pointer-events-none after:absolute after:top-1/4 after:h-1/2 after:w-px after:bg-border after:content-[''] hover:after:hidden",
+        // Gone under the pointer on either side of it: the tab's own hover,
+        // or the new-tab control's, which is the one button a tab is ever
+        // next to.
+        "after:pointer-events-none after:absolute after:top-1/4 after:h-1/2 after:w-px after:bg-gray-300 after:content-[''] hover:after:hidden has-[+button:hover]:after:hidden dark:after:bg-border/50",
         isFixed ? "after:-right-2" : "after:-right-0.5",
       ),
     isClosing &&
@@ -565,7 +567,7 @@ function Tab({
         <button
           aria-label={`Close ${tab.title}`}
           className={cn(
-            "absolute top-1/2 right-1 size-4 -translate-y-1/2 items-center justify-center rounded-sm hover:bg-foreground/10",
+            "absolute top-1/2 right-1.5 size-5 -translate-y-1/2 items-center justify-center rounded-md hover:bg-foreground/10",
             "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
             isSelected ? "flex" : "hidden group-hover/pane-tab:flex",
           )}
@@ -590,7 +592,7 @@ function Tab({
   if (isClosing) {
     surface = { ...surface, ...COLLAPSED };
   } else if (isDragging) {
-    surface = isSelected ? CARRIED_SELECTED : CARRIED;
+    surface = isSelected ? SELECTED : CARRIED;
   }
 
   const handlers = {

@@ -16,23 +16,28 @@ import { getAIProviderConfigs } from "./get-ai-provider-configs";
 
 /**
  * Signing in with ChatGPT is asked for to use the plan, so it makes the plan's
- * everyday model the default; `chatGPTPlanDefaultModel` says which.
+ * everyday model the default; `chatGPTPlanDefaultModel` says which. Answers
+ * with the model's name, so the sign-in can say what changed.
  */
-export async function setChatGPTPlanDefaultModel(): Promise<void> {
+export async function setChatGPTPlanDefaultModel(): Promise<
+  string | undefined
+> {
   const config = getAIProviderConfigs().find(
     (candidate) => candidate.type === "chatgpt",
   );
   if (!config) {
-    return;
+    return undefined;
   }
   const [result] = await fetchModelResultsForProviders([config], {
     captureException: captureServerException,
     modelCache: diskModelCache,
   });
   const chosen = result?.ok ? chatGPTPlanDefaultModel(result.value) : undefined;
-  if (chosen) {
-    setDefaultModelURI(chosen.uri);
+  if (!chosen) {
+    return undefined;
   }
+  setDefaultModelURI(chosen.uri);
+  return chosen.name.trim();
 }
 
 export async function setDefaultModel(options?: {

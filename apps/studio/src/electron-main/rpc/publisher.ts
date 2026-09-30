@@ -91,6 +91,7 @@ interface PublisherEvents {
     | "nextChat"
     | "nextTab"
     | "openSettings"
+    | "openShortcutGuide"
     | "previousChat"
     | "previousTab"
     | "reloadPage"

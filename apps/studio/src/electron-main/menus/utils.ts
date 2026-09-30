@@ -1,5 +1,6 @@
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { APP_URL, BUG_REPORT_URL, SUPPORT_URL } from "@instrument-org/shared";
 import { app, type MenuItemConstructorOptions } from "electron";
 
@@ -53,11 +54,25 @@ export function createEditMenu(): MenuItemConstructorOptions {
   };
 }
 
-export function createHelpMenu(): MenuItemConstructorOptions {
+/**
+ * `shortcutGuide` opens the keyboard shortcut guide, which only the app
+ * window draws; a window without one leaves the item out.
+ */
+export function createHelpMenu({
+  shortcutGuide,
+}: { shortcutGuide?: () => void } = {}): MenuItemConstructorOptions {
   return {
     label: "Help",
     role: "help" as const,
     submenu: [
+      ...(shortcutGuide
+        ? ([
+            // No accelerator: the guide's `?` is the renderer's to answer,
+            // since a bare key has to yield to whatever is being typed into.
+            { click: shortcutGuide, label: SHORTCUT_GUIDE.label },
+            { type: "separator" },
+          ] satisfies MenuItemConstructorOptions[])
+        : []),
       {
         click: () => {
           void openExternal(APP_URL);

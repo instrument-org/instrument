@@ -1,3 +1,5 @@
+import { type ShortcutAccelerator } from "@/shared/shortcuts";
+
 /**
  * The app window's chords, one table for the menu that draws them, the key
  * binder that answers them, and the tooltips that show them: a chord written
@@ -30,3 +32,28 @@ export const WINDOW_SHORTCUTS = {
 } as const satisfies Record<string, WindowShortcut>;
 
 export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;
+
+/**
+ * The window's chords that its menu answers without the renderer: a tab by
+ * its place, closing the window, zoom, and full screen. The menus read their
+ * keys from here, and the shortcut guide lists them.
+ */
+export const WINDOW_MENU_SHORTCUTS = {
+  actualSize: { accelerator: "CmdOrCtrl+0", label: "Actual Size" },
+  closeWindow: { accelerator: "Shift+CmdOrCtrl+W", label: "Close Window" },
+  lastTab: { accelerator: "CmdOrCtrl+9", label: "Last Tab" },
+  // Stands for eight chords, one per tab, which the menu spells out itself;
+  // written the way the guide reads it.
+  tabByPlace: { accelerator: "CmdOrCtrl+1…8", label: "Tab 1 to 8" },
+  toggleFullScreen: {
+    accelerator: { darwin: "Control+Command+F", default: "F11" },
+    label: "Toggle Full Screen",
+  },
+  zoomIn: { accelerator: "CmdOrCtrl+Plus", label: "Zoom In" },
+  zoomOut: { accelerator: "CmdOrCtrl+-", label: "Zoom Out" },
+} as const satisfies Record<
+  string,
+  { accelerator: ShortcutAccelerator; label: string }
+>;
+
+export type WindowMenuShortcutId = keyof typeof WINDOW_MENU_SHORTCUTS;

@@ -1,4 +1,5 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
   bookmarksAtom,
   recentsAtom,
@@ -20,6 +21,7 @@ import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { FlaskIcon } from "@phosphor-icons/react/Flask";
 import { GearIcon } from "@phosphor-icons/react/Gear";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -352,6 +354,13 @@ export function Omnibar({
         openSettings({ tab: "General" });
       },
       words: ["settings", "preferences"],
+    },
+    {
+      icon: <KeyboardIcon className="size-4" />,
+      id: "shortcut-guide",
+      name: "Keyboard shortcuts",
+      run: openShortcutGuide,
+      words: ["keyboard shortcuts", "shortcuts", "hotkeys"],
     },
     {
       icon: <ArrowsClockwiseIcon className="size-4" />,

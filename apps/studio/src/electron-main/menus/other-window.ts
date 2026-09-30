@@ -1,4 +1,6 @@
 import { resetZoom, zoomIn, zoomOut } from "@/electron-main/windows/controls";
+import { resolveAccelerator } from "@/shared/shortcuts";
+import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { type MenuItemConstructorOptions } from "electron";
 
 import { isDeveloperMode } from "../stores/preferences";
@@ -48,18 +50,16 @@ export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
       // OnboardingZoomRoot. A focused browser guest zooms its own page first,
       // the way it does in the app window.
       {
-        accelerator: "CmdOrCtrl+0",
+        ...WINDOW_MENU_SHORTCUTS.actualSize,
         click: () => {
           resetZoom();
         },
-        label: "Actual Size",
       },
       {
-        accelerator: "CmdOrCtrl+Plus",
+        ...WINDOW_MENU_SHORTCUTS.zoomIn,
         click: () => {
           zoomIn();
         },
-        label: "Zoom In",
       },
       {
         // Ctrl+= is what Windows users physically press to zoom in; Electron only
@@ -82,11 +82,10 @@ export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
         visible: false,
       },
       {
-        accelerator: "CmdOrCtrl+-",
+        ...WINDOW_MENU_SHORTCUTS.zoomOut,
         click: () => {
           zoomOut();
         },
-        label: "Zoom Out",
       },
       {
         // Numpad "-" duplicate of Zoom Out, hidden like the numpad "+" above.
@@ -98,7 +97,13 @@ export function createOtherWindowViewMenu(): MenuItemConstructorOptions {
         visible: false,
       },
       { type: "separator" as const },
-      { role: "togglefullscreen" as const },
+      {
+        accelerator: resolveAccelerator(
+          WINDOW_MENU_SHORTCUTS.toggleFullScreen.accelerator,
+          { isMac: process.platform === "darwin" },
+        ),
+        role: "togglefullscreen" as const,
+      },
     ],
   };
 

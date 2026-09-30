@@ -1,4 +1,5 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import {
@@ -23,6 +24,7 @@ const RECONNECT_DELAY_MS = 1000;
 const MODAL_SAFE_COMMANDS = new Set([
   "findInPage",
   "openSettings",
+  "openShortcutGuide",
   "reloadPage",
   "toggleInbox",
 ]);
@@ -196,6 +198,10 @@ export function useWindowCommands(
             }
             case "openSettings": {
               openSettings({ tab: "General" });
+              break;
+            }
+            case "openShortcutGuide": {
+              openShortcutGuide();
               break;
             }
             case "previousChat": {

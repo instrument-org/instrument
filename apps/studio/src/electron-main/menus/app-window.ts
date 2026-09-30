@@ -2,6 +2,7 @@ import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
+  WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
   type WindowShortcutId,
 } from "@/shared/window-shortcuts";
@@ -118,8 +119,9 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
     visible: false,
   },
   ...Array.from({ length: 9 }, (_, index) => ({
-    accelerator: `CmdOrCtrl+${index + 1}`,
-    label: index === 8 ? "Last Tab" : `Tab ${index + 1}`,
+    ...(index === 8
+      ? WINDOW_MENU_SHORTCUTS.lastTab
+      : { accelerator: `CmdOrCtrl+${index + 1}`, label: `Tab ${index + 1}` }),
     run: () => {
       publisher.publish("window.command", {
         index: index + 1,
@@ -191,11 +193,7 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
       ...menuItems(FILE_CHORDS.slice(1)),
       { type: "separator" },
       ...menuItems(TAB_CHORDS),
-      {
-        accelerator: "Shift+CmdOrCtrl+W",
-        label: "Close Window",
-        role: "close" as const,
-      },
+      { ...WINDOW_MENU_SHORTCUTS.closeWindow, role: "close" as const },
     ],
   };
 
@@ -244,7 +242,14 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     tabMenu,
     historyMenu,
     createWindowMenu(),
-    createHelpMenu(),
+    createHelpMenu({
+      shortcutGuide: () => {
+        // A focused page guest holds the keyboard, and the guide's search
+        // field is the window's, so the window takes the keyboard back first.
+        BrowserWindow.getFocusedWindow()?.webContents.focus();
+        publisher.publish("window.command", "openShortcutGuide");
+      },
+    }),
     ...(isDeveloperMode() ? createDevToolsMenu() : []),
   ];
 }

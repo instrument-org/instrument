@@ -71,6 +71,21 @@ describe("collapseResponsesStream", () => {
     `);
   });
 
+  it("puts back items the completed response left out", async () => {
+    const item = {
+      content: [{ text: "Christmas countdown", type: "output_text" }],
+      role: "assistant",
+      type: "message",
+    };
+    const stream = [
+      `data: ${JSON.stringify({ item, type: "response.output_item.done" })}`,
+      `data: ${JSON.stringify({ response: { id: "resp_1", output: [] }, type: "response.completed" })}`,
+      "",
+    ].join("\n\n");
+    const response = await collapseResponsesStream(new Response(stream));
+    expect(await response.json()).toMatchObject({ output: [item] });
+  });
+
   it("answers a usage limit with a 429", async () => {
     const stream = `data: ${JSON.stringify({
       response: {

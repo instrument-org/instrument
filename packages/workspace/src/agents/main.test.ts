@@ -64,31 +64,16 @@ async function systemPromptFor(parentTaskId?: TaskId): Promise<string> {
 }
 
 describe("mainAgent.getMessages", () => {
-  // A task the conversation's assistant started reports to it; a task the
-  // user opened in the classic window is read by the user, who has to be
-  // spoken to and shown files and sources in the reply.
-  it("reports to the assistant only when a parent started the task", async () => {
-    const started = await systemPromptFor(TaskIdSchema.parse("the-parent"));
-    expect(started).toContain("Nobody is watching this transcript.");
-    expect(started).toContain("Your last message is a receipt, not a report");
-    expect(started).not.toContain("# Showing Files to the User");
-
-    const opened = await systemPromptFor();
-    expect(opened).toContain("The user is here");
-    expect(opened).toContain("# Tone and Style");
-    expect(opened).toContain("# Showing Files to the User");
-    expect(opened).toContain("# Showing Sources to the User");
-    expect(opened).not.toContain("Nobody is watching this transcript.");
-    expect(opened).not.toContain("receipt");
-  });
-
-  it("indents each audience's sections into the prompt as prose", async () => {
-    const opened = await systemPromptFor();
+  // Every task is started by a chat's assistant and reports to it.
+  it("reports to the assistant that started the task", async () => {
+    const prompt = await systemPromptFor(TaskIdSchema.parse("the-parent"));
+    expect(prompt).toContain("Nobody is watching this transcript.");
+    expect(prompt).toContain("Your last message is a receipt, not a report");
+    expect(prompt).not.toContain("# Showing Files to the User");
     // dedent strips the template's own indent; an interpolated block that
     // kept it would read as a code block.
-    expect(opened).not.toMatch(/^ {2,}# /m);
-    expect(opened).toMatch(/\n# Who reads you\nThe user is here/);
-    expect(opened).toMatch(/\n# Showing Files to the User\nAny reply/);
+    expect(prompt).not.toMatch(/^ {2,}# /m);
+    expect(prompt).toMatch(/\n# Who reads you\nThis task was started/);
   });
 
   // A task reaches services under the user's account, so it is told whose.

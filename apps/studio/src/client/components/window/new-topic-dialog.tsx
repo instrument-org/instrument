@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
+import { Textarea } from "@/client/components/ui/textarea";
 import {
   starterEmoji,
   TOPIC_COLORS,
@@ -29,6 +30,7 @@ import {
   ColorRow,
   TopicMarkPicker,
 } from "@/client/components/window/topic-mark-picker";
+import { APP_NAME } from "@instrument-org/shared";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { useRef, useState } from "react";
 
@@ -42,10 +44,12 @@ import { type BackfillCandidate, useTopicBackfill } from "./use-topic-backfill";
  */
 const CONFIDENT = 0.3;
 
-/** What the user chooses about a topic: its name, its mark, its tint. */
+/** What the user chooses about a topic: its name, its mark, its tint, and for one that exists, its instructions. */
 export interface TopicChoice {
   color: string;
   emoji: string;
+  /** What every chat filed under it is given; empty takes them away. */
+  instructions?: string;
   name: string;
 }
 
@@ -54,8 +58,8 @@ const TOPIC_NAME_MAX = 24;
 
 /**
  * A topic as it stands, in the shape the dialog that made it used: its name,
- * its mark, and its tint, for changing any of them, and at its foot the way to
- * delete it. Only what changed is handed back.
+ * its mark, its tint, and its instructions, for changing any of them, and at
+ * its foot the way to delete it. Only what changed is handed back.
  */
 export function EditTopicDialog({
   onChange,
@@ -69,7 +73,13 @@ export function EditTopicDialog({
   onDelete: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  topic: { color?: string; emoji?: string; id: string; name: string };
+  topic: {
+    color?: string;
+    emoji?: string;
+    id: string;
+    instructions?: string;
+    name: string;
+  };
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -82,6 +92,7 @@ export function EditTopicDialog({
         initial={{
           color: topic.color ?? TOPIC_COLORS[8] ?? "#3b6ef6",
           emoji: topic.emoji ?? "",
+          instructions: topic.instructions ?? "",
           name: topic.name,
         }}
         key={topic.id}
@@ -89,6 +100,10 @@ export function EditTopicDialog({
           onChange({
             ...(chosen.color === topic.color ? {} : { color: chosen.color }),
             ...(chosen.emoji === topic.emoji ? {} : { emoji: chosen.emoji }),
+            ...(chosen.instructions === undefined ||
+            chosen.instructions.trim() === (topic.instructions ?? "").trim()
+              ? {}
+              : { instructions: chosen.instructions }),
             ...(chosen.name === topic.name ? {} : { name: chosen.name }),
           });
         }}
@@ -272,6 +287,7 @@ function TopicForm({
   const [name, setName] = useState(initial.name);
   const [emoji, setEmoji] = useState(initial.emoji);
   const [color, setColor] = useState(initial.color);
+  const [instructions, setInstructions] = useState(initial.instructions);
   const [isPicking, setPicking] = useState(false);
   // A new topic's mark follows the best fit for its name until one is chosen
   // by hand; an existing topic's mark stays what its owner picked.
@@ -286,6 +302,7 @@ function TopicForm({
       setName(initial.name);
       setEmoji(initial.emoji);
       setColor(initial.color);
+      setInstructions(initial.instructions);
       setPicking(false);
       setFollows(isNew);
       setFilingFits(false);
@@ -323,7 +340,12 @@ function TopicForm({
       return;
     }
     onCommit(
-      { color, emoji, name: trimmed },
+      {
+        color,
+        emoji,
+        ...(instructions === undefined ? {} : { instructions }),
+        name: trimmed,
+      },
       isFilingFits ? fits.map((chat) => chat.id) : [],
     );
     onOpenChange(false);
@@ -331,7 +353,7 @@ function TopicForm({
 
   return (
     <DialogContent
-      className="sm:max-w-md"
+      className={instructions === undefined ? "sm:max-w-md" : "sm:max-w-lg"}
       // The name is what the dialog is for, so the caret starts in it, with
       // the name selected so typing replaces it; the dialog would otherwise
       // put focus on the first control, which is the mark.
@@ -396,6 +418,27 @@ function TopicForm({
         </p>
         <ColorRow onPick={setColor} value={color} />
       </div>
+      {/* Only for a topic that exists: making one is a moment, and what
+        chats under it should be told comes once there are some. */}
+      {instructions !== undefined && (
+        <div>
+          <label
+            className="block pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
+            htmlFor="topic-instructions"
+          >
+            Instructions
+          </label>
+          <Textarea
+            className="max-h-64 min-h-24 text-sm"
+            id="topic-instructions"
+            onChange={(event) => {
+              setInstructions(event.target.value);
+            }}
+            placeholder={`What ${APP_NAME} should know or do in every chat filed here`}
+            value={instructions}
+          />
+        </div>
+      )}
       <DialogFooter className="sm:justify-between">
         {deleting ? (
           <DeleteTopicButton

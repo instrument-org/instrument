@@ -42,10 +42,14 @@ const createTopicRoute = base
     }),
   );
 
-/** Changes what the user chose about a topic: its name, its mark, its tint. */
+/**
+ * Changes what the user chose about a topic: its name, its mark, its tint,
+ * and its instructions, which an empty string takes away.
+ */
 const updateTopicRoute = base
   .input(
     TopicMarkSchema.extend({
+      instructions: z.string().max(100_000).optional(),
       name: TopicNameSchema.optional(),
       topicId: z.string(),
     }),
@@ -54,6 +58,9 @@ const updateTopicRoute = base
     await updateTopic(input.topicId, {
       ...(input.color === undefined ? {} : { color: input.color }),
       ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
+      ...(input.instructions === undefined
+        ? {}
+        : { instructions: input.instructions }),
       ...(input.name === undefined ? {} : { name: input.name }),
     });
   });

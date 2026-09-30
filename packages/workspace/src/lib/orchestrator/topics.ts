@@ -41,11 +41,13 @@ export const TopicSchema = z.object({
 
 export type Topic = z.output<typeof TopicSchema>;
 
-/** What the user picks about a topic: its name, its mark, its tint. */
+/** What the user picks about a topic: its name, its mark, its tint, its instructions. */
 export interface TopicChange {
   about?: string;
   color?: string;
   emoji?: string;
+  /** Empty takes them away. */
+  instructions?: string;
   name?: string;
 }
 
@@ -169,13 +171,20 @@ export async function updateTopic(
   topicId: string,
   change: TopicChange,
 ): Promise<void> {
-  await changeTopic(topicId, (topic) => ({
-    ...topic,
-    ...(change.about === undefined ? {} : { about: change.about }),
-    ...(change.color === undefined ? {} : { color: change.color }),
-    ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
-    ...(change.name === undefined ? {} : { name: topicName(change.name) }),
-  }));
+  await changeTopic(topicId, ({ instructions, ...topic }) => {
+    const nextInstructions =
+      change.instructions === undefined
+        ? instructions
+        : change.instructions.trim();
+    return {
+      ...topic,
+      ...(change.about === undefined ? {} : { about: change.about }),
+      ...(change.color === undefined ? {} : { color: change.color }),
+      ...(change.emoji === undefined ? {} : { emoji: change.emoji }),
+      ...(nextInstructions ? { instructions: nextInstructions } : {}),
+      ...(change.name === undefined ? {} : { name: topicName(change.name) }),
+    };
+  });
 }
 
 async function changeTopic(

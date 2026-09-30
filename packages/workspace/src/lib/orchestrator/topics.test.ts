@@ -59,6 +59,20 @@ describe("updateTopic", () => {
       { ...made, color: "#ff0000", name: "Ducks" },
     ]);
   });
+
+  it("writes instructions into the file's body, and takes them away when empty", async () => {
+    const made = await createTopic({ name: "Trips" });
+
+    await updateTopic(made.id, { instructions: "  Book aisle seats.\n" });
+    expect(
+      await fs.readFile(path.join(topicsDir(), made.id, "topic.md"), "utf8"),
+    ).toMatch(/---\nBook aisle seats\.\n$/);
+    await updateTopic(made.id, { name: "Travel" });
+    expect((await listTopics())[0]?.instructions).toBe("Book aisle seats.");
+
+    await updateTopic(made.id, { instructions: " " });
+    expect(await listTopics()).toEqual([{ ...made, name: "Travel" }]);
+  });
 });
 
 describe("retireTopic", () => {

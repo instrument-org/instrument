@@ -10,6 +10,7 @@ import { apiURL } from "../lib/providers/api-url";
 import {
   collapseResponsesStream,
   rewriteChatGPTPlanResponsesBody,
+  withoutRetryOnSpentLimit,
 } from "../lib/providers/chatgpt-plan-request";
 import { setProviderAuthHeaders } from "../lib/providers/set-auth-headers";
 import { setAttributionHeaders } from "../lib/set-attribution-headers";
@@ -74,7 +75,8 @@ providerApp.all("/:providerConfigId/*", async (context) => {
       headers,
       method: "POST",
     });
-    return streamed ? upstream : collapseResponsesStream(upstream);
+    const answered = await withoutRetryOnSpentLimit(upstream);
+    return streamed ? answered : collapseResponsesStream(answered);
   }
 
   return proxy(targetUrl.toString(), {

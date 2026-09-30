@@ -1,0 +1,19 @@
+description: >-
+  A task a 1.x build made, with no chat, for the boot migration that adopts it
+  into a chat of its own. Seeded as 1.x left it; the app moves it on boot.
+
+settings:
+  preferences:
+    developerMode: true
+
+tasks:
+  - key: squares-pdf
+    name: Red and blue squares PDF
+    agedMinutes: 60
+    # A 1.x pin, which the migration turns into a starred chat.
+    pinned: true
+    files:
+      - from: red-and-blue-squares.pdf
+        to: output/red-and-blue-squares.pdf
+      - from: make_squares_pdf.py
+        to: work/make_squares_pdf.py

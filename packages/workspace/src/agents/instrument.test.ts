@@ -109,6 +109,23 @@ describe("shouldContinueAfterHandingOff", () => {
     ).resolves.toBe(true);
   });
 
+  it("keeps the turn open when the task waits on the user's answer to a system ask", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("put cat.md on my desktop")),
+          assistant(
+            text("Making it now."),
+            bash(
+              "task new --name 'cat.md' --folder /mnt/Home/Desktop <<'EOF'\nWrite cat.md.\nEOF",
+              'Created cat-md ("cat.md"). macOS is asking the user whether Instrument may use "/mnt/Home/Desktop", and the task starts once they answer: tell them to answer the system\'s dialog.\n',
+            ),
+          ),
+        ],
+      }),
+    ).resolves.toBe(true);
+  });
+
   it("treats a task send the same as a task new", async () => {
     await expect(
       shouldContinueAfterHandingOff({

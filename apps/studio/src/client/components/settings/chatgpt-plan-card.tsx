@@ -8,6 +8,7 @@ import { SiOpenai } from "react-icons/si";
 import { toast } from "sonner";
 
 const USAGE_URL = "https://chatgpt.com/settings/usage";
+const LINKED_APPS_URL = "https://chatgpt.com/settings/security?view=linked-apps";
 
 export function ChatGPTPlanCard() {
   const { data: status } = useQuery(
@@ -37,12 +38,23 @@ export function ChatGPTPlanCard() {
   const signOut = useMutation(
     rpcClient.chatgptPlan.signOut.mutationOptions({
       onSuccess: ({ revoked }) => {
-        if (!revoked) {
-          toast.warning("Signed out, but ChatGPT didn't confirm it", {
+        // Signing out ends this app's session; the app stays connected to the
+        // ChatGPT account until it is disconnected there.
+        toast(
+          revoked
+            ? "Signed out of ChatGPT"
+            : "Signed out, but ChatGPT didn't confirm it",
+          {
+            action: {
+              label: "Disconnect in ChatGPT",
+              onClick: () => {
+                openLink(LINKED_APPS_URL, { addReferral: false });
+              },
+            },
             description:
-              "Disconnect Instrument in ChatGPT settings to end the session there too.",
-          });
-        }
+              "To remove Instrument from your ChatGPT account, disconnect it in ChatGPT settings.",
+          },
+        );
       },
     }),
   );

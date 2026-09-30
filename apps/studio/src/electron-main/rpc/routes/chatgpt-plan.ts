@@ -4,6 +4,7 @@ import {
   chatGPTPlanStatus,
   signInWithChatGPT,
   signOutOfChatGPT,
+  verifyActiveAccount,
 } from "@/electron-main/lib/chatgpt-plan";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
@@ -13,6 +14,7 @@ import { publisher } from "../publisher";
 const live = {
   status: base.handler(async function* ({ signal }) {
     yield chatGPTPlanStatus();
+    void verifyActiveAccount();
     for await (const _ of publisher.subscribe("chatgpt-plan.updated", {
       signal,
     })) {

@@ -87,6 +87,9 @@ interface PendingSignIn {
 
 let pendingSignIn: null | PendingSignIn = null;
 
+const VERIFY_EVERY_MS = 30 * 1000;
+let lastVerifiedAt = 0;
+
 export type ChatGPTPlanStatus =
   | { email?: string; state: "plan-disabled" }
   | { email?: string; state: "signed-in" }
@@ -112,9 +115,38 @@ export function chatGPTPlanProviderConfig():
 }
 
 export function chatGPTPlanStatus(): ChatGPTPlanStatus {
-  if (pendingSignIn) {
-    return { state: "signing-in" };
+  return pendingSignIn ? { state: "signing-in" } : accountStatus();
+}
+
+/**
+ * Whether the active account's session still stands, asked of the API. A
+ * disconnect in ChatGPT's settings reaches us only as a refused request, so
+ * the settings card asks when it opens rather than showing a session that
+ * ended elsewhere as signed in.
+ */
+export async function verifyActiveAccount(): Promise<void> {
+  const account = activeAccount();
+  if (!account?.accessToken || Date.now() - lastVerifiedAt < VERIFY_EVERY_MS) {
+    return;
   }
+  lastVerifiedAt = Date.now();
+  try {
+    const response = await fetch(`${RESOURCE}/models`, {
+      headers: { Authorization: `Bearer ${account.accessToken}` },
+    });
+    if (response.status === 401) {
+      log.warn("ChatGPT refused the session; signing in again is required");
+      saveAccount(withoutTokens(account), { activate: false });
+    }
+  } catch (error) {
+    // Offline says nothing about the session.
+    log.warn("Couldn't check the ChatGPT session", error);
+  }
+}
+
+// The account's own state, apart from a sign-in in flight: what a sign-in
+// that just finished reports, while it is still the one pending.
+function accountStatus(): ChatGPTPlanStatus {
   const account = activeAccount();
   if (!account?.refreshToken) {
     return { state: "signed-out" };
@@ -364,7 +396,7 @@ async function runSignIn({
   const error = callback.get("error");
   if (error) {
     if (error === "access_denied") {
-      return chatGPTPlanStatus();
+      return accountStatus();
     }
     throw new Error(
       `ChatGPT sign-in failed: ${callback.get("error_description") ?? error}`,
@@ -417,7 +449,7 @@ async function runSignIn({
     { activate: true },
   );
   scheduleRefresh();
-  return chatGPTPlanStatus();
+  return accountStatus();
 }
 
 const UNUSABLE_REFRESH_CODES = new Set([

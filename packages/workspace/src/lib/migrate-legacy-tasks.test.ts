@@ -7,6 +7,7 @@ import { ulid } from "ulid";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { migrateLegacyTasks } from "./migrate-legacy-tasks";
+import { readTopicsSync, writeTopicSync } from "./orchestrator/topics";
 
 let root: string;
 
@@ -216,12 +217,16 @@ function writeJson(file: string, value: unknown) {
 
 function writeProject(
   name: string,
-  { id, instructions = "" }: { id: string; instructions?: string },
+  {
+    folders = [],
+    id,
+    instructions = "",
+  }: { folders?: unknown[]; id: string; instructions?: string },
 ) {
   const dir = path.join(root, "projects", name);
   writeJson(path.join(dir, ".instrument", "settings.json"), {
     createdAt: "2026-06-26T11:23:50.372Z",
-    folders: [],
+    folders,
     id,
   });
   fs.writeFileSync(path.join(dir, "AGENTS.md"), instructions);
@@ -575,18 +580,20 @@ describe("migrateLegacyTasks", () => {
   });
 
   it("makes projects into topics, joining one of the same name, and files their tasks' chats under them", () => {
-    const existing = path.join(
-      root,
-      "topics",
-      "top_01M2R5DNCH9PJ09F2CV1VEMM77",
-      "topic.md",
-    );
-    fs.mkdirSync(path.dirname(existing), { recursive: true });
-    fs.writeFileSync(
-      existing,
-      '---\nname: "Shopping"\nemoji: "🛒"\ncreated: 2026-09-17T17:07:55.921Z\n---\nPrefer Target.\n',
-    );
+    writeTopicSync(root, {
+      createdAt: Date.parse("2026-09-17T17:07:55.921Z"),
+      emoji: "🛒",
+      folders: [{ path: "/Users/someone/Lists" }],
+      id: "top_01M2R5DNCH9PJ09F2CV1VEMM77",
+      instructions: "Prefer Target.",
+      name: "Shopping",
+    });
     writeProject("Shopping", {
+      // 1.x stored a folder as its path, or as its path and access.
+      folders: [
+        "/Users/someone/Lists",
+        { access: "read-only", path: "/Users/someone/Receipts" },
+      ],
       id: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
       instructions: "Ship to home.",
     });
@@ -608,34 +615,32 @@ describe("migrateLegacyTasks", () => {
 
     expect(migrateLegacyTasks(root).topicCount).toBe(1);
 
-    expect(fs.readFileSync(existing, "utf8")).toMatchInlineSnapshot(`
-      "---
-      name: "Shopping"
-      emoji: "🛒"
-      created: 2026-09-17T17:07:55.921Z
-      ---
-      Prefer Target.
-
-      Ship to home.
-      "
-    `);
-    const made = fs
-      .readdirSync(path.join(root, "topics"))
-      .find((id) => !existing.includes(id));
+    const topics = readTopicsSync(root);
     expect(
-      fs.readFileSync(
-        path.join(root, "topics", made ?? "", "topic.md"),
-        "utf8",
-      ),
-    ).toMatchInlineSnapshot(`
-      "---
-      name: "Bug tasks"
-      emoji: "🐛"
-      created: 2026-06-26T11:23:50.372Z
-      ---
-      File in Linear.
-      "
-    `);
+      topics.map(({ emoji, folders, instructions, name }) => ({
+        emoji,
+        folders,
+        instructions,
+        name,
+      })),
+    ).toEqual([
+      {
+        emoji: "🐛",
+        folders: undefined,
+        instructions: "File in Linear.",
+        name: "Bug tasks",
+      },
+      {
+        emoji: "🛒",
+        folders: [
+          { path: "/Users/someone/Lists" },
+          { path: "/Users/someone/Receipts" },
+        ],
+        instructions: "Prefer Target.\n\nShip to home.",
+        name: "Shopping",
+      },
+    ]);
+    const made = topics.find((topic) => topic.name === "Bug tasks")?.id;
     expect(sessionOf("2026-06-23-buy-socks").topics).toEqual([
       "top_01M2R5DNCH9PJ09F2CV1VEMM77",
     ]);

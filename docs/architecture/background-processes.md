@@ -121,11 +121,11 @@ A stop carries who asked for it (`stoppedBy`: the agent's own `kill`, the user's
 
 ## What the user sees
 
-**Nothing of its own, today.** The classic window had a pill beside the task title ("2 running") that opened a popover with each command, how long it had been going, and a stop; it went with that window, and the app window has no counterpart yet. The transcript still marks a step whose command is running (`useTaskBackgroundProcesses`), and a chat's task list stops a whole task. The pill's wording kept the word "process" out of sight, since the audience did not ask for a server and does not know they have one; the placements considered are in [wireframes-background-processes.html](../plans/active/wireframes-background-processes.html).
+A task page's header carries a pill beside the task's title and menu ("2 running", [`task-background-processes.tsx`](../../apps/studio/src/client/components/task/task-background-processes.tsx)), drawn only while something the agent started is still running. It opens a popover headed "Still running" that lists each command under the agent's label for it, with how long it has run and a stop for that one, plus a Stop (or Stop all) for every one, and says they end when the app quits or after two hours. The pill and the transcript both read `useTaskBackgroundProcesses`, so the transcript also marks a step whose command is still running and stops it from there; a chat's task list stops a whole task. The wording keeps the word "process" out of sight, since the audience did not ask for a server and does not know they have one.
 
 One other renderer change: a promoted command has no exit code yet, and treating a missing code as non-zero painted every still-running command as a failure — fixed in [`bash-exit-status.ts`](../../apps/studio/src/client/components/message-part/bash-exit-status.ts).
 
-**What is still missing:** nothing warns the user when the two-hour cap fires, so a server stopping on its own reads as a bug. And the sidebar shows nothing, so a task you are not looking at can hold a running process invisibly.
+**What is still missing:** nothing warns the user when the two-hour cap fires, so a server stopping on its own reads as a bug. And nothing outside a task's own page counts them, so a task you are not looking at can hold a running process invisibly.
 
 ## Does ordinary `bash` behave worse?
 

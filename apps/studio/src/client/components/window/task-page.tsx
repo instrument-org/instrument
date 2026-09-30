@@ -1,3 +1,4 @@
+import { TaskBackgroundProcesses } from "@/client/components/task/task-background-processes";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChildTranscript } from "@/client/components/window/child-tasks";
@@ -16,7 +17,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
  * One task's own chat, in its chat's pane: how the user looks over the
  * conversation's shoulder. Headed by the task's title and its menu, which
  * travel together so the menu reads as acting on the task named beside it.
- * A task held from starting says what it waits on beside them. While the task
+ * A task held from starting says what it waits on beside them, and a task
+ * that left commands running shows how many, opening onto a list that stops
+ * them. While the task
  * works or waits, a Stop at the header's far end halts it, or cancels its
  * start. Nothing names the chat: the page stands under it.
  */
@@ -51,6 +54,7 @@ export function TaskPage({ taskId }: { taskId: TaskId }) {
             {held}
           </span>
         ) : null}
+        <TaskBackgroundProcesses taskId={taskId} />
         {(isWorking || held !== undefined) && (
           <Button
             className="ml-auto shrink-0"

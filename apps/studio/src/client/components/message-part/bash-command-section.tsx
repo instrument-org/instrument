@@ -2,31 +2,6 @@ import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { cn } from "../../lib/utils";
 import { ToolCardSection } from "./tool-card";
 
-/** The command on a `bash` card, with the card section's copy and wrap controls. */
-export function BashCommandSection({
-  borderBottom = false,
-  collapsedHeight,
-  command,
-  copyable = true,
-}: {
-  borderBottom?: boolean;
-  collapsedHeight: number;
-  command: string;
-  /** Off while the command is still arriving, when there is nothing final to copy. */
-  copyable?: boolean;
-}) {
-  return (
-    <ToolCardSection
-      borderBottom={borderBottom}
-      collapsedHeight={collapsedHeight}
-      copyText={copyable ? command : undefined}
-      wrappable
-    >
-      <BashCommandPreview command={command} />
-    </ToolCardSection>
-  );
-}
-
 /**
  * A shell command, drawn as one: a prompt, monospace, syntax highlighted.
  *
@@ -35,7 +10,7 @@ export function BashCommandSection({
  * the reader find the string boundaries themselves -- which is most of the work
  * in a `node -e "..."` one-liner.
  */
-function BashCommandPreview({
+export function BashCommandPreview({
   className,
   command,
   singleLine = false,
@@ -74,5 +49,30 @@ function BashCommandPreview({
         <pre className={cn("min-w-0", singleLine && "truncate")}>{command}</pre>
       )}
     </div>
+  );
+}
+
+/** The command on a `bash` card, with the card section's copy and wrap controls. */
+export function BashCommandSection({
+  borderBottom = false,
+  collapsedHeight,
+  command,
+  copyable = true,
+}: {
+  borderBottom?: boolean;
+  collapsedHeight: number;
+  command: string;
+  /** Off while the command is still arriving, when there is nothing final to copy. */
+  copyable?: boolean;
+}) {
+  return (
+    <ToolCardSection
+      borderBottom={borderBottom}
+      collapsedHeight={collapsedHeight}
+      copyText={copyable ? command : undefined}
+      wrappable
+    >
+      <BashCommandPreview command={command} />
+    </ToolCardSection>
   );
 }

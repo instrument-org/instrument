@@ -87,7 +87,8 @@ export function ChatGPTPlanCard() {
                 Use your ChatGPT plan
               </h3>
               <p className="text-sm text-muted-foreground">
-                GPT models with the Plus or Pro plan you already have.
+                Use GPT in {APP_NAME} with the usage your ChatGPT Plus or Pro
+                plan already includes.
               </p>
             </>
           )}

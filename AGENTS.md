@@ -116,7 +116,6 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `docs/architecture/in-app-browser.md` — The per-task browser: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, and what the panel may do that the agent may not.
 - `docs/architecture/background-processes.md` — What happens to a `bash` command that outlives its `yieldMs`: the promotion rule, the `jobs`/`fg`/`kill` command surface, who owns a running process and what ends one, and the caps.
 - `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
-- `docs/architecture/studio-in-the-browser.md` — `apps/studio/web/`: Studio's real renderer served as a plain web page with the Electron boundary replaced by fixtures, for development only. How to add a fixture, and the live-query rules that make one work.
 - `docs/architecture/auto-updater.md` — How Studio finds, stages, and installs a build: the pure-reducer / port-seam / wiring split, channel selection, and why the build offered and the build installed can diverge.
 - `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, the CDP port default, Xvfb, and build approvals.
 - `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.

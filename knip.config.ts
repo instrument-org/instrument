@@ -49,10 +49,6 @@ const config: KnipConfig = {
         "src/page-editor-guest/editor/index.ts!",
         "electron.vite.config.ts!",
         "src/index.html!",
-        // Browser build: reached through Vite aliases, which knip cannot follow.
-        "web/index.html!",
-        "web/src/mock-rpc.ts!",
-        "web/src/shims/*.ts!",
         "electron-builder.ts!",
         "validate-env.ts!",
       ],

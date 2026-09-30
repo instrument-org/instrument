@@ -144,9 +144,6 @@ Three things not to do, each of which costs someone else their session:
 - **`pkill -f electron-vite`, `pkill -f Electron`, or any sweep naming neither a
   pid nor a checkout.** Agents and a human share this machine, and those
   patterns kill every instance on it. `stop` targets the one it started.
-- **`pnpm dev:web` as a stand-in.** It serves the renderer with the Electron
-  boundary replaced by fixtures, for design work. Nothing behind that boundary
-  runs, so it can neither confirm nor deny that a change works.
 
 ## Inspecting a run afterwards
 

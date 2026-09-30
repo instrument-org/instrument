@@ -14,7 +14,7 @@ Recorded because the per-link RPC reads as a small detail of one component and i
 
 **The platform layer is not where a task file link belongs, and it already says so.** [`guard-navigation.ts`](../../apps/studio/src/electron-main/lib/guard-navigation.ts) intercepts `will-navigate` and hands anything that is not the renderer to `openExternal`, whose allowlist is `http`, `https`, `mailto`, `tel` ([`open-external.ts`](../../apps/studio/src/electron-main/lib/open-external.ts)). A `file:` URL is refused there and captured as an exception. That refusal is deliberate and its rationale is in the docblock: the pages doing the linking are built from model output, so a scheme dressed up as a link must not get to pick a program.
 
-Letting a real `file://` anchor through and catching the navigation in main would also not produce the behavior the link wants. Opening the artifact panel is renderer route state (`search.artifactPanel`), so main would have to resolve the mount path against the task's attached folders, work out which task the web contents belongs to, and hand control back to the renderer. It is a longer path to the same place, and none of it exists in the browser build (`apps/studio/web/`).
+Letting a real `file://` anchor through and catching the navigation in main would also not produce the behavior the link wants. Opening the artifact panel is renderer route state (`search.artifactPanel`), so main would have to resolve the mount path against the task's attached folders, work out which task the web contents belongs to, and hand control back to the renderer. It is a longer path to the same place.
 
 **A `file:` URL therefore has to be reduced to a path in the renderer.** react-markdown's `defaultUrlTransform` allows `http`, `https`, `irc`, `ircs`, `mailto`, `xmpp` and empties everything else, so an unrecognized scheme arrives as an empty href rather than as itself. Rewriting `file:` URLs to their pathname in `urlTransform` puts them on the same footing as any other file reference. An emptied href renders as text, since an anchor with no target reads as a live link and does nothing.
 
@@ -41,7 +41,6 @@ What replaced the existence check was not another lookup but a structural rule â
 
 - **Do not add `file:` to the `openExternal` allowlist.** The allowlist is the reason a link in model output cannot choose a program on the user's machine.
 - **Do not render an anchor with an empty href.** It is indistinguishable from a working link and is what an unhandled scheme degrades into.
-- **Whatever resolves file references must work without Electron.** The browser build runs the same renderer, so a design that depends on main-process navigation handling is a design that only half exists.
 
 ## Related
 

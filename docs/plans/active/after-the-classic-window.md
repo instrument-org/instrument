@@ -34,5 +34,4 @@ The app window lists the tasks its chats started (`workspace.chats.tasks`), and 
 - **A child task's error row offers "Try again" that does nothing.** `ChildTranscript` passes `noop` for `onRunAgain` (and did for the deleted "Start new task" too).
 - **The window's command stream does not reconnect.** The classic window's `useAppCommands` resubscribed after a dropped stream (a renderer transport reset); `useWindowCommands` assumes the stream ends only when the window closes.
 - **Chords cannot be driven over CDP.** Injected keys never reach `before-input-event` or the menu, so Cmd+R, the dialog guard on tab chords, and the Developer theme chords were checked by reading only.
-- **Studio in the browser needs app-window fixtures.** See [studio-in-the-browser.md](../../architecture/studio-in-the-browser.md).
 - **A 1.x task still speaks to the user.** `agents/main.ts` picks the reader by `parentTaskId`; a task with none writes for a person rather than for the chat's agent. The migration sets a parent on adoption; until then a 1.x task opened by address keeps its old voice.

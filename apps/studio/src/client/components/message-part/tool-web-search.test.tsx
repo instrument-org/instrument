@@ -112,14 +112,15 @@ describe("ToolWebSearch images", () => {
 // card that says the search came back with nothing is reporting a result the
 // search has not reached.
 describe("ToolWebSearch before results arrive", () => {
-  it("draws nothing while the call runs", () => {
+  it("shows the query and that it is searching while the call runs", () => {
     const { container } = renderWithProviders(
       <ToolCallSessionProvider isRunning isStreaming>
         <ToolWebSearch onRetry={vi.fn()} part={runningPart()} />
       </ToolCallSessionProvider>,
     );
 
-    expect(container.textContent).toBe("");
+    expect(container.textContent).toContain("Searching the web");
+    expect(container.textContent).not.toContain("returned nothing");
   });
 
   it("says the search came back empty once it has", () => {

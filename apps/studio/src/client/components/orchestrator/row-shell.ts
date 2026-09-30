@@ -34,27 +34,36 @@ export const ROW_TINT =
   "before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-0.5 before:rounded-lg before:bg-foreground/4 before:opacity-0 hover:before:opacity-100 focus-visible:before:opacity-100 has-[[data-state=open]]:before:opacity-100 data-[state=open]:before:opacity-100";
 
 /**
+ * The inbox's own tint, which is the open row's bar in grey: the list's
+ * full width, square, and reaching up over the hairline
+ * above the row (`-top-px`). The tint is see-through, so it cannot cover a
+ * hairline: the row's own goes transparent while it is tinted, and so does
+ * the one on the row under it, and a row under the pointer meets the rows
+ * beside it with no line and no gap. The first row has no hairline above it.
+ */
+const INBOX_ROW_TINT =
+  "before:pointer-events-none before:absolute before:inset-x-0 before:-top-px before:bottom-0 before:bg-foreground/4 before:opacity-0 first:before:top-0 hover:before:opacity-100 focus-visible:before:opacity-100 has-[[data-state=open]]:before:opacity-100 data-[state=open]:before:opacity-100";
+
+/**
  * The face every row of the inbox wears: a click target rather than text,
  * with no selection and no text cursor over it, the tint above while the
  * pointer is on it or its menu is open, a hairline above it that stops short
  * of the list's edges and square corners, and, for the row whose chat is
- * open beside the list, the shape of a card lifted off the list: the card's
- * ground, rounded corners, an edge, no tint, and no hairline of its own or
- * on the row under it. The card takes the air around it out of its own
- * height rather than adding it, so its footprint in the list is a resting
- * row's and nothing under it moves as a chat opens or closes: its words
- * stay where the row had them, with a hair less of the card's ground above
- * and below them.
+ * open beside the list, a flat bar of the brand's pale green across the
+ * list's full width: no edge, no shadow, no corners, and no hairline of its
+ * own or on the row under it. Its words stay where every row has them, so
+ * nothing moves as a chat opens or closes.
  */
 export function rowClassName(density: RowDensity, isOpen: boolean) {
   return cn(
-    "group/row relative flex cursor-default gap-2 border-t border-border px-2 select-none first:border-t-0 focus-visible:outline-hidden [[data-open]+&]:border-transparent",
-    density === "slim"
-      ? cn("items-center", isOpen ? "my-0.5 h-8" : "h-9")
-      : cn("items-start", isOpen ? "my-0.5 py-2" : "py-2.5"),
+    "group/row relative flex cursor-default gap-2 border-t border-border px-3 select-none first:border-t-0 focus-visible:outline-hidden",
+    // No hairline where the tint is, above the row or under it.
+    "hover:border-transparent focus-visible:border-transparent has-[[data-state=open]]:border-transparent data-[state=open]:border-transparent",
+    "[:focus-visible+&]:border-transparent [:has([data-state=open])+&]:border-transparent [:hover+&]:border-transparent [[data-open]+&]:border-transparent [[data-state=open]+&]:border-transparent",
+    density === "slim" ? "h-9 items-center" : "items-start py-2.5",
     isOpen
-      ? "rounded-xl border-transparent bg-card shadow-sm ring-1 ring-border"
-      : ROW_TINT,
+      ? "border-transparent bg-brand-50 dark:bg-brand-500/15"
+      : INBOX_ROW_TINT,
   );
 }
 

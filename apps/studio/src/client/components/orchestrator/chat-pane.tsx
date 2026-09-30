@@ -171,7 +171,9 @@ export function ChatPane({
       />
       {/* Under the line rather than on it, the way mail puts it: the search
         is about the rows, and it narrows whatever the line has chosen. */}
-      <div className="shrink-0 px-3 pt-2">
+      {/* `pb-1` on the list's own 4px: 8px down to the first row, the same
+        as the field keeps from the pane's sides. */}
+      <div className="shrink-0 px-2 pt-2 pb-1">
         <SearchField
           onChange={(search) => {
             changeFilters({ ...filters, search });

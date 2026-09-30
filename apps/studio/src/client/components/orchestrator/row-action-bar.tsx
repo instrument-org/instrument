@@ -39,13 +39,18 @@ export function RowActionBar({
   return (
     <span
       className={cn(
-        "hidden shrink-0 items-center gap-0.5 rounded-md bg-background p-0.5 shadow-xs ring-1 ring-border group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex",
+        // The shadow's hairline is the tile's one edge.
+        "hidden shrink-0 items-center gap-0.5 rounded-md bg-background p-0.5 shadow-xs group-hover/row:flex focus-within:flex has-[[data-state=open]]:flex",
         // In the corner outright on a tall row, over the pills that step
-        // aside for it; on a slim row, in the flow where the pills were, so
-        // the holds before it stay in reach.
-        density === "slim" ? undefined : "absolute top-1.5 right-1.5",
+        // aside for it, 10px from the row's top and from its end, the row's
+        // own top padding; on a slim row, in the flow where the pills were, so
+        // the holds before it stay in reach, and pulled 6px into the row's
+        // 12px end padding so the 6px above and below it is the gap at its
+        // side too.
+        density === "slim" ? "-mr-1.5" : "absolute top-2.5 right-2.5",
         isHeld && "flex",
       )}
+      data-slot="row-actions"
       onAuxClick={stopHere}
       onClick={stopHere}
       onKeyDown={stopHere}

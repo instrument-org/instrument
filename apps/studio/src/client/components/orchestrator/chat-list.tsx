@@ -184,7 +184,7 @@ export function ChatList({
     >
       {rows.length === 0 ? (
         isLoading ? (
-          <div aria-busy className="mx-2" role="status">
+          <div aria-busy role="status">
             {SKELETON_WIDTHS.map(([title, peek]) => (
               <RowSkeleton
                 density={density}
@@ -200,9 +200,10 @@ export function ChatList({
           </p>
         )
       ) : (
-        // Inset from the list's edges, so the hairlines between rows stop
-        // short of them and the open row's card has air at its sides.
-        <div className="mx-2">{rows}</div>
+        // Edge to edge, as the open row's bar and the hover tint are: each
+        // row pads its words in by 12px, a step inside the 8px line the
+        // search and the filters stand on.
+        <div>{rows}</div>
       )}
       {/* The search reads inside the place the column stands in, so what it
         finds elsewhere is said at the list's end, whether or not anything
@@ -236,7 +237,7 @@ function RowSkeleton({
   return (
     <div
       className={cn(
-        "flex gap-2 border-t border-border px-2 first:border-t-0",
+        "flex gap-2 border-t border-border px-3 first:border-t-0",
         density === "slim" ? "h-9 items-center" : "flex-col py-2.5",
       )}
     >

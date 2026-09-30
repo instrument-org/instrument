@@ -105,7 +105,9 @@ export function FilterHead(props: FilterProps) {
   return (
     <div
       aria-label="Filters"
-      className="flex shrink-0 items-center gap-1 px-3 pt-2 select-none"
+      // The same 8px in from the card's side as from its top, and from the
+      // rows' own edge under it.
+      className="flex shrink-0 items-center gap-1 px-2 pt-2 select-none"
       role="group"
     >
       <ViewPicker
@@ -358,7 +360,10 @@ function ViewPicker({
           {chosen ? (
             <TopicFace size="chip" topic={chosen} />
           ) : (
-            <ChatsCircleIcon className="size-7 shrink-0 text-brand-800/50 dark:text-brand-200/50" />
+            // Filled and in the chip's own ink while it is the view, the way
+            // a chosen place's mark is: an outline let halfway back read as a
+            // lighter stroke than the marks beside it.
+            <ChatsCircleIcon className="size-7 shrink-0" weight="fill" />
           )}
           <span className="truncate">{chosen ? chosen.name : "Chats"}</span>
           {/* Sized to the 15px label beside it, in the chip's green let
@@ -393,11 +398,11 @@ function ViewPicker({
           <ChatsCircleIcon
             className={cn(
               "size-7 shrink-0",
-              // Green on the green of the chosen row, grey on none.
-              chats.isOn
-                ? "text-brand-800/50 dark:text-brand-200/50"
-                : "text-muted-foreground",
+              // Filled in the row's green while chosen, an outline in grey
+              // while not: the same two states a place's mark takes.
+              !chats.isOn && "text-muted-foreground",
             )}
+            weight={chats.isOn ? "fill" : "regular"}
           />
           <span className="truncate">Chats</span>
         </PickerRow>
@@ -434,7 +439,10 @@ function ViewPicker({
             pick(onNew);
           }}
         >
-          <PlusSquareIcon className="size-7 shrink-0" />
+          {/* The Chats mark's size, in the light weight: an outlined square is
+            all stroke, and at the regular weight it reads heavier than the
+            marks over it. */}
+          <PlusSquareIcon className="size-7 shrink-0" weight="light" />
           <span>New topic</span>
         </PickerRow>
       </PopoverContent>

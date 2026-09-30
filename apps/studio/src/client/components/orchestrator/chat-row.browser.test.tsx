@@ -198,9 +198,7 @@ function actionOf(row: HTMLElement, label: string) {
 
 /** The bar of actions at the row's right end, and what it offers, in order. */
 function barOf(row: HTMLElement) {
-  const bar = [...row.querySelectorAll<HTMLElement>("span")].find((span) =>
-    span.className.includes("ring-1"),
-  );
+  const bar = row.querySelector<HTMLElement>('[data-slot="row-actions"]');
   if (!bar) {
     throw new Error("no action bar");
   }
@@ -441,7 +439,13 @@ describe("ChatRow", () => {
     expect(peekOf(slim)?.getBoundingClientRect().height).toBeLessThanOrEqual(
       24,
     );
-    expect(slim.scrollWidth).toBe(slim.clientWidth);
+    // Nothing the row holds spills past its edge. Its children rather than
+    // its `scrollWidth`, which also counts the hover tint running out to the
+    // list's edges.
+    const edge = slim.getBoundingClientRect().right;
+    for (const child of slim.children) {
+      expect(child.getBoundingClientRect().right).toBeLessThanOrEqual(edge);
+    }
   });
 
   it("carries no reply count, and the time at either width", async () => {
@@ -635,7 +639,7 @@ describe("ChatRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("wears the hover tint inside the row, and brings the corner's controls up in place of the pills then", async () => {
+  it("wears the hover tint across the list's full width, and brings the corner's controls up in place of the pills then", async () => {
     const { row } = await renderRow(
       chat({
         holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
@@ -662,13 +666,14 @@ describe("ChatRow", () => {
     const edge = row.getBoundingClientRect();
     expect(box.top).toBeLessThan(titleBefore.bottom);
     expect(box.right).toBeLessThanOrEqual(edge.right);
-    // The tint is a rounded field drawn inside the row, a hair in from its
-    // hairlines, rather than the row's own box tinted edge to edge.
+    // The tint is a square bar across the row's full width, the open row's
+    // bar in grey, rather than a rounded field inside the row.
     expect(getComputedStyle(row).backgroundColor).toBe("rgba(0, 0, 0, 0)");
     const tint = getComputedStyle(row, "::before");
     expect(tint.opacity).toBe("1");
     expect(tint.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
-    expect(tint.borderRadius).not.toBe("0px");
+    expect(tint.borderRadius).toBe("0px");
+    expect([tint.left, tint.right]).toEqual(["0px", "0px"]);
     // Nothing on the row moves with the pointer.
     expect(titleOf(row).getBoundingClientRect()).toEqual(titleBefore);
     expect(marksOf(row)[0]?.getBoundingClientRect()).toEqual(chipBefore);

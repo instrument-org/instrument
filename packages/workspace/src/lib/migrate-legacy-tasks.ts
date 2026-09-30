@@ -7,14 +7,12 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import superjson from "superjson";
 import { ulid } from "ulid";
-import { parse as parseYaml } from "yaml";
 
 import {
   CHATS_DIR_NAME,
   TASK_DB_FILE_NAME,
   TASK_FOLDER_NAMES,
   TASKS_DIR_NAME,
-  TOPICS_DIR_NAME,
 } from "../constants";
 import { MOUNT } from "../mount-points";
 import { RelativePathSchema } from "../schemas/paths";
@@ -28,9 +26,17 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { assignMountNames } from "./assign-mount-names";
 import { chatFolderName } from "./generate-task-folder-name";
 import { translateTaskFolderPaths } from "./orchestrator/mount-paths";
-import { serializeTopic, type Topic, topicName } from "./orchestrator/topics";
+import {
+  newTopicId,
+  readTopicsSync,
+  type Topic,
+  type TopicFolder,
+  topicName,
+  unusedTopicName,
+  writeTopicSync,
+} from "./orchestrator/topics";
 import { forgetRecordFolders } from "./record-folders";
-import { isRecord, splitFrontmatter } from "./skills";
+import { isRecord } from "./skills";
 import { writeJsonFileSync } from "./write-json-file-sync";
 
 // Where what the move leaves behind is kept, beside the window record's
@@ -53,9 +59,6 @@ const WINDOW_RECORD_TITLE = "Instrument";
 // in a chat has to name the task's folder: not a URL, an anchor, or a path
 // from the root.
 const RELATIVE_LINK = /(\]\(\s*<?)(?![a-z][\w+.-]*:|[/#?])([^)\s>]+)/gi;
-
-const TOPIC_FILE_NAME = "topic.md";
-const TOPIC_ID_PREFIX = "top_";
 
 // A leading emoji in a project's folder name, with the space after it: the
 // mark 1.x users gave their projects, which a topic keeps as its own mark.
@@ -103,6 +106,8 @@ interface ConversationMessage {
 interface LegacyProject {
   createdAt: number;
   emoji?: string;
+  /** The folders its tasks worked in, which the topic's chats are given. */
+  folders: TopicFolder[];
   id: string;
   instructions: string;
   name: string;
@@ -113,13 +118,6 @@ interface LegacyProject {
 interface StoreRow {
   blob: null | Uint8Array;
   key: string;
-}
-
-interface TopicFile {
-  body: string;
-  file: string;
-  id: string;
-  name: string;
 }
 
 /**
@@ -165,7 +163,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
 
   const projects = readProjects(rootDir);
   const topicOf = new Map<string, string>();
-  const topics = readTopicFiles(rootDir);
+  const topics = readTopicsSync(rootDir);
   for (const project of projects) {
     try {
       const topic = topicForProject(rootDir, project, topics);
@@ -692,6 +690,23 @@ function present(target: string): boolean {
 }
 
 /**
+ * A project's folders as a topic holds them: by path, a 1.x project having
+ * stored either the bare path or the path with its access, which a topic's
+ * folders no longer carry.
+ */
+function projectFolders(raw: unknown): TopicFolder[] {
+  return (Array.isArray(raw) ? raw : []).flatMap((folder): TopicFolder[] => {
+    const folderPath =
+      typeof folder === "string"
+        ? folder
+        : isRecord(folder) && typeof folder.path === "string"
+          ? folder.path
+          : undefined;
+    return folderPath ? [{ path: folderPath }] : [];
+  });
+}
+
+/**
  * What the user saw of a task: every top-level session in the order they
  * began, each message in order, the user's words and files and the replies'
  * words, and nothing else. Also which files the user sent, and which its
@@ -929,6 +944,7 @@ function readProjects(rootDir: string): LegacyProject[] {
             validDate(settings?.createdAt)?.getTime() ??
             fs.statSync(source).birthtimeMs,
           ...(emoji ? { emoji } : {}),
+          folders: projectFolders(settings?.folders),
           id: id.data,
           instructions,
           name: bare,
@@ -937,35 +953,6 @@ function readProjects(rootDir: string): LegacyProject[] {
       ];
     }),
   );
-}
-
-/** Every topic's file, read for its name and body. */
-function readTopicFiles(rootDir: string): TopicFile[] {
-  const dir = path.join(rootDir, TOPICS_DIR_NAME);
-  return readDirs(dir).flatMap((id): TopicFile[] => {
-    if (!id.startsWith(TOPIC_ID_PREFIX)) {
-      return [];
-    }
-    const file = path.join(dir, id, TOPIC_FILE_NAME);
-    let raw: string;
-    try {
-      raw = fs.readFileSync(file, "utf8");
-    } catch {
-      return [];
-    }
-    const split = splitFrontmatter(raw);
-    let data: unknown = {};
-    if (split.ok) {
-      try {
-        data = parseYaml(split.block) as unknown;
-      } catch {
-        data = {};
-      }
-    }
-    const name =
-      isRecord(data) && typeof data.name === "string" ? data.name : id;
-    return [{ body: split.ok ? split.body : raw, file, id, name }];
-  });
 }
 
 /** The text with each `/mnt/<old>/` a chat knows by another name spelled that way. */
@@ -1019,43 +1006,57 @@ function storedValue(blob: null | Uint8Array): unknown {
 
 /**
  * The topic a project's chats carry: the one already called by its name, with
- * the project's instructions added to its own, or a new one made from it.
+ * the project's instructions added after its own and its folders beside them,
+ * or a new one made from it. Asking again for the same project changes
+ * nothing, since what it would add is already there.
  */
 function topicForProject(
   rootDir: string,
   project: LegacyProject,
-  topics: TopicFile[],
+  topics: Topic[],
 ): { id: string; made: boolean } {
-  const existing = topics.find(
+  const index = topics.findIndex(
     (topic) => nameKey(topic.name) === nameKey(project.name),
   );
+  const existing = topics[index];
   if (existing) {
-    if (project.instructions && !existing.body.includes(project.instructions)) {
-      const body = existing.body.trim();
-      const raw = fs.readFileSync(existing.file, "utf8");
-      const head = body ? raw.slice(0, raw.lastIndexOf(body)) : raw;
-      const next = `${head.trimEnd()}\n${body ? `${body}\n\n` : ""}${project.instructions}\n`;
-      fs.writeFileSync(existing.file, next, "utf8");
-      existing.body = `${body}\n\n${project.instructions}`;
+    const held = new Set((existing.folders ?? []).map((folder) => folder.path));
+    const added = project.folders.filter((folder) => !held.has(folder.path));
+    const body = existing.instructions?.trim() ?? "";
+    const addsInstructions =
+      project.instructions !== "" && !body.includes(project.instructions);
+    if (added.length > 0 || addsInstructions) {
+      const next: Topic = {
+        ...existing,
+        ...(added.length > 0
+          ? { folders: [...(existing.folders ?? []), ...added] }
+          : {}),
+        ...(addsInstructions
+          ? {
+              instructions: body
+                ? `${body}\n\n${project.instructions}`
+                : project.instructions,
+            }
+          : {}),
+      };
+      writeTopicSync(rootDir, next);
+      topics[index] = next;
     }
     return { id: existing.id, made: false };
   }
   const topic: Topic = {
     createdAt: project.createdAt,
     ...(project.emoji ? { emoji: project.emoji } : {}),
-    id: `${TOPIC_ID_PREFIX}${ulid(project.createdAt)}`,
+    ...(project.folders.length > 0 ? { folders: project.folders } : {}),
+    id: newTopicId(project.createdAt),
     ...(project.instructions ? { instructions: project.instructions } : {}),
-    name: project.name,
+    name: unusedTopicName(
+      project.name,
+      topics.map((known) => known.name),
+    ),
   };
-  const file = path.join(rootDir, TOPICS_DIR_NAME, topic.id, TOPIC_FILE_NAME);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, serializeTopic(topic), "utf8");
-  topics.push({
-    body: project.instructions,
-    file,
-    id: topic.id,
-    name: topic.name,
-  });
+  writeTopicSync(rootDir, topic);
+  topics.push(topic);
   return { id: topic.id, made: true };
 }
 

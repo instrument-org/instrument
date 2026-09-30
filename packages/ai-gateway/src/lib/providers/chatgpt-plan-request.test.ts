@@ -87,7 +87,7 @@ describe("collapseResponsesStream", () => {
     expect(await response.json()).toMatchObject({ output: [item] });
   });
 
-  it("answers a usage limit with a 429", async () => {
+  it("answers a spent plan in the stream with a 403, which the SDK does not retry", async () => {
     const stream = `data: ${JSON.stringify({
       response: {
         error: {
@@ -98,7 +98,7 @@ describe("collapseResponsesStream", () => {
       type: "response.failed",
     })}\n\n`;
     const response = await collapseResponsesStream(new Response(stream));
-    expect(response.status).toBe(429);
+    expect(response.status).toBe(403);
   });
 });
 

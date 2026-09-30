@@ -2,6 +2,7 @@ import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { rpcClient } from "@/client/rpc/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { isDefinedError } from "@orpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -41,6 +42,12 @@ export function ChatGPTLoginButton({
       onSuccess: (result) => {
         if (result.state === "signed-in") {
           onSuccess();
+        } else if (result.state === "plan-disabled") {
+          // Signed in, but the plan was not shared with the app, so there is
+          // nothing to run on yet.
+          toast.error(`${APP_NAME} isn't allowed to use your plan yet`, {
+            description: "Continue with ChatGPT again and allow plan use.",
+          });
         }
       },
     }),

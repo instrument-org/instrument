@@ -171,8 +171,10 @@ function statusForError(error: unknown): number {
     case "subscription_sharing_invalid_user": {
       return 401;
     }
+    // 403 rather than 429, as before the stream: the SDK retries a 429, and
+    // a spent plan stays spent however soon it is asked again.
     case "subscription_sharing_usage_limit_exceeded": {
-      return 429;
+      return 403;
     }
     case "subscription_sharing_usage_unavailable":
     case "subscription_sharing_user_unavailable": {

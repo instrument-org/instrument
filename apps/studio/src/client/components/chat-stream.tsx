@@ -51,6 +51,7 @@ import {
   groupStandInRowId,
   isActiveToolPart,
   isPartBeingWritten,
+  isStepInFlight,
   isVisibleAssistantPart,
   planRow,
   type TranscriptGroup as TranscriptGroupData,
@@ -607,6 +608,16 @@ export function ChatStream({
           partIndex,
         });
         if (!node) {
+          // A step the group holds without drawing still takes its place in
+          // the run, since the group it belongs to may open on it.
+          if (row?.groupId !== undefined) {
+            messageRows.push({
+              groupId: row.groupId,
+              hasProseBoundaryAbove: row.hasProseBoundaryAbove,
+              id: rowId,
+              node: null,
+            });
+          }
           continue;
         }
 
@@ -1094,10 +1105,7 @@ function collectGroups({
         {isOpeningSlice &&
           group.headingRowId === undefined &&
           group.phase === "working" && (
-            <WorkingGroupHeading
-              key="heading"
-              startedAt={group.startedAt}
-            />
+            <WorkingGroupHeading key="heading" startedAt={group.startedAt} />
           )}
         {standsAtHead && standIn}
         {nodes}
@@ -1108,7 +1116,8 @@ function collectGroups({
 }
 
 /**
- * Whether the message holds a part that draws a row.
+ * Whether the message holds a part that draws a row, or a step in flight that
+ * the working group it opens will draw a heading for.
  *
  * Not the same question as how many rows the transcript loop went on to emit
  * for it. That is a count of what was drawn, and the fold sits between the two:
@@ -1121,19 +1130,31 @@ function hasVisibleAssistantParts({
   lastMessageId,
   message,
 }: AssistantMessageCheck) {
-  return message.parts.some((part, partIndex) =>
-    isVisibleAssistantPart({
-      isDeveloperMode,
-      isLivePart: isPartBeingWritten({
+  return message.parts.some((part, partIndex) => {
+    const isStreaming = isToolPart(part)
+      ? isToolStreaming(part, message)
+      : false;
+    return (
+      isStepInFlight({
         isAgentRunning,
+        isStreaming,
         lastMessageId,
         message,
-        partIndex,
-      }),
-      isStreaming: isToolPart(part) ? isToolStreaming(part, message) : false,
-      part,
-    }),
-  );
+        part,
+      }) ||
+      isVisibleAssistantPart({
+        isDeveloperMode,
+        isLivePart: isPartBeingWritten({
+          isAgentRunning,
+          lastMessageId,
+          message,
+          partIndex,
+        }),
+        isStreaming,
+        part,
+      })
+    );
+  });
 }
 
 /**

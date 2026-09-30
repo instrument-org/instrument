@@ -497,6 +497,22 @@ describe("ChatStream groups the agent never named", () => {
     ).not.toContain("brand-shiny-text");
   });
 
+  // Every call in a batch streamed in and waiting its turn, so none of them
+  // draws: the run is still working, and still says so.
+  it("stays on screen while every call it holds waits for the queue", () => {
+    renderParts(
+      [
+        blankThinking(),
+        queued("Reading the first quarter"),
+        queued("Reading the second quarter"),
+      ],
+      { isAgentRunning: true },
+    );
+
+    expect(screen.getByText(/^Working/)).toBeDefined();
+    expect(screen.queryByText("Reading the first quarter")).toBeNull();
+  });
+
   it("counts up how long the run has been working", () => {
     vi.useFakeTimers({ now: new Date(0) });
     try {

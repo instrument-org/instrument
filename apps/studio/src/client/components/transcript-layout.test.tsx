@@ -281,6 +281,10 @@ function draw(
         }
       }
     }
+    // Held in the group without drawing anything.
+    if (row.isHeld) {
+      continue;
+    }
     const { isHidden, isIndented } = planRow({ group, isExpanded, row });
     lines.push(
       `${isHidden ? "·" : " "} ${isIndented ? "  " : ""}${labels.get(rowId) ?? rowId}`,
@@ -796,6 +800,55 @@ describe("groups the agent never named", () => {
 });
 
 describe("while the agent is working", () => {
+  // A batch of calls streams in one after another and waits for the queue, so
+  // which of the run's steps draws changes at every moment of it, and for a
+  // moment none does. The run is one group under one id through all of it:
+  // opened on another row, it would be drawn afresh, and with no row it would
+  // leave the transcript.
+  it("holds one group through a batch of calls streaming in and queueing", () => {
+    const frames: Spec[][] = [
+      [["blank-thinking", "pondering"]],
+      [
+        ["blank-thinking", "pondering"],
+        ["running", "one"],
+      ],
+      [
+        ["blank-thinking", "pondering"],
+        ["queued", "one"],
+        ["running", "two"],
+      ],
+      [
+        ["blank-thinking", "pondering"],
+        ["queued", "one"],
+        ["queued", "two"],
+      ],
+      [
+        ["blank-thinking", "pondering"],
+        ["running", "one"],
+        ["queued", "two"],
+      ],
+    ];
+
+    expect(
+      frames.map((specs) => {
+        const { labels, layout } = build([{ role: "assistant", specs }], {
+          isAgentRunning: true,
+        });
+        return [...layout.groups.values()]
+          .map((group) => `${labels.get(group.id) ?? ""} ${group.phase}`)
+          .join(", ");
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "pondering working",
+        "pondering working",
+        "pondering working",
+        "pondering working",
+        "pondering working",
+      ]
+    `);
+  });
+
   it("heads an unannounced run with the working clock and the call the queue reached under it", () => {
     expect(
       draw(

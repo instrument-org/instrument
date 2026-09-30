@@ -123,6 +123,12 @@ export interface TranscriptRow {
   hasProseBoundaryAbove?: boolean;
   id: StoreId.Part;
   /**
+   * A step the group holds without drawing: a call streamed in and queued, or
+   * a thought with nothing under it. It keeps its place in the run, so the
+   * group can open on it, and counts for nothing else.
+   */
+  isHeld?: boolean;
+  /**
    * What kind of thing it is, which is the whole of how it behaves in a group.
    *
    * A **step** is the agent at work -- a tool call or a reasoning block -- and
@@ -193,15 +199,23 @@ export function buildTranscriptLayout({
   let inAssistantMessage = false;
 
   // Every row joins through here, so a group's own tally of what it holds can
-  // never fall behind the rows attributed to it.
-  const push = (id: StoreId.Part, kind: TranscriptRow["kind"]) => {
+  // never fall behind the rows attributed to it. A held row (see below) is a
+  // member that draws nothing, so it is left out of the tally.
+  const push = (
+    id: StoreId.Part,
+    kind: TranscriptRow["kind"],
+    { isHeld = false }: { isHeld?: boolean } = {},
+  ) => {
     const row: TranscriptRow = { groupId: open?.id, id, kind };
+    if (isHeld) {
+      row.isHeld = true;
+    }
     if (inAssistantMessage && rowAbove && isProseBoundary(rowAbove, row)) {
       row.hasProseBoundaryAbove = true;
     }
     rowAbove = inAssistantMessage ? row : undefined;
     flat.push(row);
-    if (!open || id === open.headingRowId) {
+    if (!open || id === open.headingRowId || isHeld) {
       return;
     }
     open.foldedRowCount++;
@@ -262,6 +276,20 @@ export function buildTranscriptLayout({
           part,
         })
       ) {
+        // A step that draws nothing is still a step of the run, and is held
+        // in it: a call streamed in and queued behind another, or a thought
+        // that opened with nothing under it. Membership read off what draws
+        // moves under a run in flight, because what draws changes as the
+        // agent works -- a batch of calls each shows while its input streams,
+        // hides while it waits its turn, and shows again once it runs. The
+        // group opens on whichever of its rows comes first, so it would be
+        // opened on a different row at every one of those moments, drawn
+        // afresh each time, and between two of them it would have no row
+        // at all and leave the transcript.
+        if (isToolPart(part) || part.type === "reasoning") {
+          open ??= emptyGroup(part);
+          push(part.metadata.id, "step", { isHeld: true });
+        }
         continue;
       }
 
@@ -477,6 +505,37 @@ export function isPartBeingWritten({
     isAgentRunning &&
     message.id === lastMessageId &&
     partIndex === message.parts.length - 1
+  );
+}
+
+/**
+ * Whether this part is a step the agent is at work on in the message being
+ * written, whether or not it draws a row yet: a call streaming in or queued, or
+ * a thought still open. The turn it is in has begun, which is what the
+ * transcript needs to know before any of its steps draws.
+ */
+export function isStepInFlight({
+  isAgentRunning,
+  isStreaming,
+  lastMessageId,
+  message,
+  part,
+}: {
+  isAgentRunning: boolean;
+  isStreaming: boolean;
+  lastMessageId: string | undefined;
+  message: SessionMessage.WithParts;
+  part: SessionMessagePart.Type;
+}): boolean {
+  if (isToolPart(part)) {
+    // A heading with no title yet is not a step, and draws nothing.
+    return isStreaming && part.type !== "tool-start_activity";
+  }
+  return (
+    part.type === "reasoning" &&
+    part.state === "streaming" &&
+    isAgentRunning &&
+    message.id === lastMessageId
   );
 }
 

@@ -66,6 +66,7 @@ providerApp.all("/:providerConfigId/*", async (context) => {
   ) {
     const { body, streamed } = rewriteChatGPTPlanResponsesBody(
       await context.req.json<Record<string, unknown>>(),
+      { sessionId },
     );
     headers.delete("content-length");
     const upstream = await proxy(targetUrl.toString(), {

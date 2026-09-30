@@ -145,7 +145,8 @@ interface ChatStreamProps {
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
-  onRunAgain: () => void;
+  /** Sends the last message again, where there is somewhere to send it. */
+  onRunAgain?: () => void;
   /**
    * The orchestrator's conversation is the one thing the user talks to, so
    * it opens no turn with the wordmark: there is nobody else it could be.

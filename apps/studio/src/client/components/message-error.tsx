@@ -39,7 +39,8 @@ interface MessageErrorProps {
   message: SessionMessage.Assistant;
   onContinue: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  onRunAgain: () => void;
+  /** Sends the last message again; the card offers no retry without it. */
+  onRunAgain?: () => void;
 }
 
 const CHATGPT_USAGE_URL = "https://chatgpt.com/settings/usage";
@@ -108,10 +109,10 @@ export function MessageError({
   const canReadProviderText = isDeveloperMode || isOwnKeyProvider;
   const showActions = isLastMessage && !isAgentRunning;
 
-  const { detail, summary } = describeForProvider(
-    describeMessageError(error),
-    { classification, provider },
-  );
+  const { detail, summary } = describeForProvider(describeMessageError(error), {
+    classification,
+    provider,
+  });
   const modelName = message.metadata.aiGatewayModel?.name.trim();
   const needsAutoRecovery =
     !!platformError && requiresAutoModelRecovery(message);
@@ -127,14 +128,14 @@ export function MessageError({
   // provider's own line is the one that says what; on a classified error ours
   // already says it better.
   const providerLine =
-    canReadProviderText && (classification === undefined || classification === "unknown")
+    canReadProviderText &&
+    (classification === undefined || classification === "unknown")
       ? providerSentence(error)
       : undefined;
 
   const actions = errorActions({
     autoModelURI: needsAutoRecovery
-      ? modelsData?.models.find((m) => m.providerId === OUR_MODELS.text.id)
-          ?.uri
+      ? modelsData?.models.find((m) => m.providerId === OUR_MODELS.text.id)?.uri
       : undefined,
     classification,
     kind: error.kind,
@@ -295,11 +296,13 @@ function errorActions({
   classification: string | undefined;
   kind: MessageErrorData["kind"];
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  onRunAgain: () => void;
+  onRunAgain: (() => void) | undefined;
   openLink: ReturnType<typeof useOpenExternalLink>;
   provider: string | undefined;
 }): ErrorAction[] {
-  const tryAgain = { label: "Try again", onClick: onRunAgain };
+  const tryAgain = onRunAgain
+    ? [{ label: "Try again", onClick: onRunAgain }]
+    : [];
   const providerSettings = {
     label: "Open provider settings",
     onClick: () => {
@@ -327,19 +330,19 @@ function errorActions({
               openLink(CHATGPT_USAGE_URL, { addReferral: false });
             },
           },
-          tryAgain,
+          ...tryAgain,
         ]
-      : [providerSettings, tryAgain];
+      : [providerSettings, ...tryAgain];
   }
   if (classification === "auth" || kind === "api-key") {
     if (provider === OUR_MODELS.providerType) {
-      return [tryAgain];
+      return tryAgain;
     }
     return provider === "chatgpt"
-      ? [{ ...providerSettings, label: "Sign in again" }, tryAgain]
-      : [providerSettings, tryAgain];
+      ? [{ ...providerSettings, label: "Sign in again" }, ...tryAgain]
+      : [providerSettings, ...tryAgain];
   }
-  return [tryAgain];
+  return tryAgain;
 }
 
 /**
@@ -358,7 +361,8 @@ function ErrorDetails({
     error.kind === "api-call" && error.responseBody
       ? prettyBody(error.responseBody)
       : undefined;
-  const toolInput = error.kind === "invalid-tool-input" ? error.input : undefined;
+  const toolInput =
+    error.kind === "invalid-tool-input" ? error.input : undefined;
 
   return (
     <div className="relative mt-2 flex flex-col gap-3 rounded-lg bg-black/3 p-3 pr-10 text-xs dark:bg-white/3">

@@ -87,7 +87,6 @@ export function ChildTranscript({ task }: { task: Task }) {
                     onContinue={noop}
                     onModelChange={noop}
                     onRetry={noop}
-                    onRunAgain={noop}
                     renderAsItems
                     task={task}
                   />

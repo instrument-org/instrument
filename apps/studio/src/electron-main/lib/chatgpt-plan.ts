@@ -125,11 +125,21 @@ export function chatGPTPlanStatus(): ChatGPTPlanStatus {
  * ended elsewhere as signed in.
  */
 export async function verifyActiveAccount(): Promise<void> {
-  const account = activeAccount();
+  let account = activeAccount();
   if (!account?.accessToken || Date.now() - lastVerifiedAt < VERIFY_EVERY_MS) {
     return;
   }
   lastVerifiedAt = Date.now();
+  // A refused expired token says nothing about the session, which the
+  // refresh token still holds, so an old one is replaced before asking. A
+  // refresh that could not finish leaves the question for the next time.
+  if ((account.expiresAt ?? 0) - Date.now() < REFRESH_MARGIN_MS) {
+    await refreshActiveAccount();
+    account = activeAccount();
+    if (!account?.accessToken || (account.expiresAt ?? 0) <= Date.now()) {
+      return;
+    }
+  }
   try {
     const response = await fetch(`${RESOURCE}/models`, {
       headers: { Authorization: `Bearer ${account.accessToken}` },
@@ -471,6 +481,10 @@ const UNUSABLE_REFRESH_CODES = new Set([
 
 let refreshing: null | Promise<void> = null;
 let refreshTimer: NodeJS.Timeout | undefined;
+/** Refreshes that failed in a row, for how long to wait before the next. */
+let failedRefreshes = 0;
+/** The longest wait between refreshes that keep failing. */
+const MAX_REFRESH_BACKOFF_MS = 5 * 60 * 1000;
 
 /** Keep the active account's token fresh; call once at startup. */
 export function scheduleRefresh(): void {
@@ -483,9 +497,16 @@ export function scheduleRefresh(): void {
     (account.expiresAt ?? 0) - REFRESH_MARGIN_MS,
     account.earliestRefreshAt ?? 0,
   );
+  // A refresh that failed leaves the token as due as it was, so without a
+  // growing wait the next try would come every second for as long as the
+  // network or the server is down.
+  const backoff =
+    failedRefreshes === 0
+      ? 0
+      : Math.min(1000 * 2 ** failedRefreshes, MAX_REFRESH_BACKOFF_MS);
   refreshTimer = setTimeout(
     () => void refreshActiveAccount(),
-    Math.max(due - Date.now(), 1000),
+    Math.max(due - Date.now(), 1000, backoff),
   );
   refreshTimer.unref();
 }
@@ -537,6 +558,7 @@ async function doRefresh(): Promise<void> {
     saveAccount(accountFromTokens(tokens, account, account), {
       activate: false,
     });
+    failedRefreshes = 0;
   } catch (error) {
     if (
       error instanceof TokenError &&
@@ -547,6 +569,7 @@ async function doRefresh(): Promise<void> {
       return;
     }
     // A network or server failure keeps the credentials for the next try.
+    failedRefreshes += 1;
     log.warn("ChatGPT token refresh failed", error);
   }
 }

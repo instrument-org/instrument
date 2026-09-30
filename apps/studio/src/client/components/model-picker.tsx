@@ -26,6 +26,7 @@ import {
   type AIGatewayModel,
   type AIGatewayModelURI,
   modelNameFromURI,
+  providerTypeFromURI,
 } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import uFuzzy from "@leeoniya/ufuzzy";
@@ -61,6 +62,10 @@ import { AIProviderIcon } from "./ai-provider-icon";
 import { FuzzyHighlight } from "./fuzzy-highlight";
 import { ModelBadges } from "./model-badges";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+
+/** Why a model from a ChatGPT plan is missing: the account signed out. */
+const CHATGPT_SIGNED_OUT_REASON =
+  "It comes from your ChatGPT plan, and you're signed out. Sign in with ChatGPT, or pick another model.";
 
 interface MatchedModel {
   model: AIGatewayModel.Type;
@@ -216,9 +221,15 @@ export function ModelPicker({
   const selectedName = selectedModel?.name.trim() ?? unresolvedName;
   // A restriction carries its own explanation; anything else unavailable is a
   // model no connected provider serves.
+  const needsChatGPTSignIn =
+    !!unresolvedName &&
+    !!modelURI &&
+    providerTypeFromURI(modelURI) === "chatgpt";
   const unavailableReason =
     selectedModel?.restricted?.message ??
-    "No connected AI provider offers this model. Pick another one, or switch to Auto.";
+    (needsChatGPTSignIn
+      ? CHATGPT_SIGNED_OUT_REASON
+      : "No connected AI provider offers this model. Pick another one, or switch to Auto.");
 
   const placeholderText = isLoading
     ? "Loading models..."
@@ -323,6 +334,7 @@ export function ModelPicker({
               autoModel={autoModel}
               checked={isAutoMode}
               isUnavailable={isUnavailable}
+              needsChatGPTSignIn={needsChatGPTSignIn}
               onCheckedChange={(checked) => {
                 if (checked && autoModel) {
                   onValueChange(autoModel.uri);
@@ -412,12 +424,14 @@ function AutoModeSwitch({
   autoModel,
   checked,
   isUnavailable,
+  needsChatGPTSignIn,
   onCheckedChange,
   selectedName,
 }: {
   autoModel?: AIGatewayModel.Type;
   checked: boolean;
   isUnavailable: boolean;
+  needsChatGPTSignIn: boolean;
   onCheckedChange: (checked: boolean) => void;
   selectedName: null | string;
 }) {
@@ -442,10 +456,25 @@ function AutoModeSwitch({
               : "Selected model is unavailable"}
           </span>
           <span className="text-xs text-muted-foreground">
-            Switch to Auto, or pick another model below.
+            {needsChatGPTSignIn
+              ? CHATGPT_SIGNED_OUT_REASON
+              : "Switch to Auto, or pick another model below."}
           </span>
         </div>
         <div className="flex gap-2">
+          {needsChatGPTSignIn && (
+            <Button
+              className="flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                openSettings({ tab: "Providers" });
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Sign in with ChatGPT
+            </Button>
+          )}
           <Button
             className="flex-1"
             onClick={(e) => {

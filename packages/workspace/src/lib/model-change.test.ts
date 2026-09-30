@@ -63,8 +63,28 @@ describe("modelChangeSincePreviousTurn", () => {
         contextLength: 200_000,
         modelId: "current-model",
         name: "Mock Model",
+        providerName: "Test Provider",
       },
     });
+  });
+
+  it("sees a move to the same model from another provider", () => {
+    const elsewhere = {
+      metadata: {
+        aiGatewayModel: {
+          name: "Mock Model",
+          providerName: "Other Provider",
+          uri: "author/current-model?provider=other&providerConfigId=other",
+        },
+        modelId: "current-model",
+      },
+      parts: [],
+      role: "assistant",
+    } as unknown as SessionMessage.WithParts;
+    expect(
+      modelChangeSincePreviousTurn({ messages: [user(), elsewhere, user()], model })
+        ?.from.providerName,
+    ).toBe("Other Provider");
   });
 
   it("carries an absent window through rather than inventing one", () => {

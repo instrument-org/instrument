@@ -5,11 +5,21 @@ export function ModelChangeNote({
 }: {
   data: SessionMessageDataPart.ModelChangeDataPart;
 }) {
+  // The provider is named only when it changed: the same model from two
+  // providers, or two models with one name, would otherwise read as no move.
+  const providers =
+    data.from.providerName &&
+    data.to.providerName &&
+    data.from.providerName.trim() !== data.to.providerName.trim()
+      ? { from: data.from.providerName.trim(), to: data.to.providerName.trim() }
+      : undefined;
   return (
     <div className="my-4 w-full px-4 text-center text-xs text-balance text-muted-foreground">
-      Switched model from {displayName(data.from)} to{" "}
+      Switched model from {displayName(data.from)}
+      {providers && ` on ${providers.from}`} to{" "}
       <span className="font-medium text-muted-foreground">
         {displayName(data.to)}
+        {providers && ` on ${providers.to}`}
       </span>
     </div>
   );

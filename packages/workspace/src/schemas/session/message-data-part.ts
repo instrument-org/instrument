@@ -301,17 +301,17 @@ export namespace SessionMessageDataPart {
    * Diff cadence, so a session that never switches carries none of these, and a
    * session that switches once carries one rather than one per later turn.
    */
+  const ModelChangeSideSchema = z.object({
+    contextLength: z.number().int().positive().optional(),
+    modelId: z.string(),
+    name: z.string().optional(),
+    // Who served it, so a move between two providers of one model reads as
+    // a move at all.
+    providerName: z.string().optional(),
+  });
   const ModelChangeDataPartSchema = z.object({
-    from: z.object({
-      contextLength: z.number().int().positive().optional(),
-      modelId: z.string(),
-      name: z.string().optional(),
-    }),
-    to: z.object({
-      contextLength: z.number().int().positive().optional(),
-      modelId: z.string(),
-      name: z.string().optional(),
-    }),
+    from: ModelChangeSideSchema,
+    to: ModelChangeSideSchema,
   });
 
   export type ModelChangeDataPart = z.output<typeof ModelChangeDataPartSchema>;

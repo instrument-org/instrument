@@ -25,6 +25,14 @@ vi.mock("@/client/rpc/client", () => ({
         },
       },
     },
+    utils: {
+      openExternalLink: {
+        mutationOptions: (options: object) => ({
+          mutationFn: () => Promise.resolve(),
+          ...options,
+        }),
+      },
+    },
   },
 }));
 

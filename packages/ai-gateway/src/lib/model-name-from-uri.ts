@@ -1,3 +1,5 @@
+import { type AIProviderType } from "@instrument-org/shared";
+
 import { AIGatewayModel } from "../schemas/model";
 import { AIGatewayModelURI } from "../schemas/model-uri";
 import { generateModelName } from "./generate-model-name";
@@ -20,4 +22,14 @@ export function modelNameFromURI(uri: string): null | string {
   );
 
   return canonicalId.success ? generateModelName(canonicalId.data) : null;
+}
+
+/**
+ * The provider type a model URI was chosen from, for saying why a selection
+ * the list no longer resolves went missing. Null if the URI is not shaped
+ * like one.
+ */
+export function providerTypeFromURI(uri: string): AIProviderType | null {
+  const parsed = AIGatewayModelURI.parse(uri);
+  return parsed.ok ? parsed.value.params.provider : null;
 }

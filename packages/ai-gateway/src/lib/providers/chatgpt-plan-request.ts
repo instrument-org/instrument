@@ -43,12 +43,19 @@ export async function collapseResponsesStream(
     return upstream;
   }
   const text = await upstream.text();
+  // The terminal event's response may arrive with an empty `output`, the
+  // items having been sent one by one as they finished, so they are kept
+  // and put back.
+  const items: unknown[] = [];
   for (const event of parseServerSentEvents(text)) {
-    if (event.type === "response.completed") {
-      return Response.json(event.response);
+    if (event.type === "response.output_item.done") {
+      items.push(event.item);
     }
-    if (event.type === "response.incomplete") {
-      return Response.json(event.response);
+    if (
+      event.type === "response.completed" ||
+      event.type === "response.incomplete"
+    ) {
+      return Response.json(withOutput(event.response, items));
     }
     if (event.type === "response.failed") {
       const error = (event.response as undefined | { error?: unknown })?.error;
@@ -147,4 +154,14 @@ function statusForError(error: unknown): number {
       return 400;
     }
   }
+}
+
+function withOutput(response: unknown, items: unknown[]): unknown {
+  if (typeof response !== "object" || response === null) {
+    return response;
+  }
+  const output = "output" in response ? response.output : undefined;
+  return Array.isArray(output) && output.length > 0
+    ? response
+    : { ...response, output: items };
 }
